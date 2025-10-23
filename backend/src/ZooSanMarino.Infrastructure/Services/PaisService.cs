@@ -26,7 +26,6 @@ public class PaisService : IPaisService
     public async Task<PaisDto> CreateAsync(CreatePaisDto dto)
     {
         var ent = new Pais {
-            PaisId     = dto.PaisId,
             PaisNombre = dto.PaisNombre
         };
         _ctx.Paises.Add(ent);

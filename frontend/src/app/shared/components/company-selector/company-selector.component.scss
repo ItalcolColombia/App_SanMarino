@@ -1,0 +1,149 @@
+.company-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.company-selector__container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.company-selector__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+}
+
+.company-selector__input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.company-selector__select {
+  width: 100%;
+  padding: 8px 12px;
+  padding-right: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  
+  &:focus {
+    outline: none;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+  }
+  
+  &:hover {
+    border-color: #9ca3af;
+  }
+}
+
+.company-selector__icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 16px;
+  opacity: 0.6;
+}
+
+.company-selector__status {
+  padding: 4px 8px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.company-selector__status-text {
+  color: #0369a1;
+}
+
+.company-selector__no-companies {
+  padding: 8px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.company-selector__no-companies-text {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+// Variantes de tamaño
+.company-selector--sm {
+  .company-selector__select {
+    padding: 6px 10px;
+    padding-right: 36px;
+    font-size: 12px;
+  }
+  
+  .company-selector__label {
+    font-size: 12px;
+  }
+  
+  .company-selector__icon {
+    right: 10px;
+    font-size: 14px;
+  }
+}
+
+.company-selector--lg {
+  .company-selector__select {
+    padding: 12px 16px;
+    padding-right: 48px;
+    font-size: 16px;
+  }
+  
+  .company-selector__label {
+    font-size: 16px;
+  }
+  
+  .company-selector__icon {
+    right: 16px;
+    font-size: 18px;
+  }
+}
+
+// Variante minimal
+.company-selector--minimal {
+  .company-selector__select {
+    border: none;
+    background: transparent;
+    padding: 4px 8px;
+    font-weight: 500;
+    
+    &:focus {
+      box-shadow: none;
+      background: rgba(245, 158, 11, 0.1);
+      border-radius: 4px;
+    }
+  }
+  
+  .company-selector__label {
+    display: none;
+  }
+  
+  .company-selector__status {
+    display: none;
+  }
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .company-selector__select {
+    font-size: 16px; // Evitar zoom en iOS
+  }
+}

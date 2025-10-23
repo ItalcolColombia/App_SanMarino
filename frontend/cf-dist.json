@@ -1,0 +1,47 @@
+{
+  "CallerReference": "2025-09-26T11:38:37",
+  "Comment": "SanMarino Angular Frontend",
+  "Enabled": true,
+  "PriceClass": "PriceClass_All",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "s3-sanmarino-frontend-021891592771-us-east-2",
+        "DomainName": "sanmarino-frontend-021891592771-us-east-2.s3.us-east-2.amazonaws.com",
+        "OriginPath": "/browser",
+        "S3OriginConfig": { "OriginAccessIdentity": "" },
+        "OriginAccessControlId": "E1HUZLT1PUMKTA"
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "s3-sanmarino-frontend-021891592771-us-east-2",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "Compress": true,
+    "AllowedMethods": {
+      "Quantity": 2,
+      "Items": ["GET","HEAD"],
+      "CachedMethods": {
+        "Quantity": 2,
+        "Items": ["GET","HEAD"]
+      }
+    },
+    "ForwardedValues": {
+      "QueryString": true,
+      "Cookies": { "Forward": "none" }
+    },
+    "MinTTL": 0
+  },
+  "CustomErrorResponses": {
+    "Quantity": 2,
+    "Items": [
+      { "ErrorCode": 403, "ResponseCode": "200", "ResponsePagePath": "/index.html" },
+      { "ErrorCode": 404, "ResponseCode": "200", "ResponsePagePath": "/index.html" }
+    ]
+  },
+  "DefaultRootObject": "index.html",
+  "ViewerCertificate": { "CloudFrontDefaultCertificate": true },
+  "HttpVersion": "http2",
+  "IsIPV6Enabled": true
+}

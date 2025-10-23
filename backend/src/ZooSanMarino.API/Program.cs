@@ -1,50 +1,137 @@
+// file: backend/src/ZooSanMarino.API/Program.cs
+using System.Text;
+using System.Text.RegularExpressions;
+using System.IO;
+using EFCore.NamingConventions;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using EFCore.NamingConventions;
-using ZooSanMarino.Infrastructure.Persistence;
-using ZooSanMarino.Infrastructure.Services;
+
+using Swashbuckle.AspNetCore.Swagger;          // ISwaggerProvider (para /swagger/download)
+using Swashbuckle.AspNetCore.SwaggerUI;       // Opciones UI
+
+using ZooSanMarino.API.Extensions;
+using ZooSanMarino.API.Infrastructure;
+using ZooSanMarino.API.Configuration;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Application.Options;
+using ZooSanMarino.Application.Validators;
 using ZooSanMarino.Domain.Entities;
-using System.Text;
+using ZooSanMarino.Infrastructure.Persistence;
+using ZooSanMarino.Infrastructure.Providers;
+using ZooSanMarino.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ─────────────────────────────
-// CORS
-// ─────────────────────────────
-builder.Services.AddCors(options =>
+// ─────────────────────────────────────
+// 0) Cargar .env y shim ZOO_CONN
+// ─────────────────────────────────────
+static void LoadDotEnvIfExists(string path)
 {
-    options.AddPolicy("DevCors", policy =>
+    if (!File.Exists(path)) return;
+    foreach (var raw in File.ReadAllLines(path))
     {
-        policy
-          .AllowAnyOrigin()
-          .AllowAnyMethod()
-          .AllowAnyHeader();
-    });
-});
+        var line = raw.Trim();
+        if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) continue;
+        var idx = line.IndexOf('=');
+        if (idx <= 0) continue;
 
-// ─────────────────────────────
-// DBContext
-// ─────────────────────────────
-var conn = builder.Configuration.GetConnectionString("ZooSanMarinoContext");
+        var key = line[..idx].Trim();
+        var val = line[(idx + 1)..].Trim();
+
+        if ((val.StartsWith("\"") && val.EndsWith("\"")) || (val.StartsWith("'") && val.EndsWith("'")))
+            val = val[1..^1];
+
+        Environment.SetEnvironmentVariable(key, val);
+    }
+}
+
+var envPaths = new[]
+{
+    Path.Combine(builder.Environment.ContentRootPath, ".env"),
+    Path.Combine(builder.Environment.ContentRootPath, "..", ".env"),
+    Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".env"),
+};
+foreach (var p in envPaths) LoadDotEnvIfExists(Path.GetFullPath(p));
+
+// Shim legacy
+var legacyConn = Environment.GetEnvironmentVariable("ZOO_CONN");
+if (!string.IsNullOrWhiteSpace(legacyConn))
+{
+    Environment.SetEnvironmentVariable("ConnectionStrings__ZooSanMarinoContext", legacyConn);
+}
+
+// ─────────────────────────────────────
+// 1) Config
+// ─────────────────────────────────────
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
+// ─────────────────────────────────────
+// 2) Puerto
+// ─────────────────────────────────────
+var port = builder.Configuration["PORT"] ?? "5002";
+builder.WebHost.UseUrls($"http://+:{port}");
+
+// ─────────────────────────────────────
+// 3) Conexión a BD (con fallbacks)
+// ─────────────────────────────────────
+var conn =
+    builder.Configuration.GetConnectionString("ZooSanMarinoContext")
+    ?? builder.Configuration["ConnectionStrings:ZooSanMarinoContext"]
+    ?? builder.Configuration["ZOO_CONN"]
+    ?? Environment.GetEnvironmentVariable("ZOO_CONN");
+
+if (string.IsNullOrWhiteSpace(conn))
+    throw new InvalidOperationException("ConnectionStrings:ZooSanMarinoContext no está configurada (revisa .env y/o appsettings).");
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
+// ─────────────────────────────────────
+// 4) JWT
+// ─────────────────────────────────────
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtSettings"));
+var jwt = builder.Configuration.GetSection("JwtSettings").Get<JwtOptions>() ?? new JwtOptions();
+jwt.EnsureValid();
+builder.Services.AddSingleton(jwt);
+
+// ─────────────────────────────────────
+// 5) CORS (AllowedOrigins)
+// ─────────────────────────────────────
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+builder.Services.AddCorsFromOrigins("AppCors", allowedOrigins);
+
+// ─────────────────────────────────────
+/* 6) DbContext */
+// ─────────────────────────────────────
 builder.Services.AddDbContext<ZooSanMarinoContext>(opts =>
     opts.UseSnakeCaseNamingConvention()
-        .UseNpgsql(conn)
-);
+        .UseNpgsql(conn));
 
-// ─────────────────────────────
-// Identity Hasher para Login
-// ─────────────────────────────
+// ─────────────────────────────────────
+// 7) Infra básica
+// ─────────────────────────────────────
 builder.Services.AddScoped<IPasswordHasher<Login>, PasswordHasher<Login>>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
+builder.Services.AddScoped<ICompanyResolver, CompanyResolver>();
+builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
 
-// ─────────────────────────────
-// Inyección de servicios (Application Layer)
-// ─────────────────────────────
+// ─────────────────────────────────────
+// 8) Servicios de aplicación/infra
+// ─────────────────────────────────────
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserFarmService, UserFarmService>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<INucleoService, NucleoService>();
@@ -58,69 +145,377 @@ builder.Services.AddScoped<IDepartamentoService, DepartamentoService>();
 builder.Services.AddScoped<IMunicipioService, MunicipioService>();
 builder.Services.AddScoped<ILoteSeguimientoService, LoteSeguimientoService>();
 builder.Services.AddScoped<IMasterListService, MasterListService>();
-builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
+builder.Services.AddScoped<IProduccionDiariaService, ProduccionDiariaService>();
+builder.Services.AddScoped<IProduccionService, ProduccionService>();
+builder.Services.AddScoped<ISeguimientoProduccionService, SeguimientoProduccionService>();
+builder.Services.AddScoped<ICatalogItemService, CatalogItemService>();
+builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
+// builder.Services.AddScoped<IEmailService, EmailService>(); // Temporalmente comentado para debug
+// builder.Services.AddScoped<IConfigurationService, ConfigurationService>(); // Temporalmente comentado para debug
 
-// ─────────────────────────────
-// JWT Authentication
-// ─────────────────────────────
-var jwt = builder.Configuration.GetSection("JwtSettings");
-var key = Encoding.UTF8.GetBytes(jwt["Key"]!);
+// Configuración segura de credenciales - temporalmente comentada para debug
+// builder.Services.AddSecureConfiguration(builder.Configuration);
+builder.Services.AddScoped<IFarmInventoryMovementService, FarmInventoryMovementService>();
+builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>(); 
+
+// ✅ Servicio orquestador único de roles/permissions/menús
+builder.Services.AddScoped<IRoleCompositeService, RoleCompositeService>();
+
+// Producción Avícola Raw
+builder.Services.AddScoped<IProduccionAvicolaRawService, ProduccionAvicolaRawService>();
+
+// Excel Import Service
+builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
+
+// Liquidación Técnica Service
+builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();
+
+// Liquidación Técnica Comparación Service
+builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
+
+// Sistema de Inventario de Aves
+builder.Services.AddScoped<IInventarioAvesService, InventarioAvesService>();
+builder.Services.AddScoped<IMovimientoAvesService, MovimientoAvesService>();
+builder.Services.AddScoped<IHistorialInventarioService, HistorialInventarioService>();
+
+// Guía Genética Service
+builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
+
+// Proveedores
+builder.Services.AddScoped<IAlimentoNutricionProvider, EfAlimentoNutricionProvider>();
+builder.Services.AddScoped<IGramajeProvider, NullGramajeProvider>();
+
+
+builder.Services.AddScoped<IDbIntrospectionService, DbIntrospectionService>();
+builder.Services.AddScoped<IDbSchemaService, DbSchemaService>();
+builder.Services.AddScoped<IReadOnlyQueryService, ReadOnlyQueryService>();
+
+// DB Studio Service
+builder.Services.AddScoped<IDbStudioService, DbStudioService>();
+
+
+// ─────────────────────────────────────
+// 9) FluentValidation + HealthChecks
+// ─────────────────────────────────────
+builder.Services.AddValidatorsFromAssemblyContaining<SeguimientoLoteLevanteDtoValidator>();
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddHealthChecks();
+
+// ─────────────────────────────────────
+// 10) Auth (JWT) — ignora preflight OPTIONS
+// ─────────────────────────────────────
+var keyBytes = Encoding.UTF8.GetBytes(jwt.Key ?? "");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-       .AddJwtBearer(opts =>
-       {
-           opts.TokenValidationParameters = new TokenValidationParameters
-           {
-               ValidateIssuer = true,
-               ValidateAudience = true,
-               ValidateIssuerSigningKey = true,
-               ValidIssuer = jwt["Issuer"],
-               ValidAudience = jwt["Audience"],
-               IssuerSigningKey = new SymmetricSecurityKey(key),
-               ClockSkew = TimeSpan.Zero
-           };
-       });
+    .AddJwtBearer(opts =>
+    {
+        opts.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ValidIssuer = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+            ClockSkew = TimeSpan.Zero
+        };
 
-// ─────────────────────────────
-// Swagger (con soporte Bearer Token)
-// ─────────────────────────────
+        opts.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                Console.WriteLine($"=== JWT OnMessageReceived ===");
+                Console.WriteLine($"Request Method: {ctx.Request.Method}");
+                Console.WriteLine($"Request Path: {ctx.Request.Path}");
+                Console.WriteLine($"Authorization Header: {ctx.Request.Headers.Authorization}");
+                Console.WriteLine($"Token: {ctx.Token}");
+                
+                if (HttpMethods.IsOptions(ctx.Request.Method)) 
+                {
+                    Console.WriteLine("OPTIONS request - NoResult()");
+                    ctx.NoResult();
+                }
+                else
+                {
+                    Console.WriteLine("Non-OPTIONS request - continuing");
+                }
+                
+                Console.WriteLine($"=== END JWT OnMessageReceived ===");
+                return Task.CompletedTask;
+            },
+            OnAuthenticationFailed = ctx =>
+            {
+                Console.WriteLine($"=== JWT OnAuthenticationFailed ===");
+                Console.WriteLine($"Exception: {ctx.Exception?.Message}");
+                Console.WriteLine($"Request Path: {ctx.Request.Path}");
+                Console.WriteLine($"=== END JWT OnAuthenticationFailed ===");
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+// ─────────────────────────────────────
+// 11) Authorization (allow-all + provider permisivo)
+// ─────────────────────────────────────
+builder.Services.AddAuthorization(opt =>
+{
+    var allowAll = new AuthorizationPolicyBuilder()
+        .RequireAssertion(_ => true)
+        .Build();
+
+    opt.DefaultPolicy  = allowAll;   // [Authorize] sin política
+    opt.FallbackPolicy = allowAll;   // endpoints sin atributo
+});
+
+// Vital: este provider hace que CUALQUIER [Authorize(Policy="...")] también permita pasar
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, AllowAllPolicyProvider>();
+
+// ─────────────────────────────────────
+// 12) Swagger + Bearer + CustomSchemaIds + Descarga JSON
+// ─────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "ZooSanMarino", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "ZooSanMarino",
+        Version = "v1",
+        Description = "API de gestión ZooSanMarino (Roles, Usuarios, Granjas, Núcleos, Galpones, Lotes, Inventario, Producción, etc.)"
+    });
 
-    var sec = new OpenApiSecurityScheme
+    // 🔐 Bearer
+    var scheme = new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Ingrese: Bearer {token}"
+        Type = SecuritySchemeType.Http,
+        Scheme = JwtBearerDefaults.AuthenticationScheme, // "bearer"
+        BearerFormat = "JWT",
+        Description = "Pega SOLO el token (Swagger añadirá 'Bearer ').",
+        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = JwtBearerDefaults.AuthenticationScheme }
     };
+    c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, scheme);
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement { { scheme, Array.Empty<string>() } });
 
-    c.AddSecurityDefinition("Bearer", sec);
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement { [sec] = new[] { "Bearer" } });
+    // ✅ Evitar colisiones de schemaId (tipos anidados o repetidos)
+    c.CustomSchemaIds(type =>
+    {
+        var full = type.FullName ?? type.Name;
+        full = Regex.Replace(full, @"`\d+", ""); // genéricos
+        full = full.Replace("+", ".");           // anidados
+        full = full.Replace('.', '_');           // schemaId seguro
+        return full;
+    });
+
+    // ✅ Configuración para manejar archivos IFormFile
+    c.MapType<IFormFile>(() => new OpenApiSchema
+    {
+        Type = "string",
+        Format = "binary"
+    });
+
+    // ✅ Configuración para multipart/form-data
+    c.OperationFilter<FileUploadOperationFilter>();
+
+    // (Opcional) XML comments
+    // var xml = Path.Combine(AppContext.BaseDirectory, "ZooSanMarino.API.xml");
+    // if (File.Exists(xml)) c.IncludeXmlComments(xml, includeControllerXmlComments: true);
 });
 
-// ─────────────────────────────
-// Controllers y Middleware
-// ─────────────────────────────
-builder.Services.AddControllers();
+// ─────────────────────────────────────
+/* 13) Controllers */
+// ─────────────────────────────────────
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "v1"));
+// ─────────────────────────────────────
+/* 14) Pipeline HTTP */
+// ─────────────────────────────────────
 
-app.UseCors("DevCors");
+// 14.1 CSS para tema oscuro de Swagger UI (sin archivos estáticos)
+const string swaggerDarkCss = """
+:root {
+  --swagger-font-size: 14px;
+}
+body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e5e7eb !important; }
+.swagger-ui .topbar { border-bottom: 1px solid #1f2937; }
+.swagger-ui .topbar .download-url-wrapper .select-label select { background: #111827; color:#e5e7eb; }
+.swagger-ui .info, .swagger-ui .opblock, .swagger-ui .model, .swagger-ui .opblock-tag { color: #e5e7eb; }
+.swagger-ui .opblock { background:#111827; border-color:#374151; }
+.swagger-ui .opblock .opblock-summary { background:#0b1220; }
+.swagger-ui .opblock .opblock-summary-method { background:#1f2937; }
+.swagger-ui .responses-inner, .swagger-ui .parameters-container { background:#0b1220; }
+.swagger-ui .tab li { color:#e5e7eb; }
+.swagger-ui .btn, .swagger-ui select, .swagger-ui input { background:#1f2937; color:#e5e7eb; border-color:#374151; }
+.swagger-ui .response-control-media-type__accept-message { color:#9ca3af; }
+.swagger-ui .opblock-tag { background:#0b1220; border:1px solid #1f2937; border-radius:6px; padding:8px 12px; }
+""";
+app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"));
+
+// 14.2 Swagger JSON como descarga forzada
+app.MapGet("/swagger/download", (ISwaggerProvider provider) =>
+{
+    var doc = provider.GetSwagger("v1");
+    using var sw = new StringWriter();
+    var w = new Microsoft.OpenApi.Writers.OpenApiJsonWriter(sw);
+    doc.SerializeAsV3(w);
+    var bytes = Encoding.UTF8.GetBytes(sw.ToString());
+    return Results.File(bytes, "application/json", "swagger-v1.json");
+});
+
+// 14.3 Swagger y UI
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    // Documento principal
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ZooSanMarino v1");
+
+    // UI
+    c.DocumentTitle = "ZooSanMarino — API Docs";
+    c.DisplayRequestDuration();
+    c.EnableFilter();                 // caja de búsqueda/filtrado
+    c.EnableDeepLinking();            // anclas navegables
+    c.DefaultModelExpandDepth(1);     // menos ruido en modelos
+    c.DefaultModelsExpandDepth(-1);   // oculta la sección "Schemas" por defecto
+    c.DocExpansion(DocExpansion.List);
+
+    // Tema oscuro
+    c.InjectStylesheet("/swagger-ui/dark.css");
+
+    // (Opcional) Ruta: deja /swagger como UI
+    // c.RoutePrefix = string.Empty; // si quieres la UI en "/"
+});
+
+app.UseRouting();
+app.UseCors("AppCors");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Migración automática al iniciar
-using var scope = app.Services.CreateScope();
-scope.ServiceProvider.GetRequiredService<ZooSanMarinoContext>().Database.Migrate();
+// Health
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapHealthChecks("/hc");
 
+// Debug JWT
+app.MapGet("/debug/jwt", (IOptions<JwtOptions> opt) =>
+{
+    var o = opt.Value;
+    string Mask(string s) => string.IsNullOrEmpty(s) ? "" : $"{s[..Math.Min(4, s.Length)]}***{s[^Math.Min(4, s.Length)..]}";
+    return Results.Ok(new
+    {
+        Issuer = o.Issuer,
+        Audience = o.Audience,
+        Duration = o.DurationInMinutes,
+        KeyMasked = Mask(o.Key ?? ""),
+        KeyLength = o.Key?.Length ?? 0
+    });
+});
+
+// Debug ConnectionString
+app.MapGet("/debug/config/conn", (IConfiguration cfg) =>
+{
+    var raw = cfg.GetConnectionString("ZooSanMarinoContext")
+           ?? cfg["ConnectionStrings:ZooSanMarinoContext"]
+           ?? cfg["ZOO_CONN"];
+
+    var safe = string.IsNullOrEmpty(raw)
+        ? ""
+        : Regex.Replace(raw, "(Password=)([^;]+)", "$1******", RegexOptions.IgnoreCase);
+
+    return Results.Ok(new { ConnectionString = safe });
+});
+
+// Ping DB
+app.MapGet("/db-ping", async (ZooSanMarinoContext ctx) =>
+{
+    try
+    {
+        await ctx.Database.OpenConnectionAsync();
+        await ctx.Database.CloseConnectionAsync();
+        return Results.Ok(new { status = "ok", db = "reachable" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"DB unreachable: {ex.Message}");
+    }
+});
+
+// Catch-all OPTIONS
+app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok()).RequireCors("AppCors");
+
+// ─────────────────────────────────────
+// 15) Migrar + Seed (flags)
+// ─────────────────────────────────────
+bool runMigrations = app.Configuration.GetValue<bool>("Database:RunMigrations");
+bool runSeed       = app.Configuration.GetValue<bool>("Database:RunSeed");
+
+if (runMigrations || runSeed)
+{
+    await app.MigrateAndSeedAsync();
+}
+
+// ─────────────────────────────────────
+// 16) Controllers
+// ─────────────────────────────────────
 app.MapControllers();
 app.Run();
+
+
+// ─────────────────────────────────────
+// Extensión: CORS desde lista de orígenes
+// ─────────────────────────────────────
+internal static class CorsExtensions
+{
+    public static void AddCorsFromOrigins(this IServiceCollection services, string policyName, string[] origins)
+    {
+        services.AddCors(options =>
+        {
+            options.AddPolicy(policyName, policy =>
+            {
+                if (origins is null || origins.Length == 0 || Array.Exists(origins, x => x == "*"))
+                {
+                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                }
+                else
+                {
+                    policy.WithOrigins(origins)
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                    // Si usas cookies: .AllowCredentials()
+                }
+            });
+        });
+    }
+}
+
+// ─────────────────────────────────────
+// Policy Provider permisivo para DEV
+//    - Hace que cualquier [Authorize(Policy="...")] permita pasar.
+// ─────────────────────────────────────
+internal sealed class AllowAllPolicyProvider : IAuthorizationPolicyProvider
+{
+    private readonly AuthorizationPolicy _allowAll =
+        new AuthorizationPolicyBuilder().RequireAssertion(_ => true).Build();
+
+    private readonly DefaultAuthorizationPolicyProvider _fallback;
+
+    public AllowAllPolicyProvider(IOptions<AuthorizationOptions> options)
+        => _fallback = new DefaultAuthorizationPolicyProvider(options);
+
+    public Task<AuthorizationPolicy> GetDefaultPolicyAsync()
+        => Task.FromResult(_allowAll);
+
+    public Task<AuthorizationPolicy?> GetFallbackPolicyAsync()
+        => Task.FromResult<AuthorizationPolicy?>(_allowAll);
+
+    public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
+        => Task.FromResult<AuthorizationPolicy?>(_allowAll);
+}

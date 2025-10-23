@@ -1,54 +1,105 @@
-<!-- src/app/features/auth/login/login.component.html -->
-<div class="min-h-screen flex items-center justify-center bg-warm-gray-100">
-  <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
-     <!-- Logo Sanmarino -->
-     <div class="flex justify-center mb-6">
-      <img
-        src="https://sanmarino.com.co/wp-content/uploads/2018/06/Logo-redes-sociales-sanmarino-03.png"
-        alt="Sanmarino Logo"
-        class="h-16"
-      />
-    </div>
- 
-    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+<div class="login-shell min-h-screen flex items-center justify-center">
+  <div class="login-card w-full max-w-md rounded-lg p-8" role="region" aria-label="Formulario de inicio de sesión">
+
+    <!-- Logos (dos marcas con divisor) -->
+  <!-- Logo único con control de tamaño -->
+<div class="flex justify-center mb-6">
+  <div class="logo-wrap" role="img" aria-label="Logo Sanmarino Tecnología e Innovación">
+    <img
+      src="assets/brand/icono-logo.png"
+      alt="Sanmarino Tecnología e Innovación"
+      class="logo-img"
+      loading="eager"
+      decoding="async"
+    />
+  </div>
+</div>
+
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4" novalidate>
+      <!-- Error global -->
+      <div *ngIf="errorMsg" class="alert-error" role="alert">
+        {{ errorMsg }}
+      </div>
+
       <!-- Email -->
-      <div class="mb-4">
-        <label for="email" class="block text-warm-gray-700 mb-1">Email</label>
+      <div class="field">
+        <label for="email" class="label">Email</label>
         <input
           id="email"
           type="email"
           formControlName="email"
           placeholder="you@example.com"
-          class="w-full px-4 py-2 border border-warm-gray-300 rounded focus:outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red"
+          class="brand-input"
+          autocomplete="username email"
+          inputmode="email"
+          [attr.aria-invalid]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
+          required
         />
-        <div *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid" class="text-red-600 text-sm mt-1">
+        <div *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid" class="hint-error" role="status" aria-live="polite">
           <div *ngIf="loginForm.get('email')?.errors?.['required']">El email es obligatorio.</div>
           <div *ngIf="loginForm.get('email')?.errors?.['email']">Email no válido.</div>
         </div>
       </div>
+
       <!-- Contraseña -->
-      <div class="mb-6">
-        <label for="password" class="block text-warm-gray-700 mb-1">Contraseña</label>
+      <div class="field">
+        <label for="password" class="label">Contraseña</label>
         <input
           id="password"
           type="password"
           formControlName="password"
           placeholder="••••••••"
-          class="w-full px-4 py-2 border border-warm-gray-300 rounded focus:outline-none focus:border-brand-red focus:ring-1 focus:ring-brand-red"
+          class="brand-input"
+          autocomplete="current-password"
+          [attr.aria-invalid]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
+          required
         />
-        <div *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid" class="text-red-600 text-sm mt-1">
+        <div *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid" class="hint-error" role="status" aria-live="polite">
           <div *ngIf="loginForm.get('password')?.errors?.['required']">La contraseña es obligatoria.</div>
-          <div *ngIf="loginForm.get('password')?.errors?.['minlength']">Mínimo {{ loginForm.get('password')?.errors?.['minlength'].requiredLength }} caracteres.</div>
+          <div *ngIf="loginForm.get('password')?.errors?.['minlength']">
+            Mínimo {{ loginForm.get('password')?.errors?.['minlength'].requiredLength }} caracteres.
+          </div>
         </div>
       </div>
+
+      <!-- Recordarme -->
+      <label class="remember">
+        <input type="checkbox" formControlName="remember" class="remember__control" />
+        <span class="remember__label">Recordarme</span>
+      </label>
+
       <!-- Botón -->
       <button
-        type="submit" routerLink="/dashboard"
-        [disabled]="loginForm.invalid"
-        class="w-full py-2 rounded bg-chicken-yellow text-warm-gray-700 font-semibold hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        type="submit"
+        class="brand-btn"
+        [disabled]="loginForm.invalid || loading"
+        aria-label="Entrar"
       >
-        Entrar
+        {{ loading ? 'Ingresando…' : 'Entrar' }}
       </button>
+
+      <!-- Enlace de recuperación de contraseña -->
+      <div class="forgot-password">
+        <button type="button" class="link-button" (click)="goToPasswordRecovery()">
+          ¿Olvidaste tu contraseña?
+        </button>
+      </div>
+     
+        <img
+          src="assets/brand/italcol-blanco.png"
+          class="logo-img-accent "
+          loading="eager"
+          decoding="async"
+        />
     </form>
   </div>
 </div>
+
+<footer class="site-footer" role="contentinfo">
+  <div class="footer-inner">
+    <span>© {{ today | date:'yyyy' }} Sanmarino Genética Avícola</span>
+    <span class="dot">•</span>
+    <span>Todos los derechos reservados</span>
+  </div>
+</footer>

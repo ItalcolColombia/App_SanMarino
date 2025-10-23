@@ -1,91 +1,613 @@
-<!-- src/app/features/dashboard/dashboard.component.html -->
-<div class="flex">
-    <app-sidebar></app-sidebar>
-    <main class="flex-1 p-8 bg-warm-gray-100 min-h-screen">
-      <h1 class="text-3xl font-bold text-brand-red mb-6">Dashboard</h1>
-  
-      <!-- Resumen rápido -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div class="bg-white rounded-lg shadow p-4 flex flex-col">
-          <span class="text-sm text-warm-gray-500">Actividades</span>
-          <span class="text-2xl font-bold text-chicken-yellow">{{ activities.length }}</span>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4 flex flex-col">
-          <span class="text-sm text-warm-gray-500">Registros Hoy</span>
-          <span class="text-2xl font-bold text-brand-red">{{ dailyLogs[0].entries }}</span>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4 flex flex-col">
-          <span class="text-sm text-warm-gray-500">Producción Promedio</span>
-          <span class="text-2xl font-bold text-chicken-yellow">{{ averageProduction }}%</span>
-        </div>
-        <div class="bg-white rounded-lg shadow p-4 flex flex-col">
-          <span class="text-sm text-warm-gray-500">Última Mortalidad</span>
-          <span class="text-2xl font-bold text-brand-red">{{ mortalities[0].deaths }}</span>
-        </div>
+<div class="dashboard-container">
+  <app-sidebar class="sidebar"></app-sidebar>
+
+  <div class="main-content">
+     <!-- HEADER PRINCIPAL -->
+     <header class="main-header" role="banner">
+       <div class="header-content">
+         <div class="header-title">
+           <div class="title-icon">
+             <svg class="dashboard-icon" viewBox="0 0 24 24" focusable="false">
+               <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+             </svg>
+           </div>
+           <div class="title-text">
+             <h1>Dashboard Corporativo</h1>
+             <p>Centro de control y análisis del sistema Zoo San Marino</p>
+           </div>
+         </div>
+ 
+         <div class="header-actions" role="group" aria-label="Acciones del dashboard">
+           <button
+             type="button"
+             class="btn btn-primary btn-refresh"
+             (click)="refreshData()"
+             [disabled]="loading()"
+             title="Actualizar datos del dashboard"
+           >
+             <svg class="btn-icon" viewBox="0 0 24 24">
+               <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+             </svg>
+             <span>Actualizar</span>
+           </button>
+ 
+           <button
+             type="button"
+             class="btn btn-secondary btn-realtime"
+             (click)="toggleRealTime()"
+             [class.active]="isRealTimeEnabled()"
+             [attr.aria-pressed]="isRealTimeEnabled()"
+             title="Activar/Desactivar actualización en tiempo real"
+           >
+             <svg class="btn-icon" viewBox="0 0 24 24">
+               <path d="M8 5v14l11-7z"/>
+             </svg>
+             <span>{{ isRealTimeEnabled() ? 'Pausar' : 'Activar' }} Tiempo Real</span>
+           </button>
+         </div>
+       </div>
+     </header>
+
+    <!-- BANNER DE ERROR -->
+    <div
+      class="error-banner"
+      role="alert"
+      *ngIf="error()"
+    >
+      <div class="error-content">
+        <span class="error-icon" aria-hidden="true">⚠️</span>
+        <span class="error-message">{{ error() }}</span>
+        <button type="button" class="btn btn-sm" (click)="error.set(null)" aria-label="Cerrar error">✕</button>
       </div>
-  
-      <!-- Actividades recientes y registros diarios -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <!-- Actividades -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-          <h2 class="px-4 py-2 bg-brand-red text-white font-semibold">Actividades Recientes</h2>
-          <ul class="divide-y divide-warm-gray-200">
-            <li *ngFor="let a of activities" class="px-4 py-3 flex justify-between">
-              <span>{{ a.time }}</span>
-              <span class="text-warm-gray-700">{{ a.description }}</span>
-            </li>
-          </ul>
+    </div>
+
+    <!-- LOADING OVERLAY INICIAL -->
+    <div
+      class="loading-overlay"
+      *ngIf="loading() && loadedSections().size === 0"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div class="spinner loading-bounce" aria-hidden="true"></div>
+      <p class="loading-pulse">Cargando dashboard corporativo...</p>
+    </div>
+
+    <!-- CONTENIDO -->
+    <div class="dashboard-content" role="main">
+      <!-- KPIs -->
+      <section class="kpis-section" aria-labelledby="kpis-title">
+        <div class="section-header">
+          <h2 id="kpis-title">Indicadores Clave de Rendimiento</h2>
+          <p>Métricas principales del sistema</p>
         </div>
-  
-        <!-- Registros diarios -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-          <h2 class="px-4 py-2 bg-chicken-yellow text-warm-gray-900 font-semibold">Registros Diarios</h2>
-          <ul class="divide-y divide-warm-gray-200">
-            <li *ngFor="let d of dailyLogs" class="px-4 py-3 flex justify-between">
-              <span>{{ d.date }}</span>
-              <span class="font-bold text-brand-red">{{ d.entries }}</span>
-            </li>
-          </ul>
-        </div>
-      </div>
-  
-      <!-- Gráficas de producción -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div class="bg-white rounded-lg shadow p-4">
-          <h2 class="text-xl font-semibold text-brand-red mb-4">Producción por Granja</h2>
-          <div *ngFor="let f of farms" class="mb-4">
-            <div class="flex justify-between mb-1">
-              <span>{{ f.name }}</span>
-              <span class="font-semibold">{{ f.production }}%</span>
+
+        <div class="kpis-grid" [attr.aria-busy]="loadingKPIs()">
+          <!-- Skeletons -->
+          <ng-container *ngIf="loadingKPIs(); else kpisContent">
+            <div class="kpi-card skeleton-card" *ngFor="let i of [1,2,3,4]">
+              <div class="skeleton skeleton-title" style="width:60%;"></div>
+              <div class="skeleton skeleton-text" style="width:40%;"></div>
+              <div class="skeleton skeleton-text" style="width:80%;"></div>
             </div>
-            <div class="bg-warm-gray-300 h-2 rounded">
-              <div
-                class="bg-chicken-yellow h-2 rounded"
-                [style.width.%]="f.production"
-              ></div>
+          </ng-container>
+
+           <!-- KPIs -->
+           <ng-template #kpisContent>
+             <!-- Total Usuarios -->
+             <article class="kpi-card kpi-users" (mouseenter)="onCardHover($event, 'users')" (mouseleave)="onCardLeave($event)">
+               <div class="kpi-header">
+                 <div class="kpi-icon">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H17c-.8 0-1.54.37-2.01.99L14 10.5 12.01 8.99A2.5 2.5 0 0 0 10 8H8.46c-.8 0-1.54.37-2.01.99L4 10.5V22h2v-6h2.5l2.5 2.5L11.5 16H14v6h2z"/>
+                   </svg>
+                 </div>
+                 <div class="kpi-trend positive">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                   </svg>
+                   <span>+12%</span>
+                 </div>
+               </div>
+               <div class="kpi-content">
+                 <h3>{{ formatNumber(estadisticasGenerales()?.totalUsuarios || 0) }}</h3>
+                 <p>Total Usuarios</p>
+                 <div class="kpi-detail">
+                   <span class="detail-item">
+                     <span class="detail-value">{{ estadisticasGenerales()?.usuariosActivos || 0 }}</span>
+                     <span class="detail-label">activos</span>
+                   </span>
+                 </div>
+               </div>
+             </article>
+
+             <!-- Total Granjas -->
+             <article class="kpi-card kpi-farms" (mouseenter)="onCardHover($event, 'farms')" (mouseleave)="onCardLeave($event)">
+               <div class="kpi-header">
+                 <div class="kpi-icon">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                   </svg>
+                 </div>
+                 <div class="kpi-trend positive">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                   </svg>
+                   <span>+5%</span>
+                 </div>
+               </div>
+               <div class="kpi-content">
+                 <h3>{{ formatNumber(estadisticasGenerales()?.totalGranjas || 0) }}</h3>
+                 <p>Total Granjas</p>
+                 <div class="kpi-detail">
+                   <span class="detail-item">
+                     <span class="detail-value">{{ distribucionLotes().length }}</span>
+                     <span class="detail-label">con lotes activos</span>
+                   </span>
+                 </div>
+               </div>
+             </article>
+
+             <!-- Total Lotes -->
+             <article class="kpi-card kpi-lots" (mouseenter)="onCardHover($event, 'lots')" (mouseleave)="onCardLeave($event)">
+               <div class="kpi-header">
+                 <div class="kpi-icon">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                   </svg>
+                 </div>
+                 <div class="kpi-trend neutral">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M22 12h-2v-2h-2v2h-2v2h2v2h2v-2h2v-2z"/>
+                   </svg>
+                   <span>0%</span>
+                 </div>
+               </div>
+               <div class="kpi-content">
+                 <h3>{{ formatNumber(estadisticasGenerales()?.totalLotes || 0) }}</h3>
+                 <p>Total Lotes</p>
+                 <div class="kpi-detail">
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalLotesReproductora || 0) }}</span>
+                     <span class="detail-label">Reproductora</span>
+                   </span>
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalLotesProduccion || 0) }}</span>
+                     <span class="detail-label">Producción</span>
+                   </span>
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalLotesLevante || 0) }}</span>
+                     <span class="detail-label">Levante</span>
+                   </span>
+                 </div>
+               </div>
+             </article>
+
+             <!-- Total Aves -->
+             <article class="kpi-card kpi-birds" (mouseenter)="onCardHover($event, 'birds')" (mouseleave)="onCardLeave($event)">
+               <div class="kpi-header">
+                 <div class="kpi-icon">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                   </svg>
+                 </div>
+                 <div class="kpi-trend positive">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                   </svg>
+                   <span>+8%</span>
+                 </div>
+               </div>
+               <div class="kpi-content">
+                 <h3>{{ formatNumber(totalAves()) }}</h3>
+                 <p>Total Aves</p>
+                 <div class="kpi-detail">
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasInventario()?.totalAvesHembras || 0) }}</span>
+                     <span class="detail-label">Hembras</span>
+                   </span>
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span>
+                     <span class="detail-label">Machos</span>
+                   </span>
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasInventario()?.totalAvesMixtas || 0) }}</span>
+                     <span class="detail-label">Mixtas</span>
+                   </span>
+                 </div>
+               </div>
+             </article>
+
+             <!-- Movimientos Pendientes -->
+             <article class="kpi-card kpi-movements" (mouseenter)="onCardHover($event, 'movements')" (mouseleave)="onCardLeave($event)">
+               <div class="kpi-header">
+                 <div class="kpi-icon">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                   </svg>
+                 </div>
+                 <div class="kpi-trend negative">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 18l2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6z"/>
+                   </svg>
+                   <span>-3%</span>
+                 </div>
+               </div>
+               <div class="kpi-content">
+                 <h3>{{ formatNumber(estadisticasGenerales()?.totalMovimientosPendientes || 0) }}</h3>
+                 <p>Movimientos Pendientes</p>
+                 <div class="kpi-detail">
+                   <span class="detail-item">
+                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalMovimientosCompletados || 0) }}</span>
+                     <span class="detail-label">completados</span>
+                   </span>
+                 </div>
+               </div>
+             </article>
+
+             <!-- Eficiencia Promedio -->
+             <article class="kpi-card kpi-efficiency" (mouseenter)="onCardHover($event, 'efficiency')" (mouseleave)="onCardLeave($event)">
+               <div class="kpi-header">
+                 <div class="kpi-icon">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                   </svg>
+                 </div>
+                 <div class="kpi-trend positive">
+                   <svg viewBox="0 0 24 24">
+                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+                   </svg>
+                   <span>+15%</span>
+                 </div>
+               </div>
+               <div class="kpi-content">
+                 <h3>{{ formatPercentage(eficienciaPromedio()) }}</h3>
+                 <p>Eficiencia Promedio</p>
+                 <div class="kpi-detail">
+                   <span class="detail-item">
+                     <span class="detail-value">Producción</span>
+                     <span class="detail-label">por granja</span>
+                   </span>
+                 </div>
+               </div>
+             </article>
+           </ng-template>
+        </div>
+      </section>
+
+      <!-- GRÁFICOS -->
+      <section class="charts-section" aria-labelledby="charts-title">
+        <div class="section-header">
+          <h2 id="charts-title">Análisis Visual de Datos</h2>
+          <p>Gráficos y tendencias del sistema</p>
+        </div>
+
+        <div class="charts-grid" [attr.aria-busy]="loadingCharts()">
+          <!-- Skeletons -->
+          <ng-container *ngIf="loadingCharts(); else chartsContent">
+            <div class="chart-card skeleton-chart" *ngFor="let i of [1,2,3,4]">
+              <div class="skeleton skeleton-title"></div>
+              <div class="skeleton" style="height: 100%; width: 100%;"></div>
+            </div>
+          </ng-container>
+
+          <!-- Contenido de gráficos -->
+          <ng-template #chartsContent>
+            <!-- Registros Diarios -->
+            <article class="chart-card corporate-chart" (intersectionObserver)="onDailyVisible()">
+              <div class="chart-header">
+                <h3>Registros Diarios</h3>
+                <p>Actividad en los últimos 7 días</p>
+              </div>
+              <div class="chart-container">
+                <canvas
+                  baseChart
+                  [data]="registrosDiariosChart"
+                  [type]="lineChartType"
+                  [options]="chartOptions"
+                  aria-label="Gráfico de registros diarios"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+
+            <!-- Producción por Granja -->
+            <article class="chart-card corporate-chart" (intersectionObserver)="onProductionVisible()">
+              <div class="chart-header">
+                <h3>Producción por Granja</h3>
+                <p>Rendimiento de huevos por granja</p>
+              </div>
+              <div class="chart-container">
+                <canvas
+                  baseChart
+                  [data]="produccionGranjaChart"
+                  [type]="barChartType"
+                  [options]="chartOptions"
+                  aria-label="Gráfico de barras de producción por granja"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+
+            <!-- Distribución de Lotes -->
+            <article class="chart-card corporate-chart">
+              <div class="chart-header">
+                <h3>Distribución de Lotes</h3>
+                <p>Lotes por granja</p>
+              </div>
+              <div class="chart-container">
+                <canvas
+                  baseChart
+                  [data]="distribucionLotesChart"
+                  [type]="pieChartType"
+                  [options]="doughnutOptions"
+                  aria-label="Gráfico de pastel distribución de lotes"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+
+            <!-- Inventario de Aves -->
+            <article class="chart-card corporate-chart">
+              <div class="chart-header">
+                <h3>Inventario de Aves</h3>
+                <p>Distribución por tipo</p>
+              </div>
+              <div class="chart-container">
+                <canvas
+                  baseChart
+                  [data]="inventarioChart"
+                  [type]="doughnutChartType"
+                  [options]="doughnutOptions"
+                  aria-label="Gráfico doughnut inventario de aves"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+
+            <!-- Mortalidad -->
+            <article class="chart-card corporate-chart" (intersectionObserver)="onMortalityVisible()">
+              <div class="chart-header">
+                <h3>Mortalidad</h3>
+                <p>Registros de mortalidad por fecha</p>
+              </div>
+              <div class="chart-container">
+                <canvas
+                  baseChart
+                  [data]="mortalidadChart"
+                  [type]="doughnutChartType"
+                  [options]="doughnutOptions"
+                  aria-label="Gráfico de mortalidad"
+                  role="img"
+                ></canvas>
+              </div>
+            </article>
+
+            <!-- Métricas de Rendimiento -->
+            <article class="chart-card corporate-chart metrics-card">
+              <div class="chart-header">
+                <h3>Métricas de Rendimiento</h3>
+                <p>Indicadores clave</p>
+              </div>
+              <div class="metrics-grid">
+                <div class="metric-item">
+                  <div class="metric-icon" aria-hidden="true">🥚</div>
+                  <div class="metric-content">
+                    <h4>{{ formatNumber(metricasRendimiento()?.promedioProduccionDiaria || 0) }}</h4>
+                    <p>Producción Diaria Promedio</p>
+                  </div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-icon" aria-hidden="true">⚙️</div>
+                  <div class="metric-content">
+                    <h4>{{ formatPercentage(eficienciaPromedio()) }}</h4>
+                    <p>Eficiencia Promedio</p>
+                  </div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-icon" aria-hidden="true">💀</div>
+                  <div class="metric-content">
+                    <h4>{{ formatPercentage(tasaMortalidadPromedio()) }}</h4>
+                    <p>Tasa de Mortalidad</p>
+                  </div>
+                </div>
+                <div class="metric-item">
+                  <div class="metric-icon" aria-hidden="true">🔁</div>
+                  <div class="metric-content">
+                    <h4>{{ formatNumber(metricasRendimiento()?.movimientosPorDia || 0) }}</h4>
+                    <p>Movimientos por Día</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </ng-template>
+        </div>
+      </section>
+
+      <!-- REPORTES / TABLAS -->
+      <section class="reports-section" aria-labelledby="reports-title">
+        <div class="section-header">
+          <h2 id="reports-title">📋 Reportes y Tablas de Datos</h2>
+          <p>Información detallada del sistema</p>
+        </div>
+
+        <div class="reports-grid" [attr.aria-busy]="loadingReports()">
+          <!-- Skeletons -->
+          <ng-container *ngIf="loadingReports(); else reportsContent">
+            <div class="report-card corporate-card skeleton-card" *ngFor="let i of [1,2,3]">
+              <div class="skeleton skeleton-title"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text"></div>
+            </div>
+          </ng-container>
+
+          <ng-template #reportsContent>
+            <!-- Producción por Granja -->
+            <article class="report-card corporate-card" aria-label="Tabla de producción por granja">
+              <div class="report-header">
+                <h3>🏭 Producción por Granja</h3>
+                <p>Detalle de producción por granja</p>
+              </div>
+              <div class="table-container">
+                <table class="data-table" role="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Granja</th>
+                      <th scope="col">Total Lotes</th>
+                      <th scope="col">Total Huevos</th>
+                      <th scope="col">Total Aves</th>
+                      <th scope="col">Eficiencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let granja of produccionPorGranja()">
+                      <td>{{ granja.granjaNombre }}</td>
+                      <td>{{ formatNumber(granja.totalLotes) }}</td>
+                      <td>{{ formatNumber(granja.totalHuevos) }}</td>
+                      <td>{{ formatNumber(granja.totalAves) }}</td>
+                      <td>
+                        <span
+                          class="efficiency-badge"
+                          [class.high]="granja.eficiencia > 0.8"
+                          [class.medium]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
+                          [class.low]="granja.eficiencia < 0.6"
+                        >
+                          {{ formatPercentage(granja.eficiencia) }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <!-- Distribución de Lotes -->
+            <article class="report-card corporate-card" aria-label="Tabla de distribución de lotes">
+              <div class="report-header">
+                <h3>🗂️ Distribución de Lotes</h3>
+                <p>Distribución de lotes por granja</p>
+              </div>
+              <div class="table-container">
+                <table class="data-table" role="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Granja</th>
+                      <th scope="col">Reproductora</th>
+                      <th scope="col">Producción</th>
+                      <th scope="col">Levante</th>
+                      <th scope="col">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let distribucion of distribucionLotes()">
+                      <td>{{ distribucion.granjaNombre }}</td>
+                      <td>{{ formatNumber(distribucion.lotesReproductora) }}</td>
+                      <td>{{ formatNumber(distribucion.lotesProduccion) }}</td>
+                      <td>{{ formatNumber(distribucion.lotesLevante) }}</td>
+                      <td><strong>{{ formatNumber(distribucion.totalLotes) }}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+
+            <!-- Mortalidad -->
+            <article class="report-card corporate-card" aria-label="Tabla de registros de mortalidad">
+              <div class="report-header">
+                <h3>💀 Registros de Mortalidad</h3>
+                <p>Últimos registros de mortalidad</p>
+              </div>
+              <div class="table-container">
+                <table class="data-table" role="table" aria-live="polite">
+                  <thead>
+                    <tr>
+                      <th scope="col">Fecha</th>
+                      <th scope="col">Cantidad</th>
+                      <th scope="col">Lote</th>
+                      <th scope="col">Granja</th>
+                      <th scope="col">Causa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let mortalidad of mortalidades().slice(0, 10)">
+                      <td>{{ formatDate(mortalidad.fecha) }}</td>
+                      <td>{{ formatNumber(mortalidad.cantidadMuertas) }}</td>
+                      <td>{{ mortalidad.loteId }}</td>
+                      <td>{{ mortalidad.granjaNombre }}</td>
+                      <td>{{ mortalidad.causaMuerte }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </ng-template>
+        </div>
+      </section>
+
+      <!-- ACTIVIDADES RECIENTES -->
+      <section class="activities-section" aria-labelledby="activities-title">
+        <div class="section-header">
+          <h2 id="activities-title">🔄 Actividades Recientes</h2>
+          <p>Últimas operaciones del sistema</p>
+        </div>
+
+        <div class="activities-card corporate-card" *ngIf="!loadingActivities(); else activitiesSkeleton">
+          <div class="activities-header">
+            <div>
+              <h3>🔄 Actividades Recientes</h3>
+              <p>Últimas operaciones del sistema</p>
+            </div>
+            <span class="activities-count" aria-live="polite">{{ actividadesRecientes().length }} registros</span>
+          </div>
+
+          <div class="activities-list">
+            <div class="activity-item" *ngFor="let actividad of actividadesRecientes()">
+              <div class="activity-icon" aria-hidden="true">{{ actividad.icono }}</div>
+              <div class="activity-content">
+                <h4>{{ actividad.tipo }}</h4>
+                <p>{{ actividad.descripcion }}</p>
+                <div class="activity-meta">
+                  <span class="activity-user">{{ actividad.usuario }}</span>
+                  <span class="activity-time">{{ getTimeAgo(actividad.fecha) }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-  
-        <!-- Mortalidad -->
-        <div class="bg-white rounded-lg shadow p-4">
-          <h2 class="text-xl font-semibold text-brand-red mb-4">Mortalidad Reciente</h2>
-          <table class="min-w-full text-left">
-            <thead class="bg-warm-gray-200">
-              <tr>
-                <th class="px-4 py-2">Fecha</th>
-                <th class="px-4 py-2">Muertes</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let m of mortalities" class="border-b border-warm-gray-200">
-                <td class="px-4 py-2">{{ m.date }}</td>
-                <td class="px-4 py-2">{{ m.deaths }}</td>
-              </tr>
-            </tbody>
-          </table>
+
+        <!-- Skeleton actividades -->
+        <ng-template #activitiesSkeleton>
+          <div class="activities-card">
+            <div class="activities-header">
+              <div class="skeleton skeleton-title"></div>
+              <div class="skeleton skeleton-text"></div>
+              <div class="skeleton skeleton-text" style="width: 120px;"></div>
+            </div>
+            <div class="activities-list">
+              <div class="activity-item" *ngFor="let i of [1,2,3]">
+                <div class="skeleton skeleton-text" style="width: 40px; height: 40px; border-radius: 50%;"></div>
+                <div class="activity-content" style="flex:1;">
+                  <div class="skeleton skeleton-text" style="width: 40%;"></div>
+                  <div class="skeleton skeleton-text" style="width: 80%;"></div>
+                  <div class="skeleton skeleton-text" style="width: 60%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ng-template>
+      </section>
+
+      <!-- INFO DE ACTUALIZACIÓN -->
+      <section class="update-info" aria-label="Información de actualización">
+        <div class="update-card corporate-card">
+          <div class="update-content">
+            <span class="update-icon" aria-hidden="true">🕒</span>
+            <span class="update-text">Última actualización: {{ formatDateTime(lastUpdated().toISOString()) }}</span>
+            <span class="update-status" [class.active]="isRealTimeEnabled()">
+              {{ isRealTimeEnabled() ? 'Tiempo Real Activo' : 'Tiempo Real Pausado' }}
+            </span>
+          </div>
         </div>
-      </div>
-    </main>
+      </section>
+    </div>
   </div>
-  
+</div>

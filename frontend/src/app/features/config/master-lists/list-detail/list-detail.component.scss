@@ -1,0 +1,227 @@
+/* src/app/features/config/master-lists/master-lists.component.scss */
+
+/* ======= Tokens locales (usa tus colores si ya tienes Tailwind vars) ======= */
+:host {
+  --brand-red:       #d3302f;
+  --brand-red-600:   #b12524;
+  --warm-50:         #faf9f7;
+  --warm-100:        #f3f2ef;
+  --warm-200:        #e7e5e4;
+  --warm-300:        #d6d3d1;
+  --warm-600:        #57534e;
+  --text-900:        #1f2937;
+  --white:           #fff;
+  --shadow:          0 8px 30px rgba(0,0,0,.06), 0 2px 10px rgba(0,0,0,.04);
+}
+
+/* ======= Estructura ======= */
+.mls-container {
+  background: var(--warm-50);
+}
+
+.mls-toolbar .title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--brand-red);
+  line-height: 1;
+}
+.mls-toolbar .title-icon {
+  font-size: 1.9rem;
+  color: var(--brand-red);
+}
+.counter-pill {
+  margin-left: .5rem;
+  padding: .25rem .5rem;
+  font-size: .72rem;
+  color: var(--warm-600);
+  background: var(--white);
+  border: 1px solid var(--warm-200);
+  border-radius: 999px;
+}
+
+/* ======= Botones ======= */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  padding: .6rem 1rem;
+  border-radius: .8rem;
+  background: #f7c948; /* chicken-yellow */
+  color: #2b2b2b;
+  font-weight: 600;
+  transition: transform .12s ease, box-shadow .12s ease;
+  box-shadow: 0 2px 0 rgba(0,0,0,.06);
+  border: 1px solid rgba(0,0,0,.05);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+.btn-subtle {
+  display: inline-flex; align-items: center;
+  padding: .5rem .9rem; border-radius: .7rem;
+  color: var(--brand-red); background: #fff4f4; font-weight: 600;
+  border: 1px solid #ffe3e3; transition: background .15s;
+}
+.btn-subtle:hover { background: #ffe9e9; }
+
+/* ======= Card / tabla ======= */
+.mls-card {
+  position: relative;
+  background: var(--white);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 1px solid var(--warm-200);
+}
+.table-scroll { max-height: 70vh; overflow: auto; }
+
+.mls-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: .95rem;
+
+  thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--warm-100);
+    color: var(--warm-600);
+    text-transform: uppercase;
+    font-size: .72rem; letter-spacing: .04em; font-weight: 700;
+    text-align: left;
+    padding: .9rem 1rem;
+    border-bottom: 1px solid var(--warm-200);
+  }
+
+  tbody td {
+    padding: .85rem 1rem;
+    color: var(--text-900);
+    vertical-align: middle;
+    border-bottom: 1px solid var(--warm-100);
+  }
+
+  .text-center { text-align: center; }
+  .text-right  { text-align: right; }
+}
+
+/* filas */
+.mls-row {
+  transition: background .12s ease;
+}
+.mls-row:hover {
+  background: rgba(0,0,0,.02);
+}
+
+/* celdas utilitarias */
+.truncate-cell {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ======= Badges & tags ======= */
+.key-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: .82rem;
+  padding: .28rem .5rem;
+  border-radius: .5rem;
+  background: var(--warm-100);
+  border: 1px solid var(--warm-200);
+}
+
+.count-pill {
+  display: inline-flex; align-items: center; gap: .25rem;
+  padding: .25rem .5rem;
+  font-size: .72rem; font-weight: 700;
+  background: var(--white);
+  border: 1px solid var(--warm-200);
+  border-radius: 999px;
+}
+
+.options-cell {
+  background: #fcfcfc;
+  padding: .6rem 1rem 1rem;
+}
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: .5rem;
+}
+.tag {
+  display: inline-block;
+  font-size: .78rem;
+  padding: .35rem .55rem;
+  border-radius: .7rem;
+  background: #f7f7f7;
+  border: 1px solid var(--warm-200);
+  color: #111827;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ======= Botones de icono ======= */
+.icon-btn {
+  --ring: rgba(0,0,0,.06);
+  display: inline-grid; place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  color: #4b5563;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: transform .08s ease, background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
+}
+.icon-btn:hover { background: #ffffff; border-color: var(--warm-200); box-shadow: 0 2px 10px var(--ring); color: var(--brand-red); transform: translateY(-1px); }
+.icon-btn:active { transform: translateY(0); }
+.icon-btn.danger:hover { color: #dc2626; }
+
+/* contenedor de acciones */
+.actions { display: inline-flex; gap: .4rem; }
+
+/* ======= Loading overlay ======= */
+.loading-overlay {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,.65);
+  backdrop-filter: blur(1px);
+  font-weight: 600;
+  color: var(--warm-600);
+  gap: .6rem;
+}
+.spinner {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 3px solid #e5e7eb;
+  border-top-color: var(--brand-red);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ======= Estado vacío ======= */
+.empty-state {
+  text-align: center;
+  padding: 3.5rem 1rem;
+  color: var(--warm-600);
+}
+.empty-illustration { font-size: 2.6rem; margin-bottom: .4rem; }
+
+/* ======= Dark mode opcional ======= */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --warm-50:  #0b0b0b;
+    --warm-100: #161616;
+    --warm-200: #232323;
+    --warm-300: #2e2e2e;
+    --warm-600: #b3b3b3;
+    --text-900: #f5f5f5;
+    --white:    #111;
+    --shadow:   0 8px 30px rgba(0,0,0,.45);
+  }
+  .btn-primary { color: #111; border-color: #2a2a2a; }
+  .mls-card { border-color: var(--warm-300); }
+  .mls-table thead th { border-bottom-color: var(--warm-300); }
+  .mls-table tbody td { border-bottom-color: var(--warm-100); }
+  .key-badge { background: var(--warm-100); border-color: var(--warm-300); }
+  .count-pill { background: var(--warm-100); border-color: var(--warm-300); color: var(--text-900); }
+  .options-cell { background: #151515; }
+  .tag { background: #1b1b1b; border-color: var(--warm-300); color: var(--text-900); }
+  .icon-btn:hover { background: #141414; }
+}

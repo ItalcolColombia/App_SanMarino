@@ -18,6 +18,7 @@ namespace ZooSanMarino.Domain.Entities
         public ICollection<UserLogin>    UserLogins    { get; set; } = new List<UserLogin>();
         public ICollection<UserCompany>  UserCompanies { get; set; } = new List<UserCompany>();
         public ICollection<UserRole>     UserRoles     { get; set; } = new List<UserRole>();
+        public ICollection<UserFarm>     UserFarms     { get; set; } = new List<UserFarm>();
     }
 
 }

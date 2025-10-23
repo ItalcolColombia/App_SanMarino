@@ -1,0 +1,174 @@
+<!-- src/app/features/db-studio/components/db-studio-overview/db-studio-overview.component.html -->
+<div class="db-studio-overview">
+  <!-- Header de la vista -->
+  <div class="overview-header">
+    <div class="header-title">
+      <h2>
+        <fa-icon [icon]="faChartBar"></fa-icon>
+        Resumen de Base de Datos
+      </h2>
+      <p class="header-subtitle">
+        Última actualización: {{ formatLastAnalysis() }}
+      </p>
+    </div>
+    <div class="header-actions">
+      <button 
+        class="btn btn-outline" 
+        (click)="onAnalyze()"
+        [disabled]="loading">
+        <fa-icon [icon]="faRefresh" [class.spinning]="loading"></fa-icon>
+        <span>Analizar</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Estadísticas principales -->
+  <div class="stats-grid" *ngIf="databaseAnalysis()">
+    <div class="stat-card">
+      <div class="stat-icon">
+        <fa-icon [icon]="faDatabase"></fa-icon>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ databaseAnalysis()?.totalSchemas || 0 }}</div>
+        <div class="stat-label">Esquemas</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">
+        <fa-icon [icon]="faTable"></fa-icon>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ formatNumber(databaseAnalysis()?.totalTables || 0) }}</div>
+        <div class="stat-label">Tablas</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">
+        <fa-icon [icon]="faServer"></fa-icon>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ formatNumber(databaseAnalysis()?.totalRows || 0) }}</div>
+        <div class="stat-label">Filas Totales</div>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">
+        <fa-icon [icon]="faHdd"></fa-icon>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value">{{ databaseAnalysis()?.totalSize || 'N/A' }}</div>
+        <div class="stat-label">Tamaño Total</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido principal -->
+  <div class="overview-content">
+    <!-- Esquemas -->
+    <div class="content-section">
+      <div class="section-header">
+        <h3>
+          <fa-icon [icon]="faDatabase"></fa-icon>
+          Esquemas Disponibles
+        </h3>
+        <span class="section-count">{{ schemas().length }}</span>
+      </div>
+      
+      <div class="schemas-grid">
+        <div 
+          *ngFor="let schema of schemas()" 
+          class="schema-card"
+          [class.active]="schema.name === selectedSchema"
+          (click)="onSchemaSelect(schema.name)">
+          <div class="schema-icon">{{ getSchemaIcon(schema) }}</div>
+          <div class="schema-info">
+            <div class="schema-name">{{ schema.name }}</div>
+            <div class="schema-meta">
+              <span class="table-count">{{ schema.tables || 0 }} tablas</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Tablas por Tamaño -->
+    <div class="content-section" *ngIf="topTablesBySize().length > 0">
+      <div class="section-header">
+        <h3>
+          <fa-icon [icon]="faHdd"></fa-icon>
+          Tablas Más Grandes
+        </h3>
+        <span class="section-count">{{ topTablesBySize().length }}</span>
+      </div>
+      
+      <div class="tables-list">
+        <div 
+          *ngFor="let table of topTablesBySize(); let i = index" 
+          class="table-item"
+          (click)="onTableSelect(table)">
+          <div class="table-rank">{{ i + 1 }}</div>
+          <div class="table-icon">{{ getTableIcon(table) }}</div>
+          <div class="table-info">
+            <div class="table-name">{{ table.name }}</div>
+            <div class="table-type">{{ table.kind }}</div>
+          </div>
+          <div class="table-size">{{ table.size }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Tablas por Filas -->
+    <div class="content-section" *ngIf="topTablesByRows().length > 0">
+      <div class="section-header">
+        <h3>
+          <fa-icon [icon]="faServer"></fa-icon>
+          Tablas con Más Datos
+        </h3>
+        <span class="section-count">{{ topTablesByRows().length }}</span>
+      </div>
+      
+      <div class="tables-list">
+        <div 
+          *ngFor="let table of topTablesByRows(); let i = index" 
+          class="table-item"
+          (click)="onTableSelect(table)">
+          <div class="table-rank">{{ i + 1 }}</div>
+          <div class="table-icon">{{ getTableIcon(table) }}</div>
+          <div class="table-info">
+            <div class="table-name">{{ table.name }}</div>
+            <div class="table-type">{{ table.kind }}</div>
+          </div>
+          <div class="table-rows">{{ formatNumber(table.rows || 0) }} filas</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Información del Sistema -->
+    <div class="content-section" *ngIf="databaseAnalysis()">
+      <div class="section-header">
+        <h3>
+          <fa-icon [icon]="faServer"></fa-icon>
+          Información del Sistema
+        </h3>
+      </div>
+      
+      <div class="system-info">
+        <div class="info-item">
+          <span class="info-label">Versión de PostgreSQL:</span>
+          <span class="info-value">N/A</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Tamaño de Base de Datos:</span>
+          <span class="info-value">{{ databaseAnalysis()?.totalSize || 'N/A' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Última Actualización:</span>
+          <span class="info-value">{{ formatLastAnalysis() }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

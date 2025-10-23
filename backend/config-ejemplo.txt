@@ -1,0 +1,14 @@
+# Configuración de Base de Datos Remota
+# Crea un archivo .env en la raíz del proyecto con estos valores:
+
+# Cadena de conexión a PostgreSQL remoto
+ZOO_CONN=Host=tu-servidor-remoto;Port=5432;Database=tu-base-datos;Username=tu-usuario;Password=tu-password;
+
+# Configuración JWT
+JWT_KEY=tu-clave-secreta-muy-larga-y-segura-de-al-menos-32-caracteres
+JWT_ISSUER=ZooSanMarino
+JWT_AUDIENCE=ZooSanMarinoAPI
+JWT_DURATION=120
+
+# Puerto de la API
+PORT=5002

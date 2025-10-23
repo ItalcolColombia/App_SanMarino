@@ -1,0 +1,221 @@
+<!-- src/app/features/db-studio/pages/explorer/explorer.page.html -->
+<div class="ux-page" [attr.aria-busy]="loading() ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <button type="button" class="btn btn--ghost" (click)="goBack()">
+          ← Volver
+        </button>
+        <h1>🗄️ DB Studio — Explorador</h1>
+        <p class="ux-header__subtitle">Exploración detallada de tablas y datos</p>
+      </div>
+      <div class="ux-header__actions">
+        <button type="button" class="btn btn--ghost" (click)="goQueryConsole()">
+          💻 Consola SQL
+        </button>
+        <button type="button" class="btn btn--outline" (click)="goCreateTable()">
+          ➕ Nueva Tabla
+        </button>
+        <button 
+          type="button" 
+          class="btn btn--primary"
+          (click)="exportTable()"
+          [disabled]="!hasTableSelected()">
+          📤 Exportar
+        </button>
+        <button 
+          type="button" 
+          class="btn btn--outline"
+          (click)="goDataManagement()"
+          [disabled]="!hasTableSelected()">
+          📝 Datos
+        </button>
+        <button 
+          type="button" 
+          class="btn btn--outline"
+          (click)="goIndexManagement()"
+          [disabled]="!hasTableSelected()">
+          🔗 Índices
+        </button>
+      </div>
+    </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <!-- Esquemas -->
+    <section class="ux-card lg:col-span-2">
+      <h2 class="ux-card__title">Esquemas</h2>
+      <ul class="list">
+        <li *ngFor="let sc of schemas()"
+            [class.active]="sc.name === selectedSchema()"
+            (click)="selectSchema(sc.name)">
+          <span>{{ sc.name }}</span>
+          <small class="muted">{{ sc.tables }}</small>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Tablas -->
+    <section class="ux-card lg:col-span-4">
+      <div class="flex justify-between items-center">
+        <h2 class="ux-card__title">Tablas ({{ selectedSchema() }})</h2>
+        <button class="btn-primary" (click)="goCreateTable()" title="Crear tabla">+ Crear</button>
+      </div>
+      <ul class="list tables">
+        <li *ngFor="let t of tables()"
+            [class.active]="t.name === selectedTable()"
+            (click)="selectTable(t.name)">
+          <div>
+            <strong>{{ t.name }}</strong>
+            <small class="muted">{{ t.kind }}</small>
+          </div>
+          <small class="muted">~ {{ t.rows | number }}</small>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Detalles de la tabla -->
+    <section class="ux-card lg:col-span-3" *ngIf="hasTableSelected()">
+      <div class="flex justify-between items-center">
+        <h2 class="ux-card__title">Detalles — {{ selectedTable() }}</h2>
+        <button 
+          type="button" 
+          class="btn btn--ghost btn--sm" 
+          (click)="analyzeTable()"
+          title="Actualizar estadísticas">
+          🔄 Analizar
+        </button>
+      </div>
+      
+      <!-- Estadísticas -->
+      <div class="table-stats" *ngIf="hasTableDetails()">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">Filas:</span>
+            <span class="stat-value">{{ formatNumber(tableDetails()?.stats?.rowCount || 0) }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Tamaño:</span>
+            <span class="stat-value">{{ tableDetails()?.stats?.totalSize || 'N/A' }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Columnas:</span>
+            <span class="stat-value">{{ tableDetails()?.columns?.length || 0 }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Índices:</span>
+            <span class="stat-value">{{ tableDetails()?.indexes?.length || 0 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columnas -->
+      <div class="columns-section">
+        <h3>Columnas</h3>
+        <div class="table-scroll">
+          <table class="ux-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Null</th>
+                <th>PK</th>
+                <th>Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let c of tableDetails()?.columns || []">
+                <td><code>{{ c.name }}</code></td>
+                <td>
+                  <span class="data-type">{{ c.dataType }}</span>
+                  <span *ngIf="c.maxLength" class="type-info">({{ c.maxLength }})</span>
+                </td>
+                <td>
+                  <span class="badge" [class.badge--success]="c.isNullable" [class.badge--warning]="!c.isNullable">
+                    {{ c.isNullable ? 'Sí' : 'No' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge badge--primary" *ngIf="c.isPrimaryKey">PK</span>
+                </td>
+                <td><small class="muted">{{ c.default || '' }}</small></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Índices -->
+      <div class="indexes-section" *ngIf="tableDetails()?.indexes?.length">
+        <h3>Índices</h3>
+        <div class="index-list">
+          <div *ngFor="let idx of tableDetails()?.indexes" class="index-item">
+            <div class="index-info">
+              <strong>{{ idx.name }}</strong>
+              <span class="index-type">{{ idx.type }}</span>
+            </div>
+            <div class="index-columns">
+              {{ idx.columns.join(', ') }}
+            </div>
+            <div class="index-flags">
+              <span class="badge badge--primary" *ngIf="idx.isPrimary">Primary</span>
+              <span class="badge badge--success" *ngIf="idx.isUnique">Unique</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Claves foráneas -->
+      <div class="foreign-keys-section" *ngIf="tableDetails()?.foreignKeys?.length">
+        <h3>Claves Foráneas</h3>
+        <div class="fk-list">
+          <div *ngFor="let fk of tableDetails()?.foreignKeys" class="fk-item">
+            <div class="fk-info">
+              <strong>{{ fk.name }}</strong>
+              <span class="fk-column">{{ fk.column }}</span>
+            </div>
+            <div class="fk-reference">
+              → {{ fk.referencedTable }}.{{ fk.referencedColumn }}
+            </div>
+            <div class="fk-actions">
+              <span class="badge badge--warning">{{ fk.onDelete }}</span>
+              <span class="badge badge--info">{{ fk.onUpdate }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Preview -->
+    <section class="ux-card lg:col-span-3" *ngIf="previewPage() as page">
+      <h2 class="ux-card__title">Preview</h2>
+      <div class="table-scroll" *ngIf="page.rows.length; else noData">
+        <table class="ux-table">
+          <thead>
+            <tr>
+              <th *ngFor="let k of keys(page.rows[0])">{{ k }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of page.rows">
+              <td *ngFor="let k of keys(page.rows[0])">
+                {{ (r[k] ?? '') | json }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ng-template #noData><p class="muted">Sin datos.</p></ng-template>
+
+      <div class="pager">
+        <button class="btn-outline" (click)="pagePrev()" [disabled]="offset() === 0">Anterior</button>
+        <span>offset {{ offset() }} • {{ page.rows.length }} filas</span>
+        <button class="btn-outline" (click)="pageNext()" [disabled]="page.rows.length < limit()">Siguiente</button>
+      </div>
+    </section>
+  </div>
+
+    <p class="error" *ngIf="error()">{{ error() }}</p>
+  </div>
+</div>

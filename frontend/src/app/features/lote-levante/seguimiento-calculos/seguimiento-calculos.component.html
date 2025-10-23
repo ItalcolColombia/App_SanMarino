@@ -1,0 +1,145 @@
+<section class="ux-card" aria-labelledby="calc-title">
+  <header class="ux-toolbar">
+    <h2 id="calc-title" class="sr-only">Cálculos del lote</h2>
+
+    <!-- Filtros -->
+    <div class="ux-field">
+      <label for="f-desde">Desde</label>
+      <input id="f-desde" type="date" [formControl]="form.controls.desde" />
+    </div>
+
+    <div class="ux-field">
+      <label for="f-hasta">Hasta</label>
+      <input id="f-hasta" type="date" [formControl]="form.controls.hasta" />
+    </div>
+
+    <div class="ux-field">
+      <label for="f-mostrar">Mostrar</label>
+      <div class="ux-select">
+        <select id="f-mostrar" [formControl]="form.controls.mostrar" aria-label="Tipo de gráfico de barras">
+          <option value="consumo">Consumo (kg)</option>
+          <option value="mortalidad">% Mortalidad</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Cargando -->
+  <div *ngIf="loading()" class="loading-overlay" role="status" aria-live="polite">
+    <div class="spinner"></div>
+    Calculando…
+  </div>
+
+  <!-- Contenido -->
+  <ng-container *ngIf="!loading()">
+    <!-- Contexto / KPIs -->
+    <div class="ux-subheader" *ngIf="data() as d">
+      <div class="kpis">
+        <div class="kpi">
+          <span class="kpi__label">Lote</span>
+          <span class="kpi__value">{{ d.loteId }}</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi__label">Rango</span>
+          <span class="kpi__value">{{ rangoTexto() }}</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi__label">Días</span>
+          <span class="kpi__value">{{ d.total || 0 }}</span>
+        </div>
+
+        <!-- KPIs opcionales del último día -->
+        <ng-container *ngIf="d.items?.length">
+          <div class="kpi">
+            <span class="kpi__label">Edad (días)</span>
+            <span class="kpi__value">{{ d.items.at(-1)!.edadDias ?? '—' }}</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__label">Hembras vivas</span>
+            <span class="kpi__value">{{ (d.items.at(-1)!.hembraViva ?? 0) | number:'1.0-0' }}</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi__label">Machos vivos</span>
+            <span class="kpi__value">{{ (d.items.at(-1)!.machoVivo ?? 0) | number:'1.0-0' }}</span>
+          </div>
+        </ng-container>
+      </div>
+
+      <p class="ux-hint" *ngIf="(d.items?.length || 0) === 0">
+        No hay datos dentro del rango seleccionado. Ajusta las fechas e inténtalo nuevamente.
+      </p>
+    </div>
+
+    <!-- Grillas de gráficos -->
+    <div *ngIf="data()?.items?.length; else noData" class="grid grid-2">
+      <!-- Barras (toggle consumo / mortalidad) -->
+      <figure class="ux-card chart-card" aria-labelledby="bar-title" role="group">
+        <figcaption id="bar-title" class="chart-title">
+          {{ form.value.mostrar === 'consumo' ? 'Consumo por día (kg)' : 'Mortalidad diaria (%)' }}
+        </figcaption>
+
+        <!-- Consumo -->
+        <canvas
+          *ngIf="form.value.mostrar === 'consumo'"
+          baseChart
+          [type]="'bar'"
+          [options]="barOptions"
+          [data]="{
+            labels: barLabels(),
+            datasets: [
+              { label: 'Cons H (kg)', data: barConsH() },
+              { label: 'Cons M (kg)', data: barConsM() }
+            ]
+          }"
+          aria-label="Gráfico de barras de consumo diario por sexo">
+        </canvas>
+
+        <!-- Mortalidad -->
+        <canvas
+          *ngIf="form.value.mostrar === 'mortalidad'"
+          baseChart
+          [type]="'bar'"
+          [options]="barOptions"
+          [data]="{
+            labels: barLabels(),
+            datasets: [
+              { label: '% Mort H', data: barMortHPct() },
+              { label: '% Mort M', data: barMortMPct() }
+            ]
+          }"
+          aria-label="Gráfico de barras de % mortalidad diario por sexo">
+        </canvas>
+      </figure>
+
+      <!-- Torta: retiros Hembras (último día) -->
+      <figure class="ux-card chart-card" aria-labelledby="pie-title" role="group">
+        <figcaption id="pie-title" class="chart-title">
+          Distribución retiros Hembras (último día del rango)
+        </figcaption>
+
+        <canvas
+          baseChart
+          [type]="'pie'"
+          [options]="pieOptions"
+          [data]="{
+            labels: pieLabels,
+            datasets: [{ data: pieValues() }]
+          }"
+          aria-label="Gráfico de torta de retiros hembras (mortalidad, selección, error) en el último día">
+        </canvas>
+
+        <p class="ux-hint">
+          Se muestra la distribución del día más reciente dentro del rango. Cambia las fechas para analizar otra ventana.
+        </p>
+      </figure>
+    </div>
+
+    <!-- Empty state -->
+    <ng-template #noData>
+      <div class="empty-state">
+        <div class="empty-illustration" aria-hidden="true">📊</div>
+        <p>No hay datos para graficar con el rango actual.</p>
+      </div>
+    </ng-template>
+  </ng-container>
+</section>

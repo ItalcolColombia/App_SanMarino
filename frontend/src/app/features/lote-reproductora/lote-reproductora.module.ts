@@ -1,14 +1,18 @@
-// src/app/features/lote-reproductora/lote-reproductora.module.ts
 import { NgModule } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { LoteReproductoraRoutingModule } from './lote-reproductora-routing.module';
-import { LoteReproductoraListComponent } from './pages/lote-reproductora-list/lote-reproductora-list.component';
+import { RouterModule } from '@angular/router';
 
 @NgModule({
   imports: [
-    CommonModule,
-    LoteReproductoraRoutingModule,
-    LoteReproductoraListComponent
+    RouterModule.forChild([
+      {
+        path: '',
+        // Carga DIRECTA del standalone (no necesitas routing module aparte)
+        loadComponent: () =>
+          import('./pages/lote-reproductora-list/lote-reproductora-list.component')
+            .then(m => m.LoteReproductoraListComponent),
+        title: 'Lotes Reproductora'
+      }
+    ])
   ]
 })
 export class LoteReproductoraModule {}

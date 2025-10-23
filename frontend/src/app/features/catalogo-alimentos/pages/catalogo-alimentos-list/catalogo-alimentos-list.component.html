@@ -1,0 +1,265 @@
+<!-- featrures/catalogo-alimentos/pages/catalogo-alimentos-list/catalogo-alimentos-list.html -->
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+
+
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="ux-header">
+      <div class="ux-header__title">
+
+        <div class="ux-header__meta">
+          <span class="chip chip--muted" aria-live="polite">{{ total }} registro(s)</span>
+          <span class="chip" *ngIf="q">Filtro: “{{ q }}”</span>
+          <span class="chip" *ngIf="typeFilter">Tipo: {{ typeFilter | titlecase }}</span>
+          <span class="chip" *ngIf="statusFilter !== 'all'">
+            Estado: {{ statusFilter === 'active' ? 'Activos' : 'Inactivos' }}
+          </span>
+        </div>
+      </div>
+
+      <div class="ux-header__actions">
+        <button type="button" class="btn btn--primary" (click)="create()">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+          Nuevo
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros rápidos -->
+    <section class="ux-toolbar" role="group" aria-label="Filtros del catálogo">
+      <div class="ux-input-icon">
+        <fa-icon [icon]="faSearch" aria-hidden="true"></fa-icon>
+        <input
+          type="search"
+          [(ngModel)]="q"
+          (ngModelChange)="page = 1; load()"
+          placeholder="Buscar por código o nombre…"
+          aria-label="Buscar en el catálogo"
+        />
+      </div>
+
+      <div class="ux-toolbar__filters">
+        <!-- Tipo -->
+        <label class="sr-only" for="f-type">Tipo</label>
+        <select id="f-type" [(ngModel)]="typeFilter" (ngModelChange)="page=1; load()" title="Filtrar por tipo">
+          <option [ngValue]="''">Todos los tipos</option>
+          <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
+        </select>
+
+        <!-- Estado -->
+        <label class="sr-only" for="f-status">Estado</label>
+        <select id="f-status" [(ngModel)]="statusFilter" (ngModelChange)="page=1; load()" title="Filtrar por estado">
+          <option value="all">Todos</option>
+          <option value="active">Activos</option>
+          <option value="inactive">Inactivos</option>
+        </select>
+
+        <!-- Tamaño página -->
+        <label class="sr-only" for="f-size">Tamaño de página</label>
+        <select id="f-size" [(ngModel)]="pageSize" (ngModelChange)="page=1; load()" title="Tamaño de página">
+          <option *ngFor="let s of pageSizes" [ngValue]="s">{{ s }}/pág.</option>
+        </select>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="pager" role="navigation" aria-label="Paginación">
+        <button class="icon-btn" [disabled]="page<=1" (click)="prev()" title="Anterior">
+          <fa-icon [icon]="faChevronLeft" aria-hidden="true"></fa-icon>
+        </button>
+        <span class="pager__info">Página {{ page }} de {{ totalPages }}</span>
+        <button class="icon-btn" [disabled]="page * pageSize >= total" (click)="next()" title="Siguiente">
+          <fa-icon [icon]="faChevronRight" aria-hidden="true"></fa-icon>
+        </button>
+      </div>
+    </section>
+
+    <!-- Tabla -->
+    <section class="ux-card">
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <caption class="sr-only">Tabla de catálogo de ítems</caption>
+          <thead>
+            <tr>
+              <th scope="col">Código</th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Metadatos</th>
+              <th scope="col">Activo</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let it of items; trackBy: trackById">
+              <td><code>{{ it.codigo }}</code></td>
+              <td>
+                <div class="cell-title">
+                  <span class="title-text">{{ it.nombre }}</span>
+                  <span class="subtitle-text" *ngIf="it.metadata?.fabricante">de {{ it.metadata.fabricante }}</span>
+                </div>
+              </td>
+
+              <!-- Tipo -->
+              <td>
+                <span class="chip chip--info">
+                  {{ typeOf(it.metadata) || '—' }}
+                </span>
+              </td>
+
+              <!-- Metadatos clave como chips -->
+              <td class="meta-col">
+                <ng-container *ngIf="metaChips(it.metadata)?.length; else noMeta">
+                  <span class="meta-chip" *ngFor="let c of metaChips(it.metadata)">
+                    {{ c.key }}: {{ c.value }}
+                  </span>
+                </ng-container>
+                <ng-template #noMeta>—</ng-template>
+              </td>
+
+              <td>
+                <span class="chip" [class.chip--success]="it.activo" [class.chip--danger]="!it.activo">
+                  {{ it.activo ? 'Sí' : 'No' }}
+                </span>
+              </td>
+
+              <td class="text-right">
+                <div class="btn-group">
+                  <button type="button" class="icon-btn" (click)="edit(it)" title="Editar">✎</button>
+                  <button type="button" class="icon-btn icon-btn--danger" (click)="delete(it.id!)" title="Eliminar">🗑</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr *ngIf="!loading && items.length === 0">
+              <td colspan="6" class="empty-state">
+                <div class="empty-illustration" aria-hidden="true">📦</div>
+                <p>No hay ítems que coincidan con los filtros.</p>
+                <div class="empty-actions">
+                  <button type="button" class="btn btn--outline" (click)="clearFilters()">Limpiar filtros</button>
+                  <button type="button" class="btn btn--primary" (click)="create()">Crear el primero</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite" role="status">
+        <div class="spinner"></div> Cargando…
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal Crear/Editar -->
+<div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cat-item-modal-title">
+  <div class="ux-modal__dialog">
+    <header class="ux-modal__header">
+      <h2 id="cat-item-modal-title">{{ editing ? 'Editar Ítem' : 'Nuevo Ítem' }}</h2>
+      <button type="button" class="icon-btn" (click)="cancel()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
+      <div class="grid grid-2">
+        <div class="form-field">
+          <label for="f-cod">Código</label>
+          <input id="f-cod" type="text" formControlName="codigo" [readonly]="editing" />
+        </div>
+
+        <div class="form-field">
+          <label for="f-nom">Nombre</label>
+          <input id="f-nom" type="text" formControlName="nombre" />
+        </div>
+
+        <div class="form-field">
+          <label for="f-act">Activo</label>
+          <select id="f-act" formControlName="activo">
+            <option [ngValue]="true">Sí</option>
+            <option [ngValue]="false">No</option>
+          </select>
+        </div>
+
+        <!-- Tipo genérico -->
+        <div class="form-field">
+          <label for="f-type">Tipo de ítem</label>
+          <select id="f-type" formControlName="type_item">
+            <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
+          </select>
+          <small class="help">Se guardará como <code>type_item</code> en la metadata.</small>
+        </div>
+
+        <!-- Solo si es alimento -->
+        <div class="form-field form-field--full" *ngIf="isAlimento">
+          <div class="ux-card ux-card--sub">
+            <div class="ux-card__header">
+              <strong>Alimento — configuración</strong>
+            </div>
+
+            <div class="grid grid-3">
+              <div class="form-field">
+                <label for="f-pollo">Especie</label>
+                <input id="f-pollo" type="text" value="pollo" readonly aria-readonly="true" />
+                <small class="help">Se guardará como <code>especie: "pollo"</code>.</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-raza">Raza</label>
+                <select id="f-raza" formControlName="raza">
+                  <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label for="f-genero">Género</label>
+                <select id="f-genero" formControlName="genero">
+                  <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="note note--info">
+              Se requerirán <code>raza</code> y <code>genero</code> para alimento.
+            </div>
+          </div>
+        </div>
+
+        <!-- Editor Metadata libre -->
+        <div class="form-field form-field--full">
+          <div class="meta-editor">
+            <div class="meta-header">
+              <strong>Metadata</strong>
+              <button type="button" class="btn btn--ghost" (click)="addMetaRow()">+ Agregar</button>
+            </div>
+
+            <div class="meta-rows" formArrayName="metadata">
+              <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
+                <input type="text" placeholder="clave" formControlName="key" />
+                <input type="text" placeholder="valor" formControlName="value" />
+                <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" title="Quitar">🗑</button>
+              </div>
+            </div>
+            <small class="help">
+              Claves reservadas: <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code>.
+            </small>
+          </div>
+        </div>
+
+        <!-- Vista previa JSON -->
+        <div class="form-field form-field--full">
+          <label>Vista previa de metadata (JSON)</label>
+          <pre class="json-preview">{{ jsonPreview() }}</pre>
+        </div>
+      </div>
+
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">Guardar</button>
+      </footer>
+    </form>
+
+    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Guardando…
+    </div>
+  </div>
+</div>

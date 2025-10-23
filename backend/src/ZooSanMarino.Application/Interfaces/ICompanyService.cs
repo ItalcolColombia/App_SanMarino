@@ -4,6 +4,7 @@ namespace ZooSanMarino.Application.Interfaces;
 public interface ICompanyService
 {
     Task<IEnumerable<CompanyDto>> GetAllAsync();
+    Task<IEnumerable<CompanyDto>> GetAllForAdminAsync(); // Nuevo método para administración
     Task<CompanyDto?>            GetByIdAsync(int id);
     Task<CompanyDto>             CreateAsync(CreateCompanyDto dto);
     Task<CompanyDto?>            UpdateAsync(UpdateCompanyDto dto);

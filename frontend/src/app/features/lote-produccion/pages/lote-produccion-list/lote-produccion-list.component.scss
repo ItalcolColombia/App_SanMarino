@@ -1,0 +1,421 @@
+/* ==========================================================================
+   🎨 Design System / Tokens (solo claro)
+   ========================================================================== */
+   :host {
+    display: block;
+
+    /* Brand */
+    --brand-red:        #d32f2f;
+    --brand-red-600:    #c62828;
+    --brand-red-700:    #b71c1c;
+
+    /* Accent */
+    --amber-25:         #fffbeb;
+    --amber-50:         #fff7ed;
+    --amber-100:        #fef3c7;
+    --amber-200:        #fde68a;
+
+    /* Warm Gray scale */
+    --warm-25:          #fdfdfc;
+    --warm-50:          #fafaf9;
+    --warm-100:         #f5f5f4;
+    --warm-200:         #e7e5e4;
+    --warm-300:         #d6d3d1;
+    --warm-400:         #a8a29e;
+    --warm-500:         #78716c;
+    --warm-600:         #57534e;
+
+    /* Base */
+    --white:            #ffffff;
+    --black:            #111111; /* texto principal negro */
+
+    /* Sombras */
+    --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
+    --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
+    --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
+
+    /* Espaciado & Radios */
+    --space-1: .25rem;
+    --space-2: .5rem;
+    --space-3: .75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+
+    --radius-sm: .5rem;
+    --radius-md: .65rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+
+    /* Tipografía */
+    --fs-xs: .75rem;
+    --fs-sm: .85rem;
+    --fs-md: .92rem;
+    --fs-lg: 1.05rem;
+    --fs-xl: 1.35rem;
+
+    /* Focus ring */
+    --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+
+    /* Z-index */
+    --z-sticky: 10;
+    --z-modal:  50;
+
+    /* Superficies (CLARO) */
+    /* ⬇️ Fondo gris claro difuminado (degradado suave) */
+    --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+    --bg-card:    var(--white);
+    --bg-muted:   var(--warm-50);
+    --border:     var(--warm-200);
+    --text:       var(--black);         /* texto negro */
+    --text-sub:   #222222;              /* gris muy oscuro para secundarios */
+
+    /* Transiciones */
+    --t-fast: .12s ease;
+    --t-med:  .15s ease;
+  }
+
+  /* (Sin modo oscuro) */
+
+  /* Densidad compacta opcional */
+  :host([data-density="compact"]) {
+    --space-4: .75rem;
+    --space-5: .9rem;
+    --space-6: 1rem;
+    --fs-md: .88rem;
+    --fs-sm: .8rem;
+    --radius-md: .5rem;
+    --radius-lg: .75rem;
+  }
+
+  /* ==========================================================================
+     🔧 Helpers / Utilities
+     ========================================================================== */
+  .sr-only {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0);
+    white-space: nowrap; border: 0;
+  }
+  .text-right { text-align: right; }
+  :host [aria-busy="true"] { cursor: progress; }
+
+  .grid { display: grid; gap: .9rem; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+  /* ==========================================================================
+     🧱 Layout base
+     ========================================================================== */
+  :host .ux-page {
+    display: flex; height: 100vh; background: var(--bg-body);
+  }
+  :host .ux-sidebar {
+    width: 16rem; flex-shrink: 0; background: var(--bg-card);
+    border-right: 1px solid var(--border);
+  }
+  :host .ux-main {
+    flex: 1; padding: var(--space-6); overflow: auto;
+    display: flex; flex-direction: column; gap: var(--space-4);
+    color: var(--text);
+  }
+
+  /* ==========================================================================
+     🏷️ Header + chips
+     ========================================================================== */
+  :host .ux-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .75rem; padding-bottom: .5rem;
+    border-bottom: 3px solid var(--amber-200);
+  }
+  :host .ux-header__title { display: flex; flex-direction: column; gap: .35rem; }
+  :host .ux-header__title h1 {
+    margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--brand-red); letter-spacing: .2px;
+  }
+  :host .ux-header__meta {
+    display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  }
+
+  :host .chip {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font-size: var(--fs-xs); line-height: 1;
+    padding: .45rem .6rem; border-radius: 999px;
+    border: 1px solid var(--border); font-weight: 700;
+    background: var(--bg-muted); color: var(--text-sub);
+  }
+  :host .chip__dot {
+    width: .5rem; height: .5rem; border-radius: 999px; background: var(--warm-400);
+  }
+  :host .chip--info { background: var(--amber-100); border-color: var(--amber-200); }
+  :host .chip--info .chip__dot { background: var(--brand-red); }
+  :host .chip--warning { background: var(--amber-50); color: #7c2d12; border-color: #fed7aa; }
+  :host .chip--warning .chip__dot { background: var(--brand-red); }
+
+  /* ==========================================================================
+     🔘 Botones
+     ========================================================================== */
+  :host .btn {
+    --btn-bg: var(--bg-muted);
+    --btn-fg: var(--text);
+    --btn-br: var(--border);
+
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: .5rem; padding: .55rem .9rem; border-radius: var(--radius-md);
+    background: var(--btn-bg); color: var(--btn-fg); border: 1px solid var(--btn-br);
+    font-weight: 700; transition: transform var(--t-med), box-shadow var(--t-med), background var(--t-med), color var(--t-med);
+    text-decoration: none; cursor: pointer;
+  }
+  :host .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  :host .btn:active { transform: translateY(0); }
+  :host .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  :host .btn--primary { --btn-bg: var(--brand-red); --btn-fg: var(--white); --btn-br: var(--brand-red); }
+  :host .btn--primary:hover { background: var(--brand-red-600); }
+  :host .btn--outline { --btn-bg: var(--bg-card); --btn-fg: var(--brand-red); --btn-br: var(--brand-red); }
+  :host .btn--outline:hover { background: #fff1f2; }
+  :host .btn--ghost { --btn-bg: var(--bg-card); --btn-fg: var(--text); --btn-br: var(--border); }
+  :host .btn--ghost:hover { background: var(--bg-muted); }
+
+  /* Icon buttons */
+  :host .icon-btn {
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+    border-radius: .55rem; padding: .35rem .55rem; line-height: 1;
+    transition: background var(--t-med), color var(--t-med), transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  :host .icon-btn:hover { background: var(--bg-muted); color: var(--brand-red); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  :host .icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
+
+  :host .btn:focus-visible,
+  :host .icon-btn:focus-visible,
+  :host select:focus-visible,
+  :host input:focus-visible,
+  :host textarea:focus-visible {
+    outline: none; box-shadow: var(--ring);
+  }
+
+  /* ==========================================================================
+     ⬇️ Selects / Inputs
+     ========================================================================== */
+  :host .ux-label { font-size: var(--fs-sm); color: var(--text); font-weight: 700; }
+
+  :host .ux-select { position: relative; }
+  :host .ux-select select {
+    appearance: none; width: 100%;
+    padding: .55rem 2.25rem .55rem .75rem; border: 1px solid var(--warm-300);
+    border-radius: var(--radius-md); background: var(--bg-card); color: var(--text);
+    font-weight: 600; outline: none; transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+  }
+  :host .ux-select select:hover { background: var(--bg-muted); }
+  :host .ux-select select:focus { border-color: var(--brand-red); box-shadow: var(--ring); }
+  :host .ux-select::after {
+    content: '▾'; position: absolute; right: .65rem; top: 50%;
+    transform: translateY(-50%); font-size: .8rem; color: var(--warm-400); pointer-events: none;
+  }
+
+  /* ==========================================================================
+     🧰 Cards / Tabla
+     ========================================================================== */
+  :host .ux-card {
+    position: relative; background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg); padding: var(--space-4);
+    color: var(--text);
+  }
+  :host .ux-card.mb-4 { margin-bottom: var(--space-4); }
+
+  :host .ux-scroll { max-height: 65vh; overflow: auto; border-radius: .75rem; }
+
+  /* Tabla */
+  :host .ux-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  :host .ux-table thead {
+    position: sticky; top: 0; z-index: var(--z-sticky);
+    background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
+    color: var(--white);
+  }
+  :host .ux-table thead th {
+    text-align: left; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+    padding: .8rem 1rem; border-bottom: 2px solid var(--brand-red-700);
+  }
+  :host .ux-table thead th:first-child { border-top-left-radius: .75rem; }
+  :host .ux-table thead th:last-child  { border-top-right-radius: .75rem; text-align: right; }
+
+  :host .ux-table tbody tr { transition: background-color var(--t-fast); }
+  :host .ux-table tbody tr:nth-child(even) { background: var(--warm-50); }
+  :host .ux-table tbody tr:hover { background: var(--amber-25); }
+  :host .ux-table tbody td {
+    padding: .7rem 1rem; font-size: var(--fs-md); color: var(--text); border-bottom: 1px solid var(--border);
+  }
+  :host .btn-group { display: inline-flex; align-items: center; gap: .25rem; }
+
+  /* ==========================================================================
+     🕳️ Empty / Loading
+     ========================================================================== */
+  :host .empty-state {
+    text-align: center; padding: 2.25rem 1rem; color: var(--text-sub);
+  }
+  :host .empty-state .empty-illustration { font-size: 2rem; margin-bottom: .35rem; }
+
+  :host .loading-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.04);
+    border-radius: var(--radius-lg);
+    display: flex; align-items: center; justify-content: center;
+    gap: .6rem; font-weight: 700; color: var(--text-sub);
+    backdrop-filter: blur(1px);
+  }
+  :host .spinner {
+    width: 1rem; height: 1rem; border-radius: 999px;
+    border: 2px solid var(--warm-300); border-left-color: var(--brand-red);
+    animation: spin .9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    :host .btn:hover, :host .icon-btn:hover { transform: none; }
+    :host .spinner { animation: none; }
+  }
+
+  /* ==========================================================================
+     🪟 Modal
+     ========================================================================== */
+  :host .ux-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.25); /* leve transparencia clara */
+    display: grid; place-items: center; padding: 1rem; z-index: var(--z-modal);
+    animation: modalFadeIn .12s ease-out;
+  }
+  @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  :host .ux-modal__dialog {
+    width: min(900px, 95vw); background: var(--bg-card);
+    border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    transform: translateY(6px); animation: dialogUp .18s ease-out forwards;
+  }
+  @keyframes dialogUp { to { transform: translateY(0); } }
+
+  :host .ux-modal__header {
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  }
+  :host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
+  :host .ux-modal__footer {
+    display: flex; justify-content: flex-end; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border);
+  }
+  :host .modal-loading {
+    position: absolute; inset: 0; background: rgba(255,255,255,.6);
+    display: flex; align-items: center; justify-content: center; gap: .6rem; font-weight: 700; color: var(--text-sub);
+  }
+
+  /* ==========================================================================
+     📝 Formulario
+     ========================================================================== */
+  :host .ux-form { padding: 1.25rem; }
+
+  :host .form-field { display: flex; flex-direction: column; gap: .35rem; }
+  :host .form-field--full { grid-column: 1 / -1; }
+  :host .form-field label { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+
+  :host .form-field input,
+  :host .form-field textarea,
+  :host .form-field select {
+    border: 1px solid var(--warm-300); border-radius: var(--radius-md);
+    padding: .55rem .75rem; font-size: var(--fs-md); color: var(--text);
+    outline: none; background: var(--bg-card);
+    transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+  }
+  :host .form-field input:hover,
+  :host .form-field textarea:hover,
+  :host .form-field select:hover { background: var(--bg-muted); }
+  :host .form-field input:focus,
+  :host .form-field textarea:focus,
+  :host .form-field select:focus { border-color: var(--brand-red); box-shadow: var(--ring); }
+
+  /* Estados inválidos */
+  :host .form-field .is-invalid,
+  :host .form-field input.ng-invalid.ng-touched,
+  :host .form-field select.ng-invalid.ng-touched {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, .15);
+  }
+
+  /* Inputs readonly */
+  :host .ux-input--readonly { background: var(--warm-50); color: var(--text-sub); }
+
+  /* ==========================================================================
+     🧭 Toolbar filtros (12 col responsive)
+     ========================================================================== */
+  /* ===== Filtros en UNA sola fila ===== */
+:host .ux-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: .6rem;
+
+  /* Fuerza una sola línea; si no cabe, permite scroll horizontal */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: .25rem;
+}
+/* Cada campo con ancho fijo para mantener la fila */
+:host .ux-toolbar > .ux-field {
+  flex: 0 0 220px;       /* ancho base para Granja / Núcleo / Galpón */
+  min-width: 200px;
+}
+/* Lote un poco más ancho para el nombre + edad */
+:host .ux-toolbar > .ux-field:nth-child(4) {
+  flex-basis: 320px;
+  min-width: 260px;
+}
+/* Compactar selects y labels solo en la toolbar */
+:host .ux-toolbar .ux-label {
+  font-size: .78rem;
+  margin-bottom: .2rem;
+}
+
+:host .ux-toolbar .ux-select select {
+  min-height: 2.05rem;         /* antes 2.6rem */
+  padding: .35rem 1.8rem .35rem .55rem;
+  font-size: .82rem;
+  border-radius: .5rem;
+}
+
+/* Flecha del select un poco más chica y pegada */
+:host .ux-toolbar .ux-select::after {
+  font-size: .75rem;
+  right: .55rem;
+}
+
+/* Opcional: microgap entre cards y toolbar cuando hay scroll horizontal */
+:host section.ux-card[role="group"] { padding: .8rem 1rem; }
+:host .ux-toolbar > div { grid-column: span 4; } /* 3 por fila (desktop) */
+  @media (max-width: 960px) { :host .ux-toolbar > div { grid-column: span 6; } }  /* 2 por fila */
+  @media (max-width: 680px) { :host .ux-toolbar > div { grid-column: span 12; } } /* 1 por fila */
+
+  /* Altura consistente de selects en toolbar */
+  :host .ux-toolbar .ux-select select { min-height: 2.6rem; font-weight: 700; }
+
+  /* Aire en card de filtros si añades role="group" */
+  :host section.ux-card[role="group"] { padding: 1rem 1.1rem; }
+
+  /* ==========================================================================
+     📱 Responsivo
+     ========================================================================== */
+  @media (max-width: 1200px) { .grid-4 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (max-width: 960px)  {
+    .grid-4, .grid-3, .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    :host .ux-form { padding: 1rem; }
+  }
+  @media (max-width: 680px)  {
+    .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    :host .ux-header { flex-direction: column; align-items: flex-start; gap: .75rem; }
+  }
+  @media (max-width: 480px) { :host .ux-header__title h1 { font-size: 1.1rem; } }
+
+  /* ==========================================================================
+     🖨️ Print
+     ========================================================================== */
+  @media print {
+    :host .ux-sidebar, :host .ux-header button, :host .ux-modal { display: none !important; }
+    :host .ux-page { height: auto; background: #ffffff !important; }
+    :host .ux-card { box-shadow: none; border-color: #bbb; }
+    :host .ux-table thead { background: #333 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }

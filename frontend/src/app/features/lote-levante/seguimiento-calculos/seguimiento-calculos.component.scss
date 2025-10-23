@@ -1,0 +1,38 @@
+:host { display:block; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.chart-card {
+  padding: .75rem;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-title {
+  font-weight: 600;
+  margin-bottom: .5rem;
+}
+
+canvas {
+  flex: 1 1 auto;
+  max-height: 360px;
+}
+
+.kpis {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: .25rem;
+}
+.kpi { background: var(--warm-gray-50, #fafaf9); padding: .5rem .75rem; border-radius: .5rem; }
+.kpi__label { color: var(--warm-gray-600, #57534e); font-size: .8rem; display:block; }
+.kpi__value { font-weight: 600; }
+
+.loading-overlay { position:relative; padding:.5rem; }
+.empty-state { text-align:center; padding: 1.25rem; color: var(--warm-gray-600, #57534e); }
+.empty-illustration { font-size: 2rem; margin-bottom: .25rem; }

@@ -18,3 +18,23 @@
 /Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/obj/Debug/net9.0/ZooSanMarino.Infrastructure.pdb
 /Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/obj/Debug/net9.0/ZooSanMarino.Infrastructure.genruntimeconfig.cache
 /Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/obj/Debug/net9.0/ref/ZooSanMarino.Infrastructure.dll
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Infrastructure.deps.json
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Infrastructure.runtimeconfig.json
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Infrastructure.dll
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Infrastructure.pdb
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Application.dll
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Domain.dll
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Domain.pdb
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\bin\Debug\net9.0\ZooSanMarino.Application.pdb
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.AssemblyInfoInputs.cache
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.AssemblyInfo.cs
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.csproj.CoreCompileInputs.cache
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.sourcelink.json
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMa.0BC2E6E2.Up2Date
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.dll
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\refint\ZooSanMarino.Infrastructure.dll
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.pdb
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ZooSanMarino.Infrastructure.genruntimeconfig.cache
+C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Infrastructure\obj\Debug\net9.0\ref\ZooSanMarino.Infrastructure.dll

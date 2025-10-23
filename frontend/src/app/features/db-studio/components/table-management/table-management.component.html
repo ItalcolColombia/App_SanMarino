@@ -1,0 +1,296 @@
+<!-- src/app/features/db-studio/components/table-management/table-management.component.html -->
+<div class="table-management-container">
+  <!-- Header -->
+  <div class="management-header">
+    <div class="header-left">
+      <h2 class="page-title">
+        <fa-icon [icon]="faTable"></fa-icon>
+        Gestión de Tablas
+      </h2>
+      <p class="page-subtitle">Administra las tablas del esquema {{ selectedSchema }}</p>
+    </div>
+    <div class="header-right">
+      <button 
+        class="btn btn-primary"
+        (click)="onCreateTable()"
+        title="Crear nueva tabla">
+        <fa-icon [icon]="faPlus"></fa-icon>
+        Nueva Tabla
+      </button>
+      <button 
+        class="btn btn-ghost"
+        (click)="onRefresh()"
+        [disabled]="loading"
+        title="Actualizar lista">
+        <fa-icon [icon]="faRefresh" [class.spinning]="loading"></fa-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Barra de herramientas -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <!-- Búsqueda -->
+      <div class="search-container">
+        <fa-icon [icon]="faSearch" class="search-icon"></fa-icon>
+        <input 
+          type="text" 
+          placeholder="Buscar tablas..."
+          [ngModel]="searchTerm()"
+          (ngModelChange)="onSearchChange($event)"
+          class="search-input">
+      </div>
+
+      <!-- Filtros de ordenamiento -->
+      <div class="sort-controls">
+        <label class="sort-label">Ordenar por:</label>
+        <select 
+          class="sort-select"
+          [ngModel]="sortBy()"
+          (ngModelChange)="onSortChange($event)">
+          <option value="name">Nombre</option>
+          <option value="size">Tamaño</option>
+          <option value="rows">Filas</option>
+          <option value="type">Tipo</option>
+        </select>
+        <button 
+          class="btn btn-ghost btn-sm"
+          (click)="onSortChange(sortBy())"
+          title="Cambiar orden">
+          <fa-icon [icon]="sortOrder() === 'asc' ? 'faArrowUp' : 'faArrowDown'"></fa-icon>
+        </button>
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      <!-- Contador de resultados -->
+      <span class="results-count">{{ filteredTables().length }} tablas</span>
+      
+      <!-- Cambiar vista -->
+      <div class="view-toggle">
+        <button 
+          class="btn btn-ghost btn-sm"
+          [class.active]="viewMode() === 'grid'"
+          (click)="toggleViewMode()"
+          title="Vista de cuadrícula">
+          <fa-icon [icon]="faTable"></fa-icon>
+        </button>
+        <button 
+          class="btn btn-ghost btn-sm"
+          [class.active]="viewMode() === 'list'"
+          (click)="toggleViewMode()"
+          title="Vista de lista">
+          <fa-icon [icon]="faColumns"></fa-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido de tablas -->
+  <div class="tables-content">
+    <!-- Vista de cuadrícula -->
+    <div *ngIf="viewMode() === 'grid'" class="tables-grid">
+      <div 
+        *ngFor="let table of filteredTables()" 
+        class="table-card"
+        [class.selected]="selectedTable()?.name === table.name"
+        [class]="getTableTypeClass(table)"
+        (click)="selectTable(table)">
+        
+        <div class="card-header">
+          <div class="table-icon">{{ getTableIcon(table) }}</div>
+          <div class="table-type-badge" [class]="'type-' + table.kind.toLowerCase()">
+            {{ table.kind }}
+          </div>
+        </div>
+
+        <div class="card-body">
+          <h3 class="table-name">{{ table.name }}</h3>
+          <div class="table-meta">
+            <div class="meta-item" *ngIf="table.size">
+              <fa-icon [icon]="faDatabase"></fa-icon>
+              <span>{{ formatTableSize(table.size) }}</span>
+            </div>
+            <div class="meta-item" *ngIf="table.rows">
+              <fa-icon [icon]="faTable"></fa-icon>
+              <span>{{ formatRowCount(table.rows) }} filas</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button 
+            class="btn btn-sm btn-outline"
+            (click)="onTableAction(table, 'view'); $event.stopPropagation()"
+            title="Ver datos">
+            <fa-icon [icon]="faEye"></fa-icon>
+          </button>
+          <button 
+            class="btn btn-sm btn-outline"
+            (click)="onTableAction(table, 'structure'); $event.stopPropagation()"
+            title="Ver estructura">
+            <fa-icon [icon]="faColumns"></fa-icon>
+          </button>
+          <button 
+            class="btn btn-sm btn-outline"
+            (click)="onTableAction(table, 'export'); $event.stopPropagation()"
+            title="Exportar">
+            <fa-icon [icon]="faDownload"></fa-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vista de lista -->
+    <div *ngIf="viewMode() === 'list'" class="tables-list">
+      <div class="list-header">
+        <div class="col-name">Nombre</div>
+        <div class="col-type">Tipo</div>
+        <div class="col-size">Tamaño</div>
+        <div class="col-rows">Filas</div>
+        <div class="col-actions">Acciones</div>
+      </div>
+      
+      <div 
+        *ngFor="let table of filteredTables()" 
+        class="table-row"
+        [class.selected]="selectedTable()?.name === table.name"
+        (click)="selectTable(table)">
+        
+        <div class="col-name">
+          <div class="table-info">
+            <span class="table-icon">{{ getTableIcon(table) }}</span>
+            <span class="table-name">{{ table.name }}</span>
+          </div>
+        </div>
+        
+        <div class="col-type">
+          <span class="table-type-badge" [class]="'type-' + table.kind.toLowerCase()">
+            {{ table.kind }}
+          </span>
+        </div>
+        
+        <div class="col-size">
+          <span *ngIf="table.size">{{ formatTableSize(table.size) }}</span>
+          <span *ngIf="!table.size" class="text-muted">N/A</span>
+        </div>
+        
+        <div class="col-rows">
+          <span *ngIf="table.rows">{{ formatRowCount(table.rows) }}</span>
+          <span *ngIf="!table.rows" class="text-muted">0</span>
+        </div>
+        
+        <div class="col-actions">
+          <div class="action-buttons">
+            <button 
+              class="btn btn-sm btn-ghost"
+              (click)="onTableAction(table, 'view'); $event.stopPropagation()"
+              title="Ver datos">
+              <fa-icon [icon]="faEye"></fa-icon>
+            </button>
+            <button 
+              class="btn btn-sm btn-ghost"
+              (click)="onTableAction(table, 'structure'); $event.stopPropagation()"
+              title="Ver estructura">
+              <fa-icon [icon]="faColumns"></fa-icon>
+            </button>
+            <button 
+              class="btn btn-sm btn-ghost"
+              (click)="onTableAction(table, 'export'); $event.stopPropagation()"
+              title="Exportar">
+              <fa-icon [icon]="faDownload"></fa-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estado vacío -->
+    <div *ngIf="filteredTables().length === 0" class="empty-state">
+      <div class="empty-icon">📋</div>
+      <h3>No se encontraron tablas</h3>
+      <p *ngIf="searchTerm()">
+        No hay tablas que coincidan con "{{ searchTerm() }}"
+      </p>
+      <p *ngIf="!searchTerm()">
+        No hay tablas en el esquema {{ selectedSchema }}
+      </p>
+      <button 
+        class="btn btn-primary"
+        (click)="onCreateTable()"
+        *ngIf="!searchTerm()">
+        <fa-icon [icon]="faPlus"></fa-icon>
+        Crear primera tabla
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel de detalles de tabla seleccionada -->
+  <div *ngIf="selectedTable()" class="table-details-panel">
+    <div class="panel-header">
+      <h3>{{ selectedTable()!.name }}</h3>
+      <button 
+        class="btn btn-ghost btn-sm"
+        (click)="selectedTable.set(null)"
+        title="Cerrar detalles">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+    
+    <div class="panel-content">
+      <div class="detail-section">
+        <h4>Información General</h4>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <label>Tipo:</label>
+            <span class="table-type-badge" [class]="'type-' + selectedTable()!.kind.toLowerCase()">
+              {{ selectedTable()!.kind }}
+            </span>
+          </div>
+          <div class="detail-item">
+            <label>Esquema:</label>
+            <span>{{ selectedTable()!.schema }}</span>
+          </div>
+          <div class="detail-item" *ngIf="selectedTable()!.size">
+            <label>Tamaño:</label>
+            <span>{{ formatTableSize(selectedTable()!.size!) }}</span>
+          </div>
+          <div class="detail-item" *ngIf="selectedTable()!.rows">
+            <label>Filas:</label>
+            <span>{{ formatRowCount(selectedTable()!.rows!) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h4>Acciones Rápidas</h4>
+        <div class="action-grid">
+          <button 
+            class="btn btn-outline"
+            (click)="onTableAction(selectedTable()!, 'view')">
+            <fa-icon [icon]="faEye"></fa-icon>
+            Ver Datos
+          </button>
+          <button 
+            class="btn btn-outline"
+            (click)="onTableAction(selectedTable()!, 'structure')">
+            <fa-icon [icon]="faColumns"></fa-icon>
+            Estructura
+          </button>
+          <button 
+            class="btn btn-outline"
+            (click)="onTableAction(selectedTable()!, 'export')">
+            <fa-icon [icon]="faDownload"></fa-icon>
+            Exportar
+          </button>
+          <button 
+            class="btn btn-outline"
+            (click)="onTableAction(selectedTable()!, 'edit')">
+            <fa-icon [icon]="faEdit"></fa-icon>
+            Editar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

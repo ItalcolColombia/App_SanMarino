@@ -1,0 +1,57 @@
+<!-- Tabla de registros -->
+<section class="ux-card">
+  <div class="ux-scroll">
+    <table class="ux-table">
+      <caption class="sr-only">Registros diarios del lote</caption>
+
+      <thead>
+        <tr>
+          <th scope="col">Fecha</th>
+          <th scope="col">Edad</th>
+          <th scope="col">Mort. H</th>
+          <th scope="col">Mort. M</th>
+          <th scope="col">Consumo (kg)</th>
+          <th scope="col">Huevos Totales</th>
+          <th scope="col">Huevos Incubables</th>
+          <th scope="col">Peso Huevo</th>
+          <th scope="col" class="text-right">Acciones</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)">
+          <td colspan="9" class="empty-state">
+            <div class="empty-illustration" aria-hidden="true">📄</div>
+            <p *ngIf="!selectedLoteId">Selecciona un lote para ver/crear registros.</p>
+            <p *ngIf="selectedLoteId">Sin registros para este lote.</p>
+            <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="!selectedLoteId">
+              Crear el primero
+            </button>
+          </td>
+        </tr>
+
+        <tr *ngFor="let s of seguimientos; trackBy: trackById" class="ux-row">
+          <td>{{ formatDMY(s.fechaRegistro) }}</td>
+          <td>{{ edadDiasDe(s) }}</td>
+          <td>{{ s.mortalidadH }}</td>
+          <td>{{ s.mortalidadM }}</td>
+          <td>{{ s.consumoKg | number:'1.2-2' }}</td>
+          <td>{{ s.huevosTotales }}</td>
+          <td>{{ s.huevosIncubables }}</td>
+          <td>{{ s.pesoHuevo | number:'1.2-2' }}</td>
+          <td class="text-right">
+            <div class="btn-group">
+              <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
+              <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="loading" class="loading-overlay" aria-live="polite" role="status">
+    <div class="spinner"></div>
+    Cargando…
+  </div>
+</section>

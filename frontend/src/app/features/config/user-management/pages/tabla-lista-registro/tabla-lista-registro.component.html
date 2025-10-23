@@ -1,0 +1,207 @@
+<!-- src/app/features/config/user-management/pages/tabla-lista-registro/tabla-lista-registro.component.html -->
+<div class="table-container" [attr.aria-busy]="loading ? 'true' : null">
+  <!-- Compact Search Bar -->
+  <div class="search-section">
+    <div class="search-container">
+      <fa-icon [icon]="faSearch" class="search-icon"></fa-icon>
+      <input
+        type="text"
+        [(ngModel)]="filterTerm"
+        (ngModelChange)="onFilterChange()"
+        placeholder="Buscar usuarios..."
+        class="search-input"
+        aria-label="Buscar usuarios"
+      />
+    </div>
+    <div class="results-count">{{ filteredUsers.length }} usuarios</div>
+  </div>
+
+  <!-- Compact Table -->
+  <div class="table-wrapper">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Cargando usuarios...</p>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!loading && filteredUsers.length === 0" class="empty-state">
+      <fa-icon [icon]="faUser" class="empty-icon"></fa-icon>
+      <h3>No hay usuarios</h3>
+      <p>No se encontraron usuarios que coincidan con tu búsqueda.</p>
+    </div>
+
+    <!-- Desktop Table -->
+    <div *ngIf="!loading && filteredUsers.length > 0" class="desktop-table">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Contacto</th>
+            <th>Empresa</th>
+            <th>Estado</th>
+            <th class="actions-header">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of filteredUsers; trackBy: trackByUserId" class="user-row">
+            <!-- Usuario -->
+            <td class="user-cell">
+              <div class="user-info">
+                <div class="user-avatar">
+                  <fa-icon [icon]="faUser"></fa-icon>
+                </div>
+                <div class="user-details">
+                  <div class="user-name">{{ user.firstName }} {{ user.surName }}</div>
+                  <div class="user-id">ID: {{ user.cedula }}</div>
+                </div>
+              </div>
+            </td>
+
+            <!-- Contacto -->
+            <td class="contact-cell">
+              <div class="contact-info">
+                <div class="contact-item">
+                  <fa-icon [icon]="faEnvelope" class="contact-icon"></fa-icon>
+                  <span class="contact-text">{{ user.email }}</span>
+                </div>
+                <div *ngIf="user.telefono" class="contact-item">
+                  <fa-icon [icon]="faPhone" class="contact-icon"></fa-icon>
+                  <span class="contact-text">{{ user.telefono }}</span>
+                </div>
+              </div>
+            </td>
+
+            <!-- Empresa -->
+            <td class="company-cell">
+              <div class="company-info">
+                <div class="company-name">{{ getPrimaryCompany(user) }}</div>
+                <div *ngIf="user.companyNames && user.companyNames.length > 1" class="company-count">
+                  +{{ user.companyNames.length - 1 }} más
+                </div>
+              </div>
+            </td>
+
+            <!-- Estado -->
+            <td class="status-cell">
+              <span class="status-badge" [class]="getStatusBadgeClass(user.isActive)">
+                {{ getStatusText(user.isActive) }}
+              </span>
+            </td>
+
+            <!-- Acciones -->
+            <td class="actions-cell">
+              <div class="actions-group">
+                <button
+                  (click)="onAssignFarmsClick(user)"
+                  class="action-btn farms-btn"
+                  [attr.aria-label]="'Asignar granjas a ' + user.firstName + ' ' + user.surName"
+                  title="Asignar granjas"
+                >
+                  <fa-icon [icon]="faBuilding"></fa-icon>
+                </button>
+                <button
+                  (click)="onEditUserClick(user)"
+                  class="action-btn edit-btn"
+                  [attr.aria-label]="'Editar ' + user.firstName + ' ' + user.surName"
+                  title="Editar usuario"
+                >
+                  <fa-icon [icon]="faEdit"></fa-icon>
+                </button>
+                <button
+                  (click)="deleteUser(user)"
+                  class="action-btn delete-btn"
+                  [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
+                  title="Eliminar usuario"
+                >
+                  <fa-icon [icon]="faTrash"></fa-icon>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Cards -->
+    <div *ngIf="!loading && filteredUsers.length > 0" class="mobile-cards">
+      <div *ngFor="let user of filteredUsers; trackBy: trackByUserId" class="user-card">
+        <div class="card-header">
+          <div class="user-info">
+            <div class="user-avatar">
+              <fa-icon [icon]="faUser"></fa-icon>
+            </div>
+            <div class="user-details">
+              <div class="user-name">{{ user.firstName }} {{ user.surName }}</div>
+              <div class="user-id">{{ user.cedula }}</div>
+            </div>
+          </div>
+          <span class="status-badge" [class]="getStatusBadgeClass(user.isActive)">
+            {{ getStatusText(user.isActive) }}
+          </span>
+        </div>
+
+        <div class="card-content">
+          <div class="contact-info">
+            <div class="contact-item">
+              <fa-icon [icon]="faEnvelope" class="contact-icon"></fa-icon>
+              <span class="contact-text">{{ user.email }}</span>
+            </div>
+            <div *ngIf="user.telefono" class="contact-item">
+              <fa-icon [icon]="faPhone" class="contact-icon"></fa-icon>
+              <span class="contact-text">{{ user.telefono }}</span>
+            </div>
+          </div>
+
+          <div class="company-info">
+            <div class="company-name">{{ getPrimaryCompany(user) }}</div>
+            <div *ngIf="user.companyNames && user.companyNames.length > 1" class="company-count">
+              +{{ user.companyNames.length - 1 }} más
+            </div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button
+            (click)="onAssignFarmsClick(user)"
+            class="action-btn farms-btn"
+            [attr.aria-label]="'Asignar granjas a ' + user.firstName + ' ' + user.surName"
+            title="Asignar granjas"
+          >
+            <fa-icon [icon]="faBuilding"></fa-icon>
+            <span>Granjas</span>
+          </button>
+          <button
+            (click)="onEditUserClick(user)"
+            class="action-btn edit-btn"
+            [attr.aria-label]="'Editar ' + user.firstName + ' ' + user.surName"
+            title="Editar usuario"
+          >
+            <fa-icon [icon]="faEdit"></fa-icon>
+            <span>Editar</span>
+          </button>
+          <button
+            (click)="deleteUser(user)"
+            class="action-btn delete-btn"
+            [attr.aria-label]="'Eliminar ' + user.firstName + ' ' + user.surName"
+            title="Eliminar usuario"
+          >
+            <fa-icon [icon]="faTrash"></fa-icon>
+            <span>Eliminar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Asignación de Granjas -->
+<app-asignar-usuario-granja
+  *ngIf="selectedUser"
+  [userId]="selectedUser.id"
+  [userName]="selectedUser.firstName + ' ' + selectedUser.surName"
+  [companyId]="1"
+  [isOpen]="asignarGranjaModalOpen"
+  (close)="closeAsignarGranjaModal()"
+  (granjasUpdated)="onGranjasUpdated()"
+></app-asignar-usuario-granja>

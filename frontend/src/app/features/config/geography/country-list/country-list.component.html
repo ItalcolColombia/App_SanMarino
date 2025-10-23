@@ -1,100 +1,335 @@
-<div class="flex h-screen">
+<!-- src/app/features/config/country/country-management.component.html -->
+<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
   <!-- Sidebar -->
   <app-sidebar class="w-64"></app-sidebar>
 
+  <!-- Main -->
   <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto">
     <!-- Header -->
-    <div class="flex items-center mb-6">
-      <fa-icon [icon]="faPlus" class="text-3xl text-brand-red mr-2"></fa-icon>
-      <h1 class="text-2xl font-bold text-brand-red">Países</h1>
-      <button
-        (click)="newCountry()"
-        class="ml-auto inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-800 rounded hover:bg-yellow-500 transition"
-      >
-        <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
-        Nuevo País
-      </button>
-    </div>
-
-    <!-- Modal Crear/Editar -->
-    <div
-      *ngIf="showModal"
-      class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-    >
-      <div class="bg-white rounded-lg shadow-lg w-80 p-6">
-        <h2 class="text-xl font-bold mb-4">
-          {{ editingId ? 'Editar País' : 'Nuevo País' }}
-        </h2>
-        <form [formGroup]="countryForm" (ngSubmit)="saveCountry()">
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">Nombre</label>
-            <input
-              formControlName="paisNombre"
-              type="text"
-              class="w-full border rounded px-3 py-2"
-              placeholder="Ej: Colombia"
-            />
-            <div
-              *ngIf="countryForm.get('paisNombre')?.touched && countryForm.get('paisNombre')?.invalid"
-              class="text-red-600 text-xs mt-1"
-            >
-              El nombre es obligatorio.
-            </div>
-          </div>
-          <div class="flex justify-end space-x-2">
-            <button
-              type="button"
-              (click)="cancel()"
-              class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              class="px-4 py-2 bg-brand-red text-white rounded hover:bg-red-600"
-            >
-              Guardar
-            </button>
-          </div>
-        </form>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faGlobe" class="text-3xl text-brand-red" aria-hidden="true"></fa-icon>
+        <h1 class="text-2xl font-bold text-brand-red">Geografía: País / Departamento / Ciudad</h1>
+      </div>
+      <div class="text-xs text-warm-gray-600 bg-white px-2 py-1 rounded border">
+        {{ countries.length || 0 }} países · {{ departments.length || 0 }} deptos · {{ cities.length || 0 }} ciudades
       </div>
     </div>
 
-    <!-- Tabla de países -->
-    <div class="bg-white rounded-lg shadow overflow-x-auto mt-4">
-      <table class="min-w-full table-auto">
-        <thead class="bg-warm-gray-100">
-          <tr>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">
-              Nombre
-            </th>
-            <th class="px-4 py-3 text-right text-sm font-semibold text-warm-gray-700">
-              Acciones
-            </th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-warm-gray-200">
-          <tr *ngFor="let c of countries" class="hover:bg-warm-gray-50 transition-colors">
-            <td class="px-4 py-2 text-sm">{{ c.paisNombre }}</td>
-            <td class="px-4 py-2 text-right space-x-2">
-              <button
-                (click)="editCountry(c)"
-                class="p-1 text-warm-gray-500 hover:text-brand-red transition"
-                [attr.aria-label]="'Editar ' + c.paisNombre"
-              >
-                <fa-icon [icon]="faPen"></fa-icon>
-              </button>
-              <button
-                (click)="deleteCountry(c.paisId)"
-                class="p-1 text-warm-gray-500 hover:text-red-600 transition"
-                [attr.aria-label]="'Eliminar ' + c.paisNombre"
-              >
-                <fa-icon [icon]="faTrash"></fa-icon>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Tabs + CTA -->
+    <div class="seg-tabs mb-4">
+      <div class="seg-tabs__rail">
+        <button
+          (click)="setTab('countries')"
+          class="seg-tabs__btn"
+          [class.is-active]="activeTab==='countries'">
+          <fa-icon [icon]="faGlobe" class="mr-1" aria-hidden="true"></fa-icon>
+          Países
+        </button>
+        <button
+          (click)="setTab('departments')"
+          class="seg-tabs__btn"
+          [class.is-active]="activeTab==='departments'">
+          <fa-icon [icon]="faMap" class="mr-1" aria-hidden="true"></fa-icon>
+          Departamentos
+        </button>
+        <button
+          (click)="setTab('cities')"
+          class="seg-tabs__btn"
+          [class.is-active]="activeTab==='cities'">
+          <fa-icon [icon]="faCity" class="mr-1" aria-hidden="true"></fa-icon>
+          Ciudades
+        </button>
+      </div>
+
+      <div class="seg-tabs__cta">
+        <button *ngIf="activeTab==='countries'" (click)="openCountryModal()" class="btn-primary">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+          Nuevo País
+        </button>
+        <button *ngIf="activeTab==='departments'" (click)="openDeptModal()" class="btn-primary">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+          Nuevo Departamento
+        </button>
+        <button *ngIf="activeTab==='cities'" (click)="openCityModal()" class="btn-primary">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+          Nueva Ciudad
+        </button>
+      </div>
     </div>
+
+    <!-- Search -->
+    <div class="ux-search mb-3 max-w-lg">
+      <fa-icon [icon]="faSearch" class="ux-search__icon" aria-hidden="true"></fa-icon>
+
+      <input *ngIf="activeTab==='countries'"
+             [(ngModel)]="filterCountries"
+             type="text"
+             placeholder="Buscar país…"
+             class="ux-search__input" />
+
+      <input *ngIf="activeTab==='departments'"
+             [(ngModel)]="filterDepartments"
+             type="text"
+             placeholder="Buscar departamento o país…"
+             class="ux-search__input" />
+
+      <input *ngIf="activeTab==='cities'"
+             [(ngModel)]="filterCities"
+             type="text"
+             placeholder="Buscar ciudad, departamento o país…"
+             class="ux-search__input" />
+    </div>
+
+    <!-- Tables -->
+    <div class="ux-card">
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <caption class="sr-only">Geografía</caption>
+
+          <!-- HEADERS -->
+          <thead *ngIf="activeTab==='countries'">
+            <tr>
+              <th scope="col">País</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <thead *ngIf="activeTab==='departments'">
+            <tr>
+              <th scope="col">Departamento</th>
+              <th scope="col">País</th>
+              <th scope="col" class="text-center">Activo</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <thead *ngIf="activeTab==='cities'">
+            <tr>
+              <th scope="col">Ciudad</th>
+              <th scope="col">Departamento</th>
+              <th scope="col">País</th>
+              <th scope="col" class="text-center">Activo</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <!-- BODY: Countries -->
+          <tbody *ngIf="activeTab==='countries'">
+            <tr *ngFor="let c of filteredCountries; trackBy: trackByCountryId" class="ux-row">
+              <td>{{ c.paisNombre }}</td>
+              <td class="text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button class="icon-btn" (click)="openCountryModal(c)" [attr.aria-label]="'Editar ' + c.paisNombre" title="Editar">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button class="icon-btn danger" (click)="deleteCountry(c.paisId)" [attr.aria-label]="'Eliminar ' + c.paisNombre" title="Eliminar">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="!filteredCountries.length">
+              <td colspan="2" class="empty-state">Sin países</td>
+            </tr>
+          </tbody>
+
+          <!-- BODY: Departments -->
+          <tbody *ngIf="activeTab==='departments'">
+            <tr *ngFor="let d of filteredDepartments; trackBy: trackByDeptId" class="ux-row">
+              <td>{{ d.departamentoNombre }}</td>
+              <td>{{ countryMap[d.paisId] || '—' }}</td>
+              <td class="text-center">
+                <span class="chip" [ngClass]="d.active ? 'chip--active' : 'chip--muted'">
+                  <fa-icon [icon]="d.active ? faCheck : faTimes" aria-hidden="true"></fa-icon>
+                  {{ d.active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button class="icon-btn" (click)="openDeptModal(d)" [attr.aria-label]="'Editar ' + d.departamentoNombre" title="Editar">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button class="icon-btn danger" (click)="deleteDept(d.departamentoId)" [attr.aria-label]="'Eliminar ' + d.departamentoNombre" title="Eliminar">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="!filteredDepartments.length">
+              <td colspan="4" class="empty-state">Sin departamentos</td>
+            </tr>
+          </tbody>
+
+          <!-- BODY: Cities -->
+          <tbody *ngIf="activeTab==='cities'">
+            <tr *ngFor="let m of filteredCities; trackBy: trackByCityId" class="ux-row">
+              <td>{{ m.municipioNombre }}</td>
+              <td>{{ deptMap[m.departamentoId] || '—' }}</td>
+              <td>{{ getCountryName(m.departamentoId) }}</td>
+              <td class="text-center">
+                <span class="chip" [ngClass]="m.active ? 'chip--active' : 'chip--muted'">
+                  <fa-icon [icon]="m.active ? faCheck : faTimes" aria-hidden="true"></fa-icon>
+                  {{ m.active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button class="icon-btn" (click)="openCityModal(m)" [attr.aria-label]="'Editar ' + m.municipioNombre" title="Editar">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button class="icon-btn danger" (click)="deleteCity(m.municipioId)" [attr.aria-label]="'Eliminar ' + m.municipioNombre" title="Eliminar">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="!filteredCities.length">
+              <td colspan="5" class="empty-state">Sin ciudades</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Loading toast -->
+    <div *ngIf="loading" class="loading-toast">
+      <div class="inline-flex items-center gap-2">
+        <span class="spinner"></span>
+        Cargando…
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Country -->
+<div *ngIf="countryModalOpen" class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="country-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="country-title" class="text-xl font-bold text-brand-red">
+        {{ editingCountry ? 'Editar País' : 'Nuevo País' }}
+      </h2>
+      <button type="button" (click)="closeCountryModal()" class="btn-ghost">Cerrar</button>
+    </div>
+
+    <form [formGroup]="countryForm" (ngSubmit)="saveCountry()" class="space-y-4" novalidate>
+      <div>
+        <label class="form-label">Nombre <span class="text-red-600">*</span></label>
+        <input formControlName="paisNombre"
+               class="form-input"
+               [class.form-input--invalid]="countryForm.get('paisNombre')?.invalid && countryForm.get('paisNombre')?.touched" />
+        <p *ngIf="countryForm.get('paisNombre')?.invalid && countryForm.get('paisNombre')?.touched" class="form-error">Obligatorio</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" (click)="closeCountryModal()" class="btn-ghost">Cancelar</button>
+        <button type="submit" [disabled]="countryForm.invalid" class="btn-danger">
+          <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
+          Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Department -->
+<div *ngIf="deptModalOpen" class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="dept-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="dept-title" class="text-xl font-bold text-brand-red">
+        {{ editingDept ? 'Editar Departamento' : 'Nuevo Departamento' }}
+      </h2>
+      <button type="button" (click)="closeDeptModal()" class="btn-ghost">Cerrar</button>
+    </div>
+
+    <form [formGroup]="deptForm" (ngSubmit)="saveDept()" class="space-y-4" novalidate>
+      <div>
+        <label class="form-label">País <span class="text-red-600">*</span></label>
+        <select formControlName="paisId" class="form-input">
+          <option [ngValue]="null" disabled>— Selecciona un país —</option>
+          <option *ngFor="let c of countries; trackBy: trackByCountryId" [ngValue]="c.paisId">{{ c.paisNombre }}</option>
+        </select>
+        <p *ngIf="deptForm.get('paisId')?.invalid && deptForm.get('paisId')?.touched" class="form-error">Obligatorio</p>
+      </div>
+
+      <div>
+        <label class="form-label">Nombre <span class="text-red-600">*</span></label>
+        <input formControlName="departamentoNombre"
+               class="form-input"
+               [class.form-input--invalid]="deptForm.get('departamentoNombre')?.invalid && deptForm.get('departamentoNombre')?.touched" />
+        <p *ngIf="deptForm.get('departamentoNombre')?.invalid && deptForm.get('departamentoNombre')?.touched" class="form-error">Obligatorio</p>
+      </div>
+
+      <label class="inline-flex items-center gap-2">
+        <input type="checkbox" formControlName="active" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+        <span class="text-sm text-warm-gray-700">Activo</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="button" (click)="closeDeptModal()" class="btn-ghost">Cancelar</button>
+        <button type="submit" [disabled]="deptForm.invalid" class="btn-danger">
+          <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
+          Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: City -->
+<div *ngIf="cityModalOpen" class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="city-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="city-title" class="text-xl font-bold text-brand-red">
+        {{ editingCity ? 'Editar Ciudad' : 'Nueva Ciudad' }}
+      </h2>
+      <button type="button" (click)="closeCityModal()" class="btn-ghost">Cerrar</button>
+    </div>
+
+    <form [formGroup]="cityForm" (ngSubmit)="saveCity()" class="space-y-4" novalidate>
+      <div>
+        <label class="form-label">País <span class="text-red-600">*</span></label>
+        <select formControlName="countryId" class="form-input">
+          <option [ngValue]="null" disabled>— Selecciona un país —</option>
+          <option *ngFor="let c of countries; trackBy: trackByCountryId" [ngValue]="c.paisId">{{ c.paisNombre }}</option>
+        </select>
+        <p *ngIf="cityForm.get('countryId')?.invalid && cityForm.get('countryId')?.touched" class="form-error">Obligatorio</p>
+      </div>
+
+      <div>
+        <label class="form-label">Departamento <span class="text-red-600">*</span></label>
+        <select formControlName="departamentoId" [disabled]="!cityFormDepartments.length" class="form-input">
+          <option [ngValue]="null" disabled>— Selecciona un departamento —</option>
+          <option *ngFor="let d of cityFormDepartments; trackBy: trackByDeptId" [ngValue]="d.departamentoId">
+            {{ d.departamentoNombre }}
+          </option>
+        </select>
+        <p *ngIf="cityForm.get('departamentoId')?.invalid && cityForm.get('departamentoId')?.touched" class="form-error">Obligatorio</p>
+      </div>
+
+      <div>
+        <label class="form-label">Nombre <span class="text-red-600">*</span></label>
+        <input formControlName="municipioNombre"
+               class="form-input"
+               [class.form-input--invalid]="cityForm.get('municipioNombre')?.invalid && cityForm.get('municipioNombre')?.touched" />
+        <p *ngIf="cityForm.get('municipioNombre')?.invalid && cityForm.get('municipioNombre')?.touched" class="form-error">Obligatorio</p>
+      </div>
+
+      <label class="inline-flex items-center gap-2">
+        <input type="checkbox" formControlName="active" class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+        <span class="text-sm text-warm-gray-700">Activo</span>
+      </label>
+
+      <div class="form-actions">
+        <button type="button" (click)="closeCityModal()" class="btn-ghost">Cancelar</button>
+        <button type="submit" [disabled]="cityForm.invalid" class="btn-danger">
+          <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
+          Guardar
+        </button>
+      </div>
+    </form>
   </div>
 </div>

@@ -1,36 +1,50 @@
+// src/ZooSanMarino.Infrastructure/Persistence/Configurations/ProduccionLoteConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
+
+namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
 
 public class ProduccionLoteConfiguration : IEntityTypeConfiguration<ProduccionLote>
 {
     public void Configure(EntityTypeBuilder<ProduccionLote> builder)
     {
-        builder.ToTable("produccion_lotes");
+        builder.ToTable("produccion_lote");
+
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
 
-        builder.Property(x => x.Id).HasColumnName("id");
-        builder.Property(x => x.LoteId).HasColumnName("lote_id").HasMaxLength(50);
-        builder.Property(x => x.FechaInicioProduccion).HasColumnName("fecha_inicio");
+        builder.Property(x => x.LoteId)
+            .IsRequired();
 
-        builder.Property(x => x.HembrasIniciales).HasColumnName("hembras_iniciales");
-        builder.Property(x => x.MachosIniciales).HasColumnName("machos_iniciales");
-        builder.Property(x => x.HuevosIniciales).HasColumnName("huevos_iniciales");
+        builder.Property(x => x.FechaInicio)
+            .IsRequired()
+            .HasColumnType("date");
 
-        builder.Property(x => x.TipoNido).HasColumnName("tipo_nido").HasMaxLength(100);
-        builder.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
+        builder.Property(x => x.AvesInicialesH)
+            .IsRequired()
+            .HasDefaultValue(0);
 
-        builder.Property(x => x.NucleoProduccionId).HasColumnName("nucleo_id");
-        builder.Property(x => x.GranjaId).HasColumnName("granja_id");
+        builder.Property(x => x.AvesInicialesM)
+            .IsRequired()
+            .HasDefaultValue(0);
 
+        builder.Property(x => x.Observaciones)
+            .HasMaxLength(1000);
+
+        // Relación con Lote
         builder.HasOne(x => x.Lote)
-               .WithMany()
-               .HasForeignKey(x => x.LoteId)
-               .OnDelete(DeleteBehavior.Cascade);
+            .WithMany()
+            .HasForeignKey(x => x.LoteId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.NucleoProduccion)
-               .WithMany()
-               .HasForeignKey(x => new { x.NucleoProduccionId, x.GranjaId })
-               .OnDelete(DeleteBehavior.Restrict);
+        // Índice único para asegurar un solo registro inicial por lote
+        builder.HasIndex(x => x.LoteId)
+            .IsUnique()
+            .HasDatabaseName("IX_produccion_lote_lote_id_unique");
+
+        // Índices adicionales
+        builder.HasIndex(x => x.FechaInicio)
+            .HasDatabaseName("IX_produccion_lote_fecha_inicio");
     }
 }

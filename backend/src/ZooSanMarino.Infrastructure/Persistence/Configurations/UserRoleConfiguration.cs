@@ -1,3 +1,4 @@
+// src/ZooSanMarino.Infrastructure/Persistence/Configurations/UserRoleConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
@@ -9,19 +10,14 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
     public void Configure(EntityTypeBuilder<UserRole> e)
     {
         e.ToTable("user_roles");
+        e.HasKey(x => new { x.UserId, x.RoleId });
 
-        e.HasKey(ur => new { ur.UserId, ur.RoleId, ur.CompanyId });
-
-        e.HasOne(ur => ur.User)
+        e.HasOne(x => x.User)
          .WithMany(u => u.UserRoles)
-         .HasForeignKey(ur => ur.UserId);
+         .HasForeignKey(x => x.UserId);
 
-        e.HasOne(ur => ur.Role)
+        e.HasOne(x => x.Role)
          .WithMany(r => r.UserRoles)
-         .HasForeignKey(ur => ur.RoleId);
-
-        e.HasOne(ur => ur.Company)
-         .WithMany()
-         .HasForeignKey(ur => ur.CompanyId);
+         .HasForeignKey(x => x.RoleId);
     }
 }

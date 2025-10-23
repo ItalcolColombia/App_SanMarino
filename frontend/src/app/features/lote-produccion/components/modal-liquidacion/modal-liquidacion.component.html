@@ -1,0 +1,176 @@
+<div *ngIf="isOpen" class="modal-overlay" (click)="onClose()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>💰 Liquidación Técnica de Producción</h2>
+      <button type="button" class="close-btn" (click)="onClose()" aria-label="Cerrar">
+        ✕
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Información del lote -->
+      <div class="lote-info" *ngIf="liquidacionData">
+        <h3>{{ liquidacionData.loteNombre || 'Lote ' + liquidacionData.loteId }}</h3>
+        <p>Período: {{ formatDMY(liquidacionData.fechaInicio) }} - {{ formatDMY(liquidacionData.fechaFin) }}</p>
+        <p>Duración: {{ liquidacionData.totalDias }} días</p>
+      </div>
+
+      <!-- Resumen General -->
+      <div class="resumen-section" *ngIf="liquidacionData">
+        <h4>📊 Resumen General</h4>
+        <div class="resumen-grid">
+          <div class="resumen-card">
+            <div class="resumen-icon">🐔</div>
+            <div class="resumen-content">
+              <div class="resumen-value">{{ liquidacionData.resumen.poblacionInicial }}</div>
+              <div class="resumen-label">Población Inicial</div>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">✅</div>
+            <div class="resumen-content">
+              <div class="resumen-value">{{ liquidacionData.resumen.poblacionFinal }}</div>
+              <div class="resumen-label">Población Final</div>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">💀</div>
+            <div class="resumen-content">
+              <div class="resumen-value mortalidad" [class]="'mortalidad-' + getMortalidadColor(liquidacionData.resumen.mortalidadPorcentaje)">
+                {{ liquidacionData.resumen.mortalidadTotal }}
+              </div>
+              <div class="resumen-label">Mortalidad Total</div>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">🥚</div>
+            <div class="resumen-content">
+              <div class="resumen-value">{{ liquidacionData.resumen.huevosTotales | number:'1.0-0' }}</div>
+              <div class="resumen-label">Huevos Totales</div>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">✅</div>
+            <div class="resumen-content">
+              <div class="resumen-value">{{ liquidacionData.resumen.huevosIncubables | number:'1.0-0' }}</div>
+              <div class="resumen-label">Huevos Incubables</div>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">📈</div>
+            <div class="resumen-content">
+              <div class="resumen-value eficiencia" [class]="'eficiencia-' + getEficienciaColor(liquidacionData.resumen.eficienciaProduccion)">
+                {{ liquidacionData.resumen.eficienciaProduccion | number:'1.1-1' }}%
+              </div>
+              <div class="resumen-label">Eficiencia Producción</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Métricas Clave -->
+      <div class="metricas-section" *ngIf="liquidacionData">
+        <h4>📈 Métricas Clave</h4>
+        <div class="metricas-grid">
+          <div class="metrica-item">
+            <span class="metrica-label">Mortalidad Diaria Promedio:</span>
+            <span class="metrica-value">{{ liquidacionData.metricas.mortalidadDiariaPromedio | number:'1.2-2' }}</span>
+          </div>
+          
+          <div class="metrica-item">
+            <span class="metrica-label">Producción Diaria Promedio:</span>
+            <span class="metrica-value">{{ liquidacionData.metricas.produccionDiariaPromedio | number:'1.1-1' }}</span>
+          </div>
+          
+          <div class="metrica-item">
+            <span class="metrica-label">Eficiencia Diaria Promedio:</span>
+            <span class="metrica-value">{{ liquidacionData.metricas.eficienciaDiariaPromedio | number:'1.1-1' }}%</span>
+          </div>
+          
+          <div class="metrica-item">
+            <span class="metrica-label">Consumo Diario Promedio:</span>
+            <span class="metrica-value">{{ liquidacionData.metricas.consumoDiarioPromedio | number:'1.2-2' }} kg</span>
+          </div>
+          
+          <div class="metrica-item">
+            <span class="metrica-label">Uniformidad de Producción:</span>
+            <span class="metrica-value">{{ liquidacionData.metricas.uniformidadProduccion | number:'1.1-1' }}%</span>
+          </div>
+          
+          <div class="metrica-item">
+            <span class="metrica-label">Peso Promedio Huevo:</span>
+            <span class="metrica-value">{{ liquidacionData.resumen.pesoPromedioHuevo | number:'1.1-1' }}g</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Análisis por Etapas -->
+      <div class="etapas-section" *ngIf="liquidacionData">
+        <h4>🔄 Análisis por Etapas</h4>
+        <div class="etapas-grid">
+          <div class="etapa-card" *ngFor="let etapa of liquidacionData.etapas">
+            <div class="etapa-header">
+              <h5>{{ etapa.nombre }}</h5>
+              <span class="etapa-dias">{{ etapa.dias }} días</span>
+            </div>
+            
+            <div class="etapa-content">
+              <div class="etapa-metricas">
+                <div class="etapa-metrica">
+                  <span class="label">Mortalidad:</span>
+                  <span class="value mortalidad" [class]="'mortalidad-' + getMortalidadColor(etapa.mortalidadPorcentaje)">
+                    {{ etapa.mortalidad }} ({{ etapa.mortalidadPorcentaje | number:'1.1-1' }}%)
+                  </span>
+                </div>
+                
+                <div class="etapa-metrica">
+                  <span class="label">Huevos Totales:</span>
+                  <span class="value">{{ etapa.huevosTotales | number:'1.0-0' }}</span>
+                </div>
+                
+                <div class="etapa-metrica">
+                  <span class="label">Huevos Incubables:</span>
+                  <span class="value">{{ etapa.huevosIncubables | number:'1.0-0' }}</span>
+                </div>
+                
+                <div class="etapa-metrica">
+                  <span class="label">Eficiencia:</span>
+                  <span class="value eficiencia" [class]="'eficiencia-' + getEficienciaColor(etapa.eficiencia)">
+                    {{ etapa.eficiencia | number:'1.1-1' }}%
+                  </span>
+                </div>
+                
+                <div class="etapa-metrica">
+                  <span class="label">Consumo Hembras:</span>
+                  <span class="value">{{ etapa.consumoHembras | number:'1.1-1' }} kg</span>
+                </div>
+                
+                <div class="etapa-metrica">
+                  <span class="label">Consumo Machos:</span>
+                  <span class="value">{{ etapa.consumoMachos | number:'1.1-1' }} kg</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estado de carga -->
+      <div *ngIf="liquidacionLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Generando liquidación técnica...</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn--primary" (click)="onClose()">
+        Cerrar
+      </button>
+    </div>
+  </div>
+</div>

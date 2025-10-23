@@ -4,20 +4,24 @@
   <app-sidebar></app-sidebar>
 
   <!-- Área principal -->
-  <div class="flex-1 p-6 bg-gray-50 min-h-screen relative">
+  <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen relative">
     <!-- Overlay de carga -->
     <div
       *ngIf="loading"
-      class="absolute inset-0 bg-white bg-opacity-60 flex items-center justify-center z-10"
+      class="absolute inset-0 bg-white/60 flex items-center justify-center z-10"
+      aria-live="polite"
     >
-      <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-16 w-16"></div>
+      <div class="inline-flex items-center gap-2 text-sm text-warm-gray-700">
+        <span class="w-3 h-3 rounded-full bg-brand-red animate-pulse"></span>
+        Cargando…
+      </div>
     </div>
 
-    <!-- Contenido sólo si no estamos cargando -->
-    <ng-container *ngIf="!loading">
+    <!-- Contenido -->
+    <div class="max-w-3xl mx-auto">
       <!-- Título -->
-      <div class="flex items-center space-x-2 mb-6 text-brand-red">
-        <fa-icon [icon]="faList" class="text-2xl"></fa-icon>
+      <div class="flex items-center gap-2 mb-6 text-brand-red">
+        <fa-icon [icon]="faList" class="text-2xl" aria-hidden="true"></fa-icon>
         <h2 class="text-2xl font-bold">
           {{ isEdit ? 'Editar lista' : 'Nueva lista' }}
         </h2>
@@ -27,100 +31,125 @@
       <form
         [formGroup]="listForm"
         (ngSubmit)="save()"
-        class="space-y-6 bg-white p-6 rounded-lg shadow-md"
+        class="space-y-6 bg-white p-6 rounded-2xl shadow"
+        novalidate
       >
-
-        <!-- Identificador y Nombre en grid -->
+        <!-- Identificador y Nombre -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Identificador interno (key) -->
+          <!-- Identificador (key) -->
           <div>
-            <label class="block mb-1 font-medium text-gray-700">Identificador (key)</label>
+            <label class="block mb-1 text-xs font-semibold text-warm-gray-700">
+              Identificador (key) <span class="text-red-600">*</span>
+            </label>
             <input
               formControlName="key"
               [disabled]="isEdit"
-              placeholder="e.g. ciudad, departamento, tipo_id"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-red-200 disabled:opacity-50"
+              placeholder="p.ej. type_identit, sede, categorias"
+              class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 disabled:opacity-60 transition"
+              [class.border-red-400]="listForm.get('key')?.invalid && listForm.get('key')?.touched"
+              [attr.aria-invalid]="listForm.get('key')?.invalid && listForm.get('key')?.touched ? 'true' : null"
             />
             <div
               *ngIf="listForm.get('key')?.touched && listForm.get('key')?.invalid"
-              class="mt-1 text-red-600 text-sm"
+              class="mt-1 text-xs text-red-600"
             >
               <div *ngIf="listForm.get('key')?.errors?.['required']">
-                Este campo es obligatorio.
+                Campo obligatorio.
               </div>
               <div *ngIf="listForm.get('key')?.errors?.['pattern']">
-                Solo letras, números, guiones o guion bajo.
+                Solo letras, números, guiones y guion bajo.
               </div>
             </div>
+            <p class="mt-1 text-[11px] text-warm-gray-500">
+              La <em>key</em> se usa para consultar esta lista desde el frontend/backend.
+            </p>
           </div>
 
           <!-- Nombre visible -->
           <div>
-            <label class="block mb-1 font-medium text-gray-700">Nombre de la lista</label>
+            <label class="block mb-1 text-xs font-semibold text-warm-gray-700">
+              Nombre de la lista <span class="text-red-600">*</span>
+            </label>
             <input
               formControlName="name"
-              placeholder="e.g. Ciudades, Departamentos, Tipo de identificación"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-red-200"
+              placeholder="p.ej. Tipos de identificación"
+              class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition"
+              [class.border-red-400]="listForm.get('name')?.invalid && listForm.get('name')?.touched"
+              [attr.aria-invalid]="listForm.get('name')?.invalid && listForm.get('name')?.touched ? 'true' : null"
             />
             <div
               *ngIf="listForm.get('name')?.touched && listForm.get('name')?.invalid"
-              class="mt-1 text-red-600 text-sm"
+              class="mt-1 text-xs text-red-600"
             >
-              Este campo es obligatorio.
+              Campo obligatorio.
             </div>
           </div>
         </div>
 
-        <!-- Valores dinámicos -->
+        <!-- Valores (FormArray) -->
         <div formArrayName="options">
-          <label class="block mb-2 font-medium text-gray-700">Valores de la lista</label>
-          <div
-            *ngFor="let ctrl of options.controls; let i = index"
-            class="flex items-center space-x-2 mb-2"
-          >
-            <input
-              [formControlName]="i"
-              placeholder="Valor {{ i + 1 }}"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring focus:ring-red-200"
-            />
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-semibold text-warm-gray-700">
+              Valores de la lista <span class="text-red-600">*</span>
+            </label>
+
             <button
               type="button"
-              (click)="removeOption(i)"
-              class="text-red-600 hover:text-red-800 p-1"
+              (click)="addOption()"
+              class="inline-flex items-center px-3 py-1.5 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition"
             >
-              <fa-icon [icon]="faTrash"></fa-icon>
+              <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+              Añadir valor
             </button>
           </div>
-          <button
-            type="button"
-            (click)="addOption()"
-            class="inline-flex items-center space-x-1 text-red-600 hover:text-red-800"
-          >
-            <fa-icon [icon]="faPlus"></fa-icon>
-            <span>Añadir valor</span>
-          </button>
+
+          <div class="space-y-2">
+            <div
+              *ngFor="let ctrl of options.controls; let i = index; trackBy: trackByIndex"
+              class="flex items-center gap-2"
+            >
+              <input
+                [formControlName]="i"
+                [attr.aria-label]="'Valor ' + (i + 1)"
+                placeholder="Valor {{ i + 1 }}"
+                class="flex-1 px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition"
+                [class.border-red-400]="ctrl.touched && ctrl.invalid"
+                [attr.aria-invalid]="ctrl.touched && ctrl.invalid ? 'true' : null"
+              />
+              <button
+                type="button"
+                (click)="removeOption(i)"
+                [disabled]="options.length <= 1"
+                class="px-2 py-2 rounded-lg border text-warm-gray-600 hover:text-red-700 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                [attr.aria-label]="'Eliminar valor ' + (i + 1)"
+                title="Eliminar"
+              >
+                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <!-- Botones de acción -->
-        <div class="flex justify-end space-x-4 pt-4 border-t border-gray-200">
+        <!-- Botones -->
+        <div class="flex justify-end gap-3 pt-4 border-t border-warm-gray-200">
           <button
             type="button"
             (click)="cancel()"
-            class="inline-flex items-center px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+            class="inline-flex items-center px-4 py-2 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300 transition"
           >
-            <fa-icon [icon]="faTimes" class="mr-1"></fa-icon>
-            <span>Cancelar</span>
+            <fa-icon [icon]="faTimes" class="mr-2" aria-hidden="true"></fa-icon>
+            Cancelar
           </button>
           <button
             type="submit"
-            [disabled]="listForm.invalid"
-            class="inline-flex items-center px-5 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition disabled:opacity-50"
+            [disabled]="listForm.invalid || loading"
+            class="inline-flex items-center px-5 py-2 rounded-lg bg-brand-red text-white hover:bg-red-600 disabled:opacity-60 transition"
           >
-            <fa-icon [icon]="faSave" class="mr-1"></fa-icon>
-            <span>Guardar</span>
+            <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
+            Guardar
           </button>
         </div>
       </form>
-    </ng-container>
+    </div>
   </div>
 </div>

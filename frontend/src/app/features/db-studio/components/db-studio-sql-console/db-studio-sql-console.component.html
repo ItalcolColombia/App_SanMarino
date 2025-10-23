@@ -1,0 +1,236 @@
+<!-- src/app/features/db-studio/components/db-studio-sql-console/db-studio-sql-console.component.html -->
+<div class="db-studio-sql-console">
+  <!-- Header de la consola -->
+  <div class="console-header">
+    <div class="header-title">
+      <h2>
+        <fa-icon [icon]="faDatabase"></fa-icon>
+        Consola SQL
+      </h2>
+      <p class="header-subtitle">Ejecuta consultas SELECT y WITH de forma segura</p>
+    </div>
+    <div class="header-actions">
+      <button 
+        class="btn btn-primary" 
+        (click)="executeQuery()"
+        [disabled]="loading || !sql().trim()">
+        <fa-icon [icon]="faPlay" [class.spinning]="loading"></fa-icon>
+        <span>Ejecutar</span>
+      </button>
+      <button 
+        class="btn btn-outline" 
+        (click)="clearQuery()">
+        <fa-icon [icon]="faTrash"></fa-icon>
+        <span>Limpiar</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Panel de consulta -->
+  <div class="query-panel">
+    <div class="query-editor">
+      <div class="editor-header">
+        <label class="editor-label">Consulta SQL</label>
+        <div class="editor-actions">
+          <button 
+            class="btn btn-sm btn-ghost"
+            (click)="copyQuery()"
+            title="Copiar consulta">
+            <fa-icon [icon]="faCopy"></fa-icon>
+          </button>
+          <button 
+            class="btn btn-sm btn-ghost"
+            (click)="toggleHistory()"
+            [class.active]="showHistory()"
+            title="Historial">
+            <fa-icon [icon]="faHistory"></fa-icon>
+          </button>
+        </div>
+      </div>
+      <textarea 
+        [(ngModel)]="sql"
+        (ngModelChange)="sql.set($event)"
+        class="sql-editor"
+        placeholder="Escribe tu consulta SQL aquí..."
+        rows="8">
+      </textarea>
+    </div>
+
+    <!-- Panel de parámetros -->
+    <div class="params-panel" *ngIf="showParams()">
+      <div class="params-header">
+        <label class="params-label">Parámetros (JSON)</label>
+        <div class="params-actions">
+          <button 
+            class="btn btn-sm btn-ghost"
+            (click)="toggleParams()"
+            title="Ocultar parámetros">
+            ✕
+          </button>
+        </div>
+      </div>
+      <textarea 
+        [(ngModel)]="paramsText"
+        (ngModelChange)="paramsText.set($event)"
+        class="params-editor"
+        placeholder='{"param1": "value1", "param2": "value2"}'
+        rows="4"
+        [class.invalid]="!isValidJson()">
+      </textarea>
+      <div class="params-help" *ngIf="!isValidJson()">
+        <fa-icon [icon]="faExclamationTriangle" class="warning-icon"></fa-icon>
+        <span>JSON inválido</span>
+      </div>
+    </div>
+
+    <!-- Panel de configuración -->
+    <div class="config-panel">
+      <div class="config-item">
+        <label class="config-label">Límite de filas</label>
+        <input 
+          type="number" 
+          [(ngModel)]="limit"
+          (ngModelChange)="limit.set($event)"
+          min="1" 
+          max="10000"
+          class="config-input">
+      </div>
+      <div class="config-item">
+        <label class="config-label">Offset</label>
+        <input 
+          type="number" 
+          [(ngModel)]="offset"
+          (ngModelChange)="offset.set($event)"
+          min="0"
+          class="config-input">
+      </div>
+      <div class="config-item">
+        <button 
+          class="btn btn-sm btn-outline"
+          (click)="toggleParams()"
+          [class.active]="showParams()">
+          <fa-icon [icon]="faLightbulb"></fa-icon>
+          <span>{{ showParams() ? 'Ocultar' : 'Mostrar' }} Parámetros</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Historial de consultas -->
+  <div class="history-panel" *ngIf="showHistory()">
+    <div class="history-header">
+      <h3>Historial de Consultas</h3>
+      <span class="history-count">{{ queryHistory().length }}</span>
+    </div>
+    <div class="history-list">
+      <div 
+        *ngFor="let item of queryHistory()" 
+        class="history-item"
+        [class.success]="item.success"
+        [class.error]="!item.success">
+        <div class="history-content">
+          <div class="history-sql">{{ item.sql.substring(0, 100) }}{{ item.sql.length > 100 ? '...' : '' }}</div>
+          <div class="history-meta">
+            <span class="history-time">{{ item.timestamp | date:'short' }}</span>
+            <span class="history-duration" *ngIf="item.executionTime">
+              {{ formatExecutionTime(item.executionTime) }}
+            </span>
+            <fa-icon 
+              [icon]="item.success ? faCheckCircle : faTimesCircle"
+              [class.success-icon]="item.success"
+              [class.error-icon]="!item.success">
+            </fa-icon>
+          </div>
+        </div>
+        <div class="history-actions">
+          <button 
+            class="btn btn-sm btn-ghost"
+            (click)="loadFromHistory(item)"
+            title="Cargar consulta">
+            <fa-icon [icon]="faFolderOpen"></fa-icon>
+          </button>
+          <button 
+            class="btn btn-sm btn-ghost"
+            (click)="deleteFromHistory(item)"
+            title="Eliminar del historial">
+            <fa-icon [icon]="faTrash"></fa-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div class="results-panel" *ngIf="hasResults() || queryError()">
+    <div class="results-header">
+      <div class="results-title">
+        <h3>
+          <fa-icon [icon]="queryError() ? faTimesCircle : faCheckCircle"></fa-icon>
+          {{ queryError() ? 'Error en la Consulta' : 'Resultados' }}
+        </h3>
+        <div class="results-meta" *ngIf="!queryError()">
+          <span class="results-count">{{ totalRows() }} filas</span>
+          <span class="results-time">
+            <fa-icon [icon]="faClock"></fa-icon>
+            {{ formatExecutionTime(executionTime()) }}
+          </span>
+        </div>
+      </div>
+      <div class="results-actions" *ngIf="!queryError()">
+        <button 
+          class="btn btn-sm btn-outline"
+          (click)="exportResults()"
+          title="Exportar a CSV">
+          <fa-icon [icon]="faDownload"></fa-icon>
+          <span>Exportar</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-content" *ngIf="queryError()">
+      <div class="error-message">
+        <fa-icon [icon]="faExclamationTriangle" class="error-icon"></fa-icon>
+        <span>{{ queryError() }}</span>
+      </div>
+    </div>
+
+    <!-- Tabla de resultados -->
+    <div class="results-table" *ngIf="!queryError() && hasResults()">
+      <div class="table-container">
+        <table class="results-table-content">
+          <thead>
+            <tr>
+              <th *ngFor="let key of getQueryKeys()">{{ key }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of queryResult()?.rows">
+              <td *ngFor="let key of getQueryKeys()">
+                <span class="cell-value">{{ row[key] | json }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sugerencias -->
+  <div class="suggestions-panel">
+    <div class="suggestions-header">
+      <h4>
+        <fa-icon [icon]="faLightbulb"></fa-icon>
+        Consultas de Ejemplo
+      </h4>
+    </div>
+    <div class="suggestions-list">
+      <button 
+        *ngFor="let suggestion of getSqlSuggestions()" 
+        class="suggestion-item"
+        (click)="insertSuggestion(suggestion)">
+        <span class="suggestion-text">{{ suggestion }}</span>
+      </button>
+    </div>
+  </div>
+</div>

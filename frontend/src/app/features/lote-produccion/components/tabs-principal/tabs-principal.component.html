@@ -1,0 +1,126 @@
+<div class="tabs-container">
+  <!-- Tab Navigation -->
+  <div class="tabs-nav">
+    <button 
+      type="button"
+      class="tab-button"
+      [class.active]="activeTab === 'general'"
+      (click)="onTabChange('general')">
+      📊 General
+    </button>
+    <button 
+      type="button"
+      class="tab-button"
+      [class.active]="activeTab === 'indicadores'"
+      (click)="onTabChange('indicadores')">
+      📈 Indicadores Semanales
+    </button>
+    <button 
+      type="button"
+      class="tab-button"
+      [class.active]="activeTab === 'grafica'"
+      (click)="onTabChange('grafica')">
+      📊 Gráficas
+    </button>
+  </div>
+
+  <!-- Tab Content -->
+  <div class="tab-content">
+    <!-- General Tab -->
+    <div *ngIf="activeTab === 'general'" class="tab-panel">
+      <div class="panel-header">
+        <h3>Registros de Producción</h3>
+        <button 
+          type="button"
+          class="btn btn--primary"
+          (click)="onCreate()"
+          [disabled]="loading">
+          ➕ Nuevo Registro
+        </button>
+      </div>
+      
+      <div class="table-container" *ngIf="registros.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Edad (días)</th>
+              <th>Mort. H</th>
+              <th>Mort. M</th>
+              <th>Sel H</th>
+              <th>ConsKg H</th>
+              <th>ConsKg M</th>
+              <th>Huevo Tot</th>
+              <th>Huevo Inc</th>
+              <th>Peso Huevo</th>
+              <th>Etapa</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let registro of registros">
+              <td>{{ registro.fecha | date:'shortDate' }}</td>
+              <td>{{ calcularEdadDias(registro.fecha) }}</td>
+              <td>{{ registro.mortalidadH }}</td>
+              <td>{{ registro.mortalidadM }}</td>
+              <td>{{ registro.selH }}</td>
+              <td>{{ registro.consKgH }}</td>
+              <td>{{ registro.consKgM }}</td>
+              <td>{{ registro.huevoTot }}</td>
+              <td>{{ registro.huevoInc }}</td>
+              <td>{{ registro.pesoHuevo }}</td>
+              <td>{{ registro.etapa }}</td>
+              <td>
+                <div class="action-buttons">
+                  <button 
+                    type="button"
+                    class="btn btn--sm btn--outline"
+                    (click)="onEdit(registro)"
+                    title="Editar">
+                    ✏️
+                  </button>
+                  <button 
+                    type="button"
+                    class="btn btn--sm btn--danger"
+                    (click)="onDelete(registro.id)"
+                    title="Eliminar">
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="registros.length === 0" class="empty-state">
+        <div class="empty-icon">📄</div>
+        <p>No hay registros de producción para este lote.</p>
+        <button 
+          type="button"
+          class="btn btn--primary"
+          (click)="onCreate()">
+          Crear primer registro
+        </button>
+      </div>
+    </div>
+
+    <!-- Indicadores Semanales Tab -->
+    <div *ngIf="activeTab === 'indicadores'" class="tab-panel">
+      <app-tabla-lista-indicadores
+        [registros]="registros"
+        [selectedLote]="selectedLote"
+        [loading]="loading">
+      </app-tabla-lista-indicadores>
+    </div>
+
+    <!-- Gráficas Tab -->
+    <div *ngIf="activeTab === 'grafica'" class="tab-panel">
+      <app-graficas-principal
+        [registros]="registros"
+        [selectedLote]="selectedLote"
+        [loading]="loading">
+      </app-graficas-principal>
+    </div>
+  </div>
+</div>

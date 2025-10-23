@@ -1,0 +1,224 @@
+<!-- src/app/features/traslados-aves/pages/traslado-form/traslado-form.component.html -->
+<div class="traslado-form-container">
+  <app-sidebar class="sidebar"></app-sidebar>
+
+  <div class="main-content">
+    <!-- Header -->
+    <header class="main-header">
+      <div class="header-title">
+        <h1>🚚 Traslado de Aves</h1>
+        <p>Realizar traslado entre lotes</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" (click)="navegarADashboard()">
+          📊 Dashboard
+        </button>
+        <button class="btn btn-outline" (click)="navegarAMovimientos()">
+          📋 Movimientos
+        </button>
+      </div>
+    </header>
+
+    <!-- Error Banner -->
+    <div class="error-banner" *ngIf="hasError()">
+      <div class="error-content">
+        <span class="error-icon">⚠️</span>
+        <span class="error-message">{{ error() }}</span>
+        <button class="btn btn-sm" (click)="limpiarMensajes()">✕</button>
+      </div>
+    </div>
+
+    <!-- Success Banner -->
+    <div class="success-banner" *ngIf="hasSuccess()">
+      <div class="success-content">
+        <span class="success-icon">✅</span>
+        <span class="success-message">{{ success()?.message }}</span>
+        <button class="btn btn-sm" (click)="limpiarMensajes()">✕</button>
+      </div>
+    </div>
+
+    <!-- Formulario -->
+    <div class="form-container">
+      <form class="ux-form" [formGroup]="form" (ngSubmit)="procesarTraslado()">
+        
+        <!-- Selección de Lotes -->
+        <div class="form-section">
+          <h3>📍 Selección de Lotes</h3>
+          
+          <div class="lotes-grid">
+            <!-- Lote Origen -->
+            <div class="lote-selection">
+              <label class="ux-label">Lote Origen *</label>
+              <app-hierarchical-filter
+                [showLoteSelection]="true"
+                (loteSelected)="onLoteOrigenSelected($event)"
+                placeholder="Seleccionar lote origen...">
+              </app-hierarchical-filter>
+              
+              <!-- Inventario Origen -->
+              <div class="inventario-info" *ngIf="inventarioOrigen()">
+                <div class="inventario-card">
+                  <h4>📦 Inventario Disponible</h4>
+                  <div class="inventario-stats">
+                    <div class="stat">
+                      <span class="stat-label">Hembras:</span>
+                      <span class="stat-value">{{ formatearNumero(inventarioOrigen()!.cantidadHembras) }}</span>
+                    </div>
+                    <div class="stat">
+                      <span class="stat-label">Machos:</span>
+                      <span class="stat-value">{{ formatearNumero(inventarioOrigen()!.cantidadMachos) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lote Destino -->
+            <div class="lote-selection">
+              <label class="ux-label">Lote Destino *</label>
+              <app-hierarchical-filter
+                [showLoteSelection]="true"
+                (loteSelected)="onLoteDestinoSelected($event)"
+                placeholder="Seleccionar lote destino...">
+              </app-hierarchical-filter>
+              
+              <!-- Inventario Destino -->
+              <div class="inventario-info" *ngIf="inventarioDestino()">
+                <div class="inventario-card">
+                  <h4>📦 Inventario Actual</h4>
+                  <div class="inventario-stats">
+                    <div class="stat">
+                      <span class="stat-label">Hembras:</span>
+                      <span class="stat-value">{{ formatearNumero(inventarioDestino()!.cantidadHembras) }}</span>
+                    </div>
+                    <div class="stat">
+                      <span class="stat-label">Machos:</span>
+                      <span class="stat-value">{{ formatearNumero(inventarioDestino()!.cantidadMachos) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cantidades a Trasladar -->
+        <div class="form-section">
+          <h3>📊 Cantidades a Trasladar</h3>
+          
+          <div class="cantidades-grid">
+            <!-- Hembras -->
+            <div class="cantidad-field">
+              <label class="ux-label" for="cantidad-hembras">Cantidad de Hembras *</label>
+              <div class="input-group">
+                <input
+                  id="cantidad-hembras"
+                  type="number"
+                  class="ux-input quantity-input"
+                  formControlName="cantidadHembras"
+                  min="0"
+                  [attr.max]="inventarioOrigen()?.cantidadHembras ?? null"
+                  placeholder="0"
+                />
+                <span class="max-indicator">
+                  / {{ inventarioOrigen()?.cantidadHembras ?? '—' }} disp.
+                </span>
+              </div>
+              <div class="field-error" *ngIf="isFieldInvalid('cantidadHembras')">
+                {{ getFieldError('cantidadHembras') }}
+              </div>
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline"
+                (click)="trasladarTodasLasHembras()"
+                [disabled]="!inventarioOrigen()">
+                Trasladar todas
+              </button>
+            </div>
+
+            <!-- Machos -->
+            <div class="cantidad-field">
+              <label class="ux-label" for="cantidad-machos">Cantidad de Machos *</label>
+              <div class="input-group">
+                <input
+                  id="cantidad-machos"
+                  type="number"
+                  class="ux-input quantity-input"
+                  formControlName="cantidadMachos"
+                  min="0"
+                  [attr.max]="inventarioOrigen()?.cantidadMachos ?? null"
+                  placeholder="0"
+                />
+                <span class="max-indicator">
+                  / {{ inventarioOrigen()?.cantidadMachos ?? '—' }} disp.
+                </span>
+              </div>
+              <div class="field-error" *ngIf="isFieldInvalid('cantidadMachos')">
+                {{ getFieldError('cantidadMachos') }}
+              </div>
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline"
+                (click)="trasladarTodosLosMachos()"
+                [disabled]="!inventarioOrigen()">
+                Trasladar todos
+              </button>
+            </div>
+          </div>
+
+          <!-- Botón para trasladar todo -->
+          <div class="trasladar-todo">
+            <button 
+              type="button" 
+              class="btn btn-outline"
+              (click)="trasladarTodo()"
+              [disabled]="!inventarioOrigen()">
+              📦 Trasladar todo el inventario
+            </button>
+          </div>
+
+          <!-- Total a trasladar -->
+          <div class="total-traslado" *ngIf="totalATrasladas() > 0">
+            <div class="total-card">
+              <h4>📊 Total a Trasladar</h4>
+              <div class="total-value">{{ formatearNumero(totalATrasladas()) }} aves</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Observaciones -->
+        <div class="form-section">
+          <h3>📝 Observaciones</h3>
+          <div class="observaciones-field">
+            <label class="ux-label" for="observaciones">Observaciones (opcional)</label>
+            <textarea
+              id="observaciones"
+              class="ux-textarea"
+              formControlName="observaciones"
+              placeholder="Agregar observaciones sobre el traslado..."
+              rows="3">
+            </textarea>
+          </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div class="form-actions">
+          <button 
+            type="button" 
+            class="btn btn-outline"
+            (click)="limpiarFormulario()">
+            🗑️ Limpiar
+          </button>
+          
+          <button 
+            type="submit" 
+            class="btn btn-primary"
+            [disabled]="!isFormValid() || isProcessing() || totalATrasladas() === 0">
+            <span *ngIf="isProcessing()">⏳ Procesando...</span>
+            <span *ngIf="!isProcessing()">🚚 Realizar Traslado</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

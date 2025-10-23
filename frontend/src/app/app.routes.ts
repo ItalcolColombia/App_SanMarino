@@ -1,15 +1,15 @@
+// src/app/app.routes.ts
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { LoginComponent } from './features/auth/login/login.component';
+// import { DashboardComponent } from './features/dashboard/dashboard.component';
+// import { authGuard } from './core/auth/auth.guard';
 
 const routes: Routes = [
-  // Redirige la ruta raíz a /login
   { path: '', redirectTo: 'login', pathMatch: 'full' },
-  // Define la ruta de login
   { path: 'login', component: LoginComponent },
-  // Tus otras rutas...
-  // { path: 'home', component: HomeComponent },
-  // { path: '**', redirectTo: 'login' } // opcional: todo lo demás a login
+  // { path: 'dashboard', component: DashboardComponent, canActivate: [authGuard] },
+  { path: '**', redirectTo: 'login' }
 ];
 
 @NgModule({
@@ -17,4 +17,3 @@ const routes: Routes = [
   exports: [RouterModule]
 })
 export class AppRoutingModule {}
- 

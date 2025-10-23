@@ -1,0 +1,7 @@
+{
+  "Name": "oac-sanmarino-frontend",
+  "Description": "OAC for Angular SPA",
+  "SigningProtocol": "sigv4",
+  "SigningBehavior": "always",
+  "OriginAccessControlOriginType": "s3"
+}

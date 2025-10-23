@@ -4,7 +4,7 @@ namespace ZooSanMarino.Application.DTOs;
 public record LoteSeguimientoDto(
     int      Id,
     DateTime Fecha,
-    string   LoteId,
+    int      LoteId,
     string   ReproductoraId,
     decimal? PesoInicial,
     decimal? PesoFinal,
@@ -21,7 +21,7 @@ public record LoteSeguimientoDto(
 
 public record CreateLoteSeguimientoDto(
     DateTime Fecha,
-    string   LoteId,
+    int      LoteId,
     string   ReproductoraId,
     decimal? PesoInicial,
     decimal? PesoFinal,
@@ -39,7 +39,7 @@ public record CreateLoteSeguimientoDto(
 public record UpdateLoteSeguimientoDto(
     int      Id,
     DateTime Fecha,
-    string   LoteId,
+    int      LoteId,
     string   ReproductoraId,
     decimal? PesoInicial,
     decimal? PesoFinal,

@@ -1,0 +1,1286 @@
+// ========================================
+// DASHBOARD CORPORATIVO - SCSS OPTIMIZADO
+// ========================================
+// Diseño: Rojo, Amarillo suave, Gris, Fondo blanco
+// UX/UI: Moderno, Responsivo, Accesible
+
+// ========================================
+// 1. VARIABLES Y CONFIGURACIÓN
+// ========================================
+:root {
+  // Colores principales
+  --color-primary: #dc2626;        // Rojo principal
+  --color-primary-light: #fca5a5;  // Rojo claro
+  --color-primary-dark: #991b1b;   // Rojo oscuro
+  --color-primary-50: #fef2f2;     // Rojo muy claro
+  
+  --color-secondary: #fbbf24;      // Amarillo suave
+  --color-secondary-light: #fde68a; // Amarillo muy claro
+  --color-secondary-dark: #d97706;  // Amarillo oscuro
+  --color-secondary-50: #fffbeb;   // Amarillo muy claro
+  
+  --color-accent: #6b7280;         // Gris principal
+  --color-accent-light: #d1d5db;   // Gris claro
+  --color-accent-dark: #374151;    // Gris oscuro
+  --color-accent-50: #f9fafb;      // Gris muy claro
+  
+  // Colores de fondo
+  --color-background: #ffffff;     // Fondo blanco
+  --color-surface: #f8fafc;        // Superficie clara
+  --color-surface-dark: #f1f5f9;   // Superficie más oscura
+  
+  // Colores de texto
+  --color-text-primary: #0f172a;   // Texto principal
+  --color-text-secondary: #64748b; // Texto secundario
+  --color-text-muted: #94a3b8;     // Texto atenuado
+  
+  // Colores de estado
+  --color-success: #10b981;        // Verde éxito
+  --color-warning: #f59e0b;        // Amarillo advertencia
+  --color-error: #ef4444;          // Rojo error
+  --color-info: #3b82f6;           // Azul información
+  
+  // Sombras
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  
+  // Bordes
+  --border-radius-sm: 0.375rem;
+  --border-radius-md: 0.5rem;
+  --border-radius-lg: 0.75rem;
+  --border-radius-xl: 1rem;
+  --border-radius-2xl: 1.5rem;
+  
+  // Espaciado
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+  --spacing-3xl: 4rem;
+  
+  // Transiciones
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  // Tipografía
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  
+  // Z-index
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}
+
+// ========================================
+// 2. MIXINS Y UTILIDADES
+// ========================================
+@mixin card-base {
+  background: var(--color-background);
+  border: 1px solid var(--color-accent-light);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+@mixin card-hover {
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+    border-color: var(--color-primary-light);
+  }
+}
+
+@mixin glass-effect {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@mixin animate-fade-in($delay: 0s) {
+  animation: fadeIn 0.6s ease-out $delay both;
+}
+
+@mixin animate-slide-up($delay: 0s) {
+  animation: slideUp 0.6s ease-out $delay both;
+}
+
+@mixin animate-bounce($delay: 0s) {
+  animation: bounce 1s ease-in-out $delay infinite;
+}
+
+@mixin animate-pulse($delay: 0s) {
+  animation: pulse 2s ease-in-out $delay infinite;
+}
+
+@mixin animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@mixin text-gradient($color1, $color2) {
+  background: linear-gradient(135deg, $color1, $color2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+// ========================================
+// 3. KEYFRAMES Y ANIMACIONES
+// ========================================
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(220, 38, 38, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 30px rgba(220, 38, 38, 0.2);
+  }
+}
+
+// ========================================
+// 4. LAYOUT PRINCIPAL
+// ========================================
+.dashboard-container {
+  display: flex;
+  min-height: 100vh;
+  background: var(--color-background);
+  font-family: var(--font-family);
+  @include animate-fade-in;
+  
+  .sidebar {
+    flex-shrink: 0;
+    width: 280px;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-accent-light);
+    z-index: var(--z-sticky);
+  }
+  
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--color-background);
+  }
+}
+
+// ========================================
+// 5. HEADER PRINCIPAL
+// ========================================
+.main-header {
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-accent-light);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  @include glass-effect;
+  @include animate-slide-up;
+  
+  .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1400px;
+    margin: 0 auto;
+    gap: var(--spacing-lg);
+  }
+  
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex: 1;
+    
+    .title-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+      border-radius: var(--border-radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      @include animate-bounce(2s);
+      position: relative;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+        border-radius: var(--border-radius-lg);
+        z-index: -1;
+        opacity: 0;
+        transition: opacity var(--transition-normal);
+      }
+      
+      &:hover::before {
+        opacity: 1;
+      }
+      
+      .dashboard-icon {
+        width: 24px;
+        height: 24px;
+        fill: white;
+        transition: transform var(--transition-fast);
+      }
+      
+      &:hover .dashboard-icon {
+        transform: rotate(5deg) scale(1.1);
+      }
+    }
+    
+    .title-text {
+      h1 {
+        font-size: var(--font-size-3xl);
+        font-weight: 700;
+        color: var(--color-text-primary);
+        margin: 0;
+        line-height: 1.2;
+        @include text-gradient(var(--color-primary), var(--color-primary-dark));
+      }
+      
+      p {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        margin: var(--spacing-xs) 0 0 0;
+        font-weight: 500;
+      }
+    }
+  }
+  
+  .header-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    align-items: center;
+  }
+}
+
+// ========================================
+// 6. BOTONES Y CONTROLES
+// ========================================
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--border-radius-md);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+  }
+  
+  &:hover::before {
+    left: 100%;
+  }
+  
+  .btn-icon {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    transition: transform var(--transition-fast);
+  }
+  
+  &:hover .btn-icon {
+    transform: scale(1.1);
+  }
+  
+  &.btn-primary {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: white;
+    box-shadow: var(--shadow-sm);
+    
+    &:hover {
+      background: linear-gradient(135deg, var(--color-primary-dark) 0%, #7f1d1d 100%);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: var(--shadow-sm);
+    }
+    
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: var(--shadow-sm);
+    }
+  }
+  
+  &.btn-secondary {
+    background: var(--color-accent);
+    color: white;
+    box-shadow: var(--shadow-sm);
+    
+    &:hover {
+      background: var(--color-accent-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+    
+    &.active {
+      background: var(--color-success);
+      animation: glow 2s ease-in-out infinite;
+      
+      &:hover {
+        background: #059669;
+      }
+    }
+  }
+  
+  &.btn-sm {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+  }
+}
+
+// ========================================
+// 7. BANNERS Y ALERTAS
+// ========================================
+.error-banner {
+  background: linear-gradient(135deg, var(--color-error) 0%, #dc2626 100%);
+  color: white;
+  padding: var(--spacing-md) var(--spacing-xl);
+  margin: 0 var(--spacing-xl);
+  border-radius: var(--border-radius-md);
+  @include animate-slide-up;
+  box-shadow: var(--shadow-md);
+  
+  .error-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    max-width: 1400px;
+    margin: 0 auto;
+    
+    .error-icon {
+      font-size: var(--font-size-lg);
+      flex-shrink: 0;
+    }
+    
+    .error-message {
+      flex: 1;
+      font-weight: 500;
+    }
+    
+    button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: var(--font-size-lg);
+      cursor: pointer;
+      padding: var(--spacing-xs);
+      border-radius: var(--border-radius-sm);
+      transition: background-color var(--transition-fast);
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    }
+  }
+}
+
+// ========================================
+// 8. LOADING STATES
+// ========================================
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  @include glass-effect;
+  
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--color-accent-light);
+    border-top: 4px solid var(--color-primary);
+    border-radius: 50%;
+    @include animate-pulse;
+  }
+  
+  p {
+    margin-top: var(--spacing-lg);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+  }
+}
+
+.loading-bounce {
+  @include animate-bounce;
+}
+
+.loading-pulse {
+  @include animate-pulse;
+}
+
+// ========================================
+// 9. CONTENIDO PRINCIPAL
+// ========================================
+.dashboard-content {
+  flex: 1;
+  padding: var(--spacing-xl);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+// ========================================
+// 10. SECCIONES
+// ========================================
+section {
+  margin-bottom: var(--spacing-3xl);
+  @include animate-fade-in;
+  
+  .section-header {
+    margin-bottom: var(--spacing-xl);
+    text-align: center;
+    
+    h2 {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin: 0 0 var(--spacing-sm) 0;
+      line-height: 1.3;
+      @include text-gradient(var(--color-primary), var(--color-accent-dark));
+    }
+    
+    p {
+      font-size: var(--font-size-base);
+      color: var(--color-text-secondary);
+      margin: 0;
+      font-weight: 500;
+    }
+  }
+}
+
+// ========================================
+// 11. GRID DE KPIS
+// ========================================
+.kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--spacing-lg);
+  
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+}
+
+// ========================================
+// 12. TARJETAS KPI
+// ========================================
+.kpi-card {
+  @include card-base;
+  @include card-hover;
+  padding: var(--spacing-lg);
+  @include animate-slide-up;
+  
+  // Variantes de color por tipo
+  &.kpi-users {
+    border-left: 4px solid var(--color-info);
+    
+    .kpi-icon {
+      color: var(--color-info);
+    }
+  }
+  
+  &.kpi-farms {
+    border-left: 4px solid var(--color-secondary);
+    
+    .kpi-icon {
+      color: var(--color-secondary);
+    }
+  }
+  
+  &.kpi-lots {
+    border-left: 4px solid var(--color-accent);
+    
+    .kpi-icon {
+      color: var(--color-accent);
+    }
+  }
+  
+  &.kpi-birds {
+    border-left: 4px solid var(--color-success);
+    
+    .kpi-icon {
+      color: var(--color-success);
+    }
+  }
+  
+  &.kpi-movements {
+    border-left: 4px solid var(--color-warning);
+    
+    .kpi-icon {
+      color: var(--color-warning);
+    }
+  }
+  
+  &.kpi-efficiency {
+    border-left: 4px solid var(--color-primary);
+    
+    .kpi-icon {
+      color: var(--color-primary);
+    }
+  }
+  
+  .kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-md);
+  }
+  
+  .kpi-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius-md);
+    background: var(--color-surface);
+    transition: all var(--transition-fast);
+    
+    svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+  }
+  
+  .kpi-trend {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    
+    svg {
+      width: 12px;
+      height: 12px;
+      fill: currentColor;
+    }
+    
+    &.positive {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--color-success);
+    }
+    
+    &.negative {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--color-error);
+    }
+    
+    &.neutral {
+      background: rgba(107, 114, 128, 0.1);
+      color: var(--color-accent);
+    }
+  }
+  
+  .kpi-content {
+    h3 {
+      font-size: var(--font-size-4xl);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin: 0 0 var(--spacing-xs) 0;
+      line-height: 1;
+    }
+    
+    p {
+      font-size: var(--font-size-base);
+      color: var(--color-text-secondary);
+      margin: 0 0 var(--spacing-sm) 0;
+      font-weight: 600;
+    }
+  }
+  
+  .kpi-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background: var(--color-surface);
+      border-radius: var(--border-radius-sm);
+      min-width: 60px;
+      
+      .detail-value {
+        font-size: var(--font-size-sm);
+        font-weight: 700;
+        color: var(--color-text-primary);
+        line-height: 1;
+      }
+      
+      .detail-label {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+        margin-top: var(--spacing-xs);
+        text-align: center;
+      }
+    }
+  }
+  
+  &:hover {
+    .kpi-icon {
+      transform: scale(1.1);
+      background: var(--color-primary-50);
+    }
+  }
+}
+
+// ========================================
+// 13. GRID DE GRÁFICOS
+// ========================================
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--spacing-lg);
+  
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+}
+
+// ========================================
+// 14. TARJETAS DE GRÁFICOS
+// ========================================
+.chart-card {
+  @include card-base;
+  @include card-hover;
+  padding: var(--spacing-lg);
+  @include animate-slide-up;
+  
+  .chart-header {
+    margin-bottom: var(--spacing-lg);
+    
+    h3 {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin: 0 0 var(--spacing-xs) 0;
+    }
+    
+    p {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+  }
+  
+  .chart-container {
+    height: 300px;
+    position: relative;
+    
+    canvas {
+      max-height: 100%;
+      width: 100% !important;
+    }
+  }
+  
+  &.metrics-card {
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--spacing-lg);
+      
+      .metric-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+        background: var(--color-surface);
+        border-radius: var(--border-radius-md);
+        transition: all var(--transition-fast);
+        
+        &:hover {
+          background: var(--color-surface-dark);
+          transform: translateY(-2px);
+        }
+        
+        .metric-icon {
+          font-size: var(--font-size-xl);
+          flex-shrink: 0;
+        }
+        
+        .metric-content {
+          h4 {
+            font-size: var(--font-size-lg);
+            font-weight: 700;
+            color: var(--color-text-primary);
+            margin: 0 0 var(--spacing-xs) 0;
+          }
+          
+          p {
+            font-size: var(--font-size-xs);
+            color: var(--color-text-secondary);
+            margin: 0;
+          }
+        }
+      }
+    }
+  }
+}
+
+// ========================================
+// 15. GRID DE REPORTES
+// ========================================
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--spacing-lg);
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+}
+
+// ========================================
+// 16. TARJETAS DE REPORTES
+// ========================================
+.report-card {
+  @include card-base;
+  @include card-hover;
+  padding: var(--spacing-lg);
+  @include animate-slide-up;
+  
+  .report-header {
+    margin-bottom: var(--spacing-lg);
+    
+    h3 {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin: 0 0 var(--spacing-xs) 0;
+    }
+    
+    p {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+  }
+  
+  .table-container {
+    overflow-x: auto;
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-accent-light);
+  }
+  
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    
+    th, td {
+      padding: var(--spacing-sm) var(--spacing-md);
+      text-align: left;
+      border-bottom: 1px solid var(--color-accent-light);
+    }
+    
+    th {
+      background: var(--color-surface);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      font-size: var(--font-size-sm);
+    }
+    
+    td {
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+    }
+    
+    .efficiency-badge {
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border-radius: var(--border-radius-sm);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      
+      &.high {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--color-success);
+      }
+      
+      &.medium {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--color-warning);
+      }
+      
+      &.low {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--color-error);
+      }
+    }
+  }
+}
+
+// ========================================
+// 17. ACTIVIDADES RECIENTES
+// ========================================
+.activities-card {
+  @include card-base;
+  @include card-hover;
+  padding: var(--spacing-lg);
+  @include animate-slide-up;
+  
+  .activities-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-lg);
+    
+    h3 {
+      font-size: var(--font-size-lg);
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin: 0 0 var(--spacing-xs) 0;
+    }
+    
+    p {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+    
+    .activities-count {
+      background: var(--color-surface);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border-radius: var(--border-radius-sm);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      font-weight: 600;
+    }
+  }
+  
+  .activities-list {
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      padding: var(--spacing-md) 0;
+      border-bottom: 1px solid var(--color-accent-light);
+      transition: all var(--transition-fast);
+      
+      &:last-child {
+        border-bottom: none;
+      }
+      
+      &:hover {
+        background: var(--color-surface);
+        margin: 0 calc(-1 * var(--spacing-lg));
+        padding-left: var(--spacing-lg);
+        padding-right: var(--spacing-lg);
+        border-radius: var(--border-radius-md);
+      }
+      
+      .activity-icon {
+        font-size: var(--font-size-lg);
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--color-surface);
+        border-radius: var(--border-radius-sm);
+      }
+      
+      .activity-content {
+        flex: 1;
+        
+        h4 {
+          font-size: var(--font-size-sm);
+          font-weight: 600;
+          color: var(--color-text-primary);
+          margin: 0 0 var(--spacing-xs) 0;
+        }
+        
+        p {
+          font-size: var(--font-size-xs);
+          color: var(--color-text-secondary);
+          margin: 0 0 var(--spacing-xs) 0;
+        }
+        
+        .activity-meta {
+          display: flex;
+          gap: var(--spacing-sm);
+          font-size: var(--font-size-xs);
+          color: var(--color-text-muted);
+        }
+      }
+    }
+  }
+}
+
+// ========================================
+// 18. INFORMACIÓN DE ACTUALIZACIÓN
+// ========================================
+.update-info {
+  .update-card {
+    @include card-base;
+    padding: var(--spacing-lg);
+    @include animate-slide-up;
+    
+    .update-content {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+      
+      .update-icon {
+        font-size: var(--font-size-lg);
+        color: var(--color-accent);
+      }
+      
+      .update-text {
+        flex: 1;
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+      }
+      
+      .update-status {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: var(--border-radius-sm);
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+        background: var(--color-surface);
+        color: var(--color-text-muted);
+        transition: all var(--transition-fast);
+        
+        &.active {
+          background: rgba(16, 185, 129, 0.1);
+          color: var(--color-success);
+          animation: pulse 2s ease-in-out infinite;
+        }
+      }
+    }
+  }
+}
+
+// ========================================
+// 19. SKELETON LOADING
+// ========================================
+.skeleton {
+  background: linear-gradient(90deg, var(--color-accent-light) 25%, var(--color-surface) 50%, var(--color-accent-light) 75%);
+  background-size: 200px 100%;
+  @include animate-shimmer;
+  border-radius: var(--border-radius-sm);
+  
+  &.skeleton-card {
+    height: 200px;
+  }
+  
+  &.skeleton-chart {
+    height: 300px;
+  }
+  
+  &.skeleton-title {
+    height: 1.5rem;
+    width: 60%;
+    margin-bottom: var(--spacing-sm);
+  }
+  
+  &.skeleton-text {
+    height: 1rem;
+    width: 80%;
+    margin-bottom: var(--spacing-xs);
+  }
+}
+
+// ========================================
+// 20. RESPONSIVE DESIGN
+// ========================================
+@media (max-width: 1024px) {
+  .dashboard-container {
+    .sidebar {
+      width: 240px;
+    }
+  }
+  
+  .main-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    
+    .header-title {
+      .title-text h1 {
+        font-size: var(--font-size-2xl);
+      }
+    }
+  }
+  
+  .dashboard-content {
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    flex-direction: column;
+    
+    .sidebar {
+      width: 100%;
+      position: fixed;
+      top: 0;
+      left: -100%;
+      height: 100vh;
+      transition: left var(--transition-normal);
+      z-index: var(--z-modal);
+      
+      &.open {
+        left: 0;
+      }
+    }
+  }
+  
+  .main-header {
+    .header-content {
+      flex-direction: column;
+      gap: var(--spacing-md);
+      align-items: flex-start;
+    }
+    
+    .header-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+  
+  .kpis-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .chart-card .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .reports-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-header {
+    padding: var(--spacing-md);
+    
+    .header-title {
+      .title-icon {
+        width: 40px;
+        height: 40px;
+        
+        .dashboard-icon {
+          width: 20px;
+          height: 20px;
+        }
+      }
+      
+      .title-text h1 {
+        font-size: var(--font-size-xl);
+      }
+    }
+  }
+  
+  .dashboard-content {
+    padding: var(--spacing-md);
+  }
+  
+  .kpi-card {
+    padding: var(--spacing-md);
+    
+    .kpi-content h3 {
+      font-size: var(--font-size-3xl);
+    }
+  }
+  
+  .chart-card {
+    padding: var(--spacing-md);
+    
+    .chart-container {
+      height: 250px;
+    }
+  }
+}
+
+// ========================================
+// 21. EFECTOS ADICIONALES
+// ========================================
+// Focus states para accesibilidad
+.btn:focus,
+button:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+// Scroll suave
+html {
+  scroll-behavior: smooth;
+}
+
+// Selección de texto personalizada
+::selection {
+  background: var(--color-primary-light);
+  color: var(--color-text-primary);
+}
+
+// Scrollbar personalizada
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent);
+  border-radius: var(--border-radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-dark);
+}
+
+// Efectos de hover mejorados
+.kpi-card:hover {
+  .kpi-icon {
+    transform: scale(1.1) rotate(5deg);
+  }
+  
+  .kpi-content h3 {
+    @include text-gradient(var(--color-primary), var(--color-secondary));
+  }
+}
+
+// Animaciones escalonadas para las tarjetas
+.kpi-card:nth-child(1) { @include animate-slide-up(0.1s); }
+.kpi-card:nth-child(2) { @include animate-slide-up(0.2s); }
+.kpi-card:nth-child(3) { @include animate-slide-up(0.3s); }
+.kpi-card:nth-child(4) { @include animate-slide-up(0.4s); }
+.kpi-card:nth-child(5) { @include animate-slide-up(0.5s); }
+.kpi-card:nth-child(6) { @include animate-slide-up(0.6s); }

@@ -1,0 +1,99 @@
+<!-- src/app/features/db-studio/components/db-studio-header/db-studio-header.component.html -->
+<header class="db-studio-header">
+  <!-- Información de conexión -->
+  <div class="connection-info">
+    <div class="database-info">
+      <fa-icon [icon]="faDatabase" class="database-icon"></fa-icon>
+      <div class="database-details">
+        <h1 class="database-name">{{ databaseName }}</h1>
+        <div class="connection-status">
+          <span class="status-indicator" [class]="connectionStatusClass"></span>
+          <span class="status-text">{{ connectionStatusText }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Acciones principales -->
+  <div class="header-actions">
+    <div class="action-group">
+      <button 
+        class="btn btn-primary" 
+        (click)="onRefresh()"
+        [disabled]="loading"
+        title="Actualizar datos">
+        <fa-icon [icon]="faRefresh" [class.spinning]="loading"></fa-icon>
+        <span>Actualizar</span>
+      </button>
+      
+      <button 
+        class="btn btn-secondary" 
+        (click)="onAnalyze()"
+        [disabled]="loading"
+        title="Analizar base de datos">
+        <fa-icon [icon]="faChartBar"></fa-icon>
+        <span>Analizar</span>
+      </button>
+    </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-outline" 
+        (click)="onExport()"
+        title="Exportar datos">
+        <fa-icon [icon]="faDownload"></fa-icon>
+        <span>Exportar</span>
+      </button>
+      
+      <button 
+        class="btn btn-outline" 
+        (click)="onImport()"
+        title="Importar datos">
+        <fa-icon [icon]="faUpload"></fa-icon>
+        <span>Importar</span>
+      </button>
+    </div>
+
+    <div class="action-group">
+      <button 
+        class="btn btn-ghost" 
+        (click)="onSettings()"
+        title="Configuración">
+        <fa-icon [icon]="faCog"></fa-icon>
+      </button>
+      
+      <button 
+        class="btn btn-ghost" 
+        (click)="onHelp()"
+        title="Ayuda">
+        <fa-icon [icon]="faQuestionCircle"></fa-icon>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Banner de error -->
+<div class="error-banner" *ngIf="error">
+  <div class="error-content">
+    <div class="error-icon">
+      <fa-icon [icon]="faTrash"></fa-icon>
+    </div>
+    <div class="error-message">
+      <strong>Error:</strong> {{ error }}
+    </div>
+    <button 
+      class="btn btn-sm btn-ghost" 
+      (click)="onClearError()"
+      title="Cerrar error">
+      ✕
+    </button>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" *ngIf="loading">
+  <div class="loading-content">
+    <div class="spinner"></div>
+    <p>Procesando...</p>
+  </div>
+</div>

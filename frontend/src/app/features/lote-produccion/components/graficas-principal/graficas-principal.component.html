@@ -1,0 +1,121 @@
+<div class="graficas-container">
+  <div class="graficas-header">
+    <h3>📊 Gráficas de Producción</h3>
+    <p class="graficas-subtitle">Visualización de métricas clave de producción</p>
+  </div>
+
+  <!-- Resumen de métricas -->
+  <div class="metricas-resumen" *ngIf="registros.length > 0">
+    <div class="metrica-card">
+      <div class="metrica-icon">📊</div>
+      <div class="metrica-content">
+        <div class="metrica-value">{{ getTotalRegistros() }}</div>
+        <div class="metrica-label">Registros</div>
+      </div>
+    </div>
+    
+    <div class="metrica-card">
+      <div class="metrica-icon">🥚</div>
+      <div class="metrica-content">
+        <div class="metrica-value">{{ getPromedioHuevos() | number:'1.0-0' }}</div>
+        <div class="metrica-label">Huevos/Día</div>
+      </div>
+    </div>
+    
+    <div class="metrica-card">
+      <div class="metrica-icon">✅</div>
+      <div class="metrica-content">
+        <div class="metrica-value">{{ getPromedioIncubables() | number:'1.0-0' }}</div>
+        <div class="metrica-label">Incubables/Día</div>
+      </div>
+    </div>
+    
+    <div class="metrica-card">
+      <div class="metrica-icon">📈</div>
+      <div class="metrica-content">
+        <div class="metrica-value">{{ getEficienciaPromedio() | number:'1.1-1' }}%</div>
+        <div class="metrica-label">Eficiencia</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="graficas-grid" *ngIf="registros.length > 0">
+    <!-- Mortalidad -->
+    <div class="grafica-card">
+      <div class="grafica-header">
+        <h4>💀 Mortalidad Diaria</h4>
+        <p>Evolución de mortalidad por sexo</p>
+      </div>
+      <div class="grafica-content">
+        <canvas 
+          baseChart
+          [data]="mortalidadData"
+          [type]="'line'"
+          [options]="lineOptions">
+        </canvas>
+      </div>
+    </div>
+
+    <!-- Consumo -->
+    <div class="grafica-card">
+      <div class="grafica-header">
+        <h4>🍽️ Consumo de Alimento</h4>
+        <p>Consumo diario por sexo (kg)</p>
+      </div>
+      <div class="grafica-content">
+        <canvas 
+          baseChart
+          [data]="consumoData"
+          [type]="'line'"
+          [options]="lineOptions">
+        </canvas>
+      </div>
+    </div>
+
+    <!-- Producción -->
+    <div class="grafica-card">
+      <div class="grafica-header">
+        <h4>🥚 Producción de Huevos</h4>
+        <p>Huevos totales vs incubables</p>
+      </div>
+      <div class="grafica-content">
+        <canvas 
+          baseChart
+          [data]="produccionData"
+          [type]="'line'"
+          [options]="lineOptions">
+        </canvas>
+      </div>
+    </div>
+
+    <!-- Eficiencia -->
+    <div class="grafica-card">
+      <div class="grafica-header">
+        <h4>📊 Eficiencia de Producción</h4>
+        <p>Distribución de huevos incubables</p>
+      </div>
+      <div class="grafica-content">
+        <canvas 
+          baseChart
+          [data]="eficienciaData"
+          [type]="'doughnut'"
+          [options]="doughnutOptions">
+        </canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado vacío -->
+  <div *ngIf="registros.length === 0" class="empty-state">
+    <div class="empty-icon">📊</div>
+    <p>No hay datos suficientes para generar gráficas.</p>
+    <p class="empty-hint">Agrega registros de producción para ver las visualizaciones.</p>
+  </div>
+
+  <!-- Estado de carga -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Generando gráficas...</p>
+  </div>
+</div>

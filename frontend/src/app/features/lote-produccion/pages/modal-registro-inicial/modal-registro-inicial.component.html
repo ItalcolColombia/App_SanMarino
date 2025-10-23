@@ -1,0 +1,84 @@
+<!-- Modal de Registro Inicial de Producción -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="registro-inicial-modal-title">
+  <div class="ux-modal__dialog">
+    <header class="ux-modal__header">
+      <h2 id="registro-inicial-modal-title">Registro Inicial de Producción</h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <div class="ux-tabs" role="tablist" aria-label="Secciones del registro inicial">
+        <input type="radio" name="regTab" id="tab-general" checked />
+        <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">General</label>
+
+        <input type="radio" name="regTab" id="tab-aves" />
+        <label class="ux-tab" id="lab-aves" for="tab-aves" role="tab" tabindex="0" aria-controls="panel-aves" aria-selected="false">Aves Iniciales</label>
+
+        <div class="ux-tab-panels">
+          <!-- GENERAL -->
+          <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-fecha-inicio">Fecha de Inicio</label>
+                <input id="f-fecha-inicio" type="date" formControlName="fechaInicio" />
+                <small class="ux-hint">Fecha cuando comenzó la producción</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-lote-id">Lote ID</label>
+                <input id="f-lote-id" type="number" formControlName="loteId" readonly class="ux-input--readonly" />
+                <small class="ux-hint">ID del lote seleccionado</small>
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="f-obs">Observaciones</label>
+                <textarea id="f-obs" rows="3" formControlName="observaciones" placeholder="Observaciones sobre el inicio de producción..."></textarea>
+              </div>
+            </div>
+          </section>
+
+          <!-- AVES INICIALES -->
+          <section id="panel-aves" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-aves">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-aves-h">Aves Iniciales Hembras</label>
+                <input id="f-aves-h" type="number" min="0" formControlName="avesInicialesH" placeholder="0" />
+                <small class="ux-hint">Número total de hembras al inicio</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-aves-m">Aves Iniciales Machos</label>
+                <input id="f-aves-m" type="number" min="0" formControlName="avesInicialesM" placeholder="0" />
+                <small class="ux-hint">Número total de machos al inicio</small>
+              </div>
+
+              <div class="form-field form-field--full">
+                <div class="resumen-card">
+                  <div class="resumen-icon">🐔</div>
+                  <div class="resumen-content">
+                    <h4>Total de Aves</h4>
+                    <p class="resumen-number">{{ getTotalAves() }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
+          {{ loading ? 'Guardando…' : 'Guardar Registro Inicial' }}
+        </button>
+      </footer>
+    </form>
+
+    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Guardando…
+    </div>
+  </div>
+</div>
+
+
+

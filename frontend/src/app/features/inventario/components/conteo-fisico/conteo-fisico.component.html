@@ -1,0 +1,58 @@
+<!-- src/app/features/inventario/components/conteo-fisico/conteo-fisico.component.html -->
+<div class="filters">
+  <div class="filter" style="min-width:240px;">
+    <label class="ux-label" for="farm">Granja</label>
+    <select id="farm" class="ux-select" [(ngModel)]="farmId" (change)="load()">
+      <option [ngValue]="null" disabled>Seleccione…</option>
+      <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+    </select>
+  </div>
+
+  <div class="filter">
+    <label class="ux-label" for="filtro">Buscar</label>
+    <div class="actions">
+      <input id="filtro" type="text" class="ux-input" [(ngModel)]="filtro" placeholder="Código o nombre…" />
+      <button *ngIf="filtro" class="btn-ghost" type="button" (click)="filtro=''">×</button>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-left:auto;">
+    <button class="btn-primary" type="button" (click)="guardarConteo()" [disabled]="!farmId || loading">
+      Guardar conteo
+    </button>
+  </div>
+</div>
+
+<div class="ux-card" [class.is-loading]="loading">
+  <div class="ux-scroll">
+    <table class="ux-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Producto</th>
+          <th>Unidad</th>
+          <th class="text-right">Sistema</th>
+          <th class="text-right">Conteo</th>
+        </tr>
+      </thead>
+      <tbody *ngIf="!loading && filtered.length === 0">
+        <tr><td colspan="5" class="empty-state">Sin productos</td></tr>
+      </tbody>
+      <tbody *ngIf="!loading && filtered.length > 0">
+        <tr *ngFor="let r of filtered; trackBy: trackByCatalogItemId">
+          <td>{{ r.codigo }}</td>
+          <td>{{ r.nombre }}</td>
+          <td>{{ r.unit }}</td>
+          <td class="text-right">{{ r.sistema | number:'1.0-3' }}</td>
+          <td class="text-right">
+            <input type="number" step="0.0001" class="ux-input" [(ngModel)]="r.conteo" />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="loading" class="loading-overlay">
+    <div class="spinner"></div> Cargando…
+  </div>
+</div>

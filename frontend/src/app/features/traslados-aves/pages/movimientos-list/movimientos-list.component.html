@@ -1,0 +1,292 @@
+<div class="ux-page" [attr.aria-busy]="isLoading() ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>📋 Movimientos de Aves</h1>
+        <p class="ux-header__subtitle">Historial y gestión de todos los movimientos</p>
+      </div>
+      <div class="ux-header__actions">
+        <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
+          🚚 Nuevo Traslado
+        </button>
+        <button type="button" class="btn btn--outline" (click)="navegarADashboard()">
+          ← Dashboard
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros -->
+    <section class="ux-card">
+      <header class="ux-card__header">
+        <h2>🔍 Filtros de Búsqueda</h2>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarFiltros()">
+          Limpiar
+        </button>
+      </header>
+      
+      <div class="ux-card__content">
+        <div class="filter-grid">
+          <div class="form-field">
+            <label class="ux-label">Lote Origen</label>
+            <input 
+              type="text" 
+              class="ux-input" 
+              [(ngModel)]="filtros.loteOrigenId" 
+              (change)="onFiltroChange()" 
+              placeholder="Ej: L001">
+          </div>
+          
+          <div class="form-field">
+            <label class="ux-label">Lote Destino</label>
+            <input 
+              type="text" 
+              class="ux-input" 
+              [(ngModel)]="filtros.loteDestinoId" 
+              (change)="onFiltroChange()" 
+              placeholder="Ej: L002">
+          </div>
+          
+          <div class="form-field">
+            <label class="ux-label">Tipo de Movimiento</label>
+            <select 
+              class="ux-select" 
+              [(ngModel)]="filtros.tipoMovimiento" 
+              (change)="onFiltroChange()">
+              <option *ngFor="let tipo of tiposMovimiento" [value]="tipo.value">
+                {{ tipo.label }}
+              </option>
+            </select>
+          </div>
+          
+          <div class="form-field">
+            <label class="ux-label">Estado</label>
+            <select 
+              class="ux-select" 
+              [(ngModel)]="filtros.estado" 
+              (change)="onFiltroChange()">
+              <option *ngFor="let estado of estados" [value]="estado.value">
+                {{ estado.label }}
+              </option>
+            </select>
+          </div>
+          
+          <div class="form-field">
+            <label class="ux-label">Fecha Desde</label>
+            <input 
+              type="date" 
+              class="ux-input" 
+              [(ngModel)]="filtros.fechaDesde" 
+              (change)="onFiltroChange()">
+          </div>
+          
+          <div class="form-field">
+            <label class="ux-label">Fecha Hasta</label>
+            <input 
+              type="date" 
+              class="ux-input" 
+              [(ngModel)]="filtros.fechaHasta" 
+              (change)="onFiltroChange()">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lista de Movimientos -->
+    <section class="ux-card">
+      <header class="ux-card__header">
+        <h2>📊 Lista de Movimientos</h2>
+        <div class="ux-card__actions">
+          <span class="text-muted" *ngIf="totalRecords() > 0">
+            {{ totalRecords() }} movimiento(s) encontrado(s)
+          </span>
+        </div>
+      </header>
+      
+      <div class="ux-card__content">
+        <!-- Loading -->
+        <div class="loading-state" *ngIf="isLoading()">
+          <div class="spinner"></div>
+          <p>Cargando movimientos...</p>
+        </div>
+
+        <!-- Error -->
+        <div class="error-state" *ngIf="hasError()">
+          <div class="error-icon">⚠️</div>
+          <p>{{ error() }}</p>
+          <button type="button" class="btn btn--outline" (click)="cargarMovimientos()">
+            Reintentar
+          </button>
+        </div>
+
+        <!-- Tabla -->
+        <div class="table-container" *ngIf="!isLoading() && !hasError()">
+          <table class="ux-table">
+            <thead>
+              <tr>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('id')">
+                    ID
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'id'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('tipo_movimiento')">
+                    Tipo
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'tipo_movimiento'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('lote_origen_id')">
+                    Lote Origen
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'lote_origen_id'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('lote_destino_id')">
+                    Lote Destino
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'lote_destino_id'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('cantidad_hembras')">
+                    Hembras
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'cantidad_hembras'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('cantidad_machos')">
+                    Machos
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'cantidad_machos'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>Total</th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('fecha_movimiento')">
+                    Fecha
+                    <span class="sort-icon" 
+                          [class.active]="filtros.sortBy === 'fecha_movimiento'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let movimiento of movimientos(); trackBy: trackByMovimientoId" class="ux-row">
+                <td>
+                  <span class="movimiento-id">#{{ movimiento.id }}</span>
+                </td>
+                <td>
+                  <div class="tipo-movimiento">
+                    <span class="tipo-icon">{{ getTipoMovimientoIcon(movimiento.tipoMovimiento) }}</span>
+                    <span class="tipo-text">{{ movimiento.tipoMovimiento }}</span>
+                  </div>
+                </td>
+                <td>
+                  <strong class="lote-id">{{ movimiento.loteOrigenId }}</strong>
+                </td>
+                <td>
+                  <strong class="lote-id">{{ movimiento.loteDestinoId }}</strong>
+                </td>
+                <td class="number-cell success">
+                  {{ formatearNumero(movimiento.cantidadHembras) }}
+                </td>
+                <td class="number-cell info">
+                  {{ formatearNumero(movimiento.cantidadMachos) }}
+                </td>
+                <td class="number-cell primary">
+                  <strong>{{ formatearNumero(calcularTotalAves(movimiento)) }}</strong>
+                </td>
+                <td class="date-cell">
+                  {{ formatearFecha(movimiento.fechaMovimiento) }}
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <button 
+                      type="button" 
+                      class="icon-btn icon-btn--info" 
+                      (click)="verDetalleMovimiento(movimiento.id)"
+                      title="Ver detalle">
+                      👁️
+                    </button>
+                    <button 
+                      type="button" 
+                      class="icon-btn icon-btn--success" 
+                      (click)="procesarMovimiento(movimiento.id)"
+                      [disabled]="!puedeSerProcesado(movimiento)"
+                      title="Procesar movimiento">
+                      ✅
+                    </button>
+                    <button 
+                      type="button" 
+                      class="icon-btn icon-btn--danger" 
+                      (click)="cancelarMovimiento(movimiento.id)"
+                      [disabled]="!puedeSerCancelado(movimiento)"
+                      title="Cancelar movimiento">
+                      ❌
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Empty state -->
+          <div class="empty-state" *ngIf="!hasData()">
+            <div class="empty-icon">📋</div>
+            <h3>No hay movimientos</h3>
+            <p>No se encontraron movimientos con los filtros aplicados.</p>
+            <div class="empty-actions">
+              <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+                Limpiar filtros
+              </button>
+              <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
+                Crear primer movimiento
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        <div class="pagination-container" *ngIf="totalPages() > 1">
+          <div class="pagination">
+            <button 
+              type="button" 
+              class="pagination__btn" 
+              [disabled]="currentPage() === 1"
+              (click)="onPageChange(currentPage() - 1)">
+              ← Anterior
+            </button>
+            
+            <span class="pagination__info">
+              Página {{ currentPage() }} de {{ totalPages() }}
+            </span>
+            
+            <button 
+              type="button" 
+              class="pagination__btn" 
+              [disabled]="currentPage() === totalPages()"
+              (click)="onPageChange(currentPage() + 1)">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

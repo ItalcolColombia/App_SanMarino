@@ -1,82 +1,132 @@
 <!-- src/app/features/config/master-lists/master-lists.component.html -->
-<div class="flex">
+<div class="mls-container flex">
   <!-- Sidebar -->
   <app-sidebar class="flex-shrink-0"></app-sidebar>
 
   <!-- Contenido -->
   <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen">
     <!-- Encabezado -->
-    <div class="flex items-center justify-between mb-6">
-      <div class="flex items-center">
-        <fa-icon [icon]="faList" class="text-3xl text-brand-red mr-2"></fa-icon>
-        <h2 class="text-2xl font-bold text-brand-red">Listas maestras</h2>
+    <div class="mls-toolbar flex items-center justify-between mb-6">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faList" class="title-icon" aria-hidden="true"></fa-icon>
+        <h2 class="title">Listas maestras</h2>
+        <span class="counter-pill" *ngIf="lists?.length !== undefined">
+          {{ lists.length }} lista(s)
+        </span>
       </div>
+
       <button
         (click)="newList()"
-        class="flex items-center px-4 py-2 bg-brand-red text-white rounded hover:bg-red-700 transition"
+        class="btn-primary"
+        type="button"
       >
-        <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
+        <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
         Nueva lista
       </button>
     </div>
 
     <!-- Tabla principal -->
-    <div class="bg-white rounded-lg shadow overflow-x-auto">
-      <table class="min-w-full table-auto">
-        <thead class="bg-warm-gray-100">
-          <tr>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Key</th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Nombre</th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700"># Opciones</th>
-            <th class="px-4 py-3 text-center text-sm font-semibold text-warm-gray-700">Ver</th>
-            <th class="px-4 py-3 text-center text-sm font-semibold text-warm-gray-700">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <ng-container *ngFor="let list of lists">
-            <!-- Fila principal -->
-            <tr class="hover:bg-warm-gray-50 transition-colors">
-              <td class="px-4 py-3 text-sm">{{ list.key }}</td>
-              <td class="px-4 py-3 text-sm">{{ list.name }}</td>
-              <td class="px-4 py-3 text-sm">{{ list.options.length }}</td>
-              <td class="px-4 py-3 text-center">
-                <button
-                  (click)="toggleOptions(list)"
-                  class="text-warm-gray-500 hover:text-brand-red transition"
-                  [attr.aria-label]="'Ver opciones de ' + list.name"
-                >
-                  <fa-icon [icon]="faEye"></fa-icon>
-                </button>
-              </td>
-              <td class="px-4 py-3 text-center space-x-4">
-                <button
-                  (click)="edit(list)"
-                  class="text-warm-gray-500 hover:text-brand-red transition"
-                  [attr.aria-label]="'Editar ' + list.name"
-                >
-                  <fa-icon [icon]="faPen"></fa-icon>
-                </button>
-                <button
-                  (click)="delete(list)"
-                  class="text-warm-gray-500 hover:text-red-600 transition"
-                  [attr.aria-label]="'Eliminar ' + list.name"
-                >
-                  <fa-icon [icon]="faTrash"></fa-icon>
+    <div class="mls-card">
+      <div class="table-scroll">
+        <table class="mls-table" role="grid" aria-label="Tabla de listas maestras">
+          <thead>
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Nombre</th>
+              <th scope="col"># Opciones</th>
+              <th scope="col" class="text-center">Ver</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <!-- Estado vacío -->
+            <tr *ngIf="!lists?.length">
+              <td colspan="5" class="empty-state">
+                <div class="empty-illustration">🗂️</div>
+                <p>No hay listas todavía.</p>
+                <button class="btn-subtle" type="button" (click)="newList()">
+                  <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
+                  Crear la primera
                 </button>
               </td>
             </tr>
 
-            <!-- Fila de opciones desplegadas -->
-            <tr *ngIf="expandedIds.has(list.id)">
-              <td colspan="5" class="bg-warm-gray-50 px-4 py-2">
-                <ul class="list-disc pl-8 text-sm text-warm-gray-600 space-y-1">
-                  <li *ngFor="let opt of list.options">{{ opt }}</li>
-                </ul>
-              </td>
-            </tr>
-          </ng-container>
-        </tbody>
-      </table>
+            <!-- Filas -->
+            <ng-container *ngFor="let list of lists; trackBy: trackByIndex">
+              <tr class="mls-row">
+                <td>
+                  <span class="key-badge" title="Identificador interno">{{ list.key }}</span>
+                </td>
+                <td class="truncate-cell" [title]="list.name">{{ list.name }}</td>
+
+                <td>
+                  <span class="count-pill">
+                    {{ list.options.length }} opción(es)
+                  </span>
+                </td>
+
+                <td class="text-center">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="toggleOptions(list)"
+                    [attr.aria-expanded]="expandedIds.has(list.id) ? 'true' : 'false'"
+                    [attr.aria-label]="'Ver opciones de ' + list.name"
+                    title="Ver opciones"
+                  >
+                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                  </button>
+                </td>
+
+                <td class="text-right">
+                  <div class="actions">
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      (click)="edit(list)"
+                      [attr.aria-label]="'Editar ' + list.name"
+                      title="Editar"
+                    >
+                      <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-btn danger"
+                      (click)="delete(list)"
+                      [attr.aria-label]="'Eliminar ' + list.name"
+                      title="Eliminar"
+                    >
+                      <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Opciones expandibles -->
+              <tr *ngIf="expandedIds.has(list.id)">
+                <td colspan="5" class="options-cell">
+                  <div class="options-grid">
+                    <span
+                      class="tag"
+                      *ngFor="let opt of list.options; trackBy: trackByIndex"
+                      [title]="opt"
+                    >
+                      {{ opt }}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Overlay de carga -->
+      <div class="loading-overlay" *ngIf="loading" aria-live="polite">
+        <div class="spinner"></div>
+        <span>Cargando…</span>
+      </div>
     </div>
   </div>
 </div>

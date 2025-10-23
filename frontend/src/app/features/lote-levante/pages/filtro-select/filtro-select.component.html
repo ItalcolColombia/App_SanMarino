@@ -1,0 +1,96 @@
+<!-- ================= FILTROS DE SELECCIÓN ================= -->
+<section class="ux-card">
+  <h3 class="sr-only">Filtros de selección</h3>
+
+  <div class="ux-toolbar">
+    <!-- Granja -->
+    <div class="ux-field">
+      <label for="granja-select">Granja</label>
+      <select
+        id="granja-select"
+        [ngModel]="selectedGranjaId"
+        (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
+        <option [ngValue]="null" disabled>— Seleccione granja —</option>
+        <option *ngFor="let g of granjas" [ngValue]="g.id">
+          {{ g.name }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Núcleo -->
+    <div class="ux-field">
+      <label for="nucleo-select">Núcleo</label>
+      <select
+        id="nucleo-select"
+        [disabled]="!selectedGranjaId || nucleos.length === 0"
+        [ngModel]="selectedNucleoId"
+        (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
+        <option [ngValue]="null" disabled>— Seleccione núcleo —</option>
+        <option *ngFor="let n of nucleos; trackBy: trackByNucleo" [ngValue]="n.nucleoId">
+          {{ n.nucleoNombre }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Galpón -->
+    <div class="ux-field">
+      <label for="galpon-select">Galpón</label>
+      <select
+        id="galpon-select"
+        [disabled]="!selectedGranjaId || galpones.length === 0"
+        [ngModel]="selectedGalponId"
+        (ngModelChange)="selectedGalponId = $event; onGalponChange()">
+        <option [ngValue]="null" disabled>— Seleccione galpón —</option>
+        <option *ngFor="let g of galpones; trackBy: trackByGalpon" [ngValue]="g.id">
+          {{ g.label }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Lote -->
+    <div class="ux-field">
+      <label for="lote-select">Lote</label>
+      <select
+        id="lote-select"
+        [disabled]="!selectedGranjaId || lotes.length === 0"
+        [ngModel]="selectedLoteId"
+        (ngModelChange)="selectedLoteId = $event; onLoteChange()">
+        <option [ngValue]="null" disabled>— Seleccione lote —</option>
+        <option *ngFor="let l of lotes; trackBy: trackByLote" [ngValue]="l.loteId">
+          {{ l.loteNombre || l.loteId }}
+        </option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Chips de selección actual -->
+  <div class="ux-toolbar" *ngIf="selectedGranjaId">
+    <div class="ux-field">
+      <span class="chip chip--primary">
+        <span class="chip__dot" aria-hidden="true"></span>
+        Granja: {{ selectedGranjaName }}
+      </span>
+    </div>
+
+    <div class="ux-field" *ngIf="selectedNucleoId">
+      <span class="chip chip--info">
+        <span class="chip__dot" aria-hidden="true"></span>
+        Núcleo: {{ selectedNucleoNombre }}
+      </span>
+    </div>
+
+    <div class="ux-field" *ngIf="selectedGalponId">
+      <span class="chip chip--success">
+        <span class="chip__dot" aria-hidden="true"></span>
+        Galpón: {{ selectedGalponNombre }}
+      </span>
+    </div>
+
+    <div class="ux-field" *ngIf="selectedLoteId">
+      <span class="chip chip--info">
+        <span class="chip__dot" aria-hidden="true"></span>
+        Lote: {{ selectedLoteNombre }}
+      </span>
+    </div>
+  </div>
+</section>

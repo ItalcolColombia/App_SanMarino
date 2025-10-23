@@ -1,0 +1,273 @@
+/* src/app/features/config/farm-management/farm-management.component.scss */
+
+/* ===================== */
+/* Tokens de color       */
+/* ===================== */
+:host {
+  --brand-red:        #c1121f;
+  --brand-red-600:    #a50f1c;
+  --brand-red-700:    #8d0e18;
+  --chicken-yellow:   #f7d24c;  /* amarillo suave */
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-600:         #57534e;
+  --white:            #ffffff;
+
+  /* Suavizar tipografía */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ===================== */
+/* Contenedores          */
+/* ===================== */
+:host ::ng-deep .bg-white.rounded-lg.shadow {
+  border: 1px solid var(--warm-200);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.04),
+    0 8px 24px rgba(0,0,0,.06);
+  border-radius: 14px;
+}
+
+/* Encabezado principal (icono + título + CTA) */
+:host ::ng-deep .flex.items-center.mb-6 {
+  padding: 8px 0;
+}
+
+:host ::ng-deep .flex.items-center.mb-6 h1 {
+  letter-spacing: .2px;
+}
+
+:host ::ng-deep .flex.items-center.mb-6 button {
+  border-radius: 10px;
+  transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+:host ::ng-deep .flex.items-center.mb-6 button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,.08);
+}
+
+/* ===================== */
+/* Tabla principal       */
+/* ===================== */
+/* Estructura base */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background-color: var(--white);
+}
+
+/* Head de la tabla LISTADO (el HTML ya trae `bg-warm-gray-100` ahí) */
+thead.bg-warm-gray-100 {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
+  color: var(--white);
+}
+
+thead.bg-warm-gray-100 th {
+  color: var(--white) !important;
+  font-weight: 700 !important;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-size: 12px !important;
+  padding: 12px 16px !important;
+  border-bottom: 0;
+  position: sticky;
+  top: 0;
+}
+
+/* Bordes redondeados del thead */
+thead.bg-warm-gray-100 tr th:first-child { border-top-left-radius: 12px; }
+thead.bg-warm-gray-100 tr th:last-child  { border-top-right-radius: 12px; }
+
+/* Celdas body */
+tbody td {
+  font-size: 13px;
+  color: var(--warm-600);
+  padding: 12px 16px;
+  vertical-align: middle;
+  background: var(--white);
+  border-bottom: 1px solid var(--warm-200);
+}
+
+/* Rayado y hover */
+tbody tr:nth-child(even) td {
+  background: var(--warm-50);
+}
+tbody tr:hover td {
+  background: var(--warm-100);
+}
+
+/* Primera columna un poco más fuerte */
+tbody td:first-child {
+  color: #1f2937; /* gris texto principal */
+  font-weight: 600;
+}
+
+/* Columna de acciones (alineación) */
+td.text-right,
+th.text-right {
+  text-align: right;
+}
+td.text-center,
+th.text-center {
+  text-align: center;
+}
+
+/* Icon buttons en celdas de acciones */
+td .p-1,
+td .p-2 {
+  border-radius: 8px;
+  transition: background-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+td .p-1:hover,
+td .p-2:hover {
+  background-color: var(--warm-100);
+}
+td .p-1:active,
+td .p-2:active {
+  transform: translateY(1px);
+}
+
+/* Indicador móvil (icono) */
+.fa-mobile-alt,
+svg[data-icon="mobile-alt"] {
+  transition: transform .15s ease;
+}
+td .fa-mobile-alt:hover,
+td svg[data-icon="mobile-alt"]:hover {
+  transform: scale(1.06);
+}
+
+/* Estado vacío */
+tbody tr:has(> td[colspan]) .text-5xl {
+  opacity: .9;
+}
+tbody tr:has(> td[colspan]) p {
+  color: var(--warm-600);
+}
+
+/* ===================== */
+/* Modal: Crear/Editar   */
+/* ===================== */
+:host ::ng-deep .fixed.inset-0 .bg-white.rounded-2xl {
+  border: 1px solid var(--warm-200);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.04),
+    0 10px 34px rgba(0,0,0,.14);
+}
+
+/* Stepper (Paso 1/2) */
+:host ::ng-deep .rounded-xl.border.p-3 {
+  border-color: var(--warm-200) !important;
+}
+:host ::ng-deep .rounded-xl.border.p-3[class*="border-brand-red"] {
+  box-shadow: inset 0 0 0 1.5px var(--brand-red);
+}
+:host ::ng-deep .rounded-xl.border.p-3[class*="bg-warm-gray-50"] {
+  background-color: var(--warm-50) !important;
+}
+
+/* Inputs / Selects dentro del modal */
+:host ::ng-deep input[type="text"],
+:host ::ng-deep input[type="email"],
+:host ::ng-deep input[type="password"],
+:host ::ng-deep input:not([type]),
+:host ::ng-deep select,
+:host ::ng-deep textarea {
+  border: 1px solid var(--warm-300) !important;
+  border-radius: 10px !important;
+  transition: box-shadow .15s ease, border-color .15s ease, background-color .15s ease;
+}
+:host ::ng-deep input:focus,
+:host ::ng-deep select:focus,
+:host ::ng-deep textarea:focus {
+  outline: none;
+  border-color: var(--brand-red) !important;
+  box-shadow: 0 0 0 3px rgba(193, 18, 31, .15);
+  background-color: var(--white);
+}
+
+/* Grupo de Núcleos */
+:host ::ng-deep .bg-warm-gray-50.rounded-lg {
+  border: 1px dashed var(--warm-300);
+  background:
+    linear-gradient(0deg, rgba(255,255,255,.6), rgba(255,255,255,.6)),
+    var(--warm-50);
+}
+
+/* Botón “Agregar …” de núcleos/galpones */
+:host ::ng-deep button.text-brand-red:hover {
+  text-decoration: underline;
+}
+
+/* Footer del modal: botones */
+:host ::ng-deep .px-4.py-2.bg-brand-red {
+  background-color: var(--brand-red) !important;
+}
+:host ::ng-deep .px-4.py-2.bg-brand-red:hover {
+  background-color: var(--brand-red-600) !important;
+}
+
+/* ===================== */
+/* Modal Detalle (lect.) */
+/* ===================== */
+:host ::ng-deep .fixed.inset-0 .w-3\/4.max-h-\[80vh\].overflow-auto {
+  border: 1px solid var(--warm-200);
+  border-radius: 14px;
+}
+
+/* La tabla interna del detalle mantiene head gris */
+:host ::ng-deep .fixed.inset-0 thead.bg-gray-100 {
+  background: var(--warm-100) !important;
+  color: #374151;
+}
+:host ::ng-deep .fixed.inset-0 thead.bg-gray-100 th {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .04em;
+  padding: 10px 14px;
+}
+:host ::ng-deep .fixed.inset-0 tbody td {
+  border-bottom: 1px solid var(--warm-200);
+  font-size: 13px;
+  color: var(--warm-600);
+}
+
+/* ===================== */
+/* Pequeños detalles     */
+/* ===================== */
+:host ::ng-deep .inline-flex.items-center.px-4.py-2.bg-chicken-yellow {
+  background-color: var(--chicken-yellow) !important;
+  color: #3b3a37 !important;
+}
+
+:host ::ng-deep .hover\:bg-yellow-500:hover {
+  /* Ajuste hacia un amarillo más intenso */
+  background-color: #f3c322 !important;
+}
+
+/* Toast/loader flotante */
+:host ::ng-deep .fixed.bottom-4.right-4 {
+  border: 1px solid var(--warm-200);
+  box-shadow: 0 10px 24px rgba(0,0,0,.12);
+  border-radius: 12px;
+}
+
+/* Animaciones sutiles para iconos */
+:host ::ng-deep td .fa-pen,
+:host ::ng-deep td .fa-trash,
+:host ::ng-deep td .fa-eye {
+  transition: transform .12s ease, color .12s ease;
+}
+:host ::ng-deep td button:hover .fa-pen,
+:host ::ng-deep td button:hover .fa-trash,
+:host ::ng-deep td button:hover .fa-eye {
+  transform: translateY(-1px);
+}

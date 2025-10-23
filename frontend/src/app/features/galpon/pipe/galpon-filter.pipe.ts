@@ -1,28 +1,25 @@
+// src/app/features/galpon/pipe/galpon-filter.pipe.ts
 import { Pipe, PipeTransform } from '@angular/core';
-import { GalponDto } from '../services/galpon.service';
-import { NucleoDto } from '../../nucleo/services/nucleo.service';
-import { FarmDto } from '../../farm/services/farm.service';
-import { Company } from '../../../core/services/company/company.service';
+import { GalponDetailDto } from '../models/galpon.models';
 
-
-@Pipe({
-  name: 'galponFilter',
-  standalone: true
-})
+@Pipe({ name: 'galponFilter', standalone: true })
 export class GalponFilterPipe implements PipeTransform {
-  transform(galpones: GalponDto[], filtro: string, nucleos: NucleoDto[], farms: FarmDto[], companies: Company[]): GalponDto[] {
-    if (!filtro?.trim()) return galpones;
-    const f = filtro.toLowerCase();
-    return galpones.filter(g => {
-      const nucleo = nucleos.find(n => n.nucleoId === g.galponNucleoId);
-      const farm = farms.find(fr => fr.id === g.granjaId);
-      const company = farm ? companies.find(c => c.id === farm.companyId) : null;
+  transform(items: GalponDetailDto[] | null | undefined, term: string): GalponDetailDto[] {
+    if (!items) return [];
+    if (!term)  return items;
+    const t = term.trim().toLowerCase();
+
+    return items.filter(g => {
       return (
-        g.galponNombre?.toLowerCase().includes(f) ||
-        g.tipoGalpon?.toLowerCase().includes(f) ||
-        nucleo?.nucleoNombre?.toLowerCase().includes(f) ||
-        farm?.name?.toLowerCase().includes(f) ||
-        company?.name?.toLowerCase().includes(f)
+        g.galponId?.toLowerCase().includes(t) ||
+        g.galponNombre?.toLowerCase().includes(t) ||
+        g.nucleo?.nucleoNombre?.toLowerCase().includes(t) ||
+        g.nucleo?.nucleoId?.toLowerCase().includes(t) ||
+        g.farm?.name?.toLowerCase().includes(t) ||
+        String(g.farm?.id ?? '').includes(t) ||
+        g.company?.name?.toLowerCase().includes(t) ||
+        g.company?.identifier?.toLowerCase().includes(t) ||
+        g.tipoGalpon?.toLowerCase().includes(t)
       );
     });
   }

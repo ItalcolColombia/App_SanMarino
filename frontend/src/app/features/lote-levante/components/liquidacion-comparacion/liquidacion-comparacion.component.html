@@ -1,0 +1,304 @@
+<!-- src/app/features/lote-levante/components/liquidacion-comparacion/liquidacion-comparacion.component.html -->
+<div class="liquidacion-comparacion-container">
+  <div class="header">
+    <h3>Comparación con Guía Genética</h3>
+    <div class="estado-general" [ngClass]="getEstadoClass(comparacion?.estadoGeneral)">
+      <span class="estado-badge">{{ comparacion?.estadoGeneral || 'Sin datos' }}</span>
+      <span class="porcentaje">{{ comparacion?.porcentajeCumplimiento?.toFixed(1) || 0 }}%</span>
+    </div>
+  </div>
+
+  <div class="loading" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Cargando comparación...</p>
+  </div>
+
+  <div class="error" *ngIf="error">
+    <div class="error-message">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ error }}</p>
+    </div>
+  </div>
+
+  <div class="no-guia" *ngIf="!loading && !error && !comparacion">
+    <div class="no-guia-message">
+      <i class="fas fa-info-circle"></i>
+      <p>Este lote no tiene guía genética configurada para comparación.</p>
+      <p>Configure la raza y año de tabla genética en los datos del lote.</p>
+    </div>
+  </div>
+
+  <div class="comparacion-content" *ngIf="comparacion && !loading && !error">
+    <!-- Información del lote y guía -->
+    <div class="info-section">
+      <div class="lote-info">
+        <h4>Información del Lote</h4>
+        <p><strong>Lote:</strong> {{ comparacion.loteNombre }}</p>
+        <p><strong>Raza:</strong> {{ comparacion.raza || 'No especificada' }}</p>
+        <p><strong>Año Tabla:</strong> {{ comparacion.anoTablaGenetica || 'No especificado' }}</p>
+      </div>
+      <div class="guia-info" *ngIf="comparacion.nombreGuiaGenetica">
+        <h4>Guía Genética</h4>
+        <p><strong>Línea:</strong> {{ comparacion.nombreGuiaGenetica }}</p>
+        <p><strong>Fecha Cálculo:</strong> {{ comparacion.fechaCalculo | date:'short' }}</p>
+      </div>
+    </div>
+
+    <!-- Resumen de cumplimiento -->
+    <div class="resumen-section">
+      <div class="resumen-card">
+        <div class="resumen-header">
+          <h4>Resumen de Cumplimiento</h4>
+          <div class="progress-circle">
+            <svg class="progress-ring" width="80" height="80">
+              <circle class="progress-ring-circle" 
+                      stroke="#e0e0e0" 
+                      stroke-width="8" 
+                      fill="transparent" 
+                      r="36" 
+                      cx="40" 
+                      cy="40"/>
+              <circle class="progress-ring-circle progress-ring-fill" 
+                      [attr.stroke-dasharray]="getProgressDashArray()"
+                      [attr.stroke-dashoffset]="getProgressDashOffset()"
+                      stroke-width="8" 
+                      fill="transparent" 
+                      r="36" 
+                      cx="40" 
+                      cy="40"/>
+            </svg>
+            <div class="progress-text">{{ comparacion.porcentajeCumplimiento.toFixed(0) }}%</div>
+          </div>
+        </div>
+        <div class="resumen-stats">
+          <div class="stat">
+            <span class="stat-value">{{ comparacion.parametrosCumplidos }}</span>
+            <span class="stat-label">Cumplidos</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">{{ comparacion.totalParametrosEvaluados }}</span>
+            <span class="stat-label">Total</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparaciones detalladas -->
+    <div class="comparaciones-section">
+      <h4>Comparaciones Detalladas</h4>
+      <div class="comparaciones-grid">
+        <!-- Mortalidad -->
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleMortalidadHembras)">
+          <div class="card-header">
+            <h5>Mortalidad Hembras</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumpleMortalidadHembras)">
+              {{ comparacion.cumpleMortalidadHembras ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.porcentajeMortalidadHembras.toFixed(2) }}%</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.mortalidadEsperadaHembras">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.mortalidadEsperadaHembras.toFixed(2) }}%</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaMortalidadHembras">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaMortalidadHembras)">
+                {{ comparacion.diferenciaMortalidadHembras > 0 ? '+' : '' }}{{ comparacion.diferenciaMortalidadHembras.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleMortalidadMachos)">
+          <div class="card-header">
+            <h5>Mortalidad Machos</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumpleMortalidadMachos)">
+              {{ comparacion.cumpleMortalidadMachos ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.porcentajeMortalidadMachos.toFixed(2) }}%</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.mortalidadEsperadaMachos">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.mortalidadEsperadaMachos.toFixed(2) }}%</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaMortalidadMachos">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaMortalidadMachos)">
+                {{ comparacion.diferenciaMortalidadMachos > 0 ? '+' : '' }}{{ comparacion.diferenciaMortalidadMachos.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Consumo -->
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleConsumoHembras)">
+          <div class="card-header">
+            <h5>Consumo Hembras</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumpleConsumoHembras)">
+              {{ comparacion.cumpleConsumoHembras ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.consumoAcumuladoHembras.toFixed(0) }}g</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.consumoAcumuladoEsperadoHembras">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.consumoAcumuladoEsperadoHembras.toFixed(0) }}g</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaConsumoHembras">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaConsumoHembras)">
+                {{ comparacion.diferenciaConsumoHembras > 0 ? '+' : '' }}{{ comparacion.diferenciaConsumoHembras.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleConsumoMachos)">
+          <div class="card-header">
+            <h5>Consumo Machos</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumpleConsumoMachos)">
+              {{ comparacion.cumpleConsumoMachos ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.consumoAcumuladoMachos.toFixed(0) }}g</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.consumoAcumuladoEsperadoMachos">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.consumoAcumuladoEsperadoMachos.toFixed(0) }}g</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaConsumoMachos">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaConsumoMachos)">
+                {{ comparacion.diferenciaConsumoMachos > 0 ? '+' : '' }}{{ comparacion.diferenciaConsumoMachos.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Peso -->
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumplePesoHembras)" *ngIf="comparacion.pesoFinalHembras">
+          <div class="card-header">
+            <h5>Peso Hembras</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumplePesoHembras)">
+              {{ comparacion.cumplePesoHembras ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.pesoFinalHembras.toFixed(0) }}g</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.pesoEsperadoHembras">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.pesoEsperadoHembras.toFixed(0) }}g</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaPesoHembras">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaPesoHembras)">
+                {{ comparacion.diferenciaPesoHembras > 0 ? '+' : '' }}{{ comparacion.diferenciaPesoHembras.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumplePesoMachos)" *ngIf="comparacion.pesoFinalMachos">
+          <div class="card-header">
+            <h5>Peso Machos</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumplePesoMachos)">
+              {{ comparacion.cumplePesoMachos ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.pesoFinalMachos.toFixed(0) }}g</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.pesoEsperadoMachos">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.pesoEsperadoMachos.toFixed(0) }}g</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaPesoMachos">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaPesoMachos)">
+                {{ comparacion.diferenciaPesoMachos > 0 ? '+' : '' }}{{ comparacion.diferenciaPesoMachos.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Uniformidad -->
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleUniformidadHembras)" *ngIf="comparacion.uniformidadFinalHembras">
+          <div class="card-header">
+            <h5>Uniformidad Hembras</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumpleUniformidadHembras)">
+              {{ comparacion.cumpleUniformidadHembras ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.uniformidadFinalHembras.toFixed(1) }}%</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.uniformidadEsperadaHembras">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.uniformidadEsperadaHembras.toFixed(1) }}%</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaUniformidadHembras">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaUniformidadHembras)">
+                {{ comparacion.diferenciaUniformidadHembras > 0 ? '+' : '' }}{{ comparacion.diferenciaUniformidadHembras.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparacion-card" [ngClass]="getComparacionClass(comparacion.cumpleUniformidadMachos)" *ngIf="comparacion.uniformidadFinalMachos">
+          <div class="card-header">
+            <h5>Uniformidad Machos</h5>
+            <span class="estado-indicator" [ngClass]="getEstadoIndicatorClass(comparacion.cumpleUniformidadMachos)">
+              {{ comparacion.cumpleUniformidadMachos ? '✓' : '✗' }}
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="valor-real">
+              <span class="label">Real:</span>
+              <span class="value">{{ comparacion.uniformidadFinalMachos.toFixed(1) }}%</span>
+            </div>
+            <div class="valor-esperado" *ngIf="comparacion.uniformidadEsperadaMachos">
+              <span class="label">Esperado:</span>
+              <span class="value">{{ comparacion.uniformidadEsperadaMachos.toFixed(1) }}%</span>
+            </div>
+            <div class="diferencia" *ngIf="comparacion.diferenciaUniformidadMachos">
+              <span class="label">Diferencia:</span>
+              <span class="value" [ngClass]="getDiferenciaClass(comparacion.diferenciaUniformidadMachos)">
+                {{ comparacion.diferenciaUniformidadMachos > 0 ? '+' : '' }}{{ comparacion.diferenciaUniformidadMachos.toFixed(2) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Observaciones -->
+    <div class="observaciones-section" *ngIf="observaciones">
+      <h4>Observaciones</h4>
+      <div class="observaciones-content">
+        <p>{{ observaciones }}</p>
+      </div>
+    </div>
+  </div>
+</div>

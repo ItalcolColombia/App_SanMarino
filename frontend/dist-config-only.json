@@ -1,0 +1,230 @@
+{
+    "CallerReference":  "2025-09-26T11:38:37",
+    "Aliases":  {
+                    "Quantity":  0
+                },
+    "DefaultRootObject":  "index.html",
+    "Origins":  {
+                    "Quantity":  2,
+                    "Items":  [
+                                  {
+                                      "Id":  "alb-api",
+                                      "DomainName":  "alb-sanmarino-1757251809.us-east-2.elb.amazonaws.com",
+                                      "OriginPath":  "",
+                                      "CustomHeaders":  {
+                                                            "Quantity":  0
+                                                        },
+                                      "CustomOriginConfig":  {
+                                                                 "HTTPPort":  80,
+                                                                 "HTTPSPort":  443,
+                                                                 "OriginProtocolPolicy":  "http-only",
+                                                                 "OriginSslProtocols":  {
+                                                                                            "Quantity":  3,
+                                                                                            "Items":  [
+                                                                                                          "TLSv1",
+                                                                                                          "TLSv1.1",
+                                                                                                          "TLSv1.2"
+                                                                                                      ]
+                                                                                        },
+                                                                 "OriginReadTimeout":  30,
+                                                                 "OriginKeepaliveTimeout":  5
+                                                             },
+                                      "ConnectionAttempts":  3,
+                                      "ConnectionTimeout":  10,
+                                      "OriginShield":  {
+                                                           "Enabled":  false
+                                                       },
+                                      "OriginAccessControlId":  ""
+                                  },
+                                  {
+                                      "Id":  "s3-sanmarino-frontend-021891592771-us-east-2",
+                                      "DomainName":  "sanmarino-frontend-021891592771-us-east-2.s3.us-east-2.amazonaws.com",
+                                      "OriginPath":  "/browser",
+                                      "CustomHeaders":  {
+                                                            "Quantity":  0
+                                                        },
+                                      "S3OriginConfig":  {
+                                                             "OriginAccessIdentity":  "",
+                                                             "OriginReadTimeout":  30
+                                                         },
+                                      "ConnectionAttempts":  3,
+                                      "ConnectionTimeout":  10,
+                                      "OriginShield":  {
+                                                           "Enabled":  false
+                                                       },
+                                      "OriginAccessControlId":  "E1HUZLT1PUMKTA"
+                                  }
+                              ]
+                },
+    "OriginGroups":  {
+                         "Quantity":  0
+                     },
+    "DefaultCacheBehavior":  {
+                                 "TargetOriginId":  "s3-sanmarino-frontend-021891592771-us-east-2",
+                                 "TrustedSigners":  {
+                                                        "Enabled":  false,
+                                                        "Quantity":  0
+                                                    },
+                                 "TrustedKeyGroups":  {
+                                                          "Enabled":  false,
+                                                          "Quantity":  0
+                                                      },
+                                 "ViewerProtocolPolicy":  "redirect-to-https",
+                                 "AllowedMethods":  {
+                                                        "Quantity":  2,
+                                                        "Items":  [
+                                                                      "HEAD",
+                                                                      "GET"
+                                                                  ],
+                                                        "CachedMethods":  {
+                                                                              "Quantity":  2,
+                                                                              "Items":  [
+                                                                                            "HEAD",
+                                                                                            "GET"
+                                                                                        ]
+                                                                          }
+                                                    },
+                                 "SmoothStreaming":  false,
+                                 "Compress":  true,
+                                 "LambdaFunctionAssociations":  {
+                                                                    "Quantity":  0
+                                                                },
+                                 "FunctionAssociations":  {
+                                                              "Quantity":  0
+                                                          },
+                                 "FieldLevelEncryptionId":  "",
+                                 "GrpcConfig":  {
+                                                    "Enabled":  false
+                                                },
+                                 "ForwardedValues":  {
+                                                         "QueryString":  true,
+                                                         "Cookies":  {
+                                                                         "Forward":  "none"
+                                                                     },
+                                                         "Headers":  {
+                                                                         "Quantity":  0
+                                                                     },
+                                                         "QueryStringCacheKeys":  {
+                                                                                      "Quantity":  0
+                                                                                  }
+                                                     },
+                                 "MinTTL":  0,
+                                 "DefaultTTL":  86400,
+                                 "MaxTTL":  31536000
+                             },
+    "CacheBehaviors":  {
+                           "Quantity":  1,
+                           "Items":  [
+                                         {
+                                             "PathPattern":  "/api/*",
+                                             "TargetOriginId":  "alb-api",
+                                             "TrustedSigners":  {
+                                                                    "Quantity":  0,
+                                                                    "Enabled":  false
+                                                                },
+                                             "TrustedKeyGroups":  {
+                                                                      "Quantity":  0,
+                                                                      "Enabled":  false
+                                                                  },
+                                             "ViewerProtocolPolicy":  "redirect-to-https",
+                                             "SmoothStreaming":  false,
+                                             "Compress":  true,
+                                             "AllowedMethods":  {
+                                                                    "Quantity":  7,
+                                                                    "Items":  [
+                                                                                  "GET",
+                                                                                  "HEAD",
+                                                                                  "OPTIONS",
+                                                                                  "PUT",
+                                                                                  "POST",
+                                                                                  "PATCH",
+                                                                                  "DELETE"
+                                                                              ],
+                                                                    "CachedMethods":  {
+                                                                                          "Quantity":  2,
+                                                                                          "Items":  [
+                                                                                                        "GET",
+                                                                                                        "HEAD"
+                                                                                                    ]
+                                                                                      }
+                                                                },
+                                             "LambdaFunctionAssociations":  {
+                                                                                "Quantity":  0
+                                                                            },
+                                             "FunctionAssociations":  {
+                                                                          "Quantity":  0
+                                                                      },
+                                             "FieldLevelEncryptionId":  "",
+                                             "GrpcConfig":  {
+                                                                "Enabled":  false
+                                                            },
+                                             "ForwardedValues":  {
+                                                                     "Cookies":  {
+                                                                                     "Forward":  "all"
+                                                                                 },
+                                                                     "QueryString":  true,
+                                                                     "Headers":  {
+                                                                                     "Quantity":  6,
+                                                                                     "Items":  [
+                                                                                                   "Authorization",
+                                                                                                   "Content-Type",
+                                                                                                   "Accept",
+                                                                                                   "Origin",
+                                                                                                   "Referer",
+                                                                                                   "User-Agent"
+                                                                                               ]
+                                                                                 },
+                                                                     "QueryStringCacheKeys":  {
+                                                                                                  "Quantity":  0
+                                                                                              }
+                                                                 },
+                                             "MinTTL":  0,
+                                             "DefaultTTL":  0,
+                                             "MaxTTL":  0
+                                         }
+                                     ]
+                       },
+    "CustomErrorResponses":  {
+                                 "Quantity":  2,
+                                 "Items":  [
+                                               {
+                                                   "ErrorCode":  403,
+                                                   "ResponsePagePath":  "/index.html",
+                                                   "ResponseCode":  "200",
+                                                   "ErrorCachingMinTTL":  300
+                                               },
+                                               {
+                                                   "ErrorCode":  404,
+                                                   "ResponsePagePath":  "/index.html",
+                                                   "ResponseCode":  "200",
+                                                   "ErrorCachingMinTTL":  300
+                                               }
+                                           ]
+                             },
+    "Comment":  "SanMarino Angular Frontend",
+    "Logging":  {
+                    "Enabled":  false,
+                    "IncludeCookies":  false,
+                    "Bucket":  "",
+                    "Prefix":  ""
+                },
+    "PriceClass":  "PriceClass_All",
+    "Enabled":  true,
+    "ViewerCertificate":  {
+                              "CloudFrontDefaultCertificate":  true,
+                              "SSLSupportMethod":  "vip",
+                              "MinimumProtocolVersion":  "TLSv1",
+                              "CertificateSource":  "cloudfront"
+                          },
+    "Restrictions":  {
+                         "GeoRestriction":  {
+                                                "RestrictionType":  "none",
+                                                "Quantity":  0
+                                            }
+                     },
+    "WebACLId":  "",
+    "HttpVersion":  "http2",
+    "IsIPV6Enabled":  true,
+    "ContinuousDeploymentPolicyId":  "",
+    "Staging":  false
+}

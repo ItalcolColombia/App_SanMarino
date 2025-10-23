@@ -13,7 +13,8 @@ export class FarmFilterPipe implements PipeTransform {
       f.name?.toLowerCase().includes(filtro) ||
       f.status?.toLowerCase().includes(filtro) ||
       f.regionalId?.toString().includes(filtro) ||
-      f.zoneId?.toString().includes(filtro) ||
+      f.departamentoId?.toString().includes(filtro) ||
+       f.ciudadId?.toString().includes(filtro) ||
       f.companyId?.toString().includes(filtro)
     );
   }

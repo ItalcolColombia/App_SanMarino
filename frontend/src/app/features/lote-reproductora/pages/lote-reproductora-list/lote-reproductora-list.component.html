@@ -1,228 +1,398 @@
-<div class="flex h-screen bg-gray-50">
-  <app-sidebar class="w-64"></app-sidebar>
-  <div class="flex-1 p-6 overflow-auto">
+<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+
+  <!-- Main -->
+  <div class="main-content">
     <!-- Header -->
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Lotes Reproductora</h1>
-      <button (click)="openNew()" class="flex items-center bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-        <fa-icon [icon]="faPlus" class="mr-2"></fa-icon> Nuevo
+    <header class="header">
+      <div class="header__title">
+        <span class="summary-chip ml-2" *ngIf="selectedLoteId">
+          {{ registros.length || 0 }} registro(s)
+        </span>
+      </div>
+
+      <button
+        type="button"
+        class="btn-primary"
+        (click)="openNew()"
+        [disabled]="!selectedLoteId"
+        [attr.aria-disabled]="!selectedLoteId ? 'true' : null"
+        [title]="!selectedLoteId ? 'Primero selecciona el Lote al que se asignará' : 'Crear nuevo Lote Reproductora'">
+        <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+        Nuevo
       </button>
-    </div>
+    </header>
 
     <!-- Filtros en cascada -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Granja:</label>
-        <select [(ngModel)]="selectedGranjaId" (change)="onGranjaChange()" class="w-full border rounded p-2">
-          <option value="">-- Seleccione --</option>
-          <option *ngFor="let g of granjas" [value]="g.id">{{ g.name }}</option>
-        </select>
+    <section class="ux-card mb-4" role="group" aria-labelledby="filtros-title">
+      <h2 id="filtros-title" class="sr-only">Filtros en cascada</h2>
+
+      <div class="filters">
+        <!-- Granja -->
+        <div class="filter">
+          <label class="ux-label" for="sel-granja">Granja</label>
+          <select
+            id="sel-granja"
+            class="ux-select"
+            [(ngModel)]="selectedGranjaId"
+            (change)="onGranjaChange()">
+            <option [ngValue]="null">— Seleccione —</option>
+            <option *ngFor="let g of granjas; trackBy: trackByIdx" [ngValue]="g.id">
+              {{ g.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Núcleo -->
+        <div class="filter">
+          <label class="ux-label" for="sel-nucleo">Núcleo</label>
+          <select
+            id="sel-nucleo"
+            class="ux-select"
+            [(ngModel)]="selectedNucleoId"
+            (change)="onNucleoChange()"
+            [disabled]="!selectedGranjaId"
+            [attr.aria-disabled]="!selectedGranjaId ? 'true' : null">
+            <option [ngValue]="null">— Seleccione —</option>
+            <option *ngFor="let n of nucleos; trackBy: trackByIdx" [ngValue]="n.nucleoId">
+              {{ n.nucleoNombre }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Lote -->
+        <div class="filter">
+          <label class="ux-label" for="sel-lote">Lote</label>
+          <select
+            id="sel-lote"
+            class="ux-select"
+            [(ngModel)]="selectedLoteId"
+            (change)="onLoteChange()"
+            [disabled]="!selectedNucleoId"
+            [attr.aria-disabled]="!selectedNucleoId ? 'true' : null"
+            aria-describedby="hint-lote">
+            <option [ngValue]="null">— Seleccione —</option>
+            <option *ngFor="let l of lotes; trackBy: trackByIdx" [ngValue]="l.loteId">
+              {{ l.loteNombre }}
+            </option>
+          </select>
+          <small id="hint-lote" class="ux-hint">Selecciona el Lote para habilitar “Nuevo”.</small>
+        </div>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Núcleo:</label>
-        <select [(ngModel)]="selectedNucleoId" (change)="onNucleoChange()" class="w-full border rounded p-2">
-          <option value="">-- Seleccione --</option>
-          <option *ngFor="let n of nucleos" [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
-        </select>
+    </section>
+
+    <!-- Aviso sin Lote -->
+    <section *ngIf="!selectedLoteId" class="ux-card ux-card--soft mb-4" role="status" aria-live="polite">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <span class="summary-label">Estado</span>
+          <span class="summary-value">Lote sin seleccionar</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Siguiente paso</span>
+          <span class="summary-value">Elige un Lote en el filtro para crear un Lote Reproductora</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Acción</span>
+          <span class="summary-chip">“Nuevo” deshabilitado</span>
+        </div>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Lote:</label>
-        <select [(ngModel)]="selectedLoteId" (change)="onLoteChange()" class="w-full border rounded p-2">
-          <option value="">-- Seleccione --</option>
-          <option *ngFor="let l of lotes" [value]="l.loteId">{{ l.loteNombre }}</option>
-        </select>
+    </section>
+
+    <!-- Contexto con Lote -->
+    <section *ngIf="selectedLoteId" class="ux-card mb-4" role="status" aria-live="polite">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <span class="summary-label">Creando para</span>
+          <span class="summary-chip">Lote #{{ selectedLoteId }}</span>
+        </div>
+        <div class="summary-item" *ngIf="loteSeleccionado?.loteNombre">
+          <span class="summary-label">Nombre del lote</span>
+          <span class="summary-value">{{ loteSeleccionado?.loteNombre }}</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">Atajo</span>
+          <span class="summary-value">Pulsa “Nuevo” para registrar la reproductora</span>
+        </div>
       </div>
-    </div>
+    </section>
 
-  <!-- 🐣 Detalle del lote seleccionado -->
-<div *ngIf="loteSeleccionado" class="overflow-x-auto bg-white shadow rounded mb-6">
-  <table class="min-w-full divide-y divide-gray-200">
-    <thead class="bg-yellow-100 text-sm">
-      <tr>
-        <th colspan="3" class="text-center py-2 font-semibold">📋 DATOS DEL LOTE</th>
-        <th colspan="4" class="text-center py-2 font-semibold"></th>
-        <th colspan="3" class="text-center py-2 font-semibold"></th>
-      </tr>
-    </thead>
-    <tbody class="text-sm text-gray-700">
-      <tr class="text-center">
-        <!-- 📋 DATOS DEL LOTE -->
-        <td class="px-2 py-1"><strong>Lote ID:</strong><br>{{ loteSeleccionado.loteId }}</td>
-        <td class="px-2 py-1"><strong>Nombre:</strong><br>{{ loteSeleccionado.loteNombre }}</td>
-        <td class="px-2 py-1"><strong>Granja ID:</strong><br>{{ loteSeleccionado.granjaId }}</td>
-
-        <!-- 🐣 CANTIDAD DE AVES -->
-        <td class="px-2 py-1"><strong>Hembras:</strong><br>{{ loteSeleccionado.hembrasL ?? 0 }}</td>
-        <td class="px-2 py-1"><strong>Machos:</strong><br>{{ loteSeleccionado.machosL ?? 0 }}</td>
-        <td class="px-2 py-1"><strong>Mixtas:</strong><br>{{ loteSeleccionado.mixtas ?? 0 }}</td>
-        <td class="px-2 py-1"><strong>Aves encasetadas:</strong><br>{{ loteSeleccionado.avesEncasetadas ?? 0 }}</td>
-
-        <!-- ⚖️ PESO LLEGADA -->
-        <td class="px-2 py-1"><strong>Peso H:</strong><br>{{ loteSeleccionado.pesoInicialH ?? 0 }}</td>
-        <td class="px-2 py-1"><strong>Peso M:</strong><br>{{ loteSeleccionado.pesoInicialM ?? 0 }}</td>
-        <td class="px-2 py-1"><strong>Peso Mixto:</strong><br>{{ loteSeleccionado.pesoMixto ?? 0 }}</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
+    <!-- 🐣 Resumen Lote seleccionado -->
+    <section *ngIf="loteSeleccionado" class="ux-card ux-card--soft mb-4">
+      <div class="summary-grid">
+        <div class="summary-item"><span class="summary-label">Lote ID</span><span class="summary-value">{{ loteSeleccionado.loteId }}</span></div>
+        <div class="summary-item"><span class="summary-label">Nombre</span><span class="summary-value">{{ loteSeleccionado.loteNombre }}</span></div>
+        <div class="summary-item"><span class="summary-label">Granja ID</span><span class="summary-value">{{ loteSeleccionado.granjaId }}</span></div>
+        <div class="summary-item"><span class="summary-label">Hembras</span><span class="summary-chip">{{ loteSeleccionado.hembrasL ?? 0 }}</span></div>
+        <div class="summary-item"><span class="summary-label">Machos</span><span class="summary-chip">{{ loteSeleccionado.machosL ?? 0 }}</span></div>
+        <div class="summary-item"><span class="summary-label">Mixtas</span><span class="summary-chip">{{ loteSeleccionado.mixtas ?? 0 }}</span></div>
+        <div class="summary-item"><span class="summary-label">Aves encasetadas</span><span class="summary-value">{{ loteSeleccionado.avesEncasetadas ?? 0 }}</span></div>
+        <div class="summary-item"><span class="summary-label">Peso H</span><span class="summary-value">{{ (loteSeleccionado.pesoInicialH ?? 0) | number:'1.0-3' }}</span></div>
+        <div class="summary-item"><span class="summary-label">Peso M</span><span class="summary-value">{{ (loteSeleccionado.pesoInicialM ?? 0) | number:'1.0-3' }}</span></div>
+        <div class="summary-item"><span class="summary-label">Peso Mixto</span><span class="summary-value">{{ (loteSeleccionado.pesoMixto ?? 0) | number:'1.0-3' }}</span></div>
+      </div>
+    </section>
 
     <!-- Tabla -->
-    <div class="overflow-x-auto bg-white shadow rounded">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-yellow-100">
-          <tr>
-            <th colspan="2" class="text-center py-2 font-semibold">📋 LOTE REPRODUCTORA</th>
-            <th colspan="3" class="text-center py-2 font-semibold">🐣 CANTIDAD DE AVES</th>
-            <th colspan="3" class="text-center py-2 font-semibold">⚖️ PESO LLEGADA</th>
-            <th class="text-center py-2 font-semibold">Acciones</th>
-          </tr>
-          <tr class="bg-yellow-100 text-xs text-gray-700">
-            <th class="px-2 py-1">Lote Reproductora</th>
-            <th class="px-2 py-1">Incubadora</th>
-            <th class="px-2 py-1">Machos</th>
-            <th class="px-2 py-1">Hembras</th>
-            <th class="px-2 py-1">Mixtas</th>
-            <th class="px-2 py-1">Peso M</th>
-            <th class="px-2 py-1">Peso H</th>
-            <th class="px-2 py-1">Peso Mixto</th>
-            <th class="px-2 py-1 text-center">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200 text-sm">
-          <tr *ngFor="let r of registros">
-            <td class="px-2 py-1">{{ r.nombreLote }}</td>
-            <td class="px-2 py-1">{{ r.reproductoraId }}</td>
-            <td class="px-2 py-1">{{ r.m }}</td>
-            <td class="px-2 py-1">{{ r.h }}</td>
-            <td class="px-2 py-1">{{ r.mixt }}</td>
-            <td class="px-2 py-1">{{ r.pesoInicialM }}</td>
-            <td class="px-2 py-1">{{ r.pesoInicialH }}</td>
-            <td class="px-2 py-1 text-right space-x-1">
-              <button (click)="view(r)" class="px-2 py-1 bg-blue-500 text-white rounded">👁</button>
-              <button (click)="edit(r)" class="px-2 py-1 bg-yellow-400 text-white rounded">✎</button>
-              <button (click)="delete(r.loteId, r.reproductoraId)" class="px-2 py-1 bg-red-500 text-white rounded">🗑</button>
-            </td>
-          </tr>
-          <tr *ngIf="loading">
-            <td colspan="9" class="text-center py-4">
-              <span class="text-gray-500 animate-pulse">Cargando datos...</span>
-            </td>
-          </tr>
-          <tr *ngIf="!loading && !registros.length">
-            <td colspan="9" class="text-center py-4 text-gray-500">Sin registros</td>
-          </tr>
-        </tbody>
-      </table>
+    <section class="ux-card">
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <caption class="sr-only">Lotes Reproductora</caption>
+
+          <thead>
+            <tr class="group-row">
+              <th colspan="2" class="text-center">📋 Lote Reproductora</th>
+              <th colspan="3" class="text-center">🐣 Cantidad de aves</th>
+              <th colspan="3" class="text-center">⚖️ Peso llegada</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+            <tr>
+              <th>Lote Reproductora</th>
+              <th>Incubadora</th>
+              <th>Machos</th>
+              <th>Hembras</th>
+              <th>Mixtas</th>
+              <th>Peso M</th>
+              <th>Peso H</th>
+              <th>Peso Mixto</th>
+              <th class="text-center">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <!-- Estado: cargando -->
+            <tr *ngIf="loading" aria-live="polite">
+              <td colspan="9" class="empty-state">
+                <div class="spinner" aria-hidden="true"></div>
+                Cargando datos…
+              </td>
+            </tr>
+
+            <!-- Estado: vacío -->
+            <tr *ngIf="!loading && (!registros || !registros.length)">
+              <td colspan="9" class="empty-state">
+                <div class="empty-illustration">🫥</div>
+                <p *ngIf="!selectedLoteId">Selecciona un Lote para comenzar.</p>
+                <p *ngIf="selectedLoteId">Sin registros para este Lote.</p>
+                <button class="btn-secondary mt-2" (click)="openNew()" [disabled]="!selectedLoteId">
+                  <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+                  Crear el primero
+                </button>
+              </td>
+            </tr>
+
+            <!-- Filas -->
+            <tr *ngFor="let r of registros; trackBy: trackByRegistro" class="ux-row">
+              <td>{{ r.nombreLote }}</td>
+              <td>{{ r.reproductoraId }}</td>
+              <td><span class="summary-chip">{{ r.m ?? 0 }}</span></td>
+              <td><span class="summary-chip">{{ r.h ?? 0 }}</span></td>
+              <td><span class="summary-chip">{{ r.mixtas ?? 0 }}</span></td>
+              <td>{{ (r.pesoInicialM ?? 0) | number:'1.0-3' }}</td>
+              <td>{{ (r.pesoInicialH ?? 0) | number:'1.0-3' }}</td>
+              <td>{{ (r.pesoMixto ?? 0)     | number:'1.0-3' }}</td>
+              <td class="text-center">
+                <div class="actions">
+                  <button class="icon-btn" title="Ver" aria-label="Ver" (click)="view(r)">
+                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button class="icon-btn" title="Editar" aria-label="Editar" (click)="edit(r)">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button
+                    class="icon-btn danger"
+                    title="Eliminar"
+                    aria-label="Eliminar"
+                    (click)="delete(r.loteId, r.reproductoraId)">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Overlay de carga -->
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        Cargando…
+      </div>
+    </section>
+
+    <!-- Modal: Detalle -->
+    <div *ngIf="detalleOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detalle-title">
+      <div class="ux-modal__panel">
+        <div class="ux-modal__header">
+          <h2 id="detalle-title">Detalle del Lote Reproductora</h2>
+          <button class="ux-modal__close" (click)="closeDetalle()" aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="ux-modal__body">
+          <div class="summary-grid">
+            <div class="summary-item"><span class="summary-label">Lote</span><span class="summary-value">{{ detalleData?.nombreLote }}</span></div>
+            <div class="summary-item"><span class="summary-label">Incubadora</span><span class="summary-value">{{ detalleData?.reproductoraId }}</span></div>
+            <div class="summary-item"><span class="summary-label">Machos</span><span class="summary-chip">{{ detalleData?.m ?? 0 }}</span></div>
+            <div class="summary-item"><span class="summary-label">Hembras</span><span class="summary-chip">{{ detalleData?.h ?? 0 }}</span></div>
+            <div class="summary-item"><span class="summary-label">Mixtas</span><span class="summary-chip">{{ detalleData?.mixtas ?? 0 }}</span></div>
+            <div class="summary-item"><span class="summary-label">Peso M</span><span class="summary-value">{{ (detalleData?.pesoInicialM ?? 0) | number:'1.0-3' }}</span></div>
+            <div class="summary-item"><span class="summary-label">Peso H</span><span class="summary-value">{{ (detalleData?.pesoInicialH ?? 0) | number:'1.0-3' }}</span></div>
+          </div>
+        </div>
+      </div>
     </div>
 
-  <!-- Modal de Detalle Mejorado -->
-<div *ngIf="detalleOpen" class="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-  <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-3xl border border-gray-200">
-    <!-- Encabezado -->
-    <div class="flex justify-between items-center mb-6 border-b pb-3">
-      <h3 class="text-xl font-semibold text-gray-800">📋 Detalle del Lote Reproductora</h3>
-      <button (click)="closeDetalle()" class="text-gray-500 hover:text-red-600 text-lg font-bold">✕</button>
+    <!-- Modal: Crear / Editar -->
+    <div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="ux-modal__panel ux-modal__panel--xl">
+        <div class="ux-modal__header">
+          <h2 id="modal-title">
+            {{ editing ? 'Editar' : (bulkMode ? 'Nuevo (múltiple)' : 'Nuevo') }} Lote Reproductora
+          </h2>
+          <button class="ux-modal__close" (click)="cancel()" aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="ux-modal__body">
+          <!-- Modo uno / múltiple -->
+          <div *ngIf="!editing" class="ux-card ux-card--soft mb-4">
+            <div class="flex items-center gap-4">
+              <label class="ux-label mb-0">Modo:</label>
+              <label class="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="ux-switch"
+                  [(ngModel)]="bulkMode"
+                  (change)="bulkMode ? regenerateIncubadoras(bulkCount) : null" />
+                <span>{{ bulkMode ? 'Múltiple' : 'Uno' }}</span>
+              </label>
+
+              <ng-container *ngIf="bulkMode">
+                <div class="flex items-center gap-2">
+                  <label class="ux-label mb-0" for="bulk-count">Cantidad incubadoras</label>
+                  <input
+                    id="bulk-count"
+                    type="number"
+                    class="ux-input w-24"
+                    min="1"
+                    max="50"
+                    [(ngModel)]="bulkCount"
+                    (change)="regenerateIncubadoras(bulkCount)"
+                    (keyup.enter)="regenerateIncubadoras(bulkCount)" />
+                  <button type="button" class="btn-secondary" (click)="regenerateIncubadoras(bulkCount)">Aplicar</button>
+                  <button type="button" class="btn-ghost" (click)="addIncubadora()">+1</button>
+                </div>
+              </ng-container>
+            </div>
+
+            <div class="mt-3 text-sm text-warm-gray-700" *ngIf="selectedLoteId">
+              Lote destino: <span class="summary-chip">#{{ selectedLoteId }}</span>
+            </div>
+          </div>
+
+          <!-- SINGLE -->
+          <form *ngIf="!bulkMode" [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
+            <div class="form-section__title">Datos generales</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="ux-label" for="inp-nombre">Lote Reproductora</label>
+                <input id="inp-nombre" class="ux-input" formControlName="nombreLote" />
+              </div>
+              <div>
+                <label class="ux-label" for="inp-rep">Incubadora</label>
+                <input id="inp-rep" class="ux-input" formControlName="reproductoraId" placeholder="Ej: Sanmarino" />
+              </div>
+              <div>
+                <label class="ux-label" for="inp-fecha">Fecha Encasetamiento</label>
+                <input id="inp-fecha" type="date" class="ux-input" formControlName="fechaEncasetamiento" />
+              </div>
+            </div>
+
+            <div class="form-section__title">Cantidad de aves</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="ux-label" for="inp-m">Machos</label>
+                <input id="inp-m" type="number" class="ux-input" formControlName="m" inputmode="numeric" />
+              </div>
+              <div>
+                <label class="ux-label" for="inp-h">Hembras</label>
+                <input id="inp-h" type="number" class="ux-input" formControlName="h" inputmode="numeric" />
+              </div>
+              <div>
+                <label class="ux-label" for="inp-mixtas">Mixtas</label>
+                <input id="inp-mixtas" type="number" class="ux-input" formControlName="mixtas" inputmode="numeric" />
+              </div>
+            </div>
+
+            <div class="form-section__title">Peso llegada</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="ux-label" for="inp-pm">Peso Machos</label>
+                <input id="inp-pm" type="number" class="ux-input" formControlName="pesoInicialM" step="0.001" inputmode="decimal" />
+              </div>
+              <div>
+                <label class="ux-label" for="inp-ph">Peso Hembras</label>
+                <input id="inp-ph" type="number" class="ux-input" formControlName="pesoInicialH" step="0.001" inputmode="decimal" />
+              </div>
+            </div>
+
+            <div class="ux-modal__actions">
+              <button type="button" class="btn-ghost" (click)="cancel()">Cancelar</button>
+              <button type="submit" class="btn-primary">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+            </div>
+          </form>
+
+          <!-- MULTIPLE -->
+          <form *ngIf="bulkMode" class="ux-form" (ngSubmit)="save()" novalidate [formGroup]="form">
+            <div formArrayName="incubadoras" class="space-y-6">
+              <div
+                *ngFor="let g of incubadoras.controls; let i = index; trackBy: trackByIdx"
+                [formGroupName]="i"
+                class="ux-card incubadora-card">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="font-semibold">Incubadora #{{ i + 1 }}</div>
+                  <button
+                    type="button"
+                    class="icon-btn danger"
+                    aria-label="Quitar"
+                    (click)="removeIncubadora(i)"
+                    *ngIf="incubadoras.length > 1">×</button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label class="ux-label">Lote Reproductora</label>
+                    <input class="ux-input" formControlName="nombreLote" />
+                  </div>
+                  <div>
+                    <label class="ux-label">Incubadora</label>
+                    <input class="ux-input" formControlName="reproductoraId" placeholder="Ej: Sanmarino-A" />
+                  </div>
+                  <div>
+                    <label class="ux-label">Fecha Encasetamiento</label>
+                    <input type="date" class="ux-input" formControlName="fechaEncasetamiento" />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+                  <div><label class="ux-label">Machos</label><input type="number" class="ux-input" formControlName="m" inputmode="numeric" /></div>
+                  <div><label class="ux-label">Hembras</label><input type="number" class="ux-input" formControlName="h" inputmode="numeric" /></div>
+                  <div><label class="ux-label">Mixtas</label><input type="number" class="ux-input" formControlName="mixtas" inputmode="numeric" /></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  <div><label class="ux-label">Peso Machos</label><input type="number" class="ux-input" formControlName="pesoInicialM" step="0.001" inputmode="decimal" /></div>
+                  <div><label class="ux-label">Peso Hembras</label><input type="number" class="ux-input" formControlName="pesoInicialH" step="0.001" inputmode="decimal" /></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="ux-modal__actions mt-6">
+              <button type="button" class="btn-ghost" (click)="cancel()">Cancelar</button>
+              <button type="submit" class="btn-primary">Guardar {{ incubadoras.length }} incubadora(s)</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
-
-    <!-- Contenido -->
-    <table class="min-w-full divide-y divide-gray-200 text-sm text-gray-700">
-      <thead class="bg-yellow-100">
-        <tr>
-          <th colspan="2" class="text-center py-2 font-semibold">📋 DATOS DEL LOTE</th>
-          <th colspan="3" class="text-center py-2 font-semibold">🐣 CANTIDAD DE AVES</th>
-          <th colspan="2" class="text-center py-2 font-semibold">⚖️ PESO LLEGADA</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr class="text-center">
-          <!-- 📋 Datos del lote -->
-          <td class="px-3 py-2"><strong>Lote:</strong><br>{{ detalleData?.nombreLote }}</td>
-          <td class="px-3 py-2"><strong>Incubadora:</strong><br>{{ detalleData?.reproductoraId }}</td>
-
-          <!-- 🐣 Aves -->
-          <td class="px-3 py-2"><strong>Machos:</strong><br>{{ detalleData?.m ?? 0 }}</td>
-          <td class="px-3 py-2"><strong>Hembras:</strong><br>{{ detalleData?.h ?? 0 }}</td>
-          <td class="px-3 py-2"><strong>Mixtas:</strong><br>{{ detalleData?.mixtas ?? 0 }}</td>
-
-          <!-- ⚖️ Pesos -->
-          <td class="px-3 py-2"><strong>Peso M:</strong><br>{{ detalleData?.pesoInicialM ?? 0 }}</td>
-          <td class="px-3 py-2"><strong>Peso H:</strong><br>{{ detalleData?.pesoInicialH ?? 0 }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-
-   <!-- Modal de Crear/Editar -->
-<div *ngIf="modalOpen" class="fixed inset-0 bg-black bg-opacity-40 flex items-start justify-center pt-20 z-50">
-  <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl mx-4 overflow-auto max-h-[85vh] border border-gray-200">
-
-    <!-- Header -->
-    <div class="flex justify-between items-center px-6 py-4 border-b">
-      <h3 class="text-xl font-semibold text-gray-800">
-        {{ editing ? '✏️ Editar' : '➕ Nuevo' }} Lote Reproductora
-      </h3>
-      <button (click)="cancel()" class="text-gray-500 hover:text-red-600 text-lg font-bold">✕</button>
-    </div>
-
-    <!-- Formulario -->
-    <form [formGroup]="form" (ngSubmit)="save()" class="px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-sm">
-
-      <!-- Datos generales -->
-      <div class="col-span-full text-gray-600 font-semibold">📋 Datos Generales</div>
-      <div>
-        <label class="block text-gray-700 mb-1">Lote Reproductora</label>
-        <input formControlName="nombreLote" class="w-full border rounded p-2" placeholder="Ej: L432" />
-      </div>
-      <div>
-        <label class="block text-gray-700 mb-1">Incubadora</label>
-        <input formControlName="reproductoraId" class="w-full border rounded p-2" placeholder="Ej: Sanmarino" />
-      </div>
-      <div>
-        <label class="block text-gray-700 mb-1">Fecha Encasetamiento</label>
-        <input type="date" formControlName="fechaEncasetamiento" class="w-full border rounded p-2" />
-      </div>
-
-      <!-- Aves -->
-      <div class="col-span-full text-gray-600 font-semibold pt-4">🐣 Cantidad de Aves</div>
-      <div>
-        <label class="block text-gray-700 mb-1">Machos</label>
-        <input type="number" formControlName="m" class="w-full border rounded p-2" />
-      </div>
-      <div>
-        <label class="block text-gray-700 mb-1">Hembras</label>
-        <input type="number" formControlName="h" class="w-full border rounded p-2" />
-      </div>
-      <div>
-        <label class="block text-gray-700 mb-1">Mixtas</label>
-        <input type="number" formControlName="mixtas" class="w-full border rounded p-2" />
-      </div>
-
-      <!-- Pesos -->
-      <div class="col-span-full text-gray-600 font-semibold pt-4">⚖️ Peso Llegada</div>
-      <div>
-        <label class="block text-gray-700 mb-1">Peso Machos</label>
-        <input type="number" formControlName="pesoInicialM" class="w-full border rounded p-2" />
-      </div>
-      <div>
-        <label class="block text-gray-700 mb-1">Peso Hembras</label>
-        <input type="number" formControlName="pesoInicialH" class="w-full border rounded p-2" />
-      </div>
-
-      <!-- Botones -->
-      <div class="col-span-full flex justify-end gap-3 pt-6 border-t">
-        <button type="button" (click)="cancel()" class="px-5 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">
-          Cancelar
-        </button>
-        <button type="submit" [disabled]="form.invalid" class="px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm">
-          {{ editing ? 'Actualizar' : 'Guardar' }}
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-
+    <!-- /Modales -->
   </div>
 </div>

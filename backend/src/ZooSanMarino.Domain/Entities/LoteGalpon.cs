@@ -2,12 +2,17 @@
 namespace ZooSanMarino.Domain.Entities;
 public class LoteGalpon
 {
-    public string   LoteId             { get; set; } = null!;  // FK → LoteReproductora.LoteId
-    public string   ReproductoraId     { get; set; } = null!;  // FK → LoteReproductora.ReproductoraId
-    public string   GalponId           { get; set; } = null!;  // FK → Galpon
-    public int?     M                   { get; set; }
-    public int?     H                   { get; set; }
+// PK compuesta (LoteId, ReproductoraId, GalponId)
+public int LoteId { get; set; } // FK → LoteReproductora.LoteId
+public string ReproductoraId { get; set; } = null!; // FK → LoteReproductora.ReproductoraId
+public string GalponId { get; set; } = null!; // FK → Galpon.GalponId
 
-    public LoteReproductora            LoteReproductora { get; set; } = null!;
-    public Galpon                      Galpon           { get; set; } = null!;
+
+public int? M { get; set; }
+public int? H { get; set; }
+
+
+// Navegación
+public LoteReproductora LoteReproductora { get; set; } = null!;
+public Galpon Galpon { get; set; } = null!;
 }

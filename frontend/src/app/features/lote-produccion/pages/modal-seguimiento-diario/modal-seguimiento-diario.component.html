@@ -1,0 +1,128 @@
+<!-- Modal de Seguimiento Diario de Producción -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="seguimiento-diario-modal-title">
+  <div class="ux-modal__dialog">
+    <header class="ux-modal__header">
+      <h2 id="seguimiento-diario-modal-title">{{ editingSeguimiento ? 'Editar Seguimiento Diario' : 'Nuevo Seguimiento Diario' }}</h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <div class="ux-tabs" role="tablist" aria-label="Secciones del seguimiento diario">
+        <input type="radio" name="regTab" id="tab-general" checked />
+        <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">General</label>
+
+        <input type="radio" name="regTab" id="tab-produccion" />
+        <label class="ux-tab" id="lab-produccion" for="tab-produccion" role="tab" tabindex="0" aria-controls="panel-produccion" aria-selected="false">Producción</label>
+
+        <input type="radio" name="regTab" id="tab-mortalidad" />
+        <label class="ux-tab" id="lab-mortalidad" for="tab-mortalidad" role="tab" tabindex="0" aria-controls="panel-mortalidad" aria-selected="false">Mortalidad</label>
+
+        <div class="ux-tab-panels">
+          <!-- GENERAL -->
+          <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-fecha-registro">Fecha de Registro</label>
+                <input id="f-fecha-registro" type="date" formControlName="fechaRegistro" />
+                <small class="ux-hint">Fecha del seguimiento diario</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-produccion-lote-id">Producción Lote ID</label>
+                <input id="f-produccion-lote-id" type="number" formControlName="produccionLoteId" readonly class="ux-input--readonly" />
+                <small class="ux-hint">ID del registro inicial de producción</small>
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="f-obs">Observaciones</label>
+                <textarea id="f-obs" rows="3" formControlName="observaciones" placeholder="Observaciones sobre el seguimiento diario..."></textarea>
+              </div>
+            </div>
+          </section>
+
+          <!-- PRODUCCIÓN -->
+          <section id="panel-produccion" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-produccion">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-consumo-kg">Consumo Total (kg)</label>
+                <input id="f-consumo-kg" type="number" step="0.01" min="0" formControlName="consumoKg" placeholder="0.00" />
+                <small class="ux-hint">Consumo total de alimento en kg</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-peso-huevo">Peso Promedio del Huevo (g)</label>
+                <input id="f-peso-huevo" type="number" step="0.01" min="0" formControlName="pesoHuevo" placeholder="0.00" />
+                <small class="ux-hint">Peso promedio de los huevos en gramos</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-huevos-totales">Huevos Totales</label>
+                <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" />
+                <small class="ux-hint">Total de huevos producidos</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-huevos-incubables">Huevos Incubables</label>
+                <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" />
+                <small class="ux-hint">Huevos aptos para incubación</small>
+              </div>
+
+              <div class="form-field form-field--full">
+                <div class="resumen-card">
+                  <div class="resumen-icon">🥚</div>
+                  <div class="resumen-content">
+                    <h4>Eficiencia de Producción</h4>
+                    <p class="resumen-number">{{ getEficienciaProduccion() }}%</p>
+                    <small class="ux-hint">Porcentaje de huevos incubables</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- MORTALIDAD -->
+          <section id="panel-mortalidad" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-mortalidad">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-mortalidad-h">Mortalidad Hembras</label>
+                <input id="f-mortalidad-h" type="number" min="0" formControlName="mortalidadH" placeholder="0" />
+                <small class="ux-hint">Número de hembras que murieron</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-mortalidad-m">Mortalidad Machos</label>
+                <input id="f-mortalidad-m" type="number" min="0" formControlName="mortalidadM" placeholder="0" />
+                <small class="ux-hint">Número de machos que murieron</small>
+              </div>
+
+              <div class="form-field form-field--full">
+                <div class="resumen-card">
+                  <div class="resumen-icon">💀</div>
+                  <div class="resumen-content">
+                    <h4>Total Mortalidad</h4>
+                    <p class="resumen-number">{{ getTotalMortalidad() }}</p>
+                    <small class="ux-hint">Total de aves que murieron</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
+          {{ loading ? 'Guardando…' : (editingSeguimiento ? 'Actualizar' : 'Guardar Seguimiento') }}
+        </button>
+      </footer>
+    </form>
+
+    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Guardando…
+    </div>
+  </div>
+</div>
+
+
+

@@ -1,6 +1,7 @@
+// app/features/nucleo/services/nucleo.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, shareReplay, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 export interface NucleoDto {
@@ -25,16 +26,26 @@ export interface UpdateNucleoDto {
 export class NucleoService {
   private readonly baseUrl = `${environment.apiUrl}/Nucleo`;
 
+  // cache simple para evitar múltiples GET iguales
+  private cache$?: Observable<NucleoDto[]>;
+
   constructor(private http: HttpClient) {}
 
   /** Todos los núcleos */
   getAll(): Observable<NucleoDto[]> {
-    return this.http.get<NucleoDto[]>(this.baseUrl);
+    return this.cache$ ??= this.http.get<NucleoDto[]>(this.baseUrl).pipe(shareReplay(1));
+  }
+
+  /** Núcleos por granja (filtrado local) */
+  getByGranja(granjaId: number): Observable<NucleoDto[]> {
+    return this.getAll().pipe(
+      map(list => list.filter(n => Number(n.granjaId) === Number(granjaId)))
+    );
   }
 
   /** Uno por clave compuesta */
   getById(nucleoId: string, granjaId: number): Observable<NucleoDto> {
-    return this.http.get<NucleoDto>(`${this.baseUrl}/${nucleoId}/${granjaId}`);
+    return this.http.get<NucleoDto>(`${this.baseUrl}/${encodeURIComponent(nucleoId)}/${granjaId}`);
   }
 
   /** Crear nuevo */
@@ -45,13 +56,13 @@ export class NucleoService {
   /** Actualizar existente */
   update(dto: UpdateNucleoDto): Observable<NucleoDto> {
     return this.http.put<NucleoDto>(
-      `${this.baseUrl}/${dto.nucleoId}/${dto.granjaId}`,
+      `${this.baseUrl}/${encodeURIComponent(dto.nucleoId)}/${dto.granjaId}`,
       dto
     );
   }
 
   /** Eliminar */
   delete(nucleoId: string, granjaId: number): Observable<void> {
-    return this.http.delete<void>(`${this.baseUrl}/${nucleoId}/${granjaId}`);
+    return this.http.delete<void>(`${this.baseUrl}/${encodeURIComponent(nucleoId)}/${granjaId}`);
   }
 }

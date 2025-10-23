@@ -1,132 +1,104 @@
 // src/app/features/config/user-management/user-management.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule }      from '@angular/common';
-import { SidebarComponent }  from '../../../shared/components/sidebar/sidebar.component';
-import {
-  ReactiveFormsModule,
-  FormsModule,
-  FormBuilder,
-  FormGroup,
-  Validators
-} from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { SidebarComponent } from '../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
-  faUserPlus,
-  faUser,
-  faUsers,
-  faIdCard,
-  faEnvelope,
-  faPhone,
-  faSave,
-  faTimes,
-  faTrash
+  faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
+  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit
 } from '@fortawesome/free-solid-svg-icons';
 
-interface User {
-  id: number;
-  nombre: string;
-  apellido: string;
-  cedula: string;
-  correo: string;
-  telefono: string;
-}
+import { TablaListaRegistroComponent } from './pages/tabla-lista-registro/tabla-lista-registro.component';
+import { ModalCreateEditComponent } from './components/modal-create-edit/modal-create-edit.component';
+import { AsignarUsuarioGranjaComponent } from './components/asignar-usuario-granja/asignar-usuario-granja.component';
+import { UserListItem } from '../../../core/services/user/user.service';
 
 @Component({
   selector: 'app-user-management',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    FormsModule,
-    SidebarComponent,
-    FontAwesomeModule
-  ],
+  imports: [CommonModule, SidebarComponent, FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent],
   templateUrl: './user-management.component.html',
   styleUrls: ['./user-management.component.scss']
 })
 export class UserManagementComponent implements OnInit {
-  // iconos para plantilla
-  public faUserPlus = faUserPlus;
-  public faUser     = faUser;
-  public faUsers    = faUsers;
-  public faIdCard   = faIdCard;
-  public faEnvelope = faEnvelope;
-  public faPhone    = faPhone;
-  public faSave     = faSave;
-  public faTimes    = faTimes;
-  public faTrash    = faTrash;
+  // Iconos
+  faUserPlus = faUserPlus;  faUser = faUser;  faUsers = faUsers;  faIdCard = faIdCard;
+  faEnvelope = faEnvelope;  faPhone = faPhone; faSave = faSave;   faTimes = faTimes;
+  faTrash = faTrash;        faSearch = faSearch; faBuilding = faBuilding; faEdit = faEdit;
 
-  users: User[] = [
-    { id: 1, nombre: 'Ana',    apellido: 'Gómez',   cedula: '12345678', correo: 'ana@gomez.com',   telefono: '3001234567' },
-    { id: 2, nombre: 'Carlos', apellido: 'Pérez',   cedula: '87654321', correo: 'carlos@perez.com', telefono: '3107654321' },
-    { id: 3, nombre: 'Luisa',  apellido: 'Ramírez', cedula: '11223344', correo: 'luisa@ramirez.com', telefono: '3120011223' },
-  ];
+  // Estado de navegación
+  currentPage: 'list' | 'create' | 'edit' = 'list';
+  selectedUserId: string | null = null;
 
-  filterTerm = '';
-  modalOpen   = false;
-  editing     = false;
-  userForm!: FormGroup;
+  // Estado del modal
+  modalOpen = false;
+  editingUser: UserListItem | null = null;
+  loading = false;
 
-  constructor(
-    private fb: FormBuilder,
-    library: FaIconLibrary
-  ) {
+  // Modal de asignación de granjas
+  farmModalOpen = false;
+  selectedUserForFarms: UserListItem | null = null;
+
+  constructor(private library: FaIconLibrary) {
     library.addIcons(
-      faUserPlus, faUser, faUsers, faIdCard,
-      faEnvelope, faPhone, faSave, faTimes, faTrash
+      faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
+      faSave, faTimes, faTrash, faSearch, faBuilding, faEdit
     );
   }
 
   ngOnInit(): void {
-    this.userForm = this.fb.group({
-      nombre:   ['', Validators.required],
-      apellido: ['', Validators.required],
-      cedula:   ['', [Validators.required, Validators.minLength(6)]],
-      correo:   ['', [Validators.required, Validators.email]],
-      telefono: ['', Validators.required],
-    });
+    // Inicialización básica
   }
 
-  get filteredUsers(): User[] {
-    const term = this.filterTerm.trim().toLowerCase();
-    if (!term) return this.users;
-    return this.users.filter(u =>
-      `${u.nombre} ${u.apellido}`.toLowerCase().includes(term) ||
-      u.cedula.includes(term) ||
-      u.correo.toLowerCase().includes(term)
-    );
+  navigateToList(): void {
+    this.currentPage = 'list';
+    this.selectedUserId = null;
   }
 
-  openModal(user?: User) {
-    this.editing = !!user;
-    if (this.editing && user) {
-      this.userForm.patchValue(user);
-      this.userForm.addControl('id', this.fb.control(user.id));
-    } else {
-      this.userForm.reset();
-      this.userForm.removeControl('id');
-    }
+  navigateToCreate(): void {
+    this.editingUser = null;
     this.modalOpen = true;
   }
 
-  save() {
-    if (this.userForm.invalid) return;
-    const data = this.userForm.value as User;
-    if (this.editing) {
-      const idx = this.users.findIndex(u => u.id === data.id);
-      this.users[idx] = data;
-    } else {
-      data.id = Math.max(0, ...this.users.map(u => u.id)) + 1;
-      this.users.push(data);
-    }
-    this.closeModal();
+  navigateToEdit(user: UserListItem): void {
+    this.editingUser = user;
+    this.modalOpen = true;
   }
 
-  delete(user: User) {
-    this.users = this.users.filter(u => u.id !== user.id);
+  navigateToAssignFarms(user: UserListItem): void {
+    this.selectedUserForFarms = user;
+    this.farmModalOpen = true;
   }
 
-  closeModal() {
+  closeFarmModal(): void {
+    this.farmModalOpen = false;
+    this.selectedUserForFarms = null;
+  }
+
+  onFarmsUpdated(): void {
+    console.log('Granjas actualizadas');
+    // Aquí podrías recargar la lista de usuarios si es necesario
+  }
+
+  getUserCompanyId(user: UserListItem): number {
+    // Por ahora usar companyId = 1 como default
+    // En el futuro se podría obtener de otra fuente o agregar companyIds a UserListItem
+    return 1;
+  }
+
+  openModal(user?: UserListItem): void {
+    this.editingUser = user || null;
+    this.modalOpen = true;
+  }
+
+  closeModal(): void {
     this.modalOpen = false;
+    this.editingUser = null;
+  }
+
+  onUserSaved(user: UserListItem): void {
+    console.log('Usuario guardado:', user);
+    this.closeModal();
+    // Aquí podrías emitir un evento para recargar la lista
   }
 }

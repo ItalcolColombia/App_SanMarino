@@ -1,7 +1,7 @@
 // src/ZooSanMarino.Application/DTOs/LoteGalponDto.cs
 namespace ZooSanMarino.Application.DTOs;
 public record LoteGalponDto(
-    string   LoteId,
+    int      LoteId,  // Changed from string to int
     string   ReproductoraId,
     string   GalponId,
     int?     M,
@@ -9,7 +9,7 @@ public record LoteGalponDto(
 );
 
 public record CreateLoteGalponDto(
-    string   LoteId,
+    int      LoteId,  // Changed from string to int
     string   ReproductoraId,
     string   GalponId,
     int?     M,
@@ -17,7 +17,7 @@ public record CreateLoteGalponDto(
 );
 
 public record UpdateLoteGalponDto(
-    string   LoteId,
+    int      LoteId,  // Changed from string to int
     string   ReproductoraId,
     string   GalponId,
     int?     M,

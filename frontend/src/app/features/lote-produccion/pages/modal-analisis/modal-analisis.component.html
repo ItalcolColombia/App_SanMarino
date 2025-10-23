@@ -1,0 +1,211 @@
+<!-- Modal de Análisis de Producción -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="analisis-modal-title">
+  <div class="ux-modal__dialog ux-modal__dialog--large">
+    <header class="ux-modal__header">
+      <h2 id="analisis-modal-title">Análisis de Producción</h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <div class="ux-modal__content">
+      <div class="ux-tabs" role="tablist" aria-label="Secciones del análisis">
+        <input type="radio" name="analisisTab" id="tab-resumen" checked />
+        <label class="ux-tab" id="lab-resumen" for="tab-resumen" role="tab" tabindex="0" aria-controls="panel-resumen" aria-selected="true">Resumen</label>
+
+        <input type="radio" name="analisisTab" id="tab-tendencias" />
+        <label class="ux-tab" id="lab-tendencias" for="tab-tendencias" role="tab" tabindex="0" aria-controls="panel-tendencias" aria-selected="false">Tendencias</label>
+
+        <input type="radio" name="analisisTab" id="tab-comparativo" />
+        <label class="ux-tab" id="lab-comparativo" for="tab-comparativo" role="tab" tabindex="0" aria-controls="panel-comparativo" aria-selected="false">Comparativo</label>
+
+        <div class="ux-tab-panels">
+          <!-- RESUMEN -->
+          <section id="panel-resumen" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-resumen">
+            <div class="analisis-grid">
+              <!-- Métricas principales -->
+              <div class="metric-card metric-card--primary">
+                <div class="metric-icon">📊</div>
+                <div class="metric-content">
+                  <h3>Total Registros</h3>
+                  <p class="metric-value">{{ analisisData.totalRegistros }}</p>
+                  <small class="metric-description">Días de seguimiento</small>
+                </div>
+              </div>
+
+              <div class="metric-card metric-card--success">
+                <div class="metric-icon">🥚</div>
+                <div class="metric-content">
+                  <h3>Huevos Totales</h3>
+                  <p class="metric-value">{{ analisisData.totalHuevosTotales | number }}</p>
+                  <small class="metric-description">Producción acumulada</small>
+                </div>
+              </div>
+
+              <div class="metric-card metric-card--warning">
+                <div class="metric-icon">💀</div>
+                <div class="metric-content">
+                  <h3>Mortalidad Total</h3>
+                  <p class="metric-value">{{ analisisData.totalMortalidad }}</p>
+                  <small class="metric-description">Aves perdidas</small>
+                </div>
+              </div>
+
+              <div class="metric-card metric-card--info">
+                <div class="metric-icon">📈</div>
+                <div class="metric-content">
+                  <h3>Eficiencia Promedio</h3>
+                  <p class="metric-value">{{ analisisData.eficienciaPromedio }}%</p>
+                  <small class="metric-description">Huevos incubables</small>
+                </div>
+              </div>
+
+              <!-- Gráfico de producción diaria -->
+              <div class="chart-container">
+                <h4>Producción Diaria de Huevos</h4>
+                <div class="chart-placeholder">
+                  <p>📊 Gráfico de producción diaria</p>
+                  <small>Se mostrará aquí el gráfico de huevos producidos por día</small>
+                </div>
+              </div>
+
+              <!-- Tabla de resumen por período -->
+              <div class="table-container">
+                <h4>Resumen por Período</h4>
+                <div class="table-wrapper">
+                  <table class="ux-table">
+                    <thead>
+                      <tr>
+                        <th>Período</th>
+                        <th>Huevos Totales</th>
+                        <th>Huevos Incubables</th>
+                        <th>Eficiencia</th>
+                        <th>Mortalidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let periodo of analisisData.resumenPorPeriodo">
+                        <td>{{ periodo.periodo }}</td>
+                        <td>{{ periodo.huevosTotales | number }}</td>
+                        <td>{{ periodo.huevosIncubables | number }}</td>
+                        <td>{{ periodo.eficiencia }}%</td>
+                        <td>{{ periodo.mortalidad }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TENDENCIAS -->
+          <section id="panel-tendencias" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-tendencias">
+            <div class="analisis-grid">
+              <!-- Gráfico de tendencias de mortalidad -->
+              <div class="chart-container">
+                <h4>Tendencia de Mortalidad</h4>
+                <div class="chart-placeholder">
+                  <p>📉 Gráfico de mortalidad por día</p>
+                  <small>Se mostrará aquí la tendencia de mortalidad a lo largo del tiempo</small>
+                </div>
+              </div>
+
+              <!-- Gráfico de consumo de alimento -->
+              <div class="chart-container">
+                <h4>Consumo de Alimento</h4>
+                <div class="chart-placeholder">
+                  <p>🌾 Gráfico de consumo diario</p>
+                  <small>Se mostrará aquí el consumo de alimento por día</small>
+                </div>
+              </div>
+
+              <!-- Análisis de correlaciones -->
+              <div class="analysis-container">
+                <h4>Análisis de Correlaciones</h4>
+                <div class="correlation-grid">
+                  <div class="correlation-item">
+                    <span class="correlation-label">Mortalidad vs Producción</span>
+                    <span class="correlation-value">{{ analisisData.correlaciones.mortalidadProduccion }}</span>
+                  </div>
+                  <div class="correlation-item">
+                    <span class="correlation-label">Consumo vs Producción</span>
+                    <span class="correlation-value">{{ analisisData.correlaciones.consumoProduccion }}</span>
+                  </div>
+                  <div class="correlation-item">
+                    <span class="correlation-label">Peso Huevo vs Producción</span>
+                    <span class="correlation-value">{{ analisisData.correlaciones.pesoProduccion }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- COMPARATIVO -->
+          <section id="panel-comparativo" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-comparativo">
+            <div class="analisis-grid">
+              <!-- Comparación con períodos anteriores -->
+              <div class="comparison-container">
+                <h4>Comparación con Períodos Anteriores</h4>
+                <div class="comparison-grid">
+                  <div class="comparison-item" *ngFor="let comparacion of analisisData.comparaciones">
+                    <div class="comparison-metric">
+                      <span class="comparison-label">{{ comparacion.metrica }}</span>
+                      <span class="comparison-current">{{ comparacion.actual | number }}</span>
+                    </div>
+                    <div class="comparison-change" [class]="'change--' + comparacion.tendencia">
+                      <span class="change-icon">{{ comparacion.tendencia === 'up' ? '↗️' : comparacion.tendencia === 'down' ? '↘️' : '➡️' }}</span>
+                      <span class="change-value">{{ comparacion.cambio }}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Benchmarking -->
+              <div class="benchmark-container">
+                <h4>Benchmarking</h4>
+                <div class="benchmark-grid">
+                  <div class="benchmark-item">
+                    <span class="benchmark-label">Eficiencia vs Promedio</span>
+                    <div class="benchmark-bar">
+                      <div class="benchmark-fill" [style.width.%]="analisisData.benchmark.eficiencia"></div>
+                      <span class="benchmark-value">{{ analisisData.benchmark.eficiencia }}%</span>
+                    </div>
+                  </div>
+                  <div class="benchmark-item">
+                    <span class="benchmark-label">Producción vs Objetivo</span>
+                    <div class="benchmark-bar">
+                      <div class="benchmark-fill" [style.width.%]="analisisData.benchmark.produccion"></div>
+                      <span class="benchmark-value">{{ analisisData.benchmark.produccion }}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recomendaciones -->
+              <div class="recommendations-container">
+                <h4>Recomendaciones</h4>
+                <div class="recommendations-list">
+                  <div class="recommendation-item" *ngFor="let recomendacion of analisisData.recomendaciones">
+                    <div class="recommendation-icon">{{ recomendacion.tipo === 'warning' ? '⚠️' : recomendacion.tipo === 'success' ? '✅' : '💡' }}</div>
+                    <div class="recommendation-content">
+                      <p class="recommendation-text">{{ recomendacion.texto }}</p>
+                      <small class="recommendation-priority">{{ recomendacion.prioridad }}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <footer class="ux-modal__footer">
+      <button type="button" class="btn btn--ghost" (click)="onClose()">Cerrar</button>
+      <button type="button" class="btn btn--primary" (click)="exportarAnalisis()">
+        📊 Exportar Análisis
+      </button>
+    </footer>
+  </div>
+</div>
+
+
+

@@ -1,0 +1,264 @@
+<!-- src/app/features/config/user-management/components/modal-registro-usuario/modal-registro-usuario.component.html -->
+<div 
+  class="modal-overlay" 
+  [class.active]="isOpen"
+  (click)="closeModal()"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modal-title"
+>
+  <div 
+    class="modal-content" 
+    (click)="$event.stopPropagation()"
+    [attr.aria-busy]="loading ? 'true' : null"
+  >
+    <!-- Compact Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <fa-icon [icon]="isEditing ? faUser : faUserPlus" class="header-icon"></fa-icon>
+        <div class="header-text">
+          <h2 id="modal-title" class="modal-title">{{ modalTitle }}</h2>
+          <p *ngIf="isEditing" class="modal-subtitle">{{ editingUser?.firstName }} {{ editingUser?.surName }}</p>
+        </div>
+      </div>
+      <button 
+        (click)="closeModal()" 
+        class="modal-close-btn"
+        aria-label="Cerrar modal"
+      >
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="modal-loading">
+      <div class="spinner"></div>
+      <p>Cargando información...</p>
+    </div>
+
+    <!-- Content -->
+    <div *ngIf="!loading" class="modal-body">
+      <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="user-form">
+        <!-- Información Personal -->
+        <div class="form-section">
+          <h3 class="section-title">
+            <fa-icon [icon]="faUser" class="mr-2"></fa-icon>
+            Información Personal
+          </h3>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="firstName" class="form-label">Nombre *</label>
+              <input
+                id="firstName"
+                type="text"
+                formControlName="firstName"
+                class="form-input"
+                [class.error]="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched"
+                placeholder="Ingrese el nombre"
+              />
+              <div *ngIf="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched" 
+                   class="error-message">
+                {{ getFieldError('firstName') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="surName" class="form-label">Apellido *</label>
+              <input
+                id="surName"
+                type="text"
+                formControlName="surName"
+                class="form-input"
+                [class.error]="userForm.get('surName')?.invalid && userForm.get('surName')?.touched"
+                placeholder="Ingrese el apellido"
+              />
+              <div *ngIf="userForm.get('surName')?.invalid && userForm.get('surName')?.touched" 
+                   class="error-message">
+                {{ getFieldError('surName') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="cedula" class="form-label">
+                <fa-icon [icon]="faIdCard" class="mr-1"></fa-icon>
+                Cédula *
+              </label>
+              <input
+                id="cedula"
+                type="text"
+                formControlName="cedula"
+                class="form-input"
+                [class.error]="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched"
+                placeholder="Ingrese la cédula"
+              />
+              <div *ngIf="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched" 
+                   class="error-message">
+                {{ getFieldError('cedula') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="telefono" class="form-label">
+                <fa-icon [icon]="faPhone" class="mr-1"></fa-icon>
+                Teléfono
+              </label>
+              <input
+                id="telefono"
+                type="text"
+                formControlName="telefono"
+                class="form-input"
+                [class.error]="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched"
+                placeholder="Ingrese el teléfono"
+              />
+              <div *ngIf="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched" 
+                   class="error-message">
+                {{ getFieldError('telefono') }}
+              </div>
+            </div>
+
+            <div class="form-group full-width">
+              <label for="ubicacion" class="form-label">Ubicación</label>
+              <input
+                id="ubicacion"
+                type="text"
+                formControlName="ubicacion"
+                class="form-input"
+                placeholder="Ingrese la ubicación"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Información de Acceso -->
+        <div class="form-section">
+          <h3 class="section-title">
+            <fa-icon [icon]="faEnvelope" class="mr-2"></fa-icon>
+            Información de Acceso
+          </h3>
+          
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label for="email" class="form-label">Email *</label>
+              <input
+                id="email"
+                type="email"
+                formControlName="email"
+                class="form-input"
+                [class.error]="userForm.get('email')?.invalid && userForm.get('email')?.touched"
+                placeholder="Ingrese el email"
+              />
+              <div *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched" 
+                   class="error-message">
+                {{ getFieldError('email') }}
+              </div>
+            </div>
+
+            <div *ngIf="!isEditing" class="form-group">
+              <label for="password" class="form-label">Contraseña *</label>
+              <input
+                id="password"
+                type="password"
+                formControlName="password"
+                class="form-input"
+                [class.error]="userForm.get('password')?.invalid && userForm.get('password')?.touched"
+                placeholder="Ingrese la contraseña"
+              />
+              <div *ngIf="userForm.get('password')?.invalid && userForm.get('password')?.touched" 
+                   class="error-message">
+                {{ getFieldError('password') }}
+              </div>
+            </div>
+
+            <div *ngIf="!isEditing" class="form-group">
+              <label for="confirmPassword" class="form-label">Confirmar Contraseña *</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                formControlName="confirmPassword"
+                class="form-input"
+                [class.error]="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched"
+                placeholder="Confirme la contraseña"
+              />
+              <div *ngIf="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched" 
+                   class="error-message">
+                {{ getFieldError('confirmPassword') }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empresas y Roles -->
+        <div class="form-section">
+          <h3 class="section-title">
+            <fa-icon [icon]="faBuilding" class="mr-2"></fa-icon>
+            Empresas y Roles
+          </h3>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">Empresas *</label>
+              <div class="checkbox-group">
+                <label *ngFor="let company of companies" class="checkbox-item">
+                  <input
+                    type="checkbox"
+                    [value]="company.id"
+                    (change)="toggleCompany(company.id!)"
+                    [checked]="userForm.get('companyIds')?.value?.includes(company.id)"
+                  />
+                  <span class="checkbox-label">{{ company.name }}</span>
+                </label>
+              </div>
+              <div *ngIf="userForm.get('companyIds')?.invalid && userForm.get('companyIds')?.touched" 
+                   class="error-message">
+                {{ getFieldError('companyIds') }}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Roles *</label>
+              <div class="checkbox-group">
+                <label *ngFor="let role of roles" class="checkbox-item">
+                  <input
+                    type="checkbox"
+                    [value]="role.id"
+                    (change)="toggleRole(role.id)"
+                    [checked]="userForm.get('roleIds')?.value?.includes(role.id)"
+                  />
+                  <span class="checkbox-label">{{ role.name }}</span>
+                </label>
+              </div>
+              <div *ngIf="userForm.get('roleIds')?.invalid && userForm.get('roleIds')?.touched" 
+                   class="error-message">
+                {{ getFieldError('roleIds') }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button 
+        type="button"
+        (click)="closeModal()" 
+        class="btn-secondary"
+        [disabled]="saving"
+      >
+        <fa-icon [icon]="faTimes" class="mr-2"></fa-icon>
+        Cancelar
+      </button>
+      
+      <button 
+        type="button"
+        (click)="saveUser()" 
+        class="btn-primary"
+        [disabled]="saving || userForm.invalid"
+      >
+        <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
+        {{ submitButtonText }}
+      </button>
+    </div>
+  </div>
+</div>

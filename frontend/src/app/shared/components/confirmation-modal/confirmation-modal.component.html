@@ -1,0 +1,48 @@
+<!-- src/app/shared/components/confirmation-modal/confirmation-modal.component.html -->
+<div class="modal-backdrop" 
+     *ngIf="isOpen" 
+     (click)="onBackdropClick($event)"
+     [attr.aria-hidden]="!isOpen">
+  <div class="modal-container" 
+       [ngClass]="getModalClass()"
+       role="dialog"
+       aria-modal="true"
+       [attr.aria-labelledby]="isOpen ? 'modal-title' : null">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="modal-icon">
+        <fa-icon [icon]="getIconClass()" aria-hidden="true"></fa-icon>
+      </div>
+      <h2 id="modal-title" class="modal-title">{{ data.title }}</h2>
+      <button type="button" 
+              class="modal-close" 
+              (click)="close()"
+              aria-label="Cerrar modal">
+        <fa-icon [icon]="['fas', 'times']" aria-hidden="true"></fa-icon>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <p class="modal-message">{{ data.message }}</p>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button type="button" 
+              class="btn btn-secondary" 
+              (click)="onCancel()">
+        <fa-icon [icon]="['fas', 'times']" aria-hidden="true"></fa-icon>
+        {{ data.cancelText || 'Cancelar' }}
+      </button>
+      <button type="button" 
+              class="btn btn-primary" 
+              (click)="onConfirm()">
+        <fa-icon [icon]="['fas', 'check']" aria-hidden="true"></fa-icon>
+        {{ data.confirmText || 'Confirmar' }}
+      </button>
+    </div>
+  </div>
+</div>
+

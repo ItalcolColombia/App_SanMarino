@@ -1,30 +1,34 @@
 import { Pipe, PipeTransform } from '@angular/core';
 import { LoteDto } from '../services/lote.service';
 
-@Pipe({
-  name: 'loteFilter',
-  standalone: true
-})
+@Pipe({ name: 'loteFilter', standalone: true })
 export class LoteFilterPipe implements PipeTransform {
   transform(
-    lotes: LoteDto[],
-    search: string = '',
-    farmMap: Record<number, string>,
-    nucleoMap: Record<string, string>,
-    galponMap: Record<string, string>
+    list: LoteDto[] | null | undefined,
+    term: string,
+    farmMap?: Record<number, string>,
+    nucleoMap?: Record<string, string>,
+    galponMap?: Record<string, string>
   ): LoteDto[] {
-    if (!lotes || !search.trim()) return lotes;
+    if (!list) return [];
+    if (!term) return list;
 
-    const term = search.trim().toLowerCase();
+    const t = term.trim().toLowerCase();
+    return list.filter(l => {
+      const farmName   = l.granjaId != null ? (farmMap?.[l.granjaId] ?? '') : '';
+      const nucleoName = l.nucleoId ? (nucleoMap?.[String(l.nucleoId)] ?? '') : '';
+      const galponName = l.galponId ? (galponMap?.[String(l.galponId)] ?? '') : '';
 
-    return lotes.filter(l => {
-      const nombre     = l.loteNombre?.toLowerCase() || '';
-      const id         = l.loteId?.toLowerCase() || '';
-      const granja     = farmMap[l.granjaId]?.toLowerCase() || '';
-      const nucleo     = nucleoMap[l.nucleoId?.toString() || '']?.toLowerCase() || '';
-      const galpon     = galponMap[l.galponId?.toString() || '']?.toLowerCase() || '';
-
-      return nombre.includes(term) || id.includes(term) || granja.includes(term) || nucleo.includes(term) || galpon.includes(term);
+      return (
+        (l.loteId ?? '').toString().toLowerCase().includes(t) ||
+        (l.loteNombre ?? '').toLowerCase().includes(t) ||
+        (l.nucleoId ?? '').toString().toLowerCase().includes(t) ||
+        (l.galponId ?? '').toString().toLowerCase().includes(t) ||
+        (l.tecnico ?? '').toLowerCase().includes(t) ||
+        farmName.toLowerCase().includes(t) ||
+        nucleoName.toLowerCase().includes(t) ||
+        galponName.toLowerCase().includes(t)
+      );
     });
   }
 }

@@ -1,208 +1,339 @@
 <!-- src/app/features/config/farm-management/farm-management.component.html -->
-<div class="flex h-screen">
+<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+  <!-- Sidebar -->
   <app-sidebar class="w-64"></app-sidebar>
+
+  <!-- Main -->
   <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto">
+    <!-- Header -->
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faTractor" class="text-3xl text-brand-red" aria-hidden="true"></fa-icon>
+        <h1 class="text-2xl font-bold text-brand-red">Gestión de Granjas</h1>
+        <span class="ml-2 text-xs text-warm-gray-600 bg-white px-2 py-1 rounded border">
+          {{ farms.length || 0 }} granja(s)
+        </span>
+      </div>
 
-    <!-- Encabezado -->
-    <div class="flex items-center mb-6">
-      <fa-icon [icon]="faTractor" class="text-3xl text-brand-red mr-2"></fa-icon>
-      <h1 class="text-2xl font-bold text-brand-red">Gestión de Granjas</h1>
-      <button
-        (click)="openModal()"
-        class="ml-auto inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-800 rounded-lg hover:bg-yellow-500 transition"
-      >
-        <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
-        Nueva Granja
-      </button>
-    </div>
-
-    <!-- Tabla de granjas -->
-    <div class="bg-white rounded-lg shadow overflow-x-auto">
-      <table class="min-w-full table-auto">
-        <thead class="bg-warm-gray-100">
-          <tr>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Nombre</th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Empresa</th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Dirección</th>
-            <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700"># Núcleos</th>
-            <th class="px-4 py-3 text-right text-sm font-semibold text-warm-gray-700">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-warm-gray-200">
-          <tr *ngFor="let f of farms" class="hover:bg-warm-gray-50">
-            <td class="px-4 py-2 text-sm">{{ f.name }}</td>
-            <td class="px-4 py-2 text-sm">{{ companyMap[f.companyId] }}</td>
-            <td class="px-4 py-2 text-sm">{{ f.address }}</td>
-            <td class="px-4 py-2 text-sm">{{ f.nuclei.length }}</td>
-            <td class="px-4 py-2 text-right space-x-2">
-              <button
-                (click)="openModal(f)"
-                [attr.aria-label]="'Editar ' + f.name"
-                class="p-1 text-warm-gray-500 hover:text-brand-red transition"
-              >
-                <fa-icon [icon]="faPen"></fa-icon>
-              </button>
-              <button
-                (click)="deleteFarm(f.id!)"
-                [attr.aria-label]="'Eliminar ' + f.name"
-                class="p-1 text-warm-gray-500 hover:text-red-600 transition"
-              >
-                <fa-icon [icon]="faTrash"></fa-icon>
-              </button>
-              <button
-                (click)="openDetail(f)"
-                [attr.aria-label]="'Ver núcleos de ' + f.name"
-                class="p-1 text-warm-gray-500 hover:text-warm-gray-800 transition"
-              >
-                <fa-icon [icon]="faEye"></fa-icon>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Modal Crear/Editar -->
-    <div *ngIf="modalOpen" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 overflow-auto max-h-[90vh]">
-        <div class="flex items-center mb-4">
-          <fa-icon [icon]="faTractor" class="text-2xl text-brand-red mr-2"></fa-icon>
-          <h2 class="text-xl font-semibold text-brand-red">
-            {{ editing ? 'Editar Granja' : 'Nueva Granja' }}
-          </h2>
+      <div class="flex items-center gap-4">
+        <!-- Selector de empresa -->
+        <div class="flex items-center gap-2">
+          <app-company-selector 
+            [showLabel]="true"
+            size="sm"
+            variant="minimal"
+            (companyChanged)="onCompanyChanged($event)">
+          </app-company-selector>
+          
+          <!-- Indicador de carga de empresas -->
+          <div *ngIf="loadingCompanies" class="flex items-center gap-1 text-xs text-gray-500">
+            <div class="spinner spinner--sm"></div>
+            <span>Cargando empresas...</span>
+          </div>
         </div>
 
-        <form [formGroup]="form" (ngSubmit)="save()" class="space-y-6">
-          <!-- Datos básicos -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm text-warm-gray-700 mb-1">Nombre *</label>
-              <input formControlName="name" class="w-full px-3 py-2 border rounded-lg focus:ring-brand-red" />
-            </div>
-            <div>
-              <label class="block text-sm text-warm-gray-700 mb-1">Empresa *</label>
-              <select formControlName="companyId" class="w-full px-3 py-2 border rounded-lg focus:ring-brand-red">
-                <option [ngValue]="null" disabled>Seleccione empresa...</option>
-                <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
-              </select>
-            </div>
-            <div class="md:col-span-2">
-              <label class="block text-sm text-warm-gray-700 mb-1">Dirección</label>
-              <input formControlName="address" class="w-full px-3 py-2 border rounded-lg focus:ring-brand-red" />
-            </div>
-          </div>
-
-          <!-- Núcleos & Galpones dinámicos -->
-          <div>
-            <h3 class="text-sm font-medium text-warm-gray-700 mb-2">Núcleos &amp; Galpones</h3>
-            <ng-container formArrayName="nuclei">
-              <div
-                *ngFor="let nucCtrl of nucleiFA.controls; let i = index"
-                [formGroupName]="i"
-                class="mb-4 p-4 bg-warm-gray-50 rounded-lg"
-              >
-                <div class="flex items-center mb-2 space-x-2">
-                  <input
-                    formControlName="name"
-                    placeholder="Nombre Núcleo"
-                    class="flex-1 px-3 py-2 border rounded-lg focus:ring-brand-red"
-                  />
-                  <button
-                    type="button"
-                    (click)="removeNucleus(i)"
-                    [attr.aria-label]="'Eliminar núcleo ' + nucCtrl.get('name')?.value"
-                    class="p-1 text-warm-gray-500 hover:text-red-600 transition"
-                  >
-                    <fa-icon [icon]="faTrash"></fa-icon>
-                  </button>
-                </div>
-                <div class="pl-4" formArrayName="houses">
-                  <div
-                    *ngFor="let houseCtrl of housesFA(i).controls; let hi = index"
-                    [formGroupName]="hi"
-                    class="flex items-center mb-2 space-x-2"
-                  >
-                    <input
-                      formControlName="name"
-                      placeholder="Nombre Galpón"
-                      class="flex-1 px-3 py-2 border rounded-lg focus:ring-brand-red"
-                    />
-                    <button
-                      type="button"
-                      (click)="removeHouse(i, hi)"
-                      [attr.aria-label]="'Eliminar galpón ' + houseCtrl.get('name')?.value"
-                      class="p-1 text-warm-gray-500 hover:text-red-600 transition"
-                    >
-                      <fa-icon [icon]="faTrash"></fa-icon>
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    (click)="addHouse(i)"
-                    [attr.aria-label]="'Agregar galpón al núcleo ' + nucCtrl.get('name')?.value"
-                    class="mt-1 inline-flex items-center text-sm text-brand-red hover:underline transition"
-                  >
-                    <fa-icon [icon]="faPlus" class="mr-1"></fa-icon> Agregar Galpón
-                  </button>
-                </div>
-              </div>
-            </ng-container>
-            <button
-              type="button"
-              (click)="newNucleus()"
-              aria-label="Agregar núcleo"
-              class="inline-flex items-center text-sm text-brand-red hover:underline transition"
-            >
-              <fa-icon [icon]="faPlus" class="mr-1"></fa-icon> Agregar Núcleo
-            </button>
-          </div>
-
-          <!-- Botones -->
-          <div class="flex justify-end space-x-2">
-            <button type="button" (click)="closeModal()" class="px-4 py-2 bg-warm-gray-200 rounded-lg hover:bg-warm-gray-300 transition">
-              <fa-icon [icon]="faTimes" class="mr-1"></fa-icon> Cancelar
-            </button>
-            <button type="submit" [disabled]="form.invalid" class="px-4 py-2 bg-brand-red text-white rounded-lg hover:bg-red-600 disabled:opacity-50 transition">
-              <fa-icon [icon]="faPen" class="mr-1"></fa-icon> Guardar
-            </button>
-          </div>
-        </form>
+        <button
+          (click)="openModal()"
+          class="btn-primary"
+          aria-label="Nueva granja"
+        >
+          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+          Nueva Granja
+        </button>
       </div>
     </div>
 
-    <!-- Modal Detalle Núcleos/Galpones (solo lectura) -->
-    <div *ngIf="detailOpen && selectedFarm" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-lg w-3/4 max-h-[80vh] overflow-auto p-6">
-        <div class="flex justify-between mb-4">
-          <h2 class="text-xl font-semibold">Núcleos de "{{ selectedFarm.name }}"</h2>
-          <button (click)="closeDetail()" class="text-warm-gray-500 hover:text-red-600">
-            <fa-icon [icon]="faTimes"></fa-icon>
-          </button>
+    <!-- Componente de prueba de integración -->
+    <div class="mb-6">
+      <app-company-test></app-company-test>
+    </div>
+
+    <!-- Componente de prueba de endpoints admin -->
+    <div class="mb-6">
+      <app-company-admin-test></app-company-admin-test>
+    </div>
+
+    <!-- Tabla -->
+    <div class="ux-card">
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <caption class="sr-only">Listado de granjas</caption>
+
+          <thead>
+            <tr>
+              <th scope="col">Nombre</th>
+              <th scope="col">Empresa</th>
+              <th scope="col">Dirección</th>
+              <th scope="col"># Núcleos</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <!-- Estado: cargando -->
+            <tr *ngIf="loading" aria-live="polite">
+              <td colspan="5" class="empty-state">
+                <div class="inline-flex items-center gap-3">
+                  <div class="spinner"></div>
+                  Cargando granjas…
+                </div>
+              </td>
+            </tr>
+
+            <!-- Estado: vacío -->
+            <tr *ngIf="!loading && (!farms || farms.length === 0)">
+              <td colspan="5" class="empty-state">
+                <div class="empty-illustration">🏡</div>
+                <p>No hay granjas registradas.</p>
+                <button (click)="openModal()" class="btn-primary mt-2">
+                  <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                  Crear la primera
+                </button>
+              </td>
+            </tr>
+
+            <!-- Filas -->
+            <tr *ngFor="let f of farms" class="ux-row">
+              <td>{{ f.name }}</td>
+              <td>{{ f.companyId != null ? companyMap[f.companyId] || '—' : '—' }}</td>
+              <td>{{ f.address || '—' }}</td>
+              <td>{{ f?.nuclei?.length || 0 }}</td>
+              <td class="text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="openModal(f)"
+                    [attr.aria-label]="'Editar ' + f.name"
+                    title="Editar"
+                  >
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="icon-btn danger"
+                    (click)="deleteFarm(f.id!)"
+                    [attr.aria-label]="'Eliminar ' + f.name"
+                    title="Eliminar"
+                  >
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="openDetail(f)"
+                    [attr.aria-label]="'Ver núcleos de ' + f.name"
+                    title="Ver núcleos"
+                  >
+                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+
+        </table>
+      </div>
+
+      <!-- Overlay de carga sobre la card -->
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+        <div class="spinner"></div>
+        Cargando…
+      </div>
+    </div>
+
+    <!-- Toast de carga flotante (opcional) -->
+    <div *ngIf="loading" class="loading-toast">
+      <span class="w-3 h-3 rounded-full bg-brand-red inline-block animate-pulse"></span>
+      <span class="ml-2">Procesando…</span>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Crear/Editar granja -->
+<div
+  *ngIf="modalOpen"
+  class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+  role="dialog" aria-modal="true" aria-labelledby="farm-modal-title"
+>
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative animate-[fadeIn_.2s_ease-out]">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faTractor" class="text-xl text-brand-red" aria-hidden="true"></fa-icon>
+        <h2 id="farm-modal-title" class="text-xl font-bold text-brand-red">
+          {{ editing ? 'Editar Granja' : 'Nueva Granja' }}
+        </h2>
+      </div>
+      <button type="button" (click)="closeModal()" class="btn-ghost" aria-label="Cerrar modal">
+        Cerrar
+      </button>
+    </div>
+
+    <!-- Form -->
+    <form [formGroup]="form" (ngSubmit)="save()" class="space-y-6" novalidate>
+      <!-- Datos básicos -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Nombre <span class="text-red-600">*</span></label>
+          <input formControlName="name" class="form-input" [class.form-input--invalid]="form.get('name')?.invalid && form.get('name')?.touched" />
         </div>
-        <div *ngFor="let nuc of selectedFarm.nuclei" class="mb-6">
-          <h3 class="font-semibold mb-2">Núcleo: {{ nuc.name }}</h3>
-          <table class="min-w-full table-auto mb-4">
-            <thead class="bg-gray-100">
+
+        <div>
+          <label class="form-label">Empresa <span class="text-red-600">*</span></label>
+          <select formControlName="companyId" class="form-input" [class.form-input--invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched">
+            <option [ngValue]="null" disabled>— Selecciona empresa —</option>
+            <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+          </select>
+        </div>
+
+        <div class="md:col-span-2">
+          <label class="form-label">Dirección</label>
+          <input formControlName="address" class="form-input" />
+        </div>
+      </div>
+
+      <!-- Núcleos y galpones -->
+      <fieldset>
+        <legend class="form-label mb-2 font-semibold">Núcleos &amp; Galpones</legend>
+        <ng-container formArrayName="nuclei">
+          <div
+            *ngFor="let nucCtrl of nucleiFA.controls; let i = index"
+            [formGroupName]="i"
+            class="mb-4 p-4 bg-warm-gray-50 rounded-xl border"
+          >
+            <div class="flex items-center mb-2 gap-2">
+              <input
+                formControlName="name"
+                placeholder="Nombre del Núcleo"
+                class="form-input flex-1"
+                [class.form-input--invalid]="nucCtrl.get('name')?.invalid && nucCtrl.get('name')?.touched"
+              />
+              <button
+                type="button"
+                class="icon-btn danger"
+                (click)="removeNucleus(i)"
+                [attr.aria-label]="'Eliminar núcleo ' + (nucCtrl.get('name')?.value || i + 1)"
+                title="Eliminar núcleo"
+              >
+                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+              </button>
+            </div>
+
+            <div class="pl-2" formArrayName="houses">
+              <div
+                *ngFor="let houseCtrl of housesFA(i).controls; let hi = index"
+                [formGroupName]="hi"
+                class="flex items-center mb-2 gap-2"
+              >
+                <input
+                  formControlName="name"
+                  placeholder="Nombre del Galpón"
+                  class="form-input flex-1"
+                  [class.form-input--invalid]="houseCtrl.get('name')?.invalid && houseCtrl.get('name')?.touched"
+                />
+                <button
+                  type="button"
+                  class="icon-btn danger"
+                  (click)="removeHouse(i, hi)"
+                  [attr.aria-label]="'Eliminar galpón ' + (houseCtrl.get('name')?.value || hi + 1)"
+                  title="Eliminar galpón"
+                >
+                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                class="btn-ghost mt-1"
+                (click)="addHouse(i)"
+                [attr.aria-label]="'Agregar galpón al núcleo ' + (nucCtrl.get('name')?.value || i + 1)"
+              >
+                <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                Agregar Galpón
+              </button>
+            </div>
+          </div>
+        </ng-container>
+
+        <button
+          type="button"
+          class="btn-ghost"
+          (click)="newNucleus()"
+          aria-label="Agregar núcleo"
+        >
+          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+          Agregar Núcleo
+        </button>
+      </fieldset>
+
+      <!-- Footer acciones -->
+      <div class="flex justify-end gap-2">
+        <button type="button" class="btn-ghost" (click)="closeModal()">
+          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+          Cancelar
+        </button>
+        <button type="submit" [disabled]="form.invalid || loading" class="btn-danger disabled:opacity-60 disabled:cursor-not-allowed">
+          <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+          Guardar
+        </button>
+      </div>
+    </form>
+
+    <!-- Overlay de guardado -->
+    <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+      <div class="spinner"></div>
+      Guardando…
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Detalle núcleos/galpones (solo lectura) -->
+<div
+  *ngIf="detailOpen && selectedFarm"
+  class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+  role="dialog" aria-modal="true" aria-labelledby="detail-title"
+>
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6 relative animate-[fadeIn_.2s_ease-out]">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="detail-title" class="text-xl font-bold text-brand-red">
+        Núcleos de “{{ selectedFarm.name }}”
+      </h2>
+      <button type="button" class="btn-ghost" (click)="closeDetail()">
+        Cerrar
+      </button>
+    </div>
+
+    <div *ngFor="let nuc of selectedFarm.nuclei" class="mb-6">
+      <div class="font-semibold mb-2">Núcleo: {{ nuc.name }}</div>
+
+      <div class="ux-card">
+        <div class="ux-scroll" style="max-height: 40vh;">
+          <table class="ux-table">
+            <thead>
               <tr>
-                <th class="px-4 py-2 text-left text-sm font-medium">ID</th>
-                <th class="px-4 py-2 text-left text-sm font-medium">Galpón</th>
+                <th scope="col">ID</th>
+                <th scope="col">Galpón</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let h of nuc.houses">
-                <td class="px-4 py-2 text-sm">{{ h.id }}</td>
-                <td class="px-4 py-2 text-sm">{{ h.name }}</td>
+              <tr *ngFor="let h of nuc.houses" class="ux-row">
+                <td>{{ h.id }}</td>
+                <td>{{ h.name }}</td>
+              </tr>
+              <tr *ngIf="!nuc.houses?.length">
+                <td colspan="2" class="empty-state">Sin galpones</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div class="text-right">
-          <button (click)="closeDetail()" class="px-4 py-2 bg-warm-gray-200 rounded hover:bg-warm-gray-300 transition">
-            Cerrar
-          </button>
-        </div>
       </div>
     </div>
 
+    <div class="flex justify-end">
+      <button type="button" class="btn-ghost" (click)="closeDetail()">Cerrar</button>
+    </div>
   </div>
 </div>

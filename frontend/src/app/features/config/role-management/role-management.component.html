@@ -1,125 +1,600 @@
-<div class="flex h-screen">
-    <app-sidebar class="w-64"></app-sidebar>
-    <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto">
-      <div class="flex items-center mb-6">
-        <fa-icon [icon]="faUserShield" class="text-3xl text-brand-red mr-2"></fa-icon>
-        <h1 class="text-2xl font-bold text-brand-red">Gestión de Roles</h1>
-        <button
-          (click)="openModal()"
-          class="ml-auto inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-800 rounded hover:bg-yellow-500 transition"
-        >
-          <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
-          Nuevo Rol
+<!-- src/app/features/config/role-management/role-management.component.html -->
+<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="w-64"></app-sidebar>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto">
+    <!-- Header -->
+    <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faUserShield" class="text-3xl text-brand-red" aria-hidden="true"></fa-icon>
+        <h1 class="text-2xl font-bold text-brand-red">Roles, Permisos &amp; Menús</h1>
+      </div>
+
+      <div class="text-xs text-warm-gray-600 bg-white px-2 py-1 rounded border">
+        {{ roles.length || 0 }} rol(es) · {{ permissions.length || 0 }} permiso(s)
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="flex items-center gap-1 bg-white rounded-xl p-1 shadow mb-4 w-full md:w-auto" aria-label="Navegación de secciones">
+      <button (click)="activeTab='roles'" class="px-4 py-2 rounded-lg transition"
+              [class.bg-warm-gray-100]="activeTab==='roles'" [class.font-semibold]="activeTab==='roles'">
+        <fa-icon [icon]="faUsers" class="mr-1" aria-hidden="true"></fa-icon> Roles
+      </button>
+
+      <button (click)="activeTab='perms'" class="px-4 py-2 rounded-lg transition"
+              [class.bg-warm-gray-100]="activeTab==='perms'" [class.font-semibold]="activeTab==='perms'">
+        <fa-icon [icon]="faKey" class="mr-1" aria-hidden="true"></fa-icon> Permisos
+      </button>
+
+      <button (click)="activeTab='menus'" class="px-4 py-2 rounded-lg transition"
+              [class.bg-warm-gray-100]="activeTab==='menus'" [class.font-semibold]="activeTab==='menus'">
+        <fa-icon [icon]="faKey" class="mr-1 rotate-90" aria-hidden="true"></fa-icon> Menús
+      </button>
+
+      <div class="ml-auto">
+        <button *ngIf="activeTab==='roles'" (click)="openModal()"
+                class="inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon> Nuevo Rol
+        </button>
+
+        <button *ngIf="activeTab==='perms'" (click)="abrirModalPermisos()"
+                class="inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon> Nuevo Permiso
+        </button>
+
+        <button *ngIf="activeTab==='menus'" (click)="abrirModalMenu()"
+                class="inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition">
+          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon> Nuevo Menú
         </button>
       </div>
-  
-      <div class="bg-white rounded-lg shadow overflow-x-auto">
-        <table class="min-w-full table-auto">
-          <thead class="bg-warm-gray-100">
+    </nav>
+
+    <!-- Search contextual -->
+    <div class="mb-3">
+      <div class="relative max-w-lg">
+        <fa-icon [icon]="faMagnifyingGlass" class="absolute left-3 top-1/2 -translate-y-1/2 text-warm-gray-400" aria-hidden="true"></fa-icon>
+
+        <input *ngIf="activeTab==='roles'" [(ngModel)]="filterRoles" type="text"
+               placeholder="Buscar rol, permiso, empresa o menú…" aria-label="Buscar roles"
+               class="w-full pl-10 pr-4 py-2 rounded-lg border border-warm-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/60 focus:border-brand-red transition" />
+
+        <input *ngIf="activeTab==='perms'" [(ngModel)]="filterPerms" type="text"
+               placeholder="Buscar permiso por key o descripción…" aria-label="Buscar permisos"
+               class="w-full pl-10 pr-4 py-2 rounded-lg border border-warm-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/60 focus:border-brand-red transition" />
+
+        <input *ngIf="activeTab==='menus'" [(ngModel)]="filterMenus" type="text"
+               placeholder="Buscar menú por label, key o ruta…" aria-label="Buscar menús"
+               class="w-full pl-10 pr-4 py-2 rounded-lg border border-warm-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/60 focus:border-brand-red transition" />
+      </div>
+    </div>
+
+    <!-- Card: tablas / árbol -->
+    <section class="ux-card" aria-live="polite">
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <caption class="sr-only">Gestión de roles, permisos y menús</caption>
+
+          <!-- HEADERS: Roles -->
+          <thead *ngIf="activeTab==='roles'">
             <tr>
-              <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Nombre</th>
-              <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Permisos</th>
-              <th class="px-4 py-3 text-left text-sm font-semibold text-warm-gray-700">Empresas</th>
-              <th class="px-4 py-3 text-right text-sm font-semibold text-warm-gray-700">Acciones</th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Permisos</th>
+              <th scope="col">Empresas</th>
+              <th scope="col">Menús</th>
+              <th scope="col" class="text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-warm-gray-200">
-            <tr *ngFor="let role of roles" class="hover:bg-warm-gray-50 transition-colors">
-              <td class="px-4 py-2 text-sm">{{ role.name }}</td>
-              <td class="px-4 py-2 text-sm">
-                <span *ngFor="let p of role.permissions" class="inline-block mr-2 text-xs px-2 py-1 bg-gray-200 rounded">
-                  {{ p }}
-                </span>
-              </td>
-              <td class="px-4 py-2 text-sm">
-                <span *ngFor="let cid of role.companyIds" class="inline-block mr-2 text-xs px-2 py-1 bg-gray-100 rounded">
-                  {{ companiesMap[cid] }}
-                </span>
-              </td>
-              <td class="px-4 py-2 text-right space-x-2">
-                <button
-                  (click)="openModal(role)"
-                  class="p-1 text-warm-gray-500 hover:text-brand-red transition"
-                  attr.aria-label="Editar {{ role.name }}"
-                >
-                  <fa-icon [icon]="faPen"></fa-icon>
+
+          <!-- HEADERS: Permisos -->
+          <thead *ngIf="activeTab==='perms'">
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Descripción</th>
+              <th scope="col" class="text-right">Acciones</th>
+            </tr>
+          </thead>
+
+          <!-- HEADERS: Menús (no usamos tabla para cuerpo, mostramos árbol UX) -->
+          <thead *ngIf="activeTab==='menus'">
+            <tr>
+              <th scope="col">Estructura</th>
+            </tr>
+          </thead>
+
+          <!-- BODY: Roles -->
+          <tbody *ngIf="activeTab==='roles'">
+            <tr *ngIf="loading"><td colspan="5" class="empty-state">
+              <div class="inline-flex items-center gap-2">
+                <div class="spinner" aria-hidden="true"></div> Cargando roles…
+              </div>
+            </td></tr>
+
+            <tr *ngIf="!loading && (!filteredRoles?.length)">
+              <td colspan="5" class="empty-state">
+                <div class="empty-illustration">🗂️</div>
+                <p>No hay roles para mostrar.</p>
+                <button (click)="openModal()" class="btn-primary mt-2">
+                  <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                  Crear el primero
                 </button>
-                <button
-                  (click)="deleteRole(role.id)"
-                  class="p-1 text-warm-gray-500 hover:text-red-600 transition"
-                  attr.aria-label="Eliminar {{ role.name }}"
-                >
-                  <fa-icon [icon]="faTrash"></fa-icon>
-                </button>
+              </td>
+            </tr>
+
+            <tr *ngFor="let role of filteredRoles; trackBy: trackByRoleId" class="ux-row">
+              <td class="font-medium">{{ role.name }}</td>
+
+              <td>
+                <ng-container *ngIf="role.permissions?.length; else noPerms">
+                  <div class="flex flex-wrap gap-1">
+                    <span *ngFor="let p of (role.permissions | slice:0:4)" class="chip">{{ p }}</span>
+                    <span *ngIf="role.permissions.length > 4"
+                          class="chip chip--soft"
+                          [title]="role.permissions.slice(4).join(', ')">
+                      +{{ role.permissions.length - 4 }}
+                    </span>
+                  </div>
+                </ng-container>
+                <ng-template #noPerms>
+                  <span class="muted">—</span>
+                </ng-template>
+              </td>
+
+              <td>
+                <ng-container *ngIf="role.companyIds?.length; else noCompanies">
+                  <div class="flex flex-wrap gap-1">
+                    <span *ngFor="let cid of (role.companyIds | slice:0:3)" class="chip chip--soft" [title]="companyName(cid)">
+                      {{ companyName(cid) }}
+                    </span>
+                    <span *ngIf="role.companyIds.length > 3" class="chip"
+                          [title]="role.companyIds.slice(3).map(companyName).join(', ')">
+                      +{{ role.companyIds.length - 3 }}
+                    </span>
+                  </div>
+                </ng-container>
+                <ng-template #noCompanies><span class="muted">—</span></ng-template>
+              </td>
+
+              <td>
+                <ng-container *ngIf="(role.menuIds?.length || 0) > 0; else noMenus">
+                  <div class="flex flex-wrap gap-1">
+                    <span *ngFor="let mid of (role.menuIds | slice:0:4)" class="chip chip--soft" [title]="menuLabel(mid)">
+                      {{ menuLabel(mid) }}
+                    </span>
+                    <span
+                      *ngIf="(role.menuIds?.length || 0) > 4"
+                      class="chip"
+                      [title]="menusTooltip(role.menuIds)"
+                    >
+                      +{{ (role.menuIds?.length || 0) - 4 }}
+                    </span>
+                  </div>
+                </ng-container>
+                <ng-template #noMenus><span class="muted">—</span></ng-template>
+              </td>
+
+              <td class="text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button (click)="openModal(role)" class="icon-btn" [attr.aria-label]="'Editar ' + role.name" title="Editar rol">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button (click)="deleteRole(role.id)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + role.name" title="Eliminar rol">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+
+          <!-- BODY: Permisos -->
+          <tbody *ngIf="activeTab==='perms'">
+            <tr *ngIf="loading"><td colspan="3" class="empty-state">
+              <div class="inline-flex items-center gap-2">
+                <div class="spinner" aria-hidden="true"></div> Cargando permisos…
+              </div>
+            </td></tr>
+
+            <tr *ngIf="!loading && (!filteredPerms?.length)">
+              <td colspan="3" class="empty-state">Sin permisos</td>
+            </tr>
+
+            <tr *ngFor="let p of filteredPerms; trackBy: trackByPermId" class="ux-row">
+              <td class="mono">{{ p.key }}</td>
+              <td>{{ p.description }}</td>
+              <td class="text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button (click)="editarPermiso(p)" class="icon-btn" [attr.aria-label]="'Editar ' + p.key" title="Editar permiso">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button (click)="eliminarPermiso(p)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + p.key" title="Eliminar permiso">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+
+          <!-- BODY: Menús (árbol) -->
+          <tbody *ngIf="activeTab==='menus'">
+            <tr>
+              <td class="p-0">
+                <div class="p-3">
+                  <!-- Estado de carga -->
+                  <div *ngIf="loading" class="empty-state my-6">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="spinner" aria-hidden="true"></div> Cargando menús…
+                    </div>
+                  </div>
+
+                  <!-- Vacío -->
+                  <div *ngIf="!loading && (!filteredMenus?.length)" class="empty-state my-6">
+                    <p>Sin menús</p>
+                    <button (click)="abrirModalMenu()" class="btn-primary mt-2">
+                      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon> Crear menú
+                    </button>
+                  </div>
+
+                  <!-- Árbol -->
+                  <ul class="space-y-1">
+                    <ng-container *ngFor="let node of filteredMenus; trackBy: trackByMenuId">
+                      <li class="rounded-lg border bg-white">
+                        <div class="flex items-center justify-between px-3 py-2">
+                          <div class="flex items-center gap-2">
+                            <fa-icon [icon]="node.isGroup ? faFolder : faFile" class="text-warm-gray-600" aria-hidden="true"></fa-icon>
+                            <div>
+                              <div class="font-medium">{{ node.label || node.key }}</div>
+                              <div class="text-xs text-warm-gray-500 flex flex-wrap gap-2">
+                                <span class="mono">key: {{ node.key }}</span>
+                                <span *ngIf="node.route">ruta: {{ node.route }}</span>
+                                <span *ngIf="node.icon">icono: {{ node.icon }}</span>
+                                <span *ngIf="node.sortOrder !== null && node.sortOrder !== undefined">orden: {{ node.sortOrder }}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="inline-flex items-center gap-2">
+                            <button (click)="abrirModalMenu(node)" class="icon-btn" title="Editar menú">
+                              <fa-icon [icon]="faPen"></fa-icon>
+                            </button>
+                            <button (click)="eliminarMenu(node)" class="icon-btn danger" title="Eliminar menú">
+                              <fa-icon [icon]="faTrash"></fa-icon>
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Hijos -->
+                        <ng-container *ngIf="node.children?.length">
+                          <div class="px-3 pb-3">
+                            <ul class="pl-4 border-l space-y-1">
+                              <ng-container *ngFor="let ch of node.children; trackBy: trackByMenuId">
+                                <li class="rounded-lg border bg-white">
+                                  <div class="flex items-center justify-between px-3 py-2">
+                                    <div class="flex items-center gap-2">
+                                      <fa-icon [icon]="ch.isGroup ? faFolder : faFile" class="text-warm-gray-600" aria-hidden="true"></fa-icon>
+                                      <div>
+                                        <div class="font-medium">{{ ch.label || ch.key }}</div>
+                                        <div class="text-xs text-warm-gray-500 flex flex-wrap gap-2">
+                                          <span class="mono">key: {{ ch.key }}</span>
+                                          <span *ngIf="ch.route">ruta: {{ ch.route }}</span>
+                                          <span *ngIf="ch.icon">icono: {{ ch.icon }}</span>
+                                          <span *ngIf="ch.sortOrder !== null && ch.sortOrder !== undefined">orden: {{ ch.sortOrder }}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div class="inline-flex items-center gap-2">
+                                      <button (click)="abrirModalMenu(ch)" class="icon-btn" title="Editar menú">
+                                        <fa-icon [icon]="faPen"></fa-icon>
+                                      </button>
+                                      <button (click)="eliminarMenu(ch)" class="icon-btn danger" title="Eliminar menú">
+                                        <fa-icon [icon]="faTrash"></fa-icon>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <!-- Nietos (nivel 3 opcional) -->
+                                  <ng-container *ngIf="ch.children?.length">
+                                    <div class="px-3 pb-3">
+                                      <ul class="pl-4 border-l space-y-1">
+                                        <li *ngFor="let g of ch.children; trackBy: trackByMenuId" class="rounded-lg border bg-white">
+                                          <div class="flex items-center justify-between px-3 py-2">
+                                            <div class="flex items-center gap-2">
+                                              <fa-icon [icon]="g.isGroup ? faFolder : faFile" class="text-warm-gray-600" aria-hidden="true"></fa-icon>
+                                              <div>
+                                                <div class="font-medium">{{ g.label || g.key }}</div>
+                                                <div class="text-xs text-warm-gray-500 flex flex-wrap gap-2">
+                                                  <span class="mono">key: {{ g.key }}</span>
+                                                  <span *ngIf="g.route">ruta: {{ g.route }}</span>
+                                                  <span *ngIf="g.icon">icono: {{ g.icon }}</span>
+                                                  <span *ngIf="g.sortOrder !== null && g.sortOrder !== undefined">orden: {{ g.sortOrder }}</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div class="inline-flex items-center gap-2">
+                                              <button (click)="abrirModalMenu(g)" class="icon-btn" title="Editar menú">
+                                                <fa-icon [icon]="faPen"></fa-icon>
+                                              </button>
+                                              <button (click)="eliminarMenu(g)" class="icon-btn danger" title="Eliminar menú">
+                                                <fa-icon [icon]="faTrash"></fa-icon>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </li>
+                                      </ul>
+                                    </div>
+                                  </ng-container>
+                                </li>
+                              </ng-container>
+                            </ul>
+                          </div>
+                        </ng-container>
+                      </li>
+                    </ng-container>
+                  </ul>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <!-- Overlay opcional dentro de la card -->
+      <!--
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+        <div class="spinner"></div> Cargando…
+      </div>
+      -->
+    </section>
+
+    <!-- Loading toast -->
+    <div *ngIf="loading" class="fixed bottom-4 right-4 rounded-xl bg-white shadow px-3 py-2 text-sm text-warm-gray-700">
+      <div class="inline-flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-brand-red animate-pulse"></span>
+        Cargando…
+      </div>
     </div>
   </div>
-  
-  <!-- Modal -->
-  <div
-    *ngIf="modalOpen"
-    class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
-  >
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
-      <div class="flex items-center mb-4">
-        <fa-icon [icon]="faUserShield" class="text-2xl text-brand-red mr-2"></fa-icon>
-        <h2 class="text-xl font-semibold text-brand-red">
+</div>
+
+<!-- ==== MODAL: ROL ==== -->
+<div *ngIf="modalOpen"
+     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="role-modal-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 relative">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faUserShield" class="text-xl text-brand-red" aria-hidden="true"></fa-icon>
+        <h2 id="role-modal-title" class="text-xl font-bold text-brand-red">
           {{ form.value.id ? 'Editar Rol' : 'Nuevo Rol' }}
         </h2>
       </div>
-      <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4">
-        <!-- Nombre -->
-        <div>
-          <label class="block text-sm text-warm-gray-700 mb-1">Nombre *</label>
-          <input formControlName="name"
-                 class="w-full px-3 py-2 border rounded focus:border-brand-red" />
+      <button type="button" (click)="closeModal()" class="px-3 py-1 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300">Cerrar</button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="grid grid-cols-12 gap-5" novalidate>
+      <!-- Nombre -->
+      <div class="col-span-12">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Nombre <span class="text-red-600">*</span></label>
+        <input formControlName="name" placeholder="p.ej. Supervisor de Planta"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-brand-red/60 transition" />
+        <p class="mt-1 text-[11px] text-warm-gray-500">Usa nombres claros y específicos.</p>
+      </div>
+
+      <!-- Permisos -->
+      <fieldset class="col-span-12 lg:col-span-6 rounded-xl border bg-white/60">
+        <legend class="px-2 -ml-1 text-sm font-semibold text-warm-gray-700">
+          Permisos <span class="text-red-600">*</span>
+        </legend>
+
+        <div class="p-3 space-y-2 max-h-64 overflow-auto pr-2">
+          <label *ngFor="let perm of permissions" class="flex items-start gap-2 rounded px-2 py-1 hover:bg-warm-gray-100">
+            <input type="checkbox"
+                   [checked]="form.controls['permissions'].value.includes((perm.key || '').toLowerCase())"
+                   (change)="togglePermission(perm.key)"
+                   class="h-4 w-4 mt-0.5 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+            <span class="text-sm">
+              <span class="font-medium">{{ perm.key }}</span>
+              <small *ngIf="perm.description" class="block text-warm-gray-500">{{ perm.description }}</small>
+            </span>
+          </label>
         </div>
-  
-        <!-- Permisos -->
-        <fieldset>
-          <legend class="text-sm font-medium text-warm-gray-700 mb-2">Permisos *</legend>
-          <div class="grid grid-cols-2 gap-2">
-            <label *ngFor="let perm of allPermissions" class="inline-flex items-center">
-              <input type="checkbox"
-                     [checked]="form.controls['permissions'].value.includes(perm)"
-                     (change)="togglePermission(perm)"
-                     class="form-checkbox h-4 w-4 text-brand-red" />
-              <span class="ml-2 text-sm">{{ perm }}</span>
-            </label>
-          </div>
-        </fieldset>
-  
-        <!-- Empresas -->
-        <fieldset>
-          <legend class="text-sm font-medium text-warm-gray-700 mb-2">Asignar a Empresas *</legend>
-          <div class="grid grid-cols-2 gap-2">
-            <label *ngFor="let c of companies" class="inline-flex items-center">
-              <input type="checkbox"
-                     [checked]="form.controls['companyIds'].value.includes(c.id)"
-                     (change)="toggleCompany(c.id)"
-                     class="form-checkbox h-4 w-4 text-brand-red" />
-              <span class="ml-2 text-sm">{{ c.name }}</span>
-            </label>
-          </div>
-        </fieldset>
-  
-        <!-- Botones -->
-        <div class="flex justify-end space-x-2 mt-4">
-          <button type="button" (click)="closeModal()"
-                  class="px-4 py-2 bg-warm-gray-200 rounded hover:bg-warm-gray-300 transition">
-            Cancelar
-          </button>
-          <button type="submit"
-                  [disabled]="form.invalid"
-                  class="px-4 py-2 bg-brand-red text-white rounded hover:bg-red-600 transition disabled:opacity-50">
-            Guardar
-          </button>
+
+        <p class="px-3 pb-2 text-[11px] text-warm-gray-500">Selecciona uno o más permisos para este rol.</p>
+      </fieldset>
+
+      <!-- Empresas -->
+      <fieldset class="col-span-12 lg:col-span-6 rounded-xl border bg-white/60">
+        <legend class="px-2 -ml-1 text-sm font-semibold text-warm-gray-700">
+          Asignar a Empresas <span class="text-red-600">*</span>
+        </legend>
+
+        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-auto pr-2">
+          <label *ngFor="let c of companies" class="flex items-center gap-2 rounded px-2 py-1 hover:bg-warm-gray-100">
+            <input type="checkbox"
+                   [checked]="form.controls['companyIds'].value.includes(c.id)"
+                   (change)="c.id && toggleCompany(c.id)"
+                   class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+            <span class="text-sm">{{ c.name }}</span>
+          </label>
         </div>
-      </form>
+
+        <p class="px-3 pb-2 text-[11px] text-warm-gray-500">El rol estará disponible en las empresas seleccionadas.</p>
+      </fieldset>
+
+      <!-- Menús (checkbox a partir del árbol aplanado) -->
+      <fieldset class="col-span-12 rounded-xl border bg-white/60">
+        <legend class="px-2 -ml-1 text-sm font-semibold text-warm-gray-700">Menús</legend>
+
+        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-auto pr-2">
+          <label *ngFor="let m of flatMenus" class="flex items-center gap-2 rounded px-2 py-1 hover:bg-warm-gray-100">
+            <input type="checkbox"
+                   [checked]="form.controls['menuIds'].value.includes(m.id)"
+                   (change)="toggleMenu(m.id)"
+                   class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+            <span class="text-sm">
+              <span class="font-medium">{{ m.label || m.key }}</span>
+              <small *ngIf="m.route" class="text-warm-gray-500 block">{{ m.route }}</small>
+            </span>
+          </label>
+        </div>
+
+        <p class="px-3 pb-2 text-[11px] text-warm-gray-500">Selecciona los ítems de menú visibles para este rol.</p>
+      </fieldset>
+
+      <!-- Footer -->
+      <div class="col-span-12 flex justify-end gap-2">
+        <button type="button" (click)="closeModal()" class="px-4 py-2 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300">Cancelar</button>
+        <button type="submit" [disabled]="form.invalid || loading" class="px-4 py-2 rounded-lg bg-brand-red text-white hover:bg-red-600 disabled:opacity-60">Guardar</button>
+      </div>
+    </form>
+
+    <div *ngIf="loading" class="absolute inset-0 bg-white/40 rounded-2xl flex items-center justify-center">
+      <div class="flex items-center gap-2 text-sm text-warm-gray-700">
+        <div class="w-3 h-3 rounded-full bg-brand-red animate-pulse"></div> Guardando…
+      </div>
     </div>
   </div>
-  
+</div>
+
+<!-- ==== MODAL: PERMISOS (CRUD) ==== -->
+<div *ngIf="permModalOpen" class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-[60]"
+     role="dialog" aria-modal="true" aria-labelledby="perm-modal-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faKey" class="text-xl text-gray-800" aria-hidden="true"></fa-icon>
+        <h2 id="perm-modal-title" class="text-lg font-semibold">Permisos</h2>
+      </div>
+      <button (click)="cerrarModalPermisos()" class="px-3 py-1 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300">Cerrar</button>
+    </div>
+
+    <form [formGroup]="permForm" (ngSubmit)="guardarPermiso()" class="grid grid-cols-12 gap-3 items-end mb-4" novalidate>
+      <div class="col-span-12 md:col-span-4">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Key <span class="text-red-600">*</span></label>
+        <input formControlName="key" placeholder="p.ej. roles:manage"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+      <div class="col-span-12 md:col-span-8">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Descripción</label>
+        <input formControlName="description"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+      <div class="col-span-12 flex justify-end gap-2">
+        <button type="button"
+                (click)="permEditing = false; permForm.reset({ id:null, key:'', description:'' });"
+                class="px-3 py-2 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300">Limpiar</button>
+        <button type="submit" [disabled]="permForm.invalid"
+                class="px-3 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-60">
+          {{ permEditing ? 'Actualizar' : 'Crear' }}
+        </button>
+      </div>
+    </form>
+
+    <div class="rounded-xl border bg-white">
+      <div class="max-h-[50vh] overflow-auto">
+        <table class="min-w-full table-auto">
+          <thead class="bg-warm-gray-100 sticky top-0 z-10">
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-warm-gray-700 uppercase tracking-wider">Key</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-warm-gray-700 uppercase tracking-wider">Descripción</th>
+              <th class="px-4 py-2 text-right text-xs font-semibold text-warm-gray-700 uppercase tracking-wider">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of permissions; trackBy: trackByPermId" class="border-t hover:bg-warm-gray-50">
+              <td class="px-4 py-2 text-sm font-mono">{{ p.key }}</td>
+              <td class="px-4 py-2 text-sm">{{ p.description }}</td>
+              <td class="px-4 py-2 text-right">
+                <button (click)="editarPermiso(p)"
+                        class="p-2 rounded-md text-warm-gray-600 hover:text-blue-700 hover:bg-warm-gray-100 transition mr-1"
+                        [attr.aria-label]="'Editar ' + p.key" title="Editar permiso">
+                  <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                </button>
+                <button (click)="eliminarPermiso(p)"
+                        class="p-2 rounded-md text-warm-gray-600 hover:text-red-700 hover:bg-warm-gray-100 transition"
+                        [attr.aria-label]="'Eliminar ' + p.key" title="Eliminar permiso">
+                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="!permissions?.length">
+              <td colspan="3" class="px-4 py-6 text-center text-sm text-warm-gray-500">Sin permisos</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="mt-3 text-[11px] text-warm-gray-500">
+      Las <em>keys</em> se guardan en minúsculas para coincidir con el backend.
+    </p>
+  </div>
+</div>
+
+<!-- ==== MODAL: MENÚ (CRUD) ==== -->
+<div *ngIf="menuModalOpen" class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-[70]"
+     role="dialog" aria-modal="true" aria-labelledby="menu-modal-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faFolder" class="text-xl text-gray-800" aria-hidden="true"></fa-icon>
+        <h2 id="menu-modal-title" class="text-lg font-semibold">{{ menuForm.value.id ? 'Editar Menú' : 'Nuevo Menú' }}</h2>
+      </div>
+      <button (click)="cerrarModalMenu()" class="px-3 py-1 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300">Cerrar</button>
+    </div>
+
+    <form [formGroup]="menuForm" (ngSubmit)="guardarMenu()" class="grid grid-cols-12 gap-3 items-end" novalidate>
+      <div class="col-span-12 md:col-span-6">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Label <span class="text-red-600">*</span></label>
+        <input formControlName="label" placeholder="Texto visible en el menú"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+
+      <div class="col-span-12 md:col-span-6">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Key <span class="text-red-600">*</span></label>
+        <input formControlName="key" placeholder="identificador_unico"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+
+      <div class="col-span-12">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Ruta</label>
+        <input formControlName="route" placeholder="/app/gestion/roles"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+
+      <div class="col-span-12 md:col-span-6">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Icono</label>
+        <input formControlName="icon" placeholder="fa-users, fa-key, ..."
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+
+      <div class="col-span-12 md:col-span-3">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Orden</label>
+        <input type="number" formControlName="sortOrder" placeholder="0"
+               class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition" />
+      </div>
+
+      <div class="col-span-12 md:col-span-3">
+        <label class="block text-xs font-semibold text-warm-gray-700 mb-1">Padre</label>
+        <select formControlName="parentId"
+                class="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-gray-800/50 transition">
+          <option [ngValue]="null">— (raíz)</option>
+          <option *ngFor="let m of flatMenus" [ngValue]="m.id">{{ m.label || m.key }}</option>
+        </select>
+      </div>
+
+      <div class="col-span-12">
+        <label class="inline-flex items-center gap-2">
+          <input type="checkbox" formControlName="isGroup" class="h-4 w-4 rounded border-warm-gray-300">
+          <span class="text-sm">Es grupo (sin navegación, sólo contenedor)</span>
+        </label>
+      </div>
+
+      <div class="col-span-12 flex justify-end gap-2 mt-2">
+        <button type="button" (click)="cerrarModalMenu()" class="px-4 py-2 rounded-lg bg-warm-gray-200 hover:bg-warm-gray-300">Cancelar</button>
+        <button type="submit" [disabled]="menuForm.invalid" class="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-60">
+          {{ menuEditing ? 'Actualizar' : 'Crear' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

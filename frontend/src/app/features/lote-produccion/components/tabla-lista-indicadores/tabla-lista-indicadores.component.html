@@ -1,0 +1,100 @@
+<div class="indicadores-container">
+  <div class="indicadores-header">
+    <h3>📈 Indicadores Semanales de Producción</h3>
+    <p class="indicadores-subtitle">Resumen de métricas clave por semana de producción</p>
+  </div>
+
+  <div class="indicadores-grid" *ngIf="indicadoresSemanales.length > 0">
+    <div class="indicador-card" *ngFor="let indicador of indicadoresSemanales">
+      <div class="indicador-header">
+        <h4>Semana {{ indicador.semana }}</h4>
+        <span class="etapa-badge" [class]="'etapa-' + indicador.etapa.toLowerCase().replace(' ', '-')">
+          {{ indicador.etapa }}
+        </span>
+      </div>
+      
+      <div class="indicador-content">
+        <div class="indicador-row">
+          <span class="label">Edad:</span>
+          <span class="value">{{ indicador.edadInicio }}-{{ indicador.edadFin }} días</span>
+        </div>
+        
+        <div class="indicador-row">
+          <span class="label">Registros:</span>
+          <span class="value">{{ indicador.totalRegistros }}</span>
+        </div>
+
+        <div class="indicador-section">
+          <h5>🐔 Mortalidad</h5>
+          <div class="indicador-row">
+            <span class="label">Hembras:</span>
+            <span class="value">{{ indicador.mortalidadH }}</span>
+          </div>
+          <div class="indicador-row">
+            <span class="label">Machos:</span>
+            <span class="value">{{ indicador.mortalidadM }}</span>
+          </div>
+          <div class="indicador-row">
+            <span class="label">Total:</span>
+            <span class="value mortalidad" [class]="'mortalidad-' + getMortalidadColor(indicador.mortalidadPorcentaje)">
+              {{ indicador.mortalidadTotal }}
+            </span>
+          </div>
+        </div>
+
+        <div class="indicador-section">
+          <h5>🍽️ Consumo</h5>
+          <div class="indicador-row">
+            <span class="label">Kg Hembras:</span>
+            <span class="value">{{ indicador.consKgH | number:'1.2-2' }}</span>
+          </div>
+          <div class="indicador-row">
+            <span class="label">Kg Machos:</span>
+            <span class="value">{{ indicador.consKgM | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <div class="indicador-section">
+          <h5>🥚 Producción</h5>
+          <div class="indicador-row">
+            <span class="label">Total:</span>
+            <span class="value">{{ indicador.huevoTot }}</span>
+          </div>
+          <div class="indicador-row">
+            <span class="label">Incubables:</span>
+            <span class="value">{{ indicador.huevoInc }}</span>
+          </div>
+          <div class="indicador-row">
+            <span class="label">% Incubable:</span>
+            <span class="value eficiencia" [class]="'eficiencia-' + getEficienciaColor(indicador.porcentajeIncubable)">
+              {{ indicador.porcentajeIncubable | number:'1.1-1' }}%
+            </span>
+          </div>
+          <div class="indicador-row">
+            <span class="label">Peso Promedio:</span>
+            <span class="value">{{ indicador.pesoPromedioHuevo | number:'1.1-1' }}g</span>
+          </div>
+        </div>
+
+        <div class="indicador-section">
+          <h5>🔄 Selección</h5>
+          <div class="indicador-row">
+            <span class="label">Hembras retiradas:</span>
+            <span class="value">{{ indicador.selH }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="indicadoresSemanales.length === 0" class="empty-state">
+    <div class="empty-icon">📊</div>
+    <p>No hay datos suficientes para calcular indicadores semanales.</p>
+    <p class="empty-hint">Agrega registros de producción para ver los indicadores.</p>
+  </div>
+
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Calculando indicadores...</p>
+  </div>
+</div>

@@ -1,4 +1,3 @@
-// src/app/features/farm/farm.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule } from '@angular/forms';
@@ -9,15 +8,15 @@ import { FarmListComponent } from './components/farm-list/farm-list.component';
 import { FarmFormComponent } from './components/farm-form/farm-form.component';
 
 @NgModule({
-  declarations: [
-    FarmListComponent,
-    FarmFormComponent
-  ],
   imports: [
     CommonModule,
     ReactiveFormsModule,
     FontAwesomeModule,
-    FarmRoutingModule
+    FarmRoutingModule,
+
+    // ✅ Se importan porque son standalone
+    FarmListComponent,
+    FarmFormComponent
   ]
 })
 export class FarmModule {}

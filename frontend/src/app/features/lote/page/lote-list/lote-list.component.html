@@ -1,0 +1,44 @@
+<!-- src/app/features/lote/pages/lote-list/lote-list.component.html -->
+<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
+    <!-- Header -->
+    <div class="ux-header">
+      <button (click)="onCreateNew()" class="btn-primary">
+        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <span>Nuevo Lote</span>
+      </button>
+    </div>
+
+    <!-- Componente de Filtros -->
+    <app-filtro-lotes
+      [selectedCompanyId]="selectedCompanyId"
+      [selectedFarmId]="selectedFarmId"
+      [selectedNucleoId]="selectedNucleoId"
+      [selectedGalponId]="selectedGalponId"
+      [filtro]="filtro"
+      [sortKey]="sortKey"
+      [sortDir]="sortDir"
+      (filtrosChanged)="onFiltrosChanged($event)"
+      (resetFiltros)="onResetFiltros()">
+    </app-filtro-lotes>
+
+    <!-- Componente de Tabla -->
+    <app-tabla-registro-list
+      [lotes]="lotes"
+      [loading]="loading"
+      [selectedFarmId]="selectedFarmId"
+      [selectedFarmName]="selectedFarmName"
+      (loteAction)="onLoteAction($event)"
+      (createNew)="onCreateNew()">
+    </app-tabla-registro-list>
+
+    <!-- Componente Modal -->
+    <app-modal-create-edit-lote
+      [isOpen]="modalOpen"
+      [editingLote]="editingLote"
+      [selectedFarmId]="selectedFarmId"
+      (close)="onModalClose()"
+      (loteSaved)="onLoteSaved($event)">
+    </app-modal-create-edit-lote>
+  </div>
+</div>

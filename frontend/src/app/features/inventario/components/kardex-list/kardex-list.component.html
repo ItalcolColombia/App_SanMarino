@@ -1,0 +1,61 @@
+<!-- src/app/features/inventario/components/kardex-list/kardex-list.component.html -->
+<div class="filters">
+  <div class="filter">
+    <label class="ux-label" for="farm">Granja</label>
+    <select id="farm" class="ux-select" [(ngModel)]="farmId" (change)="load()">
+      <option [ngValue]="null" disabled>Seleccione…</option>
+      <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+    </select>
+  </div>
+
+  <div class="filter">
+    <label class="ux-label" for="item">Producto</label>
+    <select id="item" class="ux-select" [(ngModel)]="itemId" (change)="load()">
+      <option [ngValue]="null" disabled>Seleccione…</option>
+      <option *ngFor="let it of items" [ngValue]="it.id">{{ it.codigo }} — {{ it.nombre }}</option>
+    </select>
+  </div>
+
+  <div class="filter">
+    <label class="ux-label" for="desde">Desde</label>
+    <input id="desde" type="date" class="ux-input" [(ngModel)]="desde" (change)="load()" />
+  </div>
+
+  <div class="filter">
+    <label class="ux-label" for="hasta">Hasta</label>
+    <input id="hasta" type="date" class="ux-input" [(ngModel)]="hasta" (change)="load()" />
+  </div>
+</div>
+
+<div class="ux-card" [class.is-loading]="loading">
+  <div class="ux-scroll">
+    <table class="ux-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Referencia</th>
+          <th class="text-right">Cantidad</th>
+          <th>Unidad</th>
+          <th class="text-right">Saldo</th>
+          <th>Motivo</th>
+        </tr>
+      </thead>
+      <tbody *ngIf="!loading && kardex.length === 0">
+        <tr><td colspan="7" class="empty-state">Sin movimientos</td></tr>
+      </tbody>
+      <tbody *ngIf="!loading && kardex.length > 0">
+        <tr *ngFor="let k of kardex">
+          <td>{{ k.fecha | date:'short' }}</td>
+          <td>{{ k.tipo }}</td>
+          <td>{{ k.referencia || '–' }}</td>
+          <td class="text-right" [class]="signClass(k.cantidad)">{{ k.cantidad | number:'1.0-3' }}</td>
+          <td>{{ k.unidad }}</td>
+          <td class="text-right">{{ k.saldo | number:'1.0-3' }}</td>
+          <td>{{ k.motivo || '–' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div *ngIf="loading" class="loading-overlay"><div class="spinner"></div> Cargando…</div>
+</div>

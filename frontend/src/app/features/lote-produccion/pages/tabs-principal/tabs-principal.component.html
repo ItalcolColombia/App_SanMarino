@@ -1,0 +1,172 @@
+<!-- ================= TABS PRINCIPAL ================= -->
+<section class="ux-card" *ngIf="selectedLote">
+  <div class="tabs-container">
+    <!-- Tab Navigation -->
+    <nav class="tabs-nav" role="tablist">
+      <button 
+        type="button" 
+        class="tab-button" 
+        [class.active]="activeTab === 'general'"
+        (click)="onTabChange('general')"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'general'"
+        aria-controls="general-panel">
+        📊 General
+      </button>
+      
+      <button 
+        type="button" 
+        class="tab-button" 
+        [class.active]="activeTab === 'indicadores'"
+        (click)="onTabChange('indicadores')"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'indicadores'"
+        aria-controls="indicadores-panel">
+        📈 Indicadores
+      </button>
+      
+      <button 
+        type="button" 
+        class="tab-button" 
+        [class.active]="activeTab === 'grafica'"
+        (click)="onTabChange('grafica')"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'grafica'"
+        aria-controls="grafica-panel">
+        📊 Gráfica
+      </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="tabs-content">
+      <!-- TAB GENERAL -->
+      <div 
+        *ngIf="activeTab === 'general'" 
+        id="general-panel" 
+        class="tab-panel" 
+        role="tabpanel"
+        aria-labelledby="general-tab">
+        
+        <h3>Información General del Lote</h3>
+        
+        <!-- Resumen General -->
+        <div class="resumen-grid" *ngIf="selectedLote">
+          <div class="resumen-card">
+            <div class="resumen-icon">🐔</div>
+            <div class="resumen-content">
+              <h4>Aves Iniciales</h4>
+              <p class="resumen-number">{{ (selectedLote.avesInicialesH + selectedLote.avesInicialesM) | number:'1.0-0' }}</p>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">📅</div>
+            <div class="resumen-content">
+              <h4>Fecha Inicio</h4>
+              <p class="resumen-number">{{ selectedLote.fechaInicio | date:'dd/MM/yyyy' }}</p>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">📊</div>
+            <div class="resumen-content">
+              <h4>Registros</h4>
+              <p class="resumen-number">{{ seguimientos.length | number:'1.0-0' }}</p>
+            </div>
+          </div>
+          
+          <div class="resumen-card">
+            <div class="resumen-icon">🥚</div>
+            <div class="resumen-content">
+              <h4>Huevos Totales</h4>
+              <p class="resumen-number">{{ getTotalHuevos() | number:'1.0-0' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de Registros (simplificada) -->
+        <div class="table-container">
+          <h4>Registros Diarios</h4>
+          <div class="ux-scroll">
+            <table class="ux-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Edad (días)</th>
+                  <th>Mort. H</th>
+                  <th>Mort. M</th>
+                  <th>Consumo (kg)</th>
+                  <th>Huevos Tot.</th>
+                  <th>Huevos Inc.</th>
+                  <th>Peso Huevo</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)">
+                  <td colspan="9" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">📄</div>
+                    <p>Sin registros para este lote.</p>
+                    <button type="button" class="btn btn--outline" (click)="onCreate()">
+                      Crear el primero
+                    </button>
+                  </td>
+                </tr>
+
+                <tr *ngFor="let s of seguimientos" class="ux-row">
+                  <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
+                  <td>{{ s.mortalidadH }}</td>
+                  <td>{{ s.mortalidadM }}</td>
+                  <td>{{ s.consumoKg | number:'1.2-2' }}</td>
+                  <td>{{ s.huevosTotales }}</td>
+                  <td>{{ s.huevosIncubables }}</td>
+                  <td>{{ s.pesoHuevo | number:'1.2-2' }}g</td>
+                  <td class="text-right">
+                    <div class="btn-group">
+                      <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar">✎</button>
+                      <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar">🗑</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB INDICADORES -->
+      <div 
+        *ngIf="activeTab === 'indicadores'" 
+        id="indicadores-panel" 
+        class="tab-panel" 
+        role="tabpanel"
+        aria-labelledby="indicadores-tab">
+        
+        <app-tabla-lista-indicadores
+          [seguimientos]="seguimientos"
+          [selectedLote]="selectedLote"
+          [loading]="loading">
+        </app-tabla-lista-indicadores>
+      </div>
+
+      <!-- TAB GRÁFICA -->
+      <div 
+        *ngIf="activeTab === 'grafica'" 
+        id="grafica-panel" 
+        class="tab-panel" 
+        role="tabpanel"
+        aria-labelledby="grafica-tab">
+        
+        <app-graficas-principal
+          [seguimientos]="seguimientos"
+          [selectedLote]="selectedLote"
+          [loading]="loading">
+        </app-graficas-principal>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+

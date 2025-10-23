@@ -1,0 +1,9 @@
+# dotnet
+**/bin/
+**/obj/
+
+# osx
+.DS_Store
+.DS_Store
+**/bin/
+**/obj/

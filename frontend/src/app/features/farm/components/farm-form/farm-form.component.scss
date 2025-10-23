@@ -1,0 +1,142 @@
+/* ======= Tokens (mismos que otros módulos) ======= */
+:host {
+  --brand-red:        #c1121f;
+  --brand-red-600:    #a50f1c;
+  --brand-red-700:    #8d0e18;
+  --chicken-yellow:   #f7d24c;
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-600:         #57534e;
+  --white:            #ffffff;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.req { color:#dc2626; }
+
+/* ======= Layout ======= */
+.ux-form-wrap {
+  padding: 1.25rem;
+  background: var(--warm-100);
+  min-height: 100%;
+}
+
+.ux-card {
+  position: relative;
+  border: 1px solid var(--warm-200);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
+}
+
+.ux-card__header {
+  padding: 1rem 1rem 0.25rem 1rem;
+  border-bottom: 1px dashed var(--warm-200);
+}
+
+.ux-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--brand-red);
+}
+
+.ux-subtitle {
+  margin: .25rem 0 0 0;
+  font-size: .8rem;
+  color: var(--warm-600);
+}
+
+.ux-card__body {
+  padding: 1rem;
+}
+
+/* ======= Form ======= */
+.ux-label {
+  display:block;
+  font-size:.8rem;
+  font-weight:600;
+  color:var(--warm-600);
+  margin-bottom:.35rem;
+}
+
+.ux-input {
+  width:100%;
+  border:1px solid var(--warm-300);
+  border-radius:.7rem;
+  padding:.55rem .8rem;
+  background:#fff;
+  color:#1f2937;
+  transition: box-shadow .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.ux-input:focus {
+  outline:none;
+  border-color: var(--brand-red);
+  box-shadow: 0 0 0 3px rgba(193,18,31,.15);
+}
+.ux-input.is-invalid {
+  border-color:#dc2626;
+  box-shadow: 0 0 0 3px rgba(220,38,38,.15);
+}
+
+.ux-help {
+  font-size: .75rem;
+  color: var(--warm-400);
+  margin-top: .25rem;
+}
+
+.ux-error {
+  font-size: .75rem;
+  color:#dc2626;
+  margin-top:.25rem;
+}
+
+/* ======= Buttons ======= */
+.btn-primary {
+  display:inline-flex; align-items:center; gap:.5rem;
+  background: var(--brand-red); color:#fff; padding:.6rem 1rem;
+  border-radius:.75rem; border:1px solid transparent;
+  transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+.btn-primary:hover { background: var(--brand-red-600); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.btn-primary:disabled { opacity:.6; cursor:not-allowed; }
+
+.btn-muted {
+  background: var(--warm-100); color: var(--warm-600);
+  padding:.55rem .9rem; border-radius:.75rem; border:1px solid var(--warm-200);
+  transition: background-color .15s ease;
+}
+.btn-muted:hover { background: var(--warm-200); }
+
+.ux-actions {
+  margin-top: .5rem;
+  display:flex; justify-content:flex-end; gap:.5rem;
+}
+
+/* ======= Loading overlay ======= */
+.ux-loading {
+  position:absolute; inset:0;
+  background: rgba(255,255,255,.6);
+  backdrop-filter: blur(1px);
+  border-radius: 16px;
+  display:flex; align-items:center; justify-content:center;
+  gap:.5rem; color: var(--warm-600);
+}
+.spinner {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 3px solid var(--warm-300);
+  border-top-color: var(--brand-red);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ======= Small responsive tweak ======= */
+@media (min-width: 768px) {
+  .ux-card__header { padding: 1.25rem 1.25rem .5rem 1.25rem; }
+  .ux-card__body   { padding: 1.25rem; }
+}

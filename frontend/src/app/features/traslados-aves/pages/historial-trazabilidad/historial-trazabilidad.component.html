@@ -1,0 +1,374 @@
+<div class="ux-page" [attr.aria-busy]="isLoading() ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>📈 Historial y Trazabilidad</h1>
+        <p class="ux-header__subtitle">Seguimiento completo de cambios en inventarios</p>
+      </div>
+      <div class="ux-header__actions">
+        <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
+          🚚 Nuevo Traslado
+        </button>
+        <button type="button" class="btn btn--outline" (click)="navegarADashboard()">
+          ← Dashboard
+        </button>
+      </div>
+    </header>
+
+    <!-- Navegación de Vistas -->
+    <section class="vista-tabs">
+      <button 
+        type="button" 
+        class="tab-btn" 
+        [class.active]="vistaActual() === 'historial'"
+        (click)="cambiarVista('historial')">
+        📋 Historial General
+      </button>
+      <button 
+        type="button" 
+        class="tab-btn" 
+        [class.active]="vistaActual() === 'trazabilidad'"
+        (click)="cambiarVista('trazabilidad')">
+        🔍 Trazabilidad por Lote
+      </button>
+    </section>
+
+    <!-- Vista: Historial General -->
+    <section *ngIf="vistaActual() === 'historial'">
+      <!-- Filtros -->
+      <div class="ux-card">
+        <header class="ux-card__header">
+          <h2>🔍 Filtros de Búsqueda</h2>
+          <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarFiltros()">
+            Limpiar
+          </button>
+        </header>
+        
+        <div class="ux-card__content">
+          <div class="filter-grid">
+            <div class="form-field">
+              <label class="ux-label">Lote ID</label>
+              <input 
+                type="text" 
+                class="ux-input" 
+                [(ngModel)]="filtros.loteId" 
+                (change)="onFiltroChange()" 
+                placeholder="Ej: L001">
+            </div>
+            
+            <div class="form-field">
+              <label class="ux-label">Tipo de Cambio</label>
+              <select 
+                class="ux-select" 
+                [(ngModel)]="filtros.tipoCambio" 
+                (change)="onFiltroChange()">
+                <option value="">Todos los tipos</option>
+                <option value="Creación">Creación</option>
+                <option value="Movimiento">Movimiento</option>
+                <option value="Ajuste">Ajuste</option>
+                <option value="Venta">Venta</option>
+                <option value="Mortalidad">Mortalidad</option>
+                <option value="Selección">Selección</option>
+              </select>
+            </div>
+            
+            <div class="form-field">
+              <label class="ux-label">Fecha Desde</label>
+              <input 
+                type="date" 
+                class="ux-input" 
+                [(ngModel)]="filtros.fechaDesde" 
+                (change)="onFiltroChange()">
+            </div>
+            
+            <div class="form-field">
+              <label class="ux-label">Fecha Hasta</label>
+              <input 
+                type="date" 
+                class="ux-input" 
+                [(ngModel)]="filtros.fechaHasta" 
+                (change)="onFiltroChange()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Historial -->
+      <div class="ux-card">
+        <header class="ux-card__header">
+          <h2>📊 Historial de Cambios</h2>
+          <div class="ux-card__actions">
+            <span class="text-muted" *ngIf="totalRecords() > 0">
+              {{ totalRecords() }} registro(s) encontrado(s)
+            </span>
+          </div>
+        </header>
+        
+        <div class="ux-card__content">
+          <!-- Loading -->
+          <div class="loading-state" *ngIf="isLoading()">
+            <div class="spinner"></div>
+            <p>Cargando historial...</p>
+          </div>
+
+          <!-- Error -->
+          <div class="error-state" *ngIf="hasError()">
+            <div class="error-icon">⚠️</div>
+            <p>{{ error() }}</p>
+            <button type="button" class="btn btn--outline" (click)="cargarHistorial()">
+              Reintentar
+            </button>
+          </div>
+
+          <!-- Tabla -->
+          <div class="table-container" *ngIf="!isLoading() && !hasError()">
+            <table class="ux-table">
+              <thead>
+                <tr>
+                  <th>
+                    <button type="button" class="sort-btn" (click)="onSortChange('fecha_registro')">
+                      Fecha
+                      <span class="sort-icon" 
+                            [class.active]="filtros.sortBy === 'fecha_registro'"
+                            [class.desc]="filtros.sortDesc">↕️</span>
+                    </button>
+                  </th>
+                  <th>
+                    <button type="button" class="sort-btn" (click)="onSortChange('lote_id')">
+                      Lote
+                      <span class="sort-icon" 
+                            [class.active]="filtros.sortBy === 'lote_id'"
+                            [class.desc]="filtros.sortDesc">↕️</span>
+                    </button>
+                  </th>
+                  <th>
+                    <button type="button" class="sort-btn" (click)="onSortChange('tipo_evento')">
+                      Tipo
+                      <span class="sort-icon" 
+                            [class.active]="filtros.sortBy === 'tipo_evento'"
+                            [class.desc]="filtros.sortDesc">↕️</span>
+                    </button>
+                  </th>
+                  <th>Hembras</th>
+                  <th>Machos</th>
+                  <th>Cambio Total</th>
+                  <th>Referencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let registro of historial(); trackBy: trackByHistorialId" class="ux-row">
+                  <td class="date-cell">
+                    {{ formatearFecha(registro.fechaRegistro) }}
+                  </td>
+                  <td>
+                    <strong class="lote-id">{{ registro.loteId }}</strong>
+                  </td>
+                  <td>
+                    <div class="tipo-evento">
+                      <span class="tipo-icon">{{ getTipoEventoIcon(registro.tipoEvento) }}</span>
+                      <span class="tipo-text">{{ registro.tipoEvento }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="cambio-cell">
+                      <span class="antes">{{ formatearNumero(registro.cantidadHembrasAntes) }}</span>
+                      <span class="flecha">→</span>
+                      <span class="despues">{{ formatearNumero(registro.cantidadHembrasDespues) }}</span>
+                      <span class="diferencia" 
+                            [class]="getDiferenciaClass(calcularDiferencia(registro.cantidadHembrasAntes, registro.cantidadHembrasDespues))">
+                        {{ getDiferenciaIcon(calcularDiferencia(registro.cantidadHembrasAntes, registro.cantidadHembrasDespues)) }}
+                        {{ calcularDiferencia(registro.cantidadHembrasAntes, registro.cantidadHembrasDespues) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="cambio-cell">
+                      <span class="antes">{{ formatearNumero(registro.cantidadMachosAntes) }}</span>
+                      <span class="flecha">→</span>
+                      <span class="despues">{{ formatearNumero(registro.cantidadMachosDespues) }}</span>
+                      <span class="diferencia" 
+                            [class]="getDiferenciaClass(calcularDiferencia(registro.cantidadMachosAntes, registro.cantidadMachosDespues))">
+                        {{ getDiferenciaIcon(calcularDiferencia(registro.cantidadMachosAntes, registro.cantidadMachosDespues)) }}
+                        {{ calcularDiferencia(registro.cantidadMachosAntes, registro.cantidadMachosDespues) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="number-cell">
+                    <span class="total-cambio" 
+                          [class]="getDiferenciaClass(calcularDiferencia(
+                            registro.cantidadHembrasAntes + registro.cantidadMachosAntes,
+                            registro.cantidadHembrasDespues + registro.cantidadMachosDespues
+                          ))">
+                      {{ calcularDiferencia(
+                        registro.cantidadHembrasAntes + registro.cantidadMachosAntes,
+                        registro.cantidadHembrasDespues + registro.cantidadMachosDespues
+                      ) }}
+                    </span>
+                  </td>
+                  <td class="reference-cell">
+                    <span *ngIf="registro.referenciaMovimientoId" class="reference-id">
+                      MOV-{{ registro.referenciaMovimientoId }}
+                    </span>
+                    <span *ngIf="!registro.referenciaMovimientoId" class="no-reference">—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Empty state -->
+            <div class="empty-state" *ngIf="!hasData()">
+              <div class="empty-icon">📋</div>
+              <h3>No hay registros</h3>
+              <p>No se encontraron registros de historial con los filtros aplicados.</p>
+              <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+                Limpiar filtros
+              </button>
+            </div>
+          </div>
+
+          <!-- Paginación -->
+          <div class="pagination-container" *ngIf="totalPages() > 1">
+            <div class="pagination">
+              <button 
+                type="button" 
+                class="pagination__btn" 
+                [disabled]="currentPage() === 1"
+                (click)="onPageChange(currentPage() - 1)">
+                ← Anterior
+              </button>
+              
+              <span class="pagination__info">
+                Página {{ currentPage() }} de {{ totalPages() }}
+              </span>
+              
+              <button 
+                type="button" 
+                class="pagination__btn" 
+                [disabled]="currentPage() === totalPages()"
+                (click)="onPageChange(currentPage() + 1)">
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Vista: Trazabilidad por Lote -->
+    <section *ngIf="vistaActual() === 'trazabilidad'">
+      <!-- Búsqueda de Lote -->
+      <div class="ux-card">
+        <header class="ux-card__header">
+          <h2>🔍 Buscar Trazabilidad</h2>
+        </header>
+        
+        <div class="ux-card__content">
+          <div class="search-lote">
+            <div class="form-field">
+              <label class="ux-label">ID del Lote</label>
+              <div class="input-group">
+                <input 
+                  type="text" 
+                  class="ux-input" 
+                  [(ngModel)]="loteSeleccionado" 
+                  placeholder="Ej: L001"
+                  (keyup.enter)="buscarTrazabilidad()">
+                <button 
+                  type="button" 
+                  class="btn btn--primary" 
+                  (click)="buscarTrazabilidad()"
+                  [disabled]="!loteSeleccionado() || isLoading()">
+                  🔍 Buscar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultados de Trazabilidad -->
+      <div class="ux-card" *ngIf="hasTrazabilidad() || isLoading() || hasError()">
+        <header class="ux-card__header">
+          <h2>📈 Trazabilidad del Lote {{ loteSeleccionado() }}</h2>
+        </header>
+        
+        <div class="ux-card__content">
+          <!-- Loading -->
+          <div class="loading-state" *ngIf="isLoading()">
+            <div class="spinner"></div>
+            <p>Cargando trazabilidad...</p>
+          </div>
+
+          <!-- Error -->
+          <div class="error-state" *ngIf="hasError()">
+            <div class="error-icon">⚠️</div>
+            <p>{{ error() }}</p>
+            <button type="button" class="btn btn--outline" (click)="buscarTrazabilidad()">
+              Reintentar
+            </button>
+          </div>
+
+          <!-- Timeline de Eventos -->
+          <div class="timeline-container" *ngIf="hasTrazabilidad() && !isLoading() && !hasError()">
+            <div class="timeline">
+              <div 
+                *ngFor="let evento of trazabilidad()!.eventos; trackBy: trackByEventoFecha" 
+                class="timeline-item">
+                <div class="timeline-marker">
+                  <span class="timeline-icon">{{ getTipoEventoIcon(evento.tipoEvento) }}</span>
+                </div>
+                <div class="timeline-content">
+                  <div class="timeline-header">
+                    <h4 class="timeline-title">{{ evento.tipoEvento }}</h4>
+                    <span class="timeline-date">{{ formatearFecha(evento.fecha) }}</span>
+                  </div>
+                  <p class="timeline-description">{{ evento.descripcion }}</p>
+                  
+                  <div class="timeline-details">
+                    <div class="detail-grid">
+                      <div class="detail-item">
+                        <span class="detail-label">Hembras:</span>
+                        <span class="detail-change">
+                          {{ formatearNumero(evento.cantidadHembrasAntes) }} → 
+                          {{ formatearNumero(evento.cantidadHembrasDespues) }}
+                          <span class="change-indicator" 
+                                [class]="getDiferenciaClass(calcularDiferencia(evento.cantidadHembrasAntes, evento.cantidadHembrasDespues))">
+                            ({{ calcularDiferencia(evento.cantidadHembrasAntes, evento.cantidadHembrasDespues) >= 0 ? '+' : '' }}{{ calcularDiferencia(evento.cantidadHembrasAntes, evento.cantidadHembrasDespues) }})
+                          </span>
+                        </span>
+                      </div>
+                      
+                      <div class="detail-item">
+                        <span class="detail-label">Machos:</span>
+                        <span class="detail-change">
+                          {{ formatearNumero(evento.cantidadMachosAntes) }} → 
+                          {{ formatearNumero(evento.cantidadMachosDespues) }}
+                          <span class="change-indicator" 
+                                [class]="getDiferenciaClass(calcularDiferencia(evento.cantidadMachosAntes, evento.cantidadMachosDespues))">
+                            ({{ calcularDiferencia(evento.cantidadMachosAntes, evento.cantidadMachosDespues) >= 0 ? '+' : '' }}{{ calcularDiferencia(evento.cantidadMachosAntes, evento.cantidadMachosDespues) }})
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div class="timeline-meta" *ngIf="evento.usuario || evento.referenciaMovimiento">
+                      <span *ngIf="evento.usuario" class="meta-item">
+                        👤 {{ evento.usuario }}
+                      </span>
+                      <span *ngIf="evento.referenciaMovimiento" class="meta-item">
+                        🔗 MOV-{{ evento.referenciaMovimiento }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

@@ -1,0 +1,136 @@
+<!-- ================= MODAL: CÁLCULOS ================= -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="calculos-modal-title">
+  <div class="ux-modal__dialog ux-modal__dialog--xxl">
+    <header class="ux-modal__header">
+      <h2 id="calculos-modal-title">
+        Cálculos del lote
+        <ng-container *ngIf="loteId">— <strong>{{ loteNombre }}</strong></ng-container>
+      </h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <section class="ux-card" role="group" aria-label="Filtros de cálculos">
+      <div class="ux-toolbar">
+        <div class="ux-field">
+          <label for="calc-desde">Desde</label>
+          <input id="calc-desde" type="date"
+                 [ngModel]="calcsDesde"
+                 (ngModelChange)="calcsDesde = $event; reloadCalculos()" />
+        </div>
+
+        <div class="ux-field">
+          <label for="calc-hasta">Hasta</label>
+          <input id="calc-hasta" type="date"
+                 [ngModel]="calcsHasta"
+                 (ngModelChange)="calcsHasta = $event; reloadCalculos()" />
+        </div>
+
+        <div class="ux-field">
+          <label class="sr-only">Acciones</label>
+          <div class="btn-group">
+            <button type="button" class="btn btn--outline" (click)="onLimpiarFiltros()">Limpiar</button>
+            <button type="button" class="btn btn--primary" (click)="reloadCalculos()">Actualizar</button>
+          </div>
+        </div>
+
+        <div class="ux-field" *ngIf="calcsResp">
+          <span class="chip chip--muted">
+            {{ calcsResp.total || 0 }} día(s)
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="ux-card" aria-label="Tabla de cálculos">
+      <div *ngIf="calcsLoading" class="loading-overlay" aria-live="polite" role="status">
+        <div class="spinner"></div> Calculando…
+      </div>
+
+      <ng-container *ngIf="!calcsLoading">
+        <div class="ux-scroll">
+          <table class="ux-table">
+            <caption class="sr-only">Resultados de cálculo por día</caption>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Semana</th>
+
+                <th>Vivas H</th>
+                <th>Mort H</th>
+                <th>Sel H</th>
+                <th>Err H</th>
+                <th>% Mort H</th>
+                <th>Cons H (kg)</th>
+                <th>Peso H</th>
+                <th>Unif H (%)</th>
+
+                <th>Vivas M</th>
+                <th>Mort M</th>
+                <th>Sel M</th>
+                <th>Err M</th>
+                <th>% Mort M</th>
+                <th>Cons M (kg)</th>
+                <th>Peso M</th>
+                <th>Unif M (%)</th>
+
+                <th>Retiro H %</th>
+                <th>Retiro H Ac %</th>
+                <th>Retiro M %</th>
+                <th>Retiro M Ac %</th>
+                <th>Rel M/H %</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="!calcsResp || !calcsResp.items || calcsResp.items.length === 0">
+                <td colspan="23" class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">📊</div>
+                  <p>No hay datos de cálculo para el rango seleccionado.</p>
+                </td>
+              </tr>
+
+              <tr *ngFor="let it of calcsResp?.items">
+                <td>{{ formatDMY(it.fecha) }}</td>
+                <td>{{ it.edadDias ?? 0 }}</td>
+
+                <td>{{ it.hembraViva ?? 0 | number:'1.0-0' }}</td>
+                <td>{{ it.mortH | number:'1.0-0' }}</td>
+                <td>{{ it.selH  | number:'1.0-0' }}</td>
+                <td>{{ it.errH  | number:'1.0-0' }}</td>
+                <td>{{ (it.mortHPct ?? 0) | number:'1.2-2' }}</td>
+                <td>{{ (it.consKgH ?? 0) | number:'1.2-2' }}</td>
+                <td>{{ (it.pesoH ?? 0)   | number:'1.2-2' }}</td>
+                <td>{{ (it.unifH ?? 0)   | number:'1.1-1' }}</td>
+
+                <td>{{ it.machoVivo ?? 0 | number:'1.0-0' }}</td>
+                <td>{{ it.mortM | number:'1.0-0' }}</td>
+                <td>{{ it.selM  | number:'1.0-0' }}</td>
+                <td>{{ it.errM  | number:'1.0-0' }}</td>
+                <td>{{ (it.mortMPct ?? 0) | number:'1.2-2' }}</td>
+                <td>{{ (it.consKgM ?? 0)  | number:'1.2-2' }}</td>
+                <td>{{ (it.pesoM ?? 0)    | number:'1.2-2' }}</td>
+                <td>{{ (it.unifM ?? 0)    | number:'1.1-1' }}</td>
+
+                <td>{{ (it.retiroHPct ?? 0)  | number:'1.2-2' }}</td>
+                <td>{{ (it.retiroHAcPct ?? 0)| number:'1.2-2' }}</td>
+                <td>{{ (it.retiroMPct ?? 0)  | number:'1.2-2' }}</td>
+                <td>{{ (it.retiroMAcPct ?? 0)| number:'1.2-2' }}</td>
+                <td>{{ (it.relMHPct ?? 0)    | number:'1.2-2' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="ux-hint" style="margin-top:.5rem" *ngIf="calcsResp">
+          <strong>Lote:</strong> {{ calcsResp.loteId }}
+          <span *ngIf="calcsResp.desde"> — desde {{ formatDMY(calcsResp.desde) }}</span>
+          <span *ngIf="calcsResp.hasta"> — hasta {{ formatDMY(calcsResp.hasta) }}</span>
+          <span> — {{ calcsResp.total || 0 }} día(s)</span>
+        </div>
+      </ng-container>
+    </section>
+
+    <footer class="ux-modal__footer">
+      <button type="button" class="btn btn--ghost" (click)="onClose()">Cerrar</button>
+    </footer>
+  </div>
+</div>

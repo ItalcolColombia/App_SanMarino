@@ -1,0 +1,83 @@
+<!-- Tabla de registros -->
+<section class="ux-card">
+  <div class="ux-scroll">
+    <table class="ux-table">
+      <caption class="sr-only">Registros diarios del lote</caption>
+
+      <thead>
+        <tr>
+          <th scope="col">Fecha</th>
+          <th scope="col">Edad</th>
+          <th scope="col">Mort. H</th>
+          <th scope="col">Mort. M</th>
+          <th scope="col">Sel H</th>
+          <th scope="col">Sel M</th>
+          <th scope="col">Err H</th>
+          <th scope="col">Err M</th>
+          <th scope="col">Alim H / M</th>
+          <th scope="col">Cons H (kg)</th>
+          <th scope="col">Cons M (kg)</th>
+          <th scope="col">P.H</th>
+          <th scope="col">P.M</th>
+          <th scope="col">Unif H (%)</th>
+          <th scope="col">Unif M (%)</th>
+          <th scope="col">CV H</th>
+          <th scope="col">CV M</th>
+          <th scope="col" class="text-right">Acciones</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)">
+          <td colspan="18" class="empty-state">
+            <div class="empty-illustration" aria-hidden="true">📄</div>
+            <p *ngIf="!selectedLoteId">Selecciona un lote para ver/crear registros.</p>
+            <p *ngIf="selectedLoteId">Sin registros para este lote.</p>
+            <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="!selectedLoteId">
+              Crear el primero
+            </button>
+          </td>
+        </tr>
+
+        <tr *ngFor="let s of seguimientos; trackBy: trackById" class="ux-row">
+          <td>{{ formatDMY(s.fechaRegistro) }}</td>
+          <td>{{ edadDiasDe(s) }}</td>
+          <td>{{ s.mortalidadHembras }}</td>
+          <td>{{ s.mortalidadMachos }}</td>
+          <td>{{ s.selH }}</td>
+          <td>{{ s.selM }}</td>
+          <td>{{ s.errorSexajeHembras }}</td>
+          <td>{{ s.errorSexajeMachos }}</td>
+          <td>
+            <ng-container *ngIf="s?.tipoAlimentoHembras || s?.tipoAlimentoMachos; else legacyAli">
+              <span *ngIf="s?.tipoAlimentoHembras as ah">H: {{ mapAlimentoNombre(ah) }}</span>
+              <span *ngIf="s?.tipoAlimentoMachos as am"> / M: {{ mapAlimentoNombre(am) }}</span>
+            </ng-container>
+            <ng-template #legacyAli>
+              {{ mapAlimentoNombre(s?.tipoAlimento) }}
+            </ng-template>
+          </td>
+          <td>{{ s.consumoKgHembras | number:'1.2-2' }}</td>
+          <td>{{ s.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
+          <td>{{ s.pesoPromH ?? 0 | number:'1.2-2' }}</td>
+          <td>{{ s.pesoPromM ?? 0 | number:'1.2-2' }}</td>
+          <td>{{ s.uniformidadH ?? 0 | number:'1.1-1' }}</td>
+          <td>{{ s.uniformidadM ?? 0 | number:'1.1-1' }}</td>
+          <td>{{ s.cvH ?? 0 | number:'1.2-2' }}</td>
+          <td>{{ s.cvM ?? 0 | number:'1.2-2' }}</td>
+          <td class="text-right">
+            <div class="btn-group">
+              <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>
+              <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar registro">🗑</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="loading" class="loading-overlay" aria-live="polite" role="status">
+    <div class="spinner"></div>
+    Cargando…
+  </div>
+</section>

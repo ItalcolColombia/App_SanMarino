@@ -1,143 +1,214 @@
-<div class="flex h-screen bg-yellow-50">
-  <app-sidebar class="w-64"></app-sidebar>
-  <div class="flex-1 p-6 overflow-auto">
+<!-- src/app/features/galpon/pages/galpon-list/galpon-list.component.html -->
+<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+    <div class="flex" [class.h-screen]="!embedded">
+
+</div>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-4 border-b border-yellow-400 pb-2">
-      <h1 class="text-2xl font-bold text-yellow-800">Gestión de Galpones</h1>
-      <button
-        (click)="openModal()"
-        class="flex items-center px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-      >
-        <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
-        Nuevo Galpón
+    <div class="ux-header">
+
+      <button (click)="openModal()" class="btn-primary">
+        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <span>Nuevo Galpón</span>
       </button>
     </div>
 
-    <!-- Filtro -->
-    <div class="mb-4 w-full md:w-1/3">
-      <label class="block text-sm font-medium text-yellow-900 mb-1">Buscar galpón</label>
-      <input
-        type="text"
-        [(ngModel)]="filtro"
-        placeholder="Buscar por galpón, núcleo o empresa..."
-        class="w-full px-4 py-2 pl-10 border border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500"
-      />
+    <!-- Filtros en cascada + búsqueda -->
+    <div class="ux-card p-4 mb-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+        <!-- Compañía -->
+        <div class="lg:col-span-3">
+          <label for="g-company" class="ux-label">Compañía</label>
+          <select id="g-company" class="ux-select"
+                  [(ngModel)]="selectedCompanyId"
+                  (ngModelChange)="onCompanyChangeList($event)">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+          </select>
+        </div>
+
+        <!-- Granja (depende de compañía) -->
+        <div class="lg:col-span-3">
+          <label for="g-farm" class="ux-label">Granja</label>
+          <select id="g-farm" class="ux-select"
+                  [(ngModel)]="selectedFarmId"
+                  (ngModelChange)="onFarmChangeList($event)">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let f of farmsFilteredG" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+
+        <!-- Núcleo (depende de granja/compañía) -->
+        <div class="lg:col-span-3">
+          <label for="g-nucleo" class="ux-label">Núcleo</label>
+          <select id="g-nucleo" class="ux-select"
+                  [(ngModel)]="selectedNucleoId"
+                  (ngModelChange)="onNucleoChangeList($event)">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let n of nucleosFilteredG" [ngValue]="n.nucleoId">
+              {{ n.nucleoNombre }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Búsqueda -->
+        <div class="lg:col-span-2">
+          <label for="galpon-filter" class="ux-label">Buscar</label>
+          <div class="ux-search">
+            <fa-icon [icon]="['fas','magnifying-glass']" class="ux-search__icon" aria-hidden="true"></fa-icon>
+            <input
+              id="galpon-filter"
+              type="text"
+              [(ngModel)]="filtro"
+              (ngModelChange)="recomputeList()"
+              placeholder="Buscar por galpón, núcleo o granja…"
+              class="ux-input"
+              aria-label="Buscar galpón"
+            />
+          </div>
+        </div>
+
+        <!-- Limpiar -->
+        <div class="lg:col-span-1">
+          <button class="btn-ghost w-full" (click)="resetListFilters()">Limpiar</button>
+        </div>
+      </div>
     </div>
 
     <!-- Tabla -->
-    <div class="bg-white border border-yellow-300 rounded shadow overflow-auto">
-      <table class="min-w-full text-sm text-left text-yellow-900">
-        <thead class="bg-yellow-200 text-yellow-800 sticky top-0 z-10">
-          <tr>
-            <th class="px-4 py-2 font-semibold">Empresa</th>
-            <th class="px-4 py-2 font-semibold">Granja</th>
-            <th class="px-4 py-2 font-semibold">Núcleo</th>
-            <th class="px-4 py-2 font-semibold">Galpón</th>
-            <th class="px-4 py-2 font-semibold">Ancho</th>
-            <th class="px-4 py-2 font-semibold">Largo</th>
-            <th class="px-4 py-2 font-semibold">Tipo</th>
-            <th class="px-4 py-2 font-semibold text-center">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-yellow-100">
-          <tr *ngFor="let g of galpones | galponFilter:filtro:allNucleos:farms:companies" class="hover:bg-yellow-50">
-            <td class="px-4 py-2">{{ getCompanyNameByGalpon(g) }}</td>
-            <td class="px-4 py-2">{{ getGranjaNameByGalpon(g) }}</td>
-            <td class="px-4 py-2">{{ getNucleoNameByGalpon(g) }}</td>
-            <td class="px-4 py-2">{{ g.galponNombre }}</td>
-            <td class="px-4 py-2">{{ g.ancho }}</td>
-            <td class="px-4 py-2">{{ g.largo }}</td>
-            <td class="px-4 py-2">{{ g.tipoGalpon }}</td>
-            <td class="px-4 py-2 text-center space-x-2">
-              <button (click)="openModal(g)" class="text-red-600 hover:text-red-800">
-                <fa-icon [icon]="faPen"></fa-icon>
-              </button>
-              <button (click)="showDetail(g)" class="text-red-600 hover:text-red-800">
-                <fa-icon [icon]="faEye"></fa-icon>
-              </button>
-              <button (click)="delete(g.galponId)" class="text-red-600 hover:text-red-800">
-                <fa-icon [icon]="faTrash"></fa-icon>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="ux-card">
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <caption class="sr-only">Listado de galpones</caption>
+          <thead>
+            <tr>
+              <th scope="col">Empresa</th>
+              <th scope="col">Granja</th>
+              <th scope="col">Núcleo</th>
+              <th scope="col">Galpón</th>
+              <th scope="col">Ancho (m)</th>
+              <th scope="col">Largo (m)</th>
+              <th scope="col">Área (m²)</th>
+              <th scope="col">Tipo</th>
+              <th scope="col" class="text-center">Acciones</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr *ngFor="let g of viewGalpones" class="ux-row">
+              <td>{{ g.company.name }}</td>
+              <td>{{ g.farm.name }}</td>
+              <td>{{ g.nucleo.nucleoNombre }}</td>
+              <td>{{ g.galponNombre }}</td>
+              <td>{{ g.ancho || '–' }}</td>
+              <td>{{ g.largo || '–' }}</td>
+              <td>{{ getArea(g) }}</td>
+              <td><span class="ux-badge">{{ g.tipoGalpon || '—' }}</span></td>
+              <td class="text-center">
+                <div class="inline-flex items-center gap-2">
+                  <button (click)="openModal(g)" class="icon-btn" title="Editar">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button (click)="showDetail(g)" class="icon-btn" title="Ver detalle">
+                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button (click)="delete(g.galponId)" class="icon-btn danger" title="Eliminar">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <tr *ngIf="(viewGalpones)?.length === 0 && !loading">
+              <td colspan="9" class="empty-state">
+                <div class="empty-illustration">🏠</div>
+                <p>No hay galpones que coincidan con los filtros.</p>
+                <button (click)="openModal()" class="btn-secondary mt-2">
+                  <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                  Crear el primero
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Overlay de carga -->
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+        <div class="spinner"></div>
+        Cargando…
+      </div>
     </div>
 
-    <!-- Modal -->
-    <div *ngIf="modalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 border border-yellow-400">
-        <h2 class="text-xl font-semibold text-yellow-800 mb-4">
-          {{ editing ? 'Editar Galpón' : 'Nuevo Galpón' }}
-        </h2>
-        <form [formGroup]="form" (ngSubmit)="save()" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- MODAL: Crear/Editar -->
+    <div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="galpon-modal-title">
+      <div class="ux-modal__panel">
+        <div class="ux-modal__header">
+          <h2 id="galpon-modal-title" class="ux-title">{{ editing ? 'Editar Galpón' : 'Nuevo Galpón' }}</h2>
+          <button type="button" (click)="modalOpen = false" class="btn-muted">Cerrar</button>
+        </div>
+
+        <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body grid grid-cols-1 md:grid-cols-2 gap-4" novalidate>
+          <!-- ID (solo lectura en edición) -->
           <div>
-            <label class="block text-sm font-medium text-yellow-800">ID Galpón *</label>
-            <input formControlName="galponId" [readonly]="true"
-                   class="mt-1 block w-full border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500"/>
+            <label class="ux-label">ID Galpón</label>
+            <input formControlName="galponId" [readonly]="editing" class="ux-input" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-yellow-800">Nombre *</label>
-            <input formControlName="galponNombre"
-                   class="mt-1 block w-full border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500"/>
+            <label class="ux-label">Nombre <span class="req">*</span></label>
+            <input formControlName="galponNombre" class="ux-input"
+                   [class.is-invalid]="form.get('galponNombre')?.invalid && form.get('galponNombre')?.touched" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-yellow-800">Núcleo *</label>
-            <select formControlName="galponNucleoId"
-                    class="mt-1 block w-full border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500">
-              <option value="">Seleccione...</option>
+            <label class="ux-label">Núcleo <span class="req">*</span></label>
+            <select formControlName="nucleoId" class="ux-input"
+                    [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
+              <option value="">Seleccione…</option>
               <option *ngFor="let opt of nucleoOptions" [value]="opt.id">{{ opt.label }}</option>
             </select>
           </div>
 
-          <!-- Campo oculto para enviar el ID -->
+          <!-- Hidden para enviar la granjaId (se llena automático al elegir núcleo) -->
           <input type="hidden" formControlName="granjaId" />
 
-          <!-- Visualización del nombre -->
           <div>
-            <label class="block text-sm font-medium text-yellow-800">Granja *</label>
-            <input
-              type="text"
-              [value]="getGranjaNombreByNucleoId(form.get('galponNucleoId')?.value)"
-              readonly
-              class="mt-1 block w-full border-yellow-300 rounded-md bg-gray-100 text-gray-500"
-            />
+            <label class="ux-label">Granja</label>
+            <input type="text" [value]="getGranjaNombreByNucleoId(form.get('nucleoId')?.value)" readonly class="ux-input ux-input--readonly" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-yellow-800">Ancho (m)</label>
-            <input formControlName="ancho"
-                   class="mt-1 block w-full border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500"/>
+            <label class="ux-label">Ancho (m)</label>
+            <input formControlName="ancho" class="ux-input" />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-yellow-800">Largo (m)</label>
-            <input formControlName="largo"
-                   class="mt-1 block w-full border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500"/>
+            <label class="ux-label">Largo (m)</label>
+            <input formControlName="largo" class="ux-input" />
           </div>
 
           <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-yellow-800">Tipo de Galpón</label>
-            <select
-              formControlName="tipoGalpon"
-              class="mt-1 block w-full border-yellow-300 rounded-md focus:ring-red-500 focus:border-red-500"
-            >
-              <option value="">Seleccione...</option>
-              <option *ngFor="let opt of typegarponOptions" [value]="opt">
-                {{ opt }}
-              </option>
+            <label class="ux-label">Tipo de Galpón</label>
+            <select formControlName="tipoGalpon" class="ux-input">
+              <option value="">Seleccione…</option>
+              <option *ngFor="let opt of typegarponOptions" [value]="opt">{{ opt }}</option>
             </select>
           </div>
 
-          <div class="md:col-span-2 flex justify-end space-x-2 mt-4">
-            <button type="button" (click)="modalOpen = false"
-                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-red-300">
-              Cancelar
-            </button>
-            <button type="submit" [disabled]="form.invalid"
-                    class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+          <!-- Meta: solo en edición -->
+          <div *ngIf="editing" class="md:col-span-2 ux-meta">
+            <div class="ux-meta__item"><strong>Empresa:</strong> {{ editing!.company.name }} ({{ editing!.company.identifier }})</div>
+            <div class="ux-meta__item"><strong>Granja:</strong> {{ editing!.farm.name }} (ID {{ editing!.farm.id }})</div>
+            <div class="ux-meta__item"><strong>Núcleo:</strong> {{ editing!.nucleo.nucleoNombre }} ({{ editing!.nucleo.nucleoId }})</div>
+            <div class="ux-meta__item"><strong>Creado:</strong> {{ editing!.createdAt | date:'short' }}</div>
+            <div class="ux-meta__item"><strong>Actualizado:</strong> {{ editing!.updatedAt | date:'short' }}</div>
+          </div>
+
+          <div class="md:col-span-2 ux-actions">
+            <button type="button" (click)="modalOpen = false" class="btn-muted">Cancelar</button>
+            <button type="submit" [disabled]="form.invalid" class="btn-primary">
               {{ editing ? 'Actualizar' : 'Guardar' }}
             </button>
           </div>
@@ -145,34 +216,34 @@
       </div>
     </div>
 
-    <!-- Modal de Detalle -->
-    <div *ngIf="detailOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 border border-yellow-400">
-        <h2 class="text-xl font-semibold text-yellow-800 mb-4">
-          Detalle del Galpón
-        </h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-yellow-900 text-sm">
-          <div><strong>ID:</strong> {{ selectedDetail?.galponId }}</div>
-          <div><strong>Nombre:</strong> {{ selectedDetail?.galponNombre }}</div>
-          <div><strong>Núcleo:</strong> {{ getNucleoNameByGalpon(selectedDetail!) }}</div>
-          <div><strong>Granja:</strong> {{ getGranjaNameByGalpon(selectedDetail!) }}</div>
-          <div><strong>Empresa:</strong> {{ getCompanyNameByGalpon(selectedDetail!) }}</div>
-          <div><strong>Ancho (m):</strong> {{ selectedDetail?.ancho }}</div>
-          <div><strong>Largo (m):</strong> {{ selectedDetail?.largo }}</div>
-          <div>
-            <strong>Área (m²):</strong> {{ getArea(selectedDetail) }}
-          </div>
-          <div><strong>Tipo:</strong> {{ selectedDetail?.tipoGalpon }}</div>
+    <!-- MODAL: Detalle -->
+    <div *ngIf="detailOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+      <div class="ux-modal__panel">
+        <div class="ux-modal__header">
+          <h2 id="detail-modal-title" class="ux-title">Detalle del Galpón</h2>
+          <button type="button" (click)="detailOpen = false" class="btn-muted">Cerrar</button>
         </div>
 
-        <div class="mt-6 text-right">
-          <button (click)="detailOpen = false"
-                  class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-            Cerrar
-          </button>
+        <div class="ux-modal__body grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div><strong>ID:</strong> {{ selectedDetail?.galponId }}</div>
+          <div><strong>Nombre:</strong> {{ selectedDetail?.galponNombre }}</div>
+          <div><strong>Tipo:</strong> {{ selectedDetail?.tipoGalpon || '—' }}</div>
+
+          <div><strong>Núcleo:</strong> {{ selectedDetail?.nucleo?.nucleoNombre }} ({{ selectedDetail?.nucleo?.nucleoId }})</div>
+          <div><strong>Granja:</strong> {{ selectedDetail?.farm?.name }} (ID {{ selectedDetail?.farm?.id }})</div>
+          <div><strong>Empresa:</strong> {{ selectedDetail?.company?.name }}</div>
+
+          <div><strong>Dimensiones:</strong> {{ selectedDetail?.ancho || '—' }} × {{ selectedDetail?.largo || '—' }} m</div>
+          <div><strong>Área (m²):</strong> {{ getArea(selectedDetail) }}</div>
+          <div><strong>Auditoría:</strong>
+            C: {{ selectedDetail?.createdAt | date:'short' }} • U: {{ selectedDetail?.updatedAt | date:'short' }}
+          </div>
+        </div>
+
+        <div class="ux-actions">
+          <button type="button" (click)="detailOpen = false" class="btn-primary">Cerrar</button>
         </div>
       </div>
     </div>
-
   </div>
 </div>

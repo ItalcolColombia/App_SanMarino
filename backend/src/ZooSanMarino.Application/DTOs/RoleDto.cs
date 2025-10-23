@@ -1,22 +1,27 @@
 // src/ZooSanMarino.Application/DTOs/RoleDto.cs
 namespace ZooSanMarino.Application.DTOs;
-
+// src/ZooSanMarino.Application/DTOs/RoleDto.cs  (si ya lo tienes, déjalo igual)
 public record RoleDto(
-    int      Id,
-    string   Name,
+    int Id,
+    string Name,
     string[] Permissions,
-    int[]    CompanyIds
+    int[] CompanyIds,
+    int[] MenuIds
 );
 
-public record CreateRoleDto(
-    string   Name,
-    string[] Permissions,
-    int[]    CompanyIds
-);
-
+// src/ZooSanMarino.Application/DTOs/UpdateRoleDto.cs  (AQUÍ agregamos MenuIds)
 public record UpdateRoleDto(
-    int      Id,
-    string   Name,
+    int Id,
+    string Name,
     string[] Permissions,
-    int[]    CompanyIds
+    int[] CompanyIds,
+    int[]? MenuIds // <- null = no tocar menús; array = reemplazar por delta
+);
+
+// src/ZooSanMarino.Application/DTOs/CreateRoleDto.cs (si quieres crear rol con menús desde el inicio, opcional)
+public record CreateRoleDto(
+    string Name,
+    string[] Permissions,
+    int[] CompanyIds,
+    int[]? MenuIds // opcional
 );

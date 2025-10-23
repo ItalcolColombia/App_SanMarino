@@ -1,0 +1,227 @@
+<!-- src/app/features/db-studio/components/sql-query/sql-query.component.html -->
+<div class="sql-query-container">
+  <!-- Header del SQL Query -->
+  <div class="query-header">
+    <div class="header-left">
+      <h3 class="query-title">
+        <fa-icon [icon]="faCode"></fa-icon>
+        Editor SQL
+      </h3>
+      <div class="query-type-badge" [class]="'type-' + queryType().toLowerCase()">
+        {{ queryType() }}
+      </div>
+    </div>
+    <div class="header-right">
+      <button 
+        class="btn btn-primary btn-sm"
+        (click)="executeQuery()"
+        [disabled]="!sqlQuery() || isExecuting()"
+        title="Ejecutar Query (Ctrl+Enter)">
+        <fa-icon [icon]="isExecuting() ? faStop : faPlay"></fa-icon>
+        {{ isExecuting() ? 'Ejecutando...' : 'Ejecutar' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Editor SQL -->
+  <div class="query-editor-section">
+    <div class="editor-container">
+      <textarea
+        class="sql-editor"
+        [(ngModel)]="sqlQuery"
+        placeholder="Escribe tu consulta SQL aquí..."
+        rows="8"
+        [disabled]="isExecuting()">
+      </textarea>
+      
+      <!-- Barra de herramientas del editor -->
+      <div class="editor-toolbar">
+        <div class="toolbar-left">
+          <button 
+            class="btn btn-ghost btn-xs"
+            (click)="copyQueryToClipboard()"
+            [disabled]="!sqlQuery()"
+            title="Copiar query">
+            <fa-icon [icon]="faCopy"></fa-icon>
+          </button>
+        </div>
+        <div class="toolbar-right">
+          <button 
+            class="btn btn-ghost btn-xs"
+            (click)="saveQuery('')"
+            [disabled]="!sqlQuery()"
+            title="Guardar query">
+            <fa-icon [icon]="faSave"></fa-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel lateral con queries guardadas e historial -->
+  <div class="query-sidebar">
+    <!-- Queries Guardadas -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <h4>
+          <fa-icon [icon]="faSave"></fa-icon>
+          Queries Guardadas
+        </h4>
+        <span class="count">{{ savedQueries().length }}</span>
+      </div>
+      
+      <div class="saved-queries-list">
+        <div 
+          *ngFor="let query of savedQueries()" 
+          class="saved-query-item"
+          [class.active]="selectedQuery()?.id === query.id"
+          (click)="loadSavedQuery(query)">
+          <div class="query-info">
+            <div class="query-name">{{ query.name }}</div>
+            <div class="query-meta">
+              <span class="query-type-badge" [class]="'type-' + query.type.toLowerCase()">
+                {{ query.type }}
+              </span>
+              <span class="query-date">{{ query.createdAt | date:'short' }}</span>
+            </div>
+          </div>
+          <button 
+            class="btn btn-ghost btn-xs delete-btn"
+            (click)="deleteSavedQuery(query.id); $event.stopPropagation()"
+            title="Eliminar query">
+            <fa-icon [icon]="faTrash"></fa-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historial de Queries -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <h4>
+          <fa-icon [icon]="faHistory"></fa-icon>
+          Historial
+        </h4>
+        <button 
+          class="btn btn-ghost btn-xs"
+          (click)="clearHistory()"
+          [disabled]="queryHistory().length === 0"
+          title="Limpiar historial">
+          <fa-icon [icon]="faTrash"></fa-icon>
+        </button>
+      </div>
+      
+      <div class="history-list">
+        <div 
+          *ngFor="let result of queryHistory().slice(0, 10)" 
+          class="history-item"
+          (click)="loadFromHistory(result)">
+          <div class="history-info">
+            <div class="history-status" [class]="result.success ? 'success' : 'error'">
+              <fa-icon [icon]="result.success ? faCheck : faTimes"></fa-icon>
+            </div>
+            <div class="history-details">
+              <div class="history-time">{{ result.executionTime ? formatExecutionTime(result.executionTime) : 'N/A' }}</div>
+              <div class="history-rows" *ngIf="result.data">
+                {{ formatRowCount(result.data.count) }} filas
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultados de la Query -->
+  <div class="query-results-section" *ngIf="queryResult()">
+    <div class="results-header">
+      <div class="results-info">
+        <h4>
+          <fa-icon [icon]="faTable"></fa-icon>
+          Resultados
+        </h4>
+        <div class="results-meta" *ngIf="queryResult()?.success">
+          <span class="execution-time" *ngIf="queryResult()?.executionTime">
+            Tiempo: {{ formatExecutionTime(queryResult()!.executionTime!) }}
+          </span>
+          <span class="row-count" *ngIf="queryResult()?.data">
+            Filas: {{ formatRowCount(queryResult()!.data!.count) }}
+          </span>
+        </div>
+      </div>
+      <div class="results-actions" *ngIf="hasResults()">
+        <button 
+          class="btn btn-ghost btn-sm"
+          (click)="exportResults()"
+          title="Exportar a CSV">
+          <fa-icon [icon]="faDownload"></fa-icon>
+          Exportar
+        </button>
+      </div>
+    </div>
+
+    <!-- Error Message -->
+    <div class="error-message" *ngIf="!queryResult()?.success">
+      <div class="error-content">
+        <fa-icon [icon]="faTimes" class="error-icon"></fa-icon>
+        <div class="error-text">
+          <h5>Error en la consulta</h5>
+          <p>{{ queryResult()?.error || 'Error desconocido' }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Message for DDL/DML -->
+    <div class="success-message" *ngIf="queryResult()?.success && !hasResults()">
+      <div class="success-content">
+        <fa-icon [icon]="faCheck" class="success-icon"></fa-icon>
+        <div class="success-text">
+          <h5>Consulta ejecutada exitosamente</h5>
+          <p *ngIf="queryResult()?.affectedRows">
+            {{ queryResult()!.affectedRows }} filas afectadas
+          </p>
+          <p *ngIf="queryResult()?.executionTime">
+            Tiempo de ejecución: {{ formatExecutionTime(queryResult()!.executionTime!) }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="results-table-container" *ngIf="hasResults()">
+      <div class="table-wrapper">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th 
+                *ngFor="let column of queryResult()!.data!.columns || getObjectKeys(queryResult()!.data!.rows[0] || {})"
+                class="column-header">
+                {{ column }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of queryResult()!.data!.rows; let i = index" 
+                class="data-row"
+                [class.even]="i % 2 === 0">
+              <td 
+                *ngFor="let column of queryResult()!.data!.columns || getObjectKeys(row)"
+                class="data-cell">
+                <span class="cell-value" [title]="convertToString(row[column])">
+                  {{ row[column] === null ? 'NULL' : row[column] }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Paginación -->
+      <div class="pagination-info" *ngIf="queryResult()!.data!.count > queryResult()!.data!.rows.length">
+        <span class="pagination-text">
+          Mostrando {{ queryResult()!.data!.rows.length }} de {{ formatRowCount(queryResult()!.data!.count) }} filas
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

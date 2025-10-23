@@ -1,70 +1,64 @@
 // src/app/features/galpon/services/galpon.service.ts
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-
-export interface GalponDto {
-  galponId: string;
-  galponNombre: string;
-  galponNucleoId: string;
-  granjaId: number;
-  ancho: string;
-  largo: string;
-  tipoGalpon: string;
-}
-
-
-export interface CreateGalponDto {
-  galponId: string;
-  galponNombre: string;
-  galponNucleoId: string;
-  granjaId: number;
-  ancho: string;
-  largo: string;
-  tipoGalpon: string;
-}
-
-export interface UpdateGalponDto {
-  galponId: string;
-  galponNombre: string;
-  galponNucleoId: string;
-  granjaId: number;
-  ancho: string;
-  largo: string;
-  tipoGalpon: string;
-}
+import { GalponDetailDto, CreateGalponDto, UpdateGalponDto } from '../models/galpon.models';
 
 @Injectable({ providedIn: 'root' })
 export class GalponService {
   private readonly baseUrl = `${environment.apiUrl}/Galpon`;
+  private readonly http = inject(HttpClient);
 
-  constructor(private http: HttpClient) {}
+  constructor() {}
 
-  /** Trae todos los galpones */
-  getAll(): Observable<GalponDto[]> {
-    return this.http.get<GalponDto[]>(this.baseUrl);
+  /** Listado (detalle) */
+  getAll(): Observable<GalponDetailDto[]> {
+    return this.http.get<GalponDetailDto[]>(this.baseUrl);
   }
 
-  /** Crea un galpón */
-  create(dto: CreateGalponDto): Observable<GalponDto> {
-    return this.http.post<GalponDto>(this.baseUrl, dto);
+  /** Detalle por id */
+  getById(id: string): Observable<GalponDetailDto> {
+    return this.http.get<GalponDetailDto>(`${this.baseUrl}/${id}`);
   }
 
-  /** Actualiza un galpón existente */
-  update(dto: UpdateGalponDto): Observable<GalponDto> {
-    return this.http.put<GalponDto>(`${this.baseUrl}/${dto.galponId}`, dto);
+  /** Búsqueda paginada */
+  search(params: {
+    page?: number; pageSize?: number; search?: string;
+    granjaId?: number; nucleoId?: string; tipoGalpon?: string;
+    sortBy?: string; sortDesc?: boolean; soloActivos?: boolean;
+  }): Observable<{ page: number; pageSize: number; total: number; items: GalponDetailDto[] }> {
+    let p = new HttpParams();
+    for (const [k, v] of Object.entries(params || {})) {
+      if (v !== undefined && v !== null && v !== '') p = p.set(k, String(v));
+    }
+    return this.http.get<{ page: number; pageSize: number; total: number; items: GalponDetailDto[] }>(
+      `${this.baseUrl}/search`, { params: p }
+    );
   }
 
-  /** Elimina un galpón por id */
+  /** Filtrar por granja+núcleo */
+  getByGranjaAndNucleo(granjaId: number, nucleoId: string): Observable<GalponDetailDto[]> {
+    return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}/nucleo/${nucleoId}`);
+  }
+
+  /** Crear */
+  create(dto: CreateGalponDto): Observable<GalponDetailDto> {
+    return this.http.post<GalponDetailDto>(this.baseUrl, dto);
+  }
+
+  /** Actualizar */
+  update(dto: UpdateGalponDto): Observable<GalponDetailDto> {
+    return this.http.put<GalponDetailDto>(`${this.baseUrl}/${dto.galponId}`, dto);
+  }
+
+  /** Borrar (soft) */
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
   }
 
-  // ← Nuevo método para filtrar por granja + núcleo
-  getByGranjaAndNucleo(granjaId: number, nucleoId: string): Observable<GalponDto[]> {
-    return this.http.get<GalponDto[]>(
-      `${this.baseUrl}/granja/${granjaId}/nucleo/${nucleoId}`
-    );
+  /** Borrar (hard) */
+  hardDelete(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}/hard`);
   }
 }

@@ -1,0 +1,45 @@
+# Dependencies
+frontend/package-lock.json
+node_modules/
+**/bin/
+**/obj/
+
+# OS Files
+.DS_Store
+**/.DS_Store
+
+# IDE Files
+/backend/.vscode
+**/.vscode/
+**/.vs/
+
+# Test Files
+/backend/tests
+/backend/tests/ZooSanMarino.Application.Tests/obj
+backend/tests/ZooSanMarino.Application.Tests/obj/Debug/net9.0/ZooSanMarino.Application.Tests.AssemblyInfoInputs.cache
+backend/tests/ZooSanMarino.Domain.Tests/obj/Debug/net9.0/ZooSanMarino.Domain.Tests.AssemblyInfo.cs
+backend/tests/ZooSanMarino.Domain.Tests/obj/Debug/net9.0/ZooSanMarino.Domain.Tests.AssemblyInfoInputs.cache
+backend/tests/ZooSanMarino.Domain.Tests/obj/Debug/net9.0/ZooSanMarino.Domain.Tests.csproj.AssemblyReference.cache
+backend/tests/ZooSanMarino.Domain.Tests/obj/Debug/net9.0/ZooSanMarino.Domain.Tests.assets.cache
+backend/tests/ZooSanMarino.Application.Tests/obj/Debug/net9.0/ZooSanMarino.Application.Tests.AssemblyInfoInputs.cache
+
+# SECURITY: Configuration files with sensitive data
+backend/src/ZooSanMarino.API/appsettings.json
+backend/src/ZooSanMarino.API/appsettings.Development.json
+backend/src/ZooSanMarino.API/appsettings.Production.json
+backend/config-ejemplo-email.txt
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+**/.env*
+
+# Logs
+*.log
+logs/
+
+# Build outputs
+dist/
+build/

@@ -33,9 +33,9 @@ public class ProduccionLoteController : ControllerBase
 
     // ✅ Obtener por LoteId
     [HttpGet("{loteId}")]
-    public async Task<IActionResult> GetByLoteId(string loteId)
+    public async Task<IActionResult> GetByLoteId(int loteId)  // Changed from string to int
     {
-        var result = await _svc.GetByLoteIdAsync(loteId);
+        var result = await _svc.GetByLoteIdAsync(loteId);  // Changed from loteId
         return result is null ? NotFound() : Ok(result);
     }
 
@@ -59,9 +59,9 @@ public class ProduccionLoteController : ControllerBase
 
     // ✅ Filtro por lote y/o fechas
     [HttpGet("filter")]
-    public async Task<IActionResult> Filter([FromQuery] string? loteId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta)
+    public async Task<IActionResult> Filter([FromQuery] int? loteId, [FromQuery] DateTime? desde, [FromQuery] DateTime? hasta)  // Changed from string? to int?
     {
-        var filter = new FilterProduccionLoteDto(loteId, desde, hasta);
+        var filter = new FilterProduccionLoteDto(loteId, desde, hasta);  // Changed from loteId
         var result = await _svc.FilterAsync(filter);
         return Ok(result);
     }

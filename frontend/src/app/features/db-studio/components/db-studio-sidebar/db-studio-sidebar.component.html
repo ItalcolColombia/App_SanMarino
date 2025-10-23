@@ -1,0 +1,131 @@
+<!-- src/app/features/db-studio/components/db-studio-sidebar/db-studio-sidebar.component.html -->
+<div class="db-studio-sidebar">
+  <!-- Header del Sidebar -->
+  <div class="sidebar-header">
+    <h3 class="sidebar-title">
+      <fa-icon [icon]="faDatabase"></fa-icon>
+      Explorador
+    </h3>
+    <button 
+      class="btn btn-ghost btn-sm" 
+      (click)="onRefresh()"
+      [disabled]="loading"
+      title="Actualizar">
+      <fa-icon [icon]="faRefresh" [class.spinning]="loading"></fa-icon>
+    </button>
+  </div>
+
+  <!-- Búsqueda -->
+  <div class="search-container">
+    <div class="search-input">
+      <fa-icon [icon]="faSearch" class="search-icon"></fa-icon>
+      <input 
+        type="text" 
+        placeholder="Buscar esquemas y tablas..."
+        [ngModel]="searchTerm()"
+        (ngModelChange)="onSearchChange($event)"
+        class="search-field">
+    </div>
+  </div>
+
+  <!-- Lista de Esquemas -->
+  <div class="schemas-section">
+    <div class="section-header">
+      <h4>Esquemas</h4>
+      <span class="count">{{ filteredSchemas().length }}</span>
+    </div>
+    
+    <div class="schemas-list">
+      <div 
+        *ngFor="let schema of filteredSchemas()" 
+        class="schema-item"
+        [class.active]="schema.name === selectedSchema">
+        
+        <div 
+          class="schema-header"
+          (click)="onSchemaSelect(schema.name)">
+          <div class="schema-info">
+            <span class="schema-icon">{{ getSchemaIcon(schema) }}</span>
+            <span class="schema-name">{{ schema.name }}</span>
+          </div>
+          <div class="schema-actions">
+            <span class="schema-count">{{ schema.tables || 0 }}</span>
+            <fa-icon 
+              [icon]="isSchemaExpanded(schema.name) ? faChevronDown : faChevronRight"
+              class="expand-icon">
+            </fa-icon>
+          </div>
+        </div>
+
+        <!-- Tablas del esquema -->
+        <div 
+          class="tables-container"
+          *ngIf="isSchemaExpanded(schema.name) && schema.name === selectedSchema">
+          
+          <div class="section-header">
+            <h5>Tablas</h5>
+            <span class="count">{{ filteredTables().length }}</span>
+          </div>
+
+          <div class="tables-list">
+            <div 
+              *ngFor="let table of filteredTables()" 
+              class="table-item"
+              [class.active]="table.name === selectedTable"
+              [class]="getTableTypeClass(table)">
+              
+              <div 
+                class="table-header"
+                (click)="onTableSelect(table)">
+                <div class="table-info">
+                  <span class="table-icon">{{ getTableIcon(table) }}</span>
+                  <div class="table-details">
+                    <span class="table-name">{{ table.name }}</span>
+                    <span class="table-type">{{ table.kind }}</span>
+                  </div>
+                </div>
+                <div class="table-meta">
+                  <span class="table-size" *ngIf="table.size">
+                    {{ formatTableSize(table.size) }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Acciones de tabla -->
+              <div class="table-actions" *ngIf="table.name === selectedTable">
+                <button 
+                  class="btn btn-sm btn-ghost"
+                  (click)="onTableAction(table, 'view')"
+                  title="Ver datos">
+                  <fa-icon [icon]="faEye"></fa-icon>
+                </button>
+                <button 
+                  class="btn btn-sm btn-ghost"
+                  (click)="onTableAction(table, 'edit')"
+                  title="Editar estructura">
+                  <fa-icon [icon]="faEdit"></fa-icon>
+                </button>
+                <button 
+                  class="btn btn-sm btn-ghost"
+                  (click)="onTableAction(table, 'export')"
+                  title="Exportar datos">
+                  <fa-icon [icon]="faTrash"></fa-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer del Sidebar -->
+  <div class="sidebar-footer">
+    <div class="connection-info">
+      <div class="connection-status">
+        <span class="status-dot connected"></span>
+        <span class="status-text">Conectado</span>
+      </div>
+    </div>
+  </div>
+</div>

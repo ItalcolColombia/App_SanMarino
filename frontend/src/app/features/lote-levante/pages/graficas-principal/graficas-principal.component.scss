@@ -1,0 +1,430 @@
+/* ==========================================================================
+   📊 Gráficas Principal
+   ========================================================================== */
+:host {
+  display: block;
+}
+
+/* ==========================================================================
+   🎨 Design System / Tokens
+   ========================================================================== */
+:host {
+  /* Brand */
+  --brand-red:        #d32f2f;
+  --brand-red-600:    #c62828;
+  --brand-red-700:    #b71c1c;
+
+  /* Accent */
+  --amber-25:         #fffbeb;
+  --amber-50:         #fff7ed;
+  --amber-100:        #fef3c7;
+  --amber-200:        #fde68a;
+
+  /* Warm Gray scale */
+  --warm-25:          #fdfdfc;
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-500:         #78716c;
+  --warm-600:         #57534e;
+
+  /* Base */
+  --white:            #ffffff;
+  --black:            #111111;
+
+  /* Sombras */
+  --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
+  --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
+  --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
+
+  /* Espaciado & Radios */
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --radius-sm: .5rem;
+  --radius-md: .65rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Tipografía */
+  --fs-xs: .75rem;
+  --fs-sm: .85rem;
+  --fs-md: .92rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.35rem;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+
+  /* Z-index */
+  --z-sticky: 10;
+  --z-modal:  50;
+
+  /* Superficies (CLARO) */
+  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-card:    var(--white);
+  --bg-muted:   var(--warm-50);
+  --border:     var(--warm-200);
+  --text:       var(--black);
+  --text-sub:   #222222;
+
+  /* Transiciones */
+  --t-fast: .12s ease;
+  --t-med:  .15s ease;
+}
+
+/* ==========================================================================
+   📊 Contenedor de Gráficas
+   ========================================================================== */
+.graficas-container {
+  padding: var(--space-4);
+}
+
+.graficas-container h3 {
+  margin: 0 0 var(--space-4) 0; font-size: var(--fs-lg);
+  font-weight: 700; color: var(--text);
+}
+
+/* ==========================================================================
+   🎛️ Selector de Gráficas
+   ========================================================================== */
+.graficas-selector {
+  margin-bottom: var(--space-6);
+  padding: var(--space-4); background: var(--warm-50);
+  border-radius: var(--radius-md); border: 1px solid var(--border);
+}
+
+.graficas-selector h4 {
+  margin: 0 0 var(--space-3) 0; font-size: var(--fs-md);
+  color: var(--text-sub);
+}
+
+.selector-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.serie-button {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3); background: var(--white);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  cursor: pointer; transition: all var(--t-fast);
+  text-align: left;
+}
+
+.serie-button:hover {
+  background: var(--amber-25); border-color: var(--amber-200);
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+}
+
+.serie-icon {
+  width: 12px; height: 12px; border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.serie-nombre {
+  font-weight: 600; color: var(--text);
+  flex: 1;
+}
+
+.serie-tipo {
+  font-size: var(--fs-xs); color: var(--warm-500);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   📈 Contenido de Gráficas
+   ========================================================================== */
+.graficas-content {
+  display: flex; flex-direction: column; gap: var(--space-6);
+}
+
+.grafica-section {
+  background: var(--white); border-radius: var(--radius-md);
+  border: 1px solid var(--border); overflow: hidden;
+}
+
+.grafica-section h4 {
+  margin: 0; padding: var(--space-4);
+  background: var(--warm-50); border-bottom: 1px solid var(--border);
+  font-size: var(--fs-md); color: var(--text-sub);
+}
+
+.grafica-placeholder {
+  padding: var(--space-6); min-height: 300px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.placeholder-content {
+  text-align: center; max-width: 100%;
+}
+
+/* ==========================================================================
+   📊 Gráficas Preview
+   ========================================================================== */
+.grafica-preview {
+  position: relative; width: 100%; height: 200px;
+  background: var(--warm-25); border-radius: var(--radius-sm);
+  margin-bottom: var(--space-4);
+}
+
+.eje-y {
+  position: absolute; left: var(--space-2); top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  font-size: var(--fs-xs); color: var(--warm-600);
+  font-weight: 600;
+}
+
+.grafica-area {
+  position: absolute; top: var(--space-2); right: var(--space-2);
+  bottom: var(--space-6); left: var(--space-8);
+  border-left: 1px solid var(--warm-300);
+  border-bottom: 1px solid var(--warm-300);
+}
+
+.linea-grafica {
+  position: absolute; width: 2px; height: 2px;
+  transform: translate(-50%, 50%);
+}
+
+.punto {
+  width: 8px; height: 8px; border-radius: 50%;
+  position: absolute; top: -3px; left: -3px;
+  border: 2px solid var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.barra-grafica {
+  position: absolute; bottom: 0; width: 20px;
+  transform: translateX(-50%);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  opacity: 0.8;
+}
+
+/* Estilos específicos para diferentes tipos de barras */
+.consumo-real {
+  background: linear-gradient(180deg, #d32f2f 0%, #b71c1c 100%);
+  width: 8px; margin-right: 2px;
+}
+
+.consumo-tabla {
+  background: linear-gradient(180deg, #1976d2 0%, #1565c0 100%);
+  width: 8px; margin-left: 2px;
+}
+
+.peso-barra {
+  background: linear-gradient(180deg, #388e3c 0%, #2e7d32 100%);
+  opacity: 0.3;
+}
+
+.mortalidad-barra {
+  background: linear-gradient(180deg, #f57c00 0%, #ef6c00 100%);
+  width: 8px; margin-right: 2px;
+}
+
+.seleccion-barra {
+  background: linear-gradient(180deg, #9c27b0 0%, #7b1fa2 100%);
+  width: 8px; margin-left: 2px;
+}
+
+.area-grafica {
+  position: absolute; bottom: 0; width: 20px;
+  transform: translateX(-50%);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  opacity: 0.6;
+}
+
+.eje-x {
+  position: absolute; bottom: 0; left: var(--space-8); right: var(--space-2);
+  display: flex; justify-content: space-between;
+  padding-top: var(--space-2);
+}
+
+.etiqueta-eje {
+  font-size: var(--fs-xs); color: var(--warm-600);
+  font-weight: 600;
+}
+
+.grafica-info {
+  margin: 0; font-size: var(--fs-sm);
+  color: var(--text-sub);
+}
+
+/* ==========================================================================
+   🏷️ Leyendas de Gráficas
+   ========================================================================== */
+.grafica-legend {
+  display: flex; gap: var(--space-4); justify-content: center;
+  margin: var(--space-3) 0;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--fs-sm); color: var(--text-sub);
+}
+
+.legend-color {
+  width: 12px; height: 12px; border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-color.consumo-real {
+  background: linear-gradient(180deg, #d32f2f 0%, #b71c1c 100%);
+}
+
+.legend-color.consumo-tabla {
+  background: linear-gradient(180deg, #1976d2 0%, #1565c0 100%);
+}
+
+.legend-color.mortalidad-barra {
+  background: linear-gradient(180deg, #f57c00 0%, #ef6c00 100%);
+}
+
+.legend-color.seleccion-barra {
+  background: linear-gradient(180deg, #9c27b0 0%, #7b1fa2 100%);
+}
+
+/* ==========================================================================
+   📊 Métricas Resumen
+   ========================================================================== */
+.metricas-resumen {
+  background: var(--white); border-radius: var(--radius-md);
+  border: 1px solid var(--border); padding: var(--space-4);
+}
+
+.metricas-resumen h4 {
+  margin: 0 0 var(--space-4) 0; font-size: var(--fs-md);
+  color: var(--text-sub);
+}
+
+.metricas-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.metrica-card {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3); background: var(--warm-50);
+  border-radius: var(--radius-sm); border: 1px solid var(--border);
+  transition: all var(--t-fast);
+}
+
+.metrica-card:hover {
+  background: var(--amber-25); border-color: var(--amber-200);
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+}
+
+.metrica-icon {
+  font-size: 1.5rem; flex-shrink: 0;
+}
+
+.metrica-content h5 {
+  margin: 0 0 var(--space-1) 0; font-size: var(--fs-xs);
+  color: var(--text-sub); font-weight: 600;
+}
+
+.metrica-content p {
+  margin: 0; font-size: var(--fs-md); font-weight: 700;
+  color: var(--brand-red);
+}
+
+/* ==========================================================================
+   📊 Gráficas Avanzadas Placeholder
+   ========================================================================== */
+.graficas-avanzadas {
+  background: var(--warm-50); border-radius: var(--radius-md);
+  border: 2px dashed var(--border); padding: var(--space-8);
+  text-align: center;
+}
+
+.placeholder-icon {
+  font-size: 4rem; margin-bottom: var(--space-4);
+  opacity: 0.5;
+}
+
+.graficas-avanzadas h4 {
+  margin: 0 0 var(--space-3) 0; color: var(--text-sub);
+}
+
+.graficas-avanzadas p {
+  margin: 0 0 var(--space-3) 0; color: var(--warm-600);
+}
+
+.graficas-avanzadas ul {
+  text-align: left; margin: 0 0 var(--space-4) 0;
+  padding-left: var(--space-5); color: var(--warm-600);
+}
+
+.graficas-avanzadas li {
+  margin-bottom: var(--space-1);
+}
+
+.tecnologias-info {
+  margin-top: var(--space-4);
+}
+
+.tecnologias-info p {
+  margin: 0 0 var(--space-2) 0; font-weight: 600;
+  color: var(--text-sub);
+}
+
+.tech-badges {
+  display: flex; gap: var(--space-2); justify-content: center;
+  flex-wrap: wrap;
+}
+
+.tech-badge {
+  padding: var(--space-1) var(--space-2); background: var(--brand-red);
+  color: var(--white); border-radius: var(--radius-sm);
+  font-size: var(--fs-xs); font-weight: 600;
+}
+
+/* ==========================================================================
+   📱 Responsive
+   ========================================================================== */
+@media (max-width: 768px) {
+  .selector-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .metricas-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .grafica-preview {
+    height: 150px;
+  }
+  
+  .eje-x {
+    font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .graficas-container {
+    padding: var(--space-3);
+  }
+  
+  .grafica-placeholder {
+    padding: var(--space-4); min-height: 200px;
+  }
+  
+  .grafica-preview {
+    height: 120px;
+  }
+  
+  .serie-button {
+    padding: var(--space-2);
+  }
+  
+  .metrica-card {
+    padding: var(--space-2);
+  }
+}

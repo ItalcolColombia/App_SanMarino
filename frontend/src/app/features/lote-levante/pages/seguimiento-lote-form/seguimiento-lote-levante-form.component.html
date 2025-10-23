@@ -1,120 +1,175 @@
-<div class="flex h-screen bg-gray-50">
+<!-- src/app/features/lote-levante/pages/seguimiento-lote-levante-form/seguimiento-lote-levante-form.component.html -->
+<div class="ux-page">
   <!-- Sidebar -->
-  <app-sidebar class="w-64"></app-sidebar>
+  <app-sidebar class="ux-sidebar"></app-sidebar>
 
-  <!-- Contenido principal -->
-  <div class="flex-1 p-6 overflow-auto">
-    <div class="max-w-3xl mx-auto bg-white p-6 rounded shadow">
-      <h2 class="text-2xl font-bold mb-6 text-gray-800">
-        {{ seguimientoId ? 'Editar Seguimiento de Levante' : 'Nuevo Seguimiento de Levante' }}
-      </h2>
+  <!-- Main -->
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>{{ isEdit ? 'Editar Seguimiento de Levante' : 'Nuevo Seguimiento de Levante' }}</h1>
 
-      <form [formGroup]="form" (ngSubmit)="save()">
-        <!-- Fecha y Lote -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Fecha</label>
-            <input type="date" formControlName="fechaRegistro"
-                   class="mt-1 block w-full rounded border p-2" />
+        <div class="ux-header__meta">
+          <ng-container *ngIf="form.get('loteId')?.value as lid; else noLoteChip">
+            <span class="chip chip--info">
+              <span class="chip__dot"></span>
+              Lote: {{ loteNombre(lid) }}
+            </span>
+            <span class="chip chip--muted">
+              {{ calcularEdadDias(lotesById[lid]!.fechaEncaset) }} días
+            </span>
+          </ng-container>
+
+          <ng-template #noLoteChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot"></span>
+              Selecciona un lote para continuar
+            </span>
+          </ng-template>
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        form="seguimientoForm"
+        class="btn btn--primary"
+        [disabled]="loading || form.invalid"
+        [title]="form.invalid ? 'Completa los campos requeridos' : 'Guardar'"
+      >
+        {{ loading ? 'Guardando…' : 'Guardar' }}
+      </button>
+    </header>
+
+    <!-- Card/Form -->
+    <section class="ux-card">
+      <form
+        [formGroup]="form"
+        (ngSubmit)="save()"
+        id="seguimientoForm"
+        class="ux-form"
+        novalidate
+      >
+        <!-- Selección de lote y fecha -->
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="loteId">Lote <span class="req">*</span></label>
+            <div class="ux-select">
+              <select
+                id="loteId"
+                formControlName="loteId"
+                [attr.aria-invalid]="f['loteId'].invalid && f['loteId'].touched ? 'true' : null"
+              >
+                <option value="" disabled>— Selecciona un lote —</option>
+                <option *ngFor="let l of lotes" [ngValue]="l.loteId">
+                  {{ l.loteNombre }} ({{ calcularEdadDias(l.fechaEncaset) }} días)
+                </option>
+              </select>
+            </div>
+            <small class="field-hint" *ngIf="f['loteId'].valid">
+              Edad: {{ calcularEdadDias(lotesById[form.value.loteId]!.fechaEncaset) || '—' }} días
+            </small>
+            <small class="field-error" *ngIf="f['loteId'].invalid && f['loteId'].touched">Obligatorio.</small>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Lote</label>
-            <select formControlName="loteId" class="mt-1 block w-full rounded border p-2">
-              <option value="">-- Selecciona un lote --</option>
-              <option *ngFor="let l of lotes" [value]="l.loteId">{{ l.loteNombre }}</option>
-            </select>
+          <div class="form-field">
+            <label for="fechaRegistro">Fecha <span class="req">*</span></label>
+            <input
+              id="fechaRegistro"
+              type="date"
+              formControlName="fechaRegistro"
+              [max]="maxDateForInput()"
+              [attr.aria-invalid]="f['fechaRegistro'].invalid && f['fechaRegistro'].touched ? 'true' : null"
+            />
+            <small class="field-error" *ngIf="f['fechaRegistro'].invalid && f['fechaRegistro'].touched">
+              Obligatorio.
+            </small>
           </div>
         </div>
 
-        <!-- Mortalidades -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Mort. Hembras</label>
-            <input type="number" formControlName="mortalidadHembras"
-                   class="mt-1 block w-full rounded border p-2" />
+        <!-- Mortalidad -->
+        <h3 class="section-title">Mortalidad</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="mortalidadHembras">Hembras <span class="req">*</span></label>
+            <input id="mortalidadHembras" type="number" min="0" formControlName="mortalidadHembras" />
           </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Mort. Machos</label>
-            <input type="number" formControlName="mortalidadMachos"
-                   class="mt-1 block w-full rounded border p-2" />
+          <div class="form-field">
+            <label for="mortalidadMachos">Machos <span class="req">*</span></label>
+            <input id="mortalidadMachos" type="number" min="0" formControlName="mortalidadMachos" />
           </div>
         </div>
 
-        <!-- Seleccionados -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Sel. Hembras</label>
-            <input type="number" formControlName="selH"
-                   class="mt-1 block w-full rounded border p-2" />
+        <!-- Selección -->
+        <h3 class="section-title">Selección</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="selH">Hembras <span class="req">*</span></label>
+            <input id="selH" type="number" min="0" formControlName="selH" />
           </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Sel. Machos</label>
-            <input type="number" formControlName="selM"
-                   class="mt-1 block w-full rounded border p-2" />
+          <div class="form-field">
+            <label for="selM">Machos <span class="req">*</span></label>
+            <input id="selM" type="number" min="0" formControlName="selM" />
           </div>
         </div>
 
-        <!-- Errores sexaje -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Errores Hembras</label>
-            <input type="number" formControlName="errorSexajeHembras"
-                   class="mt-1 block w-full rounded border p-2" />
+        <!-- Error de sexaje -->
+        <h3 class="section-title">Error de sexaje</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="errorSexajeHembras">Hembras <span class="req">*</span></label>
+            <input id="errorSexajeHembras" type="number" min="0" formControlName="errorSexajeHembras" />
           </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Errores Machos</label>
-            <input type="number" formControlName="errorSexajeMachos"
-                   class="mt-1 block w-full rounded border p-2" />
+          <div class="form-field">
+            <label for="errorSexajeMachos">Machos <span class="req">*</span></label>
+            <input id="errorSexajeMachos" type="number" min="0" formControlName="errorSexajeMachos" />
           </div>
         </div>
 
         <!-- Alimentación -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Tipo de Alimento</label>
-            <input type="text" formControlName="tipoAlimento"
-                   class="mt-1 block w-full rounded border p-2" />
+        <h3 class="section-title">Alimentación</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="tipoAlimento">Tipo de alimento <span class="req">*</span></label>
+            <input id="tipoAlimento" type="text" formControlName="tipoAlimento" />
           </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700">Consumo (Kg Hembras)</label>
-            <input type="number" formControlName="consumoKgHembras"
-                   class="mt-1 block w-full rounded border p-2" />
+          <div class="form-field">
+            <label for="consumoKgHembras">Consumo (Kg Hembras) <span class="req">*</span></label>
+            <input id="consumoKgHembras" type="number" step="0.01" min="0" formControlName="consumoKgHembras" />
           </div>
         </div>
 
-        <!-- Observaciones -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700">Observaciones</label>
-          <textarea rows="3" formControlName="observaciones"
-                    class="mt-1 block w-full rounded border p-2"></textarea>
+        <!-- Observaciones y Ciclo -->
+        <div class="grid grid-2">
+          <div class="form-field form-field--full">
+            <label for="observaciones">Observaciones</label>
+            <textarea id="observaciones" rows="3" formControlName="observaciones"></textarea>
+          </div>
+
+          <div class="form-field">
+            <label for="ciclo">Ciclo</label>
+            <div class="ux-select">
+              <!-- ⚠️ Backend: sólo 'Normal' -->
+              <select id="ciclo" formControlName="ciclo">
+                <option value="Normal">Normal</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <!-- Ciclo -->
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700">Ciclo</label>
-          <select formControlName="ciclo" class="mt-1 block w-full rounded border p-2">
-            <option value="Normal">Normal</option>
-            <option value="Reforzado">Reforzado</option>
-          </select>
-        </div>
-
-        <!-- Botones -->
-        <div class="flex justify-end space-x-4 mt-6">
-          <button type="button" (click)="cancel()"
-                  class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">
-            Cancelar
+        <!-- Footer acciones -->
+        <footer class="ux-modal__footer">
+          <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
+          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
+            {{ loading ? 'Guardando…' : 'Guardar' }}
           </button>
-          <button type="submit" [disabled]="loading"
-                  class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-            {{ loading ? 'Guardando...' : 'Guardar' }}
-          </button>
-        </div>
+        </footer>
       </form>
-    </div>
+
+      <!-- Loading sobre la card -->
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+        <div class="spinner"></div> Procesando…
+      </div>
+    </section>
   </div>
 </div>

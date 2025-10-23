@@ -1,24 +1,25 @@
+// UserLoginConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
 
-namespace ZooSanMarino.Infrastructure.Persistence.Configurations
+public class UserLoginConfiguration : IEntityTypeConfiguration<UserLogin>
 {
-    public class UserLoginConfiguration : IEntityTypeConfiguration<UserLogin>
+    public void Configure(EntityTypeBuilder<UserLogin> builder)
     {
-        public void Configure(EntityTypeBuilder<UserLogin> e)
-        {
-            e.ToTable("user_logins");
+        // Join table con PK compuesta
+        builder.HasKey(x => new { x.UserId, x.LoginId });
 
-            e.HasKey(x => new { x.UserId, x.LoginId });
+        builder.Property(x => x.LockReason).HasMaxLength(500);
 
-            e.HasOne(x => x.User)
-             .WithMany(u => u.UserLogins)
-             .HasForeignKey(x => x.UserId);
+        builder.HasOne(x => x.User)
+               .WithMany() // o .WithMany(u => u.UserLogins) si existe la colección
+               .HasForeignKey(x => x.UserId)
+               .OnDelete(DeleteBehavior.Cascade);
 
-            e.HasOne(x => x.Login)
-             .WithMany(l => l.UserLogins)
-             .HasForeignKey(x => x.LoginId);
-        }
+        builder.HasOne(x => x.Login)
+               .WithMany() // o .WithMany(l => l.UserLogins)
+               .HasForeignKey(x => x.LoginId)
+               .OnDelete(DeleteBehavior.Cascade);
     }
 }

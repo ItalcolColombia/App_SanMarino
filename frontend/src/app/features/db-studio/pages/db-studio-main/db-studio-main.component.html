@@ -1,0 +1,125 @@
+<!-- src/app/features/db-studio/pages/db-studio-main/db-studio-main.component.html -->
+<div class="db-studio-container">
+  <!-- Header Principal -->
+  <app-db-studio-header
+    [loading]="loading()"
+    [error]="error()"
+    [databaseName]="databaseName()"
+    [connectionStatus]="connectionStatus()"
+    (action)="onHeaderAction($event)">
+  </app-db-studio-header>
+
+  <div class="db-studio-layout">
+    <!-- Sidebar -->
+    <app-db-studio-sidebar
+      [selectedSchema]="selectedSchema()"
+      [selectedTable]="selectedTable()?.name || null"
+      [loading]="loading()"
+      (action)="onSidebarAction($event)">
+    </app-db-studio-sidebar>
+
+    <!-- Contenido Principal -->
+    <main class="main-content">
+      <!-- Navegación de Vistas -->
+      <nav class="view-navigation">
+        <button 
+          class="nav-button" 
+          [class.active]="activeView() === 'overview'"
+          (click)="setActiveView('overview')">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Resumen</span>
+        </button>
+        <button 
+          class="nav-button" 
+          [class.active]="activeView() === 'tables'"
+          (click)="setActiveView('tables')">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">Tablas</span>
+        </button>
+        <button 
+          class="nav-button" 
+          [class.active]="activeView() === 'sql'"
+          (click)="setActiveView('sql')">
+          <span class="nav-icon">💻</span>
+          <span class="nav-label">SQL</span>
+        </button>
+        <button 
+          class="nav-button" 
+          [class.active]="activeView() === 'data'"
+          (click)="setActiveView('data')"
+          [disabled]="!selectedTable()">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Datos</span>
+        </button>
+        <button 
+          class="nav-button" 
+          [class.active]="activeView() === 'explorer'"
+          (click)="setActiveView('explorer')">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-label">Explorador</span>
+        </button>
+      </nav>
+
+      <!-- Contenido de Vista -->
+      <div class="view-content">
+        <!-- Vista de Resumen -->
+        <app-db-studio-overview
+          *ngIf="showOverview"
+          [loading]="loading()"
+          [selectedSchema]="selectedSchema()"
+          (action)="onOverviewAction($event)">
+        </app-db-studio-overview>
+
+        <!-- Vista de Consola SQL -->
+        <app-sql-query
+          *ngIf="showSqlConsole"
+          [loading]="loading()"
+          [selectedSchema]="selectedSchema()"
+          (action)="onSqlQueryAction($event)">
+        </app-sql-query>
+
+        <!-- Vista de Tablas -->
+        <app-table-management
+          *ngIf="showTables"
+          [loading]="loading()"
+          [selectedSchema]="selectedSchema()"
+          (action)="onTableManagementAction($event)">
+        </app-table-management>
+
+        <!-- Vista de Datos -->
+        <div *ngIf="showData && selectedTable()" class="data-view">
+          <div class="view-header">
+            <h2>Datos de {{ selectedTable()?.name }}</h2>
+            <p>Esquema: {{ selectedTable()?.schema }} | Tipo: {{ selectedTable()?.kind }}</p>
+          </div>
+          
+          <div class="data-content">
+            <div class="data-placeholder">
+              <div class="placeholder-icon">📊</div>
+              <h3>Visor de Datos</h3>
+              <p>Esta funcionalidad se implementará próximamente</p>
+              <p>Aquí podrás ver, editar y gestionar los datos de la tabla seleccionada</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vista de Explorador -->
+        <div *ngIf="activeView() === 'explorer'" class="explorer-view">
+          <div class="view-header">
+            <h2>Explorador de Base de Datos</h2>
+            <p>Navega por la estructura completa de la base de datos</p>
+          </div>
+          
+          <div class="explorer-content">
+            <div class="explorer-placeholder">
+              <div class="placeholder-icon">🔍</div>
+              <h3>Explorador Avanzado</h3>
+              <p>Esta funcionalidad se implementará próximamente</p>
+              <p>Aquí podrás explorar relaciones, índices, vistas y más</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>

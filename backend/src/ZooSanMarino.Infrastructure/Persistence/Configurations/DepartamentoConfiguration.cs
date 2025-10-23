@@ -30,10 +30,13 @@ public class DepartamentoConfiguration : IEntityTypeConfiguration<Departamento>
                .HasColumnName("active")
                .HasDefaultValue(true);
 
-        // FK hacia País
         builder.HasOne(d => d.Pais)
                .WithMany(p => p.Departamentos)
                .HasForeignKey(d => d.PaisId)
-               .OnDelete(DeleteBehavior.Cascade);
+               .OnDelete(DeleteBehavior.Restrict); // ← no cascada para no romper referencias
+
+        builder.HasIndex(d => new { d.PaisId, d.DepartamentoNombre })
+               .HasDatabaseName("ux_departamentos_pais_nombre")
+               .IsUnique();                         // ← único por país+nombre
     }
 }

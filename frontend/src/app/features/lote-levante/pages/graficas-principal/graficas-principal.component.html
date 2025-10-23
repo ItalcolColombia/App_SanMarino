@@ -1,0 +1,257 @@
+<!-- ================= GRÁFICAS PRINCIPAL ================= -->
+<div class="graficas-container">
+  <h3>Análisis Gráfico del Lote</h3>
+  
+  <!-- Selector de Gráficas -->
+  <div class="graficas-selector" *ngIf="seriesGraficas.length > 0">
+    <h4>Selecciona una métrica para visualizar:</h4>
+    <div class="selector-grid">
+      <button 
+        *ngFor="let serie of seriesGraficas" 
+        class="serie-button"
+        [style.--serie-color]="serie.color"
+        [title]="'Ver gráfica de ' + serie.nombre">
+        <div class="serie-icon" [style.background-color]="serie.color"></div>
+        <span class="serie-nombre">{{ serie.nombre }}</span>
+        <span class="serie-tipo">{{ serie.tipo }}</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Debug Info -->
+  <div class="debug-info" style="background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px;">
+    <h4>Debug Info:</h4>
+    <p><strong>Seguimientos:</strong> {{ seguimientos.length }}</p>
+    <p><strong>Lote:</strong> {{ selectedLote?.loteNombre || 'No seleccionado' }}</p>
+    <p><strong>Indicadores:</strong> {{ indicadoresSemanales.length }}</p>
+    <p><strong>Series:</strong> {{ seriesGraficas.length }}</p>
+    <div *ngIf="indicadoresSemanales.length > 0">
+      <p><strong>Primer indicador:</strong> {{ indicadoresSemanales[0] | json }}</p>
+    </div>
+  </div>
+
+  <!-- Contenedor de Gráficas -->
+  <div class="graficas-content">
+    <!-- Gráfica de Consumo de Alimento por Semana -->
+    <div class="grafica-section" *ngIf="indicadoresSemanales.length > 0">
+      <h4>🍽️ Consumo de Alimento por Semana</h4>
+      <div class="grafica-placeholder consumo-grafica">
+        <div class="placeholder-content">
+          <div class="grafica-preview">
+            <div class="eje-y">Consumo (g)</div>
+            <div class="grafica-area">
+              <!-- Consumo Real -->
+              <div class="barra-grafica consumo-real" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / indicadoresSemanales.length * 100) + '%'"
+                   [style.height]="(ind.consumoReal / 2000 * 100) + '%'"
+                   [title]="'Real Semana ' + ind.semana + ': ' + ind.consumoReal + 'g'">
+              </div>
+              <!-- Consumo Tabla -->
+              <div class="barra-grafica consumo-tabla" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / indicadoresSemanales.length * 100) + '%'"
+                   [style.height]="(ind.consumoTabla / 2000 * 100) + '%'"
+                   [title]="'Tabla Semana ' + ind.semana + ': ' + ind.consumoTabla + 'g'">
+              </div>
+            </div>
+            <div class="eje-x">
+              <span *ngFor="let ind of indicadoresSemanales" 
+                    class="etiqueta-eje">{{ ind.semana }}</span>
+            </div>
+          </div>
+          <div class="grafica-legend">
+            <div class="legend-item">
+              <div class="legend-color consumo-real"></div>
+              <span>Consumo Real</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color consumo-tabla"></div>
+              <span>Consumo Tabla</span>
+            </div>
+          </div>
+          <p class="grafica-info">
+            <strong>Promedio Real:</strong> {{ calcularPromedioIndicadores('consumoReal') | number:'1.0-0' }}g | 
+            <strong>Promedio Tabla:</strong> {{ calcularPromedioIndicadores('consumoTabla') | number:'1.0-0' }}g
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfica de Peso por Semana -->
+    <div class="grafica-section" *ngIf="indicadoresSemanales.length > 0">
+      <h4>⚖️ Evolución del Peso por Semana</h4>
+      <div class="grafica-placeholder peso-grafica">
+        <div class="placeholder-content">
+          <div class="grafica-preview">
+            <div class="eje-y">Peso (g)</div>
+            <div class="grafica-area">
+              <!-- Línea de peso -->
+              <div class="linea-grafica" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / (indicadoresSemanales.length - 1) * 100) + '%'"
+                   [style.bottom]="(ind.pesoCierre / 3000 * 100) + '%'"
+                   [title]="'Semana ' + ind.semana + ': ' + ind.pesoCierre + 'g'">
+                <div class="punto" style="background-color: #388e3c;"></div>
+              </div>
+              <!-- Barras de peso -->
+              <div class="barra-grafica peso-barra" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / indicadoresSemanales.length * 100) + '%'"
+                   [style.height]="(ind.pesoCierre / 3000 * 100) + '%'"
+                   [title]="'Semana ' + ind.semana + ': ' + ind.pesoCierre + 'g'">
+              </div>
+            </div>
+            <div class="eje-x">
+              <span *ngFor="let ind of indicadoresSemanales" 
+                    class="etiqueta-eje">{{ ind.semana }}</span>
+            </div>
+          </div>
+          <p class="grafica-info">
+            <strong>Peso actual:</strong> {{ indicadoresSemanales[indicadoresSemanales.length - 1]?.pesoCierre | number:'1.2-2' }}g | 
+            <strong>Ganancia total:</strong> {{ calcularGananciaTotal() | number:'1.2-2' }}g
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfica Comparativa de Mortalidad y Selección -->
+    <div class="grafica-section" *ngIf="indicadoresSemanales.length > 0">
+      <h4>📊 Mortalidad vs Selección por Semana</h4>
+      <div class="grafica-placeholder mortalidad-seleccion-grafica">
+        <div class="placeholder-content">
+          <div class="grafica-preview">
+            <div class="eje-y">Porcentaje (%)</div>
+            <div class="grafica-area">
+              <!-- Mortalidad -->
+              <div class="barra-grafica mortalidad-barra" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / indicadoresSemanales.length * 100) + '%'"
+                   [style.height]="(ind.mortalidadSem / 10 * 100) + '%'"
+                   [title]="'Mortalidad Semana ' + ind.semana + ': ' + ind.mortalidadSem + '%'">
+              </div>
+              <!-- Selección -->
+              <div class="barra-grafica seleccion-barra" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / indicadoresSemanales.length * 100) + '%'"
+                   [style.height]="(ind.seleccionSem / 10 * 100) + '%'"
+                   [title]="'Selección Semana ' + ind.semana + ': ' + ind.seleccionSem + '%'">
+              </div>
+            </div>
+            <div class="eje-x">
+              <span *ngFor="let ind of indicadoresSemanales" 
+                    class="etiqueta-eje">{{ ind.semana }}</span>
+            </div>
+          </div>
+          <div class="grafica-legend">
+            <div class="legend-item">
+              <div class="legend-color mortalidad-barra"></div>
+              <span>Mortalidad</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color seleccion-barra"></div>
+              <span>Selección</span>
+            </div>
+          </div>
+          <p class="grafica-info">
+            <strong>Total Mortalidad:</strong> {{ calcularPromedioIndicadores('mortalidadSem') | number:'1.2-2' }}% | 
+            <strong>Total Selección:</strong> {{ calcularPromedioIndicadores('seleccionSem') | number:'1.2-2' }}%
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfica de Conversión Alimenticia -->
+    <div class="grafica-section" *ngIf="indicadoresSemanales.length > 0">
+      <h4>🔄 Conversión Alimenticia por Semana</h4>
+      <div class="grafica-placeholder conversion-grafica">
+        <div class="placeholder-content">
+          <div class="grafica-preview">
+            <div class="eje-y">Conversión</div>
+            <div class="grafica-area">
+              <!-- Línea de conversión -->
+              <div class="linea-grafica conversion-linea" 
+                   *ngFor="let ind of indicadoresSemanales; let i = index"
+                   [style.left]="(i / (indicadoresSemanales.length - 1) * 100) + '%'"
+                   [style.bottom]="(ind.conversionAlimenticia / 5 * 100) + '%'"
+                   [title]="'Semana ' + ind.semana + ': ' + ind.conversionAlimenticia">
+                <div class="punto" style="background-color: #2196f3;"></div>
+              </div>
+            </div>
+            <div class="eje-x">
+              <span *ngFor="let ind of indicadoresSemanales" 
+                    class="etiqueta-eje">{{ ind.semana }}</span>
+            </div>
+          </div>
+          <p class="grafica-info">
+            <strong>Promedio:</strong> {{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.2-2' }} | 
+            <strong>Mejor semana:</strong> {{ getMejorSemanaConversion() }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumen de Métricas -->
+    <div class="metricas-resumen" *ngIf="indicadoresSemanales.length > 0">
+      <h4>📊 Resumen de Métricas</h4>
+      <div class="metricas-grid">
+        <div class="metrica-card">
+          <div class="metrica-icon">⚖️</div>
+          <div class="metrica-content">
+            <h5>Peso Actual</h5>
+            <p>{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.pesoCierre | number:'1.2-2' }}g</p>
+          </div>
+        </div>
+        
+        <div class="metrica-card">
+          <div class="metrica-icon">🍽️</div>
+          <div class="metrica-content">
+            <h5>Conv. Promedio</h5>
+            <p>{{ calcularPromedio(getDatosSerie('Conversión Alimenticia')) | number:'1.2-2' }}</p>
+          </div>
+        </div>
+        
+        <div class="metrica-card">
+          <div class="metrica-icon">💀</div>
+          <div class="metrica-content">
+            <h5>Mort. Total</h5>
+            <p>{{ calcularTotal(getDatosSerie('Mortalidad (%)')) | number:'1.2-2' }}%</p>
+          </div>
+        </div>
+        
+        <div class="metrica-card">
+          <div class="metrica-icon">🐔</div>
+          <div class="metrica-content">
+            <h5>Aves Actuales</h5>
+            <p>{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.avesFinSemana | number:'1.0-0' }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Placeholder para gráficas avanzadas -->
+    <div class="graficas-avanzadas" *ngIf="indicadoresSemanales.length === 0">
+      <div class="placeholder-content">
+        <div class="placeholder-icon">📊</div>
+        <h4>Gráficas Interactivas en Desarrollo</h4>
+        <p>Esta sección contendrá gráficos interactivos para visualizar:</p>
+        <ul>
+          <li>Evolución del peso por semana</li>
+          <li>Curva de mortalidad</li>
+          <li>Consumo de alimento</li>
+          <li>Conversión alimenticia</li>
+          <li>Índices de productividad</li>
+          <li>Comparación con estándares de la industria</li>
+        </ul>
+        <div class="tecnologias-info">
+          <p><strong>Tecnologías planificadas:</strong></p>
+          <div class="tech-badges">
+            <span class="tech-badge">Chart.js</span>
+            <span class="tech-badge">D3.js</span>
+            <span class="tech-badge">Angular Charts</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

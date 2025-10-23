@@ -16,23 +16,28 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
                    .IsRequired()
                    .HasMaxLength(100);
 
+            builder.HasIndex(r => r.Name).IsUnique(); // opcional: unicidad por nombre
+
             builder.Property(r => r.Description)
                    .HasMaxLength(250);
 
-            // Relación: Role → RolePermissions
+            // Role -> RolePermissions
             builder.HasMany(r => r.RolePermissions)
                    .WithOne(rp => rp.Role)
-                   .HasForeignKey(rp => rp.RoleId);
+                   .HasForeignKey(rp => rp.RoleId)
+                   .OnDelete(DeleteBehavior.Cascade);
 
-            // Relación: Role → UserRoles
+            // Role -> UserRoles
             builder.HasMany(r => r.UserRoles)
                    .WithOne(ur => ur.Role)
-                   .HasForeignKey(ur => ur.RoleId);
+                   .HasForeignKey(ur => ur.RoleId)
+                   .OnDelete(DeleteBehavior.Cascade);
 
-            // Si estás usando RoleCompany (relación Role-Empresa):
-            builder.HasMany<RoleCompany>()
+            // ✅ Role -> RoleCompanies (usar navegación, NO HasMany<RoleCompany>() pelado)
+            builder.HasMany(r => r.RoleCompanies)
                    .WithOne(rc => rc.Role)
-                   .HasForeignKey(rc => rc.RoleId);
+                   .HasForeignKey(rc => rc.RoleId)
+                   .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

@@ -1,0 +1,194 @@
+<div class="ux-page" [class.ux-page--embedded]="embedded" [attr.aria-busy]="loading() ? 'true' : null">
+  <!-- Sidebar -->
+ 
+      <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <!-- Main -->
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="header" role="banner">
+      <div class="header__left">
+        <fa-icon [icon]="['fas', 'user-circle']" class="header__icon" aria-hidden="true"></fa-icon>
+        <div>
+          <h1 class="header__title">Mi Perfil</h1>
+          <p class="header__subtitle">Actualiza tus datos personales y contraseña</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content-area">
+      <div class="profile-grid">
+
+        <!-- Datos personales -->
+        <section class="ux-card ux-card--soft" aria-labelledby="datos-personales-title">
+          <div class="card-header">
+            <h2 id="datos-personales-title">
+              <fa-icon [icon]="['fas', 'user-edit']" class="card-icon" aria-hidden="true"></fa-icon>
+              Datos Personales
+            </h2>
+          </div>
+
+          <div class="card-content">
+            <form [formGroup]="infoForm" (ngSubmit)="saveInfo()" class="form-grid" role="form" novalidate>
+              <div class="form-field">
+                <label class="ux-label" for="firstName">Nombre *</label>
+                <input id="firstName" type="text" class="ux-input"
+                       formControlName="firstName" placeholder="Ingresa tu nombre"
+                       [class.error]="infoForm.get('firstName')?.invalid && infoForm.get('firstName')?.touched"
+                       autocomplete="given-name"/>
+                <div *ngIf="infoForm.get('firstName')?.invalid && infoForm.get('firstName')?.touched" class="field-error">
+                  El nombre es obligatorio
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label class="ux-label" for="surName">Apellido *</label>
+                <input id="surName" type="text" class="ux-input"
+                       formControlName="surName" placeholder="Ingresa tu apellido"
+                       [class.error]="infoForm.get('surName')?.invalid && infoForm.get('surName')?.touched"
+                       autocomplete="family-name"/>
+                <div *ngIf="infoForm.get('surName')?.invalid && infoForm.get('surName')?.touched" class="field-error">
+                  El apellido es obligatorio
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label class="ux-label" for="cedula">Cédula</label>
+                <input id="cedula" type="text" class="ux-input" formControlName="cedula" placeholder="Número de cédula" inputmode="numeric"/>
+              </div>
+
+              <div class="form-field">
+                <label class="ux-label" for="telefono">Teléfono</label>
+                <input id="telefono" type="text" class="ux-input" formControlName="telefono" placeholder="Número de teléfono" inputmode="tel"/>
+              </div>
+
+              <div class="form-field col-span-full">
+                <label class="ux-label" for="ubicacion">Ubicación</label>
+                <input id="ubicacion" type="text" class="ux-input" formControlName="ubicacion" placeholder="Ciudad, dirección o ubicación" autocomplete="address-level2"/>
+              </div>
+
+              <div class="actions">
+                <button type="submit" class="btn-primary" [disabled]="loading() || infoForm.invalid">
+                  <fa-icon *ngIf="loading()" [icon]="['fas', 'spinner']" class="spinner" aria-hidden="true"></fa-icon>
+                  <fa-icon *ngIf="!loading()" [icon]="['fas', 'save']" aria-hidden="true"></fa-icon>
+                  {{ loading() ? 'Guardando...' : 'Guardar Cambios' }}
+                </button>
+              </div>
+
+              <div *ngIf="infoErr" class="message error" role="alert">
+                <fa-icon [icon]="['fas', 'exclamation-circle']" aria-hidden="true"></fa-icon>
+                {{ infoErr }}
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Cambiar contraseña -->
+        <section class="ux-card" aria-labelledby="cambiar-password-title">
+          <div class="card-header">
+            <h2 id="cambiar-password-title">
+              <fa-icon [icon]="['fas', 'lock']" class="card-icon" aria-hidden="true"></fa-icon>
+              Cambiar Contraseña
+            </h2>
+          </div>
+
+          <div class="card-content">
+            <form [formGroup]="passwordForm" (ngSubmit)="changePassword()" class="form-grid" role="form" novalidate>
+              <div class="form-field col-span-full">
+                <label class="ux-label" for="currentPassword">Contraseña Actual *</label>
+                <input id="currentPassword" type="password" class="ux-input"
+                       formControlName="currentPassword" placeholder="Ingresa tu contraseña actual"
+                       autocomplete="current-password"
+                       [class.error]="passwordForm.get('currentPassword')?.invalid && passwordForm.get('currentPassword')?.touched"/>
+                <div *ngIf="passwordForm.get('currentPassword')?.invalid && passwordForm.get('currentPassword')?.touched" class="field-error">
+                  La contraseña actual es obligatoria
+                </div>
+              </div>
+
+              <div class="form-field col-span-full">
+                <label class="ux-label" for="newPassword">Nueva Contraseña *</label>
+                <input id="newPassword" type="password" class="ux-input"
+                       formControlName="newPassword" placeholder="Ingresa tu nueva contraseña"
+                       autocomplete="new-password"
+                       [class.error]="passwordForm.get('newPassword')?.invalid && passwordForm.get('newPassword')?.touched"/>
+                
+                <!-- Indicador de fortaleza de contraseña -->
+                <div *ngIf="passwordForm.get('newPassword')?.value" class="password-strength">
+                  <div class="strength-bar">
+                    <div class="strength-fill" 
+                         [style.width.%]="(getPasswordStrength().level * 20)"
+                         [style.background-color]="getPasswordStrength().color"></div>
+                  </div>
+                  <div class="strength-text" [style.color]="getPasswordStrength().color">
+                    {{ getPasswordStrength().text }}
+                  </div>
+                </div>
+                
+                <!-- Mensaje de error específico -->
+                <div *ngIf="passwordForm.get('newPassword')?.invalid && passwordForm.get('newPassword')?.touched" class="field-error">
+                  {{ getPasswordErrorMessage() }}
+                </div>
+                
+                <!-- Requisitos de contraseña -->
+                <div class="password-requirements">
+                  <h4>Requisitos de contraseña:</h4>
+                  <ul>
+                    <li [class.valid]="hasMinLength(passwordForm.get('newPassword')?.value)">
+                      <fa-icon [icon]="hasMinLength(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']" 
+                               [style.color]="hasMinLength(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                      Mínimo 6 caracteres
+                    </li>
+                    <li [class.valid]="hasNumber(passwordForm.get('newPassword')?.value)">
+                      <fa-icon [icon]="hasNumber(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']" 
+                               [style.color]="hasNumber(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                      Al menos 1 número
+                    </li>
+                    <li [class.valid]="hasLetter(passwordForm.get('newPassword')?.value)">
+                      <fa-icon [icon]="hasLetter(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']" 
+                               [style.color]="hasLetter(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                      Al menos 1 letra
+                    </li>
+                    <li [class.valid]="hasSpecialChar(passwordForm.get('newPassword')?.value)">
+                      <fa-icon [icon]="hasSpecialChar(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']" 
+                               [style.color]="hasSpecialChar(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                      Al menos 1 carácter especial (recomendado)
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button type="submit" class="btn-primary" [disabled]="loading() || passwordForm.invalid">
+                  <fa-icon *ngIf="loading()" [icon]="['fas', 'spinner']" class="spinner" aria-hidden="true"></fa-icon>
+                  <fa-icon *ngIf="!loading()" [icon]="['fas', 'lock']" aria-hidden="true"></fa-icon>
+                  {{ loading() ? 'Cambiando...' : 'Cambiar Contraseña' }}
+                </button>
+              </div>
+
+              <div *ngIf="passErr" class="message error" role="alert">
+                <fa-icon [icon]="['fas', 'exclamation-circle']" aria-hidden="true"></fa-icon>
+                {{ passErr }}
+              </div>
+            </form>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- Overlay opcional -->
+    <div class="loading-overlay" *ngIf="loading()">
+      <span class="spinner" aria-hidden="true"></span> Cargando...
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <app-confirmation-modal
+    [isOpen]="showModal()"
+    [data]="modalData"
+    (confirmed)="onModalConfirmed()"
+    (cancelled)="onModalCancelled()"
+    (closed)="onModalClosed()">
+  </app-confirmation-modal>
+</div>

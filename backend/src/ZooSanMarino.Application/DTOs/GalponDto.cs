@@ -1,10 +1,11 @@
-// src/ZooSanMarino.Application/DTOs/GalponDto.cs
+// file: src/ZooSanMarino.Application/DTOs/GalponDto.cs
 namespace ZooSanMarino.Application.DTOs;
-public record GalponDto(
-    string GalponId,
-    string GalponNombre,
-    string GalponNucleoId,
-    int    GranjaId,
+
+public sealed record GalponDto(
+    string  GalponId,
+    string  GalponNombre,
+    string  NucleoId,     // ← unificado
+    int     GranjaId,
     string? Ancho,
     string? Largo,
     string? TipoGalpon

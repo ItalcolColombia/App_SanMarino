@@ -1,0 +1,58 @@
+<!-- src/app/features/db-studio/pages/query-console/query-console.page.html -->
+<div class="ux-page" [attr.aria-busy]="loading() ? 'true' : null">
+  <header class="ux-header">
+    <h1>DB Studio — Consola SELECT</h1>
+    <a routerLink="/db-studio" class="btn-outline">Volver al Explorador</a>
+  </header>
+
+  <div class="ux-card">
+    <label>SQL (solo SELECT/WITH)</label>
+    <textarea [ngModel]="sql()" (ngModelChange)="sql.set($event)" rows="6" class="sqlbox"></textarea>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div>
+        <label>Parámetros (JSON)</label>
+        <textarea [ngModel]="paramsText()" (ngModelChange)="paramsText.set($event)" rows="6" class="paramsbox"></textarea>
+      </div>
+      <div>
+        <label>Límite</label>
+        <input type="number" [ngModel]="limit()" (ngModelChange)="limit.set($event)" min="1" class="inp">
+      </div>
+      <div>
+        <label>Offset</label>
+        <input type="number" [ngModel]="offset()" (ngModelChange)="offset.set($event)" min="0" class="inp">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" (click)="run()">Ejecutar</button>
+    </div>
+  </div>
+
+  <div class="ux-card" *ngIf="page() as p">
+    <h2>Resultado</h2>
+    <div class="table-scroll" *ngIf="p.rows.length; else noData">
+      <table class="ux-table">
+        <thead>
+          <tr>
+            <th *ngFor="let k of keys(p.rows[0])">{{ k }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of p.rows">
+            <td *ngFor="let k of keys(p.rows[0])">{{ (r[k] ?? '') | json }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <ng-template #noData><p class="muted">Sin filas.</p></ng-template>
+
+    <div class="pager">
+      <button class="btn-outline" (click)="prev()" [disabled]="offset() === 0">Anterior</button>
+      <span>offset {{ offset() }} • {{ p.rows.length }} filas</span>
+      <button class="btn-outline" (click)="next()" [disabled]="p.rows.length < limit()">Siguiente</button>
+    </div>
+  </div>
+
+  <p class="error" *ngIf="error()">{{ error() }}</p>
+</div>

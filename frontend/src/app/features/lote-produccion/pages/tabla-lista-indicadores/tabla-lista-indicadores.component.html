@@ -1,0 +1,83 @@
+<!-- ================= TABLA DE INDICADORES SEMANALES ================= -->
+<div class="indicadores-container">
+  <h3>Indicadores Semanales</h3>
+  
+  <div class="ux-scroll">
+    <table class="ux-table indicadores-table">
+      <thead>
+        <tr>
+          <th rowspan="2">Semana</th>
+          <th rowspan="2">Período</th>
+          <th rowspan="2">Aves Inicio</th>
+          <th rowspan="2">Aves Fin</th>
+          <th colspan="2">Consumo</th>
+          <th rowspan="2">Conv. Alimenticia</th>
+          <th colspan="2">Producción</th>
+          <th colspan="3">Mortalidad</th>
+          <th rowspan="2">Eficiencia</th>
+          <th rowspan="2">IP</th>
+          <th rowspan="2">VPI</th>
+        </tr>
+        <tr>
+          <th>Real (kg)</th>
+          <th>Tabla (kg)</th>
+          <th>Huevos Totales</th>
+          <th>Huevos Incubables</th>
+          <th>Mort. H %</th>
+          <th>Mort. M %</th>
+          <th>Total %</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="!indicadoresSemanales || indicadoresSemanales.length === 0">
+          <td colspan="15" class="empty-state">
+            <div class="empty-illustration" aria-hidden="true">📊</div>
+            <p>No hay datos de indicadores disponibles.</p>
+          </td>
+        </tr>
+
+        <tr *ngFor="let ind of indicadoresSemanales" class="indicador-row">
+          <td class="semana-cell">{{ ind.semana }}</td>
+          <td class="periodo-cell">
+            {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
+          </td>
+          <td>{{ ind.avesInicioSemana | number:'1.0-0' }}</td>
+          <td>{{ ind.avesFinSemana | number:'1.0-0' }}</td>
+          <td>{{ formatNumber(ind.consumoReal, 2) }}</td>
+          <td>{{ formatNumber(ind.consumoTabla, 2) }}</td>
+          <td>{{ formatNumber(ind.conversionAlimenticia, 2) }}</td>
+          <td>{{ ind.huevosTotales | number:'1.0-0' }}</td>
+          <td>{{ ind.huevosIncubables | number:'1.0-0' }}</td>
+          <td>{{ formatPercentage(ind.mortalidadHembras) }}</td>
+          <td>{{ formatPercentage(ind.mortalidadMachos) }}</td>
+          <td>{{ formatPercentage(ind.mortalidadTotal) }}</td>
+          <td>{{ formatNumber(ind.eficiencia, 2) }}</td>
+          <td>{{ formatNumber(ind.ip, 2) }}</td>
+          <td>{{ formatNumber(ind.vpi, 2) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Resumen de Acumulados -->
+  <div class="acumulados-section" *ngIf="indicadoresSemanales.length > 0">
+    <h4>Resumen Acumulado</h4>
+    <div class="acumulados-grid">
+      <div class="acumulado-card">
+        <h5>Mortalidad Acumulada</h5>
+        <p>{{ formatPercentage(indicadoresSemanales[indicadoresSemanales.length - 1].mortalidadAcum || 0) }}</p>
+      </div>
+      <div class="acumulado-card">
+        <h5>Huevos Totales</h5>
+        <p>{{ indicadoresSemanales[indicadoresSemanales.length - 1].huevosTotalesAcum || 0 | number:'1.0-0' }}</p>
+      </div>
+      <div class="acumulado-card">
+        <h5>Huevos Incubables</h5>
+        <p>{{ indicadoresSemanales[indicadoresSemanales.length - 1].huevosIncubablesAcum || 0 | number:'1.0-0' }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+

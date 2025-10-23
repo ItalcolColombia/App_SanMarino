@@ -1,0 +1,65 @@
+<section class="ux-card" *ngIf="selectedLote as L">
+  <h3 class="sr-only">Información del lote</h3>
+
+  <div class="ux-scroll"> <!-- scroll horizontal si no cabe -->
+    <table class="ux-table one-line-table">
+      <thead>
+        <tr>
+          <th>📋 Lote (ID)</th>
+          <th>🏠 Granja</th>
+          <th>🧬 Núcleo</th>
+          <th>🏚️ Galpón</th>
+          <th>📅 Encaset</th>
+          <th>⏳ Edad (días)</th>
+          <th>📦 Aves encasetadas</th>
+          <th>🐔 Hembras L</th>
+          <th>🐓 Machos L</th>
+          <th>⚖️ Peso H (g)</th>
+          <th>⚖️ Peso M (g)</th>
+          <th>🐣 Raza</th>
+          <th>🧬 Línea genética</th>
+          <th>📆 Año guía</th>
+          <th>👷 Técnico</th>
+          <th>🕒 Creado</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td><strong>{{ L.loteNombre }}</strong></td>
+
+          <td>{{ L.farm?.name || selectedGranjaName }} <span *ngIf="L.granjaId"></span></td>
+          <td>{{ L.nucleo?.nucleoNombre || selectedNucleoNombre}}</td>
+          <td>{{ L.galpon?.galponNombre }} </td>
+          <td>{{ formatDMY(L.fechaEncaset) }}</td>
+          <td>{{ calcularEdadDias(L.fechaEncaset) }}</td>
+          <td>{{ (L.avesEncasetadas ?? 0) | number:'1.0-0' }}</td>
+          <td>{{ (L.hembrasL ?? 0) | number:'1.0-0' }}</td>
+          <td>{{ (L.machosL  ?? 0) | number:'1.0-0' }}</td>
+          <td>{{ L.pesoInicialH ?? '—' }}</td>
+          <td>{{ L.pesoInicialM ?? '—' }}</td>
+          <td>{{ L.raza || '—' }}</td>
+          <td>
+            <ng-container *ngIf="L.linea || L.tipoLinea; else noLinea">
+              {{ L.linea || '—' }}<span *ngIf="L.tipoLinea"> ({{ L.tipoLinea }})</span>
+            </ng-container>
+            <ng-template #noLinea>—</ng-template>
+          </td>
+        
+          <td>{{ L.anoTablaGenetica ?? '—' }}</td>
+          <td>{{ L.tecnico || '—' }}</td>
+          <td>
+            <ng-container *ngIf="L.createdAt; else noCreado">
+              {{ formatDMY(L.createdAt) }} <span *ngIf="L.createdByUserId">— {{ L.createdByUserId }}</span>
+            </ng-container>
+            <ng-template #noCreado>—</ng-template>
+          </td>
+    
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+

@@ -1,9 +1,10 @@
+/// file: backend/src/ZooSanMarino.Domain/Entities/SeguimientoLoteLevante.cs
 namespace ZooSanMarino.Domain.Entities;
 
 public class SeguimientoLoteLevante
 {
-    public int Id { get; set; }
-    public string LoteId { get; set; } = null!;
+   public int Id { get; set; }
+    public int LoteId { get; set; }
     public DateTime FechaRegistro { get; set; }
 
     public int MortalidadHembras { get; set; }
@@ -21,10 +22,17 @@ public class SeguimientoLoteLevante
     public double? ProtAlH { get; set; }
     public double? KcalAveH { get; set; }
     public double? ProtAveH { get; set; }
-    public DateTime? FechaUltimoCambio { get; set; }
 
     public string Ciclo { get; set; } = "Normal";
 
+    // NUEVOS (double precision en PG → double?)
+    public double? ConsumoKgMachos { get; set; }
+    public double? PesoPromH { get; set; }
+    public double? PesoPromM { get; set; }
+    public double? UniformidadH { get; set; }
+    public double? UniformidadM { get; set; }
+    public double? CvH { get; set; }
+    public double? CvM { get; set; }
+
     public Lote Lote { get; set; } = null!;
-    public User? Usuario { get; set; }
 }

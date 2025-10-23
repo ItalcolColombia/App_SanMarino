@@ -1,34 +1,17 @@
-// src/app/shared/components/sidebar/sidebar.component.ts
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
-  faTachometerAlt,
-  faClipboardList,
-  faCalendarDay,
-  faChartBar,
-  faHeartbeat,
-  faCog,
-  faUsers,
-  faChevronDown,
-  faSignOutAlt,
-  faList,
-  faBuilding,
-  faGlobe,
-  faMapMarkerAlt,
-  faCity,
-  faBoxesAlt,    // por ejemplo para Lotes
-  faWarehouse    // por ejemplo para Núcleos/Galpones
+  faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
+  faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
+  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse
 } from '@fortawesome/free-solid-svg-icons';
-
-interface MenuItem {
-  label:      string;
-  icon:       any;
-  link?:      string[];
-  children?:  MenuItem[];
-  expanded?:  boolean;
-}
+import { map } from 'rxjs/operators';
+import { Observable } from 'rxjs';
+import { AuthService } from '../../../core/auth/auth.service';
+import { MenuService, UiMenuItem } from '../../services/menu.service';
+import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-sidebar',
@@ -37,94 +20,55 @@ interface MenuItem {
   templateUrl: './sidebar.component.html',
   styleUrls: ['./sidebar.component.scss']
 })
-export class SidebarComponent {
-  // Íconos
-  faChevronDown   = faChevronDown;
-  faSignOutAlt    = faSignOutAlt;
-  faTachometerAlt = faTachometerAlt;
-  faClipboardList = faClipboardList;
-  faCalendarDay   = faCalendarDay;
-  faChartBar      = faChartBar;
-  faHeartbeat     = faHeartbeat;
-  faCog           = faCog;
-  faUsers         = faUsers;
-  faList          = faList;
-  faBuilding      = faBuilding;
-  faGlobe         = faGlobe;
-  faMapMarkerAlt  = faMapMarkerAlt;
-  faCity          = faCity;
-  faWarehouse     = faWarehouse;
-  faBoxesAlt      = faBoxesAlt;
+export class SidebarComponent implements OnInit {
+  private readonly auth = inject(AuthService);
+  private readonly menuSvc = inject(MenuService);
+  private readonly router = inject(Router);
 
-  public menuItems: MenuItem[] = [
-    { label: 'Dashboard', icon: this.faTachometerAlt, link: ['/dashboard'] },
-     // ELEMENTOS MOVIDOS FUERA DE CONFIGURACIÓN
-     { label: 'Granjas', icon: this.faBuilding, link: ['/config','farms-list'] },
-     { label: 'Núcleos', icon: this.faWarehouse, link: ['/config','nucleos'] },
-     { label: 'Galpones', icon: this.faWarehouse, link: ['/config','galpones'] },
-     { label: 'Lotes', icon: this.faBoxesAlt, link: ['/config','lotes'] },
-     { label: 'Crear lote Reproductora', icon: this.faBoxesAlt, link: ['/daily-log','reproductora'] },
-    {
-      label: 'Registros Diarios',
-      icon: this.faCalendarDay,
-      expanded: false,
-      children: [
-        {
-          label: 'Seguimiento Diario de Levante',
-          icon: this.faBoxesAlt,
-          link: ['/daily-log','seguimiento']
-        }, {
-          label: 'Seguimiento Diario de Producción',
-          icon: this.faBoxesAlt,
-          link: ['/daily-log','produccion']
-        }
-      ]
-    },
+  // Íconos sueltos (para botones)
+  faChevronDown = faChevronDown;
+  faSignOutAlt  = faSignOutAlt;
 
+  // Stream del árbol de menú listo para pintar
+  menu$: Observable<UiMenuItem[]> = this.menuSvc.menu$;
 
+  /** Banner Bienvenida */
+  userBanner$ = this.auth.session$.pipe(
+    map(s => ({
+      fullName: s?.user?.fullName ?? s?.user?.username ?? 'Usuario',
+      company:  s?.activeCompany ?? (s?.companies?.[0] ?? '—'),
+      initials: (s?.user?.fullName ?? s?.user?.username ?? 'U')
+        .trim()
+        .split(/\s+/)
+        .map(w => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    }))
+  );
 
-    {
-      label: 'Configuración',
-      icon: this.faCog,
-      children: [
-        { label: 'Listas maestras',   icon: this.faList,        link: ['/config','master-lists'] },
-        { label: 'Usuarios',          icon: this.faUsers,       link: ['/config','users'] },
-        { label: 'Roles y permisos',  icon: this.faUsers,       link: ['/config','role-management'] },
-        { label: 'Países',            icon: this.faGlobe,       link: ['/config','countries'] },
-        { label: 'Departamentos',     icon: this.faMapMarkerAlt,link: ['/config','departments'] },
-        { label: 'Ciudades',          icon: this.faCity,        link: ['/config','cities'] },
-        { label: 'Empresas',          icon: this.faBuilding,    link: ['/config','companies'] }
-      ]
-    }
-  ];
-
-
-  constructor(library: FaIconLibrary, private router: Router) {
+  constructor(library: FaIconLibrary) {
     library.addIcons(
-      faTachometerAlt,
-      faClipboardList,
-      faCalendarDay,
-      faChartBar,
-      faHeartbeat,
-      faCog,
-      faUsers,
-      faChevronDown,
-      faSignOutAlt,
-      faList,
-      faBuilding,
-      faGlobe,
-      faMapMarkerAlt,
-      faCity,
-      faWarehouse,
-      faBoxesAlt
+      faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
+      faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
+      faGlobe, faMapMarkerAlt, faCity, faWarehouse, faBoxesAlt
     );
   }
 
-  toggle(item: MenuItem) {
+  ngOnInit(): void {
+    // Asegura que haya menú cargado (lee storage y, si no hay, va a la API)
+     this.menuSvc.ensureLoaded().pipe(take(1)).subscribe(); // dispara carga y completa
+  }
+
+  toggle(item: UiMenuItem) {
     item.expanded = !item.expanded;
   }
 
   logout() {
-    this.router.navigate(['/login']);
+    // Vacía el menú en memoria
+    this.menuSvc.reset();
+    // Limpia todo lo temporal del storage y devuelve al login
+    this.auth.logout({ hard: true });
+    this.router.navigate(['/login'], { replaceUrl: true });
   }
 }

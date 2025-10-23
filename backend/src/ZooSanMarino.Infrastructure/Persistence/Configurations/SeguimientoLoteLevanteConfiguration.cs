@@ -6,36 +6,45 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
 
 public class SeguimientoLoteLevanteConfiguration : IEntityTypeConfiguration<SeguimientoLoteLevante>
 {
-    public void Configure(EntityTypeBuilder<SeguimientoLoteLevante> e)
+    public void Configure(EntityTypeBuilder<SeguimientoLoteLevante> builder)
     {
-        e.ToTable("seguimiento_lote_levante");
-        e.HasKey(x => x.Id);
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityAlwaysColumn();
 
-        e.Property(x => x.Id).HasColumnName("id");
-        e.Property(x => x.LoteId).HasColumnName("lote_id").HasMaxLength(50).IsRequired();
-        e.Property(x => x.FechaRegistro).HasColumnName("fecha_registro");
+        builder.Property(x => x.LoteId).IsRequired();
+        builder.Property(x => x.TipoAlimento).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.Observaciones).HasMaxLength(1000);
 
-        e.Property(x => x.MortalidadHembras).HasColumnName("mortalidad_hembras");
-        e.Property(x => x.MortalidadMachos).HasColumnName("mortalidad_machos");
-        e.Property(x => x.SelH).HasColumnName("selh");
-        e.Property(x => x.SelM).HasColumnName("selm");
-        e.Property(x => x.ErrorSexajeHembras).HasColumnName("error_sexaje_hembras");
-        e.Property(x => x.ErrorSexajeMachos).HasColumnName("error_sexaje_machos");
+        // Consumos
+        builder.Property(x => x.ConsumoKgHembras).HasPrecision(12, 3);
+        builder.Property(x => x.ConsumoKgMachos).HasPrecision(12, 3);
 
-        e.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras");
-        e.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(100);
-        e.Property(x => x.Observaciones).HasColumnName("observaciones");
+        // Pesos promedio (kg)
+        builder.Property(x => x.PesoPromH).HasPrecision(8, 2);
+        builder.Property(x => x.PesoPromM).HasPrecision(8, 2);
 
-        e.Property(x => x.KcalAlH).HasColumnName("kcal_alh");
-        e.Property(x => x.ProtAlH).HasColumnName("prot_alh");
-        e.Property(x => x.KcalAveH).HasColumnName("kcal_aveh");
-        e.Property(x => x.ProtAveH).HasColumnName("prot_aveh");
+        // Uniformidades (%)
+        builder.Property(x => x.UniformidadH).HasPrecision(5, 2);
+        builder.Property(x => x.UniformidadM).HasPrecision(5, 2);
 
-        e.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
+        // Coeficientes de variación
+        builder.Property(x => x.CvH).HasPrecision(6, 3);
+        builder.Property(x => x.CvM).HasPrecision(6, 3);
 
-        e.HasOne(x => x.Lote)
-         .WithMany()
-         .HasForeignKey(x => x.LoteId)
-         .OnDelete(DeleteBehavior.Cascade);
+        // Métricas derivadas hembras
+        builder.Property(x => x.KcalAlH).HasPrecision(12, 3);
+        builder.Property(x => x.ProtAlH).HasPrecision(12, 3);
+        builder.Property(x => x.KcalAveH).HasPrecision(12, 3);
+        builder.Property(x => x.ProtAveH).HasPrecision(12, 3);
+
+        builder.Property(x => x.Ciclo).HasMaxLength(50).HasDefaultValue("Normal");
+
+        builder.HasOne(x => x.Lote)
+               .WithMany()
+               .HasForeignKey(x => x.LoteId)
+               .OnDelete(DeleteBehavior.Restrict);
+
+        // (Opcional) Índice único natural si lo usas en upsert (recomendado)
+        // builder.HasIndex(x => new { x.LoteId, x.FechaRegistro }).IsUnique();
     }
 }

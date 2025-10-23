@@ -1,0 +1,133 @@
+<div class="index-management-container">
+  <div class="header">
+    <h2>Gestión de Índices - {{ schema() }}.{{ table() }}</h2>
+    <button class="btn btn-secondary" (click)="goBack()">
+      ← Volver al Explorador
+    </button>
+  </div>
+
+  <div class="alert alert-danger" *ngIf="error()">
+    {{ error() }}
+  </div>
+
+  <div class="alert alert-success" *ngIf="success()">
+    {{ success() }}
+  </div>
+
+  <div class="loading" *ngIf="loading()">
+    <div class="spinner"></div>
+    <p>Procesando...</p>
+  </div>
+
+  <!-- Índices existentes -->
+  <div class="existing-indexes">
+    <h3>Índices Existentes</h3>
+    <div class="indexes-list" *ngIf="indexes().length > 0; else noIndexes">
+      <div class="index-card" *ngFor="let index of indexes()">
+        <div class="index-header">
+          <h4>{{ index.name }}</h4>
+          <span class="index-type" [class]="'type-' + (index.isPrimary ? 'primary' : index.isUnique ? 'unique' : 'normal')">
+            {{ getIndexType(index) }}
+          </span>
+        </div>
+        <div class="index-details">
+          <p><strong>Columnas:</strong> {{ getIndexColumns(index) }}</p>
+          <p><strong>Tipo:</strong> {{ index.type }}</p>
+        </div>
+        <div class="index-actions" *ngIf="!index.isPrimary">
+          <button class="btn btn-danger btn-sm" (click)="dropIndex(index.name)">
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
+    <ng-template #noIndexes>
+      <div class="no-indexes">
+        <p>No hay índices definidos para esta tabla.</p>
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- Crear nuevo índice -->
+  <div class="create-index-section">
+    <h3>Crear Nuevo Índice</h3>
+    <form [formGroup]="createIndexForm" (ngSubmit)="createIndex()">
+      <div class="form-group">
+        <label for="indexName">Nombre del índice:</label>
+        <input 
+          type="text" 
+          id="indexName"
+          formControlName="name"
+          placeholder="idx_nombre_columna"
+          class="form-control">
+        <small class="form-text">
+          Use un nombre descriptivo, por ejemplo: idx_usuario_email
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label for="indexColumns">Columnas (separadas por comas):</label>
+        <input 
+          type="text" 
+          id="indexColumns"
+          formControlName="columns"
+          placeholder="columna1, columna2"
+          class="form-control">
+        <small class="form-text">
+          Especifique las columnas que formarán parte del índice
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" formControlName="unique">
+          Índice único
+        </label>
+        <small class="form-text">
+          Marque esta opción si el índice debe garantizar unicidad
+        </small>
+      </div>
+
+      <button type="submit" class="btn btn-primary" [disabled]="createIndexForm.invalid || loading()">
+        Crear Índice
+      </button>
+    </form>
+  </div>
+
+  <!-- Información sobre índices -->
+  <div class="index-info-section">
+    <h3>Información sobre Índices</h3>
+    <div class="info-cards">
+      <div class="info-card">
+        <h4>Índices Normales</h4>
+        <p>Mejoran el rendimiento de las consultas que filtran o ordenan por las columnas indexadas.</p>
+      </div>
+      <div class="info-card">
+        <h4>Índices Únicos</h4>
+        <p>Garantizan que no haya valores duplicados en las columnas indexadas.</p>
+      </div>
+      <div class="info-card">
+        <h4>Claves Primarias</h4>
+        <p>Se crean automáticamente y no pueden ser eliminadas. Identifican de forma única cada fila.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ejemplos -->
+  <div class="examples-section">
+    <h3>Ejemplos de Uso</h3>
+    <div class="example">
+      <h4>Índice simple:</h4>
+      <pre>{{ 'Nombre: idx_usuario_email\nColumnas: email' }}</pre>
+    </div>
+    <div class="example">
+      <h4>Índice compuesto:</h4>
+      <pre>{{ 'Nombre: idx_usuario_fecha\nColumnas: usuario_id, fecha_creacion' }}</pre>
+    </div>
+    <div class="example">
+      <h4>Índice único:</h4>
+      <pre>{{ 'Nombre: idx_usuario_username\nColumnas: username\nÚnico: ✓' }}</pre>
+    </div>
+  </div>
+</div>
+

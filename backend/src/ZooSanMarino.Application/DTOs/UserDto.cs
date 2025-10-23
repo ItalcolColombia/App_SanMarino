@@ -10,6 +10,7 @@ public record UserDto(
     string   Ubicacion,
     string[] Roles,
     int[]    CompanyIds,
+    UserFarmLiteDto[] Farms,
     bool     IsActive,
     bool     IsLocked,
     DateTime CreatedAt,
@@ -25,7 +26,8 @@ public record CreateUserDto(
     string   Email,
     string   Password,
     int[]    CompanyIds,
-    int[]    RoleIds
+    int[]    RoleIds,
+    int[]    FarmIds
 );
 public record UpdateUserDto(
     string?  SurName,
@@ -36,5 +38,7 @@ public record UpdateUserDto(
     bool?    IsActive,
     bool?    IsLocked,
     int[]?   CompanyIds,
-    int[]?   RoleIds
+    int[]?   RoleIds,
+    int[]?   FarmIds
 );
+

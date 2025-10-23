@@ -1,0 +1,248 @@
+/* ==========================================================================
+   📊 Tabla de Indicadores Semanales
+   ========================================================================== */
+:host {
+  display: block;
+}
+
+/* ==========================================================================
+   🎨 Design System / Tokens
+   ========================================================================== */
+:host {
+  /* Brand */
+  --brand-red:        #d32f2f;
+  --brand-red-600:    #c62828;
+  --brand-red-700:    #b71c1c;
+
+  /* Accent */
+  --amber-25:         #fffbeb;
+  --amber-50:         #fff7ed;
+  --amber-100:        #fef3c7;
+  --amber-200:        #fde68a;
+
+  /* Warm Gray scale */
+  --warm-25:          #fdfdfc;
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-500:         #78716c;
+  --warm-600:         #57534e;
+
+  /* Base */
+  --white:            #ffffff;
+  --black:            #111111;
+
+  /* Sombras */
+  --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
+  --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
+  --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
+
+  /* Espaciado & Radios */
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --radius-sm: .5rem;
+  --radius-md: .65rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Tipografía */
+  --fs-xs: .75rem;
+  --fs-sm: .85rem;
+  --fs-md: .92rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.35rem;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+
+  /* Z-index */
+  --z-sticky: 10;
+  --z-modal:  50;
+
+  /* Superficies (CLARO) */
+  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-card:    var(--white);
+  --bg-muted:   var(--warm-50);
+  --border:     var(--warm-200);
+  --text:       var(--black);
+  --text-sub:   #222222;
+
+  /* Transiciones */
+  --t-fast: .12s ease;
+  --t-med:  .15s ease;
+}
+
+/* ==========================================================================
+   📊 Contenedor de Indicadores
+   ========================================================================== */
+.indicadores-container {
+  padding: var(--space-4);
+}
+
+.indicadores-container h3 {
+  margin: 0 0 var(--space-4) 0; font-size: var(--fs-lg);
+  font-weight: 700; color: var(--text);
+}
+
+/* ==========================================================================
+   📋 Tabla de Indicadores
+   ========================================================================== */
+.ux-scroll { 
+  max-height: 60vh; overflow: auto; 
+  border-radius: var(--radius-md); border: 1px solid var(--border);
+  margin-bottom: var(--space-4);
+}
+
+.ux-table { 
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.ux-table thead {
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
+  color: var(--white);
+}
+
+.ux-table thead th {
+  text-align: left; font-size: var(--fs-xs); font-weight: 800; 
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--brand-red-700);
+}
+
+.ux-table thead th:first-child { border-top-left-radius: var(--radius-md); }
+.ux-table thead th:last-child { border-top-right-radius: var(--radius-md); }
+
+.ux-table tbody tr { 
+  transition: background-color var(--t-fast);
+  border-bottom: 1px solid var(--border);
+}
+
+.ux-table tbody tr:nth-child(even) { background: var(--warm-50); }
+.ux-table tbody tr:hover { background: var(--amber-25); }
+
+.ux-table tbody td {
+  padding: var(--space-3) var(--space-4); 
+  color: var(--text); vertical-align: middle;
+}
+
+/* ==========================================================================
+   📈 Tabla de Indicadores Específica
+   ========================================================================== */
+.indicadores-table {
+  font-size: var(--fs-xs);
+}
+
+.indicadores-table thead th {
+  font-size: 0.7rem; padding: var(--space-2) var(--space-3);
+  text-align: center;
+}
+
+.indicadores-table tbody td {
+  padding: var(--space-2) var(--space-3); text-align: center;
+}
+
+.semana-cell {
+  font-weight: 700; color: var(--brand-red);
+  background: var(--amber-25);
+}
+
+.periodo-cell {
+  font-size: 0.7rem; color: var(--text-sub);
+}
+
+/* ==========================================================================
+   📊 Acumulados
+   ========================================================================== */
+.acumulados-section {
+  margin-top: var(--space-4); padding-top: var(--space-4);
+  border-top: 2px solid var(--border);
+}
+
+.acumulados-section h4 {
+  margin: 0 0 var(--space-3) 0; font-size: var(--fs-md);
+  font-weight: 600; color: var(--text-sub);
+}
+
+.acumulados-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.acumulado-card {
+  text-align: center; padding: var(--space-4);
+  background: var(--warm-50); border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  transition: all var(--t-fast);
+}
+
+.acumulado-card:hover {
+  background: var(--amber-25); border-color: var(--amber-200);
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+}
+
+.acumulado-card h5 {
+  margin: 0 0 var(--space-2) 0; font-size: var(--fs-sm);
+  color: var(--text-sub);
+}
+
+.acumulado-card p {
+  margin: 0; font-size: var(--fs-lg); font-weight: 700;
+  color: var(--brand-red);
+}
+
+/* ==========================================================================
+   🔧 Helpers
+   ========================================================================== */
+.empty-state {
+  text-align: center; padding: var(--space-8);
+  color: var(--warm-600);
+}
+
+.empty-illustration {
+  font-size: 3rem; margin-bottom: var(--space-3);
+  opacity: 0.5;
+}
+
+/* ==========================================================================
+   📱 Responsive
+   ========================================================================== */
+@media (max-width: 768px) {
+  .indicadores-table {
+    font-size: 0.6rem;
+  }
+  
+  .indicadores-table thead th,
+  .indicadores-table tbody td {
+    padding: var(--space-1) var(--space-2);
+  }
+  
+  .acumulados-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .indicadores-container {
+    padding: var(--space-3);
+  }
+  
+  .indicadores-table {
+    font-size: 0.5rem;
+  }
+  
+  .indicadores-table thead th,
+  .indicadores-table tbody td {
+    padding: var(--space-1);
+  }
+}
+
+
+

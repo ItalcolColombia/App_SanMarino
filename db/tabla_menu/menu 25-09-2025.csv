@@ -1,0 +1,14 @@
+3,Dashboard,tachometer-alt,/dashboard,0,t,,dashboard,0,f
+4,Gestion de Granjas,building,/config/farm-management,1,t,,farm_management,0,f
+5,Gestion de Lotes,building,/config/lote-management,2,t,,lote_management,0,f
+6,Registros Diarios,calendar-day,,3,t,,daily_log,0,t
+7,Seguimiento Diario de Levante,boxes-alt,/daily-log/seguimiento,0,t,6,seguimiento_levante,0,f
+8,Seguimiento Diario de Producción,boxes-alt,/daily-log/produccion,1,t,6,seguimiento_produccion,0,f
+9,Seguimiento Diario Lote Reproductora,boxes-alt,/daily-log/seguimiento-diario-lote-reproductora,2,t,6,seguimiento_lote_reproductora,0,f
+10,Gestion de Inventario,warehouse,/config/inventario-management,4,t,,inventario_management,0,f
+11,Configuración,cog,,5,t,,config,0,t
+12,Listas maestras,list,/config/master-lists,0,t,11,master_lists,0,f
+13,Usuarios,users,/config/users,1,t,11,users,0,f
+14,Roles y permisos,users,/config/role-management,2,t,11,role_management,0,f
+15,Geografía,globe,/config/countries,3,t,11,countries,0,f
+16,Empresas,building,/config/companies,4,t,11,companies,0,f

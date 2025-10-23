@@ -1,43 +1,98 @@
-<!-- src/app/features/farm/components/farm-form/farm-form.component.html -->
-<div class="p-6 max-w-md mx-auto">
-  <h2 class="text-xl font-bold mb-4">
-    {{ isEdit ? 'Editar Granja' : 'Nueva Granja' }}
-  </h2>
-
-  <form [formGroup]="form" (ngSubmit)="save()">
-    <div class="mb-3">
-      <label class="block mb-1">Nombre</label>
-      <input formControlName="name" class="w-full border px-3 py-2" />
-    </div>
-    <!-- Reemplaza estos selects con tus servicios de Company, Regional y Zone -->
-    <div class="mb-3">
-      <label class="block mb-1">Empresa</label>
-      <input formControlName="companyId" type="number" class="w-full border px-3 py-2" />
-    </div>
-    <div class="mb-3">
-      <label class="block mb-1">Regional</label>
-      <input formControlName="regionalId" type="number" class="w-full border px-3 py-2" />
-    </div>
-    <div class="mb-3">
-      <label class="block mb-1">Zona</label>
-      <input formControlName="zoneId" type="number" class="w-full border px-3 py-2" />
-    </div>
-    <div class="mb-3">
-      <label class="block mb-1">Estado</label>
-      <input formControlName="status" class="w-full border px-3 py-2" />
+<div class="ux-form-wrap" [attr.aria-busy]="loading ? 'true' : null">
+  <div class="ux-card max-w-2xl mx-auto">
+    <!-- Header -->
+    <div class="ux-card__header">
+      <h2 class="ux-title">
+        {{ isEdit ? 'Editar Granja' : 'Nueva Granja' }}
+      </h2>
+      <p class="ux-subtitle">Los campos marcados con <span class="req">*</span> son obligatorios.</p>
     </div>
 
-    <div class="flex justify-end space-x-2 mt-4">
-      <button type="button"
-              class="px-4 py-2 bg-gray-200"
-              (click)="cancel()">
-        Cancelar
-      </button>
-      <button type="submit"
-              [disabled]="form.invalid || loading"
-              class="px-4 py-2 bg-blue-600 text-white">
-        Guardar
-      </button>
+    <!-- Body -->
+    <form [formGroup]="form" (ngSubmit)="save()" class="ux-card__body" novalidate>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Nombre -->
+        <div>
+          <label class="ux-label">Nombre <span class="req">*</span></label>
+          <input
+            formControlName="name"
+            class="ux-input"
+            placeholder="Ej. Granja Central"
+            [class.is-invalid]="form.get('name')?.invalid && form.get('name')?.touched"
+            [attr.aria-invalid]="form.get('name')?.invalid && form.get('name')?.touched ? 'true' : null"
+          />
+          <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="ux-error">Campo obligatorio.</p>
+        </div>
+
+        <!-- Empresa (ID) -->
+        <div>
+          <label class="ux-label">Empresa (ID) <span class="req">*</span></label>
+          <input
+            formControlName="companyId"
+            type="number"
+            class="ux-input"
+            placeholder="Ej. 1"
+            [class.is-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched"
+            [attr.aria-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched ? 'true' : null"
+          />
+          <p class="ux-help">Más adelante puedes reemplazarlo por un <strong>select</strong> conectado a tu servicio de compañías.</p>
+        </div>
+
+        <!-- Regional (ID) -->
+        <div>
+          <label class="ux-label">Regional (ID) <span class="req">*</span></label>
+          <input
+            formControlName="regionalId"
+            type="number"
+            class="ux-input"
+            placeholder="Ej. 101"
+            [class.is-invalid]="form.get('regionalId')?.invalid && form.get('regionalId')?.touched"
+            [attr.aria-invalid]="form.get('regionalId')?.invalid && form.get('regionalId')?.touched ? 'true' : null"
+          />
+          <p class="ux-help">Luego cámbialo por un <strong>select</strong> alimentado por tu servicio de regionales.</p>
+        </div>
+
+        <!-- Zona (ID) -->
+        <div>
+          <label class="ux-label">Zona (ID) <span class="req">*</span></label>
+          <input
+            formControlName="zoneId"
+            type="number"
+            class="ux-input"
+            placeholder="Ej. 9"
+            [class.is-invalid]="form.get('zoneId')?.invalid && form.get('zoneId')?.touched"
+            [attr.aria-invalid]="form.get('zoneId')?.invalid && form.get('zoneId')?.touched ? 'true' : null"
+          />
+          <p class="ux-help">Sustituible por un <strong>select</strong> con tu servicio de zonas.</p>
+        </div>
+
+        <!-- Estado -->
+        <div class="md:col-span-2">
+          <label class="ux-label">Estado <span class="req">*</span></label>
+          <input
+            formControlName="status"
+            class="ux-input"
+            placeholder="Ej. Activo / Inactivo"
+            [class.is-invalid]="form.get('status')?.invalid && form.get('status')?.touched"
+            [attr.aria-invalid]="form.get('status')?.invalid && form.get('status')?.touched ? 'true' : null"
+          />
+          <p *ngIf="form.get('status')?.invalid && form.get('status')?.touched" class="ux-error">Campo obligatorio.</p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="ux-actions">
+        <button type="button" class="btn-muted" (click)="cancel()">Cancelar</button>
+        <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
+          Guardar
+        </button>
+      </div>
+    </form>
+
+    <!-- Loading overlay -->
+    <div *ngIf="loading" class="ux-loading" aria-live="polite">
+      <div class="spinner"></div>
+      Guardando…
     </div>
-  </form>
+  </div>
 </div>

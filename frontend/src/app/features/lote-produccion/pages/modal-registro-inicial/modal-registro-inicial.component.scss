@@ -1,0 +1,307 @@
+/* ==========================================================================
+   📝 Modal de Registro Inicial de Producción
+   ========================================================================== */
+:host {
+  display: block;
+}
+
+/* ==========================================================================
+   🎨 Design System / Tokens (solo claro)
+   ========================================================================== */
+:host {
+  /* Brand */
+  --brand-red:        #d32f2f;
+  --brand-red-600:    #c62828;
+  --brand-red-700:    #b71c1c;
+
+  /* Accent */
+  --amber-25:         #fffbeb;
+  --amber-50:         #fff7ed;
+  --amber-100:        #fef3c7;
+  --amber-200:        #fde68a;
+
+  /* Warm Gray scale */
+  --warm-25:          #fdfdfc;
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-500:         #78716c;
+  --warm-600:         #57534e;
+
+  /* Base */
+  --white:            #ffffff;
+  --black:            #111111;
+
+  /* Sombras */
+  --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
+  --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
+  --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
+
+  /* Espaciado & Radios */
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --radius-sm: .5rem;
+  --radius-md: .65rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Tipografía */
+  --fs-xs: .75rem;
+  --fs-sm: .85rem;
+  --fs-md: .92rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.35rem;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+
+  /* Z-index */
+  --z-sticky: 10;
+  --z-modal:  50;
+
+  /* Superficies (CLARO) */
+  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-card:    var(--white);
+  --bg-muted:   var(--warm-50);
+  --border:     var(--warm-200);
+  --text:       var(--black);
+  --text-sub:   #222222;
+
+  /* Transiciones */
+  --t-fast: .12s ease;
+  --t-med:  .15s ease;
+}
+
+/* ==========================================================================
+   🔘 Botones
+   ========================================================================== */
+:host .btn {
+  --btn-bg: var(--bg-muted);
+  --btn-fg: var(--text);
+  --btn-br: var(--border);
+
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: .5rem; padding: .55rem .9rem; border-radius: var(--radius-md);
+  background: var(--btn-bg); color: var(--btn-fg); border: 1px solid var(--btn-br);
+  font-weight: 700; transition: transform var(--t-med), box-shadow var(--t-med), background var(--t-med), color var(--t-med);
+  text-decoration: none; cursor: pointer;
+}
+:host .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+:host .btn:active { transform: translateY(0); }
+:host .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+:host .btn--primary { --btn-bg: var(--brand-red); --btn-fg: var(--white); --btn-br: var(--brand-red); }
+:host .btn--primary:hover { background: var(--brand-red-600); }
+:host .btn--outline { --btn-bg: var(--bg-card); --btn-fg: var(--brand-red); --btn-br: var(--brand-red); }
+:host .btn--outline:hover { background: #fff1f2; }
+:host .btn--ghost { --btn-bg: var(--bg-card); --btn-fg: var(--text); --btn-br: var(--border); }
+:host .btn--ghost:hover { background: var(--bg-muted); }
+
+/* Icon buttons */
+:host .icon-btn {
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+  border-radius: .55rem; padding: .35rem .55rem; line-height: 1;
+  transition: background var(--t-med), color var(--t-med), transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+}
+:host .icon-btn:hover { background: var(--bg-muted); color: var(--brand-red); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+:host .icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
+
+:host .btn:focus-visible,
+:host .icon-btn:focus-visible {
+  outline: none; box-shadow: var(--ring);
+}
+
+/* ==========================================================================
+   🪟 Modal
+   ========================================================================== */
+:host .ux-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.25);
+  display: grid; place-items: center; padding: 1rem; z-index: var(--z-modal);
+  animation: modalFadeIn .12s ease-out;
+}
+@keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+:host .ux-modal__dialog {
+  width: min(700px, 95vw); background: var(--bg-card);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border); position: relative; overflow: hidden;
+  transform: translateY(6px); animation: dialogUp .18s ease-out forwards;
+}
+@keyframes dialogUp { to { transform: translateY(0); } }
+
+:host .ux-modal__header {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+}
+:host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
+:host .ux-modal__footer {
+  display: flex; justify-content: flex-end; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border);
+}
+
+/* ==========================================================================
+   📝 Formulario
+   ========================================================================== */
+:host .ux-form { padding: 1.25rem; }
+
+:host .form-field { display: flex; flex-direction: column; gap: .35rem; }
+:host .form-field--full { grid-column: 1 / -1; }
+:host .form-field label { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+
+:host .form-field input,
+:host .form-field textarea,
+:host .form-field select {
+  border: 1px solid var(--warm-300); border-radius: var(--radius-md);
+  padding: .55rem .75rem; font-size: var(--fs-md); color: var(--text);
+  outline: none; background: var(--bg-card);
+  transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+}
+:host .form-field input:hover,
+:host .form-field textarea:hover,
+:host .form-field select:hover { background: var(--bg-muted); }
+:host .form-field input:focus,
+:host .form-field textarea:focus,
+:host .form-field select:focus { border-color: var(--brand-red); box-shadow: var(--ring); }
+
+/* Estados inválidos */
+:host .form-field .is-invalid,
+:host .form-field input.ng-invalid.ng-touched,
+:host .form-field select.ng-invalid.ng-touched {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .15);
+}
+
+/* Inputs readonly */
+:host .ux-input--readonly { background: var(--warm-50); color: var(--text-sub); }
+
+/* ==========================================================================
+   🧭 Tabs del modal (CSS-only, accesible)
+   ========================================================================== */
+:host .ux-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, max-content) 1fr;
+  align-items: end;
+  gap: .35rem;
+  border-bottom: 1px solid var(--warm-200);
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+:host .ux-tabs input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:host .ux-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: .55rem .8rem;
+  border: 1px solid var(--warm-200);
+  border-bottom: none;
+  border-top-left-radius: .6rem;
+  border-top-right-radius: .6rem;
+  background: var(--warm-100);
+  color: var(--warm-600);
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s, color .15s, transform .12s;
+  outline: none;
+}
+:host .ux-tab:hover { background: var(--white); color: var(--brand-red); }
+:host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
+
+:host .ux-tab-panels {
+  grid-column: 1 / -1;
+  background: var(--white);
+  border: 1px solid var(--warm-200);
+  border-radius: .6rem;
+  box-shadow: var(--shadow-lg);
+  padding: 1rem;
+}
+
+:host .ux-tab-panel { display: none; }
+
+/* Mostrar el panel correspondiente */
+:host #tab-general:checked ~ .ux-tab-panels #panel-general { display: block; }
+:host #tab-aves:checked ~ .ux-tab-panels #panel-aves { display: block; }
+
+/* Estado visual del tab ACTIVO */
+:host #tab-general:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-aves:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+
+/* ==========================================================================
+   📊 Resumen Card
+   ========================================================================== */
+:host .resumen-card {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .9rem; background: var(--amber-25);
+  border: 1px solid var(--amber-200); border-radius: var(--radius-md);
+  margin-top: .5rem;
+}
+
+:host .resumen-icon {
+  font-size: 1.5rem; color: var(--brand-red);
+}
+
+:host .resumen-content h4 {
+  margin: 0 0 .25rem 0; font-size: var(--fs-sm); font-weight: 700; color: var(--text);
+}
+
+:host .resumen-number {
+  margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red);
+}
+
+/* ==========================================================================
+   🔧 Helpers / Utilities
+   ========================================================================== */
+.grid { display: grid; gap: .9rem; }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+:host .ux-hint { font-size: .8rem; color: var(--warm-400); margin-bottom: .5rem; }
+
+/* ==========================================================================
+   🕳️ Loading
+   ========================================================================== */
+:host .modal-loading {
+  position: absolute; inset: 0; background: rgba(255,255,255,.6);
+  display: flex; align-items: center; justify-content: center; gap: .6rem; font-weight: 700; color: var(--text-sub);
+}
+
+:host .spinner {
+  width: 1rem; height: 1rem; border-radius: 999px;
+  border: 2px solid var(--warm-300); border-left-color: var(--brand-red);
+  animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   📱 Responsive
+   ========================================================================== */
+@media (max-width: 960px)  {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  :host .ux-form { padding: 1rem; }
+}
+@media (max-width: 680px)  {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  :host .ux-modal__dialog { width: 95vw; }
+}
+@media (max-width: 480px) { 
+  :host .ux-modal__header h2 { font-size: 1.1rem; }
+  :host .ux-tabs { grid-template-columns: 1fr; }
+  :host .ux-tab { justify-content: center; }
+}
+
+
+

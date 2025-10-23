@@ -1,0 +1,230 @@
+/* =========================
+   Sidebar (Sanmarino) — antifugas / no overflow
+   ========================= */
+
+/* --------- Variables --------- */
+:host {
+  --brand-red: #d62828;
+  --brand-yellow: #f4b428;
+  --brand-yellow-600: #e6a41c;
+
+  --bg: #ffffff;
+  --text: #1f2937;   /* slate-800 */
+  --muted: #6b7280;  /* gray-500 */
+  --line: #e5e7eb;   /* gray-200 */
+}
+
+/* --------- Contenedor raíz --------- */
+.sidebar-root {
+  /* Estructura anti-desbordes */
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  block-size: 100dvh;      /* dvh evita saltos en móviles */
+  min-block-size: 0;       /* permite que los hijos hagan overflow-y correctamente */
+  background: var(--bg) !important;
+  color: var(--text);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;        /* nunca se desborda el shell */
+  contain: layout paint;   /* micro-opt */
+}
+
+/* Fondo decorativo muy sutil (seguro) */
+.sidebar-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(420px 220px at 0% 100%, rgba(214, 40, 40, 0.08), transparent 60%),
+    radial-gradient(420px 220px at 100% 100%, rgba(244, 180, 40, 0.10), transparent 60%),
+    linear-gradient(180deg, rgba(214, 40, 40, 0.02), rgba(244, 180, 40, 0.02));
+}
+.sidebar-root > * { position: relative; z-index: 1; }
+
+/* --------- Header (logo) stick & seguro --------- */
+.menu-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: .75rem .75rem;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  position: sticky;     /* visible al hacer scroll largo */
+  top: 0;
+  z-index: 2;
+  overflow: hidden;     /* jamás desbordar */
+}
+
+/* Bloque de logo */
+.brand-duo {
+  display: inline-flex;
+  align-items: center;
+  gap: .75rem;
+  max-inline-size: 100%;
+}
+.brand-duo__img {
+  display: block;
+  max-inline-size: 100%;   /* clave: no romper ancho */
+  block-size: auto;
+  /* altura sugerida para compacto, ajustable */
+  max-block-size: 40px;
+  object-fit: contain;
+}
+
+/* --------- Tarjeta de bienvenida --------- */
+.welcome-card {
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(244,180,40,.35);
+  box-shadow: 0 6px 14px rgba(0,0,0,.06), inset 0 1px 0 rgba(255,255,255,.6);
+  transition: transform .18s ease, box-shadow .18s ease;
+  overflow: hidden; /* evita brillos desbordados */
+}
+.welcome-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.7);
+}
+.avatar {
+  display: grid; place-items: center;
+  inline-size: 44px; block-size: 44px;
+  border-radius: 999px;
+  font-weight: 700; color: #1f2937;
+  background: #fff8e6;
+  border: 1px solid rgba(244,180,40,.35);
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+  overflow: hidden;
+}
+.info .leading-tight { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.info strong { font-weight: 700; color: var(--text); }
+.welcome-card .inline-block { max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* --------- Área scroll del menú --------- */
+/* Tu HTML ya tiene: <div class="flex-1 overflow-y-auto"> */
+/* Fortalecemos para que nunca se “coma” el alto total */
+.sidebar-root > .flex-1 {
+  min-block-size: 0;         /* imprescindible para scroll en contenedores flex */
+  overflow-y: auto;
+  overflow-x: hidden;        /* cero scroll horizontal */
+  overscroll-behavior: contain;
+  scroll-padding-block-start: .5rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --------- Navegación --------- */
+nav { padding-inline: .25rem; }
+
+nav ul { margin: 0; padding: 0; list-style: none; }
+nav ul li { min-inline-size: 0; } /* evita que el texto fuerce ancho */
+
+nav ul li > a,
+nav ul li > button {
+  border-radius: 10px;
+  color: var(--text);
+  outline: none;
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  padding: .5rem 1rem;
+  gap: .75rem;
+  transition: background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
+  word-break: break-word;           /* si hay etiquetas muy largas */
+  white-space: normal;              /* permite multilínea sin romper layout */
+}
+
+nav ul li > a:hover,
+nav ul li > button:hover {
+  background: linear-gradient(90deg, rgba(244,180,40,.10), rgba(214,40,40,.06) 70%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(244,180,40,.18);
+}
+
+nav ul li > a.router-link-active,
+nav ul li > a[routerLinkActive].text-red-600,
+nav ul li > a.bg-gray-100 {
+  background: rgba(255,237,213,.6); /* amber-100 translúcido */
+  box-shadow:
+    inset 3px 0 0 0 var(--brand-red),
+    inset 0 0 0 1px rgba(244,180,40,.25);
+  color: #b91c1c;
+}
+
+/* Submenús con guía visual, sin empujar ancho */
+ul.pl-6 {
+  border-inline-start: 1px dashed rgba(0,0,0,.08);
+  margin-inline-start: .75rem;
+  padding-inline-start: .75rem;
+  overflow: hidden;   /* evita que un hijo sobresalga */
+}
+
+/* Iconos accesibles y consistentes */
+fa-icon { flex: 0 0 auto; }
+
+/* Focus visible accesible */
+a:focus-visible,
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244,180,40,.35);
+}
+
+/* --------- Footer (logout) pegado abajo y seguro --------- */
+.p-4.border-t {
+  flex: 0 0 auto;
+  background: #fff;
+  border-top: 1px solid var(--line);
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+.p-4.border-t button {
+  border-radius: 10px;
+  transition: background-color .18s ease, color .18s ease;
+}
+.p-4.border-t button:hover {
+  background: rgba(244,180,40,.10);
+}
+
+/* --------- Scrollbar (sutil) --------- */
+.sidebar-root > .flex-1 {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,.6) transparent;
+}
+.sidebar-root > .flex-1::-webkit-scrollbar { inline-size: 8px; }
+.sidebar-root > .flex-1::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(148,163,184,.75), rgba(100,116,139,.75));
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.sidebar-root > .flex-1::-webkit-scrollbar-track { background: transparent; }
+
+/* --------- Hardening anti-desbordes global --------- */
+.sidebar-root,
+.sidebar-root * {
+  min-inline-size: 0;   /* evita que textos/iconos fuercen ancho */
+}
+.sidebar-root img {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+/* --------- Responsive fino --------- */
+@media (max-width: 420px) {
+  .welcome-card { border-radius: 10px; }
+  .avatar { inline-size: 40px; block-size: 40px; }
+}
+
+/* --------- Modo oscuro opcional --------- */
+:host-context(.dark) .sidebar-root {
+  --bg: #0b0b0c;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --line: #22242a;
+  background: var(--bg) !important;
+}
+:host-context(.dark) .menu-header,
+:host-context(.dark) .p-4.border-t { background: #0f0f12; border-color: var(--line); }
+:host-context(.dark) .welcome-card { background: #111317; border-color: rgba(244,180,40,.25); }
+:host-context(.dark) ul.pl-6 { border-color: rgba(255,255,255,.08); }

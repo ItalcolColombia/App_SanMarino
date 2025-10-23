@@ -17,9 +17,9 @@ public class LoteGalponService : ILoteGalponService
                x.LoteId, x.ReproductoraId, x.GalponId, x.M, x.H))
            .ToListAsync();
 
-    public async Task<LoteGalponDto?> GetByIdAsync(string loteId, string repId, string galponId) =>
+    public async Task<LoteGalponDto?> GetByIdAsync(int loteId, string repId, string galponId) =>  // Changed from string to int
         await _ctx.LoteGalpones
-           .Where(x => x.LoteId == loteId
+           .Where(x => x.LoteId == loteId  // Changed from string comparison
                     && x.ReproductoraId == repId
                     && x.GalponId == galponId)
            .Select(x => new LoteGalponDto(
@@ -49,9 +49,9 @@ public class LoteGalponService : ILoteGalponService
         return await GetByIdAsync(ent.LoteId, ent.ReproductoraId, ent.GalponId)!;
     }
 
-    public async Task<bool> DeleteAsync(string loteId, string repId, string galponId)
+    public async Task<bool> DeleteAsync(int loteId, string repId, string galponId)  // Changed from string to int
     {
-        var ent = await _ctx.LoteGalpones.FindAsync(loteId, repId, galponId);
+        var ent = await _ctx.LoteGalpones.FindAsync(loteId, repId, galponId);  // Changed from string to int
         if (ent is null) return false;
         _ctx.LoteGalpones.Remove(ent);
         await _ctx.SaveChangesAsync();

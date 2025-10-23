@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj": {}
+    "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\ZooSanMarino.Infrastructure.csproj": {}
   },
   "projects": {
-    "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Application/ZooSanMarino.Application.csproj": {
+    "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Application\\ZooSanMarino.Application.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Application/ZooSanMarino.Application.csproj",
+        "projectUniqueName": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Application\\ZooSanMarino.Application.csproj",
         "projectName": "ZooSanMarino.Application",
-        "projectPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Application/ZooSanMarino.Application.csproj",
-        "packagesPath": "/Users/chelsycardona/.nuget/packages/",
-        "outputPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Application/obj/",
+        "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Application\\ZooSanMarino.Application.csproj",
+        "packagesPath": "C:\\Users\\SAN MARINO\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Application\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/chelsycardona/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\SAN MARINO\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -26,8 +26,8 @@
           "net9.0": {
             "targetAlias": "net9.0",
             "projectReferences": {
-              "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj": {
-                "projectPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj"
+              "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj": {
+                "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj"
               }
             }
           }
@@ -48,6 +48,14 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
+            "FluentValidation": {
+              "target": "Package",
+              "version": "[12.0.0, )"
+            },
+            "Microsoft.AspNetCore.Http.Features": {
+              "target": "Package",
+              "version": "[5.0.17, )"
+            },
             "Microsoft.Extensions.Configuration.Abstractions": {
               "target": "Package",
               "version": "[9.0.0, )"
@@ -73,21 +81,21 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj": {
+    "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj",
+        "projectUniqueName": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj",
         "projectName": "ZooSanMarino.Domain",
-        "projectPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj",
-        "packagesPath": "/Users/chelsycardona/.nuget/packages/",
-        "outputPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/obj/",
+        "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj",
+        "packagesPath": "C:\\Users\\SAN MARINO\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/chelsycardona/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\SAN MARINO\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -132,21 +140,21 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj": {
+    "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\ZooSanMarino.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj",
+        "projectUniqueName": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\ZooSanMarino.Infrastructure.csproj",
         "projectName": "ZooSanMarino.Infrastructure",
-        "projectPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj",
-        "packagesPath": "/Users/chelsycardona/.nuget/packages/",
-        "outputPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Infrastructure/obj/",
+        "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\ZooSanMarino.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\SAN MARINO\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/chelsycardona/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\SAN MARINO\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -158,11 +166,11 @@
           "net9.0": {
             "targetAlias": "net9.0",
             "projectReferences": {
-              "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Application/ZooSanMarino.Application.csproj": {
-                "projectPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Application/ZooSanMarino.Application.csproj"
+              "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Application\\ZooSanMarino.Application.csproj": {
+                "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Application\\ZooSanMarino.Application.csproj"
               },
-              "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj": {
-                "projectPath": "/Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj"
+              "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj": {
+                "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Domain\\ZooSanMarino.Domain.csproj"
               }
             }
           }
@@ -186,6 +194,10 @@
             "EFCore.NamingConventions": {
               "target": "Package",
               "version": "[9.0.0, )"
+            },
+            "EPPlus": {
+              "target": "Package",
+              "version": "[8.2.0, )"
             },
             "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
               "target": "Package",
@@ -219,7 +231,7 @@
             },
             "System.IdentityModel.Tokens.Jwt": {
               "target": "Package",
-              "version": "[7.0.0, )"
+              "version": "[8.2.1, )"
             }
           },
           "imports": [
@@ -238,7 +250,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

@@ -1,0 +1,131 @@
+<div class="data-management-container">
+  <div class="header">
+    <h2>Gestión de Datos - {{ schema() }}.{{ table() }}</h2>
+    <button class="btn btn-secondary" (click)="goBack()">
+      ← Volver al Explorador
+    </button>
+  </div>
+
+  <div class="alert alert-danger" *ngIf="error()">
+    {{ error() }}
+  </div>
+
+  <div class="alert alert-success" *ngIf="success()">
+    {{ success() }}
+  </div>
+
+  <div class="loading" *ngIf="loading()">
+    <div class="spinner"></div>
+    <p>Procesando...</p>
+  </div>
+
+  <!-- Estructura de la tabla -->
+  <div class="table-structure" *ngIf="sampleData().length > 0">
+    <h3>Estructura de la tabla (ejemplo)</h3>
+    <div class="structure-info">
+      <p><strong>Columnas:</strong> {{ getSampleKeys().join(', ') }}</p>
+      <div class="sample-row">
+        <strong>Ejemplo de datos:</strong>
+        <pre>{{ sampleData()[0] | json }}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Insertar datos -->
+  <div class="operation-section">
+    <h3>Insertar Datos</h3>
+    <form [formGroup]="insertForm" (ngSubmit)="insertData()">
+      <div class="form-group">
+        <label for="insertData">Datos a insertar (JSON):</label>
+        <textarea 
+          id="insertData"
+          formControlName="data"
+          placeholder='[{"columna1": "valor1", "columna2": "valor2"}]'
+          rows="4"
+          class="form-control">
+        </textarea>
+        <small class="form-text">
+          Puede ser un objeto único o un array de objetos
+        </small>
+      </div>
+      <button type="submit" class="btn btn-primary" [disabled]="insertForm.invalid || loading()">
+        Insertar Datos
+      </button>
+    </form>
+  </div>
+
+  <!-- Actualizar datos -->
+  <div class="operation-section">
+    <h3>Actualizar Datos</h3>
+    <form [formGroup]="updateForm" (ngSubmit)="updateData()">
+      <div class="form-group">
+        <label for="updateData">Datos a actualizar (JSON):</label>
+        <textarea 
+          id="updateData"
+          formControlName="data"
+          placeholder='{"columna1": "nuevo_valor"}'
+          rows="3"
+          class="form-control">
+        </textarea>
+      </div>
+      <div class="form-group">
+        <label for="updateWhere">Condición WHERE (JSON):</label>
+        <textarea 
+          id="updateWhere"
+          formControlName="where"
+          placeholder='{"id": 1}'
+          rows="3"
+          class="form-control">
+        </textarea>
+      </div>
+      <button type="submit" class="btn btn-warning" [disabled]="updateForm.invalid || loading()">
+        Actualizar Datos
+      </button>
+    </form>
+  </div>
+
+  <!-- Eliminar datos -->
+  <div class="operation-section">
+    <h3>Eliminar Datos</h3>
+    <form [formGroup]="deleteForm" (ngSubmit)="deleteData()">
+      <div class="form-group">
+        <label for="deleteWhere">Condición WHERE (JSON):</label>
+        <textarea 
+          id="deleteWhere"
+          formControlName="where"
+          placeholder='{"id": 1}'
+          rows="3"
+          class="form-control">
+        </textarea>
+        <small class="form-text text-danger">
+          ⚠️ Esta operación eliminará permanentemente los datos que coincidan con la condición
+        </small>
+      </div>
+      <button type="submit" class="btn btn-danger" [disabled]="deleteForm.invalid || loading()">
+        Eliminar Datos
+      </button>
+    </form>
+  </div>
+
+  <!-- Ejemplos de uso -->
+  <div class="examples-section">
+    <h3>Ejemplos de Uso</h3>
+    <div class="example">
+      <h4>Insertar un registro:</h4>
+      <pre>{{ '{"nombre": "Juan", "edad": 30, "email": "juan@email.com"}' }}</pre>
+    </div>
+    <div class="example">
+      <h4>Insertar múltiples registros:</h4>
+      <pre>{{ '[{"nombre": "Juan", "edad": 30}, {"nombre": "María", "edad": 25}]' }}</pre>
+    </div>
+    <div class="example">
+      <h4>Actualizar datos:</h4>
+      <pre>{{ 'Datos: {"edad": 31}\nWHERE: {"nombre": "Juan"}' }}</pre>
+    </div>
+    <div class="example">
+      <h4>Eliminar datos:</h4>
+      <pre>{{ '{"edad": 30}' }}</pre>
+    </div>
+  </div>
+</div>
+

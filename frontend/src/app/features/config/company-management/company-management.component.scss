@@ -1,0 +1,309 @@
+/* ============ Company Management – UX Styles ============ */
+/* Paleta (solo rojo, amarillo, grises y blanco) */
+:host {
+  --brand-red:        #d62828;
+  --brand-red-600:    #c21f1f;
+  --brand-red-700:    #a61a1a;
+
+  --chicken-yellow:   #f6c445;
+  --chicken-yellow-600:#e0b23d;
+
+  --warm-gray-50:     #fafaf9;
+  --warm-gray-100:    #f5f5f4;
+  --warm-gray-200:    #e7e5e4;
+  --warm-gray-300:    #d6d3d1;
+  --warm-gray-400:    #a8a29e;
+  --warm-gray-600:    #57534e;
+
+  --text-default:     #4b5563;  /* gris medio para texto */
+  --text-muted:       #6b7280;  /* gris ligeramente más oscuro */
+  --border-color:     var(--warm-gray-200);
+  --header-red:       var(--brand-red);
+  --row-hover:        #fbfbfb;
+  --shadow:           0 6px 18px rgba(0,0,0,.06);
+}
+
+/* ====== Card contenedora de tablas / contenido scroll ====== */
+.ux-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.ux-scroll {
+  max-height: 65vh;
+  overflow: auto;
+}
+
+/* Scrollbar (WebKit) */
+.ux-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.ux-scroll::-webkit-scrollbar-track {
+  background: var(--warm-gray-100);
+}
+.ux-scroll::-webkit-scrollbar-thumb {
+  background: var(--warm-gray-300);
+  border-radius: 8px;
+  border: 2px solid var(--warm-gray-100);
+}
+.ux-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--warm-gray-400);
+}
+
+/* ====== Tabla con encabezado rojo y separadores grises ====== */
+.ux-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--text-default);
+  table-layout: fixed;
+}
+
+.ux-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--header-red);
+  color: #fff;
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--brand-red-700);
+}
+
+/* redondeo de las esquinas superiores del header */
+.ux-table thead th:first-child {
+  border-top-left-radius: 12px;
+}
+.ux-table thead th:last-child {
+  border-top-right-radius: 12px;
+}
+
+/* celdas */
+.ux-table tbody td {
+  padding: 10px 16px;
+  font-size: 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color);
+  background: #fff;
+}
+
+/* filas */
+.ux-table tbody tr.ux-row:hover td {
+  background: var(--row-hover);
+}
+
+/* alineaciones utilitarias dentro de la tabla */
+.ux-table .text-center { text-align: center; }
+.ux-table .text-right  { text-align: right; }
+
+/* ====== Estados vacíos / feedback dentro de tabla ====== */
+.empty-state {
+  text-align: center;
+  padding: 28px 16px;
+  color: var(--text-muted);
+  background: var(--warm-gray-50);
+}
+.empty-illustration {
+  font-size: 40px;
+  margin-bottom: 6px;
+}
+
+/* ====== Botones ====== */
+/* Botón principal amarillo (para “Crear / Siguiente”) */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .55rem 1rem;
+  background: var(--chicken-yellow);
+  color: #3b3b3b;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid #e8b93e;
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0,0,0,.08);
+  background: var(--chicken-yellow-600);
+}
+
+/* Botón de énfasis rojo (guardar, acciones importantes) */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .55rem 1rem;
+  background: var(--brand-red);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--brand-red-600);
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease;
+}
+.btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(214,40,40,.25);
+  background: var(--brand-red-600);
+}
+
+/* Botón fantasma gris (secundario) */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem .8rem;
+  background: var(--warm-gray-100);
+  color: var(--text-default);
+  border: 1px solid var(--warm-gray-200);
+  border-radius: 10px;
+  transition: background .2s ease, color .2s ease;
+}
+.btn-ghost:hover {
+  background: var(--warm-gray-200);
+}
+
+/* Icon buttons (editar/eliminar) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--warm-gray-100);
+  color: var(--text-default);
+  border: 1px solid var(--warm-gray-200);
+  transition: background .2s ease, color .2s ease, transform .1s ease;
+}
+.icon-btn:hover {
+  background: #fff;
+  transform: translateY(-1px);
+}
+.icon-btn.danger {
+  color: var(--brand-red);
+  border-color: #f1d0d0;
+  background: #fff5f5;
+}
+.icon-btn.danger:hover {
+  background: #ffe9e9;
+}
+
+/* Chips (roles seleccionados) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .7rem;
+  background: var(--warm-gray-100);
+  border: 1px solid var(--warm-gray-200);
+  border-radius: 999px;
+  font-size: .88rem;
+}
+
+/* ====== Inputs de formulario (modal/wizard) ====== */
+.form-label {
+  display: block;
+  font-size: .75rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: .25rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: .55rem .75rem;
+  background: #fff;
+  color: var(--text-default);
+  border: 1px solid var(--warm-gray-300);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.form-input:focus {
+  border-color: var(--brand-red);
+  box-shadow: 0 0 0 4px rgba(214,40,40,.15);
+}
+.form-input--invalid {
+  border-color: #ef4444 !important;
+}
+
+/* ====== Search input (paso 2 – filtro roles) ====== */
+.ux-search {
+  position: relative;
+}
+.ux-search__icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--warm-gray-400);
+}
+.ux-search__input {
+  width: 100%;
+  padding: .55rem .75rem .55rem 2.2rem;
+  background: #fff;
+  border: 1px solid var(--warm-gray-300);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.ux-search__input:focus {
+  border-color: var(--brand-red);
+  box-shadow: 0 0 0 4px rgba(214,40,40,.12);
+}
+
+/* ====== Loading overlay + toast ====== */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  z-index: 10;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.loading-toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: #fff;
+  border: 1px solid var(--warm-gray-200);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: .5rem .75rem;
+  color: var(--text-default);
+  z-index: 40;
+}
+
+/* ====== Spinner ====== */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 3px solid var(--warm-gray-200);
+  border-top-color: var(--brand-red);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ====== Ajustes menores responsivos ====== */
+@media (max-width: 768px) {
+  .ux-table thead th { font-size: 11px; padding: 10px 12px; }
+  .ux-table tbody td { font-size: 13px; padding: 8px 12px; }
+  .icon-btn { width: 34px; height: 34px; }
+}

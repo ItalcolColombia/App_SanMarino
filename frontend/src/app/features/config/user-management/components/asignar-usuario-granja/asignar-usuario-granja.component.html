@@ -1,0 +1,215 @@
+<!-- src/app/features/config/user-management/components/asignar-usuario-granja/asignar-usuario-granja.component.html -->
+<div 
+  class="modal-overlay" 
+  [class.active]="isOpen"
+  (click)="closeModal()"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modal-title"
+>
+  <div 
+    class="modal-content" 
+    (click)="$event.stopPropagation()"
+    [attr.aria-busy]="loading ? 'true' : null"
+  >
+    <!-- Compact Header -->
+    <div class="modal-header">
+      <div class="header-content">
+        <fa-icon [icon]="faBuilding" class="header-icon"></fa-icon>
+        <div class="header-text">
+          <h2 id="modal-title" class="modal-title">Asignar Granjas</h2>
+          <p class="modal-subtitle">{{ userName }}</p>
+        </div>
+      </div>
+      <button 
+        (click)="closeModal()" 
+        class="modal-close-btn"
+        aria-label="Cerrar modal"
+      >
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="modal-loading">
+      <div class="spinner"></div>
+      <p>Cargando información de granjas...</p>
+    </div>
+
+    <!-- Content -->
+    <div *ngIf="!loading" class="modal-body">
+      <!-- Search -->
+      <div class="search-container">
+        <div class="relative">
+          <fa-icon 
+            [icon]="faSearch" 
+            class="absolute left-3 top-1/2 -translate-y-1/2 text-warm-gray-400"
+            aria-hidden="true"
+          ></fa-icon>
+          <input
+            type="text"
+            [(ngModel)]="searchTerm"
+            placeholder="Buscar granjas..."
+            class="search-input"
+            aria-label="Buscar granjas"
+          />
+          <button 
+            *ngIf="searchTerm"
+            (click)="clearSearch()"
+            class="search-clear-btn"
+            aria-label="Limpiar búsqueda"
+          >
+            <fa-icon [icon]="faTimes"></fa-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-container">
+        <div class="tabs">
+          <button 
+            class="tab-btn"
+            [class.active]="!showOnlyAssigned && !showOnlyAvailable"
+            (click)="showOnlyAssigned = false; showOnlyAvailable = false"
+          >
+            Todas
+          </button>
+          <button 
+            class="tab-btn"
+            [class.active]="showOnlyAssigned"
+            (click)="showOnlyAssigned = true; showOnlyAvailable = false"
+          >
+            Asignadas ({{ userFarms.length }})
+          </button>
+          <button 
+            class="tab-btn"
+            [class.active]="showOnlyAvailable"
+            (click)="showOnlyAssigned = false; showOnlyAvailable = true"
+          >
+            Disponibles ({{ filteredAvailableFarms.length }})
+          </button>
+        </div>
+      </div>
+
+      <!-- Assigned Farms -->
+      <div *ngIf="!showOnlyAvailable" class="section">
+        <h3 class="section-title">
+          <fa-icon [icon]="faUser" class="mr-2"></fa-icon>
+          Granjas Asignadas
+        </h3>
+        
+        <div *ngIf="filteredUserFarms.length === 0" class="empty-state">
+          <fa-icon [icon]="faBuilding" class="text-warm-gray-300 text-4xl mb-2"></fa-icon>
+          <p>No hay granjas asignadas</p>
+        </div>
+
+        <div *ngIf="filteredUserFarms.length > 0" class="farm-list">
+          <div 
+            *ngFor="let userFarm of filteredUserFarms" 
+            class="farm-item assigned"
+          >
+            <div class="farm-info">
+              <h4 class="farm-name">{{ userFarm.farmName }}</h4>
+              <div class="farm-badges">
+                <span 
+                  *ngIf="userFarm.isAdmin" 
+                  class="badge badge-admin"
+                  title="Administrador de la granja"
+                >
+                  <fa-icon [icon]="faCrown" class="mr-1"></fa-icon>
+                  Admin
+                </span>
+                <span 
+                  *ngIf="userFarm.isDefault" 
+                  class="badge badge-default"
+                  title="Granja por defecto"
+                >
+                  <fa-icon [icon]="faStar" class="mr-1"></fa-icon>
+                  Default
+                </span>
+              </div>
+            </div>
+            
+            <div class="farm-actions">
+              <button 
+                (click)="toggleAdmin(userFarm)"
+                class="action-btn"
+                [class.active]="userFarm.isAdmin"
+                [disabled]="saving"
+                title="Cambiar permisos de administrador"
+              >
+                <fa-icon [icon]="faCrown"></fa-icon>
+              </button>
+              <button 
+                (click)="toggleDefault(userFarm)"
+                class="action-btn"
+                [class.active]="userFarm.isDefault"
+                [disabled]="saving || userFarm.isDefault"
+                title="Establecer como granja por defecto"
+              >
+                <fa-icon [icon]="faStar"></fa-icon>
+              </button>
+              <button 
+                (click)="removeFarm(userFarm)"
+                class="action-btn danger"
+                [disabled]="saving"
+                title="Remover granja"
+              >
+                <fa-icon [icon]="faTrash"></fa-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Available Farms -->
+      <div *ngIf="!showOnlyAssigned" class="section">
+        <h3 class="section-title">
+          <fa-icon [icon]="faBuilding" class="mr-2"></fa-icon>
+          Granjas Disponibles
+        </h3>
+        
+        <div *ngIf="filteredAvailableFarms.length === 0" class="empty-state">
+          <fa-icon [icon]="faCheck" class="text-green-500 text-4xl mb-2"></fa-icon>
+          <p>Todas las granjas están asignadas</p>
+        </div>
+
+        <div *ngIf="filteredAvailableFarms.length > 0" class="farm-list">
+          <div 
+            *ngFor="let farm of filteredAvailableFarms" 
+            class="farm-item available"
+          >
+            <div class="farm-info">
+              <h4 class="farm-name">{{ farm.name }}</h4>
+              <p class="farm-details">ID: {{ farm.id }} | Regional: {{ farm.regionalId }}</p>
+            </div>
+            
+            <div class="farm-actions">
+              <button 
+                (click)="assignFarm(farm)"
+                class="action-btn primary"
+                [disabled]="saving"
+                title="Asignar granja al usuario"
+              >
+                <fa-icon [icon]="faCheck"></fa-icon>
+                Asignar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button 
+        (click)="closeModal()" 
+        class="btn-secondary"
+        [disabled]="saving"
+      >
+        <fa-icon [icon]="faTimes" class="mr-2"></fa-icon>
+        Cerrar
+      </button>
+    </div>
+  </div>
+</div>

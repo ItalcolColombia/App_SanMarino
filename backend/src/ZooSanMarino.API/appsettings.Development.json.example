@@ -1,0 +1,30 @@
+{
+  "ConnectionStrings": {
+    "ZooSanMarinoContext": "Host=localhost;Port=5432;Database=zoo_sanmarino_dev;Username=postgres;Password=postgres;"
+  },
+  "JwtSettings": {
+    "Key": "YOUR_JWT_SECRET_KEY_FOR_DEVELOPMENT",
+    "Issuer": "ZooSanMarino.API",
+    "Audience": "ZooSanMarino.Client",
+    "DurationInMinutes": 60
+  },
+  "Database": {
+    "RunMigrations": true,
+    "RunSeed": true
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.EntityFrameworkCore": "Information"
+    }
+  },
+  "EmailSettings": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "SmtpUsername": "YOUR_DEV_EMAIL_USERNAME",
+    "SmtpPassword": "YOUR_DEV_EMAIL_PASSWORD",
+    "FromEmail": "YOUR_DEV_FROM_EMAIL",
+    "FromName": "Zoo San Marino - Desarrollo"
+  }
+}

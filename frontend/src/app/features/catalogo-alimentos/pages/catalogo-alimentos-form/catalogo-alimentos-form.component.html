@@ -1,0 +1,121 @@
+<!-- apps/features/catalogo-alimentos/pages/catalogo-alimentos-form/catalogo-alimentos-form.component.html -->
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>{{ editingId ? 'Editar Ítem de Catálogo' : 'Nuevo Ítem de Catálogo' }}</h1>
+        <p class="ux-subtitle">Define el tipo de ítem y su metadata estructurada. Si es alimento para pollos, se solicitarán datos específicos.</p>
+      </div>
+    </header>
+
+    <section class="ux-card">
+      <form [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
+        <div class="grid grid-2">
+          <!-- Identificación -->
+          <div class="form-field">
+            <label for="f-cod">Código</label>
+            <input id="f-cod" type="text" formControlName="codigo" [readonly]="editingId"/>
+          </div>
+
+          <div class="form-field">
+            <label for="f-nom">Nombre</label>
+            <input id="f-nom" type="text" formControlName="nombre"/>
+          </div>
+
+          <div class="form-field">
+            <label for="f-act">Activo</label>
+            <select id="f-act" formControlName="activo">
+              <option [ngValue]="true">Sí</option>
+              <option [ngValue]="false">No</option>
+            </select>
+          </div>
+
+          <!-- Tipo genérico -->
+          <div class="form-field">
+            <label for="f-type">Tipo de ítem</label>
+            <select id="f-type" formControlName="type_item">
+              <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
+            </select>
+            <small class="help">Esta clave se guardará como <code>type_item</code> en la metadata.</small>
+          </div>
+
+          <!-- Sección específica para alimento -->
+          <div class="form-field form-field--full" *ngIf="isAlimento()">
+            <div class="ux-card ux-card--sub">
+              <div class="ux-card__header">
+                <strong>Alimento — configuración</strong>
+              </div>
+
+              <div class="grid grid-3">
+                <div class="form-field">
+                  <label for="f-pollo">¿Es para pollos?</label>
+                  <select id="f-pollo" formControlName="es_para_pollos">
+                    <option [ngValue]="true">Sí</option>
+                    <option [ngValue]="false">No</option>
+                  </select>
+                  <small class="help">Si es para pollos, guardaremos <code>especie: "pollo"</code>.</small>
+                </div>
+
+                <div class="form-field" *ngIf="requiereEstructuraPollos()">
+                  <label for="f-raza">Raza</label>
+                  <select id="f-raza" formControlName="raza">
+                    <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
+                  </select>
+                </div>
+
+                <div class="form-field" *ngIf="requiereEstructuraPollos()">
+                  <label for="f-genero">Género</label>
+                  <select id="f-genero" formControlName="genero">
+                    <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div *ngIf="requiereEstructuraPollos()" class="note note--info">
+                Se requerirán <code>raza</code> y <code>genero</code> en la metadata.
+              </div>
+            </div>
+          </div>
+
+          <!-- Metadata libre (key/value) -->
+          <div class="form-field form-field--full">
+            <div class="meta-editor">
+              <div class="meta-header">
+                <strong>Metadata libre</strong>
+                <button type="button" class="btn btn--ghost" (click)="addMetaRow()">+ Agregar</button>
+              </div>
+
+              <div class="meta-rows" formArrayName="metadata">
+                <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
+                  <input type="text" placeholder="clave" formControlName="key" />
+                  <input type="text" placeholder="valor" formControlName="value" />
+                  <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" title="Quitar">🗑</button>
+                </div>
+              </div>
+              <small class="help">
+                Las claves reservadas <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code> se gestionan arriba y no se aceptan aquí.
+              </small>
+            </div>
+          </div>
+
+          <!-- Vista previa JSON -->
+          <div class="form-field form-field--full">
+            <label>Vista previa de metadata (JSON)</label>
+            <pre class="json-preview">{{ jsonPreview() }}</pre>
+          </div>
+        </div>
+
+        <footer class="form-footer">
+          <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
+          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">Guardar</button>
+        </footer>
+      </form>
+
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite" role="status">
+        <div class="spinner"></div> Guardando…
+      </div>
+    </section>
+  </div>
+</div>

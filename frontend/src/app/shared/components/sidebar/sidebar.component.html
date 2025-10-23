@@ -1,109 +1,135 @@
-<div class="flex flex-col h-screen bg-white shadow-lg">
-  <!-- Logo -->
-  <div class="flex items-center justify-center h-20 bg-white">
-    <img
-      src="https://sanmarino.com.co/wp-content/uploads/2018/06/Logo-redes-sociales-sanmarino-03.png"
-      alt="Sanmarino Logo"
-      class="h-12"
-    />
+<!-- src/app/shared/components/sidebar/sidebar.component.html -->
+<div class="flex flex-col h-screen bg-white shadow-lg sidebar-root">
+  <!-- Header / Logo -->
+  <div class="menu-header">
+    <div class="brand-duo brand-duo--compact" role="img" aria-label="Logos Sanmarino y Tecnología e Innovación">
+      <img
+        src="assets/brand/icono-logo.png"
+        alt="Sanmarino Logo"
+        class="brand-duo__img"
+        loading="eager"
+        decoding="async"
+      />
+    </div>
   </div>
 
-  <!-- Menú -->
+  <!-- Banner Bienvenida (estático a nivel de layout, datos vienen de sesión) -->
+  <div class="mx-3 mt-2">
+    <div
+      class="welcome-card grid grid-cols-[44px_1fr] gap-3 rounded-xl border border-yellow-300/40
+                 bg-gradient-to-b from-yellow-100/30 to-yellow-200/30 p-3 relative overflow-hidden"
+    >
+      <span class="pointer-events-none absolute -top-10 -right-12 w-56 h-56 rounded-full bg-white/30 blur-3xl"></span>
+
+      <div
+        class="avatar grid place-items-center w-11 h-11 rounded-full border border-yellow-300/60
+                   bg-yellow-50 shadow-sm text-gray-800 font-bold"
+      >
+        {{ (userBanner$ | async)?.initials }}
+      </div>
+
+      <div class="info flex flex-col">
+        <div class="leading-tight">
+          <span class="text-xs text-gray-500 mr-1">Bienvenido,</span>
+          <strong class="text-sm text-gray-800">{{ (userBanner$ | async)?.fullName }}</strong>
+        </div>
+
+        <div class="mt-1">
+          <span
+            class="inline-block text-[11px] px-2 py-[2px] rounded-full border border-yellow-300
+                       bg-yellow-50 text-amber-900"
+          >
+            {{ (userBanner$ | async)?.company }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menú (desde base de datos vía observable menu$) -->
   <div class="flex-1 overflow-y-auto">
-    <nav class="mt-6">
-      <ul class="space-y-1">
-        <li *ngFor="let item of menuItems">
-          <!-- Nivel 1: ítem con submenú -->
-          <ng-container *ngIf="item.children; else singleLink1">
-            <button
-              (click)="toggle(item)"
-              class="group flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-              [ngClass]="{ 'bg-gray-100': item.expanded }"
-            >
-              <fa-icon [icon]="item.icon" class="mr-3 text-lg text-gray-600"></fa-icon>
-              <span class="flex-1 text-sm font-medium">{{ item.label }}</span>
-              <fa-icon
-                [icon]="faChevronDown"
-                class="ml-auto text-sm transition-transform duration-200"
-                [ngClass]="{ 'rotate-180': item.expanded }"
-              ></fa-icon>
-            </button>
+    <nav class="mt-4">
+      <!-- Acceso rápido: Mi Perfil -->
+      <div class="px-4 mb-2">
+        <a routerLink="/profile"
+           class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors border border-yellow-200 bg-yellow-50/40">
+          <span class="flex-1 text-sm font-medium">Mi Perfil</span>
+        </a>
+      </div>
 
-            <!-- Submenú Nivel 1 -->
-            <ul *ngIf="item.expanded" class="mt-1 space-y-1 pl-6">
-              <li *ngFor="let sub of item.children">
-                <!-- Nivel 2: ítem con submenú -->
-                <ng-container *ngIf="sub.children; else singleLink2">
-                  <button
-                    (click)="toggle(sub)"
-                    class="group flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                    [ngClass]="{ 'bg-gray-100': sub.expanded }"
-                  >
-                    <fa-icon [icon]="sub.icon" class="mr-3 text-base text-gray-600"></fa-icon>
-                    <span class="flex-1 text-sm">{{ sub.label }}</span>
-                    <fa-icon
-                      [icon]="faChevronDown"
-                      class="ml-auto text-xs transition-transform duration-200"
-                      [ngClass]="{ 'rotate-180': sub.expanded }"
-                    ></fa-icon>
-                  </button>
-
-                  <!-- Submenú Nivel 2 (hojas) -->
-                  <ul *ngIf="sub.expanded" class="mt-1 space-y-1 pl-6">
-                    <li *ngFor="let leaf of sub.children">
-                      <a
-                        [routerLink]="leaf.link"
-                        routerLinkActive="text-red-600"
-                        class="flex items-center px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                      >
-                        <fa-icon [icon]="leaf.icon" class="mr-3 text-base"></fa-icon>
-                        <span class="text-sm">{{ leaf.label }}</span>
-                      </a>
-                    </li>
-                  </ul>
-                </ng-container>
-
-                <!-- Nivel 2: ítem sin submenú -->
-                <ng-template #singleLink2>
-                  <a
-                    [routerLink]="sub.link"
-                    routerLinkActive="text-red-600"
-                    class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                  >
-                    <fa-icon [icon]="sub.icon" class="mr-3 text-base text-gray-600"></fa-icon>
-                    <span class="text-sm">{{ sub.label }}</span>
-                  </a>
-                </ng-template>
-              </li>
-            </ul>
-          </ng-container>
-
-          <!-- Nivel 1: ítem sin submenú -->
-          <ng-template #singleLink1>
-            <a
-              [routerLink]="item.link"
-              routerLinkActive="bg-gray-100 text-red-600"
-              [routerLinkActiveOptions]="{ exact: true }"
-              class="group flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-            >
-              <fa-icon [icon]="item.icon" class="mr-3 text-lg text-gray-600"></fa-icon>
-              <span class="flex-1 text-sm font-medium">{{ item.label }}</span>
-            </a>
-          </ng-template>
+      <ul class="space-y-1" *ngIf="(menu$ | async) as menu">
+        <li *ngFor="let item of menu">
+          <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: item, level: 0}"></ng-container>
         </li>
       </ul>
+
+      <!-- Plantilla recursiva -->
+      <ng-template #renderNode let-node let-level="level">
+        <div class="group">
+          <!-- Nodo sin hijos -->
+          <a *ngIf="!node.children?.length"
+             [routerLink]="node.link"
+             routerLinkActive="bg-gray-100 text-red-600"
+             [routerLinkActiveOptions]="{ exact: true }"
+             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+             [ngClass]="{ 'pl-6': level === 1, 'pl-9': level >= 2 }">
+            <fa-icon *ngIf="node.icon" [icon]="node.icon" class="mr-3 text-lg text-gray-600"></fa-icon>
+            <span class="flex-1 text-sm font-medium">{{ node.label }}</span>
+          </a>
+
+          <!-- Nodo con hijos -->
+          <div *ngIf="node.children?.length" class="w-full" [ngClass]="{ 'pl-4': level === 1, 'pl-8': level >= 2 }">
+            <div class="flex items-center">
+              <!-- Si el nodo también navega, el texto es link -->
+              <a *ngIf="node.link"
+                 [routerLink]="node.link"
+                 routerLinkActive="text-red-600"
+                 class="flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600"></fa-icon>
+                <span class="text-sm font-medium truncate">{{ node.label }}</span>
+              </a>
+
+              <!-- Si no tiene link, se muestra solo como contenedor -->
+              <button *ngIf="!node.link"
+                      type="button"
+                      (click)="toggle(node)"
+                      class="flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
+                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600"></fa-icon>
+                <span class="text-sm font-medium truncate">{{ node.label }}</span>
+              </button>
+
+              <!-- Caret -->
+              <button type="button"
+                      class="p-2 rounded-md text-gray-500 hover:bg-gray-100 ml-1"
+                      aria-label="Expandir"
+                      (click)="toggle(node)">
+                <fa-icon [icon]="faChevronDown"
+                         class="transition-transform duration-200"
+                         [ngClass]="{ 'rotate-180': node.expanded }"></fa-icon>
+              </button>
+            </div>
+
+            <!-- Hijos -->
+            <ul *ngIf="node.expanded" class="mt-1 space-y-1 border-l ml-4 pl-3">
+              <li *ngFor="let child of node.children">
+                <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: child, level: level + 1}"></ng-container>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </ng-template>
     </nav>
   </div>
 
-  <!-- Logout -->
+  <!-- Logout (siempre visible al final) -->
   <div class="p-4 border-t border-gray-200">
     <button
       (click)="logout()"
       class="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+      type="button"
     >
       <fa-icon [icon]="faSignOutAlt" class="mr-3 text-lg"></fa-icon>
       <span class="flex-1 text-sm">Cerrar Sesión</span>
     </button>
   </div>
 </div>
- 

@@ -1,0 +1,221 @@
+/* ==========================================================================
+   🔍 Filtros de Selección
+   ========================================================================== */
+:host {
+  display: block;
+}
+
+/* ==========================================================================
+   🎨 Design System / Tokens (solo claro)
+   ========================================================================== */
+:host {
+  /* Brand */
+  --brand-red:        #d32f2f;
+  --brand-red-600:    #c62828;
+  --brand-red-700:    #b71c1c;
+
+  /* Accent */
+  --amber-25:         #fffbeb;
+  --amber-50:         #fff7ed;
+  --amber-100:        #fef3c7;
+  --amber-200:        #fde68a;
+
+  /* Warm Gray scale */
+  --warm-25:          #fdfdfc;
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-500:         #78716c;
+  --warm-600:         #57534e;
+
+  /* Base */
+  --white:            #ffffff;
+  --black:            #111111;
+
+  /* Sombras */
+  --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
+  --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
+  --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
+
+  /* Espaciado & Radios */
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --radius-sm: .5rem;
+  --radius-md: .65rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Tipografía */
+  --fs-xs: .75rem;
+  --fs-sm: .85rem;
+  --fs-md: .92rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.35rem;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+
+  /* Z-index */
+  --z-sticky: 10;
+  --z-modal:  50;
+
+  /* Superficies (CLARO) */
+  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-card:    var(--white);
+  --bg-muted:   var(--warm-50);
+  --border:     var(--warm-200);
+  --text:       var(--black);
+  --text-sub:   #222222;
+
+  /* Transiciones */
+  --t-fast: .12s ease;
+  --t-med:  .15s ease;
+}
+
+/* ==========================================================================
+   🧰 Cards / Toolbar
+   ========================================================================== */
+:host .ux-card {
+  position: relative; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: var(--space-4);
+  color: var(--text);
+}
+
+:host .ux-toolbar {
+  display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: end;
+  margin-bottom: var(--space-4);
+}
+
+:host .ux-toolbar:last-child {
+  margin-bottom: 0;
+}
+
+/* ==========================================================================
+   🎛️ Form Controls
+   ========================================================================== */
+:host .ux-field {
+  display: flex; flex-direction: column; gap: var(--space-1);
+  min-width: 0; flex: 1;
+}
+
+:host .ux-field label {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--text-sub);
+  margin-bottom: var(--space-1);
+}
+
+:host select {
+  appearance: none; background: var(--white);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4); font-size: var(--fs-md);
+  color: var(--text); transition: all var(--t-fast);
+  cursor: pointer; min-width: 0;
+}
+
+:host select:focus {
+  outline: none; border-color: var(--brand-red);
+  box-shadow: var(--ring);
+}
+
+:host select:disabled {
+  background: var(--warm-100); color: var(--warm-500);
+  cursor: not-allowed; border-color: var(--warm-200);
+}
+
+/* ==========================================================================
+   🏷️ Chips
+   ========================================================================== */
+:host .chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  font-size: var(--fs-sm); font-weight: 500; white-space: nowrap;
+  transition: all var(--t-fast);
+}
+
+:host .chip__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+
+:host .chip--primary {
+  background: var(--brand-red); color: var(--white);
+}
+
+:host .chip--primary .chip__dot {
+  background: var(--white);
+}
+
+:host .chip--info {
+  background: #e3f2fd; color: #1565c0;
+}
+
+:host .chip--info .chip__dot {
+  background: #1565c0;
+}
+
+:host .chip--success {
+  background: #e8f5e8; color: #2e7d32;
+}
+
+:host .chip--success .chip__dot {
+  background: #2e7d32;
+}
+
+:host .chip--muted {
+  background: var(--warm-100); color: var(--warm-600);
+}
+
+:host .chip--muted .chip__dot {
+  background: var(--warm-600);
+}
+
+/* ==========================================================================
+   🔧 Helpers / Utilities
+   ========================================================================== */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+/* ==========================================================================
+   📱 Responsive
+   ========================================================================== */
+@media (max-width: 768px) {
+  :host .ux-toolbar {
+    flex-direction: column; align-items: stretch;
+  }
+  
+  :host .ux-field {
+    flex: none;
+  }
+  
+  :host .chip {
+    font-size: var(--fs-xs);
+    padding: var(--space-1) var(--space-2);
+  }
+}
+
+@media (max-width: 480px) {
+  :host .ux-card {
+    padding: var(--space-3);
+  }
+  
+  :host .ux-toolbar {
+    gap: var(--space-3);
+  }
+  
+  :host select {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fs-sm);
+  }
+}

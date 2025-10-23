@@ -1,0 +1,2 @@
+.form-footer { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+.meta-editor { @extend .meta-editor; } // reutiliza estilos del list si tienes scopes globales

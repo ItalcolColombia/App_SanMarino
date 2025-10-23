@@ -1,0 +1,115 @@
+<!-- src/app/features/lote/components/filtro-lotes/filtro-lotes.component.html -->
+<div class="ux-card p-4 mb-4">
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+    <!-- Compañía -->
+    <div class="lg:col-span-3">
+      <label for="l-company" class="ux-label">Compañía</label>
+      <select id="l-company" class="ux-select"
+              [(ngModel)]="selectedCompanyId"
+              (ngModelChange)="onCompanyChange($event)">
+        <option [ngValue]="null">Todas</option>
+        <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+      </select>
+    </div>
+
+    <!-- Granja -->
+    <div class="lg:col-span-3">
+      <label for="l-farm" class="ux-label">Granja <span class="text-red-500">*</span></label>
+      <select id="l-farm" class="ux-select"
+              [(ngModel)]="selectedFarmId"
+              (ngModelChange)="onFarmChange($event)">
+        <option [ngValue]="null">Selecciona una granja</option>
+        <option *ngFor="let f of farmsFiltered" [ngValue]="f.id">{{ f.name }}</option>
+      </select>
+    </div>
+
+    <!-- Núcleo -->
+    <div class="lg:col-span-3">
+      <label for="l-nucleo" class="ux-label">Núcleo</label>
+      <select id="l-nucleo" class="ux-select"
+              [(ngModel)]="selectedNucleoId"
+              (ngModelChange)="onNucleoChange($event)"
+              [disabled]="!hasFarmSelected">
+        <option [ngValue]="null">Todos</option>
+        <option *ngFor="let n of nucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+      </select>
+    </div>
+
+    <!-- Galpón -->
+    <div class="lg:col-span-3">
+      <label for="l-galpon" class="ux-label">Galpón</label>
+      <select id="l-galpon" class="ux-select"
+              [(ngModel)]="selectedGalponId"
+              (ngModelChange)="onGalponChange($event)"
+              [disabled]="!hasFarmSelected">
+        <option [ngValue]="null">Todos</option>
+        <option *ngFor="let g of galponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+      </select>
+    </div>
+
+    <!-- Búsqueda -->
+    <div class="lg:col-span-3">
+      <label for="lote-filter" class="ux-label">Buscar</label>
+      <div class="ux-search">
+        <fa-icon [icon]="faMagnifyingGlass" class="ux-search__icon" aria-hidden="true"></fa-icon>
+        <input
+          id="lote-filter"
+          type="text"
+          [(ngModel)]="filtro"
+          (ngModelChange)="onSearchChange($event)"
+          placeholder="Buscar por lote, núcleo, granja o empresa…"
+          class="ux-input"
+          aria-label="Buscar lote"
+          [disabled]="!hasFarmSelected"
+        />
+      </div>
+    </div>
+
+    <!-- Ordenar por -->
+    <div class="lg:col-span-2">
+      <label for="l-sort-key" class="ux-label">Ordenar por</label>
+      <select id="l-sort-key" class="ux-select"
+              [ngModel]="sortKey"
+              (ngModelChange)="onSortKeyChange($event)"
+              [disabled]="!hasFarmSelected">
+        <option [ngValue]="'edad'">Edad (días)</option>
+        <option [ngValue]="'fecha'">Fecha de encaset</option>
+      </select>
+    </div>
+
+    <!-- Dirección -->
+    <div class="lg:col-span-2">
+      <label for="l-sort-dir" class="ux-label">Dirección</label>
+      <select id="l-sort-dir" class="ux-select"
+              [ngModel]="sortDir"
+              (ngModelChange)="onSortDirChange($event)"
+              [disabled]="!hasFarmSelected">
+        <option [ngValue]="'desc'">Descendente</option>
+        <option [ngValue]="'asc'">Ascendente</option>
+      </select>
+    </div>
+
+    <!-- Limpiar -->
+    <div class="lg:col-span-2">
+      <button class="btn-ghost w-full" (click)="onResetFiltros()">
+        Limpiar
+      </button>
+    </div>
+  </div>
+
+  <!-- Mensaje de ayuda cuando no hay granja seleccionada -->
+  <div *ngIf="farmSelectionRequired" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+    <div class="flex items-center">
+      <div class="flex-shrink-0">
+        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+        </svg>
+      </div>
+      <div class="ml-3">
+        <p class="text-sm text-blue-700">
+          <strong>Selecciona una granja</strong> para habilitar los filtros y ver los lotes disponibles.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

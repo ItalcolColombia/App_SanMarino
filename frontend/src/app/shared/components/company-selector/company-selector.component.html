@@ -1,0 +1,43 @@
+<div class="company-selector" [class]="'company-selector--' + variant + ' company-selector--' + size">
+  <div *ngIf="shouldShowSelector" class="company-selector__container">
+    <label *ngIf="showLabel" class="company-selector__label">
+      🏢 Empresa Activa
+    </label>
+    
+    <div class="company-selector__input-container">
+      <select 
+        class="company-selector__select"
+        [value]="activeCompany || ''"
+        (change)="onCompanyChange($event)"
+        [title]="'Seleccionar empresa activa'">
+        
+        <option value="" disabled>
+          {{ hasMultipleCompanies ? 'Selecciona una empresa' : 'Sin empresas disponibles' }}
+        </option>
+        
+        <option 
+          *ngFor="let company of availableCompanies" 
+          [value]="company"
+          [selected]="company === activeCompany">
+          {{ company }}
+        </option>
+      </select>
+      
+      <div class="company-selector__icon" aria-hidden="true">
+        🏢
+      </div>
+    </div>
+    
+    <div *ngIf="activeCompany" class="company-selector__status">
+      <span class="company-selector__status-text">
+        Empresa activa: <strong>{{ activeCompany }}</strong>
+      </span>
+    </div>
+  </div>
+  
+  <div *ngIf="!shouldShowSelector" class="company-selector__no-companies">
+    <span class="company-selector__no-companies-text">
+      {{ availableCompanies.length === 0 ? 'Sin empresas asignadas' : 'Una sola empresa disponible' }}
+    </span>
+  </div>
+</div>

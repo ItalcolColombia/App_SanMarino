@@ -1,129 +1,84 @@
 <!-- src/app/features/config/user-management/user-management.component.html -->
-<div class="flex h-full">
-  <app-sidebar></app-sidebar>
+<div class="user-management-container" [attr.aria-busy]="loading ? 'true' : null">
+  <!-- Sidebar -->
+  <app-sidebar class="sidebar"></app-sidebar>
 
-  <main class="flex-1 bg-warm-gray-50 p-8 min-h-screen">
-    <div class="mx-auto w-full space-y-6 px-4">
-      <!-- Cabecera -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-        <h1 class="text-3xl font-semibold text-brand-red mb-4 sm:mb-0">
-          <fa-icon [icon]="faUsers" class="mr-2"></fa-icon>
-          Gestión de Usuarios
-        </h1>
-        <button
-          (click)="openModal()"
-          class="inline-flex items-center px-5 py-2 bg-chicken-yellow text-warm-gray-800 rounded-lg shadow hover:bg-yellow-500 transition"
-        >
-          <fa-icon [icon]="faUserPlus" class="mr-2"></fa-icon>
-          Crear Usuario
-        </button>
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Compact Header -->
+    <div class="header">
+      <div class="header-left">
+        <fa-icon [icon]="faUsers" class="header-icon"></fa-icon>
+        <h1 class="header-title">Gestión de Usuarios</h1>
       </div>
+      <button
+        (click)="navigateToCreate()"
+        class="btn-create"
+        aria-label="Registrar nuevo usuario"
+      >
+        <fa-icon [icon]="faUserPlus"></fa-icon>
+        <span class="btn-text">Nuevo Usuario</span>
+      </button>
+    </div>
 
-      <!-- Filtro -->
-      <div class="flex items-center mb-4">
-        <div class="relative flex-1">
-          <fa-icon [icon]="faUser" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-gray-400"></fa-icon>
-          <input
-            type="text"
-            [(ngModel)]="filterTerm"
-            placeholder="Buscar nombre, cédula o correo…"
-            class="w-full pl-10 pr-4 py-2 border border-warm-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red"
-          />
+    <!-- Content Area -->
+    <div class="content-area">
+      <!-- Tabla de Lista de Registros -->
+      <app-tabla-lista-registro
+        *ngIf="currentPage === 'list'"
+        class="table-container"
+        (createUser)="navigateToCreate()"
+        (editUser)="navigateToEdit($event)"
+        (assignFarms)="navigateToAssignFarms($event)"
+      ></app-tabla-lista-registro>
+
+      <!-- Formulario de Creación -->
+      <div *ngIf="currentPage === 'create'" class="form-container">
+        <div class="form-header">
+          <h2>Registrar Nuevo Usuario</h2>
+          <button (click)="navigateToList()" class="btn-cancel">
+            <fa-icon [icon]="faTimes"></fa-icon>
+            Cancelar
+          </button>
+        </div>
+        <div class="form-placeholder">
+          <p>Formulario de registro de usuario (pendiente de implementar)</p>
         </div>
       </div>
 
-      <!-- Tabla -->
-      <div class="overflow-x-auto bg-white rounded-lg shadow w-full">
-        <table class="min-w-full divide-y divide-warm-gray-200">
-          <thead class="bg-warm-gray-100">
-            <tr>
-              <th class="px-4 py-2 text-left text-sm font-medium text-warm-gray-700">Nombre</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-warm-gray-700">Apellidos</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-warm-gray-700">Cédula</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-warm-gray-700">Correo</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-warm-gray-700">Teléfono</th>
-              <th class="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-warm-gray-200">
-            <tr *ngFor="let u of filteredUsers" class="hover:bg-warm-gray-50">
-              <td class="px-4 py-2">{{ u.nombre }}</td>
-              <td class="px-4 py-2">{{ u.apellido }}</td>
-              <td class="px-4 py-2">{{ u.cedula }}</td>
-              <td class="px-4 py-2">{{ u.correo }}</td>
-              <td class="px-4 py-2">{{ u.telefono }}</td>
-              <td class="px-4 py-2 text-right space-x-2 whitespace-nowrap">
-                <button (click)="openModal(u)" class="inline-flex items-center whitespace-nowrap text-brand-red hover:underline">
-  <fa-icon [icon]="faSave" class="mr-1 text-sm sm:text-base"></fa-icon>
-  <span class="text-sm sm:text-base">Editar</span>
-</button>
-                <button (click)="delete(u)" class="inline-flex items-center whitespace-nowrap text-red-600 hover:underline">
-  <fa-icon [icon]="faTrash" class="mr-1 text-sm sm:text-base"></fa-icon>
-  <span class="text-sm sm:text-base">Eliminar</span>
-</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Modal -->
-      <div
-        *ngIf="modalOpen"
-        class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
-      >
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
-          <h2 class="text-xl font-bold text-brand-red flex items-center">
-            <fa-icon [icon]="editing ? faSave : faUserPlus" class="mr-2"></fa-icon>
-            {{ editing ? 'Editar Usuario' : 'Crear Usuario' }}
-          </h2>
-          <form (ngSubmit)="save()" [formGroup]="userForm" class="space-y-4">
-            <!-- Nombre -->
-            <div class="relative">
-              <fa-icon [icon]="faUser" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-gray-400"></fa-icon>
-              <input formControlName="nombre" placeholder="Nombre"
-                     class="w-full pl-10 pr-3 py-2 border rounded-lg focus:border-brand-red" />
-            </div>
-            <!-- Apellidos -->
-            <div class="relative">
-              <fa-icon [icon]="faUser" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-gray-400"></fa-icon>
-              <input formControlName="apellido" placeholder="Apellidos"
-                     class="w-full pl-10 pr-3 py-2 border rounded-lg focus:border-brand-red" />
-            </div>
-            <!-- Cédula -->
-            <div class="relative">
-              <fa-icon [icon]="faIdCard" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-gray-400"></fa-icon>
-              <input formControlName="cedula" placeholder="Cédula"
-                     class="w-full pl-10 pr-3 py-2 border rounded-lg focus:border-brand-red" />
-            </div>
-            <!-- Correo -->
-            <div class="relative">
-              <fa-icon [icon]="faEnvelope" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-gray-400"></fa-icon>
-              <input formControlName="correo" placeholder="Correo"
-                     class="w-full pl-10 pr-3 py-2 border rounded-lg focus:border-brand-red" />
-            </div>
-            <!-- Teléfono -->
-            <div class="relative">
-              <fa-icon [icon]="faPhone" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-warm-gray-400"></fa-icon>
-              <input formControlName="telefono" placeholder="Teléfono"
-                     class="w-full pl-10 pr-3 py-2 border rounded-lg focus:border-brand-red" />
-            </div>
-            <!-- Acciones -->
-            <div class="flex justify-end space-x-2 mt-6">
-              <button type="button" (click)="closeModal()"
-                      class="px-4 py-2 bg-warm-gray-200 rounded-lg hover:bg-warm-gray-300 transition inline-flex items-center">
-                <fa-icon [icon]="faTimes" class="mr-2"></fa-icon>
-                Cancelar
-              </button>
-              <button type="submit" [disabled]="userForm.invalid"
-                      class="px-4 py-2 bg-chicken-yellow text-warm-gray-800 rounded-lg hover:bg-yellow-500 transition inline-flex items-center disabled:opacity-50">
-                <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
-                Guardar
-              </button>
-            </div>
-          </form>
+      <!-- Formulario de Edición -->
+      <div *ngIf="currentPage === 'edit'" class="form-container">
+        <div class="form-header">
+          <h2>Editar Usuario</h2>
+          <button (click)="navigateToList()" class="btn-cancel">
+            <fa-icon [icon]="faTimes"></fa-icon>
+            Cancelar
+          </button>
+        </div>
+        <div class="form-placeholder">
+          <p>Formulario de edición de usuario (pendiente de implementar)</p>
+          <p>Usuario ID: {{ selectedUserId }}</p>
         </div>
       </div>
     </div>
-  </main>
+  </div>
 </div>
+
+<!-- Modal de Crear/Editar Usuario -->
+<app-modal-create-edit
+  [isOpen]="modalOpen"
+  [editingUser]="editingUser"
+  (close)="closeModal()"
+  (userSaved)="onUserSaved($event)"
+></app-modal-create-edit>
+
+<!-- Modal de Asignación de Granjas -->
+<app-asignar-usuario-granja
+  *ngIf="selectedUserForFarms"
+  [isOpen]="farmModalOpen"
+  [userId]="selectedUserForFarms.id"
+  [userName]="selectedUserForFarms.firstName + ' ' + selectedUserForFarms.surName"
+  [companyId]="getUserCompanyId(selectedUserForFarms)"
+  (close)="closeFarmModal()"
+  (granjasUpdated)="onFarmsUpdated()"
+></app-asignar-usuario-granja>

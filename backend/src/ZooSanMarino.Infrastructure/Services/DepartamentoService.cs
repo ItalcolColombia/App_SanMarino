@@ -10,29 +10,23 @@ namespace ZooSanMarino.Infrastructure.Services;
 public class DepartamentoService : IDepartamentoService
 {
     private readonly ZooSanMarinoContext _ctx;
-
-    public DepartamentoService(ZooSanMarinoContext ctx)
-        => _ctx = ctx;
+    public DepartamentoService(ZooSanMarinoContext ctx) => _ctx = ctx;
 
     public async Task<IEnumerable<DepartamentoDto>> GetAllAsync()
         => await _ctx.Set<Departamento>()
-            .Select(d => new DepartamentoDto(
-                d.DepartamentoId,
-                d.DepartamentoNombre,
-                d.PaisId,
-                d.Active
-            ))
+            .Select(d => new DepartamentoDto(d.DepartamentoId, d.DepartamentoNombre, d.PaisId, d.Active))
+            .ToListAsync();
+
+    public async Task<IEnumerable<DepartamentoDto>> GetByPaisIdAsync(int paisId) // ⬅️
+        => await _ctx.Set<Departamento>()
+            .Where(d => d.PaisId == paisId)
+            .Select(d => new DepartamentoDto(d.DepartamentoId, d.DepartamentoNombre, d.PaisId, d.Active))
             .ToListAsync();
 
     public async Task<DepartamentoDto?> GetByIdAsync(int id)
         => await _ctx.Set<Departamento>()
             .Where(d => d.DepartamentoId == id)
-            .Select(d => new DepartamentoDto(
-                d.DepartamentoId,
-                d.DepartamentoNombre,
-                d.PaisId,
-                d.Active
-            ))
+            .Select(d => new DepartamentoDto(d.DepartamentoId, d.DepartamentoNombre, d.PaisId, d.Active))
             .SingleOrDefaultAsync();
 
     public async Task<DepartamentoDto> CreateAsync(CreateDepartamentoDto dto)
@@ -45,23 +39,16 @@ public class DepartamentoService : IDepartamentoService
         };
         _ctx.Add(entity);
         await _ctx.SaveChangesAsync();
-        return new DepartamentoDto(
-            entity.DepartamentoId,
-            entity.DepartamentoNombre,
-            entity.PaisId,
-            entity.Active
-        );
+        return new DepartamentoDto(entity.DepartamentoId, entity.DepartamentoNombre, entity.PaisId, entity.Active);
     }
 
     public async Task<bool> UpdateAsync(UpdateDepartamentoDto dto)
     {
         var entity = await _ctx.Set<Departamento>().FindAsync(dto.DepartamentoId);
         if (entity is null) return false;
-
         entity.DepartamentoNombre = dto.DepartamentoNombre;
         entity.PaisId             = dto.PaisId;
         entity.Active             = dto.Active;
-
         await _ctx.SaveChangesAsync();
         return true;
     }

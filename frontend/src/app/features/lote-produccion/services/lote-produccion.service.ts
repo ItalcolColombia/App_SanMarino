@@ -1,13 +1,14 @@
 // src/app/features/lote-produccion/services/lote-produccion.service.ts
-import { Injectable } from '@angular/core';
-import { HttpClient }     from '@angular/common/http';
-import { Observable }     from 'rxjs';
-import { environment }    from '../../../../environments/environment';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { environment } from '../../../../environments/environment';
 
 export interface LoteProduccionDto {
-  id: string;
+  id: number;
   fecha: string;
-  loteId: string;
+  loteId: number;
   mortalidadH: number;
   mortalidadM: number;
   selH: number;
@@ -26,21 +27,63 @@ export interface UpdateLoteProduccionDto extends LoteProduccionDto {}
 
 @Injectable({ providedIn: 'root' })
 export class LoteProduccionService {
-  private readonly base = `${environment.apiUrl}/LoteProduccion`;
+  private readonly base = `${environment.apiUrl}/ProduccionDiaria`;
+  private readonly http = inject(HttpClient);
 
-  constructor(private http: HttpClient) {}
+  constructor() {}
 
-  getByLote(loteId: string): Observable<LoteProduccionDto[]> {
-    return this.http.get<LoteProduccionDto[]>(`${this.base}/por-lote/${loteId}`);
+  /** Obtener todos los registros */
+  getAll(): Observable<LoteProduccionDto[]> {
+    return this.http.get<LoteProduccionDto[]>(this.base)
+      .pipe(catchError(this.handleError));
   }
-  get(id: string) : Observable<LoteProduccionDto>    { return this.http.get<LoteProduccionDto>(`${this.base}/${id}`); }
+
+  /** Obtener registros por lote */
+  getByLote(loteId: number): Observable<LoteProduccionDto[]> {
+    return this.http.get<LoteProduccionDto[]>(`${this.base}/${loteId}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Crear nuevo registro */
   create(dto: CreateLoteProduccionDto): Observable<LoteProduccionDto> {
-    return this.http.post<LoteProduccionDto>(this.base, dto);
+    return this.http.post<LoteProduccionDto>(this.base, dto)
+      .pipe(catchError(this.handleError));
   }
+
+  /** Actualizar registro */
   update(dto: UpdateLoteProduccionDto): Observable<LoteProduccionDto> {
-    return this.http.put<LoteProduccionDto>(`${this.base}/${dto.id}`, dto);
+    return this.http.put<LoteProduccionDto>(`${this.base}/${dto.id}`, dto)
+      .pipe(catchError(this.handleError));
   }
-  delete(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/${id}`);
+
+  /** Eliminar registro */
+  delete(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/${id}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Filtrar registros */
+  filter(loteId?: number, desde?: string, hasta?: string): Observable<LoteProduccionDto[]> {
+    let params = '';
+    if (loteId) params += `loteId=${loteId}`;
+    if (desde) params += (params ? '&' : '') + `desde=${desde}`;
+    if (hasta) params += (params ? '&' : '') + `hasta=${hasta}`;
+    
+    const url = params ? `${this.base}/filter?${params}` : `${this.base}/filter`;
+    return this.http.get<LoteProduccionDto[]>(url)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Verificar si un lote tiene configuración de ProduccionLote */
+  checkProduccionLoteConfig(loteId: string): Observable<{ hasProduccionLoteConfig: boolean }> {
+    return this.http.get<{ hasProduccionLoteConfig: boolean }>(`${this.base}/check-config/${loteId}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  private handleError(err: HttpErrorResponse) {
+    const message = 
+      (err.error && (err.error.detail || err.error.title)) ||
+      (typeof err.error === 'string' ? err.error : 'Error inesperado en el servidor.');
+    return throwError(() => ({ status: err.status, message }));
   }
 }

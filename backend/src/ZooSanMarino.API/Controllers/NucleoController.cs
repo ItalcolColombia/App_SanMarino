@@ -1,7 +1,9 @@
-// src/ZooSanMarino.API/Controllers/NucleoController.cs
+// file: src/ZooSanMarino.API/Controllers/NucleoController.cs
 using Microsoft.AspNetCore.Mvc;
-using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Application.DTOs;                     // NucleoDto, CreateNucleoDto, UpdateNucleoDto
+using CommonDtos = ZooSanMarino.Application.DTOs.Common; // PagedResult<T>
+using NucleoDtos = ZooSanMarino.Application.DTOs.Nucleos; // NucleoDetailDto, NucleoSearchRequest
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -9,40 +11,109 @@ namespace ZooSanMarino.API.Controllers;
 [Route("api/[controller]")]
 public class NucleoController : ControllerBase
 {
-    readonly INucleoService _svc;
+    private readonly INucleoService _svc;
     public NucleoController(INucleoService svc) => _svc = svc;
 
-    [HttpGet] public async Task<IActionResult> GetAll() =>
-      Ok(await _svc.GetAllAsync());
-
-    [HttpGet("{nucleoId}/{granjaId}")] 
-    public async Task<IActionResult> GetById(string nucleoId, int granjaId) =>
-      (await _svc.GetByIdAsync(nucleoId, granjaId)) is NucleoDto dto
-        ? Ok(dto)
-        : NotFound();
-
-    [HttpPost] public async Task<IActionResult> Create(CreateNucleoDto dto)
+    // ===========================
+    // LISTADO SIMPLE (compat)
+    // ===========================
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<NucleoDto>>> GetAll()
     {
+        var items = await _svc.GetAllAsync();
+        return Ok(items);
+    }
+
+    // ===========================
+    // BÚSQUEDA AVANZADA
+    // ===========================
+    [HttpGet("search")]
+    public async Task<ActionResult<CommonDtos.PagedResult<NucleoDtos.NucleoDetailDto>>> Search(
+        [FromQuery] NucleoDtos.NucleoSearchRequest req)
+    {
+        var res = await _svc.SearchAsync(req);
+        return Ok(res);
+    }
+
+    // ===========================
+    // LISTAR POR GRANJA (compat)
+    // ===========================
+    [HttpGet("granja/{granjaId:int}")]
+    public async Task<ActionResult<IEnumerable<NucleoDto>>> GetByGranja(int granjaId)
+    {
+        var items = await _svc.GetByGranjaAsync(granjaId);
+        return Ok(items);
+    }
+
+    // ===========================
+    // DETALLE (incluye métricas)
+    // ===========================
+    [HttpGet("{nucleoId}/{granjaId:int}")]
+    public async Task<ActionResult<NucleoDtos.NucleoDetailDto>> GetDetail(string nucleoId, int granjaId)
+    {
+        var res = await _svc.GetDetailByIdAsync(nucleoId, granjaId);
+        if (res is null) return NotFound();
+        return Ok(res);
+    }
+
+    // (Opcional) GET básico por PK compuesta
+    [HttpGet("{nucleoId}/{granjaId:int}/basic")]
+    public async Task<ActionResult<NucleoDto>> GetByIdBasic(string nucleoId, int granjaId)
+    {
+        var res = await _svc.GetByIdAsync(nucleoId, granjaId);
+        if (res is null) return NotFound();
+        return Ok(res);
+    }
+
+    // ===========================
+    // CREATE
+    // ===========================
+    [HttpPost]
+    public async Task<ActionResult<NucleoDto>> Create([FromBody] CreateNucleoDto dto)
+    {
+        if (dto is null) return BadRequest("Body requerido.");
+
         var created = await _svc.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById),
-          new { nucleoId = created.NucleoId, granjaId = created.GranjaId },
-          created);
+        // Apuntamos al detalle
+        return CreatedAtAction(nameof(GetDetail),
+            new { nucleoId = created.NucleoId, granjaId = created.GranjaId },
+            created);
     }
 
-    [HttpPut("{nucleoId}/{granjaId}")]
-    public async Task<IActionResult> Update(string nucleoId, int granjaId, UpdateNucleoDto dto)
+    // ===========================
+    // UPDATE
+    // ===========================
+    [HttpPut("{nucleoId}/{granjaId:int}")]
+    public async Task<ActionResult<NucleoDto>> Update(string nucleoId, int granjaId, [FromBody] UpdateNucleoDto dto)
     {
-        if (dto.NucleoId != nucleoId || dto.GranjaId != granjaId)
-            return BadRequest();
+        if (dto is null) return BadRequest("Body requerido.");
+        if (!string.Equals(dto.NucleoId, nucleoId, StringComparison.OrdinalIgnoreCase) || dto.GranjaId != granjaId)
+            return BadRequest("La clave de la ruta no coincide con el cuerpo.");
 
-        return (await _svc.UpdateAsync(dto)) is NucleoDto upd
-          ? Ok(upd)
-          : NotFound();
+        var updated = await _svc.UpdateAsync(dto);
+        if (updated is null) return NotFound();
+        return Ok(updated);
     }
 
-    [HttpDelete("{nucleoId}/{granjaId}")]
-    public async Task<IActionResult> Delete(string nucleoId, int granjaId) =>
-      await _svc.DeleteAsync(nucleoId, granjaId)
-        ? NoContent()
-        : NotFound();
+    // ===========================
+    // DELETE (soft)
+    // ===========================
+    [HttpDelete("{nucleoId}/{granjaId:int}")]
+    public async Task<IActionResult> Delete(string nucleoId, int granjaId)
+    {
+        var ok = await _svc.DeleteAsync(nucleoId, granjaId);
+        if (!ok) return NotFound();
+        return NoContent();
+    }
+
+    // ===========================
+    // DELETE (hard) opcional
+    // ===========================
+    [HttpDelete("{nucleoId}/{granjaId:int}/hard")]
+    public async Task<IActionResult> HardDelete(string nucleoId, int granjaId)
+    {
+        var ok = await _svc.HardDeleteAsync(nucleoId, granjaId);
+        if (!ok) return NotFound();
+        return NoContent();
+    }
 }

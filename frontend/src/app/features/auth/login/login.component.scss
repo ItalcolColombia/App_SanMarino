@@ -1,0 +1,287 @@
+:host {
+  --brand-yellow: #f4b428;
+  --brand-yellow-light: rgba(244, 180, 40, 0.15);
+  --brand-yellow-dark: #e6a41c;
+  --brand-red: #d62828;
+  --bg-gray: #f2f2f2;
+  --text: #2b2b2b;
+  --muted: #6b7280;
+
+  /* Watermark */
+  --wm-opacity: 0.12;
+  --wm-blur: 6px;
+
+  /* Tamaños logos */
+  --logo-h: 4rem;           /* base (~64px) */
+  --logo-h-accent: 4.75rem; /* el de assets, un poco más grande */
+}
+
+/* ===== Fondo + WATERMARK Italcol ===== */
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+
+  background: linear-gradient(135deg, var(--bg-gray) 0%, var(--brand-yellow-light) 100%);
+}
+
+/* Marca de agua */
+.login-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  /* usa /assets para evitar resolución del bundler */
+  background-image: url("/assets/brand/italcol-blanco.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(70vw, 520px);
+
+  opacity: var(--wm-opacity);
+  filter: blur(var(--wm-blur));
+  transform: translateZ(0);
+}
+
+/* ===== Tarjeta ===== */
+.login-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 380px;
+
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.15),
+    0 8px 12px rgba(0, 0, 0, 0.08);
+
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.login-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 16px 28px rgba(0, 0, 0, 0.18),
+    0 10px 14px rgba(0, 0, 0, 0.1);
+}
+
+/* Logo único (si se usa en otros sitios) */
+.brand-logo {
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.08));
+  transition: transform .3s ease;
+}
+.brand-logo:hover { transform: scale(1.05); }
+
+/* Inputs */
+.brand-input {
+  width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  background: #fdfdfd;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: var(--brand-yellow);
+    box-shadow: 0 0 0 3px rgba(244, 180, 40, 0.25);
+  }
+}
+
+/* Errores */
+.hint-error {
+  font-size: 0.8rem;
+  color: var(--brand-red);
+}
+
+/* Checkbox */
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.remember__control { accent-color: var(--brand-yellow); }
+
+/* Enlace de recuperación de contraseña */
+.forgot-password {
+  text-align: center;
+  margin-top: 16px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #f4b428; /* Color naranja/amarillo corporativo */
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+  transition: color 0.2s ease;
+  
+  &:hover {
+    color: #e6a41c; /* Color naranja más oscuro al hover */
+    text-decoration: none;
+  }
+}
+
+/* Botón primario */
+.brand-btn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1;
+  letter-spacing: .2px;
+
+  background: linear-gradient(180deg, var(--brand-yellow), var(--brand-yellow-dark));
+  box-shadow:
+    0 10px 20px rgba(244, 180, 40, .22),
+    inset 0 1px 0 rgba(255,255,255,.5);
+
+  color: #1a1a1a !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.45);
+
+  transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 14px 28px rgba(244, 180, 40, .28),
+      inset 0 1px 0 rgba(255,255,255,.6);
+    filter: saturate(1.04);
+  }
+  &:active { transform: translateY(0); }
+  &:disabled {
+    opacity: .65;
+    cursor: not-allowed;
+    filter: grayscale(.06) contrast(.95);
+  }
+}
+
+/* Banner inferior rojo */
+.site-footer {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  background: linear-gradient(180deg, #d62828, #b91c1c);
+  color: #fff;
+  box-shadow: 0 -4px 10px rgba(0,0,0,.08);
+  z-index: 10;
+}
+.footer-inner {
+  max-width: 1080px;
+  margin-inline: auto;
+  padding: .6rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  font-size: .88rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.footer-inner a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.footer-inner .dot { opacity: .7; }
+@media (max-width: 640px) {
+  .footer-inner { flex-wrap: wrap; gap: .35rem .6rem; padding: .55rem .75rem; font-size: .84rem; }
+}
+
+/* ===== Dúo de logos ===== */
+.brand-duo {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: .25rem 0;
+}
+.brand-duo__img {
+  height: var(--logo-h);
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+.brand-duo__img--accent {
+  height: var(--logo-h-accent); /* un poco más grande */
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.08));
+}
+.brand-duo__divider {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(to bottom, rgba(0,0,0,.06), rgba(0,0,0,.25), rgba(0,0,0,.06));
+}
+
+/* ===== Responsividad ===== */
+@media (max-width: 480px) {
+  .login-shell::before {
+    background-size: min(90vw, 420px);
+    filter: blur(5px);
+    opacity: 0.10;
+  }
+  :host {
+    --logo-h: 20.25rem;
+    --logo-h-accent: 1.75rem;
+  }
+}
+
+/* ===== Modo oscuro opcional ===== */
+:host-context(.dark) .login-shell {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.06), transparent 60%),
+    linear-gradient(to bottom, #0b0b0c, #111113);
+}
+:host-context(.dark) .login-shell::before {
+  opacity: 0.18;
+}
+
+
+/* Control global por variables */
+:host {
+  /* Ajusta estos valores por defecto */
+  --logo-height: 3.9rem;   /* alto por defecto */
+  --logo-width: 29rem;      /* o un valor como 14rem */
+  --logo-max-w: 100%;      /* no exceder el contenedor */
+}
+
+/* Contenedor del logo */
+.logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 500%;           /* que pueda centrarse en el card */
+}
+
+/* Imagen del logo con control de tamaño */
+.logo-img {
+  height: auto;
+  width: 250rem;
+  max-width: 100%;
+ //  object-fit: contain;    /* mantiene proporción */
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06)); /* opcional */
+}
+
+.logo-img-accent {
+  height: 40px;
+  width: auto;
+  margin-left: 40%;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06)); /* opcional */
+}
+
+
+/* Responsivo opcional */
+@media (max-width: 480px) {
+  :host { --logo-height: 4rem; }
+}

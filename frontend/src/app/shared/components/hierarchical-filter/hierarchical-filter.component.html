@@ -1,0 +1,213 @@
+<div class="hierarchical-filter">
+  <!-- Header del filtro -->
+  <div class="filter-header" *ngIf="filterLabel">
+    <h3 class="filter-title">{{ filterLabel }}</h3>
+    <button type="button" class="btn btn--ghost btn--sm" (click)="clearFilters()">
+      🗑️ Limpiar
+    </button>
+  </div>
+
+  <!-- Chips de estado (como en seguimiento de lotes) -->
+  <div class="ux-header__meta" *ngIf="showChips">
+    <ng-template #noFarmChip>
+      <span class="chip chip--warning">
+        <span class="chip__dot" aria-hidden="true"></span>
+        Selecciona una granja
+      </span>
+    </ng-template>
+
+    <span class="chip chip--info" *ngIf="filters().farmId; else noFarmChip">
+      <span class="chip__dot" aria-hidden="true"></span>
+      Granja: {{ selectedFarmName || filters().farmId }}
+    </span>
+
+    <span class="chip chip--muted" *ngIf="filters().nucleoId">
+      Núcleo: {{ selectedNucleoName || filters().nucleoId }}
+    </span>
+
+    <span class="chip chip--muted" *ngIf="filters().galponId">
+      Galpón: {{ selectedGalponName }}
+    </span>
+
+    <span class="chip chip--info" *ngIf="filters().selectedLoteId">
+      <span class="chip__dot" aria-hidden="true"></span>
+      Lote: {{ selectedLoteName }}
+    </span>
+
+    <span class="chip chip--muted" *ngIf="selectedLote()?.fechaEncaset">
+      {{ calcularEdadDias(selectedLote()?.fechaEncaset) }} días
+    </span>
+
+    <span class="chip chip--muted" *ngIf="showSeguimientosCount">
+      {{ seguimientosCount || 0 }} registro(s)
+    </span>
+  </div>
+
+  <!-- Loading state -->
+  <div class="loading-state" *ngIf="loading()">
+    <div class="spinner"></div>
+    <p>Cargando datos...</p>
+  </div>
+
+  <!-- Error state -->
+  <div class="error-state" *ngIf="error()">
+    <p class="error-message">{{ error() }}</p>
+    <button type="button" class="btn btn--outline btn--sm" (click)="loadInitialData()">
+      🔄 Reintentar
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filter-grid" *ngIf="!loading() && !error()">
+    <!-- Compañía -->
+    <div class="form-field">
+      <label class="ux-label">Compañía</label>
+      <select 
+        class="ux-select" 
+        [ngModel]="filters().companyId" 
+        (ngModelChange)="onCompanyChange($event)">
+        <option [ngValue]="null">Todas las compañías</option>
+        <option *ngFor="let company of companies()" [ngValue]="company.id">
+          {{ company.name }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Granja -->
+    <div class="form-field">
+      <label class="ux-label">Granja</label>
+      <select 
+        class="ux-select" 
+        [ngModel]="filters().farmId" 
+        (ngModelChange)="onFarmChange($event)">
+        <option [ngValue]="null">Todas las granjas</option>
+        <option *ngFor="let farm of filteredFarms" [ngValue]="farm.id">
+          {{ farm.name }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Núcleo -->
+    <div class="form-field">
+      <label class="ux-label">Núcleo</label>
+      <select 
+        class="ux-select" 
+        [ngModel]="filters().nucleoId" 
+        (ngModelChange)="onNucleoChange($event)">
+        <option [ngValue]="null">Todos los núcleos</option>
+        <option *ngFor="let nucleo of filteredNucleos" [ngValue]="nucleo.nucleoId">
+          {{ nucleo.nucleoNombre }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Galpón -->
+    <div class="form-field">
+      <label class="ux-label">Galpón</label>
+      <select 
+        class="ux-select" 
+        [ngModel]="filters().galponId" 
+        (ngModelChange)="onGalponChange($event)">
+        <option [ngValue]="null">Todos los galpones</option>
+        <option *ngFor="let galpon of filteredGalpones" [ngValue]="galpon.galponId">
+          {{ galpon.galponNombre }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Búsqueda -->
+    <div class="form-field">
+      <label class="ux-label">Buscar</label>
+      <div class="search-input">
+        <input 
+          type="text" 
+          class="ux-input" 
+          [ngModel]="filters().searchTerm || ''" 
+          (ngModelChange)="onSearchChange($event)"
+          [placeholder]="placeholder">
+        <span class="search-icon">🔍</span>
+      </div>
+    </div>
+
+    <!-- Selección de Lote -->
+    <div class="form-field" *ngIf="showLoteSelection">
+      <label class="ux-label">Lote Específico</label>
+      <select 
+        class="ux-select" 
+        [ngModel]="filters().selectedLoteId" 
+        (ngModelChange)="onLoteSelect($event)">
+        <option [ngValue]="null">Seleccionar lote...</option>
+        <option *ngFor="let lote of filteredLotes()" [ngValue]="lote.loteId">
+          {{ lote.loteId }} - {{ lote.loteNombre }} 
+          ({{ calcularEdadDias(lote.fechaEncaset) }} días)
+        </option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Lote seleccionado info -->
+  <div class="selected-lote-info" *ngIf="selectedLote()">
+    <div class="lote-card">
+      <div class="lote-header">
+        <h4>📋 Lote Seleccionado</h4>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="onLoteSelect(null)">
+          ✕
+        </button>
+      </div>
+      <div class="lote-details">
+        <div class="detail-item">
+          <span class="detail-label">ID:</span>
+          <span class="detail-value">{{ selectedLote()?.loteId }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Nombre:</span>
+          <span class="detail-value">{{ selectedLote()?.loteNombre }}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Granja:</span>
+          <span class="detail-value">{{ getFarmName(selectedLote()?.granjaId!) }}</span>
+        </div>
+        <div class="detail-item" *ngIf="selectedLote()?.granjaId">
+          <span class="detail-label">Compañía:</span>
+          <span class="detail-value">{{ getCompanyName(farmById()[selectedLote()!.granjaId].companyId) }}</span>
+        </div>
+        <div class="detail-item" *ngIf="selectedLote()?.nucleoId">
+          <span class="detail-label">Núcleo:</span>
+          <span class="detail-value">{{ getNucleoName(selectedLote()?.nucleoId!) }}</span>
+        </div>
+        <div class="detail-item" *ngIf="selectedLote()?.galponId">
+          <span class="detail-label">Galpón:</span>
+          <span class="detail-value">{{ getGalponName(selectedLote()?.galponId!) }}</span>
+        </div>
+        <div class="detail-item" *ngIf="selectedLote()?.fechaEncaset">
+          <span class="detail-label">Edad:</span>
+          <span class="detail-value">{{ calcularEdadDias(selectedLote()?.fechaEncaset) }} días</span>
+        </div>
+        <div class="detail-item" *ngIf="selectedLote()?.hembrasL || selectedLote()?.machosL">
+          <span class="detail-label">Aves:</span>
+          <span class="detail-value">
+            {{ (selectedLote()?.hembrasL || 0) + (selectedLote()?.machosL || 0) }} 
+            (♀{{ selectedLote()?.hembrasL || 0 }} / ♂{{ selectedLote()?.machosL || 0 }})
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumen de filtros aplicados -->
+  <div class="filter-summary" *ngIf="!loading() && !error()">
+    <p class="summary-text">
+      <strong>{{ filteredLotes().length }}</strong> lote(s) encontrado(s)
+      <span *ngIf="filters().companyId || filters().farmId || filters().nucleoId || filters().galponId || filters().searchTerm">
+        con los filtros aplicados
+      </span>
+    </p>
+  </div>
+</div>
+
+
+
+
+
+
+

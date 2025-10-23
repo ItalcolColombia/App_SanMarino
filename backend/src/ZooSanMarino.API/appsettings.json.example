@@ -1,0 +1,43 @@
+{
+  "ConnectionStrings": {
+    "ZooSanMarinoContext": "Host=YOUR_DB_HOST;Port=5432;Username=YOUR_DB_USER;Password=YOUR_DB_PASSWORD;Database=YOUR_DB_NAME;SSL Mode=Require;Trust Server Certificate=true;Timeout=15;Command Timeout=30"
+  },
+  "JwtSettings": {
+    "Key": "YOUR_JWT_SECRET_KEY_HERE",
+    "Issuer": "ZooSanMarino.API",
+    "Audience": "ZooSanMarino.Client",
+    "DurationInMinutes": 60
+  },
+  "Database": {
+    "RunMigrations": false,
+    "RunSeed": false
+  },
+  "AllowedScopes": [ "ZooSanMarinoAPI" ],
+  "AllowedOrigins": [
+    "http://localhost:4200",
+    "http://127.0.0.1:4200",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "https://sanmarinoapp.com"
+  ],
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "DbStudio": {
+    "Enabled": true,
+    "WritableSchemas": [ "public" ],
+    "SelectMaxLimit": 500
+  },
+  "EmailSettings": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "SmtpUsername": "YOUR_EMAIL_USERNAME",
+    "SmtpPassword": "YOUR_EMAIL_PASSWORD",
+    "FromEmail": "YOUR_FROM_EMAIL",
+    "FromName": "Zoo San Marino"
+  }
+}

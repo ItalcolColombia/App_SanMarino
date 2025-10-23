@@ -1,0 +1,223 @@
+<!-- src/app/features/traslados-aves/components/traslado-navigation-card/traslado-navigation-card.component.html -->
+<div class="traslado-card" [class.compact]="compact" [class.expanded]="isExpanded()">
+  <!-- Header del movimiento -->
+  <div class="movimiento-header" (click)="toggleExpansion()">
+    <div class="movimiento-info">
+      <div class="movimiento-numero">
+        <span class="tipo-icon">{{ getTipoMovimientoIcon(movimiento.tipoMovimiento) }}</span>
+        <h3>{{ movimiento.numeroMovimiento }}</h3>
+      </div>
+      <div class="movimiento-meta">
+        <span class="fecha">{{ formatFecha(movimiento.fechaMovimiento) }}</span>
+        <span class="badge" [class]="getEstadoBadgeClass(movimiento.estado)">
+          {{ movimiento.estado }}
+        </span>
+        <span class="badge" [class]="getTipoMovimientoClass(movimiento.tipoMovimiento)">
+          {{ movimiento.tipoMovimientoDescripcion }}
+        </span>
+      </div>
+    </div>
+    <div class="movimiento-actions">
+      <button class="btn-expand" [class.expanded]="isExpanded()">
+        <i class="fas fa-chevron-down"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Navegación Origen → Destino -->
+  <div class="navegacion-traslado">
+    <!-- Origen -->
+    <div class="ubicacion origen">
+      <div class="ubicacion-header">
+        <h4>
+          <i class="fas fa-map-marker-alt"></i>
+          Origen
+        </h4>
+        <span class="tipo-movimiento salida">SALIDA</span>
+      </div>
+      <div class="ubicacion-details">
+        <div class="ubicacion-resumen">{{ getUbicacionResumen(movimiento.origen) }}</div>
+        
+        <div class="ubicacion-breakdown" *ngIf="showDetails">
+          <div class="ubicacion-item" *ngIf="movimiento.origen.companyNombre">
+            <i class="fas fa-building"></i>
+            <span>{{ movimiento.origen.companyNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.origen.granjaNombre">
+            <i class="fas fa-home"></i>
+            <span>{{ movimiento.origen.granjaNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.origen.nucleoNombre">
+            <i class="fas fa-layer-group"></i>
+            <span>{{ movimiento.origen.nucleoNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.origen.galponNombre">
+            <i class="fas fa-warehouse"></i>
+            <span>{{ movimiento.origen.galponNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.origen.loteNombre">
+            <i class="fas fa-tag"></i>
+            <span>{{ movimiento.origen.loteNombre }}</span>
+          </div>
+        </div>
+
+        <!-- Información adicional del lote -->
+        <div class="lote-info" *ngIf="showDetails && getLoteInfo(movimiento.origen).length > 0">
+          <div class="info-item" *ngFor="let info of getLoteInfo(movimiento.origen)">
+            {{ info }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flecha de navegación -->
+    <div class="flecha-navegacion">
+      <div class="flecha-container">
+        <i class="fas fa-arrow-right"></i>
+        <div class="movimiento-tipo" [class]="getTipoMovimientoClass(movimiento.tipoMovimiento)">
+          {{ movimiento.tipoMovimiento }}
+        </div>
+        <div class="movimiento-interno" *ngIf="esMovimientoInterno()">
+          <i class="fas fa-home"></i>
+          Interno
+        </div>
+        <div class="movimiento-externo" *ngIf="esMovimientoEntreGranjas()">
+          <i class="fas fa-exchange-alt"></i>
+          Entre Granjas
+        </div>
+      </div>
+    </div>
+
+    <!-- Destino -->
+    <div class="ubicacion destino">
+      <div class="ubicacion-header">
+        <h4>
+          <i class="fas fa-flag-checkered"></i>
+          Destino
+        </h4>
+        <span class="tipo-movimiento entrada">ENTRADA</span>
+      </div>
+      <div class="ubicacion-details">
+        <div class="ubicacion-resumen">{{ getUbicacionResumen(movimiento.destino) }}</div>
+        
+        <div class="ubicacion-breakdown" *ngIf="showDetails">
+          <div class="ubicacion-item" *ngIf="movimiento.destino.companyNombre">
+            <i class="fas fa-building"></i>
+            <span>{{ movimiento.destino.companyNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.destino.granjaNombre">
+            <i class="fas fa-home"></i>
+            <span>{{ movimiento.destino.granjaNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.destino.nucleoNombre">
+            <i class="fas fa-layer-group"></i>
+            <span>{{ movimiento.destino.nucleoNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.destino.galponNombre">
+            <i class="fas fa-warehouse"></i>
+            <span>{{ movimiento.destino.galponNombre }}</span>
+          </div>
+          <div class="ubicacion-item" *ngIf="movimiento.destino.loteNombre">
+            <i class="fas fa-tag"></i>
+            <span>{{ movimiento.destino.loteNombre }}</span>
+          </div>
+        </div>
+
+        <!-- Información adicional del lote -->
+        <div class="lote-info" *ngIf="showDetails && getLoteInfo(movimiento.destino).length > 0">
+          <div class="info-item" *ngFor="let info of getLoteInfo(movimiento.destino)">
+            {{ info }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cantidades trasladadas -->
+  <div class="cantidades-section">
+    <h4>
+      <i class="fas fa-chart-bar"></i>
+      Cantidades Trasladadas
+    </h4>
+    <div class="cantidades-grid">
+      <div class="cantidad-item hembras">
+        <div class="cantidad-header">
+          <span class="label">Hembras</span>
+          <span class="porcentaje">{{ getPorcentajeHembras() }}%</span>
+        </div>
+        <div class="cantidad-valor">{{ movimiento.cantidadHembras | number:'1.0-0':'es-ES' }}</div>
+        <div class="cantidad-bar">
+          <div class="bar-fill" [style.width.%]="getPorcentajeHembras()"></div>
+        </div>
+      </div>
+      
+      <div class="cantidad-item machos">
+        <div class="cantidad-header">
+          <span class="label">Machos</span>
+          <span class="porcentaje">{{ getPorcentajeMachos() }}%</span>
+        </div>
+        <div class="cantidad-valor">{{ movimiento.cantidadMachos | number:'1.0-0':'es-ES' }}</div>
+        <div class="cantidad-bar">
+          <div class="bar-fill" [style.width.%]="getPorcentajeMachos()"></div>
+        </div>
+      </div>
+      
+      <div class="cantidad-item mixtas">
+        <div class="cantidad-header">
+          <span class="label">Mixtas</span>
+          <span class="porcentaje">{{ getPorcentajeMixtas() }}%</span>
+        </div>
+        <div class="cantidad-valor">{{ movimiento.cantidadMixtas | number:'1.0-0':'es-ES' }}</div>
+        <div class="cantidad-bar">
+          <div class="bar-fill" [style.width.%]="getPorcentajeMixtas()"></div>
+        </div>
+      </div>
+      
+      <div class="cantidad-item total">
+        <div class="cantidad-header">
+          <span class="label">Total</span>
+          <span class="porcentaje">100%</span>
+        </div>
+        <div class="cantidad-valor">{{ getTotalAvesFormateado() }}</div>
+        <div class="cantidad-bar">
+          <div class="bar-fill" [style.width.%]="100"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Información adicional (solo cuando está expandido) -->
+  <div class="informacion-adicional" *ngIf="isExpanded() && showDetails">
+    <div class="info-grid">
+      <div class="info-section" *ngIf="movimiento.motivoMovimiento">
+        <h5><i class="fas fa-comment"></i> Motivo</h5>
+        <p>{{ movimiento.motivoMovimiento }}</p>
+      </div>
+      
+      <div class="info-section" *ngIf="movimiento.observaciones">
+        <h5><i class="fas fa-sticky-note"></i> Observaciones</h5>
+        <p>{{ movimiento.observaciones }}</p>
+      </div>
+      
+      <div class="info-section" *ngIf="movimiento.usuarioNombre">
+        <h5><i class="fas fa-user"></i> Usuario</h5>
+        <p>{{ movimiento.usuarioNombre }}</p>
+      </div>
+      
+      <div class="info-section" *ngIf="movimiento.fechaProcesamiento">
+        <h5><i class="fas fa-check-circle"></i> Procesado</h5>
+        <p>{{ formatFecha(movimiento.fechaProcesamiento) }}</p>
+      </div>
+      
+      <div class="info-section" *ngIf="movimiento.fechaCancelacion">
+        <h5><i class="fas fa-times-circle"></i> Cancelado</h5>
+        <p>{{ formatFecha(movimiento.fechaCancelacion) }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+

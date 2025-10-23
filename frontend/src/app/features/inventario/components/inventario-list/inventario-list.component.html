@@ -1,0 +1,111 @@
+<!-- src/app/features/inventario/components/inventario-list/inventario-list.component.html -->
+<div class="header" [attr.aria-busy]="loading ? 'true' : null">
+  <div class="header__title">
+    <h1>Stock por granja</h1>
+  </div>
+
+  <div class="actions">
+    <div class="filter" style="min-width: 240px;">
+      <label class="ux-label" for="farmSelect">Granja</label>
+      <select id="farmSelect"
+              class="ux-select"
+              [(ngModel)]="selectedFarmId"
+              (change)="load()">
+        <option [ngValue]="null" disabled>Seleccione…</option>
+        <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+      </select>
+    </div>
+
+    <button class="btn-secondary"
+            type="button"
+            (click)="load()"
+            [disabled]="loading || !selectedFarmId">
+      <fa-icon [icon]="faRefresh" class="mr-2" aria-hidden="true"></fa-icon>
+      Actualizar
+    </button>
+  </div>
+</div>
+
+<!-- Filtro de búsqueda -->
+<div class="filters" style="grid-template-columns: 1fr;">
+  <div class="filter">
+    <label for="filtro" class="ux-label">Buscar</label>
+    <div class="actions">
+      <input id="filtro"
+             type="text"
+             [(ngModel)]="filtro"
+             placeholder="Código, nombre, ubicación, lote…"
+             class="ux-input"
+             autocomplete="off" />
+      <button *ngIf="filtro"
+              type="button"
+              class="btn-ghost"
+              (click)="filtro = ''"
+              aria-label="Limpiar búsqueda">×</button>
+    </div>
+  </div>
+</div>
+
+<div class="ux-card" [class.is-loading]="loading">
+  <div class="ux-scroll">
+    <table class="ux-table">
+      <caption class="sr-only">Inventario actual por granja</caption>
+
+      <thead>
+        <tr>
+          <th scope="col">Código</th>
+          <th scope="col">Producto</th>
+          <th scope="col">Granja</th>
+          <th scope="col" class="text-center">Cantidad</th>
+          <th scope="col">Unidad</th>
+          <th scope="col">Ubicación</th>
+          <th scope="col">Lote</th>
+          <th scope="col">Actualizado</th>
+        </tr>
+      </thead>
+
+      <!-- Estado: cargando -->
+      <tbody *ngIf="loading">
+        <tr>
+          <td colspan="8" class="empty-state">
+            <div class="spinner" aria-hidden="true"></div>
+            Cargando inventario…
+          </td>
+        </tr>
+      </tbody>
+
+      <!-- Estado: no cargando -->
+      <ng-container *ngIf="!loading">
+        <!-- Vacío -->
+        <tbody *ngIf="filtered.length === 0">
+          <tr>
+            <td colspan="8" class="empty-state">
+              <div class="empty-illustration" aria-hidden="true">📦</div>
+              <p>No hay registros para mostrar.</p>
+            </td>
+          </tr>
+        </tbody>
+
+        <!-- Filas -->
+        <tbody *ngIf="filtered.length > 0">
+          <tr *ngFor="let it of filtered; trackBy: trackByItem" class="ux-row">
+            <td>{{ it.codigo }}</td>
+            <td>{{ it.nombre }}</td>
+            <td>{{ getFarmName(it.farmId) }}</td>
+            <td class="text-center">{{ it.quantity | number:'1.0-3' }}</td>
+            <td>{{ it.unit }}</td>
+            <td>{{ it.location || '–' }}</td>
+            <td>{{ it.lotNumber || '–' }}</td>
+            <td>{{ it.updatedAt | date:'short' }}</td>
+          </tr>
+        </tbody>
+      </ng-container>
+    </table>
+  </div>
+
+  <!-- Overlay de carga -->
+  <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    Cargando…
+  </div>
+</div>

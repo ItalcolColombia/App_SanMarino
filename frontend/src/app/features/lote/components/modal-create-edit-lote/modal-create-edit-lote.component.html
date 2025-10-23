@@ -1,0 +1,264 @@
+<!-- src/app/features/lote/components/modal-create-edit-lote/modal-create-edit-lote.component.html -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-modal-title">
+  <div class="ux-modal__panel ux-modal__panel--wide">
+    <div class="ux-modal__header">
+      <h2 id="lote-modal-title" class="ux-title">
+        {{ modalTitle }}
+      </h2>
+      <button (click)="closeModal()" type="button" class="btn-muted">Cerrar</button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Granja -->
+        <div>
+          <label class="ux-label">🏠 Granja <span class="req">*</span></label>
+          <select formControlName="granjaId" class="ux-input"
+                  [class.is-invalid]="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">
+            <option value="" disabled selected>Seleccione…</option>
+            <option *ngFor="let g of farms" [value]="g.id">{{ g.name }}</option>
+          </select>
+          <div *ngIf="form.get('granjaId')?.invalid && form.get('granjaId')?.touched" class="ux-error">
+            Granja es requerida
+          </div>
+          <!-- Debug info -->
+          <div class="text-xs text-gray-500 mt-1">
+            Debug: {{ farms.length }} granjas cargadas
+            <span *ngIf="farms.length > 0"> - {{ farms[0].name }}</span>
+          </div>
+        </div>
+
+        <!-- Núcleo -->
+        <div>
+          <label class="ux-label">🏗️ Núcleo <span class="req">*</span></label>
+          <select formControlName="nucleoId" class="ux-input"
+                  [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
+            <option value="" disabled selected>Seleccione…</option>
+            <option *ngFor="let n of filteredNucleos" [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+          </select>
+          <div *ngIf="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched" class="ux-error">
+            Núcleo es requerido
+          </div>
+        </div>
+
+        <!-- Galpón -->
+        <div>
+          <label class="ux-label">🏠 Galpón</label>
+          <select formControlName="galponId" class="ux-input">
+            <option value="" selected>Seleccione…</option>
+            <option *ngFor="let g of filteredGalpones" [value]="g.galponId">{{ g.galponNombre }}</option>
+          </select>
+        </div>
+
+        <!-- Nombre del Lote -->
+        <div>
+          <label class="ux-label">📝 Nombre del Lote <span class="req">*</span></label>
+          <input formControlName="loteNombre" type="text" class="ux-input"
+                 [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"
+                 placeholder="Ej: Lote-001-2024">
+          <div *ngIf="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched" class="ux-error">
+            Nombre del lote es requerido (mínimo 2 caracteres)
+          </div>
+        </div>
+
+        <!-- Fecha de Encaset -->
+        <div>
+          <label class="ux-label">📅 Fecha de Encaset <span class="req">*</span></label>
+          <input formControlName="fechaEncaset" type="date" class="ux-input"
+                 [class.is-invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched">
+          <div *ngIf="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched" class="ux-error">
+            Fecha de encaset es requerida
+          </div>
+        </div>
+
+        <!-- Hembras -->
+        <div>
+          <label class="ux-label">🐔 Hembras</label>
+          <input formControlName="hembrasL" type="number" min="0" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Machos -->
+        <div>
+          <label class="ux-label">🐓 Machos</label>
+          <input formControlName="machosL" type="number" min="0" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Peso Inicial Hembras -->
+        <div>
+          <label class="ux-label">⚖️ Peso Inicial H (g)</label>
+          <input formControlName="pesoInicialH" type="number" min="0" step="0.1" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Peso Inicial Machos -->
+        <div>
+          <label class="ux-label">⚖️ Peso Inicial M (g)</label>
+          <input formControlName="pesoInicialM" type="number" min="0" step="0.1" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Uniformidad Hembras -->
+        <div>
+          <label class="ux-label">📊 Uniformidad H (%)</label>
+          <input formControlName="unifH" type="number" min="0" max="100" step="0.1" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Uniformidad Machos -->
+        <div>
+          <label class="ux-label">📊 Uniformidad M (%)</label>
+          <input formControlName="unifM" type="number" min="0" max="100" step="0.1" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Mortalidad Caja Hembras -->
+        <div>
+          <label class="ux-label">💀 Mortalidad Caja H</label>
+          <input formControlName="mortCajaH" type="number" min="0" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Mortalidad Caja Machos -->
+        <div>
+          <label class="ux-label">💀 Mortalidad Caja M</label>
+          <input formControlName="mortCajaM" type="number" min="0" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Raza -->
+        <div>
+          <label class="ux-label">🧬 Raza <span class="req">*</span></label>
+          <select formControlName="raza" class="ux-input"
+                  [class.is-invalid]="form.get('raza')?.invalid && form.get('raza')?.touched"
+                  [disabled]="loadingRazas">
+            <option value="" disabled selected>
+              {{ loadingRazas ? 'Cargando razas...' : 'Seleccione una raza...' }}
+            </option>
+            <option *ngFor="let raza of razasDisponibles" [value]="raza">{{ raza }}</option>
+          </select>
+          <div *ngIf="form.get('raza')?.invalid && form.get('raza')?.touched" class="ux-error">
+            Raza es requerida
+          </div>
+          <div *ngIf="loadingRazas" class="ux-hint">
+            <span class="loading-spinner">⏳</span> Cargando razas disponibles...
+          </div>
+          <div *ngIf="!loadingRazas && razasDisponibles.length === 0" class="ux-error">
+            No se encontraron razas disponibles en la guía genética
+          </div>
+          <!-- Debug info -->
+          <div class="text-xs text-gray-500 mt-1">
+            Debug: {{ razasDisponibles.length }} razas cargadas
+            <span *ngIf="razasDisponibles.length > 0"> - {{ razasDisponibles[0] }}</span>
+          </div>
+        </div>
+
+        <!-- Año Tabla Genética -->
+        <div>
+          <label class="ux-label">📅 Año Tabla Genética <span class="req">*</span></label>
+          <select formControlName="anoTablaGenetica" class="ux-input"
+                  [class.is-invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
+                  [disabled]="!selectedRaza || loadingAnos">
+            <option value="" disabled selected>
+              {{ loadingAnos ? 'Cargando años...' : 
+                 !selectedRaza ? 'Primero seleccione una raza' : 
+                 'Seleccione un año...' }}
+            </option>
+            <option *ngFor="let ano of anosDisponibles" [value]="ano">{{ ano }}</option>
+          </select>
+          <div *ngIf="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched" class="ux-error">
+            Año de tabla genética es requerido
+          </div>
+          <div *ngIf="loadingAnos" class="ux-hint">
+            <span class="loading-spinner">⏳</span> Cargando años disponibles...
+          </div>
+          <div *ngIf="!selectedRaza" class="ux-hint">
+            Seleccione primero una raza para ver los años disponibles
+          </div>
+          <div *ngIf="selectedRaza && !loadingAnos && !razaValida" class="ux-error">
+            No se encontraron años disponibles para la raza "{{ selectedRaza }}"
+          </div>
+          <div *ngIf="selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0" class="ux-warning">
+            La raza "{{ selectedRaza }}" no tiene años de tabla genética disponibles
+          </div>
+        </div>
+
+        <!-- Línea -->
+        <div>
+          <label class="ux-label">🔬 Línea</label>
+          <input formControlName="linea" type="text" class="ux-input"
+                 placeholder="Ej: Ross 308">
+        </div>
+
+        <!-- Tipo de Línea -->
+        <div>
+          <label class="ux-label">🏷️ Tipo de Línea</label>
+          <input formControlName="tipoLinea" type="text" class="ux-input"
+                 placeholder="Ej: Broiler">
+        </div>
+
+        <!-- Código Guía Genética -->
+        <div>
+          <label class="ux-label">📋 Código Guía Genética</label>
+          <input formControlName="codigoGuiaGenetica" type="text" class="ux-input"
+                 placeholder="Se genera automáticamente"
+                 [readonly]="selectedRaza && selectedAnoTabla">
+          <div class="ux-hint">
+            Se genera automáticamente como: {{ selectedRaza }}-{{ selectedAnoTabla }}
+          </div>
+        </div>
+
+        <!-- ID Línea Genética -->
+        <div>
+          <label class="ux-label">🔬 ID Línea Genética</label>
+          <input formControlName="lineaGeneticaId" type="number" class="ux-input"
+                 placeholder="1">
+        </div>
+
+        <!-- Técnico -->
+        <div>
+          <label class="ux-label">👨‍💼 Técnico</label>
+          <select formControlName="tecnico" class="ux-input">
+            <option value="" selected>Seleccione…</option>
+            <option *ngFor="let t of tecnicos" [value]="t.id">{{ t.surName }} {{ t.firstName }}</option>
+          </select>
+        </div>
+
+        <!-- Aves Encasetadas -->
+        <div>
+          <label class="ux-label">🐣 Aves Encasetadas</label>
+          <input formControlName="avesEncasetadas" type="number" min="0" class="ux-input"
+                 placeholder="0">
+        </div>
+
+        <!-- Lote ERP -->
+        <div>
+          <label class="ux-label">💻 Lote ERP</label>
+          <input formControlName="loteErp" type="text" class="ux-input"
+                 placeholder="ERP-001">
+        </div>
+
+        <!-- Línea Genética -->
+        <div>
+          <label class="ux-label">🧬 Línea Genética</label>
+          <input formControlName="lineaGenetica" type="text" class="ux-input"
+                 placeholder="Ross 308">
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="ux-actions">
+        <button type="button" (click)="closeModal()" class="btn-ghost">
+          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+          Cancelar
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="!isFormValid || saving">
+          <fa-icon [icon]="faSave" aria-hidden="true"></fa-icon>
+          <span *ngIf="saving">Guardando...</span>
+          <span *ngIf="!saving">{{ isEditing ? 'Actualizar' : 'Guardar' }}</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

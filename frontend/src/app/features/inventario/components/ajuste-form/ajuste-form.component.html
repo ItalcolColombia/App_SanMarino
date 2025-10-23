@@ -1,0 +1,58 @@
+<!-- src/app/features/inventario/components/ajuste-form/ajuste-form.component.html -->
+<form class="ux-form" [formGroup]="form" (ngSubmit)="submit()">
+  <div class="filters">
+    <div class="filter">
+      <label class="ux-label" for="farmId">Granja *</label>
+      <select id="farmId" class="ux-select" formControlName="farmId">
+        <option value="" disabled>Seleccione…</option>
+        <option *ngFor="let f of farms" [value]="f.id">{{ f.name }}</option>
+      </select>
+    </div>
+
+    <div class="filter">
+      <label class="ux-label" for="itemId">Producto *</label>
+      <select id="itemId" class="ux-select" formControlName="catalogItemId">
+        <option value="" disabled>Seleccione…</option>
+        <option *ngFor="let it of items" [value]="it.id">
+          {{ it.codigo }} — {{ it.nombre }}
+        </option>
+      </select>
+    </div>
+
+    <div class="filter">
+      <label class="ux-label">Tipo *</label>
+      <div class="actions">
+        <label class="btn-ghost">
+          <input type="radio" class="sr-only" formControlName="signo" value="1" /> Sumar
+        </label>
+        <label class="btn-ghost">
+          <input type="radio" class="sr-only" formControlName="signo" value="-1" /> Restar
+        </label>
+      </div>
+    </div>
+
+    <div class="filter">
+      <label class="ux-label" for="qty">Cantidad *</label>
+      <input id="qty" type="number" step="0.0001" class="ux-input" formControlName="quantity" />
+    </div>
+
+    <div class="filter">
+      <label class="ux-label" for="unit">Unidad</label>
+      <input id="unit" class="ux-input" formControlName="unit" />
+    </div>
+
+    <div class="filter">
+      <label class="ux-label" for="reason">Motivo</label>
+      <input id="reason" class="ux-input" formControlName="reason" />
+    </div>
+
+    <div class="filter">
+      <label class="ux-label" for="ref">Referencia</label>
+      <input id="ref" class="ux-input" formControlName="reference" />
+    </div>
+  </div>
+
+  <div class="actions" style="justify-content:flex-end; padding:.5rem .75rem;">
+    <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">Registrar ajuste</button>
+  </div>
+</form>

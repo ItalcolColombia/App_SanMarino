@@ -1,0 +1,168 @@
+<!-- Modal de creación/edición -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="seguimiento-modal-title">
+  <div class="ux-modal__dialog">
+    <header class="ux-modal__header">
+      <h2 id="seguimiento-modal-title">{{ editing ? 'Editar Registro' : 'Nuevo Registro' }}</h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <div class="ux-tabs" role="tablist" aria-label="Secciones del registro">
+        <input type="radio" name="regTab" id="tab-general" checked />
+        <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">General</label>
+
+        <input type="radio" name="regTab" id="tab-hembras" />
+        <label class="ux-tab" id="lab-hembras" for="tab-hembras" role="tab" tabindex="0" aria-controls="panel-hembras" aria-selected="false">Hembras</label>
+
+        <input type="radio" name="regTab" id="tab-machos" />
+        <label class="ux-tab" id="lab-machos" for="tab-machos" role="tab" tabindex="0" aria-controls="panel-machos" aria-selected="false">Machos</label>
+
+        <div class="ux-tab-panels">
+          <!-- GENERAL -->
+          <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-fecha">Fecha</label>
+                <input id="f-fecha" type="date" formControlName="fechaRegistro" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-lote">Lote</label>
+                <div class="ux-select">
+                  <select id="f-lote" formControlName="loteId">
+                    <option value="" disabled>— Seleccione —</option>
+                    <option *ngFor="let l of lotes" [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="f-obs">Observaciones</label>
+                <textarea id="f-obs" rows="3" formControlName="observaciones"></textarea>
+              </div>
+            </div>
+          </section>
+
+          <!-- HEMBRAS -->
+          <section id="panel-hembras" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-hembras">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-consumo-h">Consumo Hembras (kg)</label>
+                <input id="f-consumo-h" type="number" step="0.01" min="0" formControlName="consumoKgHembras" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-mh">Mortalidad Hembras</label>
+                <input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-selh">Selección Hembras</label>
+                <input id="f-selh" type="number" min="0" formControlName="selH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-errh">Error Sexaje Hembras</label>
+                <input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-ph">Promedio peso H</label>
+                <input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-uh">Uniformidad Hembras (%)</label>
+                <input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-cvh">CV Hembras</label>
+                <input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" />
+              </div>
+
+              <!-- Tipo de alimento HEMBRAS (desde catálogo backend) -->
+              <div class="form-field">
+                <label for="f-alim-h">Tipo de alimento H</label>
+                <div class="ux-select">
+                  <select id="f-alim-h" formControlName="tipoAlimentoHembras">
+                    <option value="">— Seleccione —</option>
+                    <option *ngFor="let a of alimentosCatalog" [ngValue]="a.nombre">
+                      {{ a.nombre }} <ng-container *ngIf="a.codigo">({{ a.codigo }})</ng-container>
+                    </option>
+                  </select>
+                </div>
+                <small class="ux-hint">Origen: catálogo (type_item = "alimento").</small>
+              </div>
+            </div>
+          </section>
+
+          <!-- MACHOS -->
+          <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-mm">Mortalidad Machos</label>
+                <input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-selm">Selección Machos</label>
+                <input id="f-selm" type="number" min="0" formControlName="selM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-errm">Error Sexaje Machos</label>
+                <input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-m">Consumo Machos (kg)</label>
+                <input id="f-consumo-m" type="number" step="0.01" min="0" formControlName="consumoKgMachos" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-um">Uniformidad Machos (%)</label>
+                <input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-pm">Promedio peso M</label>
+                <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-cvm">CV Machos</label>
+                <input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" />
+              </div>
+
+              <!-- Tipo de alimento MACHOS (desde catálogo backend) -->
+              <div class="form-field">
+                <label for="f-alim-m">Tipo de alimento M</label>
+                <div class="ux-select">
+                  <select id="f-alim-m" formControlName="tipoAlimentoMachos">
+                    <option value="">— Seleccione —</option>
+                    <option *ngFor="let a of alimentosCatalog" [ngValue]="a.nombre">
+                      {{ a.nombre }} <ng-container *ngIf="a.codigo">({{ a.codigo }})</ng-container>
+                    </option>
+                  </select>
+                </div>
+                <small class="ux-hint">Origen: catálogo (type_item = "alimento").</small>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
+          {{ loading ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </footer>
+    </form>
+
+    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Guardando…
+    </div>
+  </div>
+</div>

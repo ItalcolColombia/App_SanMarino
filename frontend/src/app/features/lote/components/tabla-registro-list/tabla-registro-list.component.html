@@ -1,0 +1,94 @@
+<!-- src/app/features/lote/components/tabla-registro-list/tabla-registro-list.component.html -->
+<!-- Mensaje cuando no hay granja seleccionada -->
+<div *ngIf="!showTable" class="ux-card">
+  <div class="text-center py-12">
+    <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+      <fa-icon [icon]="faEye" class="text-blue-600 text-2xl"></fa-icon>
+    </div>
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">Selecciona una granja</h3>
+    <p class="text-gray-600 mb-4">Para ver los lotes disponibles, primero selecciona una granja del filtro superior.</p>
+    <div class="text-sm text-gray-500">
+      <p>Una vez seleccionada la granja, podrás ver todos los lotes asociados a esa ubicación.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla de lotes (solo cuando hay granja seleccionada) -->
+<div *ngIf="showTable" class="ux-card">
+  <!-- Header de la tabla con nombre de granja -->
+  <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <h3 class="text-lg font-semibold text-gray-900">
+      Lotes de la granja: <span class="text-blue-600">{{ farmDisplayName }}</span>
+    </h3>
+    <p class="text-sm text-gray-600 mt-1">
+      Mostrando {{ lotes.length }} lote(s) de esta granja
+    </p>
+  </div>
+  
+  <div class="ux-scroll">
+    <table class="ux-table">
+      <caption class="sr-only">Listado de lotes para la granja {{ farmDisplayName }}</caption>
+
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Nombre</th>
+          <th scope="col">Fase</th>
+          <th scope="col">Edad (sem)</th>
+          <th scope="col">Vivas H</th>
+          <th scope="col">Vivas M</th>
+          <th scope="col">Vivas total</th>
+          <th scope="col">Total aves</th>
+          <th scope="col">Fecha encaset</th>
+          <th scope="col" class="text-center">Acciones</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngFor="let l of lotes; trackBy: trackByLote" class="ux-row">
+          <td>{{ l.loteId }}</td>
+          <td>{{ l.loteNombre }}</td>
+          <td><span class="ux-badge">{{ calcularFase(l.fechaEncaset) }}</span></td>
+          <td>{{ l.fechaEncaset ? calcularEdadDias(l.fechaEncaset) : '—' }}</td>
+
+          <td>{{ formatOrDash(vivasH(l)) }}</td>
+          <td>{{ formatOrDash(vivasM(l)) }}</td>
+          <td>{{ formatOrDash(vivasTotales(l)) }}</td>
+
+          <td>{{ formatNumber((l.hembrasL || 0) + (l.machosL || 0)) }}</td>
+          <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
+          <td class="text-center">
+            <div class="inline-flex items-center gap-2">
+              <button (click)="onViewLote(l)" class="icon-btn" title="Ver detalle">
+                <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+              </button>
+              <button (click)="onEditLote(l)" class="icon-btn" title="Editar">
+                <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+              </button>
+              <button (click)="onDeleteLote(l)" class="icon-btn danger" title="Eliminar">
+                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+
+        <tr *ngIf="!loading && !hasLotes">
+          <td colspan="10" class="empty-state">
+            <div class="empty-illustration">📦</div>
+            <p>No hay lotes registrados en esta granja.</p>
+            <button (click)="onCreateNew()" class="btn-secondary mt-2">
+              <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+              Crear el primero
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Overlay de carga sobre la card -->
+  <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+    <div class="spinner"></div>
+    Cargando…
+  </div>
+</div>

@@ -1,0 +1,80 @@
+<div class="flex h-screen">
+  <app-sidebar class="w-64" *ngIf="!embedded"></app-sidebar>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
+    <!-- Header con línea amarilla -->
+    <div class="ux-header">
+      <div class="ux-header__title">
+        <h1 class="ux-title">Gestión de Granjas</h1>
+        <p class="ux-subtitle">Administra granjas, núcleos y galpones en una sola vista.</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="ux-tabs" role="tablist" aria-label="Secciones">
+      <button
+        class="ux-tab"
+        role="tab"
+        [attr.aria-selected]="isActive('granjas')"
+        [class.active]="isActive('granjas')"
+        (click)="setTab('granjas')"
+        id="tab-granjas"
+        aria-controls="panel-granjas">
+        <fa-icon [icon]="faHome" class="mr-1" aria-hidden="true"></fa-icon>
+        Granjas
+      </button>
+
+      <button
+        class="ux-tab"
+        role="tab"
+        [attr.aria-selected]="isActive('nucleos')"
+        [class.active]="isActive('nucleos')"
+        (click)="setTab('nucleos')"
+        id="tab-nucleos"
+        aria-controls="panel-nucleos">
+        <fa-icon [icon]="faPuzzle" class="mr-1" aria-hidden="true"></fa-icon>
+        Núcleos
+      </button>
+
+      <button
+        class="ux-tab"
+        role="tab"
+        [attr.aria-selected]="isActive('galpones')"
+        [class.active]="isActive('galpones')"
+        (click)="setTab('galpones')"
+        id="tab-galpones"
+        aria-controls="panel-galpones">
+        <fa-icon [icon]="faWarehouse" class="mr-1" aria-hidden="true"></fa-icon>
+        Galpones
+      </button>
+    </nav>
+
+    <!-- Paneles -->
+    <section
+      class="ux-tabpanel"
+      id="panel-granjas"
+      role="tabpanel"
+      [attr.aria-labelledby]="'tab-granjas'"
+      *ngIf="isActive('granjas')">
+      <app-farm-list></app-farm-list>
+    </section>
+
+    <section
+      class="ux-tabpanel"
+      id="panel-nucleos"
+      role="tabpanel"
+      [attr.aria-labelledby]="'tab-nucleos'"
+      *ngIf="isActive('nucleos')">
+      <app-nucleo-list></app-nucleo-list>
+    </section>
+
+    <section
+      class="ux-tabpanel"
+      id="panel-galpones"
+      role="tabpanel"
+      [attr.aria-labelledby]="'tab-galpones'"
+      *ngIf="isActive('galpones')">
+      <app-galpon-list></app-galpon-list>
+    </section>
+  </div>
+</div>

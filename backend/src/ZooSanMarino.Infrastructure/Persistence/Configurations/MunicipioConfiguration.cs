@@ -1,33 +1,34 @@
-// ZooSanMarino.Infrastructure/Persistence/Configurations/MunicipioConfiguration.cs
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ZooSanMarino.Domain.Entities;
 
+namespace ZooSanMarino.Infrastructure.Persistence.Configurations;
+
 public class MunicipioConfiguration : IEntityTypeConfiguration<Municipio>
 {
-    public void Configure(EntityTypeBuilder<Municipio> builder)
+    public void Configure(EntityTypeBuilder<Municipio> e)
     {
-        builder.ToTable("municipios");
+        e.ToTable("municipios");
 
-        builder.HasKey(m => m.MunicipioId)
-               .HasName("pk_municipio");
+        e.HasKey(x => x.MunicipioId);
+        e.Property(x => x.MunicipioId).HasColumnName("municipio_id");
 
-        builder.Property(m => m.MunicipioId)
-               .HasColumnName("municipio_id")
-               .ValueGeneratedOnAdd();
+        e.Property(x => x.MunicipioNombre)
+            .HasColumnName("nombre")
+            .HasMaxLength(120)
+            .IsRequired();
 
-        builder.Property(m => m.MunicipioNombre)
-               .HasColumnName("municipio_nombre")
-               .IsRequired()
-               .HasMaxLength(200);
+        e.Property(x => x.DepartamentoId)
+            .HasColumnName("departamento_id")
+            .IsRequired();
 
-        builder.Property(m => m.DepartamentoId)
-               .HasColumnName("departamento_id")
-               .IsRequired();
+        e.HasOne(x => x.Departamento)
+            .WithMany()
+            .HasForeignKey(x => x.DepartamentoId)
+            .HasConstraintName("fk_municipios_departamento")
+            .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(m => m.Departamento)
-               .WithMany(d => d.Municipios)
-               .HasForeignKey(m => m.DepartamentoId)
-               .OnDelete(DeleteBehavior.Cascade);
+        e.HasIndex(x => new { x.DepartamentoId, x.MunicipioNombre })
+         .HasDatabaseName("ix_municipios_dep_nombre");
     }
 }

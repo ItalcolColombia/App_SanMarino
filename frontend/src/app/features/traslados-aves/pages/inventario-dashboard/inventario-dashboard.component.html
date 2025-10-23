@@ -1,0 +1,562 @@
+<!-- src/app/features/traslados/pages/inventario-dashboard/inventario-dashboard.component.html -->
+<div class="ux-page" [attr.aria-busy]="isLoading() ? 'true' : null">
+  <!-- Sidebar -->
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <!-- Main -->
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>🐔 Inventario de Aves</h1>
+        <p class="ux-header__subtitle">Gestión y control de inventarios de aves por lote</p>
+      </div>
+      <div class="ux-header__actions">
+        <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
+          🚚 Nuevo Traslado
+        </button>
+        <button type="button" class="btn btn--outline" (click)="navegarAMovimientos()">
+          📋 Ver Movimientos
+        </button>
+      </div>
+    </header>
+
+    <!-- Resumen -->
+    <section class="dashboard-summary" *ngIf="resumen()">
+      <div class="summary-grid">
+        <div class="summary-card summary-card--primary">
+          <div class="summary-card__icon">📦</div>
+          <div class="summary-card__content">
+            <h3 class="summary-card__title">Total Lotes</h3>
+            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalLotes) }}</p>
+          </div>
+        </div>
+
+        <div class="summary-card summary-card--success">
+          <div class="summary-card__icon">🐔</div>
+          <div class="summary-card__content">
+            <h3 class="summary-card__title">Total Hembras</h3>
+            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalHembras) }}</p>
+          </div>
+        </div>
+
+        <div class="summary-card summary-card--info">
+          <div class="summary-card__icon">🐓</div>
+          <div class="summary-card__content">
+            <h3 class="summary-card__title">Total Machos</h3>
+            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalMachos) }}</p>
+          </div>
+        </div>
+
+        <div class="summary-card summary-card--warning">
+          <div class="summary-card__icon">🐥</div>
+          <div class="summary-card__content">
+            <h3 class="summary-card__title">Total Aves</h3>
+            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalAves) }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+   <!-- Filtros (incluye Lote) -->
+    <section class="filters-section">
+      <header class="filters-header">
+        <h3>🔍 Filtros de Búsqueda</h3>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="resetFilters()">
+          🗑️ Limpiar
+        </button>
+      </header>
+
+      <div class="filters-content">
+        <div class="filter-row">
+          <!-- Compañía -->
+          <div class="filter-group">
+            <label for="f-company" class="filter-label">Compañía</label>
+            <select id="f-company" class="filter-control"
+                    [(ngModel)]="selectedCompanyId"
+                    (ngModelChange)="onCompanyChange($event)">
+              <option [ngValue]="null">Todas</option>
+              <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+            </select>
+          </div>
+
+          <!-- Granja -->
+          <div class="filter-group">
+            <label for="f-farm" class="filter-label">Granja</label>
+            <select id="f-farm" class="filter-control"
+                    [(ngModel)]="selectedFarmId"
+                    (ngModelChange)="onFarmChange($event)">
+              <option [ngValue]="null">Todas</option>
+              <option *ngFor="let f of farmsFiltered" [ngValue]="f.id">{{ f.name }}</option>
+            </select>
+          </div>
+
+          <!-- Núcleo -->
+          <div class="filter-group">
+            <label for="f-nucleo" class="filter-label">Núcleo</label>
+            <select id="f-nucleo" class="filter-control"
+                    [(ngModel)]="selectedNucleoId"
+                    (ngModelChange)="onNucleoChange($event)">
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let n of nucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+
+          <!-- Galpón -->
+          <div class="filter-group">
+            <label for="f-galpon" class="filter-label">Galpón</label>
+            <select id="f-galpon" class="filter-control"
+                    [(ngModel)]="selectedGalponId"
+                    (ngModelChange)="onGalponChange($event)">
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let g of galponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+
+          <!-- Lote (filtrado por galpón seleccionado) -->
+          <div class="filter-group">
+            <label for="f-lote" class="filter-label">
+              Lote
+              <small *ngIf="selectedGalponId && !lotesLoading()">
+                ({{ lotesForGalpon().length }} encontrado{{ lotesForGalpon().length === 1 ? '' : 's' }})
+              </small>
+            </label>
+
+            <select
+              id="f-lote"
+              class="filter-control"
+              [disabled]="!selectedGalponId || lotesLoading() || lotesForGalpon().length === 0"
+              [ngModel]="selectedLoteId"
+              (ngModelChange)="onLoteSelectChange($event)">
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let l of lotesForGalpon()" [ngValue]="l.id">
+                {{ l.label }}
+              </option>
+            </select>
+
+            <div class="text-muted" *ngIf="selectedGalponId && lotesLoading()">Cargando lotes…</div>
+            <div class="text-muted" *ngIf="selectedGalponId && !lotesLoading() && lotesForGalpon().length === 0">
+              No hay lotes para este galpón.
+            </div>
+          </div>
+
+
+
+          <!-- Búsqueda -->
+          <div class="filter-group">
+            <label for="f-search" class="filter-label">Buscar</label>
+            <input id="f-search" type="text" class="filter-control"
+                   placeholder="Buscar por lote, núcleo, granja…"
+                   [(ngModel)]="filtro" (ngModelChange)="recomputeList()" />
+          </div>
+
+          <!-- Ordenar por -->
+          <div class="filter-group">
+            <label for="f-sort-key" class="filter-label">Ordenar por</label>
+            <select id="f-sort-key" class="filter-control"
+                    [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
+              <option [ngValue]="'edad'">Edad (días desde último conteo)</option>
+              <option [ngValue]="'fecha'">Fecha de último conteo</option>
+            </select>
+          </div>
+
+          <!-- Dirección -->
+          <div class="filter-group">
+            <label for="f-sort-dir" class="filter-label">Dirección</label>
+            <select id="f-sort-dir" class="filter-control"
+                    [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
+              <option [ngValue]="'desc'">Descendente</option>
+              <option [ngValue]="'asc'">Ascendente</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Chips Filtros -->
+        <div class="filters-applied" *ngIf="tieneFiltrosAplicados()">
+          <h4>Filtros Aplicados:</h4>
+          <div class="filter-chips">
+            <span class="filter-chip" *ngIf="selectedCompanyId">
+              Compañía: {{ obtenerNombreCompania(selectedCompanyId) }}
+              <button type="button" (click)="onCompanyChange(null)" aria-label="Quitar filtro compañía">×</button>
+            </span>
+            <span class="filter-chip" *ngIf="selectedFarmId">
+              Granja: {{ obtenerNombreGranja(selectedFarmId) }}
+              <button type="button" (click)="onFarmChange(null)" aria-label="Quitar filtro granja">×</button>
+            </span>
+            <span class="filter-chip" *ngIf="selectedNucleoId">
+              Núcleo: {{ nucleoMap[selectedNucleoId] }}
+              <button type="button" (click)="onNucleoChange(null)" aria-label="Quitar filtro núcleo">×</button>
+            </span>
+            <span class="filter-chip" *ngIf="selectedGalponId">
+              Galpón: {{ galponMap[selectedGalponId] }}
+              <button type="button" (click)="onGalponChange(null)" aria-label="Quitar filtro galpón">×</button>
+            </span>
+            <span class="filter-chip" *ngIf="loteOrigenSeleccionado()">
+              Lote: {{ loteOrigenSeleccionado()?.loteId }}
+              <button type="button" (click)="onLoteOrigenSeleccionado(null); recomputeList()"
+                      aria-label="Quitar filtro lote">×</button>
+            </span>
+            <span class="filter-chip" *ngIf="filtro">
+              Búsqueda: “{{ filtro }}”
+              <button type="button" (click)="filtro=''; recomputeList()" aria-label="Limpiar búsqueda">×</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabla de Inventarios -->
+    <section class="ux-card">
+      <header class="ux-card__header">
+        <h2>📊 Inventario de Aves</h2>
+        <div class="ux-card__actions">
+          <span class="text-muted" *ngIf="totalRecords() > 0">
+            {{ totalRecords() }} registro(s) encontrado(s)
+          </span>
+        </div>
+      </header>
+
+      <div class="ux-card__content">
+        <!-- Loading -->
+        <div class="loading-state" *ngIf="isLoading()">
+          <div class="spinner"></div>
+          <p>Cargando inventarios...</p>
+        </div>
+
+        <!-- Error -->
+        <div class="error-state" *ngIf="hasError()">
+          <div class="error-icon">⚠️</div>
+          <p>{{ error() }}</p>
+          <button type="button" class="btn btn--outline" (click)="cargarInventarios()">
+            Reintentar
+          </button>
+        </div>
+
+        <!-- Tabla -->
+        <div class="table-container" *ngIf="!isLoading() && !hasError()">
+          <table class="ux-table">
+            <caption class="sr-only">Listado de inventarios por lote</caption>
+            <thead>
+              <tr>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('lote_id')">
+                    Lote ID
+                    <span class="sort-icon"
+                          [class.active]="filtros.sortBy === 'lote_id'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('granja_id')">
+                    Granja
+                    <span class="sort-icon"
+                          [class.active]="filtros.sortBy === 'granja_id'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>Núcleo</th>
+                <th>Galpón</th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('cantidad_hembras')">
+                    Hembras
+                    <span class="sort-icon"
+                          [class.active]="filtros.sortBy === 'cantidad_hembras'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('cantidad_machos')">
+                    Machos
+                    <span class="sort-icon"
+                          [class.active]="filtros.sortBy === 'cantidad_machos'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th>Total</th>
+                <th>
+                  <button type="button" class="sort-btn" (click)="onSortChange('fecha_ultimo_conteo')">
+                    Último Conteo
+                    <span class="sort-icon"
+                          [class.active]="filtros.sortBy === 'fecha_ultimo_conteo'"
+                          [class.desc]="filtros.sortDesc">↕️</span>
+                  </button>
+                </th>
+                <th class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let inventario of inventarios(); trackBy: trackByInventarioId" class="ux-row">
+                <td><strong class="lote-id">{{ inventario.loteId }}</strong></td>
+                <td>{{ obtenerNombreGranja(inventario.granjaId) }}</td>
+                <td>{{ nucleoMap[inventario.nucleoId || ''] || inventario.nucleoId }}</td>
+                <td>{{ galponMap[inventario.galponId || ''] || inventario.galponId || '—' }}</td>
+                <td class="number-cell success">{{ formatearNumero(inventario.cantidadHembras) }}</td>
+                <td class="number-cell info">{{ formatearNumero(inventario.cantidadMachos) }}</td>
+                <td class="number-cell primary">
+                  <strong>{{ formatearNumero(calcularTotalAves(inventario)) }}</strong>
+                </td>
+                <td class="date-cell">{{ formatearFecha(inventario.fechaUltimoConteo) }}</td>
+                <td class="text-center">
+                  <div class="action-buttons">
+                    <button type="button" class="icon-btn icon-btn--primary"
+                            (click)="editarInventario(inventario.id)" title="Editar inventario">✏️</button>
+                    <button type="button" class="icon-btn icon-btn--success"
+                            (click)="ajustarInventario(inventario.loteId)" title="Ajustar cantidades">⚖️</button>
+                    <button type="button" class="icon-btn icon-btn--info"
+                            (click)="verTrazabilidad(inventario.loteId)" title="Ver trazabilidad">📈</button>
+                    <button type="button" class="icon-btn icon-btn--danger"
+                            (click)="eliminarInventario(inventario.id)" title="Eliminar inventario">🗑️</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Paginación -->
+          <div class="pagination-container" *ngIf="totalPages() > 1">
+            <div class="pagination">
+              <button type="button" class="pagination__btn"
+                      [disabled]="currentPage() === 1"
+                      (click)="onPageChange(currentPage() - 1)">
+                ← Anterior
+              </button>
+
+              <span class="pagination__info">
+                Página {{ currentPage() }} de {{ totalPages() }}
+              </span>
+
+              <button type="button" class="pagination__btn"
+                      [disabled]="currentPage() === totalPages()"
+                      (click)="onPageChange(currentPage() + 1)">
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==== Modal (igual al que ya tienes) ==== -->
+    <div class="modal-overlay" *ngIf="modalTrasladoAbierto()"
+         (click)="cerrarModalTraslado()" role="dialog" aria-modal="true" aria-labelledby="traslado-title">
+      <div class="modal-container" (click)="$event.stopPropagation()" tabindex="-1">
+        <div class="modal-header">
+          <h2 id="traslado-title">🚚 Registro de Salida / Traslado</h2>
+          <button type="button" class="modal-close" (click)="cerrarModalTraslado()" aria-label="Cerrar modal">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Paso 1 -->
+          <div class="step-section">
+            <div class="step-header">
+              <div class="step-number">1</div>
+              <h3 class="step-title">🔍 Selección de Lotes</h3>
+            </div>
+            <p class="step-description">
+              Selecciona el <strong>lote origen</strong> (sale) y el <strong>lote destino</strong> (recibe)
+            </p>
+
+            <div class="lote-selection-grid">
+              <!-- Origen -->
+              <div class="lote-filter-section">
+                <div class="filter-header">
+                  <h4 class="filter-title">📤 Lote Origen</h4>
+                  <div class="filter-status" [class.selected]="loteOrigenSeleccionado()">
+                    {{ loteOrigenSeleccionado() ? '✅ Seleccionado' : '⏳ Pendiente' }}
+                  </div>
+                </div>
+                <app-hierarchical-filter
+                  [showLoteSelection]="true"
+                  [showChips]="true"
+                  [filterLabel]="'Filtros para Lote Origen'"
+                  [placeholder]="'Buscar lote origen...'"
+                  (loteSelected)="onLoteOrigenSeleccionado($event)">
+                </app-hierarchical-filter>
+              </div>
+
+              <!-- Destino -->
+              <div class="lote-filter-section">
+                <div class="filter-header">
+                  <h4 class="filter-title">📥 Lote Destino</h4>
+                  <div class="filter-status" [class.selected]="loteDestinoSeleccionado()">
+                    {{ loteDestinoSeleccionado() ? '✅ Seleccionado' : '⏳ Pendiente' }}
+                  </div>
+                </div>
+                <app-hierarchical-filter
+                  [showLoteSelection]="true"
+                  [showChips]="true"
+                  [filterLabel]="'Filtros para Lote Destino'"
+                  [placeholder]="'Buscar lote destino...'"
+                  (loteSelected)="onLoteDestinoSeleccionado($event)">
+                </app-hierarchical-filter>
+              </div>
+            </div>
+
+            <!-- Resumen inventarios -->
+            <div class="lotes-summary" *ngIf="loteOrigenSeleccionado() && loteDestinoSeleccionado()">
+              <div class="lote-summary-card origen">
+                <div class="card-header">
+                  <h4>📤 Origen</h4>
+                  <span class="lote-id">{{ loteOrigenSeleccionado()?.loteId }}</span>
+                </div>
+                <div class="card-body" *ngIf="inventarioOrigen()">
+                  <div class="inventory-info">
+                    <div class="inventory-item hembras"><span class="count">{{ inventarioOrigen()?.cantidadHembras || 0 }}</span><span class="type">♀ Hembras</span></div>
+                    <div class="inventory-item machos"><span class="count">{{ inventarioOrigen()?.cantidadMachos || 0 }}</span><span class="type">♂ Machos</span></div>
+                    <div class="inventory-item total"><span class="count">{{ (inventarioOrigen()?.cantidadHembras || 0) + (inventarioOrigen()?.cantidadMachos || 0) }}</span><span class="type">Total</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="transfer-arrow">
+                <div class="arrow-icon">→</div>
+                <div class="arrow-label">Traslado</div>
+              </div>
+
+              <div class="lote-summary-card destino">
+                <div class="card-header">
+                  <h4>📥 Destino</h4>
+                  <span class="lote-id">{{ loteDestinoSeleccionado()?.loteId }}</span>
+                </div>
+                <div class="card-body" *ngIf="inventarioDestino()">
+                  <div class="inventory-info">
+                    <div class="inventory-item hembras"><span class="count">{{ inventarioDestino()?.cantidadHembras || 0 }}</span><span class="type">♀ Hembras</span></div>
+                    <div class="inventory-item machos"><span class="count">{{ inventarioDestino()?.cantidadMachos || 0 }}</span><span class="type">♂ Machos</span></div>
+                    <div class="inventory-item total"><span class="count">{{ (inventarioDestino()?.cantidadHembras || 0) + (inventarioDestino()?.cantidadMachos || 0) }}</span><span class="type">Total</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Paso 2 -->
+          <div class="step-section" *ngIf="loteOrigenSeleccionado() && loteDestinoSeleccionado()">
+            <div class="step-header">
+              <div class="step-number">2</div>
+              <h3 class="step-title">🧾 Datos del Movimiento</h3>
+            </div>
+            <p class="step-description">Completa la información obligatoria del registro de salida</p>
+
+            <form [formGroup]="trasladoForm" class="traslado-form" (ngSubmit)="procesarTraslado()">
+              <!-- Usuarios + Fecha -->
+              <div class="grid grid-3">
+                <div class="form-field">
+                  <label class="ux-label" for="user-realiza">👤 Usuario que realiza <span class="required">*</span></label>
+                  <input id="user-realiza" type="number" class="ux-input"
+                         formControlName="usuarioRealizaId" placeholder="ID usuario que realiza" />
+                  <small class="text-danger" *ngIf="trasladoForm.get('usuarioRealizaId')?.touched && trasladoForm.get('usuarioRealizaId')?.invalid">Requerido.</small>
+                </div>
+
+                <div class="form-field">
+                  <label class="ux-label" for="user-recibe">🤝 Usuario que recibe <span class="required">*</span></label>
+                  <input id="user-recibe" type="number" class="ux-input"
+                         formControlName="usuarioRecibeId" placeholder="ID usuario que recibe" />
+                  <small class="text-danger" *ngIf="trasladoForm.get('usuarioRecibeId')?.touched && trasladoForm.get('usuarioRecibeId')?.invalid">Requerido.</small>
+                </div>
+
+                <div class="form-field">
+                  <label class="ux-label" for="fecha-mov">📅 Fecha del movimiento <span class="required">*</span></label>
+                  <input id="fecha-mov" type="date" class="ux-input" formControlName="fechaMovimiento" />
+                  <small class="text-danger" *ngIf="trasladoForm.get('fechaMovimiento')?.touched && trasladoForm.get('fechaMovimiento')?.invalid">Requerido.</small>
+                </div>
+              </div>
+
+              <!-- Tipo + Observaciones -->
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label class="ux-label" for="tipo-mov">🏷️ Tipo de movimiento</label>
+                  <select id="tipo-mov" class="ux-select" formControlName="tipoMovimiento">
+                    <option value="TRASLADO">TRASLADO</option>
+                    <option value="SALIDA">SALIDA</option>
+                  </select>
+                </div>
+
+                <div class="form-field">
+                  <label class="ux-label" for="obs">📝 Observaciones</label>
+                  <textarea id="obs" class="ux-textarea" rows="2" formControlName="observaciones" placeholder="Notas, motivo, etc."></textarea>
+                </div>
+              </div>
+
+              <!-- Cantidades -->
+              <div class="step-subtitle">🔢 Cantidades a Trasladar</div>
+              <div class="quantities-grid">
+                <div class="quantity-field hembras">
+                  <label class="quantity-label" for="q-hembras"><span class="icon">♀</span><span class="text">Hembras</span></label>
+                  <div class="input-with-max">
+                    <input id="q-hembras" type="number" class="ux-input quantity-input"
+                           formControlName="cantidadHembras" min="0"
+                           [attr.max]="inventarioOrigen()?.cantidadHembras ?? null" placeholder="0" />
+                    <span class="max-indicator">/ {{ inventarioOrigen()?.cantidadHembras ?? '—' }} disp.</span>
+                    <button type="button" class="btn btn--ghost btn--xs" (click)="trasladarTodasLasHembras()">Usar máx</button>
+                  </div>
+                  <small class="text-danger" *ngIf="trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']">
+                    Máximo: {{ trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
+                  </small>
+                </div>
+
+                <div class="quantity-field machos">
+                  <label class="quantity-label" for="q-machos"><span class="icon">♂</span><span class="text">Machos</span></label>
+                  <div class="input-with-max">
+                    <input id="q-machos" type="number" class="ux-input quantity-input"
+                           formControlName="cantidadMachos" min="0"
+                           [attr.max]="inventarioOrigen()?.cantidadMachos ?? null" placeholder="0" />
+                    <span class="max-indicator">/ {{ inventarioOrigen()?.cantidadMachos ?? '—' }} disp.</span>
+                    <button type="button" class="btn btn--ghost btn--xs" (click)="trasladarTodosLosMachos()">Usar máx</button>
+                  </div>
+                  <small class="text-danger" *ngIf="trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']">
+                    Máximo: {{ trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
+                  </small>
+                </div>
+              </div>
+
+              <!-- Resumen -->
+              <div class="transfer-summary" *ngIf="getTotalAves() > 0">
+                <div class="summary-card">
+                  <div class="summary-header"><h4>📊 Resumen</h4></div>
+                  <div class="summary-body">
+                    <div class="summary-item"><span class="label">Total:</span><span class="value total">{{ getTotalAves() }} aves</span></div>
+                    <div class="summary-breakdown">
+                      <span class="breakdown-item hembras" *ngIf="trasladoForm.get('cantidadHembras')?.value > 0">
+                        {{ trasladoForm.get('cantidadHembras')?.value }}♀
+                      </span>
+                      <span class="breakdown-item machos" *ngIf="trasladoForm.get('cantidadMachos')?.value > 0">
+                        {{ trasladoForm.get('cantidadMachos')?.value }}♂
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Estados -->
+              <div class="modal-states">
+                <div class="alert alert--danger" *ngIf="errorTraslado()">
+                  <div class="alert__icon">⚠️</div>
+                  <div class="alert__content"><strong>Error:</strong> {{ errorTraslado() }}</div>
+                </div>
+                <div class="alert alert--success" *ngIf="exitoTraslado()">
+                  <div class="alert__icon">✅</div>
+                  <div class="alert__content"><strong>¡Traslado registrado!</strong></div>
+                </div>
+                <div class="loading-state" *ngIf="procesandoTraslado()">
+                  <div class="spinner"></div><p>Procesando traslado...</p>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer">
+          <button type="button" class="btn btn--outline" (click)="cerrarModalTraslado()" [disabled]="procesandoTraslado()">Cancelar</button>
+          <button type="button" class="btn btn--primary"
+                  (click)="procesarTraslado()"
+                  [disabled]="!isSubmitEnabled() || procesandoTraslado() || exitoTraslado()">
+            <span *ngIf="procesandoTraslado()">Procesando...</span>
+            <span *ngIf="!procesandoTraslado()">🚚 Registrar salida</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- /Modal -->
+  </div>
+</div>

@@ -1,0 +1,292 @@
+/* ==========================================================================
+   Hierarchical Filter Component Styles
+   ========================================================================== */
+
+.hierarchical-filter {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* Header */
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--warm-200);
+}
+
+.filter-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--warm-700);
+}
+
+/* Chips de estado (como en seguimiento de lotes) */
+.ux-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  background: var(--warm-50);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--warm-200);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chip--info {
+  background: var(--brand-blue);
+  color: var(--white);
+}
+
+.chip--muted {
+  background: var(--warm-200);
+  color: var(--warm-600);
+}
+
+.chip--warning {
+  background: var(--brand-orange);
+  color: var(--white);
+}
+
+/* Loading y Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--warm-200);
+  border-top: 2px solid var(--brand-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--space-2);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-message {
+  color: var(--brand-red);
+  margin-bottom: var(--space-3);
+}
+
+/* Grid de filtros */
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ux-label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--warm-600);
+  margin: 0;
+}
+
+.ux-select,
+.ux-input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warm-300);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  background: var(--white);
+  transition: all 0.2s ease;
+}
+
+.ux-select:focus,
+.ux-input:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-input {
+  position: relative;
+}
+
+.search-input .ux-input {
+  padding-right: var(--space-8);
+}
+
+.search-icon {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--warm-400);
+  pointer-events: none;
+}
+
+/* Lote seleccionado */
+.selected-lote-info {
+  margin-top: var(--space-4);
+}
+
+.lote-card {
+  background: var(--warm-50);
+  border: 1px solid var(--warm-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.lote-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--warm-200);
+}
+
+.lote-header h4 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--warm-700);
+}
+
+.lote-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-2);
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.detail-label {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--warm-500);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--warm-700);
+}
+
+/* Resumen */
+.filter-summary {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--warm-200);
+}
+
+.summary-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  
+  .ux-header__meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .lote-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Botones */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--warm-600);
+  border: 1px solid var(--warm-300);
+}
+
+.btn--ghost:hover {
+  background: var(--warm-50);
+  border-color: var(--warm-400);
+}
+
+.btn--outline {
+  background: transparent;
+  color: var(--brand-blue);
+  border: 1px solid var(--brand-blue);
+}
+
+.btn--outline:hover {
+  background: var(--brand-blue);
+  color: var(--white);
+}
+
+.btn--sm {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-xs);
+}
+
+
+
+
+
+
+

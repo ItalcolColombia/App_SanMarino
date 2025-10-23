@@ -1,94 +1,148 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
-using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Application.DTOs;                     // CreateLoteDto, UpdateLoteDto, LoteDto
+using CommonDtos = ZooSanMarino.Application.DTOs.Common; // PagedResult<T>
+using LoteDtos   = ZooSanMarino.Application.DTOs.Lotes;
+using ZooSanMarino.Application.DTOs.Lotes;  // LoteDetailDto, LoteSearchRequest
 
 namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
+[Consumes("application/json")]
 public class LoteController : ControllerBase
 {
     private readonly ILoteService _svc;
     public LoteController(ILoteService svc) => _svc = svc;
 
+    // ===========================
+    // LISTADO SIMPLE CON INFORMACIÓN COMPLETA DE RELACIONES
+    // ===========================
     [HttpGet]
-    public async Task<IActionResult> GetAll() =>
-        Ok(await _svc.GetAllAsync());
+    [ProducesResponseType(typeof(IEnumerable<LoteDtos.LoteDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> GetAll()
+    {
+        var items = await _svc.GetAllAsync();
+        return Ok(items);
+    }
 
+    // ===========================
+    // BÚSQUEDA AVANZADA
+    // ===========================
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(CommonDtos.PagedResult<LoteDtos.LoteDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CommonDtos.PagedResult<LoteDtos.LoteDetailDto>>> Search([FromQuery] LoteDtos.LoteSearchRequest req)
+    {
+        var res = await _svc.SearchAsync(req);
+        return Ok(res);
+    }
+
+    // ===========================
+    // DETALLE
+    // ===========================
     [HttpGet("{loteId}")]
-    public async Task<IActionResult> GetById(string loteId) =>
-        (await _svc.GetByIdAsync(loteId)) is LoteDto dto
-            ? Ok(dto)
-            : NotFound();
+    [ProducesResponseType(typeof(LoteDtos.LoteDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteDtos.LoteDetailDto>> GetById(int loteId)
+    {
+        var res = await _svc.GetByIdAsync(loteId);
+        if (res is null) return NotFound();
+        return Ok(res);
+    }
 
+    // ===========================
+    // CREATE
+    // ===========================
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] JsonElement input)
+    [ProducesResponseType(typeof(LoteDtos.LoteDetailDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<LoteDtos.LoteDetailDto>> Create([FromBody] CreateLoteDto dto)
     {
-        var payload = input.TryGetProperty("dto", out var innerDto) ? innerDto : input;
+        if (dto is null) return BadRequest("Body requerido.");
+        // LoteId es opcional - el backend generará automáticamente si no se proporciona
 
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-
-        // 🔐 Serializamos como texto para forzar la conversión correcta
-        var json = payload.GetRawText();
-
-        // Verificamos manualmente el valor de LoteId
-        using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("loteId", out var loteIdProp))
-            return BadRequest("Falta el campo loteId.");
-
-        // 🔄 Forzamos a string (sea int o string)
-        var loteId = loteIdProp.ValueKind switch
+        try
         {
-            JsonValueKind.Number => loteIdProp.GetInt32().ToString(),
-            JsonValueKind.String => loteIdProp.GetString(),
-            _ => null
-        };
-
-        if (string.IsNullOrWhiteSpace(loteId))
-            return BadRequest("El LoteId es obligatorio y debe ser válido.");
-
-        var dto = JsonSerializer.Deserialize<CreateLoteDto>(json, options);
-        if (dto is null)
-            return BadRequest("No se pudo deserializar el objeto recibido.");
-
-        // ✅ LoteId corregido explícitamente
-        dto.LoteId = loteId!.Trim();
-
-        var created = await _svc.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { loteId = created.LoteId }, created);
+            var created = await _svc.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { loteId = created.LoteId }, created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Reglas de negocio (pertenencia, duplicados, etc.)
+            return BadRequest(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
+    // ===========================
+    // UPDATE
+    // ===========================
     [HttpPut("{loteId}")]
-    public async Task<IActionResult> Update(string loteId, [FromBody] JsonElement input)
+    [ProducesResponseType(typeof(LoteDtos.LoteDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteDtos.LoteDetailDto>> Update(int loteId, [FromBody] UpdateLoteDto dto)
     {
-        // Soporta ambos formatos: { ... } o { dto: { ... } }
-        var payload = input.TryGetProperty("dto", out var innerDto) ? innerDto : input;
+        if (dto is null) return BadRequest("Body requerido.");
+        if (dto.LoteId <= 0)
+            return BadRequest("LoteId debe ser mayor que 0.");
+        if (loteId != dto.LoteId)
+            return BadRequest("El id de la ruta no coincide con el del cuerpo.");
 
-        var dto = JsonSerializer.Deserialize<UpdateLoteDto>(payload.GetRawText(), new JsonSerializerOptions
+        try
         {
-            PropertyNameCaseInsensitive = true
-        });
-
-        if (dto is null)
-            return BadRequest("No se pudo deserializar el objeto recibido.");
-
-        if (string.IsNullOrWhiteSpace(dto.LoteId))
-            return BadRequest("El campo LoteId es obligatorio.");
-
-        if (dto.LoteId.Trim() != loteId)
-            return BadRequest("El ID en la URL no coincide con el del cuerpo de la solicitud.");
-
-        // Usamos `with` para asegurarnos de que LoteId esté limpio, sin mutarlo directamente
-        var fixedDto = dto with { LoteId = dto.LoteId.Trim() };
-
-        var updated = await _svc.UpdateAsync(fixedDto);
-        return updated is not null
-            ? Ok(updated)
-            : NotFound();
+            var updated = await _svc.UpdateAsync(dto);
+            if (updated is null) return NotFound();
+            return Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
+    // ===========================
+    // DELETE (soft)
+    // ===========================
     [HttpDelete("{loteId}")]
-    public async Task<IActionResult> Delete(string loteId) =>
-        (await _svc.DeleteAsync(loteId)) ? NoContent() : NotFound();
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(int loteId)
+    {
+        var ok = await _svc.DeleteAsync(loteId);
+        return ok ? NoContent() : NotFound();
+    }
+
+    // ===========================
+    // DELETE (hard)
+    // ===========================
+    [HttpDelete("{loteId}/hard")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> HardDelete(int loteId)
+    {
+        var ok = await _svc.HardDeleteAsync(loteId);
+        return ok ? NoContent() : NotFound();
+    }
+
+      /// <summary>
+    /// Resumen de mortalidad de un lote de levante (acumulado y saldos).
+    /// </summary>
+    [HttpGet("{loteId}/resumen-mortalidad")]
+    [ProducesResponseType(typeof(LoteMortalidadResumenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResumenMortalidad(int loteId)
+    {
+        var dto = await _svc.GetMortalidadResumenAsync(loteId);
+        if (dto is null) return NotFound();
+        return Ok(dto);
+    }
 }

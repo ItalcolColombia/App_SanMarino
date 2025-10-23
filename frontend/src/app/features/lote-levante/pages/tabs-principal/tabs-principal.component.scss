@@ -1,0 +1,417 @@
+/* ==========================================================================
+   📊 Tabs Principal - General, Indicadores y Gráfica
+   ========================================================================== */
+:host {
+  display: block;
+}
+
+/* ==========================================================================
+   🎨 Design System / Tokens
+   ========================================================================== */
+:host {
+  /* Brand */
+  --brand-red:        #d32f2f;
+  --brand-red-600:    #c62828;
+  --brand-red-700:    #b71c1c;
+
+  /* Accent */
+  --amber-25:         #fffbeb;
+  --amber-50:         #fff7ed;
+  --amber-100:        #fef3c7;
+  --amber-200:        #fde68a;
+
+  /* Warm Gray scale */
+  --warm-25:          #fdfdfc;
+  --warm-50:          #fafaf9;
+  --warm-100:         #f5f5f4;
+  --warm-200:         #e7e5e4;
+  --warm-300:         #d6d3d1;
+  --warm-400:         #a8a29e;
+  --warm-500:         #78716c;
+  --warm-600:         #57534e;
+
+  /* Base */
+  --white:            #ffffff;
+  --black:            #111111;
+
+  /* Sombras */
+  --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
+  --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
+  --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
+
+  /* Espaciado & Radios */
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  --radius-sm: .5rem;
+  --radius-md: .65rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Tipografía */
+  --fs-xs: .75rem;
+  --fs-sm: .85rem;
+  --fs-md: .92rem;
+  --fs-lg: 1.05rem;
+  --fs-xl: 1.35rem;
+
+  /* Focus ring */
+  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+
+  /* Z-index */
+  --z-sticky: 10;
+  --z-modal:  50;
+
+  /* Superficies (CLARO) */
+  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-card:    var(--white);
+  --bg-muted:   var(--warm-50);
+  --border:     var(--warm-200);
+  --text:       var(--black);
+  --text-sub:   #222222;
+
+  /* Transiciones */
+  --t-fast: .12s ease;
+  --t-med:  .15s ease;
+}
+
+/* ==========================================================================
+   🧰 Cards
+   ========================================================================== */
+:host .ux-card {
+  position: relative; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: 0;
+  color: var(--text);
+}
+
+/* ==========================================================================
+   📑 Tabs
+   ========================================================================== */
+.tabs-container {
+  display: flex; flex-direction: column; height: 100%;
+}
+
+.tabs-nav {
+  display: flex; border-bottom: 2px solid var(--border);
+  background: var(--warm-50); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 0; margin: 0; list-style: none;
+}
+
+.tab-button {
+  flex: 1; padding: var(--space-4) var(--space-5);
+  background: transparent; border: none; border-bottom: 3px solid transparent;
+  font-size: var(--fs-md); font-weight: 600; color: var(--text-sub);
+  cursor: pointer; transition: all var(--t-fast);
+  position: relative;
+}
+
+.tab-button:hover {
+  background: var(--warm-100); color: var(--text);
+}
+
+.tab-button.active {
+  background: var(--white); color: var(--brand-red);
+  border-bottom-color: var(--brand-red);
+  box-shadow: 0 -2px 8px rgba(0,0,0,.1);
+}
+
+.tab-button:focus {
+  outline: none; box-shadow: var(--ring);
+}
+
+.tabs-content {
+  flex: 1; padding: var(--space-6);
+  overflow-y: auto; max-height: 70vh;
+}
+
+.tab-panel {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   📊 Resumen General
+   ========================================================================== */
+.resumen-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4); margin-bottom: var(--space-6);
+}
+
+.resumen-card {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-4); background: var(--warm-50);
+  border-radius: var(--radius-md); border: 1px solid var(--border);
+  transition: all var(--t-fast);
+}
+
+.resumen-card:hover {
+  background: var(--amber-25); border-color: var(--amber-200);
+  transform: translateY(-2px); box-shadow: var(--shadow-sm);
+}
+
+.resumen-icon {
+  font-size: 2rem; flex-shrink: 0;
+}
+
+.resumen-content h4 {
+  margin: 0 0 var(--space-1) 0; font-size: var(--fs-sm);
+  font-weight: 600; color: var(--text-sub);
+}
+
+.resumen-number {
+  margin: 0; font-size: var(--fs-xl); font-weight: 700;
+  color: var(--brand-red);
+}
+
+/* ==========================================================================
+   📋 Tablas
+   ========================================================================== */
+.table-container {
+  margin-top: var(--space-6);
+}
+
+.ux-scroll { 
+  max-height: 50vh; overflow: auto; 
+  border-radius: var(--radius-md); border: 1px solid var(--border);
+}
+
+.ux-table { 
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.ux-table thead {
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
+  color: var(--white);
+}
+
+.ux-table thead th {
+  text-align: left; font-size: var(--fs-xs); font-weight: 800; 
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--brand-red-700);
+}
+
+.ux-table thead th:first-child { border-top-left-radius: var(--radius-md); }
+.ux-table thead th:last-child { border-top-right-radius: var(--radius-md); }
+
+.ux-table tbody tr { 
+  transition: background-color var(--t-fast);
+  border-bottom: 1px solid var(--border);
+}
+
+.ux-table tbody tr:nth-child(even) { background: var(--warm-50); }
+.ux-table tbody tr:hover { background: var(--amber-25); }
+
+.ux-table tbody td {
+  padding: var(--space-3) var(--space-4); 
+  color: var(--text); vertical-align: middle;
+}
+
+/* ==========================================================================
+   📈 Tabla de Indicadores
+   ========================================================================== */
+.indicadores-table {
+  font-size: var(--fs-xs);
+}
+
+.indicadores-table thead th {
+  font-size: 0.7rem; padding: var(--space-2) var(--space-3);
+  text-align: center;
+}
+
+.indicadores-table tbody td {
+  padding: var(--space-2) var(--space-3); text-align: center;
+}
+
+.semana-cell {
+  font-weight: 700; color: var(--brand-red);
+  background: var(--amber-25);
+}
+
+.periodo-cell {
+  font-size: 0.7rem; color: var(--text-sub);
+}
+
+.piso-termico .badge {
+  display: inline-block; padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm); font-size: 0.7rem;
+  font-weight: 600; background: var(--warm-200); color: var(--warm-600);
+}
+
+.piso-termico .badge.visible {
+  background: var(--amber-200); color: var(--brand-red-700);
+}
+
+/* ==========================================================================
+   📊 Acumulados
+   ========================================================================== */
+.acumulados-section {
+  margin-top: var(--space-6); padding-top: var(--space-4);
+  border-top: 2px solid var(--border);
+}
+
+.acumulados-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.acumulado-card {
+  text-align: center; padding: var(--space-4);
+  background: var(--warm-50); border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.acumulado-card h5 {
+  margin: 0 0 var(--space-2) 0; font-size: var(--fs-sm);
+  color: var(--text-sub);
+}
+
+.acumulado-card p {
+  margin: 0; font-size: var(--fs-lg); font-weight: 700;
+  color: var(--brand-red);
+}
+
+/* ==========================================================================
+   📊 Gráfica Placeholder
+   ========================================================================== */
+.grafica-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 400px; background: var(--warm-50);
+  border-radius: var(--radius-md); border: 2px dashed var(--border);
+}
+
+.placeholder-content {
+  text-align: center; max-width: 400px;
+}
+
+.placeholder-icon {
+  font-size: 4rem; margin-bottom: var(--space-4);
+  opacity: 0.5;
+}
+
+.placeholder-content h4 {
+  margin: 0 0 var(--space-3) 0; color: var(--text-sub);
+}
+
+.placeholder-content p {
+  margin: 0 0 var(--space-3) 0; color: var(--warm-600);
+}
+
+.placeholder-content ul {
+  text-align: left; margin: 0; padding-left: var(--space-5);
+  color: var(--warm-600);
+}
+
+.placeholder-content li {
+  margin-bottom: var(--space-1);
+}
+
+/* ==========================================================================
+   🔧 Helpers
+   ========================================================================== */
+.empty-state {
+  text-align: center; padding: var(--space-8);
+  color: var(--warm-600);
+}
+
+.empty-illustration {
+  font-size: 3rem; margin-bottom: var(--space-3);
+  opacity: 0.5;
+}
+
+.text-right { text-align: right; }
+
+.btn-group {
+  display: flex; gap: var(--space-1);
+}
+
+.icon-btn {
+  width: 32px; height: 32px; border: none; border-radius: var(--radius-sm);
+  background: var(--warm-200); color: var(--warm-600);
+  cursor: pointer; transition: all var(--t-fast);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.icon-btn:hover {
+  background: var(--amber-200); color: var(--brand-red);
+}
+
+.icon-btn--danger:hover {
+  background: var(--brand-red); color: var(--white);
+}
+
+.btn {
+  padding: var(--space-2) var(--space-4); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--white);
+  color: var(--text); cursor: pointer; transition: all var(--t-fast);
+  font-size: var(--fs-sm); font-weight: 500;
+}
+
+.btn--outline {
+  background: transparent; border-color: var(--brand-red);
+  color: var(--brand-red);
+}
+
+.btn--outline:hover {
+  background: var(--brand-red); color: var(--white);
+}
+
+/* ==========================================================================
+   📱 Responsive
+   ========================================================================== */
+@media (max-width: 768px) {
+  .tabs-nav {
+    flex-direction: column;
+  }
+  
+  .tab-button {
+    border-bottom: 1px solid var(--border);
+    border-right: 3px solid transparent;
+  }
+  
+  .tab-button.active {
+    border-bottom-color: var(--border);
+    border-right-color: var(--brand-red);
+  }
+  
+  .resumen-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .indicadores-table {
+    font-size: 0.6rem;
+  }
+  
+  .indicadores-table thead th,
+  .indicadores-table tbody td {
+    padding: var(--space-1) var(--space-2);
+  }
+  
+  .acumulados-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .tabs-content {
+    padding: var(--space-4);
+  }
+  
+  .resumen-card {
+    flex-direction: column; text-align: center;
+  }
+  
+  .resumen-icon {
+    font-size: 1.5rem;
+  }
+}

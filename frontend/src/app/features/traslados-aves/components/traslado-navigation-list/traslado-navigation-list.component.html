@@ -1,0 +1,203 @@
+<!-- src/app/features/traslados-aves/components/traslado-navigation-list/traslado-navigation-list.component.html -->
+<div class="traslado-navigation-list">
+  <!-- Header con controles -->
+  <div class="list-header">
+    <div class="header-info">
+      <h2>
+        <i class="fas fa-exchange-alt"></i>
+        Navegación de Traslados
+      </h2>
+      <p class="subtitle">Visualización completa de movimientos de aves con información detallada</p>
+    </div>
+    
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="toggleFiltros()">
+        <i class="fas fa-filter"></i>
+        {{ showFilters() ? 'Ocultar Filtros' : 'Mostrar Filtros' }}
+      </button>
+      
+      <button class="btn btn-primary" (click)="refrescar()" [disabled]="loading()">
+        <i class="fas fa-sync-alt" [class.spinning]="loading()"></i>
+        Refrescar
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filters-section" *ngIf="showFilters()">
+    <div class="filters-card">
+      <div class="filters-header">
+        <h3>
+          <i class="fas fa-filter"></i>
+          Filtros de Búsqueda
+        </h3>
+        <span class="filters-summary">{{ getResumenFiltros() }}</span>
+      </div>
+      
+      <div class="filters-grid">
+        <div class="filter-group">
+          <label for="estado">Estado</label>
+          <select id="estado" [(ngModel)]="selectedEstado" class="form-select">
+            <option *ngFor="let estado of estados" [value]="estado.value">
+              {{ estado.label }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="tipo">Tipo de Movimiento</label>
+          <select id="tipo" [(ngModel)]="selectedTipo" class="form-select">
+            <option *ngFor="let tipo of tipos" [value]="tipo.value">
+              {{ tipo.label }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="fechaDesde">Fecha Desde</label>
+          <input 
+            id="fechaDesde" 
+            type="date" 
+            [(ngModel)]="fechaDesde" 
+            class="form-input"
+          />
+        </div>
+        
+        <div class="filter-group">
+          <label for="fechaHasta">Fecha Hasta</label>
+          <input 
+            id="fechaHasta" 
+            type="date" 
+            [(ngModel)]="fechaHasta" 
+            class="form-input"
+          />
+        </div>
+      </div>
+      
+      <div class="filters-actions">
+        <button class="btn btn-outline" (click)="limpiarFiltros()">
+          <i class="fas fa-times"></i>
+          Limpiar Filtros
+        </button>
+        
+        <button class="btn btn-primary" (click)="aplicarFiltros()" [disabled]="loading()">
+          <i class="fas fa-search"></i>
+          Aplicar Filtros
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controles de ordenamiento y paginación -->
+  <div class="controls-section">
+    <div class="sort-controls">
+      <label>Ordenar por:</label>
+      <select [(ngModel)]="filtros().sortBy" (change)="cambiarOrdenamiento($any($event.target).value)" class="form-select">
+        <option value="fecha_movimiento">Fecha</option>
+        <option value="numero_movimiento">Número</option>
+        <option value="estado">Estado</option>
+        <option value="tipo_movimiento">Tipo</option>
+      </select>
+      <span class="sort-indicator">{{ getTextoOrdenamiento() }}</span>
+    </div>
+    
+    <div class="pagination-info">
+      <span>
+        Mostrando {{ movimientos().length }} de {{ totalItems() }} movimientos
+      </span>
+      
+      <div class="page-size-control">
+        <label>Por página:</label>
+        <select [(ngModel)]="pageSize" (change)="cambiarTamanoPagina($any($event.target).value)" class="form-select">
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado de carga -->
+  <div class="loading-state" *ngIf="isLoadingData()">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+    </div>
+    <p>Cargando movimientos...</p>
+  </div>
+
+  <!-- Estado de error -->
+  <div class="error-state" *ngIf="error() && !isLoadingData()">
+    <div class="error-icon">
+      <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    <h3>Error al cargar los datos</h3>
+    <p>{{ error() }}</p>
+    <button class="btn btn-primary" (click)="refrescar()">
+      <i class="fas fa-retry"></i>
+      Intentar de nuevo
+    </button>
+  </div>
+
+  <!-- Lista de movimientos -->
+  <div class="movimientos-list" *ngIf="hasResults() && !isLoadingData()">
+    <app-traslado-navigation-card
+      *ngFor="let movimiento of movimientos()"
+      [movimiento]="movimiento"
+      [showDetails]="true"
+      [compact]="false"
+    ></app-traslado-navigation-card>
+  </div>
+
+  <!-- Estado sin resultados -->
+  <div class="empty-state" *ngIf="!hasResults() && !isLoadingData() && !error()">
+    <div class="empty-icon">
+      <i class="fas fa-search"></i>
+    </div>
+    <h3>No se encontraron movimientos</h3>
+    <p>No hay movimientos que coincidan con los filtros aplicados.</p>
+    <button class="btn btn-primary" (click)="limpiarFiltros()">
+      <i class="fas fa-times"></i>
+      Limpiar Filtros
+    </button>
+  </div>
+
+  <!-- Paginación -->
+  <div class="pagination-section" *ngIf="hasResults() && totalPages() > 1">
+    <div class="pagination">
+      <button 
+        class="btn btn-outline"
+        [disabled]="currentPage() === 1"
+        (click)="cambiarPagina(currentPage() - 1)"
+      >
+        <i class="fas fa-chevron-left"></i>
+        Anterior
+      </button>
+      
+      <div class="pagination-pages">
+        <button
+          *ngFor="let pagina of getPaginas()"
+          class="btn"
+          [class.btn-primary]="pagina === currentPage()"
+          [class.btn-outline]="pagina !== currentPage()"
+          (click)="cambiarPagina(pagina)"
+        >
+          {{ pagina }}
+        </button>
+      </div>
+      
+      <button 
+        class="btn btn-outline"
+        [disabled]="currentPage() === totalPages()"
+        (click)="cambiarPagina(currentPage() + 1)"
+      >
+        Siguiente
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+    
+    <div class="pagination-info">
+      Página {{ currentPage() }} de {{ totalPages() }}
+    </div>
+  </div>
+</div>
