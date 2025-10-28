@@ -5921,19 +5921,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\SAN MARINO\\.nuget\\packages\\": {}
+    "/Users/chelsycardona/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.API\\ZooSanMarino.API.csproj",
+      "projectUniqueName": "/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.API/ZooSanMarino.API.csproj",
       "projectName": "ZooSanMarino.API",
-      "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.API\\ZooSanMarino.API.csproj",
-      "packagesPath": "C:\\Users\\SAN MARINO\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.API\\obj\\",
+      "projectPath": "/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.API/ZooSanMarino.API.csproj",
+      "packagesPath": "/Users/chelsycardona/.nuget/packages/",
+      "outputPath": "/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.API/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\SAN MARINO\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "/Users/chelsycardona/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
@@ -5945,8 +5945,8 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "projectReferences": {
-            "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\ZooSanMarino.Infrastructure.csproj": {
-              "projectPath": "C:\\Users\\SAN MARINO\\Documents\\App_SanMarino\\backend\\src\\ZooSanMarino.Infrastructure\\ZooSanMarino.Infrastructure.csproj"
+            "/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj": {
+              "projectPath": "/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj"
             }
           }
         }
@@ -6013,7 +6013,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
