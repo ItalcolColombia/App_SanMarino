@@ -1,6 +1,29 @@
 <!-- src/app/features/inventario/components/ajuste-form/ajuste-form.component.html -->
 <form class="ux-form" [formGroup]="form" (ngSubmit)="submit()">
   <div class="filters">
+    <!-- Selector de Tipo de Ajuste -->
+    <div class="filter filter-type">
+      <label class="ux-label">Tipo de Ajuste *</label>
+      <div class="type-selector">
+        <label class="type-option"
+               [class.type-option--selected]="form.value.signo === '1'"
+               [class.type-option--add]="form.value.signo === '1'">
+          <input type="radio" formControlName="signo" value="1" class="sr-only" />
+          <fa-icon [icon]="faPlus" class="type-icon"></fa-icon>
+          <span class="type-text">Sumar</span>
+          <span class="type-badge">+</span>
+        </label>
+        <label class="type-option"
+               [class.type-option--selected]="form.value.signo === '-1'"
+               [class.type-option--subtract]="form.value.signo === '-1'">
+          <input type="radio" formControlName="signo" value="-1" class="sr-only" />
+          <fa-icon [icon]="faMinus" class="type-icon"></fa-icon>
+          <span class="type-text">Restar</span>
+          <span class="type-badge">−</span>
+        </label>
+      </div>
+    </div>
+
     <div class="filter">
       <label class="ux-label" for="farmId">Granja *</label>
       <select id="farmId" class="ux-select" formControlName="farmId">
@@ -17,18 +40,6 @@
           {{ it.codigo }} — {{ it.nombre }}
         </option>
       </select>
-    </div>
-
-    <div class="filter">
-      <label class="ux-label">Tipo *</label>
-      <div class="actions">
-        <label class="btn-ghost">
-          <input type="radio" class="sr-only" formControlName="signo" value="1" /> Sumar
-        </label>
-        <label class="btn-ghost">
-          <input type="radio" class="sr-only" formControlName="signo" value="-1" /> Restar
-        </label>
-      </div>
     </div>
 
     <div class="filter">
@@ -52,7 +63,31 @@
     </div>
   </div>
 
-  <div class="actions" style="justify-content:flex-end; padding:.5rem .75rem;">
-    <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">Registrar ajuste</button>
+  <div class="form-actions">
+    <button class="btn-clear" type="button" (click)="clearForm()" [disabled]="loading">
+      <fa-icon [icon]="faTrash"></fa-icon>
+      <span>Limpiar</span>
+    </button>
+    <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">
+      <fa-icon [icon]="faWrench" *ngIf="!loading"></fa-icon>
+      <span *ngIf="loading">Procesando...</span>
+      <span *ngIf="!loading">Registrar ajuste</span>
+    </button>
   </div>
 </form>
+
+<!-- Modal de Confirmación de Éxito -->
+<div class="success-modal-backdrop" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
+  <div class="success-modal" (click)="$event.stopPropagation()">
+    <div class="success-modal__icon">
+      <fa-icon [icon]="faCheckCircle"></fa-icon>
+    </div>
+    <h3 class="success-modal__title">¡Ajuste Registrado Exitosamente!</h3>
+    <p class="success-modal__message">
+      Se ha registrado una {{ operationType === 'suma' ? 'adición' : 'disminución' }} de inventario correctamente.
+    </p>
+    <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
+      Aceptar
+    </button>
+  </div>
+</div>

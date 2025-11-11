@@ -14,6 +14,7 @@ import {
   ProduccionService,
   SeguimientoItemDto,
   CrearSeguimientoRequest,
+  CrearProduccionLoteRequest,
   ProduccionLoteDetalleDto,
   ExisteProduccionLoteResponse
 } from '../../services/produccion.service';
@@ -25,20 +26,24 @@ import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.compone
 import { ModalRegistroInicialComponent } from '../modal-registro-inicial/modal-registro-inicial.component';
 import { ModalSeguimientoDiarioComponent } from '../modal-seguimiento-diario/modal-seguimiento-diario.component';
 import { ModalAnalisisComponent } from '../modal-analisis/modal-analisis.component';
+import { ModalLiquidacionComponent } from '../../components/modal-liquidacion/modal-liquidacion.component';
+import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 
 @Component({
   selector: 'app-lote-produccion-list',
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
-    ReactiveFormsModule, 
-    SidebarComponent, 
-    FiltroSelectComponent, 
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    SidebarComponent,
+    FiltroSelectComponent,
     TabsPrincipalComponent,
     ModalRegistroInicialComponent,
     ModalSeguimientoDiarioComponent,
-    ModalAnalisisComponent
+    ModalAnalisisComponent,
+    ModalLiquidacionComponent,
+    ModalDetalleSeguimientoComponent
   ],
   templateUrl: './lote-produccion-list.component.html',
   styleUrls: ['./lote-produccion-list.component.scss']
@@ -67,11 +72,19 @@ export class LoteProduccionListComponent implements OnInit {
   produccionLote: ProduccionLoteDetalleDto | null = null;
   currentProduccionLoteId: number | null = null;
 
+  // Datos para el modal de registro inicial
+  modalLoteNombre: string = '';
+  modalNucleoAsignado: string = '';
+  modalNucleosDisponibles: Array<{ nucleoId: string, nucleoNombre: string }> = [];
+
   // ================== UI ==================
   loading = false;
   modalRegistroInicialOpen = false;
   modalSeguimientoDiarioOpen = false;
   analisisOpen = false;
+  liquidacionOpen = false;
+  modalDetalleSeguimientoOpen = false;
+  seguimientoIdParaDetalle: number | null = null;
   editingSeguimiento: SeguimientoItemDto | null = null;
 
   private galponNameById = new Map<string, string>();
@@ -175,7 +188,7 @@ export class LoteProduccionListComponent implements OnInit {
     if (!this.selectedLoteId) return;
 
     this.loading = true;
-    
+
     // Cargar datos del lote
     this.loteSvc.getById(this.selectedLoteId).subscribe({
       next: l => (this.selectedLote = l || null),
@@ -186,7 +199,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.produccionSvc.existsProduccionLote(this.selectedLoteId).subscribe({
       next: (response: ExisteProduccionLoteResponse) => {
         this.currentProduccionLoteId = response.produccionLoteId || null;
-        
+
         if (response.exists && this.currentProduccionLoteId) {
           // Cargar seguimientos diarios
           this.loadSeguimientos();
@@ -216,26 +229,21 @@ export class LoteProduccionListComponent implements OnInit {
 
   // ================== CARGA Y FILTRADO ==================
   private reloadLotesThenApplyFilters(): void {
-    if (!this.selectedGranjaId) {
-      this.allLotes = [];
-      this.lotes = [];
-      this.galpones = [];
-      return;
-    }
-
+    // Usar el nuevo endpoint que filtra lotes con semana >= 26
     this.loading = true;
-    this.loteSvc.getAll()
+    this.produccionSvc.obtenerLotesProduccion()
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
-        next: all => {
-          this.allLotes = all || [];
+        next: (lotes) => {
+          this.allLotes = lotes || [];
           this.applyFiltersToLotes();
           this.buildGalponesFromLotes();
         },
-        error: () => {
+        error: (err) => {
+          console.error('Error al cargar lotes de producción:', err);
           this.allLotes = [];
-          this.lotes = [];
-          this.galpones = [];
+          this.applyFiltersToLotes();
+          this.buildGalponesFromLotes();
         }
       });
   }
@@ -306,12 +314,53 @@ export class LoteProduccionListComponent implements OnInit {
           this.editingSeguimiento = null;
           this.modalSeguimientoDiarioOpen = true;
         } else {
-          // Abrir modal de registro inicial
+          // Abrir modal de registro inicial - cargar datos del lote
+          this.loadLoteDataForModal();
+        }
+      },
+      error: () => {
+        // En caso de error, abrir modal de registro inicial - cargar datos del lote
+        this.loadLoteDataForModal();
+      }
+    });
+  }
+
+  // Cargar datos del lote para el modal de registro inicial
+  private loadLoteDataForModal(): void {
+    if (!this.selectedLoteId) return;
+
+    // 1. Obtener detalles del lote
+    this.loteSvc.getById(this.selectedLoteId).subscribe({
+      next: (lote: any) => {
+        this.modalLoteNombre = lote.loteNombre || '—';
+        this.modalNucleoAsignado = lote.nucleo?.nucleoNombre || lote.nucleoId || '';
+
+        // 2. Obtener todos los núcleos de la granja
+        if (lote.granjaId) {
+          this.nucleoSvc.getByGranja(lote.granjaId).subscribe({
+            next: (nucleos: NucleoDto[]) => {
+              this.modalNucleosDisponibles = nucleos.map(n => ({
+                nucleoId: n.nucleoId,
+                nucleoNombre: n.nucleoNombre || n.nucleoId
+              }));
+
+              // 3. Abrir modal con los datos
+              this.modalRegistroInicialOpen = true;
+            },
+            error: () => {
+              this.modalNucleosDisponibles = [];
+              this.modalRegistroInicialOpen = true;
+            }
+          });
+        } else {
+          this.modalNucleosDisponibles = [];
           this.modalRegistroInicialOpen = true;
         }
       },
       error: () => {
-        // En caso de error, abrir modal de registro inicial
+        this.modalLoteNombre = '';
+        this.modalNucleoAsignado = '';
+        this.modalNucleosDisponibles = [];
         this.modalRegistroInicialOpen = true;
       }
     });
@@ -333,15 +382,15 @@ export class LoteProduccionListComponent implements OnInit {
     this.modalRegistroInicialOpen = false;
   }
 
-  onSaveRegistroInicial(event: any): void {
+  onSaveRegistroInicial(request: CrearProduccionLoteRequest): void {
     this.loading = true;
-    this.produccionSvc.crearProduccionLote(event.data)
+    this.produccionSvc.crearProduccionLote(request)
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: (produccionLoteId: number) => {
           this.modalRegistroInicialOpen = false;
           this.currentProduccionLoteId = produccionLoteId;
-          
+
           // Abrir modal de seguimiento diario automáticamente
           this.editingSeguimiento = null;
           this.modalSeguimientoDiarioOpen = true;
@@ -376,6 +425,16 @@ export class LoteProduccionListComponent implements OnInit {
 
   closeAnalisis(): void {
     this.analisisOpen = false;
+  }
+
+  // ================== LIQUIDACIÓN TÉCNICA ==================
+  openLiquidacion(): void {
+    if (!this.selectedLoteId) return;
+    this.liquidacionOpen = true;
+  }
+
+  closeLiquidacion(): void {
+    this.liquidacionOpen = false;
   }
 
   // ================== helpers ==================
@@ -493,10 +552,35 @@ export class LoteProduccionListComponent implements OnInit {
     this.modalSeguimientoDiarioOpen = true;
   }
 
+  openDetailModal(seguimiento: SeguimientoItemDto): void {
+    this.seguimientoIdParaDetalle = seguimiento.id;
+    this.modalDetalleSeguimientoOpen = true;
+  }
+
+  closeDetailModal(): void {
+    this.modalDetalleSeguimientoOpen = false;
+    this.seguimientoIdParaDetalle = null;
+  }
+
   deleteDailyTracking(id: number): void {
-    if (!confirm('¿Estás seguro de eliminar este registro de seguimiento diario?')) return;
-    // TODO: Implementar el servicio de eliminación
-    console.log('Eliminar seguimiento diario con ID:', id);
+    if (!confirm('¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.')) return;
+
+    this.loading = true;
+    this.produccionSvc.eliminarSeguimiento(id).subscribe({
+      next: () => {
+        this.loading = false;
+        // Recargar los seguimientos del lote después de eliminar
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: (err) => {
+        this.loading = false;
+        console.error('Error al eliminar registro:', err);
+        const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
+        alert(errorMessage);
+        // Recargar los seguimientos incluso si hay error para mantener consistencia
+        this.onLoteChange(this.selectedLoteId);
+      }
+    });
   }
 
   exportarAnalisis(): void {

@@ -209,3 +209,46 @@ Ejemplo estándar (con build normal):
   -Cluster sanmarino-cluster -Service sanmarino-api-svc `
   -Family sanmarino-backend -Container api `
   -EcrUri 021891592771.dkr.ecr.us-east-2.amazonaws.com/sanmarino-backend
+
+---
+
+## 🚀 Despliegue AWS ECS - NUEVO AWS (Actualizado Oct 2025)
+
+### ✅ Estado Actual
+**Backend desplegado exitosamente en:** Account 196080479890, Región us-east-2
+
+- **Cluster**: devSanmarinoZoo
+- **Service**: sanmarino-back-task-service-75khncfa
+- **Task Definition**: sanmarino-back-task:4
+- **Puerto**: 5002
+- **Estado**: ✅ OPERATIVO
+
+### 🌐 Acceso Actual
+**http://3.145.143.253:5002**
+
+> ⚠️ La IP puede cambiar. Para IP estable, configurar Load Balancer.
+
+### 📚 Documentación de Despliegue
+Ver archivos en `backend/documentacion/`:
+- `DESPLIEGUE_EXITOSO_AWS.md` - Documentación del despliegue exitoso
+- `INSTRUCCIONES_DESPLIEGUE.md` - Instrucciones detalladas
+- `REQUISITOS_MIGRACION_AWS_NUEVO.md` - Requisitos de migración
+- `ESTADO_CONFIGURACION_AWS.md` - Estado de configuración AWS
+
+### 🔧 Script de Despliegue Automatizado
+```bash
+# Despliegue automatizado (bash)
+cd backend/scripts
+./deploy-backend-ecs.sh
+
+# O usar PowerShell
+./scripts/deploy-new-aws.ps1
+```
+
+### 📋 Configuración AWS Actual
+```bash
+Account ID: 196080479890
+Región: us-east-2
+Cluster: devSanmarinoZoo
+ECR: 196080479890.dkr.ecr.us-east-2.amazonaws.com/sanmarino/zootecnia/granjas/backend
+```

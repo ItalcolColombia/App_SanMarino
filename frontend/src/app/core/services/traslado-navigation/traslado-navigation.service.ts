@@ -120,11 +120,74 @@ export interface EstadisticaPorTipo {
   porcentaje: number;
 }
 
+/**
+ * DTO unificado para traslados de aves y huevos
+ */
+export interface TrasladoUnificado {
+  id: number;
+  numeroTraslado: string;
+  fechaTraslado: string;
+  tipoOperacion: string;
+  tipoTraslado: 'Aves' | 'Huevos';
+
+  // Lote origen
+  loteIdOrigen: string;
+  loteIdOrigenInt?: number;
+  granjaOrigenId: number;
+  granjaOrigenNombre?: string;
+
+  // Lote destino
+  loteIdDestino?: string;
+  loteIdDestinoInt?: number;
+  granjaDestinoId?: number;
+  granjaDestinoNombre?: string;
+  tipoDestino?: string;
+
+  // Cantidades (aves)
+  cantidadHembras?: number;
+  cantidadMachos?: number;
+  totalAves?: number;
+
+  // Cantidades (huevos)
+  totalHuevos?: number;
+  cantidadLimpio?: number;
+  cantidadTratado?: number;
+  cantidadSucio?: number;
+  cantidadDeforme?: number;
+  cantidadBlanco?: number;
+  cantidadDobleYema?: number;
+  cantidadPiso?: number;
+  cantidadPequeno?: number;
+  cantidadRoto?: number;
+  cantidadDesecho?: number;
+  cantidadOtro?: number;
+
+  // Estado e información
+  estado: string;
+  motivo?: string;
+  descripcion?: string;
+  observaciones?: string;
+
+  // Usuario
+  usuarioTrasladoId: number;
+  usuarioNombre?: string;
+
+  // Fechas
+  fechaProcesamiento?: string;
+  fechaCancelacion?: string;
+  createdAt: string;
+  updatedAt?: string;
+
+  // Información del lote
+  faseLote?: string; // "Levante" o "Produccion"
+  tieneSeguimientoProduccion: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class TrasladoNavigationService {
-  private readonly apiUrl = `${environment.apiUrl}/api/TrasladoNavigation`;
+  private readonly apiUrl = `${environment.apiUrl}/TrasladoNavigation`;
 
   constructor(private http: HttpClient) {}
 
@@ -155,14 +218,14 @@ export class TrasladoNavigationService {
   getEstadisticasCompletas(fechaDesde?: string, fechaHasta?: string): Observable<EstadisticasTraslado> {
     let url = `${this.apiUrl}/estadisticas`;
     const params = new URLSearchParams();
-    
+
     if (fechaDesde) params.append('fechaDesde', fechaDesde);
     if (fechaHasta) params.append('fechaHasta', fechaHasta);
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-    
+
     return this.http.get<EstadisticasTraslado>(url);
   }
 
@@ -174,10 +237,10 @@ export class TrasladoNavigationService {
   }
 
   /**
-   * Obtiene movimientos por lote
+   * Obtiene traslados por lote (aves y huevos unificados)
    */
-  getByLote(loteId: number, limite: number = 50): Observable<MovimientoAvesCompleto[]> {
-    return this.http.get<MovimientoAvesCompleto[]>(`${this.apiUrl}/por-lote/${loteId}?limite=${limite}`);
+  getByLote(loteId: number, limite: number = 100): Observable<TrasladoUnificado[]> {
+    return this.http.get<TrasladoUnificado[]>(`${this.apiUrl}/por-lote/${loteId}?limite=${limite}`);
   }
 
   /**

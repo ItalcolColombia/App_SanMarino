@@ -1,0 +1,64 @@
+{
+  "family": "sanmarino-back-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "3072",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::196080479890:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::196080479890:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "196080479890.dkr.ecr.us-east-1.amazonaws.com/sanmarino/zootecnia/granjas/backend:latest",
+      "essential": true,
+      "portMappings": [
+        { 
+          "containerPort": 5002, 
+          "hostPort": 5002, 
+          "protocol": "tcp" 
+        }
+      ],
+      "environment": [
+        { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production" },
+        { "name": "ASPNETCORE_URLS", "value": "http://+:5002" },
+        { "name": "PORT", "value": "5002" },
+        
+        { 
+          "name": "ConnectionStrings__ZooSanMarinoContext", 
+          "value": "Host=reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com;Port=5432;Username=repropesa01;Password=dcc4M5fyV3x*;Database=sanmarinoappdev;SSL Mode=Require;Trust Server Certificate=true;Timeout=15;Command Timeout=30" 
+        },
+        
+        { "name": "JwtSettings__Key", "value": "ZooSanMarino_Production_SecretKey_2024_SuperSecure_Key_For_JWT_Tokens_Must_Be_Very_Long_And_Complex_For_Security_Purposes" },
+        { "name": "JwtSettings__Issuer", "value": "ZooSanMarino.API" },
+        { "name": "JwtSettings__Audience", "value": "ZooSanMarino.Client" },
+        { "name": "JwtSettings__DurationInMinutes", "value": "60" },
+        
+        { "name": "Database__RunMigrations", "value": "false" },
+        { "name": "Database__RunSeed", "value": "false" },
+        
+        { "name": "AllowedOrigins", "value": "http://localhost:4200,https://sanmarinoapp.com,http://localhost:8080" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:5002/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/sanmarino-back-task-us-east-1",
+          "awslogs-create-group": "true",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "backend"
+        }
+      }
+    }
+  ]
+}
+

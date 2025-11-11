@@ -17,13 +17,26 @@
 
     <!-- Content -->
     <div class="content-area">
-      <div class="welcome-container">
+      <!-- Loading indicator mientras se carga el menú -->
+      <div *ngIf="loadingMenu" class="loading-container">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando menú...</p>
+      </div>
+
+      <!-- Error message si falla la carga del menú -->
+      <div *ngIf="menuError && !loadingMenu" class="error-container">
+        <p class="error-text">{{ menuError }}</p>
+        <button (click)="loadMenu()" class="retry-button">Reintentar</button>
+      </div>
+
+      <!-- Welcome content -->
+      <div class="welcome-container" *ngIf="!loadingMenu && !menuError">
         <div class="welcome-card">
           <div class="welcome-content">
             <h2 class="welcome-title">Bienvenido al Sistema de Gestión de Granjas</h2>
             <p class="welcome-subtitle">ZOO SAN MARINO</p>
             <p class="welcome-description">
-              Sistema integral para la gestión y seguimiento de granjas avícolas, 
+              Sistema integral para la gestión y seguimiento de granjas avícolas,
               diseñado para optimizar la producción y el control de calidad.
             </p>
           </div>

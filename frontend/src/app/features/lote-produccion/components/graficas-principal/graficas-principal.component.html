@@ -5,7 +5,7 @@
   </div>
 
   <!-- Resumen de métricas -->
-  <div class="metricas-resumen" *ngIf="registros.length > 0">
+  <div class="metricas-resumen" *ngIf="seguimientos.length > 0">
     <div class="metrica-card">
       <div class="metrica-icon">📊</div>
       <div class="metrica-content">
@@ -13,7 +13,7 @@
         <div class="metrica-label">Registros</div>
       </div>
     </div>
-    
+
     <div class="metrica-card">
       <div class="metrica-icon">🥚</div>
       <div class="metrica-content">
@@ -21,7 +21,7 @@
         <div class="metrica-label">Huevos/Día</div>
       </div>
     </div>
-    
+
     <div class="metrica-card">
       <div class="metrica-icon">✅</div>
       <div class="metrica-content">
@@ -29,7 +29,7 @@
         <div class="metrica-label">Incubables/Día</div>
       </div>
     </div>
-    
+
     <div class="metrica-card">
       <div class="metrica-icon">📈</div>
       <div class="metrica-content">
@@ -40,7 +40,7 @@
   </div>
 
   <!-- Gráficos -->
-  <div class="graficas-grid" *ngIf="registros.length > 0">
+  <div class="graficas-grid" *ngIf="seguimientos.length > 0">
     <!-- Mortalidad -->
     <div class="grafica-card">
       <div class="grafica-header">
@@ -48,7 +48,7 @@
         <p>Evolución de mortalidad por sexo</p>
       </div>
       <div class="grafica-content">
-        <canvas 
+        <canvas
           baseChart
           [data]="mortalidadData"
           [type]="'line'"
@@ -64,7 +64,7 @@
         <p>Consumo diario por sexo (kg)</p>
       </div>
       <div class="grafica-content">
-        <canvas 
+        <canvas
           baseChart
           [data]="consumoData"
           [type]="'line'"
@@ -80,7 +80,7 @@
         <p>Huevos totales vs incubables</p>
       </div>
       <div class="grafica-content">
-        <canvas 
+        <canvas
           baseChart
           [data]="produccionData"
           [type]="'line'"
@@ -96,7 +96,7 @@
         <p>Distribución de huevos incubables</p>
       </div>
       <div class="grafica-content">
-        <canvas 
+        <canvas
           baseChart
           [data]="eficienciaData"
           [type]="'doughnut'"
@@ -107,7 +107,7 @@
   </div>
 
   <!-- Estado vacío -->
-  <div *ngIf="registros.length === 0" class="empty-state">
+  <div *ngIf="seguimientos.length === 0" class="empty-state">
     <div class="empty-icon">📊</div>
     <p>No hay datos suficientes para generar gráficas.</p>
     <p class="empty-hint">Agrega registros de producción para ver las visualizaciones.</p>

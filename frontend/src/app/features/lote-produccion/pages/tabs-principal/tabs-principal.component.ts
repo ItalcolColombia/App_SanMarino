@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto } from '../../services/produccion.service';
-import { LoteVM } from '../../services/ui.contracts';
+import { LoteDto } from '../../../lote/services/lote.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 
@@ -14,12 +14,13 @@ import { GraficasPrincipalComponent } from '../graficas-principal/graficas-princ
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
-  @Input() selectedLote: LoteVM | null = null;
+  @Input() selectedLote: LoteDto | null = null;
   @Input() loading: boolean = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoItemDto>();
   @Output() delete = new EventEmitter<number>();
+  @Output() viewDetail = new EventEmitter<SeguimientoItemDto>();
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
 
@@ -48,15 +49,19 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.delete.emit(id);
   }
 
+  onViewDetail(seg: SeguimientoItemDto): void {
+    this.viewDetail.emit(seg);
+  }
+
   // ================== CALCULO DE EDAD ==================
   calcularEdadDias(fechaRegistro: string | Date): number {
-    if (!this.selectedLote?.fechaInicio) return 0;
-    
-    const fechaInicio = new Date(this.selectedLote.fechaInicio);
+    if (!this.selectedLote?.fechaEncaset) return 0;
+
+    const fechaInicio = new Date(this.selectedLote.fechaEncaset);
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaInicio.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(1, diffDays);
   }
 

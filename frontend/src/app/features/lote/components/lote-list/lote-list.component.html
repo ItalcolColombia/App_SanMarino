@@ -8,11 +8,6 @@
         <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
         <span>Nuevo Lote</span>
       </button>
-      
-      <!-- Botón de prueba temporal -->
-      <button (click)="testFarmService()" class="btn-secondary ml-2" style="background-color: #f59e0b; color: white;">
-        🔧 Test Farm Service
-      </button>
     </div>
 
     <!-- Filtros en cascada + búsqueda + orden -->
@@ -136,7 +131,7 @@
           Mostrando {{ viewLotes.length }} lote(s) de esta granja
         </p>
       </div>
-      
+
       <div class="ux-scroll">
         <table class="ux-table">
           <caption class="sr-only">Listado de lotes para la granja {{ selectedFarmName }}</caption>
@@ -293,8 +288,8 @@
                       [class.is-invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
                       [disabled]="!selectedRaza || loadingAnos">
                 <option value="" disabled selected>
-                  {{ loadingAnos ? 'Cargando años...' : 
-                     !selectedRaza ? 'Primero seleccione una raza' : 
+                  {{ loadingAnos ? 'Cargando años...' :
+                     !selectedRaza ? 'Primero seleccione una raza' :
                      'Seleccione un año...' }}
                 </option>
                 <option *ngFor="let ano of anosDisponibles" [value]="ano">{{ ano }}</option>

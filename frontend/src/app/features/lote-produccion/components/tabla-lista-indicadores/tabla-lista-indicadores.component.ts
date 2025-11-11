@@ -1,7 +1,8 @@
 import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LoteProduccionDto } from '../../services/lote-produccion.service';
+import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionResponse, IndicadoresProduccionRequest } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-tabla-lista-indicadores',
@@ -11,126 +12,138 @@ import { LoteDto } from '../../../lote/services/lote.service';
   styleUrls: ['./tabla-lista-indicadores.component.scss']
 })
 export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
-  @Input() registros: LoteProduccionDto[] = [];
+  @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
   @Input() loading: boolean = false;
 
-  indicadoresSemanales: any[] = [];
+  indicadoresSemanales: IndicadorProduccionSemanalDto[] = [];
+  loadingIndicadores = false;
+  tieneDatosGuiaGenetica = false;
+  error: string | null = null;
 
-  constructor() { }
+  constructor(private produccionService: ProduccionService) { }
 
   ngOnInit(): void {
-    this.calcularIndicadoresSemanales();
+    this.cargarIndicadores();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['registros'] || changes['selectedLote']) {
-      this.calcularIndicadoresSemanales();
+    if (changes['selectedLote'] || changes['seguimientos']) {
+      this.cargarIndicadores();
     }
   }
 
-  calcularIndicadoresSemanales(): void {
-    if (!this.registros.length || !this.selectedLote) {
+  cargarIndicadores(): void {
+    // Validar que tenemos un lote seleccionado con loteId
+    if (!this.selectedLote || !this.selectedLote.loteId) {
       this.indicadoresSemanales = [];
+      this.error = null;
       return;
     }
 
-    // Agrupar registros por semana
-    const registrosPorSemana = new Map<number, LoteProduccionDto[]>();
-    
-    this.registros.forEach(registro => {
-      const edadDias = this.calcularEdadDias(registro.fecha);
-      const semana = Math.ceil(edadDias / 7);
-      
-      if (!registrosPorSemana.has(semana)) {
-        registrosPorSemana.set(semana, []);
-      }
-      registrosPorSemana.get(semana)!.push(registro);
-    });
+    this.loadingIndicadores = true;
+    this.error = null;
 
-    // Calcular indicadores por semana
-    this.indicadoresSemanales = Array.from(registrosPorSemana.entries())
-      .map(([semana, registrosSemana]) => {
-        const totalRegistros = registrosSemana.length;
-        
-        // Sumar valores de la semana
-        const totalMortalidadH = registrosSemana.reduce((sum, r) => sum + r.mortalidadH, 0);
-        const totalMortalidadM = registrosSemana.reduce((sum, r) => sum + r.mortalidadM, 0);
-        const totalSelH = registrosSemana.reduce((sum, r) => sum + r.selH, 0);
-        const totalConsKgH = registrosSemana.reduce((sum, r) => sum + r.consKgH, 0);
-        const totalConsKgM = registrosSemana.reduce((sum, r) => sum + r.consKgM, 0);
-        const totalHuevoTot = registrosSemana.reduce((sum, r) => sum + r.huevoTot, 0);
-        const totalHuevoInc = registrosSemana.reduce((sum, r) => sum + r.huevoInc, 0);
-        const pesoPromedioHuevo = registrosSemana.reduce((sum, r) => sum + r.pesoHuevo, 0) / totalRegistros;
+    // Preparar request para el backend
+    // El backend recibirá el loteId y buscará todos los registros de producción_diaria
+    // Luego los agrupará por semana y calculará los indicadores
+    const request: IndicadoresProduccionRequest = {
+      loteId: this.selectedLote.loteId,
+      semanaDesde: 26, // Solo desde semana 26 (producción)
+      semanaHasta: null, // Sin límite superior
+      fechaDesde: null,
+      fechaHasta: null
+    };
 
-        // Calcular porcentajes
-        const porcentajeIncubable = totalHuevoTot > 0 ? (totalHuevoInc / totalHuevoTot) * 100 : 0;
-        const mortalidadTotal = totalMortalidadH + totalMortalidadM;
-        const mortalidadPorcentaje = this.calcularMortalidadPorcentaje(mortalidadTotal, semana);
+    // Llamar al servicio que invoca el API
+    // El backend procesará:
+    // 1. Buscar todos los seguimientos de producción_diaria para este lote
+    // 2. Agruparlos por semana
+    // 3. Calcular métricas por semana
+    // 4. Comparar con guía genética si está disponible
+    // 5. Retornar todos los indicadores calculados
+    this.produccionService.obtenerIndicadoresSemanales(request)
+      .pipe(
+        finalize(() => {
+          this.loadingIndicadores = false;
+        })
+      )
+      .subscribe({
+        next: (response: IndicadoresProduccionResponse) => {
+          // El backend ya calculó todos los indicadores semanales
+          // Solo los asignamos para mostrar en la tabla
+          this.indicadoresSemanales = response.indicadores || [];
+          this.tieneDatosGuiaGenetica = response.tieneDatosGuiaGenetica || false;
+          this.error = null;
 
-        return {
-          semana,
-          edadInicio: (semana - 1) * 7 + 1,
-          edadFin: semana * 7,
-          totalRegistros,
-          mortalidadH: totalMortalidadH,
-          mortalidadM: totalMortalidadM,
-          mortalidadTotal,
-          mortalidadPorcentaje,
-          selH: totalSelH,
-          consKgH: totalConsKgH,
-          consKgM: totalConsKgM,
-          huevoTot: totalHuevoTot,
-          huevoInc: totalHuevoInc,
-          porcentajeIncubable,
-          pesoPromedioHuevo,
-          etapa: this.determinarEtapa(semana)
-        };
-      })
-      .sort((a, b) => a.semana - b.semana);
+          console.log(`✅ Indicadores cargados: ${this.indicadoresSemanales.length} semanas`, response);
+        },
+        error: (err) => {
+          console.error('❌ Error al cargar indicadores semanales:', err);
+          this.error = err.error?.message || 'Error al cargar indicadores semanales. Por favor, intenta de nuevo.';
+          this.indicadoresSemanales = [];
+          this.tieneDatosGuiaGenetica = false;
+        }
+      });
   }
 
-  calcularEdadDias(fechaRegistro: string | Date): number {
-    if (!this.selectedLote?.fechaEncaset) return 0;
-    
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
-    const fechaReg = new Date(fechaRegistro);
-    const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return Math.max(1, diffDays);
+  // ================== HELPERS ==================
+
+  formatearPorcentaje(valor?: number | null): string {
+    if (valor === null || valor === undefined) return '—';
+    const signo = valor > 0 ? '+' : '';
+    return `${signo}${valor.toFixed(2)}%`;
   }
 
-  calcularMortalidadPorcentaje(mortalidadTotal: number, semana: number): number {
-    // Estimación basada en población inicial y semana
-    if (!this.selectedLote) return 0;
-    
-    const poblacionInicial = (this.selectedLote.hembrasL || 0) + (this.selectedLote.machosL || 0);
-    if (poblacionInicial === 0) return 0;
-    
-    // Factor de mortalidad esperada por semana (ajustar según experiencia)
-    const factorMortalidad = Math.max(0.1, 0.5 - (semana * 0.01));
-    const mortalidadEsperada = poblacionInicial * factorMortalidad;
-    
-    return mortalidadEsperada > 0 ? (mortalidadTotal / mortalidadEsperada) * 100 : 0;
+  getDiferenciaClass(diferencia?: number | null): string {
+    if (diferencia === null || diferencia === undefined) return '';
+    const abs = Math.abs(diferencia);
+    if (abs <= 5) return 'diferencia-ok';
+    if (abs <= 15) return 'diferencia-warning';
+    return 'diferencia-danger';
   }
 
-  determinarEtapa(semana: number): string {
+  getEstadoCumplimiento(diferencia?: number | null): { clase: string, texto: string } {
+    if (diferencia === null || diferencia === undefined) {
+      return { clase: 'estado-info', texto: 'Sin datos' };
+    }
+    const absDiferencia = Math.abs(diferencia);
+    if (absDiferencia <= 5) {
+      return { clase: 'estado-ok', texto: 'Óptimo' };
+    } else if (absDiferencia <= 15) {
+      return { clase: 'estado-aceptable', texto: 'Aceptable' };
+    } else {
+      return { clase: 'estado-problema', texto: 'Requiere atención' };
+    }
+  }
+
+  calcularEtapa(semana: number): string {
     if (semana >= 25 && semana <= 33) return 'Etapa 1';
     if (semana >= 34 && semana <= 50) return 'Etapa 2';
     if (semana > 50) return 'Etapa 3';
-    return 'Pre-producción';
+    return 'Inicial';
   }
 
-  getEficienciaColor(porcentaje: number): string {
-    if (porcentaje >= 90) return 'success';
-    if (porcentaje >= 70) return 'warning';
-    return 'danger';
-  }
+  formatearFecha(fecha: string | Date | null | undefined): string {
+    if (!fecha) return '—';
 
-  getMortalidadColor(porcentaje: number): string {
-    if (porcentaje <= 5) return 'success';
-    if (porcentaje <= 10) return 'warning';
-    return 'danger';
+    try {
+      const date = typeof fecha === 'string' ? new Date(fecha) : fecha;
+
+      // Validar que la fecha sea válida
+      if (isNaN(date.getTime())) {
+        return '—';
+      }
+
+      // Formatear como DD/MM/YYYY
+      return date.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.warn('Error al formatear fecha:', fecha, error);
+      return '—';
+    }
   }
 }

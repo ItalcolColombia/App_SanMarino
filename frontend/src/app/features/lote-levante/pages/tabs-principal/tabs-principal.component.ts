@@ -4,6 +4,7 @@ import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levan
 import { LoteDto } from '../../../lote/services/lote.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
+import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 
 
 @Component({
@@ -24,9 +25,23 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
 
-  constructor() { }
+  // Verificar si el usuario es admin
+  isAdmin: boolean = false;
+
+  constructor(
+    private storageService: TokenStorageService
+  ) { }
 
   ngOnInit(): void {
+    this.checkAdminRole();
+  }
+
+  // Verificar si el usuario tiene rol de Admin
+  private checkAdminRole(): void {
+    const session = this.storageService.get();
+    if (session?.user?.roles) {
+      this.isAdmin = session.user.roles.includes('Admin');
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -52,12 +67,12 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   // ================== CALCULO DE EDAD ==================
   calcularEdadDias(fechaRegistro: string | Date): number {
     if (!this.selectedLote?.fechaEncaset) return 0;
-    
+
     const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(1, diffDays);
   }
 }

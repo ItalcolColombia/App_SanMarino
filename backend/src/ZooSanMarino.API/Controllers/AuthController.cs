@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Infrastructure.Services;
+using ZooSanMarino.API.Services;
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -15,34 +17,120 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _auth;
     private readonly ILogger<AuthController> _logger;
+    private readonly EncryptionService _encryption;
+    private readonly IRecaptchaService _recaptcha;
+    private readonly IConfiguration _configuration;
+    private readonly InputSanitizerService _sanitizer;
+    private readonly IEmailQueueService _emailQueue;
 
-    public AuthController(IAuthService auth, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService auth, 
+        ILogger<AuthController> logger, 
+        EncryptionService encryption,
+        IRecaptchaService recaptcha,
+        IConfiguration configuration,
+        InputSanitizerService sanitizer,
+        IEmailQueueService emailQueue)
     {
         _auth = auth;
         _logger = logger;
+        _encryption = encryption;
+        _recaptcha = recaptcha;
+        _configuration = configuration;
+        _sanitizer = sanitizer;
+        _emailQueue = emailQueue;
     }
 
-    /// <summary>Inicia sesión con correo y contraseña.</summary>
+    /// <summary>Inicia sesión con correo y contraseña (datos encriptados).</summary>
     [AllowAnonymous]
     [HttpPost("login")]
     [Consumes("application/json")]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(object), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public async Task<IActionResult> Login([FromBody] LoginDto dto, CancellationToken ct = default)
+    public async Task<IActionResult> Login([FromBody] EncryptedRequestDto encryptedRequest, CancellationToken ct = default)
     {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (string.IsNullOrWhiteSpace(encryptedRequest?.EncryptedData))
+            return BadRequest(new { message = "Datos encriptados no proporcionados" });
 
         try
         {
+            // 1. Desencriptar datos recibidos del frontend
+            var dto = _encryption.DecryptFromFrontend<LoginDto>(encryptedRequest.EncryptedData);
+
+            // 1.1. Sanitizar datos después de desencriptar (segunda capa de seguridad)
+            // NOTA: No sanitizar contraseñas porque pueden contener cualquier carácter especial
+            dto.Email = _sanitizer.Sanitize(dto.Email);
+            // dto.Password NO se sanitiza - las contraseñas pueden tener cualquier carácter
+            if (!string.IsNullOrWhiteSpace(dto.RecaptchaToken))
+            {
+                dto.RecaptchaToken = _sanitizer.Sanitize(dto.RecaptchaToken);
+            }
+
+            // 2. Validar datos desencriptados
+            // Log para debugging (en producción, remover o usar nivel de log apropiado)
+            _logger.LogInformation("Datos desencriptados: Email={Email}, Password presente={HasPassword}", 
+                dto?.Email ?? "null", 
+                !string.IsNullOrWhiteSpace(dto?.Password));
+
+            if (dto == null)
+                return BadRequest(new { message = "Error al desencriptar: objeto nulo" });
+
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+            {
+                _logger.LogWarning("Datos desencriptados inválidos: Email={Email}, Password length={PasswordLength}", 
+                    dto.Email ?? "null", 
+                    dto.Password?.Length ?? 0);
+                return BadRequest(new { message = "Email y contraseña son requeridos" });
+            }
+
+            // 2.1. Validar ModelState después de sanitizar (validación de atributos)
+            if (!TryValidateModel(dto))
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            // 3. Validar reCAPTCHA (solo en producción)
+            var environment = _configuration["ASPNETCORE_ENVIRONMENT"] ?? "";
+            var isProduction = !environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
+            var recaptchaEnabledValue = _configuration["Recaptcha:Enabled"];
+            var recaptchaEnabled = !string.IsNullOrWhiteSpace(recaptchaEnabledValue) && 
+                                   bool.TryParse(recaptchaEnabledValue, out var enabled) && enabled;
+            
+            if (isProduction && recaptchaEnabled)
+            {
+                var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString()
+                            ?? HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
+                            ?? HttpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
+
+                if (string.IsNullOrWhiteSpace(dto.RecaptchaToken))
+                {
+                    _logger.LogWarning("reCAPTCHA token faltante en producción para {Email}", dto.Email);
+                    return BadRequest(new { message = "Validación de seguridad requerida. Por favor, completa el reCAPTCHA." });
+                }
+
+                var isValidRecaptcha = await _recaptcha.ValidateRecaptchaAsync(dto.RecaptchaToken, clientIp);
+                if (!isValidRecaptcha)
+                {
+                    _logger.LogWarning("reCAPTCHA inválido para {Email} desde {ClientIp}", dto.Email, clientIp);
+                    return BadRequest(new { message = "Validación de seguridad fallida. Por favor, intenta nuevamente." });
+                }
+            }
+
+            // 4. Procesar login
             var result = await _auth.LoginAsync(dto);
-            return Ok(result);
+
+            // 5. Encriptar respuesta antes de enviarla al frontend
+            var encryptedResponse = _encryption.EncryptForFrontend(result);
+
+            // 6. Retornar respuesta encriptada como texto plano
+            return Content(encryptedResponse, "text/plain");
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Login fallido para {Email}", dto.Email);
+            _logger.LogWarning(ex, "Login fallido");
             return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
@@ -66,6 +154,16 @@ public class AuthController : ControllerBase
 
         try
         {
+            // Sanitizar todos los campos del DTO antes de procesar
+            // NOTA: No sanitizar contraseñas porque pueden contener cualquier carácter especial
+            dto.Email = _sanitizer.Sanitize(dto.Email);
+            // dto.Password NO se sanitiza - las contraseñas pueden tener cualquier carácter
+            dto.FirstName = _sanitizer.Sanitize(dto.FirstName);
+            dto.SurName = _sanitizer.Sanitize(dto.SurName);
+            dto.Cedula = _sanitizer.Sanitize(dto.Cedula);
+            dto.Telefono = _sanitizer.Sanitize(dto.Telefono);
+            dto.Ubicacion = _sanitizer.Sanitize(dto.Ubicacion);
+
             var result = await _auth.RegisterAsync(dto);
             return StatusCode(StatusCodes.Status201Created, result);
         }
@@ -180,8 +278,6 @@ public class AuthController : ControllerBase
         });
     }
 
-    // Endpoint temporalmente comentado para debug
-    /*
     /// <summary>Recuperación de contraseña por email.</summary>
     [AllowAnonymous]
     [HttpPost("recover-password")]
@@ -195,6 +291,9 @@ public class AuthController : ControllerBase
 
         try
         {
+            // Sanitizar el email antes de procesar
+            dto.Email = _sanitizer.Sanitize(dto.Email);
+
             var result = await _auth.RecoverPasswordAsync(dto);
             return Ok(result);
         }
@@ -204,7 +303,72 @@ public class AuthController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno" });
         }
     }
-    */
+
+    /// <summary>Obtiene el menú del usuario autenticado (datos encriptados).</summary>
+    [Authorize]
+    [HttpGet("menu")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMenu([FromQuery] int? companyId = null, CancellationToken ct = default)
+    {
+        var userId = GetUserIdOrUnauthorized(out var unauthorized);
+        if (unauthorized is not null) return unauthorized;
+
+        try
+        {
+            // 1. Obtener menú del usuario usando el servicio de autenticación
+            var effectiveMenu = await _auth.GetMenuForUserAsync(userId!.Value, companyId);
+            
+            // 2. También obtener MenusByRole para compatibilidad
+            var menusByRole = await _auth.GetMenusByRoleForUserAsync(userId.Value);
+            
+            // 3. Crear respuesta con menú y menusByRole
+            var menuResponse = new
+            {
+                Menu = effectiveMenu,
+                MenusByRole = menusByRole
+            };
+            
+            // 4. Encriptar respuesta antes de enviarla al frontend
+            var encryptedResponse = _encryption.EncryptForFrontend(menuResponse);
+            
+            // 5. Retornar respuesta encriptada como texto plano
+            return Content(encryptedResponse, "text/plain");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener menú para usuario {UserId}", userId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error al obtener el menú" });
+        }
+    }
+
+    /// <summary>Obtiene el estado de envío de un correo en la cola.</summary>
+    [Authorize]
+    [HttpGet("email-status/{emailQueueId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetEmailStatus(int emailQueueId, CancellationToken ct = default)
+    {
+        try
+        {
+            var status = await _emailQueue.GetEmailStatusDetailAsync(emailQueueId);
+            
+            if (status == null)
+            {
+                return NotFound(new { message = "Correo no encontrado en la cola" });
+            }
+
+            // Encriptar respuesta antes de enviarla al frontend
+            var encryptedResponse = _encryption.EncryptForFrontend(status);
+            return Content(encryptedResponse, "text/plain");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener estado del correo: EmailQueueId={EmailQueueId}", emailQueueId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error al obtener el estado del correo" });
+        }
+    }
 
     /// <summary>Ping simple para debug (sin autorización).</summary>
     [AllowAnonymous]

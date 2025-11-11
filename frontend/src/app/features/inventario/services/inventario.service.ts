@@ -1,8 +1,10 @@
 // src/app/features/inventario/services/inventario.service.ts
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+import { TokenStorageService } from '../../../core/auth/token-storage.service';
+import { AuthSession } from '../../../core/auth/auth.models';
 
 /** ======== Tipos comunes ======== */
 export interface PagedResult<T> {
@@ -84,6 +86,8 @@ export interface InventoryMovementDto {
   unit: string;
   reference?: string | null;
   reason?: string | null;
+  origin?: string | null;
+  destination?: string | null;
   transferGroupId?: string | null;
   metadata?: any;
   responsibleUserId?: string | null;
@@ -107,9 +111,12 @@ export interface InventoryEntryRequest {
   unit?: string;
   reference?: string;
   reason?: string;
+  origin?: string;       // Origen para entradas (ej: "Planta Sanmarino", "Planta Itacol")
   metadata?: any;
 }
-export interface InventoryExitRequest extends InventoryEntryRequest {} // quantity positivo; el API descuenta
+export interface InventoryExitRequest extends InventoryEntryRequest {
+  destination?: string;  // Destino para salidas (ej: "Venta", "Movimiento", "Devolución")
+}
 export interface InventoryTransferRequest extends InventoryEntryRequest {
   toFarmId: number;
 }
@@ -140,13 +147,40 @@ export interface StockCountRequest {
 @Injectable({ providedIn: 'root' })
 export class InventarioService {
   private readonly api = environment.apiUrl;
+  private tokenStorage = inject(TokenStorageService);
 
   constructor(private http: HttpClient) {}
 
   // ===== Apoyos =====
-  /** Granjas (conveniencia; también existe FarmService) */
+  /** Granjas filtradas por usuario en sesión */
   getFarms(): Observable<FarmDto[]> {
-    return this.http.get<FarmDto[]>(`${this.api}/Farm`);
+    // Obtener el ID del usuario de la sesión actual
+    const session: AuthSession | null = this.tokenStorage.get();
+    const userId = session?.user?.id;
+
+    // Si no hay sesión o user ID, esperar un poco y reintentar
+    if (!session || !userId) {
+      return new Observable(observer => {
+        setTimeout(() => {
+          const retrySession: AuthSession | null = this.tokenStorage.get();
+          const retryUserId = retrySession?.user?.id;
+
+          if (retrySession && retryUserId) {
+            this.getFarmsWithUserId(retryUserId).subscribe(observer);
+          } else {
+            observer.error('No hay sesión de usuario disponible');
+          }
+        }, 500); // Esperar medio segundo
+      });
+    }
+
+    return this.getFarmsWithUserId(userId);
+  }
+
+  /** Obtiene granjas del usuario específico usando id_user_session */
+  private getFarmsWithUserId(userId: string): Observable<FarmDto[]> {
+    const params = new HttpParams().set('id_user_session', userId);
+    return this.http.get<FarmDto[]>(`${this.api}/Farm`, { params });
   }
 
   /** Catálogo (array) mapeando .items del paginado */

@@ -9,36 +9,41 @@ public class ProduccionDiariaService : IProduccionDiariaService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
+    private readonly IMovimientoAvesService _movimientoAvesService;
 
-    public ProduccionDiariaService(ZooSanMarinoContext ctx, ICurrentUser current)
+    public ProduccionDiariaService(
+        ZooSanMarinoContext ctx, 
+        ICurrentUser current,
+        IMovimientoAvesService movimientoAvesService)
     {
         _ctx = ctx;
         _current = current;
+        _movimientoAvesService = movimientoAvesService;
     }
 
     public async Task<IEnumerable<ProduccionDiariaDto>> GetAllAsync()
     {
-        var q = from p in _ctx.ProduccionDiaria.AsNoTracking()
+        var q = from p in _ctx.SeguimientoProduccion.AsNoTracking()
                 join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId.ToString()
                 where l.CompanyId == _current.CompanyId && l.DeletedAt == null
                 select p;
 
         return await q
-            .OrderByDescending(x => x.FechaRegistro)
+            .OrderByDescending(x => x.Fecha)
             .Select(x => new ProduccionDiariaDto(
                 x.Id,
                 x.LoteId,
-                x.FechaRegistro,
-                x.MortalidadHembras,
-                x.MortalidadMachos,
+                x.Fecha, // Fecha -> FechaRegistro
+                x.MortalidadH, // MortalidadH -> MortalidadHembras
+                x.MortalidadM, // MortalidadM -> MortalidadMachos
                 x.SelH,
-                x.ConsKgH,
-                x.ConsKgM,
+                (double)x.ConsKgH, // decimal -> double
+                (double)x.ConsKgM, // decimal -> double
                 x.HuevoTot,
                 x.HuevoInc,
                 x.TipoAlimento,
-                x.Observaciones,
-                x.PesoHuevo,
+                x.Observaciones ?? string.Empty,
+                (double?)x.PesoHuevo, // decimal -> double?
                 x.Etapa
             ))
             .ToListAsync();
@@ -46,29 +51,30 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
     public async Task<IEnumerable<ProduccionDiariaDto>> GetByLoteIdAsync(int loteId)
     {
-        var q = from p in _ctx.ProduccionDiaria.AsNoTracking()
+        var loteIdStr = loteId.ToString();
+        var q = from p in _ctx.SeguimientoProduccion.AsNoTracking()
                 join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId.ToString()
                 where l.CompanyId == _current.CompanyId && 
                       l.DeletedAt == null && 
-                      l.LoteId == loteId
+                      p.LoteId == loteIdStr
                 select p;
 
         return await q
-            .OrderByDescending(x => x.FechaRegistro)
+            .OrderByDescending(x => x.Fecha)
             .Select(x => new ProduccionDiariaDto(
                 x.Id,
                 x.LoteId,
-                x.FechaRegistro,
-                x.MortalidadHembras,
-                x.MortalidadMachos,
+                x.Fecha, // Fecha -> FechaRegistro
+                x.MortalidadH, // MortalidadH -> MortalidadHembras
+                x.MortalidadM, // MortalidadM -> MortalidadMachos
                 x.SelH,
-                x.ConsKgH,
-                x.ConsKgM,
+                (double)x.ConsKgH, // decimal -> double
+                (double)x.ConsKgM, // decimal -> double
                 x.HuevoTot,
                 x.HuevoInc,
                 x.TipoAlimento,
-                x.Observaciones,
-                x.PesoHuevo,
+                x.Observaciones ?? string.Empty,
+                (double?)x.PesoHuevo, // decimal -> double?
                 x.Etapa
             ))
             .ToListAsync();
@@ -91,53 +97,79 @@ public class ProduccionDiariaService : IProduccionDiariaService
             throw new InvalidOperationException($"El lote '{dto.LoteId}' no tiene configuración de producción inicial. Debe crear primero el registro de ProduccionLote.");
 
         // Verificar que no existe ya un registro para la misma fecha y lote
-        var existeRegistro = await _ctx.ProduccionDiaria.AsNoTracking()
+        var existeRegistro = await _ctx.SeguimientoProduccion.AsNoTracking()
             .AnyAsync(p => p.LoteId == dto.LoteId && 
-                          p.FechaRegistro.Date == dto.FechaRegistro.Date);
+                          p.Fecha.Date == dto.FechaRegistro.Date);
         if (existeRegistro)
             throw new InvalidOperationException($"Ya existe un registro de producción diaria para el lote '{dto.LoteId}' en la fecha '{dto.FechaRegistro:yyyy-MM-dd}'.");
 
-        var entity = new Domain.Entities.ProduccionDiaria
+        var entity = new Domain.Entities.SeguimientoProduccion
         {
             LoteId = dto.LoteId,
-            FechaRegistro = dto.FechaRegistro,
-            MortalidadHembras = dto.MortalidadHembras,
-            MortalidadMachos = dto.MortalidadMachos,
+            Fecha = dto.FechaRegistro,
+            MortalidadH = dto.MortalidadHembras,
+            MortalidadM = dto.MortalidadMachos,
             SelH = dto.SelH,
-            ConsKgH = dto.ConsKgH,
-            ConsKgM = dto.ConsKgM,
+            ConsKgH = (decimal)dto.ConsKgH, // double -> decimal
+            ConsKgM = (decimal)dto.ConsKgM, // double -> decimal
             HuevoTot = dto.HuevoTot,
             HuevoInc = dto.HuevoInc,
             TipoAlimento = dto.TipoAlimento,
             Observaciones = dto.Observaciones,
-            PesoHuevo = dto.PesoHuevo,
+            PesoHuevo = dto.PesoHuevo.HasValue ? (decimal)dto.PesoHuevo.Value : 0, // double? -> decimal
             Etapa = dto.Etapa
         };
 
-        _ctx.ProduccionDiaria.Add(entity);
+        _ctx.SeguimientoProduccion.Add(entity);
         await _ctx.SaveChangesAsync();
+
+        // Registrar retiro automático si hay mortalidades o selecciones
+        if (int.TryParse(dto.LoteId, out int loteIdInt))
+        {
+            var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH;
+            if (totalRetiradas > 0)
+            {
+                try
+                {
+                    await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                        loteId: loteIdInt,
+                        hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
+                        machosRetirados: dto.MortalidadMachos,
+                        mixtasRetiradas: 0, // Los seguimientos producción no tienen mixtas
+                        fechaMovimiento: dto.FechaRegistro,
+                        fuenteSeguimiento: "Produccion",
+                        observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH} | Observaciones: {dto.Observaciones}"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Log error pero no fallar el guardado del seguimiento
+                    Console.WriteLine($"Error al registrar retiro desde seguimiento producción: {ex.Message}");
+                }
+            }
+        }
 
         return new ProduccionDiariaDto(
             entity.Id,
             entity.LoteId,
-            entity.FechaRegistro,
-            entity.MortalidadHembras,
-            entity.MortalidadMachos,
+            entity.Fecha, // Fecha -> FechaRegistro
+            entity.MortalidadH, // MortalidadH -> MortalidadHembras
+            entity.MortalidadM, // MortalidadM -> MortalidadMachos
             entity.SelH,
-            entity.ConsKgH,
-            entity.ConsKgM,
+            (double)entity.ConsKgH, // decimal -> double
+            (double)entity.ConsKgM, // decimal -> double
             entity.HuevoTot,
             entity.HuevoInc,
             entity.TipoAlimento,
-            entity.Observaciones,
-            entity.PesoHuevo,
+            entity.Observaciones ?? string.Empty,
+            (double?)entity.PesoHuevo, // decimal -> double?
             entity.Etapa
         );
     }
 
     public async Task<ProduccionDiariaDto?> UpdateAsync(UpdateProduccionDiariaDto dto)
     {
-        var entity = await _ctx.ProduccionDiaria.FindAsync(dto.Id);
+        var entity = await _ctx.SeguimientoProduccion.FindAsync(dto.Id);
         if (entity == null) return null;
 
         // Verificar que el lote existe y pertenece a la compañía
@@ -149,50 +181,76 @@ public class ProduccionDiariaService : IProduccionDiariaService
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
         // Verificar que no existe ya otro registro para la misma fecha y lote (excluyendo el actual)
-        var existeOtroRegistro = await _ctx.ProduccionDiaria.AsNoTracking()
+        var existeOtroRegistro = await _ctx.SeguimientoProduccion.AsNoTracking()
             .AnyAsync(p => p.LoteId == dto.LoteId && 
-                          p.FechaRegistro.Date == dto.FechaRegistro.Date &&
+                          p.Fecha.Date == dto.FechaRegistro.Date &&
                           p.Id != dto.Id);
         if (existeOtroRegistro)
             throw new InvalidOperationException($"Ya existe otro registro de producción diaria para el lote '{dto.LoteId}' en la fecha '{dto.FechaRegistro:yyyy-MM-dd}'.");
 
         entity.LoteId = dto.LoteId;
-        entity.FechaRegistro = dto.FechaRegistro;
-        entity.MortalidadHembras = dto.MortalidadHembras;
-        entity.MortalidadMachos = dto.MortalidadMachos;
+        entity.Fecha = dto.FechaRegistro;
+        entity.MortalidadH = dto.MortalidadHembras;
+        entity.MortalidadM = dto.MortalidadMachos;
         entity.SelH = dto.SelH;
-        entity.ConsKgH = dto.ConsKgH;
-        entity.ConsKgM = dto.ConsKgM;
+        entity.ConsKgH = (decimal)dto.ConsKgH; // double -> decimal
+        entity.ConsKgM = (decimal)dto.ConsKgM; // double -> decimal
         entity.HuevoTot = dto.HuevoTot;
         entity.HuevoInc = dto.HuevoInc;
         entity.TipoAlimento = dto.TipoAlimento;
         entity.Observaciones = dto.Observaciones;
-        entity.PesoHuevo = dto.PesoHuevo;
+        entity.PesoHuevo = dto.PesoHuevo.HasValue ? (decimal)dto.PesoHuevo.Value : 0; // double? -> decimal
         entity.Etapa = dto.Etapa;
 
         await _ctx.SaveChangesAsync();
 
+        // Registrar retiro automático si hay mortalidades o selecciones
+        if (int.TryParse(dto.LoteId, out int loteIdInt))
+        {
+            var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH;
+            if (totalRetiradas > 0)
+            {
+                try
+                {
+                    await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                        loteId: loteIdInt,
+                        hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
+                        machosRetirados: dto.MortalidadMachos,
+                        mixtasRetiradas: 0,
+                        fechaMovimiento: dto.FechaRegistro,
+                        fuenteSeguimiento: "Produccion",
+                        observaciones: $"Actualización - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Log error pero no fallar la actualización
+                    Console.WriteLine($"Error al registrar retiro desde seguimiento producción (actualización): {ex.Message}");
+                }
+            }
+        }
+
         return new ProduccionDiariaDto(
             entity.Id,
             entity.LoteId,
-            entity.FechaRegistro,
-            entity.MortalidadHembras,
-            entity.MortalidadMachos,
+            entity.Fecha, // Fecha -> FechaRegistro
+            entity.MortalidadH, // MortalidadH -> MortalidadHembras
+            entity.MortalidadM, // MortalidadM -> MortalidadMachos
             entity.SelH,
-            entity.ConsKgH,
-            entity.ConsKgM,
+            (double)entity.ConsKgH, // decimal -> double
+            (double)entity.ConsKgM, // decimal -> double
             entity.HuevoTot,
             entity.HuevoInc,
             entity.TipoAlimento,
-            entity.Observaciones,
-            entity.PesoHuevo,
+            entity.Observaciones ?? string.Empty,
+            (double?)entity.PesoHuevo, // decimal -> double?
             entity.Etapa
         );
     }
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var entity = await _ctx.ProduccionDiaria.FindAsync(id);
+        var entity = await _ctx.SeguimientoProduccion.FindAsync(id);
         if (entity == null) return false;
 
         // Verificar que el lote pertenece a la compañía
@@ -202,14 +260,14 @@ public class ProduccionDiariaService : IProduccionDiariaService
                                        l.DeletedAt == null);
         if (lote is null) return false;
 
-        _ctx.ProduccionDiaria.Remove(entity);
+        _ctx.SeguimientoProduccion.Remove(entity);
         await _ctx.SaveChangesAsync();
         return true;
     }
 
     public async Task<IEnumerable<ProduccionDiariaDto>> FilterAsync(FilterProduccionDiariaDto filter)
     {
-        var q = from p in _ctx.ProduccionDiaria.AsNoTracking()
+        var q = from p in _ctx.SeguimientoProduccion.AsNoTracking()
                 join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId.ToString()
                 where l.CompanyId == _current.CompanyId && l.DeletedAt == null
                 select p;
@@ -217,26 +275,26 @@ public class ProduccionDiariaService : IProduccionDiariaService
         if (!string.IsNullOrWhiteSpace(filter.LoteId))
             q = q.Where(x => x.LoteId == filter.LoteId);
         if (filter.Desde.HasValue)
-            q = q.Where(x => x.FechaRegistro >= filter.Desde.Value);
+            q = q.Where(x => x.Fecha >= filter.Desde.Value);
         if (filter.Hasta.HasValue)
-            q = q.Where(x => x.FechaRegistro <= filter.Hasta.Value);
+            q = q.Where(x => x.Fecha <= filter.Hasta.Value);
 
         return await q
-            .OrderByDescending(x => x.FechaRegistro)
+            .OrderByDescending(x => x.Fecha)
             .Select(x => new ProduccionDiariaDto(
                 x.Id,
                 x.LoteId,
-                x.FechaRegistro,
-                x.MortalidadHembras,
-                x.MortalidadMachos,
+                x.Fecha, // Fecha -> FechaRegistro
+                x.MortalidadH, // MortalidadH -> MortalidadHembras
+                x.MortalidadM, // MortalidadM -> MortalidadMachos
                 x.SelH,
-                x.ConsKgH,
-                x.ConsKgM,
+                (double)x.ConsKgH, // decimal -> double
+                (double)x.ConsKgM, // decimal -> double
                 x.HuevoTot,
                 x.HuevoInc,
                 x.TipoAlimento,
-                x.Observaciones,
-                x.PesoHuevo,
+                x.Observaciones ?? string.Empty,
+                (double?)x.PesoHuevo, // decimal -> double?
                 x.Etapa
             ))
             .ToListAsync();

@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { LoteProduccionDto } from '../../services/lote-produccion.service';
+import { SeguimientoItemDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
@@ -13,13 +13,14 @@ import { GraficasPrincipalComponent } from '../graficas-principal/graficas-princ
   styleUrls: ['./tabs-principal.component.scss']
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {
-  @Input() registros: LoteProduccionDto[] = [];
+  @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
   @Input() loading: boolean = false;
 
   @Output() create = new EventEmitter<void>();
-  @Output() edit = new EventEmitter<LoteProduccionDto>();
-  @Output() delete = new EventEmitter<string | number>();
+  @Output() edit = new EventEmitter<SeguimientoItemDto>();
+  @Output() delete = new EventEmitter<number>();
+  @Output() viewDetail = new EventEmitter<SeguimientoItemDto>();
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
 
@@ -40,23 +41,27 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.create.emit();
   }
 
-  onEdit(registro: LoteProduccionDto): void {
-    this.edit.emit(registro);
+  onEdit(seg: SeguimientoItemDto): void {
+    this.edit.emit(seg);
   }
 
-  onDelete(id: string | number): void {
+  onDelete(id: number): void {
     this.delete.emit(id);
+  }
+
+  onViewDetail(seg: SeguimientoItemDto): void {
+    this.viewDetail.emit(seg);
   }
 
   // ================== CALCULO DE EDAD ==================
   calcularEdadDias(fechaRegistro: string | Date): number {
     if (!this.selectedLote?.fechaEncaset) return 0;
-    
+
     const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(1, diffDays);
   }
 }

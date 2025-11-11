@@ -1,223 +1,334 @@
+/* ==========================================================================
+   Tabla Lista Indicadores - Diseño Mejorado
+   ========================================================================== */
+
+:host {
+  display: block;
+  width: 100%;
+
+  /* Variables */
+  --brand-red: #d32f2f;
+  --brand-blue: #1976d2;
+  --brand-green: #10b981;
+  --brand-orange: #f59e0b;
+  --warm-50: #fafaf9;
+  --warm-100: #f5f5f4;
+  --warm-200: #e7e5e4;
+  --warm-300: #d6d3d1;
+  --warm-400: #a8a29e;
+  --warm-500: #78716c;
+  --warm-600: #57534e;
+  --warm-700: #44403c;
+  --white: #ffffff;
+  --black: #111111;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.25rem;
+}
+
 .indicadores-container {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-4);
 }
 
 .indicadores-header {
-  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: linear-gradient(135deg, var(--white) 0%, var(--warm-50) 100%);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--warm-200);
+  box-shadow: var(--shadow-sm);
+}
+
+.indicadores-header h3 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--brand-red);
+}
+
+.indicadores-subtitle {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.badge-guia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--brand-green);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* Tabla de Indicadores */
+.indicadores-table-container {
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warm-200);
+  background: var(--white);
+  box-shadow: var(--shadow-md);
+}
+
+.indicadores-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 1400px;
+}
+
+.indicadores-table thead {
+  background: linear-gradient(180deg, var(--warm-100) 0%, var(--warm-50) 100%);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.indicadores-table th {
+  padding: var(--space-4) var(--space-3);
   text-align: center;
-
-  h3 {
-    margin: 0 0 8px 0;
-    color: #212529;
-    font-size: 20px;
-    font-weight: 600;
-  }
-
-  .indicadores-subtitle {
-    margin: 0;
-    color: #6c757d;
-    font-size: 14px;
-  }
+  font-weight: 700;
+  color: var(--warm-700);
+  text-transform: uppercase;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.5px;
+  border: 1px solid var(--warm-200);
+  white-space: nowrap;
 }
 
-.indicadores-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 20px;
+.indicadores-table tbody tr {
+  border-bottom: 1px solid var(--warm-200);
+  transition: background 0.15s ease;
 }
 
-.indicador-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  }
+.indicadores-table tbody tr:hover {
+  background: var(--warm-50);
 }
 
-.indicador-header {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: white;
-  padding: 16px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  h4 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
-
-  .etapa-badge {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 500;
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-
-    &.etapa-etapa-1 {
-      background: rgba(34, 197, 94, 0.8);
-    }
-
-    &.etapa-etapa-2 {
-      background: rgba(245, 158, 11, 0.8);
-    }
-
-    &.etapa-etapa-3 {
-      background: rgba(239, 68, 68, 0.8);
-    }
-
-    &.etapa-pre-producción {
-      background: rgba(107, 114, 128, 0.8);
-    }
-  }
+.indicadores-table tbody tr:last-child {
+  border-bottom: none;
 }
 
-.indicador-content {
-  padding: 20px;
+.indicadores-table td {
+  padding: var(--space-3) var(--space-2);
+  color: var(--warm-700);
+  vertical-align: middle;
+  text-align: center;
+  border-right: 1px solid var(--warm-200);
+  font-size: var(--fs-xs);
 }
 
-.indicador-section {
-  margin-bottom: 16px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-
-  h5 {
-    margin: 0 0 8px 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: #495057;
-    border-bottom: 1px solid #e9ecef;
-    padding-bottom: 4px;
-  }
+.indicadores-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--black);
+  padding-left: var(--space-4);
 }
 
-.indicador-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 0;
-  font-size: 14px;
-
-  .label {
-    color: #6c757d;
-    font-weight: 500;
-  }
-
-  .value {
-    color: #212529;
-    font-weight: 600;
-
-    &.mortalidad-success {
-      color: #22c55e;
-    }
-
-    &.mortalidad-warning {
-      color: #f59e0b;
-    }
-
-    &.mortalidad-danger {
-      color: #ef4444;
-    }
-
-    &.eficiencia-success {
-      color: #22c55e;
-    }
-
-    &.eficiencia-warning {
-      color: #f59e0b;
-    }
-
-    &.eficiencia-danger {
-      color: #ef4444;
-    }
-  }
+.indicadores-table td strong {
+  color: var(--black);
+  font-weight: 700;
 }
 
+/* Badges de Etapa */
+.etapa-badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.etapa-etapa-1 {
+  background: rgba(25, 118, 210, 0.1);
+  color: var(--brand-blue);
+  border: 1px solid rgba(25, 118, 210, 0.2);
+}
+
+.etapa-etapa-2 {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--brand-orange);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.etapa-etapa-3 {
+  background: rgba(211, 47, 47, 0.1);
+  color: var(--brand-red);
+  border: 1px solid rgba(211, 47, 47, 0.2);
+}
+
+.etapa-inicial {
+  background: var(--warm-200);
+  color: var(--warm-600);
+  border: 1px solid var(--warm-300);
+}
+
+/* Diferencias */
+.diferencia-ok {
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.diferencia-warning {
+  color: var(--brand-orange);
+  font-weight: 600;
+}
+
+.diferencia-danger {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* Estados */
+.estado-ok {
+  background: var(--brand-green);
+  color: var(--white);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+}
+
+.estado-aceptable {
+  background: var(--brand-orange);
+  color: var(--white);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+}
+
+.estado-problema {
+  background: #ef4444;
+  color: var(--white);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+}
+
+.estado-info {
+  background: var(--warm-300);
+  color: var(--warm-700);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* Loading y Error States */
+.loading-state,
+.error-state,
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
   text-align: center;
-  padding: 60px 20px;
-  color: #6c757d;
-
-  .empty-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
-    opacity: 0.5;
-  }
-
-  p {
-    margin: 0 0 8px 0;
-    font-size: 16px;
-  }
-
-  .empty-hint {
-    font-size: 14px;
-    opacity: 0.7;
-  }
+  min-height: 300px;
 }
 
-.loading-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: #6c757d;
-
-  .spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid #e9ecef;
-    border-top: 3px solid #f59e0b;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 16px;
-  }
-
-  p {
-    margin: 0;
-    font-size: 14px;
-  }
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--warm-200);
+  border-top-color: var(--brand-red);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: var(--space-4);
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 
-// Responsive
+.error-icon,
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-4);
+  opacity: 0.6;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid;
+  background: var(--white);
+  color: var(--warm-700);
+}
+
+.btn--outline {
+  background: transparent;
+  border-color: var(--warm-300);
+  color: var(--warm-700);
+}
+
+.btn--outline:hover {
+  background: var(--warm-100);
+  border-color: var(--warm-400);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .indicadores-table {
+    font-size: var(--fs-xs);
+  }
+
+  .indicadores-table th,
+  .indicadores-table td {
+    padding: var(--space-2);
+  }
+}
+
 @media (max-width: 768px) {
-  .indicadores-grid {
-    grid-template-columns: 1fr;
+  .indicadores-container {
+    padding: var(--space-2);
   }
 
-  .indicador-card {
-    margin-bottom: 16px;
+  .indicadores-table {
+    min-width: 1200px;
   }
 
-  .indicador-header {
-    padding: 12px 16px;
-
-    h4 {
-      font-size: 14px;
-    }
-
-    .etapa-badge {
-      font-size: 11px;
-      padding: 3px 8px;
-    }
-  }
-
-  .indicador-content {
-    padding: 16px;
-  }
-
-  .indicador-row {
-    font-size: 13px;
+  .indicadores-header h3 {
+    font-size: var(--fs-lg);
   }
 }

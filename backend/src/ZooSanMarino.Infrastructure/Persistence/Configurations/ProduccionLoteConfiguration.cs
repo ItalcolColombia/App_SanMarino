@@ -9,34 +9,69 @@ public class ProduccionLoteConfiguration : IEntityTypeConfiguration<ProduccionLo
 {
     public void Configure(EntityTypeBuilder<ProduccionLote> builder)
     {
-        builder.ToTable("produccion_lote");
+        builder.ToTable("produccion_lotes");
 
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedOnAdd();
 
         builder.Property(x => x.LoteId)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnType("character varying");
 
         builder.Property(x => x.FechaInicio)
             .IsRequired()
-            .HasColumnType("date");
+            .HasColumnName("fecha_inicio_produccion");
 
         builder.Property(x => x.AvesInicialesH)
             .IsRequired()
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .HasColumnName("hembras_iniciales");
 
         builder.Property(x => x.AvesInicialesM)
             .IsRequired()
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .HasColumnName("machos_iniciales");
 
-        builder.Property(x => x.Observaciones)
-            .HasMaxLength(1000);
+        builder.Property(x => x.HuevosIniciales)
+            .IsRequired()
+            .HasDefaultValue(0)
+            .HasColumnName("huevos_iniciales");
 
-        // Relación con Lote
-        builder.HasOne(x => x.Lote)
-            .WithMany()
-            .HasForeignKey(x => x.LoteId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(x => x.TipoNido)
+            .HasMaxLength(50)
+            .IsRequired()
+            .HasDefaultValue("Manual")
+            .HasColumnName("tipo_nido");
+
+        builder.Property(x => x.GranjaId)
+            .IsRequired()
+            .HasColumnName("granja_id");
+
+        builder.Property(x => x.NucleoId)
+            .IsRequired()
+            .HasColumnName("nucleo_id")
+            .HasColumnType("character varying");
+
+        builder.Property(x => x.NucleoP)
+            .HasMaxLength(100)
+            .HasColumnName("nucleo_p")
+            .HasColumnType("character varying");
+
+        builder.Property(x => x.GalponId)
+            .HasColumnName("galpon_id")
+            .HasColumnType("character varying");
+
+        builder.Property(x => x.Ciclo)
+            .HasMaxLength(50)
+            .IsRequired()
+            .HasDefaultValue("normal")
+            .HasColumnName("ciclo");
+
+        // Relación con Lote - Comentado porque lote_id es VARCHAR
+        // builder.HasOne(x => x.Lote)
+        //     .WithMany()
+        //     .HasForeignKey(x => x.LoteId)
+        //     .OnDelete(DeleteBehavior.Restrict);
 
         // Índice único para asegurar un solo registro inicial por lote
         builder.HasIndex(x => x.LoteId)

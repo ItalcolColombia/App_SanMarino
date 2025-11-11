@@ -8,13 +8,15 @@ import {
   faSave, faTimes, faTrash, faSearch, faBuilding, faEdit
 } from '@fortawesome/free-solid-svg-icons';
 
-import { forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { forkJoin, of, interval, Subject, Observable } from 'rxjs';
+import { catchError, finalize, takeUntil } from 'rxjs/operators';
 
 import { UserService, UserListItem } from '../../../../../core/services/user/user.service';
 import { Company, CompanyService } from '../../../../../core/services/company/company.service';
 import { RoleService, Role } from '../../../../../core/services/role/role.service';
 import { AsignarUsuarioGranjaComponent } from '../../components/asignar-usuario-granja/asignar-usuario-granja.component';
+import { AuthService } from '../../../../../core/auth/auth.service';
+import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
 
 @Component({
   selector: 'app-tabla-lista-registro',
@@ -45,19 +47,26 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   // Estado
   loading = false;
   filterTerm = '';
-  
+
   // Datos
   users: UserListItem[] = [];
   filteredUsers: UserListItem[] = [];
-  
+
   // Modal de asignación de granjas
   asignarGranjaModalOpen = false;
   selectedUser: UserListItem | null = null;
+
+  // Estado de correos por usuario
+  emailStatuses: Map<string, 'pending' | 'processing' | 'sent' | 'failed'> = new Map();
+  checkingEmails: Set<string> = new Set();
+  private emailStatusSubscriptions: Map<string, any> = new Map();
+  private destroy$ = new Subject<void>();
 
   // Servicios
   private userService = inject(UserService);
   private companyService = inject(CompanyService);
   private roleService = inject(RoleService);
+  private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
 
   constructor(private library: FaIconLibrary) {
@@ -72,12 +81,16 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Cleanup if needed
+    this.destroy$.next();
+    this.destroy$.complete();
+    // Limpiar todas las suscripciones de estado de correo
+    this.emailStatusSubscriptions.forEach(sub => sub.unsubscribe());
+    this.emailStatusSubscriptions.clear();
   }
 
   loadUsers(): void {
     this.loading = true;
-    
+
     this.userService.getAll()
       .pipe(
         catchError(error => {
@@ -92,6 +105,13 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
       .subscribe((users: any) => {
         this.users = users;
         this.applyFilter();
+
+        // Iniciar verificación de estado de correos para usuarios con emailQueueId
+        users.forEach((user: UserListItem) => {
+          if (user.emailQueueId && !this.emailStatuses.has(user.id)) {
+            this.startEmailStatusCheck(user.id, user.emailQueueId);
+          }
+        });
       });
   }
 
@@ -177,5 +197,114 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
 
   trackByUserId(index: number, user: UserListItem): string {
     return user.id;
+  }
+
+  /**
+   * Inicia la verificación periódica del estado del correo para un usuario
+   */
+  private startEmailStatusCheck(userId: string, emailQueueId: number): void {
+    // Si ya hay una suscripción activa, no crear otra
+    if (this.emailStatusSubscriptions.has(userId)) return;
+
+    // Consultar inmediatamente
+    this.checkEmailStatus(userId, emailQueueId);
+
+    // Consultar cada 5 segundos si está pendiente o procesando
+    const subscription = interval(5000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        const currentStatus = this.emailStatuses.get(userId);
+        if (currentStatus === 'pending' || currentStatus === 'processing') {
+          this.checkEmailStatus(userId, emailQueueId);
+        } else {
+          // Si ya se envió o falló, detener la verificación
+          this.stopEmailStatusCheck(userId);
+        }
+      });
+
+    this.emailStatusSubscriptions.set(userId, subscription);
+  }
+
+  /**
+   * Detiene la verificación periódica del estado del correo para un usuario
+   */
+  private stopEmailStatusCheck(userId: string): void {
+    const subscription = this.emailStatusSubscriptions.get(userId);
+    if (subscription) {
+      subscription.unsubscribe();
+      this.emailStatusSubscriptions.delete(userId);
+    }
+    this.checkingEmails.delete(userId);
+  }
+
+  /**
+   * Consulta el estado actual del correo para un usuario
+   */
+  private checkEmailStatus(userId: string, emailQueueId: number): void {
+    if (this.checkingEmails.has(userId)) return;
+
+    this.checkingEmails.add(userId);
+
+    this.authService.getEmailStatus(emailQueueId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (status: EmailQueueStatus) => {
+          this.emailStatuses.set(userId, status.status);
+          this.checkingEmails.delete(userId);
+          this.cdr.detectChanges();
+
+          // Si se envió o falló, detener la verificación
+          if (status.status === 'sent' || status.status === 'failed') {
+            this.stopEmailStatusCheck(userId);
+          }
+        },
+        error: (error: unknown) => {
+          console.error(`Error al consultar estado del correo para usuario ${userId}:`, error);
+          this.checkingEmails.delete(userId);
+        }
+      });
+  }
+
+  /**
+   * Obtiene el estado del correo para un usuario
+   */
+  getEmailStatus(userId: string): 'pending' | 'processing' | 'sent' | 'failed' | null {
+    return this.emailStatuses.get(userId) || null;
+  }
+
+  /**
+   * Obtiene el icono y color del estado del correo para un usuario
+   */
+  getEmailStatusIcon(user: UserListItem): { icon: any; color: string; tooltip: string } | null {
+    // Solo mostrar icono si tiene emailQueueId (usuarios creados después de la implementación)
+    if (!user.emailQueueId) {
+      return null;
+    }
+
+    const status = this.getEmailStatus(user.id) || (user.emailSent ? 'sent' : 'pending');
+
+    switch (status) {
+      case 'sent':
+        return {
+          icon: this.faEnvelope,
+          color: '#10b981', // verde
+          tooltip: 'Correo enviado exitosamente'
+        };
+      case 'failed':
+        return {
+          icon: this.faEnvelope,
+          color: '#ef4444', // rojo
+          tooltip: 'Error al enviar el correo'
+        };
+      case 'pending':
+      case 'processing':
+        return {
+          icon: this.faEnvelope,
+          color: '#6b7280', // gris
+          tooltip: 'Correo en proceso de envío'
+        };
+      default:
+        return null;
+    }
   }
 }

@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowDown, faArrowUp } from '@fortawesome/free-solid-svg-icons';
+import { faArrowDown, faArrowUp, faTrash, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 
 import {
   InventarioService,
@@ -22,11 +22,15 @@ import {
 export class MovimientosFormComponent implements OnInit {
   faIn  = faArrowDown;
   faOut = faArrowUp;
+  faTrash = faTrash;
+  faCheckCircle = faCheckCircle;
 
   form!: FormGroup;
   farms: FarmDto[] = [];
   items: CatalogItemDto[] = [];
   loading = false;
+  showSuccessModal = false;
+  lastMovementType: 'in' | 'out' = 'in';
 
   constructor(
     private fb: FormBuilder,
@@ -34,6 +38,12 @@ export class MovimientosFormComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.initForm();
+    this.invSvc.getFarms().subscribe(f => this.farms = f);
+    this.invSvc.getCatalogo().subscribe(c => this.items = c.filter(x => x.activo));
+  }
+
+  initForm() {
     this.form = this.fb.group({
       farmId: [null, Validators.required],
       type:   ['in', Validators.required], // 'in' | 'out'
@@ -43,9 +53,6 @@ export class MovimientosFormComponent implements OnInit {
       reference: [''],
       reason: ['']
     });
-
-    this.invSvc.getFarms().subscribe(f => this.farms = f);
-    this.invSvc.getCatalogo().subscribe(c => this.items = c.filter(x => x.activo));
   }
 
   submit() {
@@ -53,14 +60,44 @@ export class MovimientosFormComponent implements OnInit {
     const { farmId, type, catalogItemId, quantity, unit, reference, reason } = this.form.value;
     const payload = { catalogItemId, quantity, unit, reference, reason };
 
+    // Guardar el tipo antes de limpiar
+    this.lastMovementType = type;
+
     this.loading = true;
     const req$ = type === 'in'
       ? this.invSvc.postEntry(farmId, payload)
       : this.invSvc.postExit (farmId, payload);
 
-    req$.pipe(finalize(() => this.loading = false)).subscribe(() => {
-      this.form.patchValue({ quantity: null, reference: '', reason: '' });
-      alert('Movimiento registrado');
+    req$.pipe(finalize(() => this.loading = false)).subscribe({
+      next: () => {
+        this.clearForm();
+        this.showSuccessModal = true;
+      },
+      error: (err) => {
+        console.error('Error al registrar movimiento:', err);
+        alert('Error al registrar el movimiento. Por favor, intente nuevamente.');
+      }
     });
+  }
+
+  clearForm() {
+    this.form.reset({
+      farmId: null,
+      type: 'in',
+      catalogItemId: null,
+      quantity: null,
+      unit: 'kg',
+      reference: '',
+      reason: ''
+    });
+    // Marcar todos los campos como untouched para limpiar estados de validación
+    Object.keys(this.form.controls).forEach(key => {
+      this.form.controls[key].markAsUntouched();
+      this.form.controls[key].markAsPristine();
+    });
+  }
+
+  closeSuccessModal() {
+    this.showSuccessModal = false;
   }
 }

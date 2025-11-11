@@ -1,6 +1,29 @@
 <!-- src/app/features/inventario/components/traslado-form/traslado-form.component.html -->
 <form class="ux-form" [formGroup]="form" (ngSubmit)="submit()">
   <div class="filters">
+    <!-- Visualización de Traslado -->
+    <div class="filter filter-visual" *ngIf="form.value.fromFarmId && form.value.toFarmId">
+      <div class="transfer-visual">
+        <div class="transfer-farm">
+          <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
+          <div class="transfer-info">
+            <span class="transfer-label">Desde</span>
+            <span class="transfer-name">{{ getFromFarmName() }}</span>
+          </div>
+        </div>
+        <div class="transfer-arrow">
+          <fa-icon [icon]="faArrowRight"></fa-icon>
+        </div>
+        <div class="transfer-farm">
+          <fa-icon [icon]="faBuilding" class="transfer-icon"></fa-icon>
+          <div class="transfer-info">
+            <span class="transfer-label">Hacia</span>
+            <span class="transfer-name">{{ getToFarmName() }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="filter">
       <label class="ux-label" for="fromFarm">Granja Origen *</label>
       <select id="fromFarm" class="ux-select" formControlName="fromFarmId">
@@ -48,9 +71,46 @@
     </div>
   </div>
 
-  <div class="actions" style="justify-content:flex-end; padding: .5rem .75rem;">
+  <div class="form-actions">
+    <button class="btn-clear" type="button" (click)="clearForm()" [disabled]="loading">
+      <fa-icon [icon]="faTrash"></fa-icon>
+      <span>Limpiar</span>
+    </button>
     <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">
-      Registrar traslado
+      <fa-icon [icon]="faArrowRight" *ngIf="!loading"></fa-icon>
+      <span *ngIf="loading">Procesando...</span>
+      <span *ngIf="!loading">Registrar traslado</span>
     </button>
   </div>
 </form>
+
+<!-- Modal de Confirmación de Éxito -->
+<div class="success-modal-backdrop" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
+  <div class="success-modal" (click)="$event.stopPropagation()">
+    <div class="success-modal__icon">
+      <fa-icon [icon]="faCheckCircle"></fa-icon>
+    </div>
+    <h3 class="success-modal__title">¡Traslado Registrado Exitosamente!</h3>
+    <div class="success-modal__details" *ngIf="transferData">
+      <div class="detail-item">
+        <span class="detail-label">Desde:</span>
+        <span class="detail-value">{{ transferData.fromFarm }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Hacia:</span>
+        <span class="detail-value">{{ transferData.toFarm }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Producto:</span>
+        <span class="detail-value">{{ transferData.product }}</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Cantidad:</span>
+        <span class="detail-value">{{ transferData.quantity }} kg</span>
+      </div>
+    </div>
+    <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
+      Aceptar
+    </button>
+  </div>
+</div>

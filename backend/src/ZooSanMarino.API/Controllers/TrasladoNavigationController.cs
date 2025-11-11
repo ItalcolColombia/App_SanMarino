@@ -1,13 +1,15 @@
 // src/ZooSanMarino.API/Controllers/TrasladoNavigationController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.API.Controllers;
 
 /// <summary>
-/// Controlador para navegación completa de traslados de aves
+/// Controlador para navegación completa de traslados de aves y huevos
 /// </summary>
 [Authorize]
 [ApiController]
@@ -16,13 +18,22 @@ namespace ZooSanMarino.API.Controllers;
 public class TrasladoNavigationController : ControllerBase
 {
     private readonly IMovimientoAvesService _movimientoService;
+    private readonly ITrasladoHuevosService _trasladoHuevosService;
+    private readonly ICurrentUser _currentUser;
+    private readonly ZooSanMarinoContext _context;
     private readonly ILogger<TrasladoNavigationController> _logger;
 
     public TrasladoNavigationController(
         IMovimientoAvesService movimientoService,
+        ITrasladoHuevosService trasladoHuevosService,
+        ICurrentUser currentUser,
+        ZooSanMarinoContext context,
         ILogger<TrasladoNavigationController> logger)
     {
         _movimientoService = movimientoService;
+        _trasladoHuevosService = trasladoHuevosService;
+        _currentUser = currentUser;
+        _context = context;
         _logger = logger;
     }
 
@@ -132,27 +143,225 @@ public class TrasladoNavigationController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene movimientos por lote con navegación completa
+    /// Obtiene movimientos y traslados por lote (aves y huevos) con navegación completa
     /// </summary>
     [HttpGet("por-lote/{loteId}")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<MovimientoAvesCompletoDto>))]
-    public async Task<IActionResult> GetByLote(int loteId, [FromQuery] int limite = 50)
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<TrasladoUnificadoDto>))]
+    public async Task<IActionResult> GetByLote(int loteId, [FromQuery] int limite = 100)
     {
         try
         {
-            var request = new MovimientoAvesCompletoSearchRequest
+            var loteIdStr = loteId.ToString();
+            var resultados = new List<TrasladoUnificadoDto>();
+
+            // 1. Obtener movimientos de aves (tanto origen como destino)
+            var requestAvesOrigen = new MovimientoAvesCompletoSearchRequest
             {
                 LoteOrigenId = loteId,
                 PageSize = limite
             };
             
-            var result = await _movimientoService.SearchCompletoAsync(request);
-            return Ok(result.Items);
+            var requestAvesDestino = new MovimientoAvesCompletoSearchRequest
+            {
+                LoteDestinoId = loteId,
+                PageSize = limite
+            };
+            
+            var movimientosAvesOrigen = await _movimientoService.SearchCompletoAsync(requestAvesOrigen);
+            var movimientosAvesDestino = await _movimientoService.SearchCompletoAsync(requestAvesDestino);
+            
+            // Combinar y eliminar duplicados
+            var movimientosAves = movimientosAvesOrigen.Items
+                .UnionBy(movimientosAvesDestino.Items, m => m.Id)
+                .ToList();
+            
+            // Convertir movimientos de aves a DTO unificado
+            foreach (var mov in movimientosAves)
+            {
+                // Verificar fase del lote
+                var faseLote = await DeterminarFaseLoteAsync(loteId);
+                
+                resultados.Add(new TrasladoUnificadoDto(
+                    Id: mov.Id,
+                    NumeroTraslado: mov.NumeroMovimiento,
+                    FechaTraslado: mov.FechaMovimiento,
+                    TipoOperacion: mov.TipoMovimiento,
+                    TipoTraslado: "Aves",
+                    LoteIdOrigen: mov.Origen.LoteId?.ToString() ?? loteIdStr,
+                    LoteIdOrigenInt: mov.Origen.LoteId,
+                    GranjaOrigenId: mov.Origen.GranjaId ?? 0,
+                    GranjaOrigenNombre: mov.Origen.GranjaNombre,
+                    LoteIdDestino: mov.Destino.LoteId?.ToString(),
+                    LoteIdDestinoInt: mov.Destino.LoteId,
+                    GranjaDestinoId: mov.Destino.GranjaId,
+                    GranjaDestinoNombre: mov.Destino.GranjaNombre,
+                    TipoDestino: null,
+                    CantidadHembras: mov.CantidadHembras,
+                    CantidadMachos: mov.CantidadMachos,
+                    TotalAves: mov.TotalAves,
+                    TotalHuevos: null,
+                    CantidadLimpio: null,
+                    CantidadTratado: null,
+                    CantidadSucio: null,
+                    CantidadDeforme: null,
+                    CantidadBlanco: null,
+                    CantidadDobleYema: null,
+                    CantidadPiso: null,
+                    CantidadPequeno: null,
+                    CantidadRoto: null,
+                    CantidadDesecho: null,
+                    CantidadOtro: null,
+                    Estado: mov.Estado,
+                    Motivo: mov.MotivoMovimiento,
+                    Descripcion: null,
+                    Observaciones: mov.Observaciones,
+                    UsuarioTrasladoId: mov.UsuarioMovimientoId,
+                    UsuarioNombre: mov.UsuarioNombre,
+                    FechaProcesamiento: mov.FechaProcesamiento,
+                    FechaCancelacion: mov.FechaCancelacion,
+                    CreatedAt: mov.CreatedAt,
+                    UpdatedAt: mov.UpdatedAt,
+                    FaseLote: faseLote,
+                    TieneSeguimientoProduccion: await TieneSeguimientoProduccionAsync(loteId)
+                ));
+            }
+
+            // 2. Obtener traslados de huevos
+            var trasladosHuevos = await _trasladoHuevosService.ObtenerTrasladosPorLoteAsync(loteIdStr);
+            
+            // Obtener información de granjas para los traslados de huevos
+            var granjaIds = trasladosHuevos
+                .SelectMany(t => new[] { t.GranjaOrigenId, t.GranjaDestinoId })
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToList();
+            
+            var granjas = await _context.Farms
+                .AsNoTracking()
+                .Where(f => granjaIds.Contains(f.Id))
+                .ToDictionaryAsync(f => f.Id, f => f.Name);
+
+            // Convertir traslados de huevos a DTO unificado
+            foreach (var traslado in trasladosHuevos.Take(limite))
+            {
+                // Verificar fase del lote
+                var faseLote = await DeterminarFaseLoteAsync(loteId);
+                
+                resultados.Add(new TrasladoUnificadoDto(
+                    Id: traslado.Id,
+                    NumeroTraslado: traslado.NumeroTraslado,
+                    FechaTraslado: traslado.FechaTraslado,
+                    TipoOperacion: traslado.TipoOperacion,
+                    TipoTraslado: "Huevos",
+                    LoteIdOrigen: traslado.LoteId,
+                    LoteIdOrigenInt: int.TryParse(traslado.LoteId, out var loteIdInt) ? loteIdInt : null,
+                    GranjaOrigenId: traslado.GranjaOrigenId,
+                    GranjaOrigenNombre: granjas.GetValueOrDefault(traslado.GranjaOrigenId),
+                    LoteIdDestino: traslado.LoteDestinoId,
+                    LoteIdDestinoInt: traslado.LoteDestinoId != null && int.TryParse(traslado.LoteDestinoId, out var loteDestInt) ? loteDestInt : null,
+                    GranjaDestinoId: traslado.GranjaDestinoId,
+                    GranjaDestinoNombre: traslado.GranjaDestinoId.HasValue ? granjas.GetValueOrDefault(traslado.GranjaDestinoId.Value) : null,
+                    TipoDestino: traslado.TipoDestino,
+                    CantidadHembras: null,
+                    CantidadMachos: null,
+                    TotalAves: null,
+                    TotalHuevos: traslado.TotalHuevos,
+                    CantidadLimpio: traslado.CantidadLimpio,
+                    CantidadTratado: traslado.CantidadTratado,
+                    CantidadSucio: traslado.CantidadSucio,
+                    CantidadDeforme: traslado.CantidadDeforme,
+                    CantidadBlanco: traslado.CantidadBlanco,
+                    CantidadDobleYema: traslado.CantidadDobleYema,
+                    CantidadPiso: traslado.CantidadPiso,
+                    CantidadPequeno: traslado.CantidadPequeno,
+                    CantidadRoto: traslado.CantidadRoto,
+                    CantidadDesecho: traslado.CantidadDesecho,
+                    CantidadOtro: traslado.CantidadOtro,
+                    Estado: traslado.Estado,
+                    Motivo: traslado.Motivo,
+                    Descripcion: traslado.Descripcion,
+                    Observaciones: traslado.Observaciones,
+                    UsuarioTrasladoId: traslado.UsuarioTrasladoId,
+                    UsuarioNombre: traslado.UsuarioNombre,
+                    FechaProcesamiento: traslado.FechaProcesamiento,
+                    FechaCancelacion: traslado.FechaCancelacion,
+                    CreatedAt: traslado.CreatedAt,
+                    UpdatedAt: traslado.UpdatedAt,
+                    FaseLote: faseLote,
+                    TieneSeguimientoProduccion: await TieneSeguimientoProduccionAsync(loteId)
+                ));
+            }
+
+            // Ordenar por fecha descendente y limitar
+            var resultadosOrdenados = resultados
+                .OrderByDescending(r => r.FechaTraslado)
+                .Take(limite)
+                .ToList();
+
+            _logger.LogInformation($"Retornando {resultadosOrdenados.Count} traslados para lote {loteId} ({resultadosOrdenados.Count(r => r.TipoTraslado == "Aves")} aves, {resultadosOrdenados.Count(r => r.TipoTraslado == "Huevos")} huevos)");
+
+            return Ok(resultadosOrdenados);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al obtener movimientos por lote {LoteId}", loteId);
-            return StatusCode(500, new { error = "Error interno del servidor" });
+            return StatusCode(500, new { error = "Error interno del servidor", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Determina la fase del lote (Levante o Producción) basándose en seguimiento de producción
+    /// </summary>
+    private async Task<string> DeterminarFaseLoteAsync(int loteId)
+    {
+        try
+        {
+            var loteIdStr = loteId.ToString();
+            
+            // Verificar si tiene registros en seguimiento de producción
+            var tieneSeguimiento = await _context.SeguimientoProduccion
+                .AsNoTracking()
+                .AnyAsync(s => s.LoteId == loteIdStr);
+            
+            if (tieneSeguimiento)
+            {
+                return "Produccion";
+            }
+            
+            // Verificar si tiene registro en ProduccionLote
+            var tieneProduccionLote = await _context.ProduccionLotes
+                .AsNoTracking()
+                .AnyAsync(p => p.LoteId == loteIdStr && p.DeletedAt == null);
+            
+            if (tieneProduccionLote)
+            {
+                return "Produccion";
+            }
+            
+            return "Levante";
+        }
+        catch
+        {
+            return "Levante"; // Por defecto
+        }
+    }
+
+    /// <summary>
+    /// Verifica si el lote tiene seguimiento de producción
+    /// </summary>
+    private async Task<bool> TieneSeguimientoProduccionAsync(int loteId)
+    {
+        try
+        {
+            var loteIdStr = loteId.ToString();
+            return await _context.SeguimientoProduccion
+                .AsNoTracking()
+                .AnyAsync(s => s.LoteId == loteIdStr);
+        }
+        catch
+        {
+            return false;
         }
     }
 

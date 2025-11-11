@@ -78,6 +78,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Unit = m.Unit,
             Reference = m.Reference,
             Reason = m.Reason,
+            Origin = m.Origin,
+            Destination = m.Destination,
             TransferGroupId = m.TransferGroupId,
             Metadata = m.Metadata,
             ResponsibleUserId = m.ResponsibleUserId,
@@ -108,6 +110,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Unit = unit,
             Reference = req.Reference,
             Reason = req.Reason,
+            Origin = req.Origin,  // Origen para entrada
+            Destination = null,  // No aplica para entrada
             Metadata = req.Metadata ?? JsonDocument.Parse("{}"),
             ResponsibleUserId = userId
         };
@@ -143,6 +147,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Unit = unit,
             Reference = req.Reference,
             Reason = req.Reason,
+            Origin = null,  // No aplica para salida
+            Destination = req.Destination,  // Destino para salida
             Metadata = req.Metadata ?? JsonDocument.Parse("{}"),
             ResponsibleUserId = userId
         };
@@ -181,6 +187,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Unit = unit,
             Reference = req.Reference,
             Reason = req.Reason,
+            Origin = null,  // No aplica para traslado
+            Destination = null,  // No aplica para traslado
             TransferGroupId = group,
             Metadata = req.Metadata ?? JsonDocument.Parse("{}"),
             ResponsibleUserId = userId
@@ -202,6 +210,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Unit = unit,
             Reference = req.Reference,
             Reason = req.Reason,
+            Origin = null,  // No aplica para traslado
+            Destination = null,  // No aplica para traslado
             TransferGroupId = group,
             Metadata = req.Metadata ?? JsonDocument.Parse("{}"),
             ResponsibleUserId = userId
@@ -238,6 +248,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Unit = unit,
             Reference = req.Reference,
             Reason = req.Reason,
+            Origin = null,  // No aplica para ajuste
+            Destination = null,  // No aplica para ajuste
             Metadata = req.Metadata ?? JsonDocument.Parse("{}"),
             ResponsibleUserId = userId
         };
@@ -281,6 +293,8 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
                                   Unit = m.Unit,
                                   Reference = m.Reference,
                                   Reason = m.Reason,
+                                  Origin = m.Origin,
+                                  Destination = m.Destination,
                                   TransferGroupId = m.TransferGroupId,
                                   Metadata = m.Metadata,
                                   ResponsibleUserId = m.ResponsibleUserId,
@@ -309,6 +323,7 @@ public class FarmInventoryMovementService : IFarmInventoryMovementService
             Codigo = m.CatalogItem.Codigo, Nombre = m.CatalogItem.Nombre,
             Quantity = m.Quantity, MovementType = m.MovementType.ToString(),
             Unit = m.Unit, Reference = m.Reference, Reason = m.Reason,
+            Origin = m.Origin, Destination = m.Destination,
             TransferGroupId = m.TransferGroupId, Metadata = m.Metadata,
             ResponsibleUserId = m.ResponsibleUserId, CreatedAt = m.CreatedAt
         };

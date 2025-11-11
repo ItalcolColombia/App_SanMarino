@@ -47,6 +47,15 @@
           type="button"
           class="btn btn--outline"
           [disabled]="!selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
+          (click)="openLiquidacion()">
+          Liquidación técnica
+        </button>
+
+        <button
+          type="button"
+          class="btn btn--outline"
+          [disabled]="!selectedLoteId"
           [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver análisis del lote'"
           (click)="openAnalisis()">
           Ver análisis
@@ -74,15 +83,16 @@
       (galponChange)="onGalponChange($event)"
       (loteChange)="onLoteChange($event)">
     </app-filtro-select>
-    
+
     <!-- Tabs Principal: General, Indicadores y Gráfica -->
     <app-tabs-principal
       [seguimientos]="seguimientos"
-      [selectedLote]="null"
+      [selectedLote]="selectedLote"
       [loading]="loading"
       (create)="openDailyTrackingModal()"
       (edit)="editDailyTracking($event)"
-      (delete)="deleteDailyTracking($event)">
+      (delete)="deleteDailyTracking($event)"
+      (viewDetail)="openDetailModal($event)">
     </app-tabs-principal>
   </div>
 </div>
@@ -91,6 +101,9 @@
 <app-modal-registro-inicial
   [isOpen]="modalRegistroInicialOpen"
   [loteId]="selectedLoteId"
+  [loteNombre]="modalLoteNombre"
+  [nucleoAsignado]="modalNucleoAsignado"
+  [nucleosDisponibles]="modalNucleosDisponibles"
   [loading]="loading"
   (close)="cancelRegistroInicial()"
   (save)="onSaveRegistroInicial($event)">
@@ -102,6 +115,7 @@
   [produccionLoteId]="currentProduccionLoteId"
   [editingSeguimiento]="editingSeguimiento"
   [loading]="loading"
+  [fechaEncaset]="selectedLote?.fechaEncaset || null"
   (close)="cancelSeguimientoDiario()"
   (save)="onSaveSeguimientoDiario($event)">
 </app-modal-seguimiento-diario>
@@ -113,3 +127,18 @@
   (close)="closeAnalisis()"
   (export)="exportarAnalisis()">
 </app-modal-analisis>
+
+<!-- Modal de liquidación técnica -->
+<app-modal-liquidacion
+  [isOpen]="liquidacionOpen"
+  [loteId]="selectedLoteId"
+  [loteNombre]="selectedLoteNombre"
+  (close)="closeLiquidacion()">
+</app-modal-liquidacion>
+
+<!-- Modal de detalle de seguimiento -->
+<app-modal-detalle-seguimiento
+  [isOpen]="modalDetalleSeguimientoOpen"
+  [seguimientoId]="seguimientoIdParaDetalle"
+  (close)="closeDetailModal()">
+</app-modal-detalle-seguimiento>

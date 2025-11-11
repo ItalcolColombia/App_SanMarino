@@ -15,6 +15,8 @@ public class InventoryMovementDto
     public string Unit { get; set; } = "kg";
     public string? Reference { get; set; }
     public string? Reason { get; set; }
+    public string? Origin { get; set; }
+    public string? Destination { get; set; }
     public Guid? TransferGroupId { get; set; }
     public JsonDocument? Metadata { get; set; }
     public string? ResponsibleUserId { get; set; }
@@ -29,9 +31,13 @@ public class InventoryEntryRequest
     public string? Unit { get; set; }
     public string? Reference { get; set; }
     public string? Reason { get; set; }
+    public string? Origin { get; set; }        // Origen para entradas (ej: "Planta Sanmarino", "Planta Itacol")
     public JsonDocument? Metadata { get; set; }
 }
-public class InventoryExitRequest : InventoryEntryRequest { }
+public class InventoryExitRequest : InventoryEntryRequest 
+{ 
+    public string? Destination { get; set; }    // Destino para salidas (ej: "Venta", "Movimiento", "Devolución")
+}
 public class InventoryTransferRequest : InventoryEntryRequest
 {
     public int ToFarmId { get; set; }

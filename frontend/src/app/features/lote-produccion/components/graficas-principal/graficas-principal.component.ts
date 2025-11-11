@@ -1,7 +1,7 @@
 import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NgChartsModule } from 'ng2-charts';
-import { LoteProduccionDto } from '../../services/lote-produccion.service';
+import { SeguimientoItemDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 
 @Component({
@@ -12,7 +12,7 @@ import { LoteDto } from '../../../lote/services/lote.service';
   styleUrls: ['./graficas-principal.component.scss']
 })
 export class GraficasPrincipalComponent implements OnInit, OnChanges {
-  @Input() registros: LoteProduccionDto[] = [];
+  @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
   @Input() loading: boolean = false;
 
@@ -135,24 +135,24 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['registros'] || changes['selectedLote']) {
+    if (changes['seguimientos'] || changes['selectedLote']) {
       this.prepararDatosGraficos();
     }
   }
 
   prepararDatosGraficos(): void {
-    if (!this.registros.length) {
+    if (!this.seguimientos.length) {
       this.limpiarDatos();
       return;
     }
 
-    // Ordenar registros por fecha
-    const registrosOrdenados = [...this.registros].sort((a, b) => 
-      new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+    // Ordenar seguimientos por fecha
+    const seguimientosOrdenados = [...this.seguimientos].sort((a, b) =>
+      new Date(a.fechaRegistro).getTime() - new Date(b.fechaRegistro).getTime()
     );
 
-    const fechas = registrosOrdenados.map(r => this.formatearFecha(r.fecha));
-    const edades = registrosOrdenados.map(r => this.calcularEdadDias(r.fecha));
+    const fechas = seguimientosOrdenados.map(s => this.formatearFecha(s.fechaRegistro));
+    const edades = seguimientosOrdenados.map(s => this.calcularEdadDias(s.fechaRegistro));
 
     // Gráfico de Mortalidad
     this.mortalidadData = {
@@ -160,14 +160,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       datasets: [
         {
           label: 'Mortalidad Hembras',
-          data: registrosOrdenados.map(r => r.mortalidadH),
+          data: seguimientosOrdenados.map(s => s.mortalidadH),
           borderColor: '#ef4444',
           backgroundColor: 'rgba(239, 68, 68, 0.1)',
           tension: 0.4
         },
         {
           label: 'Mortalidad Machos',
-          data: registrosOrdenados.map(r => r.mortalidadM),
+          data: seguimientosOrdenados.map(s => s.mortalidadM),
           borderColor: '#dc2626',
           backgroundColor: 'rgba(220, 38, 38, 0.1)',
           tension: 0.4
@@ -181,14 +181,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       datasets: [
         {
           label: 'Consumo Kg Hembras',
-          data: registrosOrdenados.map(r => r.consKgH),
+          data: seguimientosOrdenados.map(s => s.consKgH),
           borderColor: '#f59e0b',
           backgroundColor: 'rgba(245, 158, 11, 0.1)',
           tension: 0.4
         },
         {
           label: 'Consumo Kg Machos',
-          data: registrosOrdenados.map(r => r.consKgM),
+          data: seguimientosOrdenados.map(s => s.consKgM),
           borderColor: '#d97706',
           backgroundColor: 'rgba(217, 119, 6, 0.1)',
           tension: 0.4
@@ -202,14 +202,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       datasets: [
         {
           label: 'Huevos Totales',
-          data: registrosOrdenados.map(r => r.huevoTot),
+          data: seguimientosOrdenados.map(s => s.huevosTotales),
           borderColor: '#22c55e',
           backgroundColor: 'rgba(34, 197, 94, 0.1)',
           tension: 0.4
         },
         {
           label: 'Huevos Incubables',
-          data: registrosOrdenados.map(r => r.huevoInc),
+          data: seguimientosOrdenados.map(s => s.huevosIncubables),
           borderColor: '#16a34a',
           backgroundColor: 'rgba(22, 163, 74, 0.1)',
           tension: 0.4
@@ -218,8 +218,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     };
 
     // Gráfico de Eficiencia (Doughnut)
-    const totalHuevos = registrosOrdenados.reduce((sum, r) => sum + r.huevoTot, 0);
-    const totalIncubables = registrosOrdenados.reduce((sum, r) => sum + r.huevoInc, 0);
+    const totalHuevos = seguimientosOrdenados.reduce((sum, s) => sum + s.huevosTotales, 0);
+    const totalIncubables = seguimientosOrdenados.reduce((sum, s) => sum + s.huevosIncubables, 0);
     const noIncubables = totalHuevos - totalIncubables;
 
     this.eficienciaData = {
@@ -243,20 +243,20 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
   calcularEdadDias(fechaRegistro: string | Date): number {
     if (!this.selectedLote?.fechaEncaset) return 0;
-    
+
     const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(1, diffDays);
   }
 
   formatearFecha(fecha: string | Date): string {
     const d = new Date(fecha);
-    return d.toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit' 
+    return d.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit'
     });
   }
 
@@ -268,25 +268,25 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   getTotalRegistros(): number {
-    return this.registros.length;
+    return this.seguimientos.length;
   }
 
   getPromedioHuevos(): number {
-    if (!this.registros.length) return 0;
-    const total = this.registros.reduce((sum, r) => sum + r.huevoTot, 0);
-    return total / this.registros.length;
+    if (!this.seguimientos.length) return 0;
+    const total = this.seguimientos.reduce((sum, s) => sum + s.huevosTotales, 0);
+    return total / this.seguimientos.length;
   }
 
   getPromedioIncubables(): number {
-    if (!this.registros.length) return 0;
-    const total = this.registros.reduce((sum, r) => sum + r.huevoInc, 0);
-    return total / this.registros.length;
+    if (!this.seguimientos.length) return 0;
+    const total = this.seguimientos.reduce((sum, s) => sum + s.huevosIncubables, 0);
+    return total / this.seguimientos.length;
   }
 
   getEficienciaPromedio(): number {
-    if (!this.registros.length) return 0;
-    const totalHuevos = this.registros.reduce((sum, r) => sum + r.huevoTot, 0);
-    const totalIncubables = this.registros.reduce((sum, r) => sum + r.huevoInc, 0);
+    if (!this.seguimientos.length) return 0;
+    const totalHuevos = this.seguimientos.reduce((sum, s) => sum + s.huevosTotales, 0);
+    const totalIncubables = this.seguimientos.reduce((sum, s) => sum + s.huevosIncubables, 0);
     return totalHuevos > 0 ? (totalIncubables / totalHuevos) * 100 : 0;
   }
 }

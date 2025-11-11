@@ -12,11 +12,12 @@
         <p class="ux-header__subtitle">Gestión y control de inventarios de aves por lote</p>
       </div>
       <div class="ux-header__actions">
-        <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
-          🚚 Nuevo Traslado
-        </button>
-        <button type="button" class="btn btn--outline" (click)="navegarAMovimientos()">
-          📋 Ver Movimientos
+        <button type="button"
+                class="btn btn--primary"
+                [disabled]="!tieneLoteSeleccionadoCompleto"
+                [title]="!tieneLoteSeleccionadoCompleto ? 'Primero selecciona un lote completo en los filtros' : 'Registrar traslado o retiro de aves y huevos'"
+                (click)="abrirModalTrasladoRetiro()">
+          🚚 Traslado / Retiro
         </button>
       </div>
     </header>
@@ -58,7 +59,7 @@
       </div>
     </section>
 
-   <!-- Filtros (incluye Lote) -->
+    <!-- ========== FILTROS (ARRIBA) ========== -->
     <section class="filters-section">
       <header class="filters-header">
         <h3>🔍 Filtros de Búsqueda</h3>
@@ -69,34 +70,24 @@
 
       <div class="filters-content">
         <div class="filter-row">
-          <!-- Compañía -->
-          <div class="filter-group">
-            <label for="f-company" class="filter-label">Compañía</label>
-            <select id="f-company" class="filter-control"
-                    [(ngModel)]="selectedCompanyId"
-                    (ngModelChange)="onCompanyChange($event)">
-              <option [ngValue]="null">Todas</option>
-              <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
-            </select>
-          </div>
-
           <!-- Granja -->
           <div class="filter-group">
-            <label for="f-farm" class="filter-label">Granja</label>
+            <label for="f-farm" class="filter-label">🏠 Granja <span class="text-red-500">*</span></label>
             <select id="f-farm" class="filter-control"
                     [(ngModel)]="selectedFarmId"
                     (ngModelChange)="onFarmChange($event)">
-              <option [ngValue]="null">Todas</option>
+              <option [ngValue]="null">Todas las granjas</option>
               <option *ngFor="let f of farmsFiltered" [ngValue]="f.id">{{ f.name }}</option>
             </select>
           </div>
 
           <!-- Núcleo -->
           <div class="filter-group">
-            <label for="f-nucleo" class="filter-label">Núcleo</label>
+            <label for="f-nucleo" class="filter-label">🏗️ Núcleo</label>
             <select id="f-nucleo" class="filter-control"
                     [(ngModel)]="selectedNucleoId"
-                    (ngModelChange)="onNucleoChange($event)">
+                    (ngModelChange)="onNucleoChange($event)"
+                    [disabled]="!selectedFarmId">
               <option [ngValue]="null">Todos</option>
               <option *ngFor="let n of nucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
             </select>
@@ -104,10 +95,11 @@
 
           <!-- Galpón -->
           <div class="filter-group">
-            <label for="f-galpon" class="filter-label">Galpón</label>
+            <label for="f-galpon" class="filter-label">🐔 Galpón</label>
             <select id="f-galpon" class="filter-control"
                     [(ngModel)]="selectedGalponId"
-                    (ngModelChange)="onGalponChange($event)">
+                    (ngModelChange)="onGalponChange($event)"
+                    [disabled]="!selectedFarmId">
               <option [ngValue]="null">Todos</option>
               <option *ngFor="let g of galponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
             </select>
@@ -116,7 +108,7 @@
           <!-- Lote (filtrado por galpón seleccionado) -->
           <div class="filter-group">
             <label for="f-lote" class="filter-label">
-              Lote
+              📋 Lote
               <small *ngIf="selectedGalponId && !lotesLoading()">
                 ({{ lotesForGalpon().length }} encontrado{{ lotesForGalpon().length === 1 ? '' : 's' }})
               </small>
@@ -134,17 +126,15 @@
               </option>
             </select>
 
-            <div class="text-muted" *ngIf="selectedGalponId && lotesLoading()">Cargando lotes…</div>
-            <div class="text-muted" *ngIf="selectedGalponId && !lotesLoading() && lotesForGalpon().length === 0">
+            <div class="text-muted text-xs mt-1" *ngIf="selectedGalponId && lotesLoading()">Cargando lotes…</div>
+            <div class="text-muted text-xs mt-1" *ngIf="selectedGalponId && !lotesLoading() && lotesForGalpon().length === 0">
               No hay lotes para este galpón.
             </div>
           </div>
 
-
-
           <!-- Búsqueda -->
           <div class="filter-group">
-            <label for="f-search" class="filter-label">Buscar</label>
+            <label for="f-search" class="filter-label">🔍 Buscar</label>
             <input id="f-search" type="text" class="filter-control"
                    placeholder="Buscar por lote, núcleo, granja…"
                    [(ngModel)]="filtro" (ngModelChange)="recomputeList()" />
@@ -152,7 +142,7 @@
 
           <!-- Ordenar por -->
           <div class="filter-group">
-            <label for="f-sort-key" class="filter-label">Ordenar por</label>
+            <label for="f-sort-key" class="filter-label">📊 Ordenar por</label>
             <select id="f-sort-key" class="filter-control"
                     [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
               <option [ngValue]="'edad'">Edad (días desde último conteo)</option>
@@ -162,7 +152,7 @@
 
           <!-- Dirección -->
           <div class="filter-group">
-            <label for="f-sort-dir" class="filter-label">Dirección</label>
+            <label for="f-sort-dir" class="filter-label">↕️ Dirección</label>
             <select id="f-sort-dir" class="filter-control"
                     [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
               <option [ngValue]="'desc'">Descendente</option>
@@ -175,10 +165,6 @@
         <div class="filters-applied" *ngIf="tieneFiltrosAplicados()">
           <h4>Filtros Aplicados:</h4>
           <div class="filter-chips">
-            <span class="filter-chip" *ngIf="selectedCompanyId">
-              Compañía: {{ obtenerNombreCompania(selectedCompanyId) }}
-              <button type="button" (click)="onCompanyChange(null)" aria-label="Quitar filtro compañía">×</button>
-            </span>
             <span class="filter-chip" *ngIf="selectedFarmId">
               Granja: {{ obtenerNombreGranja(selectedFarmId) }}
               <button type="button" (click)="onFarmChange(null)" aria-label="Quitar filtro granja">×</button>
@@ -191,13 +177,12 @@
               Galpón: {{ galponMap[selectedGalponId] }}
               <button type="button" (click)="onGalponChange(null)" aria-label="Quitar filtro galpón">×</button>
             </span>
-            <span class="filter-chip" *ngIf="loteOrigenSeleccionado()">
-              Lote: {{ loteOrigenSeleccionado()?.loteId }}
-              <button type="button" (click)="onLoteOrigenSeleccionado(null); recomputeList()"
-                      aria-label="Quitar filtro lote">×</button>
+            <span class="filter-chip" *ngIf="selectedLoteId">
+              Lote: {{ selectedLoteId }}
+              <button type="button" (click)="onLoteSelectChange(null)" aria-label="Quitar filtro lote">×</button>
             </span>
             <span class="filter-chip" *ngIf="filtro">
-              Búsqueda: “{{ filtro }}”
+              Búsqueda: "{{ filtro }}"
               <button type="button" (click)="filtro=''; recomputeList()" aria-label="Limpiar búsqueda">×</button>
             </span>
           </div>
@@ -205,7 +190,7 @@
       </div>
     </section>
 
-    <!-- Tabla de Inventarios -->
+    <!-- ========== TABLA DE INVENTARIOS ========== -->
     <section class="ux-card">
       <header class="ux-card__header">
         <h2>📊 Inventario de Aves</h2>
@@ -235,7 +220,7 @@
         <!-- Tabla -->
         <div class="table-container" *ngIf="!isLoading() && !hasError()">
           <table class="ux-table">
-            <caption class="sr-only">Listado de inventarios por lote</caption>
+            <caption class="sr-only">Listado de inventarios por lote. Click en una fila para ver detalles.</caption>
             <thead>
               <tr>
                 <th>
@@ -246,14 +231,7 @@
                           [class.desc]="filtros.sortDesc">↕️</span>
                   </button>
                 </th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('granja_id')">
-                    Granja
-                    <span class="sort-icon"
-                          [class.active]="filtros.sortBy === 'granja_id'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
+                <th>Granja</th>
                 <th>Núcleo</th>
                 <th>Galpón</th>
                 <th>
@@ -273,40 +251,30 @@
                   </button>
                 </th>
                 <th>Total</th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('fecha_ultimo_conteo')">
-                    Último Conteo
-                    <span class="sort-icon"
-                          [class.active]="filtros.sortBy === 'fecha_ultimo_conteo'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th class="text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let inventario of inventarios(); trackBy: trackByInventarioId" class="ux-row">
-                <td><strong class="lote-id">{{ inventario.loteId }}</strong></td>
+              <tr *ngFor="let inventario of inventarios(); trackBy: trackByInventarioId"
+                  class="ux-row"
+                  [class.selected]="loteSeleccionado()?.id === inventario.id"
+                  (click)="seleccionarLote(inventario)"
+                  [title]="'Click para ver detalles del lote ' + inventario.loteId">
+                <td><strong class="lote-id">#{{ inventario.loteId }}</strong></td>
                 <td>{{ obtenerNombreGranja(inventario.granjaId) }}</td>
-                <td>{{ nucleoMap[inventario.nucleoId || ''] || inventario.nucleoId }}</td>
+                <td>{{ nucleoMap[inventario.nucleoId || ''] || '—' }}</td>
                 <td>{{ galponMap[inventario.galponId || ''] || inventario.galponId || '—' }}</td>
                 <td class="number-cell success">{{ formatearNumero(inventario.cantidadHembras) }}</td>
                 <td class="number-cell info">{{ formatearNumero(inventario.cantidadMachos) }}</td>
                 <td class="number-cell primary">
                   <strong>{{ formatearNumero(calcularTotalAves(inventario)) }}</strong>
                 </td>
-                <td class="date-cell">{{ formatearFecha(inventario.fechaUltimoConteo) }}</td>
-                <td class="text-center">
-                  <div class="action-buttons">
-                    <button type="button" class="icon-btn icon-btn--primary"
-                            (click)="editarInventario(inventario.id)" title="Editar inventario">✏️</button>
-                    <button type="button" class="icon-btn icon-btn--success"
-                            (click)="ajustarInventario(inventario.loteId)" title="Ajustar cantidades">⚖️</button>
-                    <button type="button" class="icon-btn icon-btn--info"
-                            (click)="verTrazabilidad(inventario.loteId)" title="Ver trazabilidad">📈</button>
-                    <button type="button" class="icon-btn icon-btn--danger"
-                            (click)="eliminarInventario(inventario.id)" title="Eliminar inventario">🗑️</button>
-                  </div>
+              </tr>
+
+              <tr *ngIf="!isLoading() && inventarios().length === 0">
+                <td colspan="7" class="empty-state">
+                  <div class="empty-illustration">📦</div>
+                  <p>No hay inventarios registrados con los filtros seleccionados.</p>
+                  <p class="text-muted text-sm">Selecciona una granja para ver los inventarios disponibles.</p>
                 </td>
               </tr>
             </tbody>
@@ -336,7 +304,207 @@
       </div>
     </section>
 
-    <!-- ==== Modal (igual al que ya tienes) ==== -->
+    <!-- ========== DETALLES DEL LOTE SELECCIONADO (ABAJO) ========== -->
+    <section class="lote-details-section" *ngIf="loteSeleccionado()">
+      <div class="ux-card">
+        <header class="ux-card__header">
+          <div class="flex items-center justify-between w-full">
+            <div>
+              <h2>📋 Detalles del Lote #{{ loteSeleccionado()?.loteId }}</h2>
+              <p class="text-sm text-muted mt-1">
+                {{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}
+                <span *ngIf="nucleoMap[loteSeleccionado()?.nucleoId || '']">
+                  • {{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}
+                </span>
+                <span *ngIf="galponMap[loteSeleccionado()?.galponId || '']">
+                  • {{ galponMap[loteSeleccionado()?.galponId || ''] }}
+                </span>
+              </p>
+            </div>
+            <button type="button" class="btn btn--ghost btn--sm" (click)="seleccionarLote(null)">
+              ✕ Cerrar
+            </button>
+          </div>
+        </header>
+
+        <div class="ux-card__content">
+          <!-- Información del Lote -->
+          <div class="lote-info-grid" *ngIf="loteCompleto()">
+            <div class="info-card">
+              <h4 class="info-card__title">🐔 Cantidad Actual de Aves</h4>
+              <div class="info-card__content">
+                <div class="stat-item">
+                  <span class="stat-label">Hembras:</span>
+                  <span class="stat-value success">{{ formatearNumero(loteSeleccionado()?.cantidadHembras || 0) }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Machos:</span>
+                  <span class="stat-value info">{{ formatearNumero(loteSeleccionado()?.cantidadMachos || 0) }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Total:</span>
+                  <span class="stat-value primary">
+                    <strong>{{ formatearNumero(calcularTotalAves(loteSeleccionado()!)) }}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h4 class="info-card__title">📅 Información del Lote</h4>
+              <div class="info-card__content">
+                <div class="info-row">
+                  <span class="info-label">Nombre:</span>
+                  <span class="info-value">{{ loteCompleto()?.loteNombre || '—' }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Raza:</span>
+                  <span class="info-value">{{ loteCompleto()?.raza || '—' }}</span>
+                </div>
+                <div class="info-row" *ngIf="loteCompleto()?.fechaEncaset">
+                  <span class="info-label">Fecha Encaset:</span>
+                  <span class="info-value">{{ loteCompleto()?.fechaEncaset ? formatearFecha(loteCompleto()!.fechaEncaset!) : '—' }}</span>
+                </div>
+                <div class="info-row" *ngIf="loteCompleto()?.fechaEncaset">
+                  <span class="info-label">Edad:</span>
+                  <span class="info-value">{{ loteCompleto()?.fechaEncaset ? calcularEdadDias(loteCompleto()!.fechaEncaset) : 0 }} días</span>
+                </div>
+                <div class="info-row" *ngIf="loteCompleto()?.fechaEncaset">
+                  <span class="info-label">Fase:</span>
+                  <span class="info-value">{{ loteCompleto()?.fechaEncaset ? (calcularEdadDias(loteCompleto()!.fechaEncaset) < 175 ? 'Levante' : 'Producción') : '—' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="info-card">
+              <h4 class="info-card__title">📍 Ubicación</h4>
+              <div class="info-card__content">
+                <div class="info-row">
+                  <span class="info-label">Granja:</span>
+                  <span class="info-value">{{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}</span>
+                </div>
+                <div class="info-row" *ngIf="nucleoMap[loteSeleccionado()?.nucleoId || '']">
+                  <span class="info-label">Núcleo:</span>
+                  <span class="info-value">{{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}</span>
+                </div>
+                <div class="info-row" *ngIf="galponMap[loteSeleccionado()?.galponId || '']">
+                  <span class="info-label">Galpón:</span>
+                  <span class="info-value">{{ galponMap[loteSeleccionado()?.galponId || ''] }}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Último Conteo:</span>
+                  <span class="info-value">{{ loteSeleccionado()?.fechaUltimoConteo ? formatearFecha(loteSeleccionado()!.fechaUltimoConteo!) : '—' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Movimientos del Lote -->
+          <div class="movimientos-section">
+            <h3 class="movimientos-title">
+              📊 Registros de Movimiento del Lote
+              <span class="badge badge--default" *ngIf="movimientosLote().length > 0">
+                {{ movimientosLote().length }}
+              </span>
+            </h3>
+
+            <div class="loading-state" *ngIf="loadingMovimientos()">
+              <div class="spinner"></div>
+              <p>Cargando movimientos...</p>
+            </div>
+
+            <div class="movimientos-table-container" *ngIf="!loadingMovimientos()">
+              <table class="movimientos-table" *ngIf="movimientosLote().length > 0">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>N° Traslado</th>
+                    <th>Tipo</th>
+                    <th>Operación</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Cantidad</th>
+                    <th>Estado</th>
+                    <th>Fase</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let mov of movimientosLote()">
+                    <td class="date-cell">{{ formatearFecha(mov.fechaTraslado) }}</td>
+                    <td><code class="mov-number">{{ mov.numeroTraslado }}</code></td>
+                    <td>
+                      <span class="badge" [class]="mov.tipoTraslado === 'Aves' ? 'badge--info' : 'badge--warning'">
+                        {{ mov.tipoTraslado === 'Aves' ? '🐔 Aves' : '🥚 Huevos' }}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="badge" [class]="obtenerTipoMovimientoClass(mov.tipoOperacion)">
+                        {{ mov.tipoOperacion }}
+                      </span>
+                    </td>
+                    <td class="ubicacion-cell">
+                      <div>
+                        <strong>Lote {{ mov.loteIdOrigen }}</strong>
+                        <small *ngIf="mov.granjaOrigenNombre"> • {{ mov.granjaOrigenNombre }}</small>
+                      </div>
+                    </td>
+                    <td class="ubicacion-cell">
+                      <div *ngIf="mov.loteIdDestino || mov.granjaDestinoNombre">
+                        <strong *ngIf="mov.loteIdDestino">Lote {{ mov.loteIdDestino }}</strong>
+                        <small *ngIf="mov.granjaDestinoNombre"> • {{ mov.granjaDestinoNombre }}</small>
+                        <small *ngIf="mov.tipoDestino"> ({{ mov.tipoDestino }})</small>
+                      </div>
+                      <span *ngIf="!mov.loteIdDestino && !mov.granjaDestinoNombre" class="text-muted">—</span>
+                    </td>
+                    <td class="number-cell">
+                      <div *ngIf="mov.tipoTraslado === 'Aves'">
+                        <div *ngIf="mov.cantidadHembras || mov.cantidadMachos">
+                          <span *ngIf="mov.cantidadHembras">H: {{ formatearNumero(mov.cantidadHembras) }}</span>
+                          <span *ngIf="mov.cantidadHembras && mov.cantidadMachos"> / </span>
+                          <span *ngIf="mov.cantidadMachos">M: {{ formatearNumero(mov.cantidadMachos) }}</span>
+                        </div>
+                        <div *ngIf="mov.totalAves && (!mov.cantidadHembras && !mov.cantidadMachos)">
+                          Total: {{ formatearNumero(mov.totalAves) }}
+                        </div>
+                      </div>
+                      <div *ngIf="mov.tipoTraslado === 'Huevos'">
+                        <div><strong>Total: {{ formatearNumero(mov.totalHuevos || 0) }}</strong></div>
+                        <div class="text-xs text-muted" *ngIf="mov.cantidadLimpio || mov.cantidadTratado">
+                          <span *ngIf="mov.cantidadLimpio">Limpio: {{ mov.cantidadLimpio }}</span>
+                          <span *ngIf="mov.cantidadLimpio && mov.cantidadTratado"> / </span>
+                          <span *ngIf="mov.cantidadTratado">Tratado: {{ mov.cantidadTratado }}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge" [class]="obtenerEstadoClass(mov.estado)">
+                        {{ mov.estado }}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="badge badge--default" *ngIf="mov.faseLote">
+                        {{ mov.faseLote }}
+                      </span>
+                      <span *ngIf="!mov.faseLote" class="text-muted">—</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="empty-state" *ngIf="movimientosLote().length === 0">
+                <div class="empty-illustration">📭</div>
+                <p>No hay movimientos registrados para este lote.</p>
+                <p class="text-muted text-sm mt-2">
+                  Los traslados, retiros, ventas y otros movimientos aparecerán aquí.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== MODAL TRASLADO (sin cambios) ========== -->
     <div class="modal-overlay" *ngIf="modalTrasladoAbierto()"
          (click)="cerrarModalTraslado()" role="dialog" aria-modal="true" aria-labelledby="traslado-title">
       <div class="modal-container" (click)="$event.stopPropagation()" tabindex="-1">
@@ -346,6 +514,7 @@
         </div>
 
         <div class="modal-body">
+          <!-- Contenido del modal de traslado (mantener igual) -->
           <!-- Paso 1 -->
           <div class="step-section">
             <div class="step-header">
@@ -558,5 +727,458 @@
       </div>
     </div>
     <!-- /Modal -->
+
+    <!-- ========== MODAL TRASLADO/RETIRO (XXL) ========== -->
+    <div class="modal-overlay modal-overlay--xxl"
+         *ngIf="modalTrasladoRetiroAbierto()"
+         (click)="cerrarModalTrasladoRetiro()"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="traslado-retiro-title">
+      <div class="modal-container modal-container--xxl"
+           (click)="$event.stopPropagation()"
+           tabindex="-1">
+
+        <div class="modal-header modal-header--xxl">
+          <h2 id="traslado-retiro-title">
+            🚚 Traslado / Retiro
+            <span class="lote-badge" *ngIf="loteCompleto()">
+              Lote #{{ loteCompleto()?.loteId }}
+            </span>
+          </h2>
+          <button type="button"
+                  class="modal-close"
+                  (click)="cerrarModalTrasladoRetiro()"
+                  aria-label="Cerrar modal">✕</button>
+        </div>
+
+        <div class="modal-body modal-body--xxl">
+          <!-- Información del Lote - Mejorada -->
+          <div class="lote-info-section" *ngIf="loteCompleto()">
+            <div class="lote-info-card lote-info-card--enhanced">
+              <div class="lote-info-header">
+                <h3>📍 Información del Lote</h3>
+                <span class="lote-id-badge">#{{ loteCompleto()?.loteId }}</span>
+              </div>
+              <div class="lote-info-grid lote-info-grid--enhanced">
+                <div class="info-item info-item--enhanced">
+                  <span class="info-icon">🏠</span>
+                  <div class="info-content">
+                    <span class="info-label">Granja</span>
+                    <span class="info-value">{{ obtenerNombreGranja(loteCompleto()?.granjaId) }}</span>
+                  </div>
+                </div>
+                <div class="info-item info-item--enhanced">
+                  <span class="info-icon">📋</span>
+                  <div class="info-content">
+                    <span class="info-label">Nombre del Lote</span>
+                    <span class="info-value">{{ loteCompleto()?.loteNombre || 'Sin nombre' }}</span>
+                  </div>
+                </div>
+                <div class="info-item info-item--enhanced" *ngIf="loteCompleto()?.fechaEncaset">
+                  <span class="info-icon">📅</span>
+                  <div class="info-content">
+                    <span class="info-label">Edad</span>
+                    <span class="info-value">
+                      {{ calcularEdadDias(loteCompleto()!.fechaEncaset) }} días
+                      <span class="phase-badge phase-badge--enhanced"
+                            [class.phase-levante]="calcularEdadDias(loteCompleto()!.fechaEncaset) < 175"
+                            [class.phase-produccion]="calcularEdadDias(loteCompleto()!.fechaEncaset) >= 175">
+                        {{ calcularEdadDias(loteCompleto()!.fechaEncaset) < 175 ? 'Levante' : 'Producción' }}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <div class="info-item info-item--enhanced" *ngIf="loteCompleto()?.nucleoId">
+                  <span class="info-icon">🏗️</span>
+                  <div class="info-content">
+                    <span class="info-label">Núcleo</span>
+                    <span class="info-value">{{ nucleoMap[loteCompleto()!.nucleoId || ''] || '—' }}</span>
+                  </div>
+                </div>
+                <div class="info-item info-item--enhanced" *ngIf="loteCompleto()?.galponId">
+                  <span class="info-icon">🐔</span>
+                  <div class="info-content">
+                    <span class="info-label">Galpón</span>
+                    <span class="info-value">{{ galponMap[loteCompleto()!.galponId || ''] || '—' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabs Mejorados -->
+          <div class="modal-tabs modal-tabs--enhanced">
+            <input type="radio" id="tab-aves" name="modal-tab" [checked]="tabActivo() === 'aves'" (change)="tabActivo.set('aves')">
+            <label for="tab-aves" class="tab-label tab-label--enhanced">
+              <span class="tab-icon">🐔</span>
+              <span class="tab-text">Aves</span>
+              <span class="tab-badge" *ngIf="disponibilidadLote()?.aves">
+                {{ disponibilidadLote()!.aves!.totalAves }}
+              </span>
+            </label>
+
+            <input type="radio" id="tab-huevos" name="modal-tab" [checked]="tabActivo() === 'huevos'" (change)="tabActivo.set('huevos')">
+            <label for="tab-huevos" class="tab-label tab-label--enhanced">
+              <span class="tab-icon">🥚</span>
+              <span class="tab-text">Huevos</span>
+              <span class="tab-badge" *ngIf="disponibilidadLote()?.huevos">
+                {{ disponibilidadLote()!.huevos!.totalHuevos }}
+              </span>
+            </label>
+
+            <div class="tab-panels">
+              <!-- TAB AVES -->
+              <div class="tab-panel tab-panel--enhanced" *ngIf="tabActivo() === 'aves'">
+                <!-- Disponibilidad de Aves - Mejorada -->
+                <div class="disponibilidad-section disponibilidad-section--enhanced" *ngIf="disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Levante'">
+                  <div class="disponibilidad-header">
+                    <h4>📊 Disponibilidad de Aves</h4>
+                    <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
+                  </div>
+                  <div class="disponibilidad-grid disponibilidad-grid--enhanced">
+                    <div class="disponibilidad-card disponibilidad-card--hembras">
+                      <div class="disponibilidad-icon">♀</div>
+                      <div class="disponibilidad-content">
+                        <span class="disponibilidad-label">Hembras Vivas</span>
+                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.hembrasVivas || 0) }}</span>
+                      </div>
+                    </div>
+                    <div class="disponibilidad-card disponibilidad-card--machos">
+                      <div class="disponibilidad-icon">♂</div>
+                      <div class="disponibilidad-content">
+                        <span class="disponibilidad-label">Machos Vivos</span>
+                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.machosVivos || 0) }}</span>
+                      </div>
+                    </div>
+                    <div class="disponibilidad-card disponibilidad-card--total highlight">
+                      <div class="disponibilidad-icon">🐔</div>
+                      <div class="disponibilidad-content">
+                        <span class="disponibilidad-label">Total Aves</span>
+                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.totalAves || 0) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <form [formGroup]="trasladoRetiroForm" class="traslado-form" (ngSubmit)="procesarRetiroTraslado()">
+                  <!-- Tipo de Operación -->
+                  <div class="form-section">
+                    <h4>📋 Tipo de Operación</h4>
+                    <div class="tipo-operacion-selector">
+                      <label class="operacion-option" [class.selected]="trasladoRetiroForm.get('tipoOperacion')?.value === 'Venta'">
+                        <input type="radio" formControlName="tipoOperacion" value="Venta">
+                        <span class="operacion-icon">💰</span>
+                        <span class="operacion-text">Venta</span>
+                      </label>
+                      <label class="operacion-option" [class.selected]="trasladoRetiroForm.get('tipoOperacion')?.value === 'Traslado'">
+                        <input type="radio" formControlName="tipoOperacion" value="Traslado">
+                        <span class="operacion-icon">🚚</span>
+                        <span class="operacion-text">Traslado</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Fecha -->
+                  <div class="form-section">
+                    <div class="form-field">
+                      <label class="ux-label" for="aves-fecha">
+                        📅 Fecha de Traslado <span class="required">*</span>
+                      </label>
+                      <input id="aves-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
+                    </div>
+                  </div>
+
+                  <!-- Cantidades -->
+                  <div class="form-section">
+                    <h4>🔢 Cantidades</h4>
+                    <div class="cantidades-grid">
+                      <div class="cantidad-field">
+                        <label class="ux-label" for="aves-hembras">
+                          ♀ Hembras
+                          <span class="max-disponible" *ngIf="disponibilidadLote()?.aves">
+                            (Máx: {{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }})
+                          </span>
+                        </label>
+                        <input id="aves-hembras" type="number" class="ux-input"
+                               formControlName="cantidadHembras" min="0"
+                               [attr.max]="disponibilidadLote()?.aves?.hembrasVivas" />
+                      </div>
+                      <div class="cantidad-field">
+                        <label class="ux-label" for="aves-machos">
+                          ♂ Machos
+                          <span class="max-disponible" *ngIf="disponibilidadLote()?.aves">
+                            (Máx: {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }})
+                          </span>
+                        </label>
+                        <input id="aves-machos" type="number" class="ux-input"
+                               formControlName="cantidadMachos" min="0"
+                               [attr.max]="disponibilidadLote()?.aves?.machosVivos" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Campos según tipo de operación -->
+                  <div *ngIf="trasladoRetiroForm.get('tipoOperacion')?.value === 'Venta'">
+                    <div class="form-section">
+                      <div class="form-grid-2">
+                        <div class="form-field">
+                          <label class="ux-label" for="aves-motivo">
+                            📝 Motivo <span class="required">*</span>
+                          </label>
+                          <input id="aves-motivo" type="text" class="ux-input"
+                                 formControlName="motivo" placeholder="Ej: Venta directa, etc." />
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="aves-descripcion">
+                            📄 Descripción <span class="required">*</span>
+                          </label>
+                          <input id="aves-descripcion" type="text" class="ux-input"
+                                 formControlName="descripcion" placeholder="Descripción de la venta" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div *ngIf="trasladoRetiroForm.get('tipoOperacion')?.value === 'Traslado'">
+                    <div class="form-section">
+                      <div class="form-grid-3">
+                        <div class="form-field">
+                          <label class="ux-label" for="aves-granja-destino">
+                            🏠 Granja Destino <span class="required">*</span>
+                          </label>
+                          <select id="aves-granja-destino" class="ux-select" formControlName="granjaDestinoId">
+                            <option value="">Selecciona una granja</option>
+                            <option *ngFor="let granja of farmsFiltered" [value]="granja.id">
+                              {{ granja.name }}
+                            </option>
+                          </select>
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="aves-tipo-destino">
+                            📍 Tipo de Destino <span class="required">*</span>
+                          </label>
+                          <select id="aves-tipo-destino" class="ux-select" formControlName="tipoDestino">
+                            <option value="">Selecciona tipo</option>
+                            <option value="Granja">Granja</option>
+                            <option value="Planta">Planta</option>
+                          </select>
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="aves-lote-destino">
+                            📋 Lote Destino (Opcional)
+                          </label>
+                          <input id="aves-lote-destino" type="text" class="ux-input"
+                                 formControlName="loteDestinoId" placeholder="ID del lote destino" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Observaciones -->
+                  <div class="form-section">
+                    <div class="form-field">
+                      <label class="ux-label" for="aves-observaciones">📝 Observaciones</label>
+                      <textarea id="aves-observaciones" class="ux-textarea" rows="3"
+                                formControlName="observaciones" placeholder="Notas adicionales..."></textarea>
+                    </div>
+                  </div>
+                </form>
+              </div>
+
+              <!-- TAB HUEVOS -->
+              <div class="tab-panel tab-panel--enhanced" *ngIf="tabActivo() === 'huevos'">
+                <!-- Disponibilidad de Huevos - Mejorada -->
+                <div class="disponibilidad-section disponibilidad-section--enhanced" *ngIf="disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Produccion'">
+                  <div class="disponibilidad-header">
+                    <h4>📊 Disponibilidad de Huevos</h4>
+                    <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
+                  </div>
+                  <div class="disponibilidad-grid disponibilidad-grid--enhanced">
+                    <div class="disponibilidad-card disponibilidad-card--total highlight">
+                      <div class="disponibilidad-icon">🥚</div>
+                      <div class="disponibilidad-content">
+                        <span class="disponibilidad-label">Total Huevos</span>
+                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.huevos?.totalHuevos || 0) }}</span>
+                      </div>
+                    </div>
+                    <div class="disponibilidad-card disponibilidad-card--incubables">
+                      <div class="disponibilidad-icon">✨</div>
+                      <div class="disponibilidad-content">
+                        <span class="disponibilidad-label">Huevos Incubables</span>
+                        <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.huevos?.totalHuevosIncubables || 0) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="huevos-tipos-disponibles huevos-tipos-disponibles--enhanced">
+                    <h5>📋 Disponibilidad por Tipo de Huevo</h5>
+                    <div class="huevos-tipos-grid huevos-tipos-grid--enhanced">
+                      <div class="huevo-tipo-item huevo-tipo-item--enhanced" *ngFor="let tipo of tiposHuevo">
+                        <span class="tipo-icon">{{ tipo.key === 'limpio' ? '✨' : tipo.key === 'tratado' ? '🔬' : '🥚' }}</span>
+                        <div class="tipo-content">
+                          <span class="tipo-label">{{ tipo.label }}</span>
+                          <span class="tipo-value">{{ formatearNumero(getCantidadHuevoDisponible(tipo.key)) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <form [formGroup]="trasladoHuevosForm" class="traslado-form" (ngSubmit)="procesarTrasladoHuevos()">
+                  <!-- Tipo de Operación -->
+                  <div class="form-section">
+                    <h4>📋 Tipo de Operación</h4>
+                    <div class="tipo-operacion-selector">
+                      <label class="operacion-option" [class.selected]="trasladoHuevosForm.get('tipoOperacion')?.value === 'Venta'">
+                        <input type="radio" formControlName="tipoOperacion" value="Venta">
+                        <span class="operacion-icon">💰</span>
+                        <span class="operacion-text">Venta</span>
+                      </label>
+                      <label class="operacion-option" [class.selected]="trasladoHuevosForm.get('tipoOperacion')?.value === 'Traslado'">
+                        <input type="radio" formControlName="tipoOperacion" value="Traslado">
+                        <span class="operacion-icon">🚚</span>
+                        <span class="operacion-text">Traslado</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Fecha -->
+                  <div class="form-section">
+                    <div class="form-field">
+                      <label class="ux-label" for="huevos-fecha">
+                        📅 Fecha de Traslado <span class="required">*</span>
+                      </label>
+                      <input id="huevos-fecha" type="date" class="ux-input" formControlName="fechaTraslado" />
+                    </div>
+                  </div>
+
+                  <!-- Cantidades por Tipo de Huevo -->
+                  <div class="form-section">
+                    <h4>🥚 Cantidades por Tipo de Huevo</h4>
+                    <div class="huevos-cantidades-grid">
+                      <div class="huevo-cantidad-field" *ngFor="let tipo of tiposHuevo">
+                        <label class="ux-label" [for]="'huevo-' + tipo.key">
+                          {{ tipo.label }}
+                          <span class="max-disponible">
+                            (Máx: {{ getCantidadHuevoDisponible(tipo.key) }})
+                          </span>
+                        </label>
+                        <input [id]="'huevo-' + tipo.key" type="number" class="ux-input"
+                               [formControlName]="'cantidad' + (tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1))"
+                               min="0" [attr.max]="getCantidadHuevoDisponible(tipo.key)" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Campos según tipo de operación -->
+                  <div *ngIf="trasladoHuevosForm.get('tipoOperacion')?.value === 'Venta'">
+                    <div class="form-section">
+                      <div class="form-grid-2">
+                        <div class="form-field">
+                          <label class="ux-label" for="huevos-motivo">
+                            📝 Motivo <span class="required">*</span>
+                          </label>
+                          <input id="huevos-motivo" type="text" class="ux-input"
+                                 formControlName="motivo" placeholder="Ej: Venta directa, etc." />
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="huevos-descripcion">
+                            📄 Descripción <span class="required">*</span>
+                          </label>
+                          <input id="huevos-descripcion" type="text" class="ux-input"
+                                 formControlName="descripcion" placeholder="Descripción de la venta" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div *ngIf="trasladoHuevosForm.get('tipoOperacion')?.value === 'Traslado'">
+                    <div class="form-section">
+                      <div class="form-grid-3">
+                        <div class="form-field">
+                          <label class="ux-label" for="huevos-granja-destino">
+                            🏠 Granja Destino <span class="required">*</span>
+                          </label>
+                          <select id="huevos-granja-destino" class="ux-select" formControlName="granjaDestinoId">
+                            <option value="">Selecciona una granja</option>
+                            <option *ngFor="let granja of farmsFiltered" [value]="granja.id">
+                              {{ granja.name }}
+                            </option>
+                          </select>
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="huevos-tipo-destino">
+                            📍 Tipo de Destino <span class="required">*</span>
+                          </label>
+                          <select id="huevos-tipo-destino" class="ux-select" formControlName="tipoDestino">
+                            <option value="">Selecciona tipo</option>
+                            <option value="Granja">Granja</option>
+                            <option value="Planta">Planta</option>
+                          </select>
+                        </div>
+                        <div class="form-field">
+                          <label class="ux-label" for="huevos-lote-destino">
+                            📋 Lote Destino (Opcional)
+                          </label>
+                          <input id="huevos-lote-destino" type="text" class="ux-input"
+                                 formControlName="loteDestinoId" placeholder="ID del lote destino" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Observaciones -->
+                  <div class="form-section">
+                    <div class="form-field">
+                      <label class="ux-label" for="huevos-observaciones">📝 Observaciones</label>
+                      <textarea id="huevos-observaciones" class="ux-textarea" rows="3"
+                                formControlName="observaciones" placeholder="Notas adicionales..."></textarea>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estados (error/éxito) -->
+          <div class="modal-states">
+            <div class="alert alert--danger alert-animated" *ngIf="errorRetiro()">
+              <div class="alert__icon">⚠️</div>
+              <div class="alert__content">
+                <strong>Error al procesar:</strong>
+                <p>{{ errorRetiro() }}</p>
+              </div>
+            </div>
+
+            <div class="success-modal success-modal--large" *ngIf="exitoRetiro()">
+              <div class="success-modal__content">
+                <div class="success-icon-animated">✅</div>
+                <h3 class="success-title">¡Operación Exitosa!</h3>
+                <p class="success-message">El traslado ha sido registrado correctamente.</p>
+              </div>
+            </div>
+
+            <div class="loading-state loading-state--large" *ngIf="procesandoRetiro()">
+              <div class="spinner spinner--large"></div>
+              <p class="loading-text">Procesando...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer modal-footer--xxl">
+          <button type="button" class="btn btn--outline" (click)="cerrarModalTrasladoRetiro()"
+                  [disabled]="procesandoRetiro()">Cancelar</button>
+          <button type="button" class="btn btn--primary"
+                  (click)="tabActivo() === 'aves' ? procesarRetiroTraslado() : procesarTrasladoHuevos()"
+                  [disabled]="(tabActivo() === 'aves' ? !trasladoRetiroForm.valid : !trasladoHuevosForm.valid) || procesandoRetiro() || exitoRetiro()">
+            <span *ngIf="procesandoRetiro()">Procesando...</span>
+            <span *ngIf="!procesandoRetiro()">
+              🚚 {{ tabActivo() === 'aves' ? 'Registrar Traslado de Aves' : 'Registrar Traslado de Huevos' }}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- /Modal Traslado/Retiro -->
   </div>
 </div>

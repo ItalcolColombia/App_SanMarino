@@ -10,8 +10,6 @@ namespace ZooSanMarino.Application.DTOs
         int MachosIniciales,
         int HuevosIniciales,
         string TipoNido,
-        string NucleoProduccionId, // es string según tu modelo
-        int GranjaId,
         string Ciclo
     );
 
@@ -22,8 +20,6 @@ namespace ZooSanMarino.Application.DTOs
         int MachosIniciales,
         int HuevosIniciales,
         string TipoNido,
-        string NucleoProduccionId,
-        int GranjaId,
         string Ciclo
     );
 
@@ -35,8 +31,6 @@ namespace ZooSanMarino.Application.DTOs
         int MachosIniciales,
         int HuevosIniciales,
         string TipoNido,
-        string NucleoProduccionId,
-        int GranjaId,
         string Ciclo
     );
 
@@ -51,7 +45,7 @@ namespace ZooSanMarino.Application.DTOs
     public record SeguimientoProduccionDto(
         int Id,
         DateTime Fecha,
-        int LoteId,
+        string LoteId,
         int MortalidadH,
         int MortalidadM,
         int SelH,

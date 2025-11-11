@@ -38,8 +38,9 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto?> GetByLoteIdAsync(int loteId)
     {
+        var loteIdStr = loteId.ToString();
         var entity = await _ctx.SeguimientoProduccion
-            .Where(x => x.LoteId == loteId)
+            .Where(x => x.LoteId == loteIdStr)
             .OrderByDescending(x => x.Fecha)
             .FirstOrDefaultAsync();
 
@@ -68,7 +69,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var entity = new Domain.Entities.SeguimientoProduccion
         {
             Fecha = dto.Fecha,
-            LoteId = dto.LoteId,
+            LoteId = dto.LoteId.ToString(),
             MortalidadH = dto.MortalidadH,
             MortalidadM = dto.MortalidadM,
             SelH = dto.SelH,
@@ -109,7 +110,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         if (entity == null) return null;
 
         entity.Fecha = dto.Fecha;
-        entity.LoteId = dto.LoteId;
+        entity.LoteId = dto.LoteId.ToString();
         entity.MortalidadH = dto.MortalidadH;
         entity.MortalidadM = dto.MortalidadM;
         entity.SelH = dto.SelH;
@@ -157,7 +158,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var query = _ctx.SeguimientoProduccion.AsQueryable();
 
         if (filter.LoteId.HasValue)
-            query = query.Where(x => x.LoteId == filter.LoteId.Value);
+            query = query.Where(x => x.LoteId == filter.LoteId.Value.ToString());
 
         if (filter.Desde.HasValue)
             query = query.Where(x => x.Fecha >= filter.Desde.Value);

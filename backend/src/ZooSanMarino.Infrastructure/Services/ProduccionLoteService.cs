@@ -28,69 +28,61 @@ public class ProduccionLoteService : AppInterfaces.IProduccionLoteService
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
-        // Núcleo válido en la misma granja y tenant
-        var nucleoOk = await _ctx.Nucleos.AsNoTracking()
-            .AnyAsync(n => n.NucleoId == dto.NucleoProduccionId &&
-                           n.GranjaId == dto.GranjaId &&
-                           n.CompanyId == _current.CompanyId &&
-                           n.DeletedAt == null);
-        if (!nucleoOk)
-            throw new InvalidOperationException("Núcleo de producción no existe en la granja o no pertenece a la compañía.");
-
-        if (lote.GranjaId != dto.GranjaId)
-            throw new InvalidOperationException("El Lote no pertenece a la granja indicada para producción.");
 
         var ent = new ProduccionLote
         {
-            LoteId = dto.LoteId,
+            LoteId = dto.LoteId.ToString(), // Convertir int a string
             FechaInicio = dto.FechaInicioProduccion,
             AvesInicialesH = dto.HembrasIniciales,
             AvesInicialesM = dto.MachosIniciales,
-            Observaciones = dto.TipoNido
+            HuevosIniciales = dto.HuevosIniciales,
+            TipoNido = dto.TipoNido,
+            Ciclo = dto.Ciclo
         };
 
         _ctx.ProduccionLotes.Add(ent);
         await _ctx.SaveChangesAsync();
 
         return new ProduccionLoteDto(
-            ent.Id, ent.LoteId, ent.FechaInicio,
-            ent.AvesInicialesH, ent.AvesInicialesM, 0, // HuevosIniciales = 0 para compatibilidad
-            ent.Observaciones ?? "", // TipoNido
-            "", // NucleoId vacío para compatibilidad
-            dto.GranjaId, dto.Ciclo
+            ent.Id, int.Parse(ent.LoteId), ent.FechaInicio, // Convertir string a int
+            ent.AvesInicialesH, ent.AvesInicialesM, 
+            ent.HuevosIniciales, ent.TipoNido,
+            ent.Ciclo
         );
     }
 
     public async Task<IEnumerable<ProduccionLoteDto>> GetAllAsync()
     {
         var q = from p in _ctx.ProduccionLotes.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId
+                join l in _ctx.Lotes.AsNoTracking() on int.Parse(p.LoteId) equals l.LoteId
                 where l.CompanyId == _current.CompanyId && l.DeletedAt == null
                 select p;
 
         return await q
             .Select(x => new ProduccionLoteDto(
-                x.Id, x.LoteId, x.FechaInicio,
-                x.AvesInicialesH, x.AvesInicialesM, 0, // HuevosIniciales = 0
-                x.Observaciones ?? "", "", // NucleoId vacío
-                0, "" // GranjaId = 0, Ciclo vacío
+                x.Id, int.Parse(x.LoteId), x.FechaInicio, // Convertir string a int
+                x.AvesInicialesH, x.AvesInicialesM, 
+                x.HuevosIniciales, x.TipoNido,
+                x.Ciclo
             ))
             .ToListAsync();
     }
 
     public async Task<ProduccionLoteDto?> GetByLoteIdAsync(int loteId)
     {
+        var loteIdStr = loteId.ToString();
         var q = from p in _ctx.ProduccionLotes.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId
-                where l.CompanyId == _current.CompanyId && l.DeletedAt == null && p.LoteId == loteId
+                join l in _ctx.Lotes.AsNoTracking() on int.Parse(p.LoteId) equals l.LoteId
+                where l.CompanyId == _current.CompanyId && l.DeletedAt == null && p.LoteId == loteIdStr
                 select p;
 
         var x = await q.OrderByDescending(p => p.FechaInicio).FirstOrDefaultAsync();
         return x is null ? null
             : new ProduccionLoteDto(
-                x.Id, x.LoteId, x.FechaInicio,
-                x.AvesInicialesH, x.AvesInicialesM, 0,
-                x.Observaciones ?? "", "", 0, ""
+                x.Id, int.Parse(x.LoteId), x.FechaInicio, // Convertir string a int
+                x.AvesInicialesH, x.AvesInicialesM, 
+                x.HuevosIniciales, x.TipoNido,
+                x.Ciclo
             );
     }
 
@@ -106,29 +98,22 @@ public class ProduccionLoteService : AppInterfaces.IProduccionLoteService
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
-        var nucleoOk = await _ctx.Nucleos.AsNoTracking()
-            .AnyAsync(n => n.NucleoId == dto.NucleoProduccionId &&
-                           n.GranjaId == dto.GranjaId &&
-                           n.CompanyId == _current.CompanyId &&
-                           n.DeletedAt == null);
-        if (!nucleoOk)
-            throw new InvalidOperationException("Núcleo de producción no existe en la granja o no pertenece a la compañía.");
 
-        if (lote.GranjaId != dto.GranjaId)
-            throw new InvalidOperationException("El Lote no pertenece a la granja indicada para producción.");
-
-        ent.LoteId = dto.LoteId;
+        ent.LoteId = dto.LoteId.ToString(); // Convertir int a string
         ent.FechaInicio = dto.FechaInicioProduccion;
         ent.AvesInicialesH = dto.HembrasIniciales;
         ent.AvesInicialesM = dto.MachosIniciales;
-        ent.Observaciones = dto.TipoNido;
+        ent.HuevosIniciales = dto.HuevosIniciales;
+        ent.TipoNido = dto.TipoNido;
+        ent.Ciclo = dto.Ciclo;
 
         await _ctx.SaveChangesAsync();
 
         return new ProduccionLoteDto(
-            ent.Id, ent.LoteId, ent.FechaInicio,
-            ent.AvesInicialesH, ent.AvesInicialesM, 0,
-            ent.Observaciones ?? "", "", 0, ""
+            ent.Id, int.Parse(ent.LoteId), ent.FechaInicio, // Convertir string a int
+            ent.AvesInicialesH, ent.AvesInicialesM, 
+            ent.HuevosIniciales, ent.TipoNido,
+            ent.Ciclo
         );
     }
 
@@ -138,7 +123,7 @@ public class ProduccionLoteService : AppInterfaces.IProduccionLoteService
         if (ent is null) return false;
 
         var ok = await _ctx.Lotes.AsNoTracking()
-            .AnyAsync(l => l.LoteId == ent.LoteId && l.CompanyId == _current.CompanyId);
+            .AnyAsync(l => l.LoteId == int.Parse(ent.LoteId) && l.CompanyId == _current.CompanyId);
         if (!ok) return false;
 
         _ctx.ProduccionLotes.Remove(ent);
@@ -149,12 +134,12 @@ public class ProduccionLoteService : AppInterfaces.IProduccionLoteService
     public async Task<IEnumerable<ProduccionLoteDto>> FilterAsync(FilterProduccionLoteDto filter)
     {
         var q = from p in _ctx.ProduccionLotes.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId
+                join l in _ctx.Lotes.AsNoTracking() on int.Parse(p.LoteId) equals l.LoteId
                 where l.CompanyId == _current.CompanyId && l.DeletedAt == null
                 select p;
 
         if (filter.LoteId.HasValue)
-            q = q.Where(x => x.LoteId == filter.LoteId.Value);
+            q = q.Where(x => x.LoteId == filter.LoteId.Value.ToString());
         if (filter.Desde.HasValue)
             q = q.Where(x => x.FechaInicio >= filter.Desde.Value);
         if (filter.Hasta.HasValue)
@@ -163,9 +148,9 @@ public class ProduccionLoteService : AppInterfaces.IProduccionLoteService
         return await q
             .OrderBy(x => x.LoteId).ThenBy(x => x.FechaInicio)
             .Select(x => new ProduccionLoteDto(
-                x.Id, x.LoteId, x.FechaInicio,
-                x.AvesInicialesH, x.AvesInicialesM, 0,
-                x.Observaciones ?? "", "", 0, ""
+                x.Id, int.Parse(x.LoteId), x.FechaInicio, // Convertir string a int
+                x.AvesInicialesH, x.AvesInicialesM, x.HuevosIniciales,
+                x.TipoNido, x.Ciclo
             ))
             .ToListAsync();
     }

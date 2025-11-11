@@ -31,6 +31,21 @@ public class FarmInventoryMovementConfiguration : IEntityTypeConfiguration<FarmI
         e.Property(x => x.Unit).HasColumnName("unit").HasMaxLength(20).HasDefaultValue("kg").IsRequired();
         e.Property(x => x.Reference).HasColumnName("reference").HasMaxLength(50);
         e.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(200);
+        
+        // Campos nuevos: origin y destination
+        // IMPORTANTE: Establecer explícitamente como opcionales y con nombres exactos en minúsculas
+        e.Property(x => x.Origin)
+            .HasColumnName("origin")  // Nombre exacto en minúsculas
+            .HasColumnType("character varying(100)")
+            .HasMaxLength(100)
+            .IsRequired(false);
+            
+        e.Property(x => x.Destination)
+            .HasColumnName("destination")  // Nombre exacto en minúsculas
+            .HasColumnType("character varying(100)")
+            .HasMaxLength(100)
+            .IsRequired(false);
+            
         e.Property(x => x.TransferGroupId).HasColumnName("transfer_group_id");
         e.Property(x => x.Metadata).HasColumnName("metadata").HasColumnType("jsonb").IsRequired();
         e.Property(x => x.ResponsibleUserId).HasColumnName("responsible_user_id").HasMaxLength(128);

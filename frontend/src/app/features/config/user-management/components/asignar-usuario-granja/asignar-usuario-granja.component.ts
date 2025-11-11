@@ -3,9 +3,9 @@ import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { 
-  faBuilding, faCheck, faTimes, faSave, faTrash, 
-  faCrown, faStar, faUser, faSearch 
+import {
+  faBuilding, faCheck, faTimes, faSave, faTrash,
+  faCrown, faStar, faUser, faSearch
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, forkJoin } from 'rxjs';
 
@@ -24,7 +24,7 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
   @Input() userName: string = '';
   @Input() companyId: number = 0;
   @Input() isOpen: boolean = false;
-  
+
   @Output() close = new EventEmitter<void>();
   @Output() granjasUpdated = new EventEmitter<void>();
 
@@ -43,12 +43,12 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
   loading = false;
   saving = false;
   searchTerm = '';
-  
+
   // Datos
   userFarms: UserFarmDto[] = [];
   availableFarms: FarmDto[] = [];
   accessibleFarms: UserFarmLiteDto[] = [];
-  
+
   // Filtros
   showOnlyAssigned = false;
   showOnlyAvailable = false;
@@ -81,23 +81,23 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
     if (!this.userId) return;
 
     this.loading = true;
-    
+
     forkJoin({
       userFarms: this.userFarmService.getUserFarms(this.userId),
       accessibleFarms: this.userFarmService.getUserAccessibleFarms(this.userId),
-      allFarms: this.farmService.getAllFarms()
+      allFarms: this.farmService.getAll()
     })
     .pipe(takeUntil(this.destroy$))
     .subscribe({
       next: (data) => {
         this.userFarms = data.userFarms.farms;
         this.accessibleFarms = data.accessibleFarms;
-        
+
         // Filtrar granjas disponibles - mostrar todas las granjas activas
         this.availableFarms = data.allFarms.filter(farm => {
           return farm.status === 'A';
         });
-        
+
         this.loading = false;
       },
       error: (error) => {
@@ -108,12 +108,12 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
   }
 
   get filteredAvailableFarms(): FarmDto[] {
-    let farms = this.availableFarms.filter(farm => 
+    let farms = this.availableFarms.filter(farm =>
       !this.userFarms.some(uf => uf.farmId === farm.id)
     );
 
     if (this.searchTerm) {
-      farms = farms.filter(farm => 
+      farms = farms.filter(farm =>
         farm.name.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }
@@ -125,7 +125,7 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
     let farms = this.userFarms;
 
     if (this.searchTerm) {
-      farms = farms.filter(farm => 
+      farms = farms.filter(farm =>
         farm.farmName.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }
@@ -135,7 +135,7 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
 
   assignFarm(farm: FarmDto): void {
     this.saving = true;
-    
+
     const dto = {
       UserId: this.userId,
       FarmId: farm.id,
@@ -168,7 +168,7 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
     }
 
     this.saving = true;
-    
+
     this.userFarmService.deleteUserFarm(this.userId, userFarm.farmId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -191,7 +191,7 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
     };
 
     this.saving = true;
-    
+
     this.userFarmService.updateUserFarm(this.userId, userFarm.farmId, dto)
       .pipe(takeUntil(this.destroy$))
       .subscribe({

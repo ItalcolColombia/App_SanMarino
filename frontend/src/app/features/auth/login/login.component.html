@@ -19,7 +19,7 @@
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4" novalidate>
       <!-- Error global -->
       <div *ngIf="errorMsg" class="alert-error" role="alert">
-        {{ errorMsg }}
+        <strong>⚠️ Error de seguridad:</strong> {{ errorMsg }}
       </div>
 
       <!-- Email -->
@@ -69,6 +69,20 @@
         <span class="remember__label">Recordarme</span>
       </label>
 
+      <!-- reCAPTCHA (solo en producción) -->
+      <div *ngIf="recaptchaEnabled && recaptchaSiteKey" class="recaptcha-container">
+        <re-captcha
+          [siteKey]="recaptchaSiteKey"
+          (resolved)="onRecaptchaResolved($event)"
+          (error)="onRecaptchaError()"
+          formControlName="recaptchaToken"
+        ></re-captcha>
+        <div *ngIf="loginForm.get('recaptchaToken')?.touched && loginForm.get('recaptchaToken')?.invalid"
+             class="hint-error" role="status" aria-live="polite">
+          Por favor, completa la verificación de seguridad.
+        </div>
+      </div>
+
       <!-- Botón -->
       <button
         type="submit"
@@ -76,8 +90,18 @@
         [disabled]="loginForm.invalid || loading"
         aria-label="Entrar"
       >
-        {{ loading ? 'Ingresando…' : 'Entrar' }}
+        <span *ngIf="!loading">Entrar</span>
+        <span *ngIf="loading" class="loading-content">
+          <span class="spinner"></span>
+          Procesando...
+        </span>
       </button>
+
+      <!-- Mensaje de carga extendido -->
+      <div *ngIf="loading" class="loading-message" role="status" aria-live="polite">
+        <p>Iniciando sesión...</p>
+        <p class="loading-subtitle">Desencriptando datos y cargando información...</p>
+      </div>
 
       <!-- Enlace de recuperación de contraseña -->
       <div class="forgot-password">
@@ -85,7 +109,7 @@
           ¿Olvidaste tu contraseña?
         </button>
       </div>
-     
+
         <img
           src="assets/brand/italcol-blanco.png"
           class="logo-img-accent "

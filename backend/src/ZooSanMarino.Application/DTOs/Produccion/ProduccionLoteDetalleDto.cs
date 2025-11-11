@@ -7,7 +7,9 @@ public record ProduccionLoteDetalleDto(
     DateTime FechaInicio,
     int AvesInicialesH,
     int AvesInicialesM,
-    string? Observaciones,
+    int HuevosIniciales,
+    string TipoNido,
+    string Ciclo,
     DateTime CreatedAt,
     DateTime? UpdatedAt
 );

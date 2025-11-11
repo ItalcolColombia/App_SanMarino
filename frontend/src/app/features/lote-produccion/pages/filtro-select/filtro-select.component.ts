@@ -6,6 +6,7 @@ import { NucleoService, NucleoDto } from '../../services/nucleo.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
+import { ProduccionService } from '../../services/produccion.service';
 
 @Component({
   selector: 'app-filtro-select',
@@ -45,7 +46,8 @@ export class FiltroSelectComponent implements OnInit {
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
-    private galponSvc: GalponService
+    private galponSvc: GalponService,
+    private produccionSvc: ProduccionService
   ) { }
 
   ngOnInit(): void {
@@ -97,7 +99,8 @@ export class FiltroSelectComponent implements OnInit {
       return;
     }
 
-    this.loteSvc.getAll().subscribe({
+    // Usar el nuevo endpoint que filtra lotes con semana >= 26 para producción
+    this.produccionSvc.obtenerLotesProduccion().subscribe({
       next: all => {
         this.allLotes = all || [];
         this.applyFiltersToLotes();

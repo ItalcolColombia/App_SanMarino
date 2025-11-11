@@ -15,6 +15,9 @@ import {
   InventarioAvesSearchRequest,
   ResumenInventarioDto,
   CreateMovimientoAvesDto,
+  DisponibilidadLoteDto,
+  CrearTrasladoAvesDto,
+  CrearTrasladoHuevosDto,
 } from '../../services/traslados-aves.service';
 
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -24,6 +27,9 @@ import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { Company, CompanyService } from '../../../../core/services/company/company.service';
 // 🔴 Importa el servicio de Lotes
 import { LoteService } from '../../../lote/services/lote.service';
+import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
+import { SeguimientoLoteLevanteService, CreateSeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
+import { LoteProduccionService, CreateLoteProduccionDto } from '../../../lote-produccion/services/lote-produccion.service';
 
 @Component({
   selector: 'app-inventario-dashboard',
@@ -36,7 +42,7 @@ export class InventarioDashboardComponent implements OnInit {
   // ====== State (signals) ======
   resumen = signal<ResumenInventarioDto | null>(null);
 
-  private inventariosBase = signal<InventarioAvesDto[]>([]);
+  inventariosBase = signal<InventarioAvesDto[]>([]);
   inventarios = signal<InventarioAvesDto[]>([]);
 
   loading = signal<boolean>(false);
@@ -68,8 +74,7 @@ export class InventarioDashboardComponent implements OnInit {
   galponMap: Record<string, string> = {};
   private farmById: Record<number, FarmDto> = {};
 
-  // Filtros cascada
-  selectedCompanyId: number | null = null;
+  // Filtros cascada (sin compañía, solo granja/núcleo/galpón)
   selectedFarmId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
@@ -98,6 +103,21 @@ export class InventarioDashboardComponent implements OnInit {
   lotesForGalpon = signal<Array<{ id: string; label: string }>>([]); // lista final de lotes para el select
   lotesLoading = signal<boolean>(false);                              // loading del select
 
+  // 🔴 Lotes completos cargados (para filtrado)
+  allLotes: LoteDto[] = [];
+  lotesDisponibles: LoteDto[] = []; // Lotes filtrados por granja/núcleo/galpón
+
+  // ====== Lote Seleccionado para Detalles ======
+  loteSeleccionado = signal<InventarioAvesDto | null>(null);
+  loteCompleto = signal<LoteDto | null>(null);
+  movimientosLote = signal<TrasladoUnificado[]>([]);
+  loadingMovimientos = signal<boolean>(false);
+
+  // 🔴 Computed: ¿Hay lote seleccionado completo?
+  get tieneLoteSeleccionadoCompleto(): boolean {
+    return !!this.selectedLoteId && !!this.loteCompleto();
+  }
+
   constructor(
     private trasladosService: TrasladosAvesService,
     private farmService: FarmService,
@@ -108,7 +128,12 @@ export class InventarioDashboardComponent implements OnInit {
     private route: ActivatedRoute,
     private fb: FormBuilder,
     // 🔴 Inyecta LoteService
-    private loteService: LoteService
+    private loteService: LoteService,
+    // 🔴 Inyecta TrasladoNavigationService para movimientos
+    private trasladoNavigationService: TrasladoNavigationService,
+    // 🔴 Servicios para seguimiento diario
+    private seguimientoLevanteService: SeguimientoLoteLevanteService,
+    private produccionService: LoteProduccionService
   ) {
     this.initTrasladoForm();
 
@@ -121,6 +146,57 @@ export class InventarioDashboardComponent implements OnInit {
     this.cargarDatosMaestros();
     this.cargarResumen();
     this.cargarInventarios();
+    this.cargarTodosLosLotes(); // 🔴 Cargar todos los lotes para filtrado
+  }
+
+  // 🔴 Cargar todos los lotes
+  private cargarTodosLosLotes(): void {
+    this.loteService.getAll().subscribe({
+      next: (lotes) => {
+        this.allLotes = lotes || [];
+        this.aplicarFiltrosALotes();
+      },
+      error: (err) => {
+        console.error('Error al cargar lotes:', err);
+        this.allLotes = [];
+        this.lotesDisponibles = [];
+      }
+    });
+  }
+
+  // 🔴 Filtrar lotes según granja/núcleo/galpón seleccionado
+  private aplicarFiltrosALotes(): void {
+    if (!this.selectedFarmId) {
+      this.lotesDisponibles = [];
+      this.lotesForGalpon.set([]);
+      return;
+    }
+
+    let filtered = this.allLotes.filter(l => l.granjaId === this.selectedFarmId);
+
+    if (this.selectedNucleoId) {
+      filtered = filtered.filter(l => String(l.nucleoId ?? '') === String(this.selectedNucleoId));
+    }
+
+    if (this.selectedGalponId) {
+      filtered = filtered.filter(l => String(l.galponId ?? '') === String(this.selectedGalponId));
+    }
+
+    this.lotesDisponibles = filtered;
+
+    // Actualizar select de lotes
+    const mapped = filtered.map(l => ({
+      id: String(l.loteId),
+      label: l.loteNombre ? `${l.loteNombre} (#${l.loteId})` : `Lote #${l.loteId}`
+    }));
+    this.lotesForGalpon.set(mapped);
+
+    // Validar que el lote seleccionado siga existiendo
+    if (this.selectedLoteId && !mapped.some(l => l.id === this.selectedLoteId)) {
+      this.selectedLoteId = null;
+      delete this.filtros.loteId;
+      this.loteCompleto.set(null);
+    }
   }
 
   // ===================== Cargas API =========================
@@ -191,6 +267,26 @@ export class InventarioDashboardComponent implements OnInit {
     });
   }
 
+  // 🔴 Obtener núcleos por granja (filtrado en cascada)
+  private cargarNucleosPorGranja(granjaId: number | null): void {
+    if (!granjaId) {
+      this.nucleos = [];
+      return;
+    }
+
+    this.nucleoService.getByGranja(granjaId).subscribe({
+      next: (nucleos) => {
+        this.nucleos = nucleos || [];
+        this.nucleoMap = {};
+        this.nucleos.forEach(n => (this.nucleoMap[n.nucleoId] = n.nucleoNombre));
+      },
+      error: (err) => {
+        console.error('Error al cargar núcleos por granja:', err);
+        this.nucleos = [];
+      }
+    });
+  }
+
   // ===================== Paginación/orden (server) =========
   onPageChange(page: number): void {
     if (page < 1 || page > this.totalPages()) return;
@@ -211,16 +307,11 @@ export class InventarioDashboardComponent implements OnInit {
 
   // ===================== Filtros cliente (cascada) =========
   get farmsFiltered(): FarmDto[] {
-    if (this.selectedCompanyId == null) return this.farms;
-    return this.farms.filter(f => f.companyId === this.selectedCompanyId);
+    return this.farms; // Todas las granjas disponibles (ya filtradas por permisos del usuario)
   }
 
   get nucleosFiltered(): NucleoDto[] {
     if (this.selectedFarmId != null) return this.nucleos.filter(n => n.granjaId === this.selectedFarmId);
-    if (this.selectedCompanyId != null) {
-      const ids = new Set(this.farmsFiltered.map(f => f.id));
-      return this.nucleos.filter(n => ids.has(n.granjaId));
-    }
     return this.nucleos;
   }
 
@@ -228,54 +319,58 @@ export class InventarioDashboardComponent implements OnInit {
     let arr = this.galpones;
     if (this.selectedFarmId != null) {
       arr = arr.filter(g => g.granjaId === this.selectedFarmId);
-    } else if (this.selectedCompanyId != null) {
-      const ids = new Set(this.farmsFiltered.map(f => f.id));
-      arr = arr.filter(g => ids.has(g.granjaId));
     }
     if (this.selectedNucleoId != null) arr = arr.filter(g => g.nucleoId === this.selectedNucleoId);
     return arr;
   }
 
-  onCompanyChange(val: number | null): void {
-    this.selectedCompanyId = val;
-    if (this.selectedFarmId != null && !this.farmsFiltered.some(f => f.id === this.selectedFarmId)) this.selectedFarmId = null;
-    if (this.selectedNucleoId != null && !this.nucleosFiltered.some(n => n.nucleoId === this.selectedNucleoId)) this.selectedNucleoId = null;
-    if (this.selectedGalponId != null && !this.galponesFiltered.some(g => g.galponId === this.selectedGalponId)) this.selectedGalponId = null;
-
-    this.resetLoteIfNotInContext();
-    this.cargarLotesParaGalpon(this.selectedGalponId); // 🔴 recarga/limpia lotes
-    this.recomputeList();
-  }
-
   onFarmChange(val: number | null): void {
     this.selectedFarmId = val;
-    if (this.selectedNucleoId != null && !this.nucleosFiltered.some(n => n.nucleoId === this.selectedNucleoId)) this.selectedNucleoId = null;
-    if (this.selectedGalponId != null && !this.galponesFiltered.some(g => g.galponId === this.selectedGalponId)) this.selectedGalponId = null;
+    this.selectedNucleoId = null;
+    this.selectedGalponId = null;
+    this.selectedLoteId = null;
+    delete this.filtros.loteId;
 
-    this.resetLoteIfNotInContext();
-    this.cargarLotesParaGalpon(this.selectedGalponId); // 🔴
+    // 🔴 Cargar núcleos de la granja seleccionada
+    this.cargarNucleosPorGranja(val);
+
+    // 🔴 Aplicar filtros a lotes (solo por granja ahora)
+    this.aplicarFiltrosALotes();
+
     this.recomputeList();
+
+    // Limpiar selección de lote al cambiar granja
+    this.seleccionarLote(null);
+    this.loteCompleto.set(null);
   }
 
   onNucleoChange(val: string | null): void {
     this.selectedNucleoId = val;
-    if (this.selectedGalponId != null && !this.galponesFiltered.some(g => g.galponId === this.selectedGalponId)) this.selectedGalponId = null;
+    this.selectedGalponId = null;
+    this.selectedLoteId = null;
+    delete this.filtros.loteId;
 
-    this.resetLoteIfNotInContext();
-    this.cargarLotesParaGalpon(this.selectedGalponId); // 🔴
+    // 🔴 Aplicar filtros a lotes (por granja y núcleo)
+    this.aplicarFiltrosALotes();
+
     this.recomputeList();
+    this.loteCompleto.set(null);
   }
 
   onGalponChange(val: string | null): void {
     this.selectedGalponId = val;
-    this.resetLoteIfNotInContext();
-    this.cargarLotesParaGalpon(val); // 🔴 carga real por galpón
+    this.selectedLoteId = null;
+    delete this.filtros.loteId;
+
+    // 🔴 Aplicar filtros a lotes (por granja, núcleo y galpón)
+    this.aplicarFiltrosALotes();
+
     this.recomputeList();
+    this.loteCompleto.set(null);
   }
 
   resetFilters(): void {
     this.filtro = '';
-    this.selectedCompanyId = null;
     this.selectedFarmId = null;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
@@ -283,8 +378,11 @@ export class InventarioDashboardComponent implements OnInit {
     this.selectedLoteId = null;
     delete this.filtros.loteId;
 
-    this.lotesForGalpon.set([]); // 🔴
+    this.lotesForGalpon.set([]);
     this.recomputeList();
+
+    // Limpiar selección de lote
+    this.seleccionarLote(null);
   }
 
   // ===================== Orden cliente ======================
@@ -301,13 +399,12 @@ export class InventarioDashboardComponent implements OnInit {
     const term = this.normalize(this.filtro);
     let res = [...this.inventariosBase()];
 
-    // Cascada
-    if (this.selectedCompanyId != null) res = res.filter(inv => this.farmById[inv.granjaId]?.companyId === this.selectedCompanyId);
+    // Cascada (sin compañía)
     if (this.selectedFarmId != null)    res = res.filter(inv => inv.granjaId === this.selectedFarmId);
     if (this.selectedNucleoId != null)  res = res.filter(inv => String(inv.nucleoId ?? '') === String(this.selectedNucleoId ?? ''));
     if (this.selectedGalponId != null)  res = res.filter(inv => String(inv.galponId ?? '') === String(this.selectedGalponId ?? ''));
 
-    // 🔴 Filtrar por LOTE si viene del select superior
+    // Filtrar por LOTE si viene del select superior
     if (this.filtros.loteId) {
       res = res.filter(inv => String(inv.loteId) === String(this.filtros.loteId));
     }
@@ -614,6 +711,10 @@ export class InventarioDashboardComponent implements OnInit {
 
   navegarATraslados(): void { this.abrirModalTraslado(); }
   navegarAMovimientos(): void { this.router.navigate(['historial'], { relativeTo: this.route }); }
+  navegarANuevoTraslado(): void {
+    // Usar ruta absoluta para evitar problemas de navegación
+    this.router.navigate(['/traslados-aves/nuevo']);
+  }
 
   // ===================== Utilidades ==========================
   calcularTotalAves(inv: InventarioAvesDto): number {
@@ -736,7 +837,6 @@ export class InventarioDashboardComponent implements OnInit {
 
   tieneFiltrosAplicados(): boolean {
     return !!(
-      this.selectedCompanyId ||
       this.selectedFarmId ||
       this.selectedNucleoId ||
       this.selectedGalponId ||
@@ -759,8 +859,31 @@ export class InventarioDashboardComponent implements OnInit {
     this.selectedLoteId = val;
     if (val) {
       this.filtros.loteId = val;
+      // Cargar información completa del lote seleccionado
+      const loteIdNum = parseInt(val, 10);
+      if (!isNaN(loteIdNum)) {
+        this.loteService.getById(loteIdNum).subscribe({
+          next: (lote) => {
+            this.loteCompleto.set(lote);
+            // Buscar el inventario correspondiente para mostrar detalles
+            const inventario = this.inventariosBase().find(inv => String(inv.loteId) === val);
+            if (inventario) {
+              this.seleccionarLote(inventario);
+            } else {
+              // Si no está en inventarios, cargar movimientos igualmente
+              this.cargarMovimientosLote(loteIdNum);
+            }
+          },
+          error: () => {
+            this.loteCompleto.set(null);
+            this.movimientosLote.set([]);
+          }
+        });
+      }
     } else {
       delete this.filtros.loteId;
+      this.loteCompleto.set(null);
+      this.seleccionarLote(null);
     }
     this.recomputeList();
   }
@@ -771,6 +894,443 @@ export class InventarioDashboardComponent implements OnInit {
     if (!stillExists) {
       this.selectedLoteId = null;
       delete this.filtros.loteId;
+    }
+  }
+
+  // ===================== Selección de Lote ====================
+  seleccionarLote(inventario: InventarioAvesDto | null): void {
+    this.loteSeleccionado.set(inventario);
+
+    if (inventario) {
+      // Cargar información completa del lote
+      const loteIdNum = parseInt(inventario.loteId, 10);
+      if (!isNaN(loteIdNum)) {
+        this.loteService.getById(loteIdNum).subscribe({
+          next: (lote) => {
+            this.loteCompleto.set(lote);
+          },
+          error: () => {
+            this.loteCompleto.set(null);
+          }
+        });
+
+        // Cargar movimientos del lote
+        this.cargarMovimientosLote(loteIdNum);
+      } else {
+        this.loteCompleto.set(null);
+        this.movimientosLote.set([]);
+      }
+    } else {
+      this.loteCompleto.set(null);
+      this.movimientosLote.set([]);
+    }
+  }
+
+  private async cargarMovimientosLote(loteId: number): Promise<void> {
+    this.loadingMovimientos.set(true);
+    try {
+      const movimientos = await firstValueFrom(
+        this.trasladoNavigationService.getByLote(loteId, 100)
+      );
+      this.movimientosLote.set(movimientos || []);
+    } catch (err: any) {
+      console.error('Error al cargar movimientos del lote:', err);
+      this.movimientosLote.set([]);
+    } finally {
+      this.loadingMovimientos.set(false);
+    }
+  }
+
+  obtenerTipoMovimientoClass(tipo: string): string {
+    const tipoLower = tipo?.toLowerCase() || '';
+    if (tipoLower.includes('traslado')) return 'badge--info';
+    if (tipoLower.includes('retiro') || tipoLower.includes('salida')) return 'badge--danger';
+    if (tipoLower.includes('entrada')) return 'badge--success';
+    if (tipoLower.includes('ajuste')) return 'badge--warning';
+    return 'badge--default';
+  }
+
+  obtenerEstadoClass(estado: string): string {
+    const estadoLower = estado?.toLowerCase() || '';
+    if (estadoLower === 'completado') return 'badge--success';
+    if (estadoLower === 'pendiente') return 'badge--warning';
+    if (estadoLower === 'cancelado') return 'badge--danger';
+    return 'badge--default';
+  }
+
+  // 🔴 Helpers para el modal
+  obtenerInventarioLoteSeleccionado(): InventarioAvesDto | null {
+    const lote = this.loteCompleto();
+    if (!lote) return null;
+    return this.inventariosBase().find(inv => String(inv.loteId) === String(lote.loteId)) || null;
+  }
+
+  obtenerCantidadHembrasDisponibles(): number {
+    const inv = this.obtenerInventarioLoteSeleccionado();
+    return inv?.cantidadHembras || 0;
+  }
+
+  obtenerCantidadMachosDisponibles(): number {
+    const inv = this.obtenerInventarioLoteSeleccionado();
+    return inv?.cantidadMachos || 0;
+  }
+
+  getCantidadHuevoDisponible(tipoKey: string): number {
+    const disponibilidad = this.disponibilidadLote();
+    if (!disponibilidad || !disponibilidad.huevos) return 0;
+
+    const keyMap: Record<string, keyof typeof disponibilidad.huevos> = {
+      'limpio': 'limpio',
+      'tratado': 'tratado',
+      'sucio': 'sucio',
+      'deforme': 'deforme',
+      'blanco': 'blanco',
+      'dobleYema': 'dobleYema',
+      'piso': 'piso',
+      'pequeno': 'pequeno',
+      'roto': 'roto',
+      'desecho': 'desecho',
+      'otro': 'otro'
+    };
+
+    const propiedad = keyMap[tipoKey];
+    if (!propiedad) return 0;
+
+    const valor = disponibilidad.huevos[propiedad];
+    return typeof valor === 'number' ? valor : 0;
+  }
+
+  // 🔴 Modal Traslado/Retiro
+  modalTrasladoRetiroAbierto = signal<boolean>(false);
+  tabActivo = signal<'aves' | 'huevos'>('aves');
+  trasladoRetiroForm!: FormGroup;
+  trasladoHuevosForm!: FormGroup;
+  disponibilidadLote = signal<DisponibilidadLoteDto | null>(null);
+  loadingDisponibilidad = signal<boolean>(false);
+  procesandoRetiro = signal<boolean>(false);
+  errorRetiro = signal<string | null>(null);
+  exitoRetiro = signal<boolean>(false);
+
+  // Tipos de huevo
+  tiposHuevo = [
+    { key: 'limpio', label: 'Limpio' },
+    { key: 'tratado', label: 'Tratado' },
+    { key: 'sucio', label: 'Sucio' },
+    { key: 'deforme', label: 'Deforme' },
+    { key: 'blanco', label: 'Blanco' },
+    { key: 'dobleYema', label: 'Doble Yema' },
+    { key: 'piso', label: 'Piso' },
+    { key: 'pequeno', label: 'Pequeño' },
+    { key: 'roto', label: 'Roto' },
+    { key: 'desecho', label: 'Desecho' },
+    { key: 'otro', label: 'Otro' }
+  ];
+
+  abrirModalTrasladoRetiro(): void {
+    if (!this.tieneLoteSeleccionadoCompleto) return;
+
+    const lote = this.loteCompleto();
+    if (lote) {
+      this.cargarDisponibilidadLote(String(lote.loteId));
+    }
+
+    this.initTrasladoRetiroForm();
+    this.initTrasladoHuevosForm();
+    this.tabActivo.set('aves');
+    this.modalTrasladoRetiroAbierto.set(true);
+    this.errorRetiro.set(null);
+    this.exitoRetiro.set(false);
+  }
+
+  cerrarModalTrasladoRetiro(): void {
+    this.modalTrasladoRetiroAbierto.set(false);
+    this.trasladoRetiroForm.reset();
+    this.trasladoHuevosForm.reset();
+    this.disponibilidadLote.set(null);
+    this.tabActivo.set('aves');
+    this.errorRetiro.set(null);
+    this.exitoRetiro.set(false);
+  }
+
+  private initTrasladoRetiroForm(): void {
+    const inventario = this.obtenerInventarioLoteSeleccionado();
+
+    this.trasladoRetiroForm = this.fb.group({
+      tipoOperacion: ['Venta', [Validators.required]], // Venta, Traslado
+      fechaTraslado: [new Date().toISOString().split('T')[0], [Validators.required]],
+      cantidadHembras: [0, [Validators.required, Validators.min(0)]],
+      cantidadMachos: [0, [Validators.required, Validators.min(0)]],
+      granjaDestinoId: [null],
+      loteDestinoId: [null],
+      tipoDestino: [null],
+      motivo: ['', []],
+      descripcion: ['', []],
+      observaciones: ['']
+    });
+
+    // Validar máximos disponibles
+    if (inventario) {
+      this.trasladoRetiroForm.get('cantidadHembras')?.addValidators(
+        Validators.max(inventario.cantidadHembras)
+      );
+      this.trasladoRetiroForm.get('cantidadMachos')?.addValidators(
+        Validators.max(inventario.cantidadMachos)
+      );
+    }
+
+    // Actualizar validadores según tipo de operación
+    this.trasladoRetiroForm.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
+      this.actualizarValidadoresAves(tipo);
+    });
+  }
+
+  private initTrasladoHuevosForm(): void {
+    const huevosControls: any = {
+      tipoOperacion: ['Venta', [Validators.required]], // Venta, Traslado
+      fechaTraslado: [new Date().toISOString().split('T')[0], [Validators.required]],
+      granjaDestinoId: [null],
+      loteDestinoId: [null],
+      tipoDestino: [null],
+      motivo: ['', []],
+      descripcion: ['', []],
+      observaciones: ['']
+    };
+
+    // Agregar controles para cada tipo de huevo
+    this.tiposHuevo.forEach(tipo => {
+      huevosControls[`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`] = [0, [Validators.min(0)]];
+    });
+
+    this.trasladoHuevosForm = this.fb.group(huevosControls);
+
+    // Actualizar validadores según tipo de operación
+    this.trasladoHuevosForm.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
+      this.actualizarValidadoresHuevos(tipo);
+    });
+  }
+
+  private actualizarValidadoresAves(tipo: string): void {
+    const granjaDestino = this.trasladoRetiroForm.get('granjaDestinoId');
+    const tipoDestino = this.trasladoRetiroForm.get('tipoDestino');
+    const motivo = this.trasladoRetiroForm.get('motivo');
+    const descripcion = this.trasladoRetiroForm.get('descripcion');
+
+    if (tipo === 'Venta') {
+      granjaDestino?.clearValidators();
+      tipoDestino?.clearValidators();
+      motivo?.setValidators([Validators.required]);
+      descripcion?.setValidators([Validators.required]);
+    } else {
+      granjaDestino?.setValidators([Validators.required]);
+      tipoDestino?.setValidators([Validators.required]);
+      motivo?.clearValidators();
+      descripcion?.clearValidators();
+    }
+
+    granjaDestino?.updateValueAndValidity();
+    tipoDestino?.updateValueAndValidity();
+    motivo?.updateValueAndValidity();
+    descripcion?.updateValueAndValidity();
+  }
+
+  private actualizarValidadoresHuevos(tipo: string): void {
+    const granjaDestino = this.trasladoHuevosForm.get('granjaDestinoId');
+    const tipoDestino = this.trasladoHuevosForm.get('tipoDestino');
+    const motivo = this.trasladoHuevosForm.get('motivo');
+    const descripcion = this.trasladoHuevosForm.get('descripcion');
+
+    if (tipo === 'Venta') {
+      granjaDestino?.clearValidators();
+      tipoDestino?.clearValidators();
+      motivo?.setValidators([Validators.required]);
+      descripcion?.setValidators([Validators.required]);
+    } else {
+      granjaDestino?.setValidators([Validators.required]);
+      tipoDestino?.setValidators([Validators.required]);
+      motivo?.clearValidators();
+      descripcion?.clearValidators();
+    }
+
+    granjaDestino?.updateValueAndValidity();
+    tipoDestino?.updateValueAndValidity();
+    motivo?.updateValueAndValidity();
+    descripcion?.updateValueAndValidity();
+  }
+
+  private cargarDisponibilidadLote(loteId: string): void {
+    this.loadingDisponibilidad.set(true);
+    this.trasladosService.getDisponibilidadLote(loteId).subscribe({
+      next: (disponibilidad) => {
+        this.disponibilidadLote.set(disponibilidad);
+        this.loadingDisponibilidad.set(false);
+      },
+      error: (error) => {
+        console.error('Error cargando disponibilidad:', error);
+        this.disponibilidadLote.set(null);
+        this.loadingDisponibilidad.set(false);
+      }
+    });
+  }
+
+  // 🔴 Procesar retiro/traslado de aves
+  async procesarRetiroTraslado(): Promise<void> {
+    if (!this.trasladoRetiroForm.valid || !this.tieneLoteSeleccionadoCompleto) return;
+
+    const lote = this.loteCompleto();
+    if (!lote) return;
+
+    const formValue = this.trasladoRetiroForm.value;
+    const cantidadHembras = formValue.cantidadHembras || 0;
+    const cantidadMachos = formValue.cantidadMachos || 0;
+    const totalAves = cantidadHembras + cantidadMachos;
+
+    if (totalAves <= 0) {
+      this.errorRetiro.set('Debe especificar al menos una ave a retirar/trasladar');
+      return;
+    }
+
+    this.procesandoRetiro.set(true);
+    this.errorRetiro.set(null);
+
+    try {
+      const fechaTraslado = typeof formValue.fechaTraslado === 'string'
+        ? new Date(formValue.fechaTraslado)
+        : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
+
+      if (formValue.tipoOperacion === 'Venta') {
+        // Para venta, usar el nuevo endpoint de traslado de aves
+        const dto: CrearTrasladoAvesDto = {
+          loteId: String(lote.loteId),
+          fechaTraslado: fechaTraslado,
+          tipoOperacion: 'Venta',
+          cantidadHembras: cantidadHembras,
+          cantidadMachos: cantidadMachos,
+          motivo: formValue.motivo,
+          descripcion: formValue.descripcion,
+          observaciones: formValue.observaciones
+        };
+
+        await firstValueFrom(this.trasladosService.crearTrasladoAves(dto));
+      } else {
+        // Para traslado, usar el nuevo endpoint
+        const dto: CrearTrasladoAvesDto = {
+          loteId: String(lote.loteId),
+          fechaTraslado: fechaTraslado,
+          tipoOperacion: 'Traslado',
+          cantidadHembras: cantidadHembras,
+          cantidadMachos: cantidadMachos,
+          granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
+          loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
+          tipoDestino: formValue.tipoDestino,
+          observaciones: formValue.observaciones
+        };
+
+        await firstValueFrom(this.trasladosService.crearTrasladoAves(dto));
+      }
+
+      this.exitoRetiro.set(true);
+      await this.cargarInventarios();
+      await this.cargarResumen();
+
+      if (this.loteCompleto()) {
+        const loteIdNum = parseInt(String(this.loteCompleto()!.loteId), 10);
+        if (!isNaN(loteIdNum)) {
+          this.cargarMovimientosLote(loteIdNum);
+        }
+        // Recargar disponibilidad
+        this.cargarDisponibilidadLote(String(this.loteCompleto()!.loteId));
+      }
+
+      // Mantener modal abierto por 3 segundos mostrando éxito, luego cerrar automáticamente
+      setTimeout(() => {
+        this.cerrarModalTrasladoRetiro();
+      }, 3000);
+
+    } catch (err: any) {
+      console.error('Error al procesar retiro/traslado de aves:', err);
+      this.errorRetiro.set(err?.message || 'Error al procesar el retiro/traslado de aves');
+    } finally {
+      this.procesandoRetiro.set(false);
+    }
+  }
+
+  // 🔴 Procesar traslado de huevos
+  async procesarTrasladoHuevos(): Promise<void> {
+    if (!this.trasladoHuevosForm.valid || !this.tieneLoteSeleccionadoCompleto) return;
+
+    const lote = this.loteCompleto();
+    if (!lote) return;
+
+    const formValue = this.trasladoHuevosForm.value;
+
+    // Validar que haya al menos un huevo seleccionado
+    let totalHuevos = 0;
+    this.tiposHuevo.forEach(tipo => {
+      const cantidad = formValue[`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`] || 0;
+      totalHuevos += cantidad;
+    });
+
+    if (totalHuevos <= 0) {
+      this.errorRetiro.set('Debe especificar al menos un huevo a trasladar');
+      return;
+    }
+
+    this.procesandoRetiro.set(true);
+    this.errorRetiro.set(null);
+
+    try {
+      const fechaTraslado = typeof formValue.fechaTraslado === 'string'
+        ? new Date(formValue.fechaTraslado)
+        : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
+
+      const dto: CrearTrasladoHuevosDto = {
+        loteId: String(lote.loteId),
+        fechaTraslado: fechaTraslado,
+        tipoOperacion: formValue.tipoOperacion,
+        cantidadLimpio: formValue.cantidadLimpio || 0,
+        cantidadTratado: formValue.cantidadTratado || 0,
+        cantidadSucio: formValue.cantidadSucio || 0,
+        cantidadDeforme: formValue.cantidadDeforme || 0,
+        cantidadBlanco: formValue.cantidadBlanco || 0,
+        cantidadDobleYema: formValue.cantidadDobleYema || 0,
+        cantidadPiso: formValue.cantidadPiso || 0,
+        cantidadPequeno: formValue.cantidadPequeno || 0,
+        cantidadRoto: formValue.cantidadRoto || 0,
+        cantidadDesecho: formValue.cantidadDesecho || 0,
+        cantidadOtro: formValue.cantidadOtro || 0,
+        granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
+        loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
+        tipoDestino: formValue.tipoDestino,
+        motivo: formValue.motivo,
+        descripcion: formValue.descripcion,
+        observaciones: formValue.observaciones
+      };
+
+      await firstValueFrom(this.trasladosService.crearTrasladoHuevos(dto));
+
+      this.exitoRetiro.set(true);
+      await this.cargarInventarios();
+      await this.cargarResumen();
+
+      if (this.loteCompleto()) {
+        const loteIdNum = parseInt(String(this.loteCompleto()!.loteId), 10);
+        if (!isNaN(loteIdNum)) {
+          this.cargarMovimientosLote(loteIdNum);
+        }
+        // Recargar disponibilidad
+        this.cargarDisponibilidadLote(String(this.loteCompleto()!.loteId));
+      }
+
+      // Mantener modal abierto por 3 segundos mostrando éxito, luego cerrar automáticamente
+      setTimeout(() => {
+        this.cerrarModalTrasladoRetiro();
+      }, 3000);
+
+    } catch (err: any) {
+      console.error('Error al procesar traslado de huevos:', err);
+      this.errorRetiro.set(err?.message || 'Error al procesar el traslado de huevos');
+    } finally {
+      this.procesandoRetiro.set(false);
     }
   }
 }

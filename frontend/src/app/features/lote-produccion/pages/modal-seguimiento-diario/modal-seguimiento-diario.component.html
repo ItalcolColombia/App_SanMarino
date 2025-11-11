@@ -7,107 +7,442 @@
     </header>
 
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <!-- INPUTS RADIO (ocultos, controlan los tabs) -->
+      <input type="radio" name="regTab" id="tab-general" checked class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-hembras" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-machos" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-huevos" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-pesaje" class="ux-tab-input" />
+
+      <!-- TABS NAVEGACIÓN - ARRIBA -->
+      <div class="ux-tabs-wrapper">
       <div class="ux-tabs" role="tablist" aria-label="Secciones del seguimiento diario">
-        <input type="radio" name="regTab" id="tab-general" checked />
-        <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">General</label>
+          <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">
+            <span class="tab-icon">📋</span>
+            <span class="tab-label">General</span>
+          </label>
 
-        <input type="radio" name="regTab" id="tab-produccion" />
-        <label class="ux-tab" id="lab-produccion" for="tab-produccion" role="tab" tabindex="0" aria-controls="panel-produccion" aria-selected="false">Producción</label>
+          <label class="ux-tab" id="lab-hembras" for="tab-hembras" role="tab" tabindex="0" aria-controls="panel-hembras" aria-selected="false">
+            <span class="tab-icon">♀️</span>
+            <span class="tab-label">Hembras</span>
+          </label>
 
-        <input type="radio" name="regTab" id="tab-mortalidad" />
-        <label class="ux-tab" id="lab-mortalidad" for="tab-mortalidad" role="tab" tabindex="0" aria-controls="panel-mortalidad" aria-selected="false">Mortalidad</label>
+          <label class="ux-tab" id="lab-machos" for="tab-machos" role="tab" tabindex="0" aria-controls="panel-machos" aria-selected="false">
+            <span class="tab-icon">♂️</span>
+            <span class="tab-label">Machos</span>
+          </label>
 
+          <label class="ux-tab" id="lab-huevos" for="tab-huevos" role="tab" tabindex="0" aria-controls="panel-huevos" aria-selected="false">
+            <span class="tab-icon">🥚</span>
+            <span class="tab-label">Huevos</span>
+          </label>
+
+          <label class="ux-tab" id="lab-pesaje" for="tab-pesaje" role="tab" tabindex="0" aria-controls="panel-pesaje" aria-selected="false">
+            <span class="tab-icon">⚖️</span>
+            <span class="tab-label">Pesaje Semanal</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- CONTENIDO DE TABS - DEBAJO -->
         <div class="ux-tab-panels">
           <!-- GENERAL -->
           <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
-            <div class="grid grid-2">
+            <div class="tab-panel-header">
+              <h3>Información General</h3>
+              <p class="tab-description">Configuración básica del seguimiento diario</p>
+            </div>
+            <div class="grid grid-3">
               <div class="form-field">
-                <label for="f-fecha-registro">Fecha de Registro</label>
-                <input id="f-fecha-registro" type="date" formControlName="fechaRegistro" />
+                <label for="f-fecha-registro">
+                  <span class="label-icon">📅</span>
+                  Fecha de Registro *
+                </label>
+                <input id="f-fecha-registro" type="date" formControlName="fechaRegistro" required />
                 <small class="ux-hint">Fecha del seguimiento diario</small>
               </div>
 
               <div class="form-field">
-                <label for="f-produccion-lote-id">Producción Lote ID</label>
+                <label for="f-produccion-lote-id">
+                  <span class="label-icon">🔢</span>
+                  Producción Lote ID
+                </label>
                 <input id="f-produccion-lote-id" type="number" formControlName="produccionLoteId" readonly class="ux-input--readonly" />
-                <small class="ux-hint">ID del registro inicial de producción</small>
+                <small class="ux-hint">ID del registro inicial</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-etapa-general">
+                  <span class="label-icon">📊</span>
+                  Etapa de Producción
+                </label>
+                <select id="f-etapa-general" formControlName="etapa" required>
+                  <option [value]="1">Etapa 1 (Semana 25-33)</option>
+                  <option [value]="2">Etapa 2 (Semana 34-50)</option>
+                  <option [value]="3">Etapa 3 (Semana >50)</option>
+                </select>
+                <small class="ux-hint">{{ getEtapaLabel(form.get('etapa')?.value || 1) }}</small>
               </div>
 
               <div class="form-field form-field--full">
-                <label for="f-obs">Observaciones</label>
-                <textarea id="f-obs" rows="3" formControlName="observaciones" placeholder="Observaciones sobre el seguimiento diario..."></textarea>
+                <label for="f-obs">
+                  <span class="label-icon">📝</span>
+                  Observaciones
+                </label>
+                <textarea id="f-obs" rows="4" formControlName="observaciones" placeholder="Ingrese observaciones adicionales sobre el seguimiento (opcional)"></textarea>
               </div>
             </div>
           </section>
 
-          <!-- PRODUCCIÓN -->
-          <section id="panel-produccion" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-produccion">
-            <div class="grid grid-2">
-              <div class="form-field">
-                <label for="f-consumo-kg">Consumo Total (kg)</label>
-                <input id="f-consumo-kg" type="number" step="0.01" min="0" formControlName="consumoKg" placeholder="0.00" />
-                <small class="ux-hint">Consumo total de alimento en kg</small>
-              </div>
-
-              <div class="form-field">
-                <label for="f-peso-huevo">Peso Promedio del Huevo (g)</label>
-                <input id="f-peso-huevo" type="number" step="0.01" min="0" formControlName="pesoHuevo" placeholder="0.00" />
-                <small class="ux-hint">Peso promedio de los huevos en gramos</small>
-              </div>
-
-              <div class="form-field">
-                <label for="f-huevos-totales">Huevos Totales</label>
-                <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" />
-                <small class="ux-hint">Total de huevos producidos</small>
-              </div>
-
-              <div class="form-field">
-                <label for="f-huevos-incubables">Huevos Incubables</label>
-                <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" />
-                <small class="ux-hint">Huevos aptos para incubación</small>
-              </div>
-
-              <div class="form-field form-field--full">
-                <div class="resumen-card">
-                  <div class="resumen-icon">🥚</div>
-                  <div class="resumen-content">
-                    <h4>Eficiencia de Producción</h4>
-                    <p class="resumen-number">{{ getEficienciaProduccion() }}%</p>
-                    <small class="ux-hint">Porcentaje de huevos incubables</small>
-                  </div>
-                </div>
-              </div>
+          <!-- HEMBRAS -->
+          <section id="panel-hembras" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-hembras">
+            <div class="tab-panel-header">
+              <h3>Información de Hembras ♀️</h3>
+              <p class="tab-description">Registro de mortalidad, retiros y consumo de hembras</p>
             </div>
-          </section>
-
-          <!-- MORTALIDAD -->
-          <section id="panel-mortalidad" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-mortalidad">
-            <div class="grid grid-2">
+            <div class="grid grid-3">
               <div class="form-field">
-                <label for="f-mortalidad-h">Mortalidad Hembras</label>
-                <input id="f-mortalidad-h" type="number" min="0" formControlName="mortalidadH" placeholder="0" />
+                <label for="f-mortalidad-h">
+                  <span class="label-icon">💀</span>
+                  Mortalidad Hembras *
+                </label>
+                <input id="f-mortalidad-h" type="number" min="0" formControlName="mortalidadH" placeholder="0" required />
                 <small class="ux-hint">Número de hembras que murieron</small>
               </div>
 
               <div class="form-field">
-                <label for="f-mortalidad-m">Mortalidad Machos</label>
-                <input id="f-mortalidad-m" type="number" min="0" formControlName="mortalidadM" placeholder="0" />
-                <small class="ux-hint">Número de machos que murieron</small>
+                <label for="f-sel-h">
+                  <span class="label-icon">↩️</span>
+                  SelH (Retiradas) *
+                </label>
+                <input id="f-sel-h" type="number" min="0" formControlName="selH" placeholder="0" required />
+                <small class="ux-hint">Hembras retiradas/seleccionadas</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-cons-kg-h">
+                  <span class="label-icon">🍽️</span>
+                  Consumo Alimento (ConsKgH) - kg *
+                </label>
+                <input id="f-cons-kg-h" type="number" step="0.01" min="0" formControlName="consKgH" placeholder="0.00" required />
+                <small class="ux-hint">Consumo de alimento en kilogramos</small>
               </div>
 
               <div class="form-field form-field--full">
-                <div class="resumen-card">
-                  <div class="resumen-icon">💀</div>
+                <div class="resumen-card resumen-card--hembras">
+                  <div class="resumen-icon">♀️</div>
                   <div class="resumen-content">
-                    <h4>Total Mortalidad</h4>
-                    <p class="resumen-number">{{ getTotalMortalidad() }}</p>
-                    <small class="ux-hint">Total de aves que murieron</small>
+                    <h4>Resumen Hembras</h4>
+                    <div class="resumen-stats">
+                      <div class="stat-item">
+                        <span class="stat-label">Total Retiradas</span>
+                        <span class="stat-value">{{ getTotalRetiradasHembras() }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Consumo</span>
+                        <span class="stat-value">{{ form.get('consKgH')?.value || 0 | number:'1.2-2' }} kg</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </section>
-        </div>
+
+          <!-- MACHOS -->
+          <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
+            <div class="tab-panel-header">
+              <h3>Información de Machos ♂️</h3>
+              <p class="tab-description">Registro de mortalidad y consumo de machos</p>
+            </div>
+            <div class="grid grid-3">
+              <div class="form-field">
+                <label for="f-mortalidad-m">
+                  <span class="label-icon">💀</span>
+                  Mortalidad Machos *
+                </label>
+                <input id="f-mortalidad-m" type="number" min="0" formControlName="mortalidadM" placeholder="0" required />
+                <small class="ux-hint">Número de machos que murieron</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-cons-kg-m">
+                  <span class="label-icon">🍽️</span>
+                  Consumo Alimento (ConsKgM) - kg *
+                </label>
+                <input id="f-cons-kg-m" type="number" step="0.01" min="0" formControlName="consKgM" placeholder="0.00" required />
+                <small class="ux-hint">Consumo de alimento en kilogramos</small>
+              </div>
+
+              <div class="form-field form-field--empty">
+                <!-- Espacio vacío para mantener el grid -->
+              </div>
+
+              <div class="form-field form-field--full">
+                <div class="resumen-card resumen-card--machos">
+                  <div class="resumen-icon">♂️</div>
+                  <div class="resumen-content">
+                    <h4>Resumen Machos</h4>
+                    <div class="resumen-stats">
+                      <div class="stat-item">
+                        <span class="stat-label">Mortalidad</span>
+                        <span class="stat-value">{{ form.get('mortalidadM')?.value || 0 }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Consumo</span>
+                        <span class="stat-value">{{ form.get('consKgM')?.value || 0 | number:'1.2-2' }} kg</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- HUEVOS -->
+          <section id="panel-huevos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-huevos">
+            <div class="tab-panel-header">
+              <h3>Producción de Huevos 🥚</h3>
+              <p class="tab-description">Registro de producción, calidad y parámetros de huevos</p>
+            </div>
+            <div class="grid grid-4">
+              <div class="form-field">
+                <label for="f-huevos-totales">
+                  <span class="label-icon">🥚</span>
+                  Huevos Totales (HuevoTot) *
+                </label>
+                <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" required />
+                <small class="ux-hint">Total de huevos producidos</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-huevos-incubables">
+                  <span class="label-icon">✅</span>
+                  Huevos Incubables (HuevoInc) *
+                </label>
+                <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" required />
+                <small class="ux-hint">Huevos aptos para incubación</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-peso-huevo">
+                  <span class="label-icon">⚖️</span>
+                  Peso Promedio (g) *
+                </label>
+                <input id="f-peso-huevo" type="number" step="0.01" min="0" formControlName="pesoHuevo" placeholder="0.00" required />
+                <small class="ux-hint">Peso promedio en gramos</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-tipo-alimento">
+                  <span class="label-icon">🌾</span>
+                  Tipo de Alimento *
+                </label>
+                <select id="f-tipo-alimento" formControlName="tipoAlimento" required>
+                  <option value="Standard">Standard</option>
+                  <option value="Premium">Premium</option>
+                  <option value="Inicio">Inicio</option>
+                  <option value="Postura">Postura</option>
+                  <option value="Final">Final</option>
+                </select>
+                <small class="ux-hint">Tipo de alimento utilizado</small>
+              </div>
+
+              <!-- CLASIFICADORA DE HUEVOS - HUEVOS INCUBABLES (Se suman a HuevoInc) -->
+              <div class="form-field form-field--full">
+                <div class="clasificadora-section">
+                  <h4 class="clasificadora-title">
+                    <span class="label-icon">✅</span>
+                    Clasificadora de Huevos - Incubables (Se suman a HuevoInc)
+                  </h4>
+                  <div class="grid grid-2">
+                    <div class="form-field">
+                      <label for="f-huevo-limpio">
+                        <span class="label-icon">✨</span>
+                        Limpio
+                      </label>
+                      <input id="f-huevo-limpio" type="number" min="0" formControlName="huevoLimpio" placeholder="0" />
+                      <small class="ux-hint">Huevos limpios</small>
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-tratado">
+                        <span class="label-icon">🧴</span>
+                        Tratado
+                      </label>
+                      <input id="f-huevo-tratado" type="number" min="0" formControlName="huevoTratado" placeholder="0" />
+                      <small class="ux-hint">Huevos tratados</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CLASIFICADORA DE HUEVOS - HUEVOS NO INCUBABLES (Se suman a Huevo Total) -->
+              <div class="form-field form-field--full">
+                <div class="clasificadora-section">
+                  <h4 class="clasificadora-title">
+                    <span class="label-icon">📋</span>
+                    Clasificadora de Huevos - No Incubables (Se suman a Huevo Total)
+                  </h4>
+                  <div class="grid grid-3">
+                    <div class="form-field">
+                      <label for="f-huevo-sucio">
+                        <span class="label-icon">🧹</span>
+                        Sucio
+                      </label>
+                      <input id="f-huevo-sucio" type="number" min="0" formControlName="huevoSucio" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-deforme">
+                        <span class="label-icon">🔀</span>
+                        Deforme
+                      </label>
+                      <input id="f-huevo-deforme" type="number" min="0" formControlName="huevoDeforme" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-blanco">
+                        <span class="label-icon">⚪</span>
+                        Blanco
+                      </label>
+                      <input id="f-huevo-blanco" type="number" min="0" formControlName="huevoBlanco" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-doble-yema">
+                        <span class="label-icon">🥚</span>
+                        Doble Yema
+                      </label>
+                      <input id="f-huevo-doble-yema" type="number" min="0" formControlName="huevoDobleYema" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-piso">
+                        <span class="label-icon">📦</span>
+                        Piso
+                      </label>
+                      <input id="f-huevo-piso" type="number" min="0" formControlName="huevoPiso" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-pequeno">
+                        <span class="label-icon">🔸</span>
+                        Pequeño
+                      </label>
+                      <input id="f-huevo-pequeno" type="number" min="0" formControlName="huevoPequeno" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-roto">
+                        <span class="label-icon">💔</span>
+                        Roto
+                      </label>
+                      <input id="f-huevo-roto" type="number" min="0" formControlName="huevoRoto" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-desecho">
+                        <span class="label-icon">🗑️</span>
+                        Desecho
+                      </label>
+                      <input id="f-huevo-desecho" type="number" min="0" formControlName="huevoDesecho" placeholder="0" />
+                    </div>
+
+                    <div class="form-field">
+                      <label for="f-huevo-otro">
+                        <span class="label-icon">📌</span>
+                        Otro
+                      </label>
+                      <input id="f-huevo-otro" type="number" min="0" formControlName="huevoOtro" placeholder="0" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RESUMEN -->
+              <div class="form-field form-field--full">
+                <div class="resumen-card resumen-card--huevos">
+                  <div class="resumen-icon">🥚</div>
+                  <div class="resumen-content">
+                    <h4>Eficiencia de Producción</h4>
+                    <div class="resumen-stats">
+                      <div class="stat-item stat-item--highlight">
+                        <span class="stat-label">Eficiencia</span>
+                        <span class="stat-value">{{ getEficienciaProduccion() }}%</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Totales</span>
+                        <span class="stat-value">{{ form.get('huevosTotales')?.value || 0 }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Incubables</span>
+                        <span class="stat-value">{{ form.get('huevosIncubables')?.value || 0 }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Limpio + Tratado</span>
+                        <span class="stat-value">{{ (form.get('huevoLimpio')?.value || 0) + (form.get('huevoTratado')?.value || 0) }}</span>
+                      </div>
+                    </div>
+                    <small class="ux-hint">Porcentaje de huevos incubables sobre el total</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- PESAJE SEMANAL -->
+          <section id="panel-pesaje" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-pesaje">
+            <div class="tab-panel-header">
+              <h3>Pesaje Semanal ⚖️</h3>
+              <p class="tab-description">Registro de información de pesaje semanal (una vez por semana)</p>
+            </div>
+            <div class="grid grid-4">
+              <div class="form-field">
+                <label for="f-peso-h">
+                  <span class="label-icon">♀️</span>
+                  Peso Hembras (kg) - pesoH
+                </label>
+                <input id="f-peso-h" type="number" step="0.01" min="0" formControlName="pesoH" placeholder="0.00" />
+                <small class="ux-hint">Peso promedio de hembras en kilogramos</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-peso-m">
+                  <span class="label-icon">♂️</span>
+                  Peso Machos (kg) - pesoM
+                </label>
+                <input id="f-peso-m" type="number" step="0.01" min="0" formControlName="pesoM" placeholder="0.00" />
+                <small class="ux-hint">Peso promedio de machos en kilogramos</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-uniformidad">
+                  <span class="label-icon">📊</span>
+                  Uniformidad (%)
+                </label>
+                <input id="f-uniformidad" type="number" step="0.01" min="0" max="100" formControlName="uniformidad" placeholder="0.00" />
+                <small class="ux-hint">Uniformidad del lote (porcentaje)</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-coeficiente-variacion">
+                  <span class="label-icon">📈</span>
+                  Coeficiente de Variación (CV)
+                </label>
+                <input id="f-coeficiente-variacion" type="number" step="0.01" min="0" max="100" formControlName="coeficienteVariacion" placeholder="0.00" />
+                <small class="ux-hint">Coeficiente de variación del lote</small>
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="f-obs-pesaje">
+                  <span class="label-icon">📝</span>
+                  Observaciones del Pesaje
+                </label>
+                <textarea id="f-obs-pesaje" rows="4" formControlName="observacionesPesaje" placeholder="Ingrese observaciones específicas sobre el pesaje semanal (opcional)"></textarea>
+              </div>
+            </div>
+          </section>
       </div>
 
       <footer class="ux-modal__footer">

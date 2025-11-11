@@ -191,14 +191,23 @@ public class LiquidacionTecnicaService : ILiquidacionTecnicaService
         if (string.IsNullOrEmpty(raza) || !anoTablaGenetica.HasValue)
             return null;
 
-        var datosGuia = await _context.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .Where(p => p.CompanyId == _currentUser.CompanyId &&
-                       p.DeletedAt == null &&
-                       p.Raza == raza &&
-                       p.AnioGuia == anoTablaGenetica.ToString() &&
-                       p.Edad == "175") // Semana 25 = 175 días
-            .FirstOrDefaultAsync();
+        // Intentar con diferentes formatos de edad: "175" (días) o "25" (semanas)
+        var edadBuscar = new[] { "175", "25", "25.0" };
+        Domain.Entities.ProduccionAvicolaRaw? datosGuia = null;
+
+        foreach (var edad in edadBuscar)
+        {
+            datosGuia = await _context.ProduccionAvicolaRaw
+                .AsNoTracking()
+                .Where(p => p.CompanyId == _currentUser.CompanyId &&
+                           p.DeletedAt == null &&
+                           p.Raza == raza &&
+                           p.AnioGuia == anoTablaGenetica.ToString() &&
+                           p.Edad == edad)
+                .FirstOrDefaultAsync();
+
+            if (datosGuia != null) break;
+        }
 
         if (datosGuia == null) return null;
 

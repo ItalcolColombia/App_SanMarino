@@ -129,38 +129,63 @@
 @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 :host .ux-modal__dialog {
-  width: min(800px, 95vw); background: var(--bg-card);
+  width: min(1200px, 95vw); max-height: 95vh; background: var(--bg-card);
   border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
   border: 1px solid var(--border); position: relative; overflow: hidden;
   transform: translateY(6px); animation: dialogUp .18s ease-out forwards;
+  display: flex; flex-direction: column;
 }
 @keyframes dialogUp { to { transform: translateY(0); } }
 
 :host .ux-modal__header {
   display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
 }
-:host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
+:host .ux-modal__header h2 { margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--brand-red); }
 :host .ux-modal__footer {
-  display: flex; justify-content: flex-end; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: .75rem; padding: 1.25rem 1.5rem; border-top: 1px solid var(--border);
 }
 
 /* ==========================================================================
    📝 Formulario
    ========================================================================== */
-:host .ux-form { padding: 1.25rem; }
+:host .ux-form {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
 
-:host .form-field { display: flex; flex-direction: column; gap: .35rem; }
+:host .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  margin-bottom: 0;
+}
 :host .form-field--full { grid-column: 1 / -1; }
-:host .form-field label { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
+:host .form-field--empty { visibility: hidden; }
+:host .form-field label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+:host .label-icon {
+  font-size: 1rem;
+  opacity: .7;
+}
 
 :host .form-field input,
 :host .form-field textarea,
 :host .form-field select {
   border: 1px solid var(--warm-300); border-radius: var(--radius-md);
-  padding: .55rem .75rem; font-size: var(--fs-md); color: var(--text);
+  padding: .7rem .9rem; font-size: var(--fs-md); color: var(--text);
   outline: none; background: var(--bg-card);
   transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
+  min-height: 44px;
 }
 :host .form-field input:hover,
 :host .form-field textarea:hover,
@@ -183,17 +208,23 @@
 /* ==========================================================================
    🧭 Tabs del modal (CSS-only, accesible)
    ========================================================================== */
-:host .ux-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, max-content) 1fr;
-  align-items: end;
-  gap: .35rem;
-  border-bottom: 1px solid var(--warm-200);
-  margin-bottom: 1rem;
-  position: relative;
+:host .ux-tabs-wrapper {
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--warm-200);
+  padding-bottom: 0;
 }
 
-:host .ux-tabs input[type="radio"] {
+:host .ux-tabs {
+  display: flex;
+  align-items: end;
+  gap: .5rem;
+  position: relative;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0;
+}
+
+:host .ux-tab-input {
   position: absolute;
   opacity: 0;
   width: 0;
@@ -204,73 +235,244 @@
 :host .ux-tab {
   display: inline-flex;
   align-items: center;
-  padding: .55rem .8rem;
+  gap: .5rem;
+  padding: .85rem 1.25rem;
   border: 1px solid var(--warm-200);
   border-bottom: none;
   border-top-left-radius: .6rem;
   border-top-right-radius: .6rem;
   background: var(--warm-100);
   color: var(--warm-600);
-  font-weight: 700;
+  font-weight: 600;
+  font-size: var(--fs-md);
   cursor: pointer;
   user-select: none;
-  transition: background .15s, color .15s, transform .12s;
+  transition: all .2s ease;
   outline: none;
+  white-space: nowrap;
+  position: relative;
+  margin-bottom: -1px;
+  min-width: 120px;
+  justify-content: center;
 }
-:host .ux-tab:hover { background: var(--white); color: var(--brand-red); }
+:host .ux-tab:hover {
+  background: var(--warm-50);
+  color: var(--brand-red);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
 :host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
 
+:host .tab-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+:host .tab-label {
+  font-weight: 600;
+}
+
 :host .ux-tab-panels {
-  grid-column: 1 / -1;
   background: var(--white);
-  border: 1px solid var(--warm-200);
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  min-height: 450px;
+  max-height: calc(95vh - 380px);
+  overflow-y: auto;
+}
+
+:host .ux-tab-panel {
+  padding: 1.5rem;
+  background: var(--white);
   border-radius: .6rem;
-  box-shadow: var(--shadow-lg);
-  padding: 1rem;
+}
+
+/* Tab Panel Headers */
+:host .tab-panel-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--warm-100);
+}
+
+:host .tab-panel-header h3 {
+  margin: 0 0 .25rem 0;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--brand-red);
+}
+
+:host .tab-description {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--warm-500);
+  font-weight: 500;
 }
 
 :host .ux-tab-panel { display: none; }
 
 /* Mostrar el panel correspondiente */
-:host #tab-general:checked ~ .ux-tab-panels #panel-general { display: block; }
-:host #tab-produccion:checked ~ .ux-tab-panels #panel-produccion { display: block; }
-:host #tab-mortalidad:checked ~ .ux-tab-panels #panel-mortalidad { display: block; }
+:host #tab-general:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-general { display: block; }
+:host #tab-hembras:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-hembras { display: block; }
+:host #tab-machos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-machos { display: block; }
+:host #tab-huevos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-huevos { display: block; }
+:host #tab-pesaje:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-pesaje { display: block; }
 
 /* Estado visual del tab ACTIVO */
-:host #tab-general:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-produccion:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-mortalidad:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"],
+:host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"],
+:host #tab-machos:checked ~ .ux-tabs-wrapper label[for="tab-machos"],
+:host #tab-huevos:checked ~ .ux-tabs-wrapper label[for="tab-huevos"],
+:host #tab-pesaje:checked ~ .ux-tabs-wrapper label[for="tab-pesaje"] {
+  background: var(--white);
+  color: var(--brand-red);
+  transform: translateY(-1px);
+  border-bottom: 2px solid var(--white);
+  border-bottom-width: 2px;
+  font-weight: 700;
+  box-shadow: 0 -2px 8px rgba(0,0,0,.05);
+}
 
 /* ==========================================================================
    📊 Resumen Cards
    ========================================================================== */
 :host .resumen-card {
-  display: flex; align-items: center; gap: .75rem;
-  padding: .9rem; background: var(--amber-25);
-  border: 1px solid var(--amber-200); border-radius: var(--radius-md);
-  margin-top: .5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--amber-25);
+  border: 1px solid var(--amber-200);
+  border-radius: var(--radius-md);
+  margin-top: .75rem;
+}
+
+:host .resumen-card--hembras {
+  background: #fef3f2;
+  border-color: #fecaca;
+}
+
+:host .resumen-card--machos {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+:host .resumen-card--huevos {
+  background: var(--amber-25);
+  border-color: var(--amber-200);
 }
 
 :host .resumen-icon {
-  font-size: 1.5rem; color: var(--brand-red);
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+:host .resumen-content {
+  flex: 1;
 }
 
 :host .resumen-content h4 {
-  margin: 0 0 .25rem 0; font-size: var(--fs-sm); font-weight: 700; color: var(--text);
+  margin: 0 0 .75rem 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+:host .resumen-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+:host .stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+:host .stat-label {
+  font-size: var(--fs-xs);
+  color: var(--warm-500);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+:host .stat-value {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--brand-red);
+}
+
+:host .stat-item--highlight .stat-value {
+  font-size: var(--fs-xl);
+  color: var(--brand-red);
 }
 
 :host .resumen-number {
-  margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red);
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--brand-red);
 }
 
 :host .resumen-content small {
-  color: var(--warm-400); font-size: var(--fs-xs);
+  display: block;
+  margin-top: .5rem;
+  color: var(--warm-400);
+  font-size: var(--fs-xs);
+}
+
+/* ==========================================================================
+   📋 Clasificadora de Huevos Sections
+   ========================================================================== */
+:host .clasificadora-section {
+  padding: 1.25rem;
+  background: var(--warm-50);
+  border: 1px solid var(--warm-200);
+  border-radius: var(--radius-md);
+  margin-top: 1rem;
+}
+
+:host .clasificadora-title {
+  margin: 0 0 .75rem 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--warm-200);
+}
+
+:host .clasificadora-section .grid-3 {
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1024px) {
+  :host .clasificadora-section .grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+:host .clasificadora-section .form-field {
+  margin-bottom: 0;
+}
+
+:host .clasificadora-section .form-field label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
 }
 
 /* ==========================================================================
    🔧 Helpers / Utilities
    ========================================================================== */
-.grid { display: grid; gap: .9rem; }
+.grid { display: grid; gap: 1rem; }
 .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -295,18 +497,120 @@
 /* ==========================================================================
    📱 Responsive
    ========================================================================== */
-@media (max-width: 960px)  {
-  .grid-4, .grid-3, .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  :host .ux-form { padding: 1rem; }
+@media (max-width: 1024px) {
+  :host .ux-modal__dialog {
+    width: min(900px, 95vw);
+  }
+
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 680px)  {
-  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
-  :host .ux-modal__dialog { width: 95vw; }
+
+@media (max-width: 768px) {
+  :host .ux-modal__dialog {
+    width: 95vw;
+    max-height: 95vh;
+  }
+
+  .grid-4, .grid-3, .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  :host .clasificadora-section .grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :host .ux-tabs {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  :host .ux-tab {
+    flex: 1;
+    min-width: calc(50% - .25rem);
+    justify-content: center;
+    padding: .5rem .75rem;
+  }
+
+  :host .tab-icon {
+    font-size: 1rem;
+  }
+
+  :host .ux-tab-panels {
+    padding: 1rem;
+    min-height: 300px;
+  }
+
+  :host .resumen-stats {
+    flex-direction: column;
+    gap: .75rem;
+  }
+
+  :host .stat-item {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: .5rem;
+    background: var(--white);
+    border-radius: .4rem;
+  }
 }
-@media (max-width: 480px) { 
-  :host .ux-modal__header h2 { font-size: 1.1rem; }
-  :host .ux-tabs { grid-template-columns: 1fr; }
-  :host .ux-tab { justify-content: center; }
+
+@media (max-width: 480px) {
+  :host .ux-modal__header {
+    padding: .75rem 1rem;
+  }
+
+  :host .ux-modal__header h2 {
+    font-size: 1rem;
+  }
+
+  :host .ux-tabs {
+    flex-direction: column;
+  }
+
+  :host .ux-tab {
+    width: 100%;
+    min-width: 100%;
+    border-top-left-radius: .4rem;
+    border-top-right-radius: .4rem;
+    border-bottom: 1px solid var(--warm-200);
+  }
+
+  :host #tab-general:checked + label.ux-tab,
+  :host #tab-hembras:checked + label.ux-tab,
+  :host #tab-machos:checked + label.ux-tab,
+  :host #tab-huevos:checked + label.ux-tab {
+    border-bottom-color: var(--white);
+  }
+
+  :host .ux-tab-panels {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding: .85rem;
+  }
+
+  :host .tab-panel-header h3 {
+    font-size: var(--fs-md);
+  }
+
+  :host .resumen-card {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  :host .resumen-icon {
+    font-size: 2.5rem;
+  }
+
+  :host .stat-item {
+    width: 100%;
+  }
+
+  :host .clasificadora-section .grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 

@@ -12,7 +12,7 @@ export interface LiquidacionTecnicaComparacionDto {
   anoTablaGenetica?: number;
   lineaGeneticaId?: number;
   nombreGuiaGenetica?: string;
-  
+
   // Métricas reales del lote
   porcentajeMortalidadHembras: number;
   porcentajeMortalidadMachos: number;
@@ -22,7 +22,7 @@ export interface LiquidacionTecnicaComparacionDto {
   pesoFinalMachos?: number;
   uniformidadFinalHembras?: number;
   uniformidadFinalMachos?: number;
-  
+
   // Valores esperados de la guía genética
   mortalidadEsperadaHembras?: number;
   mortalidadEsperadaMachos?: number;
@@ -32,7 +32,7 @@ export interface LiquidacionTecnicaComparacionDto {
   pesoEsperadoMachos?: number;
   uniformidadEsperadaHembras?: number;
   uniformidadEsperadaMachos?: number;
-  
+
   // Diferencias calculadas
   diferenciaMortalidadHembras?: number;
   diferenciaMortalidadMachos?: number;
@@ -42,7 +42,7 @@ export interface LiquidacionTecnicaComparacionDto {
   diferenciaPesoMachos?: number;
   diferenciaUniformidadHembras?: number;
   diferenciaUniformidadMachos?: number;
-  
+
   // Evaluación de cumplimiento
   cumpleMortalidadHembras: boolean;
   cumpleMortalidadMachos: boolean;
@@ -52,13 +52,13 @@ export interface LiquidacionTecnicaComparacionDto {
   cumplePesoMachos: boolean;
   cumpleUniformidadHembras: boolean;
   cumpleUniformidadMachos: boolean;
-  
+
   // Resumen general
   totalParametrosEvaluados: number;
   parametrosCumplidos: number;
   porcentajeCumplimiento: number;
   estadoGeneral: string; // "Excelente", "Bueno", "Regular", "Deficiente"
-  
+
   // Metadatos
   fechaCalculo: string;
   totalRegistrosSeguimiento: number;
@@ -86,7 +86,7 @@ export interface LiquidacionTecnicaComparacionCompletaDto {
   providedIn: 'root'
 })
 export class LiquidacionComparacionService {
-  private baseUrl = `${environment.apiUrl}/api/LiquidacionTecnicaComparacion`;
+  private baseUrl = `${environment.apiUrl}/LiquidacionTecnicaComparacion`;
 
   constructor(private http: HttpClient) {}
 
@@ -135,11 +135,11 @@ export class LiquidacionComparacionService {
     const params = new URLSearchParams();
     if (raza) params.append('raza', raza);
     if (ano) params.append('ano', ano.toString());
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-    
+
     return this.http.get<any[]>(url);
   }
 }

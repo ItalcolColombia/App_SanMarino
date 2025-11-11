@@ -37,7 +37,7 @@ import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 
 
-  
+
 
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
@@ -376,8 +376,24 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   }
 
   delete(id: number): void {
-    if (!confirm('¿Eliminar este registro?')) return;
-    this.segSvc.delete(id).subscribe(() => this.onLoteChange(this.selectedLoteId));
+    if (!confirm('¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.')) return;
+
+    this.loading = true;
+    this.segSvc.delete(id).subscribe({
+      next: () => {
+        this.loading = false;
+        // Recargar los registros del lote después de eliminar
+        this.onLoteChange(this.selectedLoteId);
+      },
+      error: (err) => {
+        this.loading = false;
+        console.error('Error al eliminar registro:', err);
+        const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
+        alert(errorMessage);
+        // Recargar los registros incluso si hay error para mantener consistencia
+        this.onLoteChange(this.selectedLoteId);
+      }
+    });
   }
 
   cancel(): void {

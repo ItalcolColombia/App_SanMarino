@@ -1,0 +1,955 @@
+/* ==========================================================================
+   Liquidación Técnica - Diseño Mejorado XL Responsive
+   ========================================================================== */
+
+:host {
+  display: block;
+  width: 100%;
+
+  /* Variables esenciales */
+  --brand-red: #d32f2f;
+  --brand-blue: #1976d2;
+  --brand-green: #10b981;
+  --brand-orange: #f59e0b;
+  --brand-purple: #8b5cf6;
+  --warm-50: #fafaf9;
+  --warm-100: #f5f5f4;
+  --warm-200: #e7e5e4;
+  --warm-300: #d6d3d1;
+  --warm-400: #a8a29e;
+  --warm-500: #78716c;
+  --warm-600: #57534e;
+  --warm-700: #44403c;
+  --white: #ffffff;
+  --black: #111111;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.25rem;
+  --fs-2xl: 1.5rem;
+  --fs-3xl: 1.875rem;
+
+  /* Colores específicos */
+  --liquidacion-success: var(--brand-green);
+  --liquidacion-warning: var(--brand-orange);
+  --liquidacion-danger: #ef4444;
+  --liquidacion-info: var(--brand-blue);
+  --primary-gradient: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+  --tab-active-bg: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+}
+
+/* ==========================================================================
+   Layout Principal
+   ========================================================================== */
+
+.liquidacion-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-4);
+  background: linear-gradient(180deg, #fafafa 0%, #f5f5f4 100%);
+  min-height: 100%;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.liquidacion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--space-6);
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--warm-200);
+  gap: var(--space-4);
+}
+
+.liquidacion-title {
+  flex: 1;
+}
+
+.liquidacion-title h3 {
+  margin: 0 0 var(--space-3) 0;
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--brand-red);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.liquidacion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.chip--info {
+  background: rgba(25, 118, 210, 0.1);
+  color: var(--brand-blue);
+  border-color: rgba(25, 118, 210, 0.2);
+}
+
+.chip--success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--brand-green);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.liquidacion-controls {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* ==========================================================================
+   Tabs Mejorados - Diseño Moderno
+   ========================================================================== */
+
+.liquidacion-tabs {
+  display: flex;
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--warm-200);
+  padding: var(--space-2);
+  gap: var(--space-2);
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-btn {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: none;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--warm-600);
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--tab-active-bg);
+  border: 2px solid var(--warm-200);
+  border-radius: var(--radius-lg);
+  opacity: 0;
+  transform: scale(0.95);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+}
+
+.tab-btn:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.tab-btn:hover {
+  color: var(--brand-red);
+  z-index: 1;
+}
+
+.tab-btn.active {
+  color: var(--brand-red);
+  z-index: 1;
+}
+
+.tab-btn.active::before {
+  opacity: 1;
+  transform: scale(1);
+  border-color: var(--brand-red);
+  box-shadow: 0 2px 8px rgba(211, 47, 47, 0.15);
+}
+
+.tab-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tab-btn span {
+  position: relative;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+
+.ux-card {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--warm-200);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.ux-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.ux-card h4 {
+  margin: 0;
+  padding: var(--space-5) var(--space-6);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--black);
+  background: linear-gradient(180deg, var(--warm-50) 0%, var(--white) 100%);
+  border-bottom: 2px solid var(--warm-200);
+}
+
+.liquidacion-info {
+  border-left: 4px solid var(--liquidacion-info);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--warm-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warm-200);
+  transition: all 0.2s ease;
+}
+
+.info-item:hover {
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+.info-item label {
+  font-size: var(--fs-sm);
+  color: var(--warm-500);
+  font-weight: 500;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-item div {
+  font-size: var(--fs-lg);
+  color: var(--black);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Métricas Grid - Diseño de Tarjetas
+   ========================================================================== */
+
+.metricas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+
+.metrica-card {
+  background: linear-gradient(135deg, var(--white) 0%, var(--warm-50) 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  border: 2px solid var(--warm-200);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.metrica-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary-gradient);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.metrica-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--brand-red);
+}
+
+.metrica-card:hover::before {
+  transform: scaleX(1);
+}
+
+.metrica-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--warm-200);
+}
+
+.metrica-icon {
+  font-size: var(--fs-2xl);
+  line-height: 1;
+}
+
+.metrica-titulo {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--warm-700);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metrica-valor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.metrica-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.metrica-label {
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+  font-weight: 500;
+}
+
+.metrica-num {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--brand-red);
+}
+
+.metrica-cant {
+  font-size: var(--fs-xs);
+  color: var(--warm-500);
+  font-weight: 400;
+}
+
+.text-success {
+  color: var(--brand-green) !important;
+}
+
+.text-warning {
+  color: var(--brand-orange) !important;
+}
+
+/* ==========================================================================
+   Tablas Mejoradas - Diseño Limpio
+   ========================================================================== */
+
+.comparacion-table-container {
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warm-200);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.comparacion-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.comparacion-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 800px;
+}
+
+.comparacion-table thead {
+  background: linear-gradient(180deg, var(--warm-100) 0%, var(--warm-50) 100%);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.comparacion-table th {
+  padding: var(--space-4) var(--space-5);
+  text-align: left;
+  font-weight: 700;
+  color: var(--warm-700);
+  text-transform: uppercase;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--warm-300);
+  white-space: nowrap;
+}
+
+.comparacion-table tbody tr {
+  border-bottom: 1px solid var(--warm-200);
+  transition: background 0.15s ease;
+}
+
+.comparacion-table tbody tr:hover {
+  background: var(--warm-50);
+}
+
+.comparacion-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.comparacion-table td {
+  padding: var(--space-4) var(--space-5);
+  color: var(--warm-700);
+  vertical-align: middle;
+}
+
+.comparacion-table td strong {
+  color: var(--black);
+  font-weight: 600;
+}
+
+.comparacion-table td:first-child {
+  font-weight: 500;
+  color: var(--black);
+}
+
+/* ==========================================================================
+   Diferencias y Estados
+   ========================================================================== */
+
+.diferencia-ok {
+  color: var(--brand-green);
+  font-weight: 600;
+}
+
+.diferencia-warning {
+  color: var(--brand-orange);
+  font-weight: 600;
+}
+
+.diferencia-danger {
+  color: var(--liquidacion-danger);
+  font-weight: 600;
+}
+
+.estado-ok,
+.estado-neutral {
+  background: var(--brand-green);
+  color: var(--white);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.estado-warning {
+  background: var(--brand-orange);
+  color: var(--white);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.estado-danger {
+  background: var(--liquidacion-danger);
+  color: var(--white);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ==========================================================================
+   Etapas
+   ========================================================================== */
+
+.etapas-selector {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: var(--warm-50);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warm-200);
+}
+
+.etapa-btn {
+  flex: 1;
+  padding: var(--space-4) var(--space-5);
+  background: var(--white);
+  border: 2px solid var(--warm-200);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.etapa-btn:hover {
+  border-color: var(--brand-red);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.etapa-btn.active {
+  background: var(--primary-gradient);
+  color: var(--white);
+  border-color: var(--brand-red);
+  box-shadow: var(--shadow-md);
+}
+
+.etapa-num {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+}
+
+.etapa-info {
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.etapas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.etapa-summary-card {
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  border: 2px solid var(--warm-200);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.etapa-summary-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--brand-red);
+}
+
+.etapa-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--warm-200);
+}
+
+.etapa-summary-header h5 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--brand-red);
+}
+
+.etapa-badge {
+  background: var(--warm-200);
+  color: var(--warm-700);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.etapa-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+}
+
+.summary-item span {
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+}
+
+.summary-item strong {
+  font-size: var(--fs-md);
+  color: var(--black);
+  font-weight: 700;
+}
+
+.etapa-empty {
+  text-align: center;
+  padding: var(--space-6);
+  color: var(--warm-500);
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Sección de Comparación de Huevos
+   ========================================================================== */
+
+.comparacion-huevos-section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 3px solid var(--warm-200);
+}
+
+.comparacion-huevos-section h5 {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--brand-red);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--warm-200);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.guia-datos-adicionales {
+  margin-top: var(--space-6);
+  padding: var(--space-5);
+  background: linear-gradient(135deg, var(--warm-50) 0%, var(--white) 100%);
+  border-radius: var(--radius-xl);
+  border: 2px solid var(--warm-200);
+  box-shadow: var(--shadow-sm);
+}
+
+.guia-datos-adicionales h6 {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--warm-700);
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.datos-adicionales-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-3);
+}
+
+.dato-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: var(--white);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warm-200);
+  transition: all 0.2s ease;
+}
+
+.dato-item:hover {
+  background: var(--warm-50);
+  border-color: var(--brand-red);
+  transform: translateX(4px);
+}
+
+.dato-item label {
+  font-weight: 600;
+  color: var(--warm-600);
+  font-size: var(--fs-sm);
+}
+
+.dato-item span {
+  font-weight: 700;
+  color: var(--black);
+  font-size: var(--fs-md);
+}
+
+/* ==========================================================================
+   Loading, Error, Empty States
+   ========================================================================== */
+
+.loading-overlay,
+.error-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  text-align: center;
+  min-height: 400px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--warm-200);
+  border-top-color: var(--brand-red);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-icon,
+.empty-illustration {
+  font-size: 4rem;
+  margin-bottom: var(--space-4);
+  opacity: 0.6;
+}
+
+.missing-data-alert {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: rgba(245, 158, 11, 0.1);
+  border: 2px solid var(--brand-orange);
+  border-radius: var(--radius-lg);
+  margin: var(--space-4) 0;
+}
+
+.alert-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.alert-content h5 {
+  margin: 0 0 var(--space-2) 0;
+  color: var(--brand-orange);
+  font-weight: 700;
+}
+
+.alert-content ul {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-5);
+}
+
+/* ==========================================================================
+   Chart Container
+   ========================================================================== */
+
+.chart-container {
+  padding: var(--space-5);
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warm-200);
+  margin-bottom: var(--space-6);
+  height: 400px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+/* ==========================================================================
+   Etapa Detalle
+   ========================================================================== */
+
+.etapa-detalle {
+  margin-top: var(--space-6);
+}
+
+.etapa-detalle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 2px solid var(--warm-200);
+  background: linear-gradient(180deg, var(--warm-50) 0%, var(--white) 100%);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.etapa-detalle-header h5 {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--brand-red);
+}
+
+.etapa-detalle-body {
+  padding: var(--space-6);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid;
+  background: var(--white);
+  color: var(--warm-700);
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--warm-300);
+  color: var(--warm-700);
+}
+
+.btn--ghost:hover {
+  background: var(--warm-100);
+  border-color: var(--warm-400);
+  transform: translateY(-1px);
+}
+
+.btn--sm {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-xs);
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 1200px) {
+  .info-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .metricas-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .liquidacion-container {
+    padding: var(--space-2);
+  }
+
+  .liquidacion-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .liquidacion-tabs {
+    flex-direction: column;
+  }
+
+  .tab-btn {
+    width: 100%;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metricas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .etapas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .etapas-selector {
+    flex-direction: column;
+  }
+
+  .comparacion-table {
+    font-size: var(--fs-xs);
+  }
+
+  .comparacion-table th,
+  .comparacion-table td {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .datos-adicionales-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .liquidacion-title h3 {
+    font-size: var(--fs-xl);
+  }
+
+  .info-grid {
+    gap: var(--space-2);
+    padding: var(--space-4);
+  }
+
+  .metricas-grid {
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+}

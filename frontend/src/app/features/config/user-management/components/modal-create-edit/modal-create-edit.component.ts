@@ -3,7 +3,7 @@ import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetect
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { 
+import {
   faUserPlus, faUser, faSave, faTimes, faEnvelope, faPhone, faIdCard, faBuilding, faUsers,
   faEye, faEyeSlash, faCheck, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
@@ -12,6 +12,9 @@ import { Subject, takeUntil, forkJoin } from 'rxjs';
 import { UserService, UserListItem, CreateUserDto, UpdateUserDto } from '../../../../../core/services/user/user.service';
 import { Company, CompanyService } from '../../../../../core/services/company/company.service';
 import { RoleService, Role } from '../../../../../core/services/role/role.service';
+import { AuthService } from '../../../../../core/auth/auth.service';
+import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
+import { interval, Subscription } from 'rxjs';
 
 // === Validador: array requerido (>=1 ítem) ===
 const requiredArray: ValidatorFn = (ctrl: AbstractControl) => {
@@ -37,7 +40,7 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
 export class ModalCreateEditComponent implements OnInit, OnDestroy {
   @Input() isOpen: boolean = false;
   @Input() editingUser: UserListItem | null = null;
-  
+
   @Output() close = new EventEmitter<void>();
   @Output() userSaved = new EventEmitter<UserListItem>();
 
@@ -62,12 +65,18 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   showPassword = false;
   showConfirmPassword = false;
   activeTab: 'personal' | 'access' | 'roles' = 'personal';
-  
+
+  // Estado del correo
+  emailQueueId: number | null = null;
+  emailStatus: 'pending' | 'processing' | 'sent' | 'failed' | null = null;
+  checkingEmailStatus = false;
+  private emailStatusSubscription?: Subscription;
+
   // Datos
   companies: Company[] = [];
   roles: Role[] = [];
   filteredRoles: Role[] = [];
-  
+
   // Formulario
   userForm!: FormGroup;
 
@@ -76,6 +85,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   private userService = inject(UserService);
   private companyService = inject(CompanyService);
   private roleService = inject(RoleService);
+  private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
 
   ngOnInit(): void {
@@ -86,6 +96,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.stopEmailStatusCheck();
   }
 
   ngOnChanges(): void {
@@ -116,7 +127,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
 
   loadLookups(): void {
     this.loading = true;
-    
+
     forkJoin({
       companies: this.companyService.getAll(),
       roles: this.roleService.getAll()
@@ -141,7 +152,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
     if (!this.editingUser) return;
 
     this.loading = true;
-    
+
     this.userService.getById(this.editingUser.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -156,13 +167,13 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
             companyIds: userDetail.companyIds || [],
             roleIds: this.mapRoleNamesToIds(userDetail.roles || [])
           });
-          
+
           // En edición, la contraseña no es requerida
           this.userForm.get('password')?.clearValidators();
           this.userForm.get('confirmPassword')?.clearValidators();
           this.userForm.get('password')?.updateValueAndValidity();
           this.userForm.get('confirmPassword')?.updateValueAndValidity();
-          
+
           this.loading = false;
           this.cdr.detectChanges();
         },
@@ -186,7 +197,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       companyIds: [],
       roleIds: []
     });
-    
+
     // En creación, la contraseña es requerida
     this.userForm.get('password')?.setValidators([Validators.required, Validators.minLength(6)]);
     this.userForm.get('confirmPassword')?.setValidators([Validators.required, match('password')]);
@@ -263,8 +274,19 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
         .subscribe({
           next: (result: any) => {
             this.saving = false;
+
+            // Si hay emailQueueId, iniciar verificación del estado del correo
+            if (result?.emailQueueId) {
+              this.emailQueueId = result.emailQueueId;
+              this.emailStatus = result.emailSent ? 'sent' : 'pending';
+              this.startEmailStatusCheck();
+            }
+
             this.userSaved.emit(result);
-            this.closeModal();
+            // No cerrar el modal inmediatamente si hay correo pendiente
+            if (!result?.emailQueueId || result?.emailSent) {
+              this.closeModal();
+            }
           },
           error: (error: any) => {
             console.error('Error creating user:', error);
@@ -275,7 +297,109 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   }
 
   closeModal(): void {
+    this.stopEmailStatusCheck();
+    this.emailQueueId = null;
+    this.emailStatus = null;
     this.close.emit();
+  }
+
+  /**
+   * Inicia la verificación periódica del estado del correo
+   */
+  private startEmailStatusCheck(): void {
+    if (!this.emailQueueId) return;
+
+    this.stopEmailStatusCheck(); // Asegurar que no hay otra suscripción activa
+
+    // Consultar inmediatamente
+    this.checkEmailStatus();
+
+    // Consultar cada 3 segundos si está pendiente o procesando
+    this.emailStatusSubscription = interval(3000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.emailStatus === 'pending' || this.emailStatus === 'processing') {
+          this.checkEmailStatus();
+        } else {
+          // Si ya se envió o falló, detener la verificación
+          this.stopEmailStatusCheck();
+        }
+      });
+  }
+
+  /**
+   * Detiene la verificación periódica del estado del correo
+   */
+  private stopEmailStatusCheck(): void {
+    if (this.emailStatusSubscription) {
+      this.emailStatusSubscription.unsubscribe();
+      this.emailStatusSubscription = undefined;
+    }
+  }
+
+  /**
+   * Consulta el estado actual del correo
+   */
+  private checkEmailStatus(): void {
+    if (!this.emailQueueId || this.checkingEmailStatus) return;
+
+    this.checkingEmailStatus = true;
+
+    this.authService.getEmailStatus(this.emailQueueId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (status: EmailQueueStatus) => {
+          this.emailStatus = status.status;
+          this.checkingEmailStatus = false;
+          this.cdr.detectChanges();
+
+          // Si se envió o falló, detener la verificación
+          if (this.emailStatus === 'sent' || this.emailStatus === 'failed') {
+            this.stopEmailStatusCheck();
+          }
+        },
+        error: (error: unknown) => {
+          console.error('Error al consultar estado del correo:', error);
+          this.checkingEmailStatus = false;
+        }
+      });
+  }
+
+  /**
+   * Obtiene el icono y color del estado del correo
+   */
+  getEmailStatusIcon(): { icon: any; color: string; tooltip: string } {
+    if (!this.emailQueueId) {
+      return { icon: null, color: '', tooltip: '' };
+    }
+
+    switch (this.emailStatus) {
+      case 'sent':
+        return {
+          icon: this.faEnvelope,
+          color: '#10b981', // verde
+          tooltip: 'Correo enviado exitosamente'
+        };
+      case 'failed':
+        return {
+          icon: this.faEnvelope,
+          color: '#ef4444', // rojo
+          tooltip: 'Error al enviar el correo'
+        };
+      case 'pending':
+      case 'processing':
+        return {
+          icon: this.faEnvelope,
+          color: '#6b7280', // gris
+          tooltip: 'Correo en proceso de envío'
+        };
+      default:
+        return {
+          icon: this.faEnvelope,
+          color: '#6b7280',
+          tooltip: 'Verificando estado del correo...'
+        };
+    }
   }
 
   setActiveTab(tab: 'personal' | 'access' | 'roles'): void {
@@ -293,13 +417,13 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   toggleCompany(companyId: number): void {
     const currentIds = this.userForm.get('companyIds')?.value || [];
     const index = currentIds.indexOf(companyId);
-    
+
     if (index > -1) {
       currentIds.splice(index, 1);
     } else {
       currentIds.push(companyId);
     }
-    
+
     this.userForm.get('companyIds')?.setValue([...currentIds]);
     this.filterRolesByCompanies();
   }
@@ -307,32 +431,32 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   toggleRole(roleId: number): void {
     const currentIds = this.userForm.get('roleIds')?.value || [];
     const index = currentIds.indexOf(roleId);
-    
+
     if (index > -1) {
       currentIds.splice(index, 1);
     } else {
       currentIds.push(roleId);
     }
-    
+
     this.userForm.get('roleIds')?.setValue([...currentIds]);
   }
 
   filterRolesByCompanies(): void {
     const selectedCompanyIds = this.userForm.get('companyIds')?.value || [];
-    
+
     if (selectedCompanyIds.length === 0) {
       this.filteredRoles = [];
     } else {
-      this.filteredRoles = this.roles.filter(role => 
+      this.filteredRoles = this.roles.filter(role =>
         role.companyIds.some(companyId => selectedCompanyIds.includes(companyId))
       );
     }
-    
+
     // Limpiar roles seleccionados que ya no están disponibles
     const currentRoleIds = this.userForm.get('roleIds')?.value || [];
     const availableRoleIds = this.filteredRoles.map(r => r.id);
     const validRoleIds = currentRoleIds.filter((id: number) => availableRoleIds.includes(id));
-    
+
     if (validRoleIds.length !== currentRoleIds.length) {
       this.userForm.get('roleIds')?.setValue(validRoleIds);
     }
@@ -395,14 +519,14 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   isTabValid(tab: 'personal' | 'access' | 'roles'): boolean {
     switch (tab) {
       case 'personal':
-        return !!(this.userForm.get('firstName')?.valid && 
-                 this.userForm.get('surName')?.valid && 
+        return !!(this.userForm.get('firstName')?.valid &&
+                 this.userForm.get('surName')?.valid &&
                  this.userForm.get('cedula')?.valid);
       case 'access':
-        return !!(this.userForm.get('email')?.valid && 
+        return !!(this.userForm.get('email')?.valid &&
                  (this.isEditing || this.userForm.get('password')?.valid));
       case 'roles':
-        return !!(this.userForm.get('companyIds')?.valid && 
+        return !!(this.userForm.get('companyIds')?.valid &&
                  this.userForm.get('roleIds')?.valid);
       default:
         return false;

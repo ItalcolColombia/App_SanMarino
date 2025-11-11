@@ -1,14 +1,14 @@
 <!-- src/app/features/config/user-management/components/modal-create-edit/modal-create-edit.component.html -->
-<div 
-  class="modal-overlay" 
+<div
+  class="modal-overlay"
   [class.active]="isOpen"
   (click)="closeModal()"
   role="dialog"
   aria-modal="true"
   aria-labelledby="modal-title"
 >
-  <div 
-    class="modal-content" 
+  <div
+    class="modal-content"
     (click)="$event.stopPropagation()"
     [attr.aria-busy]="loading ? 'true' : null"
   >
@@ -20,9 +20,21 @@
           <h2 id="modal-title" class="modal-title">{{ modalTitle }}</h2>
           <p *ngIf="isEditing" class="modal-subtitle">{{ editingUser?.firstName }} {{ editingUser?.surName }}</p>
         </div>
+        <!-- Icono de estado del correo (solo al crear usuario) -->
+        <div *ngIf="!isEditing && emailQueueId" class="email-status-indicator" [title]="getEmailStatusIcon().tooltip">
+          <fa-icon
+            [icon]="getEmailStatusIcon().icon"
+            [style.color]="getEmailStatusIcon().color"
+            class="email-icon"
+          ></fa-icon>
+          <span
+            class="status-dot"
+            [style.background-color]="getEmailStatusIcon().color"
+          ></span>
+        </div>
       </div>
-      <button 
-        (click)="closeModal()" 
+      <button
+        (click)="closeModal()"
         class="modal-close-btn"
         aria-label="Cerrar modal"
       >
@@ -38,9 +50,9 @@
 
     <!-- Tabs Navigation -->
     <div *ngIf="!loading" class="tabs-navigation">
-      <button 
+      <button
         type="button"
-        class="tab-button" 
+        class="tab-button"
         [class.active]="activeTab === 'personal'"
         [class.has-errors]="getTabErrorCount('personal') > 0"
         (click)="setActiveTab('personal')"
@@ -49,10 +61,10 @@
         <span class="tab-label">Personal</span>
         <span *ngIf="getTabErrorCount('personal') > 0" class="error-count">{{ getTabErrorCount('personal') }}</span>
       </button>
-      
-      <button 
+
+      <button
         type="button"
-        class="tab-button" 
+        class="tab-button"
         [class.active]="activeTab === 'access'"
         [class.has-errors]="getTabErrorCount('access') > 0"
         (click)="setActiveTab('access')"
@@ -61,10 +73,10 @@
         <span class="tab-label">Acceso</span>
         <span *ngIf="getTabErrorCount('access') > 0" class="error-count">{{ getTabErrorCount('access') }}</span>
       </button>
-      
-      <button 
+
+      <button
         type="button"
-        class="tab-button" 
+        class="tab-button"
         [class.active]="activeTab === 'roles'"
         [class.has-errors]="getTabErrorCount('roles') > 0"
         (click)="setActiveTab('roles')"
@@ -78,7 +90,7 @@
     <!-- Content -->
     <div *ngIf="!loading" class="modal-body">
       <form [formGroup]="userForm" (ngSubmit)="saveUser()" class="user-form">
-        
+
         <!-- Tab: Información Personal -->
         <div *ngIf="activeTab === 'personal'" class="tab-content">
           <div class="form-grid">
@@ -92,7 +104,7 @@
                 [class.error]="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched"
                 placeholder="Ingrese el nombre"
               />
-              <div *ngIf="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched" 
+              <div *ngIf="userForm.get('firstName')?.invalid && userForm.get('firstName')?.touched"
                    class="error-message">
                 {{ getFieldError('firstName') }}
               </div>
@@ -108,7 +120,7 @@
                 [class.error]="userForm.get('surName')?.invalid && userForm.get('surName')?.touched"
                 placeholder="Ingrese el apellido"
               />
-              <div *ngIf="userForm.get('surName')?.invalid && userForm.get('surName')?.touched" 
+              <div *ngIf="userForm.get('surName')?.invalid && userForm.get('surName')?.touched"
                    class="error-message">
                 {{ getFieldError('surName') }}
               </div>
@@ -127,7 +139,7 @@
                 [class.error]="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched"
                 placeholder="Ingrese la cédula"
               />
-              <div *ngIf="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched" 
+              <div *ngIf="userForm.get('cedula')?.invalid && userForm.get('cedula')?.touched"
                    class="error-message">
                 {{ getFieldError('cedula') }}
               </div>
@@ -146,7 +158,7 @@
                 [class.error]="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched"
                 placeholder="Ingrese el teléfono"
               />
-              <div *ngIf="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched" 
+              <div *ngIf="userForm.get('telefono')?.invalid && userForm.get('telefono')?.touched"
                    class="error-message">
                 {{ getFieldError('telefono') }}
               </div>
@@ -178,7 +190,7 @@
                 [class.error]="userForm.get('email')?.invalid && userForm.get('email')?.touched"
                 placeholder="Ingrese el email"
               />
-              <div *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched" 
+              <div *ngIf="userForm.get('email')?.invalid && userForm.get('email')?.touched"
                    class="error-message">
                 {{ getFieldError('email') }}
               </div>
@@ -204,7 +216,7 @@
                   <fa-icon [icon]="showPassword ? faEyeSlash : faEye"></fa-icon>
                 </button>
               </div>
-              <div *ngIf="userForm.get('password')?.invalid && userForm.get('password')?.touched" 
+              <div *ngIf="userForm.get('password')?.invalid && userForm.get('password')?.touched"
                    class="error-message">
                 {{ getFieldError('password') }}
               </div>
@@ -230,7 +242,7 @@
                   <fa-icon [icon]="showConfirmPassword ? faEyeSlash : faEye"></fa-icon>
                 </button>
               </div>
-              <div *ngIf="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched" 
+              <div *ngIf="userForm.get('confirmPassword')?.invalid && userForm.get('confirmPassword')?.touched"
                    class="error-message">
                 {{ getFieldError('confirmPassword') }}
               </div>
@@ -254,7 +266,7 @@
                   <span class="checkbox-label">{{ company.name }}</span>
                 </label>
               </div>
-              <div *ngIf="userForm.get('companyIds')?.invalid && userForm.get('companyIds')?.touched" 
+              <div *ngIf="userForm.get('companyIds')?.invalid && userForm.get('companyIds')?.touched"
                    class="error-message">
                 {{ getFieldError('companyIds') }}
               </div>
@@ -277,7 +289,7 @@
                   <span class="checkbox-label">{{ role.name }}</span>
                 </label>
               </div>
-              <div *ngIf="userForm.get('roleIds')?.invalid && userForm.get('roleIds')?.touched" 
+              <div *ngIf="userForm.get('roleIds')?.invalid && userForm.get('roleIds')?.touched"
                    class="error-message">
                 {{ getFieldError('roleIds') }}
               </div>
@@ -287,7 +299,7 @@
           <!-- Resumen de Selecciones -->
           <div *ngIf="selectedCompanies.length > 0 || selectedRoles.length > 0" class="selection-summary">
             <h4 class="summary-title">Resumen de Selecciones</h4>
-            
+
             <div *ngIf="selectedCompanies.length > 0" class="summary-section">
               <h5 class="summary-subtitle">Empresas Seleccionadas:</h5>
               <div class="summary-tags">
@@ -314,19 +326,19 @@
 
     <!-- Footer -->
     <div class="modal-footer">
-      <button 
+      <button
         type="button"
-        (click)="closeModal()" 
+        (click)="closeModal()"
         class="btn-secondary"
         [disabled]="saving"
       >
         <fa-icon [icon]="faTimes" class="mr-2"></fa-icon>
         Cancelar
       </button>
-      
-      <button 
+
+      <button
         type="button"
-        (click)="saveUser()" 
+        (click)="saveUser()"
         class="btn-primary"
         [disabled]="saving || userForm.invalid"
       >

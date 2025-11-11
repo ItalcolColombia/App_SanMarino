@@ -34,7 +34,7 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         
         /// <summary>
-        /// Obtiene el CompanyId correcto basado en la empresa activa del usuario
+        /// Obtiene el CompanyId efectivo y valida que pertenezca al país activo
         /// </summary>
         private async Task<int> GetEffectiveCompanyIdAsync()
         {
@@ -44,11 +44,39 @@ namespace ZooSanMarino.Infrastructure.Services
                 var companyId = await _companyResolver.GetCompanyIdByNameAsync(_current.ActiveCompanyName);
                 if (companyId.HasValue)
                 {
+                    // Validar que la empresa pertenece al país activo si hay PaisId
+                    if (_current.PaisId.HasValue)
+                    {
+                        var validator = _ctx.CompanyPaises
+                            .AsNoTracking()
+                            .AnyAsync(cp => cp.CompanyId == companyId.Value && cp.PaisId == _current.PaisId.Value);
+                        
+                        if (!await validator)
+                        {
+                            throw new UnauthorizedAccessException(
+                                $"La empresa {_current.ActiveCompanyName} no está asignada al país seleccionado");
+                        }
+                    }
+                    
                     return companyId.Value;
                 }
             }
 
             // Fallback al CompanyId del token JWT
+            // Validar que pertenece al país activo si hay PaisId
+            if (_current.PaisId.HasValue && _current.CompanyId > 0)
+            {
+                var isValid = await _ctx.CompanyPaises
+                    .AsNoTracking()
+                    .AnyAsync(cp => cp.CompanyId == _current.CompanyId && cp.PaisId == _current.PaisId.Value);
+                
+                if (!isValid)
+                {
+                    throw new UnauthorizedAccessException(
+                        $"La empresa no está asignada al país seleccionado");
+                }
+            }
+            
             return _current.CompanyId;
         }
 
@@ -184,22 +212,33 @@ namespace ZooSanMarino.Infrastructure.Services
                 .AsNoTracking()
                 .Where(f => f.CompanyId == effectiveCompanyId && f.DeletedAt == null);
 
-            // Si se proporciona un userId, filtrar por las granjas que tiene acceso
+            // Si se proporciona un userId, filtrar SOLO por las granjas asignadas directamente al usuario
             if (userId.HasValue)
             {
                 Console.WriteLine($"=== FarmService.GetAllAsync - Filtrando por userId: {userId} ===");
                 
-                // Obtener las granjas a las que el usuario tiene acceso
+                // Obtener SOLO las granjas asignadas directamente al usuario en UserFarms
                 var userFarmIds = await _ctx.UserFarms
                     .AsNoTracking()
                     .Where(uf => uf.UserId == userId.Value)
                     .Select(uf => uf.FarmId)
                     .ToListAsync();
 
-                Console.WriteLine($"=== Granjas encontradas para el usuario: {string.Join(", ", userFarmIds)} ===");
+                Console.WriteLine($"=== Granjas asignadas directamente al usuario: {string.Join(", ", userFarmIds)} ===");
                 
-                // Filtrar las granjas por las que tiene acceso
-                query = query.Where(f => userFarmIds.Contains(f.Id));
+                // Si el usuario tiene granjas asignadas, filtrar por esas
+                // Si no tiene ninguna, devolver lista vacía
+                if (userFarmIds.Any())
+                {
+                    Console.WriteLine($"✅ Filtrando por {userFarmIds.Count} granjas asignadas: [{string.Join(", ", userFarmIds)}]");
+                    query = query.Where(f => userFarmIds.Contains(f.Id));
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ Usuario no tiene granjas asignadas - devolviendo lista vacía");
+                    // Devolver lista vacía filtrando por un ID que no existe
+                    query = query.Where(f => f.Id == -1);
+                }
             }
             else
             {

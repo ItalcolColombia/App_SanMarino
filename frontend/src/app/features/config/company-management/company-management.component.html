@@ -12,12 +12,40 @@
 
       <div class="ml-auto flex items-center gap-2">
         <span class="text-xs text-warm-gray-600 bg-white px-2 py-1 rounded border">
-          {{ list.length || 0 }} empresa(s)
+          {{ filteredList.length || 0 }} de {{ list.length || 0 }} empresa(s)
         </span>
         <button (click)="openModal()" class="btn-primary">
           <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
           Nueva Empresa
         </button>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="mb-4 bg-white rounded-lg border p-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <div class="flex-1 min-w-[200px]">
+          <label class="block text-sm font-medium text-warm-gray-700 mb-1">
+            Filtrar por País
+          </label>
+          <select
+            [value]="filterPaisId === null ? '' : filterPaisId"
+            (change)="onFilterPaisChange($any($event.target).value)"
+            class="form-input">
+            <option value="">Todos los países</option>
+            <option *ngFor="let pais of availablePaises" [value]="pais.paisId">
+              {{ pais.paisNombre }}
+            </option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button
+            *ngIf="filterPaisId !== null"
+            (click)="clearFilters()"
+            class="btn-ghost text-sm">
+            Limpiar filtros
+          </button>
+        </div>
       </div>
     </div>
 
@@ -36,6 +64,7 @@
               <th scope="col">Teléfono</th>
               <th scope="col">Correo</th>
               <th scope="col">País</th>
+              <th scope="col">Países de Operación</th>
               <th scope="col">Departamento</th>
               <th scope="col">Ciudad</th>
               <th scope="col" class="text-center">Móvil</th>
@@ -46,7 +75,7 @@
           </thead>
 
           <tbody>
-            <tr *ngFor="let c of list" class="ux-row">
+            <tr *ngFor="let c of filteredList" class="ux-row">
               <td>{{ c.name }}</td>
               <td>{{ c.documentType }}</td>
               <td>{{ c.identifier }}</td>
@@ -58,6 +87,18 @@
 
               <!-- Nombres (fallback si vienen strings legacy) -->
               <td>{{ displayCountry(c) }}</td>
+              <td>
+                <div class="flex flex-wrap gap-1">
+                  <span
+                    *ngFor="let pais of getCompanyPaises(c.id)"
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-red/10 text-brand-red border border-brand-red/20">
+                    {{ pais.paisNombre }}
+                  </span>
+                  <span *ngIf="getCompanyPaises(c.id).length === 0" class="text-warm-gray-400 text-xs">
+                    Sin países asignados
+                  </span>
+                </div>
+              </td>
               <td>{{ displayDept(c) }}</td>
               <td>{{ displayCity(c) }}</td>
 
@@ -84,13 +125,17 @@
               </td>
             </tr>
 
-            <tr *ngIf="!list?.length">
-              <td colspan="13" class="empty-state">
+            <tr *ngIf="!filteredList?.length">
+              <td colspan="14" class="empty-state">
                 <div class="empty-illustration">🏢</div>
-                <p>No hay empresas registradas.</p>
-                <button (click)="openModal()" class="btn-primary mt-2">
+                <p *ngIf="filterPaisId === null">No hay empresas registradas.</p>
+                <p *ngIf="filterPaisId !== null">No hay empresas asignadas al país seleccionado.</p>
+                <button *ngIf="filterPaisId === null" (click)="openModal()" class="btn-primary mt-2">
                   <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
                   Crear la primera
+                </button>
+                <button *ngIf="filterPaisId !== null" (click)="clearFilters()" class="btn-primary mt-2">
+                  Limpiar filtro
                 </button>
               </td>
             </tr>
@@ -220,6 +265,34 @@
               <option value="">Seleccione…</option>
               <option *ngFor="let city of cities" [value]="city">{{ city }}</option>
             </select>
+          </div>
+
+          <!-- Selección múltiple de países -->
+          <div>
+            <label class="form-label">Países de Operación <span class="text-red-600">*</span></label>
+            <p class="text-xs text-warm-gray-600 mb-2">Seleccione los países donde la empresa operará</p>
+            <div class="border rounded-lg p-3 max-h-48 overflow-y-auto bg-white">
+              <div *ngFor="let pais of availablePaises" class="flex items-center gap-2 p-2 hover:bg-warm-gray-50 rounded">
+                <input
+                  type="checkbox"
+                  [id]="'pais-' + pais.paisId"
+                  [checked]="isPaisSelected(pais.paisId)"
+                  (change)="togglePais(pais.paisId)"
+                  class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60" />
+                <label [for]="'pais-' + pais.paisId" class="text-sm cursor-pointer flex-1">
+                  {{ pais.paisNombre }}
+                </label>
+              </div>
+              <p *ngIf="availablePaises.length === 0" class="text-sm text-warm-gray-500 text-center py-4">
+                No hay países disponibles. Cree países primero en la sección de Geografía.
+              </p>
+            </div>
+            <p *ngIf="selectedPaisIds.length === 0" class="text-xs text-red-600 mt-1">
+              Debe seleccionar al menos un país
+            </p>
+            <p *ngIf="selectedPaisIds.length > 0" class="text-xs text-warm-gray-600 mt-1">
+              {{ selectedPaisIds.length }} país(es) seleccionado(s)
+            </p>
           </div>
         </div>
       </div>

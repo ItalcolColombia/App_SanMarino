@@ -23,9 +23,34 @@ public class FarmController : ControllerBase
     [HttpGet]
     [HttpGet("/Farm")]
     [ProducesResponseType(typeof(IEnumerable<FarmDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<FarmDto>>> GetAll([FromQuery] Guid? id_user_session = null)
+    public async Task<ActionResult<IEnumerable<FarmDto>>> GetAll([FromQuery] string? id_user_session = null)
     {
-        var items = await _svc.GetAllAsync(id_user_session);
+        Console.WriteLine($"=== FarmController.GetAll() ====");
+        Console.WriteLine($"Parámetro id_user_session recibido: {id_user_session}");
+        Console.WriteLine($"Tipo del parámetro: {id_user_session?.GetType()}");
+        
+        Guid? userIdGuid = null;
+        
+        if (!string.IsNullOrWhiteSpace(id_user_session))
+        {
+            if (Guid.TryParse(id_user_session, out Guid parsedGuid))
+            {
+                userIdGuid = parsedGuid;
+                Console.WriteLine($"✅ GUID parseado correctamente: {userIdGuid}");
+            }
+            else
+            {
+                Console.WriteLine($"⚠️ No se pudo parsear el GUID: {id_user_session}");
+                // Continuar sin filtro de usuario si el GUID no es válido
+            }
+        }
+        else
+        {
+            Console.WriteLine("⚠️ id_user_session es null o vacío - devolviendo todas las granjas");
+        }
+        
+        var items = await _svc.GetAllAsync(userIdGuid);
+        Console.WriteLine($"✅ Devolviendo {items.Count()} granjas");
         return Ok(items);
     }
 

@@ -13,17 +13,20 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
     private readonly IAlimentoNutricionProvider _alimentos;
     private readonly IGramajeProvider _gramaje;
     private readonly ICurrentUser _current;
+    private readonly IMovimientoAvesService _movimientoAvesService;
 
     public SeguimientoLoteLevanteService(
         ZooSanMarinoContext ctx,
         IAlimentoNutricionProvider alimentos,
         IGramajeProvider gramaje,
-        ICurrentUser current)
+        ICurrentUser current,
+        IMovimientoAvesService movimientoAvesService)
     {
         _ctx = ctx;
         _alimentos = alimentos;
         _gramaje = gramaje;
         _current = current;
+        _movimientoAvesService = movimientoAvesService;
     }
 
     // Mapeo a DTO actualizado con los nuevos campos opcionales
@@ -153,6 +156,30 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         _ctx.SeguimientoLoteLevante.Add(ent);
         await _ctx.SaveChangesAsync();
 
+        // Registrar retiro automático si hay mortalidades o selecciones
+        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
+        if (totalRetiradas > 0)
+        {
+            try
+            {
+                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                    loteId: dto.LoteId,
+                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
+                    machosRetirados: dto.MortalidadMachos + dto.SelM,
+                    mixtasRetiradas: 0, // Los seguimientos levante no tienen mixtas
+                    fechaMovimiento: dto.FechaRegistro,
+                    fuenteSeguimiento: "Levante",
+                    observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | Observaciones: {dto.Observaciones}"
+                );
+            }
+            catch (Exception ex)
+            {
+                // Log error pero no fallar el guardado del seguimiento
+                // TODO: Agregar logging aquí
+                Console.WriteLine($"Error al registrar retiro desde seguimiento levante: {ex.Message}");
+            }
+        }
+
         return await _ctx.SeguimientoLoteLevante.AsNoTracking()
             .Where(x => x.Id == ent.Id)
             .Select(ToDto)
@@ -246,6 +273,29 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         ent.Ciclo = dto.Ciclo;
 
         await _ctx.SaveChangesAsync();
+
+        // Registrar retiro automático si hay mortalidades o selecciones
+        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
+        if (totalRetiradas > 0)
+        {
+            try
+            {
+                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                    loteId: dto.LoteId,
+                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
+                    machosRetirados: dto.MortalidadMachos + dto.SelM,
+                    mixtasRetiradas: 0,
+                    fechaMovimiento: dto.FechaRegistro,
+                    fuenteSeguimiento: "Levante",
+                    observaciones: $"Actualización - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM}"
+                );
+            }
+            catch (Exception ex)
+            {
+                // Log error pero no fallar la actualización
+                Console.WriteLine($"Error al registrar retiro desde seguimiento levante (actualización): {ex.Message}");
+            }
+        }
 
         return new SeguimientoLoteLevanteDto(
             ent.Id, ent.LoteId, ent.FechaRegistro,

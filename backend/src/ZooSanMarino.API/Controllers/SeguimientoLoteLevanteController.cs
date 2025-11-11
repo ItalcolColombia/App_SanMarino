@@ -65,10 +65,23 @@ public class SeguimientoLoteLevanteController : ControllerBase
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(int id)
     {
-        var deleted = await _svc.DeleteAsync(id);
-        return deleted ? NoContent() : NotFound();
+        try
+        {
+            var deleted = await _svc.DeleteAsync(id);
+            if (!deleted)
+            {
+                // Podría ser que no existe o que no pertenece a la compañía del usuario
+                return NotFound(new { message = "Registro no encontrado o no tienes permisos para eliminarlo." });
+            }
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error al eliminar el registro.", error = ex.Message });
+        }
     }
 
     /// <summary>Filtrar por fechas opcionalmente con loteId.</summary>
