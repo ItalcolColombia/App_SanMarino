@@ -1,0 +1,251 @@
+<!-- Modal de Detalle de Seguimiento Diario -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detalle-seguimiento-modal-title">
+  <div class="ux-modal__dialog">
+    <header class="ux-modal__header">
+      <h2 id="detalle-seguimiento-modal-title">Detalle del Seguimiento Diario</h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <div class="ux-modal__content" *ngIf="loading">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Cargando detalles...</p>
+      </div>
+    </div>
+
+    <div class="ux-modal__content" *ngIf="!loading && seguimiento">
+      <!-- INFORMACIÓN GENERAL -->
+      <section class="detail-section">
+        <div class="section-header">
+          <h3>📋 Información General</h3>
+        </div>
+        <div class="detail-grid grid-4">
+          <div class="detail-field">
+            <label>Fecha de Registro</label>
+            <div class="detail-value">{{ seguimiento.fechaRegistro | date:'dd/MM/yyyy' }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Etapa</label>
+            <div class="detail-value">{{ getEtapaLabel(seguimiento.etapa) }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Tipo de Alimento</label>
+            <div class="detail-value">{{ seguimiento.tipoAlimento }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Producción Lote ID</label>
+            <div class="detail-value">{{ seguimiento.produccionLoteId }}</div>
+          </div>
+        </div>
+        <div class="detail-field detail-field--full" *ngIf="seguimiento.observaciones">
+          <label>Observaciones</label>
+          <div class="detail-value">{{ seguimiento.observaciones }}</div>
+        </div>
+      </section>
+
+      <!-- HEMBRAS -->
+      <section class="detail-section">
+        <div class="section-header">
+          <h3>♀️ Información de Hembras</h3>
+        </div>
+        <div class="detail-grid grid-3">
+          <div class="detail-field">
+            <label>Mortalidad Hembras</label>
+            <div class="detail-value highlight">{{ seguimiento.mortalidadH }}</div>
+          </div>
+          <div class="detail-field">
+            <label>SelH (Retiradas)</label>
+            <div class="detail-value highlight">{{ seguimiento.selH }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Consumo (ConsKgH) - kg</label>
+            <div class="detail-value highlight">{{ seguimiento.consKgH | number:'1.2-2' }} kg</div>
+          </div>
+        </div>
+        <div class="detail-summary-card summary--hembras">
+          <div class="summary-icon">♀️</div>
+          <div class="summary-content">
+            <h4>Resumen Hembras</h4>
+            <div class="summary-stats">
+              <div class="stat">
+                <span class="stat-label">Total Retiradas</span>
+                <span class="stat-value">{{ seguimiento.mortalidadH + seguimiento.selH }}</span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Consumo Total</span>
+                <span class="stat-value">{{ seguimiento.consKgH | number:'1.2-2' }} kg</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MACHOS -->
+      <section class="detail-section">
+        <div class="section-header">
+          <h3>♂️ Información de Machos</h3>
+        </div>
+        <div class="detail-grid grid-3">
+          <div class="detail-field">
+            <label>Mortalidad Machos</label>
+            <div class="detail-value highlight">{{ seguimiento.mortalidadM }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Consumo (ConsKgM) - kg</label>
+            <div class="detail-value highlight">{{ seguimiento.consKgM | number:'1.2-2' }} kg</div>
+          </div>
+          <div class="detail-field">
+            <label>Consumo Total</label>
+            <div class="detail-value highlight">{{ seguimiento.consumoKg | number:'1.2-2' }} kg</div>
+          </div>
+        </div>
+        <div class="detail-summary-card summary--machos">
+          <div class="summary-icon">♂️</div>
+          <div class="summary-content">
+            <h4>Resumen Machos</h4>
+            <div class="summary-stats">
+              <div class="stat">
+                <span class="stat-label">Mortalidad</span>
+                <span class="stat-value">{{ seguimiento.mortalidadM }}</span>
+              </div>
+              <div class="stat">
+                <span class="stat-label">Consumo</span>
+                <span class="stat-value">{{ seguimiento.consKgM | number:'1.2-2' }} kg</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- HUEVOS -->
+      <section class="detail-section">
+        <div class="section-header">
+          <h3>🥚 Producción de Huevos</h3>
+        </div>
+        <div class="detail-grid grid-4">
+          <div class="detail-field">
+            <label>Huevos Totales</label>
+            <div class="detail-value highlight">{{ seguimiento.huevosTotales }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Huevos Incubables</label>
+            <div class="detail-value highlight">{{ seguimiento.huevosIncubables }}</div>
+          </div>
+          <div class="detail-field">
+            <label>Peso Promedio (g)</label>
+            <div class="detail-value highlight">{{ seguimiento.pesoHuevo | number:'1.2-2' }}g</div>
+          </div>
+          <div class="detail-field">
+            <label>Eficiencia</label>
+            <div class="detail-value highlight">
+              {{ seguimiento.huevosTotales > 0 ? ((seguimiento.huevosIncubables / seguimiento.huevosTotales) * 100 | number:'1.2-2') : 0 }}%
+            </div>
+          </div>
+        </div>
+
+        <!-- Clasificadora de Huevos Incubables -->
+        <div class="clasificadora-box" *ngIf="(seguimiento.huevoLimpio || seguimiento.huevoTratado)">
+          <h4 class="clasificadora-title">
+            <span class="label-icon">✅</span>
+            Clasificadora - Incubables (Suman a HuevoInc)
+          </h4>
+          <div class="detail-grid grid-2">
+            <div class="detail-field" *ngIf="seguimiento.huevoLimpio">
+              <label>Limpio</label>
+              <div class="detail-value">{{ seguimiento.huevoLimpio }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoTratado">
+              <label>Tratado</label>
+              <div class="detail-value">{{ seguimiento.huevoTratado }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clasificadora de Huevos No Incubables -->
+        <div class="clasificadora-box" *ngIf="tieneDatosClasificadora()">
+          <h4 class="clasificadora-title">
+            <span class="label-icon">📋</span>
+            Clasificadora - No Incubables (Suman a Huevo Total)
+          </h4>
+          <div class="detail-grid grid-4">
+            <div class="detail-field" *ngIf="seguimiento.huevoSucio">
+              <label>Sucio</label>
+              <div class="detail-value">{{ seguimiento.huevoSucio }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoDeforme">
+              <label>Deforme</label>
+              <div class="detail-value">{{ seguimiento.huevoDeforme }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoBlanco">
+              <label>Blanco</label>
+              <div class="detail-value">{{ seguimiento.huevoBlanco }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoDobleYema">
+              <label>Doble Yema</label>
+              <div class="detail-value">{{ seguimiento.huevoDobleYema }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoPiso">
+              <label>Piso</label>
+              <div class="detail-value">{{ seguimiento.huevoPiso }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoPequeno">
+              <label>Pequeño</label>
+              <div class="detail-value">{{ seguimiento.huevoPequeno }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoRoto">
+              <label>Roto</label>
+              <div class="detail-value">{{ seguimiento.huevoRoto }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoDesecho">
+              <label>Desecho</label>
+              <div class="detail-value">{{ seguimiento.huevoDesecho }}</div>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.huevoOtro">
+              <label>Otro</label>
+              <div class="detail-value">{{ seguimiento.huevoOtro }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PESAJE SEMANAL -->
+      <section class="detail-section" *ngIf="tieneDatosPesaje()">
+        <div class="section-header">
+          <h3>⚖️ Pesaje Semanal</h3>
+        </div>
+        <div class="detail-grid grid-4">
+          <div class="detail-field" *ngIf="seguimiento.pesoH">
+            <label>Peso Hembras (kg)</label>
+            <div class="detail-value highlight">{{ seguimiento.pesoH | number:'1.2-2' }} kg</div>
+          </div>
+          <div class="detail-field" *ngIf="seguimiento.pesoM">
+            <label>Peso Machos (kg)</label>
+            <div class="detail-value highlight">{{ seguimiento.pesoM | number:'1.2-2' }} kg</div>
+          </div>
+          <div class="detail-field" *ngIf="seguimiento.uniformidad">
+            <label>Uniformidad (%)</label>
+            <div class="detail-value highlight">{{ seguimiento.uniformidad | number:'1.2-2' }}%</div>
+          </div>
+          <div class="detail-field" *ngIf="seguimiento.coeficienteVariacion">
+            <label>Coeficiente de Variación (CV)</label>
+            <div class="detail-value highlight">{{ seguimiento.coeficienteVariacion | number:'1.2-2' }}</div>
+          </div>
+        </div>
+        <div class="detail-field detail-field--full" *ngIf="seguimiento.observacionesPesaje">
+          <label>Observaciones del Pesaje</label>
+          <div class="detail-value">{{ seguimiento.observacionesPesaje }}</div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="ux-modal__footer">
+      <button type="button" class="btn btn--primary" (click)="onClose()">Cerrar</button>
+    </footer>
+
+    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Cargando…
+    </div>
+  </div>
+</div>
+
+
