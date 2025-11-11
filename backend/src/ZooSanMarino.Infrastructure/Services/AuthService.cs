@@ -205,7 +205,6 @@ public class AuthService : IAuthService
     // Empresas del usuario con información de país
     var userCompanies = await _ctx.UserCompanies
         .Include(uc => uc.Company)
-        .Include(uc => uc.Pais)
         .Where(uc => uc.UserId == user.Id)
         .ToListAsync();
 
@@ -252,7 +251,7 @@ public class AuthService : IAuthService
     foreach (var c in userCompanies)
     {
         claims.Add(new Claim("company_id", c.CompanyId.ToString()));
-        claims.Add(new Claim("pais_id", c.PaisId.ToString()));
+        // País deshabilitado temporalmente
         var name = c.Company?.Name;
         if (!string.IsNullOrWhiteSpace(name))
             claims.Add(new Claim("company", name!));
@@ -296,8 +295,8 @@ public class AuthService : IAuthService
         {
             CompanyId = uc.CompanyId,
             CompanyName = uc.Company?.Name ?? string.Empty,
-            PaisId = uc.PaisId,
-            PaisNombre = uc.Pais?.PaisNombre ?? string.Empty,
+            PaisId = 0,
+            PaisNombre = string.Empty,
             IsDefault = uc.IsDefault
         }).ToList(),
         Permisos = permissions

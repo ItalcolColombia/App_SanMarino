@@ -14,5 +14,8 @@ public class PaisConfiguration : IEntityTypeConfiguration<Pais>
         e.Property(x => x.PaisNombre)
          .HasMaxLength(200)
          .IsRequired();
+
+        // Deshabilitar temporalmente relación con UserCompanies para evitar FK sombra (pais_id1)
+        e.Ignore(x => x.UserCompanies);
     }
 }

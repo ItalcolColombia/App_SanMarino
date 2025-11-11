@@ -200,7 +200,11 @@ export class InputSanitizerService {
     }
 
     // Campos que NO deben ser validados (pueden contener cualquier carácter)
-    const excludedFields = ['password', 'Password', 'currentPassword', 'newPassword', 'confirmPassword', 'oldPassword'];
+    // Incluye tokens de reCAPTCHA (son cadenas firmadas de Google y pueden traer símbolos)
+    const excludedFields = [
+      'password', 'Password', 'currentPassword', 'newPassword', 'confirmPassword', 'oldPassword',
+      'recaptchaToken', 'g-recaptcha-response', 'gRecaptchaResponse', 'recaptcha'
+    ];
 
     // Validar cada propiedad del objeto
     for (const [key, value] of Object.entries(obj)) {
@@ -237,8 +241,12 @@ export class InputSanitizerService {
       return obj;
     }
 
-    // Campos que NO deben ser sanitizados (contraseñas pueden contener cualquier carácter)
-    const excludedFields = ['password', 'Password', 'currentPassword', 'newPassword', 'confirmPassword', 'oldPassword'];
+    // Campos que NO deben ser sanitizados (contraseñas/tokens pueden contener cualquier carácter)
+    // Incluye tokens de reCAPTCHA para no alterarlos
+    const excludedFields = [
+      'password', 'Password', 'currentPassword', 'newPassword', 'confirmPassword', 'oldPassword',
+      'recaptchaToken', 'g-recaptcha-response', 'gRecaptchaResponse', 'recaptcha'
+    ];
 
     const sanitized = { ...obj } as any;
 

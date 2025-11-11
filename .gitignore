@@ -49,3 +49,5 @@ build/
 /backend/src/ZooSanMarino.Domain/obj
 /backend/src/ZooSanMarino.Domain/obj
 /backend/src/ZooSanMarino.Infrastructure/obj
+/backend/src/ZooSanMarino.API/bin
+/backend/src/ZooSanMarino.API/obj

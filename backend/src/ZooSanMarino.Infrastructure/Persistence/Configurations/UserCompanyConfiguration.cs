@@ -10,8 +10,8 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
         {
             e.ToTable("user_companies");
 
-            // Clave primaria compuesta: UserId, CompanyId, PaisId
-            e.HasKey(x => new { x.UserId, x.CompanyId, x.PaisId });
+            // Clave primaria compuesta: UserId, CompanyId (PaisId opcional, no participa en PK)
+            e.HasKey(x => new { x.UserId, x.CompanyId });
 
             // Relación con User
             e.HasOne(x => x.User)
@@ -25,15 +25,13 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
              .HasForeignKey(x => x.CompanyId)
              .OnDelete(DeleteBehavior.Cascade);
 
-            // Relación con Pais
-            e.HasOne(x => x.Pais)
-             .WithMany(p => p.UserCompanies)
-             .HasForeignKey(x => x.PaisId)
-             .OnDelete(DeleteBehavior.Cascade);
+            // País temporalmente no mapeado para permitir operación sin columna en DB
+            e.Ignore(x => x.PaisId);
+            e.Ignore(x => x.Pais);
 
             // Índices para mejorar rendimiento
             e.HasIndex(x => x.UserId);
-            e.HasIndex(x => new { x.CompanyId, x.PaisId });
+            e.HasIndex(x => x.CompanyId);
         }
     }
 }
