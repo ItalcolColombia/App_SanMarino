@@ -43,3 +43,4 @@ logs/
 # Build outputs
 dist/
 build/
+/backend/src/ZooSanMarino.API/bin
