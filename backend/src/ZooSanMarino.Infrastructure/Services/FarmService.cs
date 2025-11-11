@@ -34,7 +34,7 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         
         /// <summary>
-        /// Obtiene el CompanyId efectivo y valida que pertenezca al país activo
+        /// Obtiene el CompanyId efectivo (validación por país deshabilitada temporalmente)
         /// </summary>
         private async Task<int> GetEffectiveCompanyIdAsync()
         {
@@ -44,38 +44,13 @@ namespace ZooSanMarino.Infrastructure.Services
                 var companyId = await _companyResolver.GetCompanyIdByNameAsync(_current.ActiveCompanyName);
                 if (companyId.HasValue)
                 {
-                    // Validar que la empresa pertenece al país activo si hay PaisId
-                    if (_current.PaisId.HasValue)
-                    {
-                        var validator = _ctx.CompanyPaises
-                            .AsNoTracking()
-                            .AnyAsync(cp => cp.CompanyId == companyId.Value && cp.PaisId == _current.PaisId.Value);
-                        
-                        if (!await validator)
-                        {
-                            throw new UnauthorizedAccessException(
-                                $"La empresa {_current.ActiveCompanyName} no está asignada al país seleccionado");
-                        }
-                    }
-                    
+                    // Validación por país deshabilitada temporalmente
                     return companyId.Value;
                 }
             }
 
             // Fallback al CompanyId del token JWT
-            // Validar que pertenece al país activo si hay PaisId
-            if (_current.PaisId.HasValue && _current.CompanyId > 0)
-            {
-                var isValid = await _ctx.CompanyPaises
-                    .AsNoTracking()
-                    .AnyAsync(cp => cp.CompanyId == _current.CompanyId && cp.PaisId == _current.PaisId.Value);
-                
-                if (!isValid)
-                {
-                    throw new UnauthorizedAccessException(
-                        $"La empresa no está asignada al país seleccionado");
-                }
-            }
+            // Validación por país deshabilitada temporalmente
             
             return _current.CompanyId;
         }
