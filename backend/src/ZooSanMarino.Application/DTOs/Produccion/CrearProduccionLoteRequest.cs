@@ -8,7 +8,10 @@ public record CrearProduccionLoteRequest(
     [Required] DateTime FechaInicio,
     [Required] [Range(0, int.MaxValue)] int AvesInicialesH,
     [Required] [Range(0, int.MaxValue)] int AvesInicialesM,
-    string? Observaciones
+    [Required] [Range(0, int.MaxValue)] int HuevosIniciales,
+    [Required] string TipoNido,  // Jansen, Manual, Vencomatic
+    [Required] string Ciclo,  // normal, 2 Replume, D: Depopulación
+    string? NucleoP  // Núcleo de Producción
 );
 
 

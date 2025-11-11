@@ -27,7 +27,8 @@ import {
   faShieldHalved
 } from '@fortawesome/free-solid-svg-icons';
 
-import { finalize, Observable } from 'rxjs';
+import { finalize, Observable, forkJoin, of } from 'rxjs';
+import { switchMap, catchError, map } from 'rxjs/operators';
 
 // Servicios: company + master-list (tipos ID)
 import { CompanyService, Company } from '../../../core/services/company/company.service';
@@ -40,6 +41,8 @@ import { CityService, CityDto } from '../../../core/services/city/city.service';
 
 // Servicios: roles (paso 2)
 import { RoleService, Role } from '../../../core/services/role/role.service';
+// Servicio: empresa-país
+import { CompanyPaisService } from '../../../core/services/company-pais/company-pais.service';
 
 @Component({
   selector: 'app-company-management',
@@ -69,6 +72,10 @@ export class CompanyManagementComponent implements OnInit {
 
   // Listado principal
   list: Company[] = [];
+  filteredList: Company[] = []; // Lista filtrada para mostrar en tabla
+
+  // Filtro por país
+  filterPaisId: number | null = null;
 
   // Form / estado
   form!: FormGroup;
@@ -101,6 +108,13 @@ export class CompanyManagementComponent implements OnInit {
   roleFilter = '';
   previewRoleId: number | null = null;
 
+  // Países asignados a la empresa (multi-selección)
+  selectedPaisIds: number[] = [];
+  availablePaises: PaisDto[] = [];
+
+  // Mapa de países por empresa (para mostrar en tabla)
+  companyPaisesMap: Map<number, PaisDto[]> = new Map();
+
   // Módulos visuales
   allModules = [
     { key: 'dashboard', label: 'Dashboard' },
@@ -120,6 +134,7 @@ export class CompanyManagementComponent implements OnInit {
     private deptSvc: DepartmentService,
     private citySvc: CityService,
     private roleSvc: RoleService,
+    private companyPaisSvc: CompanyPaisService,
     library: FaIconLibrary
   ) {
     library.addIcons(
@@ -165,6 +180,9 @@ export class CompanyManagementComponent implements OnInit {
 
     // Empresas
     this.loadCompanies();
+
+    // Cargar países disponibles para selección
+    this.loadAvailablePaises();
   }
 
   // ========= Loads =========
@@ -173,9 +191,76 @@ export class CompanyManagementComponent implements OnInit {
     this.svc.getAll()
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
-        next: data => this.list = data,
+        next: list => {
+          this.list = list || [];
+          this.applyFilters();
+          // Cargar países asignados para cada empresa
+          this.loadAllCompanyPaises();
+        },
         error: err => console.error('Error cargando empresas', err)
       });
+  }
+
+  private loadAllCompanyPaises() {
+    this.companyPaisesMap.clear();
+    const loadOps = this.list.map(company => {
+      if (!company.id) return of(null);
+      return this.companyPaisSvc.getPaisesByCompany(company.id).pipe(
+        map((paises: any[]) => {
+          if (company.id) {
+            this.companyPaisesMap.set(company.id, paises);
+          }
+          return null;
+        }),
+        catchError(err => {
+          console.warn(`Error cargando países para empresa ${company.id}:`, err);
+          return of(null);
+        })
+      );
+    });
+
+    if (loadOps.length > 0) {
+      forkJoin(loadOps).subscribe();
+    }
+  }
+
+  getCompanyPaises(companyId: number | undefined): PaisDto[] {
+    if (!companyId) return [];
+    return this.companyPaisesMap.get(companyId) || [];
+  }
+
+  getCompanyPaisesNames(companyId: number | undefined): string {
+    const paises = this.getCompanyPaises(companyId);
+    return paises.map(p => p.paisNombre).join(', ') || '—';
+  }
+
+  // ========= Filtros =========
+  applyFilters() {
+    let filtered = [...this.list];
+
+    // Filtro por país
+    if (this.filterPaisId !== null) {
+      filtered = filtered.filter(company => {
+        const paises = this.getCompanyPaises(company.id);
+        return paises.some(p => p.paisId === this.filterPaisId);
+      });
+    }
+
+    this.filteredList = filtered;
+  }
+
+  onFilterPaisChange(paisId: string | number | null) {
+    if (paisId === '' || paisId === null || paisId === undefined) {
+      this.filterPaisId = null;
+    } else {
+      this.filterPaisId = Number(paisId);
+    }
+    this.applyFilters();
+  }
+
+  clearFilters() {
+    this.filterPaisId = null;
+    this.applyFilters();
   }
 
   private loadGeographyLookups() {
@@ -235,6 +320,37 @@ export class CompanyManagementComponent implements OnInit {
     });
   }
 
+  private loadAvailablePaises() {
+    this.countrySvc.getAll().subscribe({
+      next: list => {
+        this.availablePaises = list || [];
+      },
+      error: err => console.error('Error cargando países disponibles', err)
+    });
+  }
+
+  private loadCompanyPaises(companyId: number) {
+    this.companyPaisSvc.getPaisesByCompany(companyId).subscribe({
+      next: (paises: any[]) => {
+        this.selectedPaisIds = paises.map(p => p.paisId);
+      },
+      error: err => console.error('Error cargando países de la empresa', err)
+    });
+  }
+
+  togglePais(paisId: number) {
+    const index = this.selectedPaisIds.indexOf(paisId);
+    if (index >= 0) {
+      this.selectedPaisIds.splice(index, 1);
+    } else {
+      this.selectedPaisIds.push(paisId);
+    }
+  }
+
+  isPaisSelected(paisId: number): boolean {
+    return this.selectedPaisIds.includes(paisId);
+  }
+
   // ========= Wizard =========
   nextStep() {
     const required = ['name', 'identifier', 'documentType'];
@@ -253,6 +369,9 @@ export class CompanyManagementComponent implements OnInit {
     this.roleIds = [];
     this.previewRoleId = null;
     this.roleFilter = '';
+
+    // Reset países seleccionados
+    this.selectedPaisIds = [];
 
     // Reset visualizar permisos
     const vp = this.form.get('visualPermissions') as FormGroup;
@@ -291,6 +410,11 @@ export class CompanyManagementComponent implements OnInit {
       if (Array.isArray(existingRoleIds)) {
         this.roleIds = [...existingRoleIds];
       }
+
+      // Cargar países asignados a esta empresa
+      if (c.id) {
+        this.loadCompanyPaises(c.id);
+      }
     } else {
       // Nuevo
       this.form.reset({
@@ -324,6 +448,12 @@ export class CompanyManagementComponent implements OnInit {
       return;
     }
 
+    // Validar que se haya seleccionado al menos un país
+    if (this.selectedPaisIds.length === 0) {
+      alert('Debe seleccionar al menos un país para la empresa');
+      return;
+    }
+
     const v = this.form.getRawValue();
 
     // Visual permissions a array
@@ -340,7 +470,7 @@ export class CompanyManagementComponent implements OnInit {
       address:       v.address,
       phone:         v.phone,
       email:         v.email,
-      // Guardamos los “códigos” (ids en string) y city por nombre
+      // Guardamos los "códigos" (ids en string) y city por nombre
       country:       v.country,
       state:         v.state,
       city:          v.city,
@@ -360,13 +490,81 @@ export class CompanyManagementComponent implements OnInit {
       : this.svc.create(payload);
 
     call$
-      .pipe(finalize(() => {
-        this.loading = false;
-        this.modalOpen = false;
-      }))
+      .pipe(
+        switchMap((company: Company) => {
+          // Después de crear/actualizar la empresa, asignar países
+          const companyId = company.id || payload.id;
+          if (!companyId) {
+            throw new Error('No se pudo obtener el ID de la empresa');
+          }
+
+          // Si es edición, primero remover todas las asignaciones existentes
+          if (this.editing) {
+            return this.companyPaisSvc.getPaisesByCompany(companyId).pipe(
+              switchMap((currentPaises: any[]) => {
+                // Remover países que ya no están seleccionados
+                const toRemove = currentPaises
+                  .filter(p => !this.selectedPaisIds.includes(p.paisId))
+                  .map(p => ({ companyId, paisId: p.paisId }));
+
+                // Agregar países nuevos
+                const toAdd = this.selectedPaisIds
+                  .filter(paisId => !currentPaises.some(p => p.paisId === paisId))
+                  .map(paisId => ({ companyId, paisId }));
+
+                // Ejecutar todas las operaciones
+                const removeOps = toRemove.map(req =>
+                  this.companyPaisSvc.removeCompanyFromPais(req).pipe(
+                    catchError(err => {
+                      console.warn('Error removiendo país:', err);
+                      return of(null);
+                    })
+                  )
+                );
+
+                const addOps = toAdd.map(req =>
+                  this.companyPaisSvc.assignCompanyToPais(req).pipe(
+                    catchError(err => {
+                      console.warn('Error asignando país:', err);
+                      return of(null);
+                    })
+                  )
+                );
+
+                return forkJoin([...removeOps, ...addOps]).pipe(
+                  map(() => company)
+                );
+              })
+            );
+          } else {
+            // Si es creación, solo agregar países
+            const addOps = this.selectedPaisIds.map(paisId =>
+              this.companyPaisSvc.assignCompanyToPais({ companyId, paisId }).pipe(
+                catchError(err => {
+                  console.warn('Error asignando país:', err);
+                  return of(null);
+                })
+              )
+            );
+            return forkJoin(addOps).pipe(map(() => company));
+          }
+        }),
+        finalize(() => {
+          this.loading = false;
+          this.modalOpen = false;
+        })
+      )
       .subscribe({
-        next: () => this.loadCompanies(),
-        error: err => console.error('Error guardando empresa', err)
+        next: () => {
+          this.loadCompanies();
+          // Recargar también los países disponibles por si se creó uno nuevo
+          this.loadAvailablePaises();
+          alert('Empresa guardada exitosamente');
+        },
+        error: err => {
+          console.error('Error guardando empresa:', err);
+          alert('Error al guardar la empresa. Ver consola para más detalles.');
+        }
       });
   }
 

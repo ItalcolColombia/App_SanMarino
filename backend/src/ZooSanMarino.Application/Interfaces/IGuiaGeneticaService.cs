@@ -31,4 +31,10 @@ public interface IGuiaGeneticaService
     /// Obtiene los años disponibles para una raza específica
     /// </summary>
     Task<IEnumerable<int>> ObtenerAnosDisponiblesAsync(string raza);
+
+    /// <summary>
+    /// Obtiene datos de guía genética a partir de la semana 26 (edad >= 26)
+    /// Para uso en liquidación técnica de producción
+    /// </summary>
+    Task<IEnumerable<GuiaGeneticaDto>> ObtenerGuiaGeneticaProduccionAsync(string raza, int anoTabla);
 }

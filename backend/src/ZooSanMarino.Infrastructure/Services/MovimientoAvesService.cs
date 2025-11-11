@@ -1,4 +1,5 @@
 // src/ZooSanMarino.Infrastructure/Services/MovimientoAvesService.cs
+using System;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -309,15 +310,22 @@ public class MovimientoAvesService : IMovimientoAvesService
         var total = dto.CantidadHembras + dto.CantidadMachos + dto.CantidadMixtas;
         if (total <= 0) return false;
 
-        // Debe existir un origen y un destino (inventario o lote)
+        // Debe existir un origen (inventario o lote)
         var tieneOrigen = dto.InventarioOrigenId.HasValue || dto.LoteOrigenId.HasValue;
-        var tieneDestino = dto.InventarioDestinoId.HasValue || dto.LoteDestinoId.HasValue;
-        if (!tieneOrigen || !tieneDestino) return false;
+        if (!tieneOrigen) return false;
 
-        // Origen y destino no pueden ser el mismo lote
-        if (dto.LoteOrigenId.HasValue && dto.LoteDestinoId.HasValue &&
-            dto.LoteOrigenId.Value == dto.LoteDestinoId.Value)
-            return false;
+        // Para retiros, no se requiere destino; para otros tipos, sí
+        var esRetiro = dto.TipoMovimiento?.Equals("Retiro", StringComparison.OrdinalIgnoreCase) == true;
+        if (!esRetiro)
+        {
+            var tieneDestino = dto.InventarioDestinoId.HasValue || dto.LoteDestinoId.HasValue;
+            if (!tieneDestino) return false;
+
+            // Origen y destino no pueden ser el mismo lote (excepto para retiros)
+            if (dto.LoteOrigenId.HasValue && dto.LoteDestinoId.HasValue &&
+                dto.LoteOrigenId.Value == dto.LoteDestinoId.Value)
+                return false;
+        }
 
         // No cantidades negativas
         if (dto.CantidadHembras < 0 || dto.CantidadMachos < 0 || dto.CantidadMixtas < 0)
@@ -357,6 +365,155 @@ public class MovimientoAvesService : IMovimientoAvesService
         return await _context.Farms
             .Where(f => f.Id == granjaId && f.CompanyId == _currentUser.CompanyId)
             .AnyAsync();
+    }
+
+    /// <summary>
+    /// Registra un retiro de aves automáticamente desde seguimiento diario (levante o producción)
+    /// </summary>
+    public async Task<ResultadoMovimientoDto> RegistrarRetiroDesdeSeguimientoAsync(
+        int loteId,
+        int hembrasRetiradas,
+        int machosRetirados,
+        int mixtasRetiradas,
+        DateTime fechaMovimiento,
+        string fuenteSeguimiento,
+        string? observaciones = null)
+    {
+        try
+        {
+            // Si no hay aves retiradas, no hacer nada
+            if (hembrasRetiradas == 0 && machosRetirados == 0 && mixtasRetiradas == 0)
+                return new ResultadoMovimientoDto(true, "No hay aves retiradas para registrar", null, null, new List<string>(), null);
+
+            // Obtener información del lote
+            var lote = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (lote == null)
+                return new ResultadoMovimientoDto(false, $"Lote '{loteId}' no encontrado", null, null, new List<string> { "Lote no encontrado" }, null);
+
+            // Buscar inventario del lote en su ubicación
+            var inventario = await _context.InventarioAves
+                .Where(i => i.LoteId == loteId && 
+                           i.CompanyId == _currentUser.CompanyId && 
+                           i.DeletedAt == null &&
+                           i.Estado == "Activo")
+                .OrderByDescending(i => i.FechaActualizacion)
+                .FirstOrDefaultAsync();
+
+            // Si no existe inventario, intentar crearlo con cantidades iniciales del lote (si existen)
+            if (inventario == null)
+            {
+                // Verificar disponibilidad: las aves retiradas no pueden ser más que las disponibles
+                int hembrasDisponibles = lote.HembrasL ?? 0;
+                int machosDisponibles = lote.MachosL ?? 0;
+
+                if (hembrasRetiradas > hembrasDisponibles || machosRetirados > machosDisponibles)
+                    return new ResultadoMovimientoDto(
+                        false,
+                        "No hay suficientes aves en el lote para el retiro registrado",
+                        null,
+                        null,
+                        new List<string> { $"Hembras disponibles: {hembrasDisponibles}, solicitadas: {hembrasRetiradas} | Machos disponibles: {machosDisponibles}, solicitados: {machosRetirados}" },
+                        null);
+
+                // Crear inventario básico si no existe (solo para registrar el retiro)
+                inventario = new InventarioAves
+                {
+                    LoteId = loteId,
+                    GranjaId = lote.GranjaId,
+                    NucleoId = lote.NucleoId,
+                    GalponId = lote.GalponId,
+                    CantidadHembras = hembrasDisponibles,
+                    CantidadMachos = machosDisponibles,
+                    CantidadMixtas = lote.Mixtas ?? 0,
+                    FechaActualizacion = DateTime.UtcNow,
+                    Estado = "Activo",
+                    CompanyId = _currentUser.CompanyId,
+                    CreatedByUserId = _currentUser.UserId,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.InventarioAves.Add(inventario);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Validar que hay suficientes aves disponibles en el inventario
+                if (hembrasRetiradas > inventario.CantidadHembras || 
+                    machosRetirados > inventario.CantidadMachos || 
+                    mixtasRetiradas > inventario.CantidadMixtas)
+                    return new ResultadoMovimientoDto(
+                        false,
+                        "No hay suficientes aves en el inventario para el retiro registrado",
+                        null,
+                        null,
+                        new List<string> { 
+                            $"Hembras disponibles: {inventario.CantidadHembras}, solicitadas: {hembrasRetiradas} | " +
+                            $"Machos disponibles: {inventario.CantidadMachos}, solicitados: {machosRetirados} | " +
+                            $"Mixtas disponibles: {inventario.CantidadMixtas}, solicitadas: {mixtasRetiradas}"
+                        },
+                        null);
+            }
+
+            // Crear movimiento de retiro
+            var movimientoDto = new CreateMovimientoAvesDto
+            {
+                FechaMovimiento = fechaMovimiento,
+                TipoMovimiento = "Retiro",
+                LoteOrigenId = loteId,
+                GranjaOrigenId = lote.GranjaId,
+                NucleoOrigenId = lote.NucleoId,
+                GalponOrigenId = lote.GalponId,
+                InventarioOrigenId = inventario.Id,
+                // No hay destino en un retiro
+                CantidadHembras = hembrasRetiradas,
+                CantidadMachos = machosRetirados,
+                CantidadMixtas = mixtasRetiradas,
+                MotivoMovimiento = $"Retiro automático desde seguimiento diario ({fuenteSeguimiento})",
+                Observaciones = observaciones ?? $"Registrado automáticamente desde {fuenteSeguimiento}",
+                UsuarioMovimientoId = _currentUser.UserId
+            };
+
+            var movimiento = await CreateAsync(movimientoDto);
+
+            // Procesar inmediatamente el movimiento para actualizar el inventario
+            var procesarDto = new ProcesarMovimientoDto
+            {
+                MovimientoId = movimiento.Id,
+                ObservacionesProcesamiento = $"Procesado automáticamente desde {fuenteSeguimiento}",
+                AutoCrearInventarioDestino = false // No hay destino en retiros
+            };
+
+            var resultado = await ProcesarMovimientoAsync(procesarDto);
+
+            if (!resultado.Success)
+                return resultado;
+
+            // Actualizar manualmente el inventario restando las aves retiradas
+            inventario = await _context.InventarioAves.FindAsync(inventario.Id);
+            if (inventario != null)
+            {
+                inventario.AplicarMovimientoSalida(hembrasRetiradas, machosRetirados, mixtasRetiradas);
+                inventario.UpdatedByUserId = _currentUser.UserId;
+                inventario.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+
+            return resultado;
+        }
+        catch (Exception ex)
+        {
+            return new ResultadoMovimientoDto(
+                false,
+                $"Error al registrar retiro desde {fuenteSeguimiento}: {ex.Message}",
+                null,
+                null,
+                new List<string> { ex.Message },
+                null);
+        }
     }
 
     public async Task<IEnumerable<MovimientoAvesDto>> GetMovimientosRecientesAsync(int dias = 7)

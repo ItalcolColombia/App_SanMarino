@@ -47,6 +47,41 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+
+  .email-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    cursor: help;
+    margin-left: 0.5rem;
+
+    .email-icon {
+      font-size: 1.25rem;
+      transition: transform 0.2s;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+
+    &:hover .email-icon {
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
 }
 
 .header-icon {
@@ -155,7 +190,7 @@
 
   &.has-errors {
     color: #ef4444;
-    
+
     &.active {
       color: #dc2626;
     }
@@ -499,11 +534,11 @@
   .modal-header {
     border-bottom-color: #000;
   }
-  
+
   .btn-primary {
     border: 2px solid #000;
   }
-  
+
   .btn-secondary {
     border-color: #000;
   }

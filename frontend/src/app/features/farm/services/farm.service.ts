@@ -54,12 +54,12 @@ export class FarmService {
     // Obtener el ID del usuario de la sesión actual
     const session: AuthSession | null = this.tokenStorage.get();
     const userId = session?.user?.id;
-    
+
     console.log('=== FarmService.getAll() Debug ===');
     console.log('Session completa:', session);
     console.log('User ID:', userId);
     console.log('User ID type:', typeof userId);
-    
+
     // Si no hay sesión o user ID, esperar un poco y reintentar
     if (!session || !userId) {
       console.warn('⚠️ No hay sesión o user ID, esperando...');
@@ -67,7 +67,7 @@ export class FarmService {
         setTimeout(() => {
           const retrySession: AuthSession | null = this.tokenStorage.get();
           const retryUserId = retrySession?.user?.id;
-          
+
           if (retrySession && retryUserId) {
             console.log('✅ Sesión encontrada en reintento:', retryUserId);
             this.getAllWithUserId(retryUserId).subscribe(observer);
@@ -78,28 +78,51 @@ export class FarmService {
         }, 1000); // Esperar 1 segundo
       });
     }
-    
+
     return this.getAllWithUserId(userId);
   }
 
   private getAllWithUserId(userId: string): Observable<FarmDto[]> {
+    // Validar que userId sea un GUID válido
+    if (!userId || userId.trim() === '') {
+      console.error('❌ FarmService.getAllWithUserId() - userId vacío o inválido');
+      return throwError(() => new Error('User ID no disponible'));
+    }
+
+    // Validar formato GUID básico
+    const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!guidPattern.test(userId)) {
+      console.warn('⚠️ FarmService.getAllWithUserId() - userId no tiene formato GUID válido:', userId);
+      // Continuar de todas formas, el backend puede manejarlo
+    }
+
     // Crear parámetros de consulta
     let params = new HttpParams();
-    params = params.set('id_user_session', userId);
+    params = params.set('id_user_session', userId.trim());
+
+    console.log('=== FarmService.getAllWithUserId() ===');
+    console.log('User ID:', userId);
+    console.log('User ID type:', typeof userId);
+    console.log('User ID length:', userId.length);
     console.log('Parámetros enviados:', params.toString());
-    
-    const url = `${this.baseUrl}${params.toString() ? '?' + params.toString() : ''}`;
-    console.log('URL completa:', url);
-    
+    console.log('URL base:', this.baseUrl);
+
     return this.http.get<FarmDto[]>(this.baseUrl, { params }).pipe(
       tap(response => {
         console.log('✅ Respuesta del backend:', response);
         console.log('Cantidad de granjas recibidas:', response.length);
+        if (response.length === 0) {
+          console.warn('⚠️ No se recibieron granjas. Verificar que el usuario tenga granjas asignadas.');
+        }
       }),
       catchError(error => {
-        console.error('❌ Error en FarmService.getAll():', error);
+        console.error('❌ Error en FarmService.getAllWithUserId():', error);
         console.error('Error details:', error.error);
         console.error('Error status:', error.status);
+        console.error('Error message:', error.message);
+        if (error.error) {
+          console.error('Error response body:', JSON.stringify(error.error, null, 2));
+        }
         return throwError(() => error);
       })
     );
@@ -114,27 +137,27 @@ export class FarmService {
     console.log('=== Test Connection ===');
     console.log('Base URL:', this.baseUrl);
     console.log('Environment API URL:', environment.apiUrl);
-    
+
     const session: AuthSession | null = this.tokenStorage.get();
     console.log('Session:', session);
-    
+
     if (!session) {
       console.error('❌ No hay sesión de usuario');
       return throwError(() => new Error('No hay sesión de usuario'));
     }
-    
+
     const userId = session.user?.id;
     console.log('User ID:', userId);
-    
+
     if (!userId) {
       console.error('❌ No hay user ID en la sesión');
       return throwError(() => new Error('No hay user ID en la sesión'));
     }
-    
+
     const params = new HttpParams().set('id_user_session', userId);
     const url = `${this.baseUrl}?${params.toString()}`;
     console.log('URL de prueba:', url);
-    
+
     return this.http.get<any>(this.baseUrl, { params });
   }
 

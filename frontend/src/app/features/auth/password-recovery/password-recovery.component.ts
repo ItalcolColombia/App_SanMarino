@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { PasswordRecoveryService, PasswordRecoveryRequest } from '../../../core/services/auth/password-recovery.service';
+import { InputSanitizerService } from '../../../core/services/security/input-sanitizer.service';
 
 @Component({
   selector: 'app-password-recovery',
@@ -22,7 +23,8 @@ export class PasswordRecoveryComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private router: Router,
-    private passwordRecoveryService: PasswordRecoveryService
+    private passwordRecoveryService: PasswordRecoveryService,
+    private sanitizer: InputSanitizerService
   ) {}
 
   ngOnInit(): void {
@@ -41,34 +43,65 @@ export class PasswordRecoveryComponent implements OnInit {
     this.loading = true;
     this.success = false;
 
-    const request: PasswordRecoveryRequest = {
+    const rawRequest: PasswordRecoveryRequest = {
       email: this.recoveryForm.get('email')?.value
     };
 
+    // Validar seguridad: detectar inyección SQL y otros ataques
+    const validation = this.sanitizer.validateObject(rawRequest);
+    if (!validation.isValid) {
+      console.error('🚫 Intento de inyección SQL detectado:', validation.errors);
+      this.loading = false;
+      this.errorMsg = 'Los datos ingresados contienen caracteres no permitidos. Por favor, verifica tu información.';
+      // Limpiar el formulario para prevenir ataques
+      this.recoveryForm.reset();
+      return;
+    }
+
+    // Sanitizar los datos antes de enviarlos
+    const request: PasswordRecoveryRequest = this.sanitizer.sanitizeObject(rawRequest);
+
+    console.log('🚀 Iniciando proceso de recuperación de contraseña...');
+
     this.passwordRecoveryService.recoverPassword(request).subscribe({
       next: (response) => {
+        console.log('✅ Respuesta de recuperación:', response);
         this.loading = false;
         if (response.success) {
           this.success = true;
         } else {
-          this.errorMsg = response.message;
+          this.errorMsg = response.message || 'No se pudo procesar la solicitud. Verifica el correo electrónico e intenta nuevamente.';
         }
       },
       error: (err) => {
+        console.error('❌ Error en recuperación de contraseña:', err);
         this.loading = false;
-        this.errorMsg = err?.error?.message || 'Error al procesar la solicitud. Intenta nuevamente.';
+
+        // Mensajes de error más descriptivos
+        let errorMessage = 'Error al procesar la solicitud. Intenta nuevamente.';
+
+        if (err?.error?.message) {
+          errorMessage = err.error.message;
+        } else if (err?.message) {
+          errorMessage = err.message;
+        } else if (typeof err === 'string') {
+          errorMessage = err;
+        }
+
+        this.errorMsg = errorMessage;
       }
     });
   }
 
   goToLogin(): void {
-    this.router.navigate(['/login']);
+    this.router.navigate(['/login'], { replaceUrl: true });
   }
 
   tryAgain(): void {
     this.success = false;
     this.errorMsg = '';
     this.recoveryForm.reset();
+    this.recoveryForm.markAsUntouched();
   }
 }
 

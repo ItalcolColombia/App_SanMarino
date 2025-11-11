@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/PasswordRecoveryDto.cs
 using System.ComponentModel.DataAnnotations;
+using ZooSanMarino.Application.Attributes;
 
 namespace ZooSanMarino.Application.DTOs;
 
@@ -11,6 +12,8 @@ public class PasswordRecoveryRequestDto
     /// <summary>Correo electrónico del usuario</summary>
     [Required(ErrorMessage = "El correo electrónico es obligatorio")]
     [EmailAddress(ErrorMessage = "El formato del correo electrónico no es válido")]
+    [NoSqlInjection(ErrorMessage = "El correo electrónico contiene caracteres no permitidos")]
+    [MaxLength(255, ErrorMessage = "El correo electrónico no puede exceder 255 caracteres")]
     public string Email { get; set; } = null!;
 }
 
@@ -30,6 +33,9 @@ public class PasswordRecoveryResponseDto
     
     /// <summary>Indica si se envió el email</summary>
     public bool EmailSent { get; set; }
+    
+    /// <summary>ID del correo en la cola (para consultar estado)</summary>
+    public int? EmailQueueId { get; set; }
 }
 
 

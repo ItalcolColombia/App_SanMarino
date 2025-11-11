@@ -11,10 +11,49 @@ export class TokenStorageService {
 
   // Guarda en localStorage si remember=true; caso contrario, en sessionStorage
   save(session: AuthSession, remember = false) {
-    const store = remember ? localStorage : sessionStorage;
-    store.setItem(KEY, JSON.stringify(session));
-    (remember ? sessionStorage : localStorage).removeItem(KEY);
-    this.subject.next(session);
+    try {
+      if (!session || !session.accessToken) {
+        console.error('❌ TokenStorageService.save() - Intento de guardar sesión sin token!', {
+          hasSession: !!session,
+          hasAccessToken: !!session?.accessToken
+        });
+        throw new Error('No se puede guardar una sesión sin token de acceso');
+      }
+
+      const store = remember ? localStorage : sessionStorage;
+      const sessionJson = JSON.stringify(session);
+
+      console.log('💾 TokenStorageService.save() - Guardando sesión:', {
+        remember,
+        storage: remember ? 'localStorage' : 'sessionStorage',
+        hasToken: !!session.accessToken,
+        tokenLength: session.accessToken.length,
+        sessionSize: sessionJson.length
+      });
+
+      store.setItem(KEY, sessionJson);
+
+      // Limpiar el otro storage
+      (remember ? sessionStorage : localStorage).removeItem(KEY);
+
+      // Actualizar el BehaviorSubject para que los observables se actualicen
+      this.subject.next(session);
+
+      // Verificar que se guardó correctamente
+      const saved = this.read();
+      if (!saved || !saved.accessToken) {
+        console.error('❌ Error: La sesión no se guardó correctamente o no tiene token');
+        throw new Error('Error al guardar la sesión: token no encontrado después de guardar');
+      }
+
+      console.log('✅ TokenStorageService.save() - Sesión guardada y verificada:', {
+        hasToken: !!saved.accessToken,
+        tokenMatches: saved.accessToken === session.accessToken
+      });
+    } catch (error) {
+      console.error('❌ Error al guardar sesión:', error);
+      throw error;
+    }
   }
 
   get(): AuthSession | null {
@@ -58,19 +97,19 @@ export class TokenStorageService {
       console.log('❌ No hay sesión actual, cancelando actualización');
       return;
     }
-    
+
     const updatedUser = {
       ...current.user,
       firstName: userData.firstName ?? current.user.firstName,
       surName: userData.surName ?? current.user.surName,
       fullName: `${userData.firstName ?? current.user.firstName} ${userData.surName ?? current.user.surName}`.trim()
     };
-    
-    const updated = { 
-      ...current, 
-      user: updatedUser 
+
+    const updated = {
+      ...current,
+      user: updatedUser
     };
-    
+
     console.log('✅ Actualizando storage con usuario:', updatedUser);
     const persistedInLocal = !!localStorage.getItem(KEY);
     this.save(updated, persistedInLocal);

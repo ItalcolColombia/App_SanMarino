@@ -20,6 +20,7 @@ using Swashbuckle.AspNetCore.SwaggerUI;       // Opciones UI
 using ZooSanMarino.API.Extensions;
 using ZooSanMarino.API.Infrastructure;
 using ZooSanMarino.API.Configuration;
+using ZooSanMarino.API.Middleware;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Application.Options;
 using ZooSanMarino.Application.Validators;
@@ -77,10 +78,20 @@ builder.Configuration
     .AddEnvironmentVariables();
 
 // ─────────────────────────────────────
-// 2) Puerto
+// 2) Puerto y límites de peticiones
 // ─────────────────────────────────────
 var port = builder.Configuration["PORT"] ?? "5002";
 builder.WebHost.UseUrls($"http://+:{port}");
+
+// Configurar límites de tamaño de request body a nivel de servidor
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10 MB máximo
+    options.Limits.MaxRequestHeadersTotalSize = 32 * 1024; // 32 KB para headers
+    options.Limits.MaxRequestLineSize = 8 * 1024; // 8 KB para línea de request
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(30); // Timeout de 30 segundos
+    options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(2); // Keep-alive de 2 minutos
+});
 
 // ─────────────────────────────────────
 // 3) Conexión a BD (con fallbacks)
@@ -125,10 +136,29 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddScoped<ICompanyResolver, CompanyResolver>();
 builder.Services.AddScoped<IUserPermissionService, UserPermissionService>();
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ICompanyPaisValidator, ZooSanMarino.Infrastructure.Services.CompanyPaisValidator>();
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ICompanyPaisService, ZooSanMarino.Infrastructure.Services.CompanyPaisService>();
+
+// Cache en memoria para Rate Limiting y otros servicios
+builder.Services.AddMemoryCache();
+
+// HttpClient y servicio para reCAPTCHA
+builder.Services.AddHttpClient<ZooSanMarino.Application.Interfaces.IRecaptchaService, 
+    ZooSanMarino.Infrastructure.Services.RecaptchaService>(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(10); // Timeout de 10 segundos para reCAPTCHA
+    });
+
+// Servicio de sanitización de inputs (prevención de inyección SQL)
+builder.Services.AddSingleton<ZooSanMarino.API.Services.InputSanitizerService>();
 
 // ─────────────────────────────────────
 // 8) Servicios de aplicación/infra
 // ─────────────────────────────────────
+builder.Services.AddSingleton<EncryptionService>(); // Servicio de encriptación (Singleton porque es stateless y solo usa IConfiguration)
+builder.Services.AddScoped<IEmailQueueService, EmailQueueService>(); // Servicio de cola de correos
+builder.Services.AddScoped<IEmailService, EmailService>(); // Servicio de envío de correos (usa cola)
+builder.Services.AddHostedService<ZooSanMarino.API.BackgroundServices.EmailQueueProcessorService>(); // Procesador de cola en segundo plano
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUserFarmService, UserFarmService>();
@@ -145,6 +175,11 @@ builder.Services.AddScoped<IDepartamentoService, DepartamentoService>();
 builder.Services.AddScoped<IMunicipioService, MunicipioService>();
 builder.Services.AddScoped<ILoteSeguimientoService, LoteSeguimientoService>();
 builder.Services.AddScoped<IMasterListService, MasterListService>();
+// Sistema de Inventario de Aves (registrado antes para inyección en seguimientos)
+builder.Services.AddScoped<IInventarioAvesService, InventarioAvesService>();
+builder.Services.AddScoped<IHistorialInventarioService, HistorialInventarioService>();
+builder.Services.AddScoped<IMovimientoAvesService, MovimientoAvesService>();
+
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
 builder.Services.AddScoped<IProduccionDiariaService, ProduccionDiariaService>();
@@ -172,17 +207,20 @@ builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 
 // Liquidación Técnica Service
 builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService>();
+builder.Services.AddScoped<ILiquidacionTecnicaProduccionService, LiquidacionTecnicaProduccionService>();
+builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
 
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
 
-// Sistema de Inventario de Aves
-builder.Services.AddScoped<IInventarioAvesService, InventarioAvesService>();
-builder.Services.AddScoped<IMovimientoAvesService, MovimientoAvesService>();
-builder.Services.AddScoped<IHistorialInventarioService, HistorialInventarioService>();
+// Sistema de Inventario de Aves (ya registrado arriba)
 
 // Guía Genética Service
 builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
+
+// Servicios de Traslados
+builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
+builder.Services.AddScoped<ITrasladoHuevosService, TrasladoHuevosService>();
 
 // Proveedores
 builder.Services.AddScoped<IAlimentoNutricionProvider, EfAlimentoNutricionProvider>();
@@ -341,6 +379,22 @@ var app = builder.Build();
 /* 14) Pipeline HTTP */
 // ─────────────────────────────────────
 
+// 14.0 Routing y CORS (deben ir primero para manejar preflight OPTIONS)
+app.UseRouting();
+app.UseCors("AppCors");
+
+// ===== Middleware de seguridad (orden importante) =====
+
+// 1. Headers de seguridad HTTP (debe ir temprano)
+app.UseSecurityHeaders();
+
+// 2. Rate Limiting (proteger contra DDoS y fuerza bruta)
+app.UseRateLimiting();
+
+// 3. Validar SECRET_UP después de CORS pero antes de Authentication/Authorization
+// El middleware ya maneja OPTIONS requests internamente
+app.UsePlatformSecret();
+
 // 14.1 CSS para tema oscuro de Swagger UI (sin archivos estáticos)
 const string swaggerDarkCss = """
 :root {
@@ -361,7 +415,53 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
 """;
 app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"));
 
-// 14.2 Swagger JSON como descarga forzada
+// 14.2 Endpoint de login para Swagger (DEBE ir ANTES del middleware)
+app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var password = form["password"].ToString();
+    var expectedPassword = config["Swagger:Password"] ?? "Swagger2024!SanMarino#API";
+    var cookieName = config["Swagger:SessionCookieName"] ?? "SwaggerAuth";
+
+    if (password == expectedPassword)
+    {
+        // Crear cookie de autenticación
+        var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(
+            System.Text.Encoding.UTF8.GetBytes(expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
+        var hashString = Convert.ToBase64String(hash);
+        
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = context.Request.IsHttps, // true en producción con HTTPS, false en desarrollo
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddMinutes(6) // 6 minutos de sesión con renovación automática
+        };
+
+        context.Response.Cookies.Append(cookieName, hashString, cookieOptions);
+
+        // Crear cookie de última actividad para tracking de inactividad
+        var lastActivityKey = $"{cookieName}_LastActivity";
+        var lastActivityOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = false,
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddMinutes(6)
+        };
+        context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
+        context.Response.Redirect("/swagger");
+        return;
+    }
+
+    // Contraseña incorrecta - redirigir a login con error
+    context.Response.Redirect("/swagger?error=Contraseña incorrecta");
+});
+
+// 14.2.1 Protección de Swagger con contraseña (DEBE ir ANTES de UseSwagger)
+app.UseMiddleware<SwaggerPasswordMiddleware>();
+
+// 14.3 Swagger JSON como descarga forzada (protegido por middleware)
 app.MapGet("/swagger/download", (ISwaggerProvider provider) =>
 {
     var doc = provider.GetSwagger("v1");
@@ -372,7 +472,7 @@ app.MapGet("/swagger/download", (ISwaggerProvider provider) =>
     return Results.File(bytes, "application/json", "swagger-v1.json");
 });
 
-// 14.3 Swagger y UI
+// 14.4 Swagger y UI (protegido por middleware)
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -395,8 +495,8 @@ app.UseSwaggerUI(c =>
     // c.RoutePrefix = string.Empty; // si quieres la UI en "/"
 });
 
-app.UseRouting();
-app.UseCors("AppCors");
+// Routing, CORS y SECRET_UP ya fueron configurados arriba (líneas 350-357)
+
 app.UseAuthentication();
 app.UseAuthorization();
 

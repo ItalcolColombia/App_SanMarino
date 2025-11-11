@@ -1132,3 +1132,5 @@ Procesa un movimiento pendiente.
 **Última actualización**: 2025-10-15
 **Versión**: 1.0.0
 
+
+

@@ -14,6 +14,8 @@ public class FarmInventoryMovement
     public string Unit { get; set; } = "kg";
     public string? Reference { get; set; }
     public string? Reason { get; set; }
+    public string? Origin { get; set; }           // Origen para entradas (ej: "Planta Sanmarino", "Planta Itacol")
+    public string? Destination { get; set; }      // Destino para salidas (ej: "Venta", "Movimiento", "Devolución")
     public Guid? TransferGroupId { get; set; }
     public JsonDocument Metadata { get; set; } = JsonDocument.Parse("{}");
     public string? ResponsibleUserId { get; set; }

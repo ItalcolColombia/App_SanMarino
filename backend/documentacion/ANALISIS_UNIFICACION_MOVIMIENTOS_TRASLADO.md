@@ -116,3 +116,4 @@ Campos dinámicos según tipo:
 
 **Fecha de análisis**: 2025-01-XX
 
+

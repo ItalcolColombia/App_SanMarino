@@ -22,6 +22,7 @@ namespace ZooSanMarino.Domain.Entities
         public ICollection<Zona> Zonas { get; set; } = new List<Zona>();
         public ICollection<RoleCompany> RoleCompanies { get; set; } = new List<RoleCompany>();
         public ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
+        public ICollection<CompanyPais> CompanyPaises { get; set; } = new List<CompanyPais>();
 
 
     }

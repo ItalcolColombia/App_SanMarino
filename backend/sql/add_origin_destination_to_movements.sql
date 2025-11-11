@@ -13,3 +13,5 @@ COMMENT ON COLUMN public.farm_inventory_movements.destination IS 'Destino para s
 -- CREATE INDEX IF NOT EXISTS ix_fim_origin ON public.farm_inventory_movements(origin);
 -- CREATE INDEX IF NOT EXISTS ix_fim_destination ON public.farm_inventory_movements(destination);
 
+
+

@@ -20,6 +20,8 @@ export interface User {
   roles?: string[];
   roleIds?: number[];
   password?: string;
+  emailSent?: boolean | null;
+  emailQueueId?: number | null;
 }
 
 export interface UserListItem {
@@ -37,6 +39,8 @@ export interface UserListItem {
   companyNames?: string[];
   roles?: string[];
   roleIds?: number[];
+  emailSent?: boolean | null;
+  emailQueueId?: number | null;
 }
 
 export interface UserDto {
@@ -120,16 +124,16 @@ export class UserService extends BaseHttpService {
   /** Buscar usuarios por empresa */
   getByCompany(companyId: number): Observable<User[]> {
     const params = this.createParams({ companyId });
-    return this.get<User[]>(`${this.baseUrl}/by-company`, { 
-      params, 
-      context: 'UserService.getByCompany' 
+    return this.get<User[]>(`${this.baseUrl}/by-company`, {
+      params,
+      context: 'UserService.getByCompany'
     });
   }
 
   /** Activar/Desactivar usuario */
   toggleActive(id: string): Observable<User> {
-    return this.patch<User>(`${this.baseUrl}/${id}/toggle-active`, {}, { 
-      context: 'UserService.toggleActive' 
+    return this.patch<User>(`${this.baseUrl}/${id}/toggle-active`, {}, {
+      context: 'UserService.toggleActive'
     });
   }
 }

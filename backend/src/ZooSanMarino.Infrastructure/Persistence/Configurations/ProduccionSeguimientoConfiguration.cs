@@ -15,40 +15,49 @@ public class ProduccionSeguimientoConfiguration : IEntityTypeConfiguration<Produ
         builder.Property(x => x.Id).ValueGeneratedOnAdd();
 
         builder.Property(x => x.ProduccionLoteId)
-            .IsRequired();
+            .IsRequired()
+            .HasColumnName("produccion_lote_id");
 
         builder.Property(x => x.FechaRegistro)
             .IsRequired()
+            .HasColumnName("fecha_registro")
             .HasColumnType("date");
 
         builder.Property(x => x.MortalidadH)
             .IsRequired()
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .HasColumnName("mortalidad_h");
 
         builder.Property(x => x.MortalidadM)
             .IsRequired()
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .HasColumnName("mortalidad_m");
 
         builder.Property(x => x.ConsumoKg)
             .IsRequired()
             .HasDefaultValue(0)
-            .HasPrecision(10, 2);
+            .HasPrecision(10, 2)
+            .HasColumnName("consumo_kg");
 
         builder.Property(x => x.HuevosTotales)
             .IsRequired()
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .HasColumnName("huevos_totales");
 
         builder.Property(x => x.HuevosIncubables)
             .IsRequired()
-            .HasDefaultValue(0);
+            .HasDefaultValue(0)
+            .HasColumnName("huevos_incubables");
 
         builder.Property(x => x.PesoHuevo)
             .IsRequired()
             .HasDefaultValue(0)
-            .HasPrecision(8, 2);
+            .HasPrecision(8, 2)
+            .HasColumnName("peso_huevo");
 
         builder.Property(x => x.Observaciones)
-            .HasMaxLength(1000);
+            .HasMaxLength(1000)
+            .HasColumnName("observaciones");
 
         // Relación con ProduccionLote
         builder.HasOne(x => x.ProduccionLote)

@@ -43,6 +43,7 @@ import {
   CreateCityDto,
   UpdateCityDto,
 } from '../../../../core/services/city/city.service';
+import { CompanyPaisService } from '../../../../core/services/company-pais/company-pais.service';
 import { Observable } from 'rxjs';
 
 @Component({
@@ -108,6 +109,7 @@ export class CountryListComponent implements OnInit {
   private countrySvc = inject(CountryService);
   private deptSvc = inject(DepartmentService);
   private citySvc = inject(CityService);
+  private companyPaisSvc = inject(CompanyPaisService);
 
   constructor(library: FaIconLibrary) {
     library.addIcons(
@@ -275,14 +277,55 @@ export class CountryListComponent implements OnInit {
     });
   }
   deleteCountry(id: number) {
-    if (!confirm('¿Eliminar este país?')) return;
+    if (!confirm('¿Eliminar este país? Esta acción no se puede deshacer.')) return;
+
+    // Validar que no haya empresas asignadas
     this.loading = true;
-    this.countrySvc.delete(id).subscribe({
-      next: () => this.loadAll(),
-      error: (e) => {
-        console.error('Error deleting country', e);
-        this.loading = false;
+
+    // Verificar si hay empresas asignadas
+    this.companyPaisSvc.getCompaniesByPais(id).subscribe({
+      next: (companies: any[]) => {
+        if (companies && companies.length > 0) {
+          alert(`No se puede eliminar el país porque tiene ${companies.length} empresa(s) asignada(s).\n\nPor favor, remueva las empresas del país antes de eliminarlo.`);
+          this.loading = false;
+          return;
+        }
+
+        // Si no hay empresas, proceder con la eliminación
+        this.countrySvc.delete(id).subscribe({
+          next: () => {
+            this.loadAll();
+            this.loading = false;
+          },
+          error: (e) => {
+            console.error('Error deleting country', e);
+            this.loading = false;
+            // El backend puede retornar un error si hay empresas asignadas
+            const errorMessage = e?.error?.error || e?.message || 'Error al eliminar el país';
+            alert(errorMessage);
+          },
+        });
       },
+      error: (e) => {
+        console.error('Error verificando empresas del país', e);
+        // Si hay error al verificar, preguntar si quiere continuar
+        if (confirm('No se pudo verificar si hay empresas asignadas. ¿Desea continuar con la eliminación?')) {
+          this.countrySvc.delete(id).subscribe({
+            next: () => this.loadAll(),
+            error: (err) => {
+              console.error('Error deleting country', err);
+              this.loading = false;
+              if (err?.error?.error) {
+                alert(`Error al eliminar el país: ${err.error.error}`);
+              } else {
+                alert('Error al eliminar el país. Ver consola para más detalles.');
+              }
+            },
+          });
+        } else {
+          this.loading = false;
+        }
+      }
     });
   }
 

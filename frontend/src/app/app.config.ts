@@ -51,7 +51,7 @@ export const appConfig: ApplicationConfig = {
       // Público
       { path: 'login', component: LoginComponent },
       { path: 'password-recovery', component: PasswordRecoveryComponent },
-      
+
       // Protegido
       { path: 'home', component: HomeComponent, canActivate: [authGuard] },
       { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
@@ -237,6 +237,12 @@ export const appConfig: ApplicationConfig = {
             loadComponent: () => import('./features/traslados-aves/pages/historial-trazabilidad/historial-trazabilidad.component')
               .then(m => m.HistorialTrazabilidadComponent),
             title: 'Trazabilidad de Lote'
+          },
+          {
+            path: 'nuevo',
+            loadComponent: () => import('./features/traslados-aves/pages/traslado-aves-huevos/traslado-aves-huevos.component')
+              .then(m => m.TrasladoAvesHuevosComponent),
+            title: 'Nuevo Traslado'
           }
         ]
       },

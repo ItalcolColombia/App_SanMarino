@@ -46,6 +46,29 @@ public class PaisService : IPaisService
     {
         var ent = await _ctx.Paises.FindAsync(id);
         if (ent is null) return false;
+
+        // Validar que no haya empresas asignadas a este país
+        var hasCompanies = await _ctx.CompanyPaises
+            .AnyAsync(cp => cp.PaisId == id);
+
+        if (hasCompanies)
+        {
+            throw new InvalidOperationException(
+                "No se puede eliminar el país porque tiene empresas asignadas. " +
+                "Por favor, remueva las empresas del país antes de eliminarlo.");
+        }
+
+        // Validar que no haya usuarios asignados a este país
+        var hasUsers = await _ctx.UserCompanies
+            .AnyAsync(uc => uc.PaisId == id);
+
+        if (hasUsers)
+        {
+            throw new InvalidOperationException(
+                "No se puede eliminar el país porque tiene usuarios asignados. " +
+                "Por favor, remueva las asignaciones de usuarios antes de eliminarlo.");
+        }
+
         _ctx.Paises.Remove(ent);
         await _ctx.SaveChangesAsync();
         return true;

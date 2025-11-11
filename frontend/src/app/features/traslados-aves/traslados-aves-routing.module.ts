@@ -36,6 +36,12 @@ const routes: Routes = [
     loadComponent: () => import('./pages/historial-trazabilidad/historial-trazabilidad.component')
       .then(m => m.HistorialTrazabilidadComponent),
     title: 'Trazabilidad de Lote'
+  },
+  {
+    path: 'nuevo',
+    loadComponent: () => import('./pages/traslado-aves-huevos/traslado-aves-huevos.component')
+      .then(m => m.TrasladoAvesHuevosComponent),
+    title: 'Nuevo Traslado'
   }
 ];
 

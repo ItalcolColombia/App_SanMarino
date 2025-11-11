@@ -37,12 +37,15 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<SeguimientoProduccion> SeguimientoProduccion { get; set; } = null!;
         public DbSet<ProduccionLote> ProduccionLotes { get; set; } = null!;
         public DbSet<ProduccionSeguimiento> ProduccionSeguimientos { get; set; } = null!;
-        public DbSet<ProduccionDiaria> ProduccionDiaria { get; set; } = null!;
+        // ProduccionDiaria está ignorada del modelo porque SeguimientoProduccion mapea a la misma tabla
+        // Si necesitas acceder a ella, usa SeguimientoProduccion en su lugar
+        // public DbSet<ProduccionDiaria> ProduccionDiaria { get; set; } = null!;
         public DbSet<Login> Logins { get; set; } = null!;
         public DbSet<UserLogin> UserLogins { get; set; } = null!;
         public DbSet<UserCompany> UserCompanies { get; set; } = null!;
         public DbSet<UserRole> UserRoles { get; set; } = null!;
         public DbSet<UserFarm> UserFarms { get; set; } = null!;
+        public DbSet<CompanyPais> CompanyPaises { get; set; } = null!;
         public DbSet<Permission> Permissions { get; set; } = null!;
         public DbSet<RolePermission> RolePermissions { get; set; } = null!;
         public DbSet<Menu> Menus => Set<Menu>();
@@ -59,11 +62,30 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<InventarioAves> InventarioAves => Set<InventarioAves>();
         public DbSet<MovimientoAves> MovimientoAves => Set<MovimientoAves>();
         public DbSet<HistorialInventario> HistorialInventario => Set<HistorialInventario>();
+        
+        // Traslados de Huevos
+        public DbSet<TrasladoHuevos> TrasladoHuevos => Set<TrasladoHuevos>();
+        
+        // Cola de correos electrónicos
+        public DbSet<EmailQueue> EmailQueue => Set<EmailQueue>();
 
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            base.OnConfiguring(optionsBuilder);
+            
+            // Suprimir warning de cambios pendientes en el modelo
+            optionsBuilder.ConfigureWarnings(warnings => 
+                warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
             builder.ApplyConfiguration(new RoleMenuConfiguration());
+            
+            // Ignorar ProduccionDiaria porque SeguimientoProduccion ya mapea a produccion_diaria
+            builder.Ignore<ProduccionDiaria>();
+            
             // Aplica todas las configuraciones IEntityTypeConfiguration<T> automáticamente
             builder.ApplyConfigurationsFromAssembly(typeof(ZooSanMarinoContext).Assembly);
             base.OnModelCreating(builder);

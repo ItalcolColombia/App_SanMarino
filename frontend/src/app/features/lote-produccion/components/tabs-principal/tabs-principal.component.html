@@ -1,21 +1,21 @@
 <div class="tabs-container">
   <!-- Tab Navigation -->
   <div class="tabs-nav">
-    <button 
+    <button
       type="button"
       class="tab-button"
       [class.active]="activeTab === 'general'"
       (click)="onTabChange('general')">
       📊 General
     </button>
-    <button 
+    <button
       type="button"
       class="tab-button"
       [class.active]="activeTab === 'indicadores'"
       (click)="onTabChange('indicadores')">
       📈 Indicadores Semanales
     </button>
-    <button 
+    <button
       type="button"
       class="tab-button"
       [class.active]="activeTab === 'grafica'"
@@ -30,7 +30,7 @@
     <div *ngIf="activeTab === 'general'" class="tab-panel">
       <div class="panel-header">
         <h3>Registros de Producción</h3>
-        <button 
+        <button
           type="button"
           class="btn btn--primary"
           (click)="onCreate()"
@@ -38,8 +38,8 @@
           ➕ Nuevo Registro
         </button>
       </div>
-      
-      <div class="table-container" *ngIf="registros.length > 0">
+
+      <div class="table-container" *ngIf="seguimientos.length > 0">
         <table class="data-table">
           <thead>
             <tr>
@@ -58,31 +58,38 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let registro of registros">
-              <td>{{ registro.fecha | date:'shortDate' }}</td>
-              <td>{{ calcularEdadDias(registro.fecha) }}</td>
-              <td>{{ registro.mortalidadH }}</td>
-              <td>{{ registro.mortalidadM }}</td>
-              <td>{{ registro.selH }}</td>
-              <td>{{ registro.consKgH }}</td>
-              <td>{{ registro.consKgM }}</td>
-              <td>{{ registro.huevoTot }}</td>
-              <td>{{ registro.huevoInc }}</td>
-              <td>{{ registro.pesoHuevo }}</td>
-              <td>{{ registro.etapa }}</td>
+            <tr *ngFor="let seg of seguimientos">
+              <td>{{ seg.fechaRegistro | date:'shortDate' }}</td>
+              <td>{{ calcularEdadDias(seg.fechaRegistro) }}</td>
+              <td>{{ seg.mortalidadH }}</td>
+              <td>{{ seg.mortalidadM }}</td>
+              <td>{{ seg.selH }}</td>
+              <td>{{ seg.consKgH | number:'1.2-2' }}</td>
+              <td>{{ seg.consKgM | number:'1.2-2' }}</td>
+              <td>{{ seg.huevosTotales }}</td>
+              <td>{{ seg.huevosIncubables }}</td>
+              <td>{{ seg.pesoHuevo | number:'1.2-2' }}g</td>
+              <td>{{ seg.etapa }}</td>
               <td>
                 <div class="action-buttons">
-                  <button 
+                  <button
                     type="button"
                     class="btn btn--sm btn--outline"
-                    (click)="onEdit(registro)"
+                    (click)="onViewDetail(seg)"
+                    title="Ver detalle">
+                    👁️
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--sm btn--outline"
+                    (click)="onEdit(seg)"
                     title="Editar">
                     ✏️
                   </button>
-                  <button 
+                  <button
                     type="button"
                     class="btn btn--sm btn--danger"
-                    (click)="onDelete(registro.id)"
+                    (click)="onDelete(seg.id)"
                     title="Eliminar">
                     🗑️
                   </button>
@@ -93,10 +100,10 @@
         </table>
       </div>
 
-      <div *ngIf="registros.length === 0" class="empty-state">
+      <div *ngIf="seguimientos.length === 0" class="empty-state">
         <div class="empty-icon">📄</div>
         <p>No hay registros de producción para este lote.</p>
-        <button 
+        <button
           type="button"
           class="btn btn--primary"
           (click)="onCreate()">
@@ -108,7 +115,7 @@
     <!-- Indicadores Semanales Tab -->
     <div *ngIf="activeTab === 'indicadores'" class="tab-panel">
       <app-tabla-lista-indicadores
-        [registros]="registros"
+        [seguimientos]="seguimientos"
         [selectedLote]="selectedLote"
         [loading]="loading">
       </app-tabla-lista-indicadores>
@@ -117,7 +124,7 @@
     <!-- Gráficas Tab -->
     <div *ngIf="activeTab === 'grafica'" class="tab-panel">
       <app-graficas-principal
-        [registros]="registros"
+        [seguimientos]="seguimientos"
         [selectedLote]="selectedLote"
         [loading]="loading">
       </app-graficas-principal>

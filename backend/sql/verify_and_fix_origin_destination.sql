@@ -55,3 +55,5 @@ WHERE table_schema = 'public'
   AND table_name = 'farm_inventory_movements'
   AND column_name IN ('origin', 'destination');
 
+
+

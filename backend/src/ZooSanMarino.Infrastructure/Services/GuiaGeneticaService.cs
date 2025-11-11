@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -22,34 +24,71 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     {
         try
         {
-            // Buscar en la tabla de guías genéticas
-            var guia = await _ctx.ProduccionAvicolaRaw
-                .Where(p => p.Raza == request.Raza && 
-                           p.AnioGuia == request.AnoTabla.ToString() && 
-                           p.Edad == request.Edad.ToString())
-                .FirstOrDefaultAsync();
+            var raza = (request.Raza ?? string.Empty).Trim();
+            var anio = request.AnoTabla.ToString(CultureInfo.InvariantCulture);
+            var edadObjetivo = request.Edad;
 
-            if (guia == null)
+            // 1) Traer posibles candidatos por raza/año ignorando mayúsculas y espacios
+            var candidatos = await _ctx.ProduccionAvicolaRaw
+                .AsNoTracking()
+                .Where(p =>
+                    p.Raza != null && p.AnioGuia != null &&
+                    EF.Functions.Like(p.Raza.Trim().ToLower(), raza.ToLower()) &&
+                    p.AnioGuia.Trim() == anio
+                )
+                .ToListAsync();
+
+            if (candidatos.Count == 0)
             {
                 return new GuiaGeneticaResponse(
                     Existe: false,
                     Datos: null,
-                    Mensaje: $"No se encontró guía genética para Raza: {request.Raza}, Año: {request.AnoTabla}, Edad: {request.Edad}"
+                    Mensaje: $"No se encontró guía genética para Raza: {request.Raza}, Año: {request.AnoTabla}."
                 );
             }
 
-            // Parsear los valores de la guía genética
+            // 2) Intentar machear EDAD con tolerancia de formatos (25, 25.0, 025, 'sem 25', etc.)
+            var fila = candidatos
+                .FirstOrDefault(p => EdadCoincide(p.Edad, edadObjetivo));
+
+            // 3) Si no existe exacto, buscar por "edad más cercana" (opcional)
+            if (fila == null)
+            {
+                // Buscar todas las que tengan edad numérica válida y elegir la exacta o la más cercana
+                var conEdadNumerica = candidatos
+                    .Select(p => new { p, edadNum = TryParseEdadNumerica(p.Edad) })
+                    .Where(x => x.edadNum.HasValue)
+                    .OrderBy(x => Math.Abs(x.edadNum.Value - edadObjetivo))
+                    .ToList();
+
+                fila = conEdadNumerica.FirstOrDefault(x => x.edadNum.Value == edadObjetivo)?.p
+                    ?? conEdadNumerica.FirstOrDefault()?.p;
+            }
+
+            if (fila == null)
+            {
+                return new GuiaGeneticaResponse(
+                    Existe: false,
+                    Datos: null,
+                    Mensaje: $"No se encontró edad {edadObjetivo} para Raza: {request.Raza}, Año: {request.AnoTabla}."
+                );
+            }
+
+            // 4) Mapear/parsear campos de la fila seleccionada
+            // CORREGIDO: usar ConsAcH/ConsAcM en lugar de GrAveDiaH/M
             var datos = new GuiaGeneticaDto(
-                Edad: request.Edad,
-                ConsumoHembras: ParseDouble(guia.GrAveDiaH),
-                ConsumoMachos: ParseDouble(guia.GrAveDiaM),
-                PesoHembras: ParseDouble(guia.PesoH),
-                PesoMachos: ParseDouble(guia.PesoM),
-                MortalidadHembras: ParseDouble(guia.MortSemH),
-                MortalidadMachos: ParseDouble(guia.MortSemM),
-                Uniformidad: ParseDouble(guia.Uniformidad),
-                PisoTermicoRequerido: DeterminarPisoTermico(request.Edad, guia),
-                Observaciones: $"Guía: {guia.Raza} {guia.AnioGuia}"
+                Edad: edadObjetivo,
+                ConsumoHembras: ParseDouble(fila.GrAveDiaH),    // GrAveDiaH - Gramos por ave por día hembras
+                ConsumoMachos: ParseDouble(fila.GrAveDiaM),     // GrAveDiaM - Gramos por ave por día machos
+                RetiroAcumuladoHembras: ParseDouble(fila.RetiroAcH),  // RetiroAcH
+                RetiroAcumuladoMachos: ParseDouble(fila.RetiroAcM),   // RetiroAcM
+                PesoHembras: ParseDouble(fila.PesoH),         // peso_h
+                PesoMachos: ParseDouble(fila.PesoM),          // peso_m
+                MortalidadHembras: ParseDouble(fila.MortSemH), // mort_sem_h
+                MortalidadMachos: ParseDouble(fila.MortSemM),  // mort_sem_m
+                Uniformidad: ParseDouble(fila.Uniformidad),  // uniformidad
+                PisoTermicoRequerido: DeterminarPisoTermico(edadObjetivo, fila),
+                Observaciones: $"Guía: {fila.Raza} {fila.AnioGuia}"
             );
 
             return new GuiaGeneticaResponse(
@@ -73,26 +112,35 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<IEnumerable<GuiaGeneticaDto>> ObtenerGuiaGeneticaRangoAsync(string raza, int anoTabla, int edadDesde, int edadHasta)
     {
+        var razaNorm = (raza ?? string.Empty).Trim().ToLower();
+        var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
+
         var guias = await _ctx.ProduccionAvicolaRaw
-            .Where(p => p.Raza == raza && 
-                       p.AnioGuia == anoTabla.ToString())
+            .AsNoTracking()
+            .Where(p =>
+                p.Raza != null && p.AnioGuia != null &&
+                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                p.AnioGuia.Trim() == ano
+            )
             .ToListAsync();
 
         return guias
-            .Where(p => int.TryParse(p.Edad, out var edad) && 
-                       edad >= edadDesde && edad <= edadHasta)
-            .OrderBy(p => int.Parse(p.Edad ?? "0"))
-            .Select(g => new GuiaGeneticaDto(
-                Edad: int.Parse(g.Edad ?? "0"),
-                ConsumoHembras: ParseDouble(g.GrAveDiaH),
-                ConsumoMachos: ParseDouble(g.GrAveDiaM),
-                PesoHembras: ParseDouble(g.PesoH),
-                PesoMachos: ParseDouble(g.PesoM),
-                MortalidadHembras: ParseDouble(g.MortSemH),
-                MortalidadMachos: ParseDouble(g.MortSemM),
-                Uniformidad: ParseDouble(g.Uniformidad),
-                PisoTermicoRequerido: DeterminarPisoTermico(int.Parse(g.Edad ?? "0"), g),
-                Observaciones: $"Guía: {g.Raza} {g.AnioGuia}"
+            .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
+            .Where(x => x.edad.HasValue && x.edad.Value >= edadDesde && x.edad.Value <= edadHasta)
+            .OrderBy(x => x.edad.Value)
+            .Select(x => new GuiaGeneticaDto(
+                Edad: x.edad!.Value,
+                ConsumoHembras: ParseDouble(x.g.GrAveDiaH),
+                ConsumoMachos: ParseDouble(x.g.GrAveDiaM),
+                RetiroAcumuladoHembras: ParseDouble(x.g.RetiroAcH),
+                RetiroAcumuladoMachos: ParseDouble(x.g.RetiroAcM),
+                PesoHembras: ParseDouble(x.g.PesoH),
+                PesoMachos: ParseDouble(x.g.PesoM),
+                MortalidadHembras: ParseDouble(x.g.MortSemH),
+                MortalidadMachos: ParseDouble(x.g.MortSemM),
+                Uniformidad: ParseDouble(x.g.Uniformidad),
+                PisoTermicoRequerido: DeterminarPisoTermico(x.edad!.Value, x.g),
+                Observaciones: $"Guía: {x.g.Raza} {x.g.AnioGuia}"
             ));
     }
 
@@ -101,8 +149,16 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<bool> ExisteGuiaGeneticaAsync(string raza, int anoTabla)
     {
+        var razaNorm = (raza ?? string.Empty).Trim().ToLower();
+        var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
+
         return await _ctx.ProduccionAvicolaRaw
-            .AnyAsync(p => p.Raza == raza && p.AnioGuia == anoTabla.ToString());
+            .AsNoTracking()
+            .AnyAsync(p =>
+                p.Raza != null && p.AnioGuia != null &&
+                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                p.AnioGuia.Trim() == ano
+            );
     }
 
     /// <summary>
@@ -111,21 +167,16 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     public async Task<IEnumerable<string>> ObtenerRazasDisponiblesAsync()
     {
         var razas = await _ctx.ProduccionAvicolaRaw
-            .Where(p => !string.IsNullOrEmpty(p.Raza))
+            .AsNoTracking()
+            .Where(p => !string.IsNullOrWhiteSpace(p.Raza))
             .Select(p => p.Raza!)
             .Distinct()
             .ToListAsync();
 
-        // Filtrar solo las razas que parecen ser códigos de guía genética válidos
-        // Mantener todas las razas disponibles en la base de datos
-        var razasValidas = razas
-            .Where(raza => !string.IsNullOrEmpty(raza) && 
-                          raza.Trim().Length >= 2)
-            .Select(raza => raza.Trim())
-            .OrderBy(r => r)
-            .ToList();
-
-        return razasValidas;
+        return razas
+            .Select(r => r.Trim())
+            .Where(r => r.Length >= 2)
+            .OrderBy(r => r);
     }
 
     /// <summary>
@@ -133,62 +184,127 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<IEnumerable<int>> ObtenerAnosDisponiblesAsync(string raza)
     {
+        var razaNorm = (raza ?? string.Empty).Trim().ToLower();
+
         var anos = await _ctx.ProduccionAvicolaRaw
-            .Where(p => p.Raza == raza && !string.IsNullOrEmpty(p.AnioGuia))
+            .AsNoTracking()
+            .Where(p => p.Raza != null &&
+                        p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm))
             .Select(p => p.AnioGuia!)
             .Distinct()
             .ToListAsync();
 
-        // Parsear de forma segura y filtrar solo los años válidos
-        var anosValidos = anos
+        return anos
             .Where(ano => int.TryParse(ano, out _))
-            .Select(ano => int.Parse(ano))
+            .Select(ano => int.Parse(ano, CultureInfo.InvariantCulture))
             .OrderByDescending(a => a)
             .ToList();
-
-        return anosValidos;
     }
 
     // ================== MÉTODOS PRIVADOS ==================
 
     /// <summary>
-    /// Parsea un string a double de forma segura
+    /// Parsea un string a double de forma segura (admite coma y punto)
     /// </summary>
     private static double ParseDouble(string? value)
     {
-        if (string.IsNullOrEmpty(value))
-            return 0.0;
+        if (string.IsNullOrWhiteSpace(value)) return 0.0;
 
-        // Remover caracteres no numéricos excepto punto y coma
-        var cleanValue = value.Replace(",", ".").Trim();
-        
-        if (double.TryParse(cleanValue, out var result))
+        var clean = value.Trim()
+            .Replace(" ", "")
+            .Replace(",", ".");
+
+        if (double.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var result))
             return result;
 
         return 0.0;
     }
 
     /// <summary>
-    /// Determina si se requiere piso térmico basado en la edad y datos de la guía
+    /// Devuelve true si la "Edad" de la fila coincide con la edad objetivo con tolerancia de formato.
+    /// </summary>
+    private static bool EdadCoincide(string? edadStr, int edadObjetivo)
+    {
+        var num = TryParseEdadNumerica(edadStr);
+        return num.HasValue && num.Value == edadObjetivo;
+    }
+
+    /// <summary>
+    /// Intenta extraer un número de semanas desde un string de edad (e.g., "25", "25.0", "SEM 25", "Semana 25")
+    /// </summary>
+    private static int? TryParseEdadNumerica(string? edadStr)
+    {
+        if (string.IsNullOrWhiteSpace(edadStr)) return null;
+
+        var s = edadStr.Trim();
+
+        // 1) Si es número (incluye 25, 25.0, 025)
+        var sNorm = s.Replace(",", "."); // por si viene "25,0"
+        if (double.TryParse(sNorm, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
+        {
+            // Redondear/truncar hacia entero
+            var n = (int)Math.Round(d, MidpointRounding.AwayFromZero);
+            return n;
+        }
+
+        // 2) Buscar dígitos dentro del texto (e.g., "SEM 25", "Semana 25", etc.)
+        var m = Regex.Match(s, @"(\d+)");
+        if (m.Success && int.TryParse(m.Groups[1].Value, out var n2))
+            return n2;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Determina si se requiere piso térmico basado en edad y campos descriptivos.
     /// </summary>
     private static bool DeterminarPisoTermico(int edad, ProduccionAvicolaRaw guia)
     {
-        // Lógica para determinar piso térmico:
-        // 1. Si la edad es menor o igual a 3 semanas
-        // 2. O si hay información específica en la guía
-        
-        if (edad <= 3)
+        if (edad <= 3) return true;
+
+        var extra = (guia.Valor1000 ?? string.Empty).ToLowerInvariant();
+        if (extra.Contains("termico") || extra.Contains("calor") || extra.Contains("temperatura"))
             return true;
 
-        // Verificar si hay información específica en campos adicionales
-        // Por ejemplo, si Valor1000 contiene información sobre temperatura
-        if (!string.IsNullOrEmpty(guia.Valor1000))
-        {
-            var valor = guia.Valor1000.ToLower();
-            if (valor.Contains("termico") || valor.Contains("calor") || valor.Contains("temperatura"))
-                return true;
-        }
-
         return false;
+    }
+
+    /// <summary>
+    /// Obtiene datos de guía genética a partir de la semana 26 (edad >= 26)
+    /// Para uso en liquidación técnica de producción
+    /// </summary>
+    public async Task<IEnumerable<GuiaGeneticaDto>> ObtenerGuiaGeneticaProduccionAsync(string raza, int anoTabla)
+    {
+        var razaNorm = (raza ?? string.Empty).Trim().ToLower();
+        var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
+
+        var guias = await _ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .Where(p =>
+                p.Raza != null && p.AnioGuia != null &&
+                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                p.AnioGuia.Trim() == ano
+            )
+            .ToListAsync();
+
+        return guias
+            .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
+            .Where(x => x.edad.HasValue && x.edad.Value >= 26) // Solo semanas >= 26
+            .OrderBy(x => x.edad.Value)
+            .Select(x => new GuiaGeneticaDto(
+                Edad: x.edad!.Value,
+                ConsumoHembras: ParseDouble(x.g.GrAveDiaH),
+                ConsumoMachos: ParseDouble(x.g.GrAveDiaM),
+                RetiroAcumuladoHembras: ParseDouble(x.g.RetiroAcH),
+                RetiroAcumuladoMachos: ParseDouble(x.g.RetiroAcM),
+                PesoHembras: ParseDouble(x.g.PesoH),
+                PesoMachos: ParseDouble(x.g.PesoM),
+                MortalidadHembras: ParseDouble(x.g.MortSemH),
+                MortalidadMachos: ParseDouble(x.g.MortSemM),
+                Uniformidad: ParseDouble(x.g.Uniformidad),
+                PisoTermicoRequerido: DeterminarPisoTermico(x.edad!.Value, x.g),
+                Observaciones: $"Guía: {x.g.Raza} {x.g.AnioGuia}"
+            ));
     }
 }

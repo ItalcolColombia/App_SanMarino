@@ -686,3 +686,5 @@ POST   /api/farms/{farmId}/inventory/stock-count                     # Conteo f�
 **Última actualización:** 2025-01-XX  
 **Versión del documento:** 1.0
 
+
+

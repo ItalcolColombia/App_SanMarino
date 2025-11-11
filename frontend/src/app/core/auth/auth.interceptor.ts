@@ -1,10 +1,14 @@
 // src/app/core/auth/auth.interceptor.ts
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpInterceptorFn, HttpHandlerFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { from, switchMap } from 'rxjs';
 import { TokenStorageService } from './token-storage.service';
+import { EncryptionService } from './encryption.service';
+import { environment } from '../../../environments/environment';
 
-export const authInterceptor: HttpInterceptorFn = (req, next) => {
+export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => {
   const storage = inject(TokenStorageService);
+  const encryption = inject(EncryptionService);
   const token = storage.getToken();
   const session = storage.get();
 
@@ -18,19 +22,42 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     }
   }
 
-  if (token) {
-    const headers: { [key: string]: string } = {
-      Authorization: `Bearer ${token}`
-    };
+  // Obtener el SECRET_UP y encriptarlo
+  const secretUpFrontend = environment.platformSecret?.secretUpFrontend;
 
-    // Agregar header de empresa activa (siempre, incluso si es null/undefined)
-    // Esto permite que el backend sepa que el usuario está autenticado pero no tiene empresa activa
-    headers['X-Active-Company'] = session?.activeCompany || '';
-
-    const authReq = req.clone({
-      setHeaders: headers
-    });
-    return next(authReq);
+  if (!secretUpFrontend) {
+    console.error('⚠️ SECRET_UP del frontend no configurado en environment');
+    return next(req); // Continuar sin SECRET_UP (será rechazado por el backend)
   }
-  return next(req);
+
+  // Encriptar el SECRET_UP de forma asíncrona
+  return from(encryption.encryptSecretUp(secretUpFrontend)).pipe(
+    switchMap(encryptedSecretUp => {
+      // Construir headers base
+      const headers: { [key: string]: string } = {};
+
+      // Agregar SECRET_UP encriptado en TODAS las peticiones
+      headers['X-Secret-Up'] = encryptedSecretUp;
+
+      // Agregar token de autenticación si existe
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // Agregar header de empresa activa (siempre, incluso si es null/undefined)
+      // Esto permite que el backend sepa que el usuario está autenticado pero no tiene empresa activa
+      headers['X-Active-Company'] = session?.activeCompany || '';
+
+      // Agregar header de país activo
+      if (session?.activePaisId) {
+        headers['X-Active-Pais'] = session.activePaisId.toString();
+      }
+
+      const authReq = req.clone({
+        setHeaders: headers
+      });
+
+      return next(authReq);
+    })
+  );
 };

@@ -5,6 +5,7 @@ import { CatalogoAlimentosService, CatalogItemDto } from '../../../catalogo-alim
 import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 import { PagedResult } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
+import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 
 @Component({
   selector: 'app-tabla-lista-registro',
@@ -18,7 +19,7 @@ export class TablaListaRegistroComponent implements OnInit {
   @Input() loading: boolean = false;
   @Input() selectedLoteId: number | null = null;
   @Input() selectedLote: any = null;
-  
+
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
   @Output() delete = new EventEmitter<number>();
@@ -29,12 +30,25 @@ export class TablaListaRegistroComponent implements OnInit {
   private alimentosById = new Map<number, CatalogItemDto>();
   private alimentosByName = new Map<string, CatalogItemDto>();
 
+  // Verificar si el usuario es admin
+  isAdmin: boolean = false;
+
   constructor(
-    private catalogSvc: CatalogoAlimentosService
+    private catalogSvc: CatalogoAlimentosService,
+    private storageService: TokenStorageService
   ) { }
 
   ngOnInit(): void {
     this.loadAlimentosCatalog();
+    this.checkAdminRole();
+  }
+
+  // Verificar si el usuario tiene rol de Admin
+  private checkAdminRole(): void {
+    const session = this.storageService.get();
+    if (session?.user?.roles) {
+      this.isAdmin = session.user.roles.includes('Admin');
+    }
   }
 
   // ================== CATALOGO ALIMENTOS ==================

@@ -20,20 +20,20 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher<Login> _hasher;
     private readonly JwtOptions _jwt;
     private readonly IRoleCompositeService _acl; // ← reemplaza a IMenuService
-    // private readonly IEmailService _emailService; // Temporalmente comentado para debug
+    private readonly IEmailService _emailService;
 
     public AuthService(
         ZooSanMarinoContext ctx,
         IPasswordHasher<Login> hasher,
         JwtOptions jwt,
-        IRoleCompositeService acl) // ← inyectamos el orquestador
-        // IEmailService emailService) // Temporalmente comentado para debug
+        IRoleCompositeService acl,
+        IEmailService emailService)
     {
         _ctx = ctx;
         _hasher = hasher;
         _jwt = jwt;
         _acl = acl;
-        // _emailService = emailService; // Temporalmente comentado para debug
+        _emailService = emailService;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -84,7 +84,40 @@ public class AuthService : IAuthService
         }
 
         await _ctx.SaveChangesAsync();
-        return await GenerateResponseAsync(user, login);
+
+        // Enviar correo de bienvenida con credenciales (asíncrono, no bloquea)
+        int? emailQueueId = null;
+        bool emailQueued = false;
+        
+        try
+        {
+            var userName = $"{user.firstName} {user.surName}".Trim();
+            if (string.IsNullOrWhiteSpace(userName))
+                userName = dto.Email;
+
+            // Obtener URL de la aplicación desde configuración (o usar valor por defecto)
+            var applicationUrl = "https://zootecnico.sanmarino.com.co"; // Valor por defecto, puede venir de configuración
+            
+            // Enviar correo de forma asíncrona usando la cola (no bloquea)
+            emailQueueId = await _emailService.SendWelcomeEmailAsync(
+                dto.Email,
+                dto.Password,
+                userName,
+                applicationUrl
+            );
+            emailQueued = emailQueueId.HasValue;
+        }
+        catch (Exception ex)
+        {
+            // Log del error pero no fallar el registro si el email falla
+            // El usuario ya está creado, solo falló el envío del correo
+        }
+
+        var response = await GenerateResponseAsync(user, login);
+        response.EmailSent = emailQueued;
+        response.EmailQueueId = emailQueueId;
+        
+        return response;
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
@@ -169,9 +202,10 @@ public class AuthService : IAuthService
     // Genera el JWT y arma la respuesta
     private async Task<AuthResponseDto> GenerateResponseAsync(User user, Login login)
 {
-    // Empresas del usuario
+    // Empresas del usuario con información de país
     var userCompanies = await _ctx.UserCompanies
         .Include(uc => uc.Company)
+        .Include(uc => uc.Pais)
         .Where(uc => uc.UserId == user.Id)
         .ToListAsync();
 
@@ -191,39 +225,11 @@ public class AuthService : IAuthService
         .Distinct()
         .ToListAsync();
 
-    // ===== NUEVO: Menús asignados por rol (ids) =====
-    // Emparejamos RoleId -> Nombre para acompañar el listado
-    var rolesById = userRoles
-        .Where(ur => ur.Role != null)
-        .Select(ur => new { ur.RoleId, RoleName = ur.Role!.Name })
-        .Distinct()
-        .ToList();
+    // ===== NOTA: MenusByRole también se omite del login para reducir tamaño
+    // Se cargará en una segunda petición junto con el menú
 
-    var rawMenusByRole = await _ctx.RoleMenus
-        .AsNoTracking()
-        .Where(rm => roleIds.Contains(rm.RoleId))
-        .GroupBy(rm => rm.RoleId)
-        .Select(g => new
-        {
-            RoleId = g.Key,
-            MenuIds = g.Select(x => x.MenuId).Distinct().OrderBy(x => x).ToArray()
-        })
-        .ToListAsync();
-
-    var menusByRole = rawMenusByRole
-        .Select(x => new RoleMenusLiteDto(
-            x.RoleId,
-            rolesById.FirstOrDefault(r => r.RoleId == x.RoleId)?.RoleName ?? string.Empty,
-            x.MenuIds
-        ))
-        .OrderBy(x => x.RoleName) // opcional: por orden alfabético
-        .ToList();
-
-    // ===== NUEVO: Menú efectivo del usuario (árbol) =====
-    // Usa el orquestador para calcular el árbol según permisos del usuario.
-    // Si quieres que dependa de una empresa concreta, pásala como companyId.
-    var effectiveMenu = await _acl.Menus_GetForUserAsync(user.Id, companyId: null);
-    var effectiveMenuList = effectiveMenu.ToList();
+    // ===== NOTA: El menú ya NO se incluye en el login para reducir el tamaño de la respuesta encriptada
+    // El menú se cargará en una segunda petición separada después del login
 
     // ===== Claims para el JWT =====
     var claims = new List<Claim>
@@ -246,6 +252,7 @@ public class AuthService : IAuthService
     foreach (var c in userCompanies)
     {
         claims.Add(new Claim("company_id", c.CompanyId.ToString()));
+        claims.Add(new Claim("pais_id", c.PaisId.ToString()));
         var name = c.Company?.Name;
         if (!string.IsNullOrWhiteSpace(name))
             claims.Add(new Claim("company", name!));
@@ -272,6 +279,8 @@ public class AuthService : IAuthService
     {
         Username = login.email,
         FullName = $"{user.firstName} {user.surName}".Trim(),
+        FirstName = user.firstName,
+        SurName = user.surName,
         UserId   = user.Id,
         Token    = new JwtSecurityTokenHandler().WriteToken(token),
 
@@ -283,11 +292,18 @@ public class AuthService : IAuthService
                                 .Where(n => !string.IsNullOrWhiteSpace(n))
                                 .Distinct()
                                 .ToList()!,
-        Permisos = permissions,
+        CompanyPaises = userCompanies.Select(uc => new CompanyPaisDto
+        {
+            CompanyId = uc.CompanyId,
+            CompanyName = uc.Company?.Name ?? string.Empty,
+            PaisId = uc.PaisId,
+            PaisNombre = uc.Pais?.PaisNombre ?? string.Empty,
+            IsDefault = uc.IsDefault
+        }).ToList(),
+        Permisos = permissions
 
-        // NUEVO
-        MenusByRole = menusByRole,
-        Menu        = effectiveMenuList
+        // NOTA: MenusByRole y Menu ya NO se incluyen en el login
+        // Se cargarán en una segunda petición separada desde el frontend
     };
 }
 
@@ -358,8 +374,55 @@ public class AuthService : IAuthService
         );
     }
 
-    // Método temporalmente comentado para debug
-    /*
+    // ===== Métodos para obtener menú por separado (después del login) =====
+    
+    public async Task<IEnumerable<MenuItemDto>> GetMenuForUserAsync(Guid userId, int? companyId = null)
+    {
+        // Usar el orquestador para obtener el menú del usuario (mismo método que se usaba en el login)
+        return await _acl.Menus_GetForUserAsync(userId, companyId);
+    }
+
+    public async Task<List<RoleMenusLiteDto>> GetMenusByRoleForUserAsync(Guid userId)
+    {
+        // Obtener roles del usuario
+        var userRoles = await _ctx.UserRoles
+            .Include(ur => ur.Role)
+            .Where(ur => ur.UserId == userId)
+            .ToListAsync();
+
+        var roleIds = userRoles.Select(r => r.RoleId).Distinct().ToList();
+
+        // Emparejamos RoleId -> Nombre para acompañar el listado
+        var rolesById = userRoles
+            .Where(ur => ur.Role != null)
+            .Select(ur => new { ur.RoleId, RoleName = ur.Role!.Name })
+            .Distinct()
+            .ToList();
+
+        // Obtener menús asignados por rol
+        var rawMenusByRole = await _ctx.RoleMenus
+            .AsNoTracking()
+            .Where(rm => roleIds.Contains(rm.RoleId))
+            .GroupBy(rm => rm.RoleId)
+            .Select(g => new
+            {
+                RoleId = g.Key,
+                MenuIds = g.Select(x => x.MenuId).Distinct().OrderBy(x => x).ToArray()
+            })
+            .ToListAsync();
+
+        var menusByRole = rawMenusByRole
+            .Select(x => new RoleMenusLiteDto(
+                x.RoleId,
+                rolesById.FirstOrDefault(r => r.RoleId == x.RoleId)?.RoleName ?? string.Empty,
+                x.MenuIds
+            ))
+            .OrderBy(x => x.RoleName)
+            .ToList();
+
+        return menusByRole;
+    }
+
     public async Task<PasswordRecoveryResponseDto> RecoverPasswordAsync(PasswordRecoveryRequestDto dto)
     {
         try
@@ -399,33 +462,44 @@ public class AuthService : IAuthService
             login.PasswordHash = _hasher.HashPassword(login, newPassword);
             await _ctx.SaveChangesAsync();
 
-            // Enviar email con la nueva contraseña
+            // Enviar email con la nueva contraseña (asíncrono, no bloquea)
+            int? emailQueueId = null;
+            bool emailQueued = false;
+            
             try
             {
-                await _emailService.SendPasswordRecoveryEmailAsync(dto.Email, newPassword);
+                var userName = $"{user.firstName} {user.surName}".Trim();
+                if (string.IsNullOrWhiteSpace(userName))
+                    userName = null;
+
+                // Agregar correo a la cola (no bloquea, se procesará en segundo plano)
+                emailQueueId = await _emailService.SendPasswordRecoveryEmailAsync(
+                    dto.Email,
+                    newPassword,
+                    userName
+                );
                 
-                return new PasswordRecoveryResponseDto
-                {
-                    Success = true,
-                    Message = "Se ha enviado una nueva contraseña a tu correo electrónico",
-                    UserFound = true,
-                    EmailSent = true
-                };
+                emailQueued = emailQueueId.HasValue;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Si falla el envío del email, revertir el cambio de contraseña
-                // (opcional: podrías mantener la nueva contraseña y solo reportar el error)
-                return new PasswordRecoveryResponseDto
-                {
-                    Success = false,
-                    Message = "Se generó una nueva contraseña pero hubo un error al enviar el email. Contacta al administrador.",
-                    UserFound = true,
-                    EmailSent = false
-                };
+                // Log del error pero no fallar - la contraseña ya fue generada y actualizada
+                // Nota: _logger no está disponible en este contexto, el error se registra en EmailService
             }
+
+            // Siempre retornar éxito si se generó la contraseña (el correo se procesará en segundo plano)
+            return new PasswordRecoveryResponseDto
+            {
+                Success = true,
+                Message = emailQueued 
+                    ? "Se ha generado una nueva contraseña y se ha agregado a la cola de envío. Recibirás el correo en breve. Por favor, revisa tu bandeja de entrada y tu carpeta de spam."
+                    : "Se ha generado una nueva contraseña. El correo se procesará en segundo plano. Si no lo recibes, contacta al administrador.",
+                UserFound = true,
+                EmailSent = emailQueued,
+                EmailQueueId = emailQueueId
+            };
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             return new PasswordRecoveryResponseDto
             {
@@ -436,7 +510,6 @@ public class AuthService : IAuthService
             };
         }
     }
-    */
 
     private string GenerateRandomPassword(int length = 12)
     {

@@ -37,6 +37,16 @@ public interface IMovimientoAvesService
     Task<List<string>> ValidarDisponibilidadAvesAsync(int inventarioOrigenId, int hembras, int machos, int mixtas);
     Task<bool> ValidarUbicacionDestinoAsync(int granjaId, string? nucleoId, string? galponId);
     
+    // Integración con seguimiento diario
+    Task<ResultadoMovimientoDto> RegistrarRetiroDesdeSeguimientoAsync(
+        int loteId,
+        int hembrasRetiradas,
+        int machosRetirados,
+        int mixtasRetiradas,
+        DateTime fechaMovimiento,
+        string fuenteSeguimiento, // "Levante" o "Produccion"
+        string? observaciones = null);
+    
     // Estadísticas
     Task<IEnumerable<MovimientoAvesDto>> GetMovimientosRecientesAsync(int dias = 7);
     Task<int> GetTotalMovimientosPendientesAsync();

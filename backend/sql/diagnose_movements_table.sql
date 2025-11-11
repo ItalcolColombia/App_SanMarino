@@ -88,3 +88,5 @@ WHERE table_schema = 'public'
   AND table_name = 'farm_inventory_movements'
 ORDER BY ordinal_position;
 
+
+

@@ -60,14 +60,14 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
     // Agrupar registros por semana
     const registrosPorSemana = this.agruparPorSemana(this.seguimientos);
-    
+
     // Calcular indicadores para cada semana
     this.indicadoresSemanales = this.calcularIndicadoresSemanales(registrosPorSemana);
   }
 
   private agruparPorSemana(registros: SeguimientoItemDto[]): Map<number, SeguimientoItemDto[]> {
     const grupos = new Map<number, SeguimientoItemDto[]>();
-    
+
     registros.forEach(registro => {
       const semana = this.calcularSemana(registro.fechaRegistro);
       if (!grupos.has(semana)) {
@@ -86,19 +86,19 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
   private calcularSemana(fechaRegistro: string | Date): number {
     if (!this.selectedLote?.fechaInicio) return 1;
-    
+
     const fechaInicio = new Date(this.selectedLote.fechaInicio);
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaInicio.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(1, Math.ceil(diffDays / 7));
   }
 
   private calcularIndicadoresSemanales(grupos: Map<number, SeguimientoItemDto[]>): IndicadorSemanal[] {
     const indicadores: IndicadorSemanal[] = [];
     const semanas = Array.from(grupos.keys()).sort((a, b) => a - b);
-    
+
     let avesAcumuladas = this.selectedLote?.avesInicialesH + this.selectedLote?.avesInicialesM || 0;
     let mortalidadAcumulada = 0;
     let huevosTotalesAcumulados = 0;
@@ -107,9 +107,9 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     semanas.forEach(semana => {
       const registros = grupos.get(semana) || [];
       const indicador = this.calcularIndicadorSemana(semana, registros, avesAcumuladas, mortalidadAcumulada, huevosTotalesAcumulados, huevosIncubablesAcumulados);
-      
+
       indicadores.push(indicador);
-      
+
       // Actualizar acumulados para la siguiente semana
       avesAcumuladas = indicador.avesFinSemana;
       mortalidadAcumulada += indicador.mortalidadTotal;
@@ -121,8 +121,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   private calcularIndicadorSemana(
-    semana: number, 
-    registros: SeguimientoItemDto[], 
+    semana: number,
+    registros: SeguimientoItemDto[],
     avesInicio: number,
     mortalidadAcum: number,
     huevosTotalesAcum: number,
@@ -135,33 +135,33 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     const consumoTotal = registros.reduce((sum, r) => sum + (r.consumoKg || 0), 0);
     const huevosTotales = registros.reduce((sum, r) => sum + (r.huevosTotales || 0), 0);
     const huevosIncubables = registros.reduce((sum, r) => sum + (r.huevosIncubables || 0), 0);
-    
+
     // Aves al final de la semana
     const avesFin = avesInicio - mortalidadTotal;
-    
+
     // Consumo real en kg
     const consumoReal = consumoTotal;
-    
+
     // Consumo tabla (valor fijo por ahora, debería venir de la tabla genética)
     const consumoTabla = 157; // kg por semana
-    
+
     // Conversión alimenticia
     const conversionAlimenticia = avesFin > 0 ? consumoReal / avesFin : 0;
-    
+
     // Porcentajes de mortalidad
     const mortalidadHembras = avesInicio > 0 ? (mortalidadHembrasTotal / avesInicio) * 100 : 0;
     const mortalidadMachos = avesInicio > 0 ? (mortalidadMachosTotal / avesInicio) * 100 : 0;
     const mortalidadTotalPorcentaje = mortalidadHembras + mortalidadMachos;
-    
+
     // Eficiencia (simplificada para producción)
     const eficiencia = conversionAlimenticia > 0 ? huevosTotales / conversionAlimenticia : 0;
-    
+
     // IP (Índice de Productividad) - simplificado para producción
     const ip = conversionAlimenticia > 0 ? (huevosTotales / conversionAlimenticia) / 10 : 0;
-    
+
     // VPI (Variación de Producción) - simplificado
     const vpi = huevosTotalesAcum > 0 ? huevosTotales / huevosTotalesAcum : 0;
-    
+
     // Acumulados
     const mortalidadAcumTotal = mortalidadAcum + mortalidadTotalPorcentaje;
     const huevosTotalesAcumTotal = huevosTotalesAcum + huevosTotales;
@@ -193,21 +193,21 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   // ================== HELPERS DE FECHA ==================
   private obtenerFechaInicioSemana(semana: number): string {
     if (!this.selectedLote?.fechaInicio) return '';
-    
+
     const fechaInicio = new Date(this.selectedLote.fechaInicio);
     const diasASumar = (semana - 1) * 7;
     const fechaInicioSemana = new Date(fechaInicio.getTime() + (diasASumar * 24 * 60 * 60 * 1000));
-    
+
     return fechaInicioSemana.toISOString().split('T')[0];
   }
 
   private obtenerFechaFinSemana(semana: number): string {
     if (!this.selectedLote?.fechaInicio) return '';
-    
+
     const fechaInicio = new Date(this.selectedLote.fechaInicio);
     const diasASumar = (semana * 7) - 1;
     const fechaFinSemana = new Date(fechaInicio.getTime() + (diasASumar * 24 * 60 * 60 * 1000));
-    
+
     return fechaFinSemana.toISOString().split('T')[0];
   }
 
@@ -220,7 +220,25 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     return `${value.toFixed(decimals)}%`;
   };
 
-  formatDate = (date: string): string => {
-    return new Date(date).toLocaleDateString('es-ES');
+  formatDate = (date: string | null | undefined): string => {
+    if (!date) return '—';
+
+    try {
+      const parsedDate = new Date(date);
+
+      // Validar que la fecha sea válida
+      if (isNaN(parsedDate.getTime())) {
+        return '—';
+      }
+
+      return parsedDate.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.warn('Error al formatear fecha:', date, error);
+      return '—';
+    }
   };
 }

@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy, signal } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy, signal, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -6,14 +6,14 @@ import { Observable } from 'rxjs';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 
-import { 
-  LiquidacionTecnicaService, 
-  LiquidacionTecnicaDto, 
-  LiquidacionTecnicaCompletaDto 
+import {
+  LiquidacionTecnicaService,
+  LiquidacionTecnicaDto,
+  LiquidacionTecnicaCompletaDto
 } from '../../services/liquidacion-tecnica.service';
-import { 
-  LiquidacionComparacionService, 
-  LiquidacionTecnicaComparacionDto 
+import {
+  LiquidacionComparacionService,
+  LiquidacionTecnicaComparacionDto
 } from '../../services/liquidacion-comparacion.service';
 import { GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -36,7 +36,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   liquidacionCompleta = signal<LiquidacionTecnicaCompletaDto | null>(null);
   comparacion = signal<LiquidacionTecnicaComparacionDto | null>(null);
   error = signal<string | null>(null);
-  
+
   // Datos completos del lote
   datosLote = signal<LoteDto | null>(null);
 
@@ -46,10 +46,20 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   // Vista activa
   vistaActiva: 'resumen' | 'detalle' | 'graficos' = 'resumen';
 
+  // Flag para indicar si los datos de la guía genética se han cargado
+  guiaGeneticaCargada: boolean = false;
+
   // Propiedades para comparación con Guía Genética
   pesoEsperadoGuia: number = 0;
+  pesoEsperadoHembrasGuia: number = 0;
+  pesoEsperadoMachosGuia: number = 0;
   consumoEsperadoGuia: number = 0;
   mortalidadEsperadaGuia: number = 0;
+  mortalidadEsperadaHembrasGuia: number = 0;
+  mortalidadEsperadaMachosGuia: number = 0;
+  uniformidadEsperadaGuia: number = 0;
+  uniformidadEsperadaHembrasGuia: number = 0;
+  uniformidadEsperadaMachosGuia: number = 0;
   conversionEsperadaGuia: number = 0;
   porcentajeCumplimientoGeneral: number = 0;
   parametrosOptimos: number = 0;
@@ -140,7 +150,8 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     private fb: FormBuilder,
     private liquidacionService: LiquidacionTecnicaService,
     private comparacionService: LiquidacionComparacionService,
-    private guiaGeneticaService: GuiaGeneticaService
+    private guiaGeneticaService: GuiaGeneticaService,
+    private cdr: ChangeDetectorRef
   ) {
     this.form = this.fb.group({
       fechaHasta: [new Date()],
@@ -149,22 +160,13 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   }
 
   ngOnInit(): void {
-    // Escuchar cambios en el formulario
-    this.form.valueChanges.subscribe(() => {
-      if (this.loteId) {
-        this.cargarLiquidacion();
-      }
-    });
-    
-    // Cargar datos del lote si ya tenemos el ID
-    if (this.loteId) {
-      this.cargarDatosLote();
-    }
+    // NO cargar datos aquí, esperar a ngOnChanges
+    // El componente se inicializa sin loteId, y ngOnChanges lo manejará
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['loteId'] && this.loteId) {
-      this.cargarDatosLote();
+      // Solo cargar liquidación, no hacer petición separada para datos del lote
       this.cargarLiquidacion();
     }
   }
@@ -173,21 +175,9 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
    * Cargar datos completos del lote
    */
   cargarDatosLote(): void {
-    if (!this.loteId) return;
-    
+    // Ya no se usa - los datos vienen de LiquidacionTecnicaDto
     console.log('=== DEBUG: cargarDatosLote() ===');
-    console.log('LoteId:', this.loteId);
-    
-    this.liquidacionService.obtenerDatosCompletosLote(this.loteId).subscribe({
-      next: (lote: LoteDto) => {
-        console.log('✅ Datos del lote cargados:', lote);
-        this.datosLote.set(lote);
-      },
-      error: (error: any) => {
-        console.error('❌ Error cargando datos del lote:', error);
-        this.error.set('Error al cargar los datos del lote');
-      }
-    });
+    console.log('Usando datos de liquidación directamente');
   }
 
   /**
@@ -208,7 +198,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     this.error.set(null);
 
     let request$: Observable<LiquidacionTecnicaDto | LiquidacionTecnicaCompletaDto>;
-    
+
     if (tipoVista === 'completa') {
       request$ = this.liquidacionService.getLiquidacionCompleta(this.loteId, fechaHasta);
     } else {
@@ -229,7 +219,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
           this.liquidacion.set(simpleData);
           this.liquidacionCompleta.set(null);
         }
-        
+
         // Cargar datos de comparación con guía genética
         this.cargarComparacion();
       },
@@ -266,24 +256,39 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     const comparacion = this.comparacion();
     if (!liquidacion) return [];
 
+    console.log('=== DEBUG: get indicadores() ===');
+    console.log('mortalidadEsperadaHembrasGuia:', this.mortalidadEsperadaHembrasGuia);
+    console.log('mortalidadEsperadaMachosGuia:', this.mortalidadEsperadaMachosGuia);
+    console.log('uniformidadEsperadaGuia:', this.uniformidadEsperadaGuia);
+    console.log('pesoEsperadoHembrasGuia:', this.pesoEsperadoHembrasGuia);
+    console.log('pesoEsperadoMachosGuia:', this.pesoEsperadoMachosGuia);
+
     return [
       {
         concepto: 'Mortalidad Hembras',
         real: liquidacion.porcentajeMortalidadHembras,
-        guia: comparacion?.mortalidadEsperadaHembras || null,
-        diferencia: comparacion?.diferenciaMortalidadHembras || null,
+        guia: this.mortalidadEsperadaHembrasGuia > 0 ? this.mortalidadEsperadaHembrasGuia : null,
+        diferencia: this.mortalidadEsperadaHembrasGuia > 0
+                    ? (liquidacion.porcentajeMortalidadHembras - this.mortalidadEsperadaHembrasGuia)
+                    : null,
         unidad: '%',
         tipo: 'porcentaje',
-        cumple: comparacion?.cumpleMortalidadHembras || false
+        cumple: this.mortalidadEsperadaHembrasGuia > 0
+                ? Math.abs(liquidacion.porcentajeMortalidadHembras - this.mortalidadEsperadaHembrasGuia) <= (this.mortalidadEsperadaHembrasGuia * 0.2)
+                : false
       },
       {
         concepto: 'Mortalidad Machos',
         real: liquidacion.porcentajeMortalidadMachos,
-        guia: comparacion?.mortalidadEsperadaMachos || null,
-        diferencia: comparacion?.diferenciaMortalidadMachos || null,
+        guia: this.mortalidadEsperadaMachosGuia > 0 ? this.mortalidadEsperadaMachosGuia : null,
+        diferencia: this.mortalidadEsperadaMachosGuia > 0
+                    ? (liquidacion.porcentajeMortalidadMachos - this.mortalidadEsperadaMachosGuia)
+                    : null,
         unidad: '%',
         tipo: 'porcentaje',
-        cumple: comparacion?.cumpleMortalidadMachos || false
+        cumple: this.mortalidadEsperadaMachosGuia > 0
+                ? Math.abs(liquidacion.porcentajeMortalidadMachos - this.mortalidadEsperadaMachosGuia) <= (this.mortalidadEsperadaMachosGuia * 0.2)
+                : false
       },
       {
         concepto: 'Selección Hembras',
@@ -307,7 +312,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
         concepto: 'Retiro Total Hembras',
         real: liquidacion.porcentajeRetiroTotalHembras,
         guia: liquidacion.porcentajeRetiroGuia,
-        diferencia: liquidacion.porcentajeRetiroGuia ? 
+        diferencia: liquidacion.porcentajeRetiroGuia ?
           liquidacion.porcentajeRetiroTotalHembras - liquidacion.porcentajeRetiroGuia : null,
         unidad: '%',
         tipo: 'porcentaje',
@@ -317,7 +322,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
         concepto: 'Retiro Total Machos',
         real: liquidacion.porcentajeRetiroTotalMachos,
         guia: liquidacion.porcentajeRetiroGuia,
-        diferencia: liquidacion.porcentajeRetiroGuia ? 
+        diferencia: liquidacion.porcentajeRetiroGuia ?
           liquidacion.porcentajeRetiroTotalMachos - liquidacion.porcentajeRetiroGuia : null,
         unidad: '%',
         tipo: 'porcentaje',
@@ -334,39 +339,55 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
       },
       {
         concepto: 'Peso Semana 25 (Hembras)',
-        real: liquidacion.pesoSemana25RealHembras,
-        guia: comparacion?.pesoEsperadoHembras || liquidacion.pesoSemana25GuiaHembras,
-        diferencia: comparacion?.diferenciaPesoHembras || liquidacion.porcentajeDiferenciaPesoHembras,
+        real: liquidacion.pesoSemana25RealHembras || 0,
+        guia: this.pesoEsperadoHembrasGuia > 0 ? this.pesoEsperadoHembrasGuia : null,
+        diferencia: liquidacion.pesoSemana25RealHembras && this.pesoEsperadoHembrasGuia > 0
+                    ? (liquidacion.pesoSemana25RealHembras - this.pesoEsperadoHembrasGuia)
+                    : null,
         unidad: 'gr',
         tipo: 'peso',
-        cumple: comparacion?.cumplePesoHembras || false
+        cumple: liquidacion.pesoSemana25RealHembras && this.pesoEsperadoHembrasGuia > 0
+                ? Math.abs(liquidacion.pesoSemana25RealHembras - this.pesoEsperadoHembrasGuia) / this.pesoEsperadoHembrasGuia <= 0.1
+                : false
       },
       {
         concepto: 'Peso Semana 25 (Machos)',
-        real: liquidacion.pesoSemana25RealMachos,
-        guia: comparacion?.pesoEsperadoMachos || null,
-        diferencia: comparacion?.diferenciaPesoMachos || null,
+        real: liquidacion.pesoSemana25RealMachos || 0,
+        guia: this.pesoEsperadoMachosGuia > 0 ? this.pesoEsperadoMachosGuia : null,
+        diferencia: liquidacion.pesoSemana25RealMachos && this.pesoEsperadoMachosGuia > 0
+                    ? (liquidacion.pesoSemana25RealMachos - this.pesoEsperadoMachosGuia)
+                    : null,
         unidad: 'gr',
         tipo: 'peso',
-        cumple: comparacion?.cumplePesoMachos || false
+        cumple: liquidacion.pesoSemana25RealMachos && this.pesoEsperadoMachosGuia > 0
+                ? Math.abs(liquidacion.pesoSemana25RealMachos - this.pesoEsperadoMachosGuia) / this.pesoEsperadoMachosGuia <= 0.1
+                : false
       },
       {
         concepto: 'Uniformidad (Hembras)',
-        real: liquidacion.uniformidadRealHembras,
-        guia: comparacion?.uniformidadEsperadaHembras || liquidacion.uniformidadGuiaHembras,
-        diferencia: comparacion?.diferenciaUniformidadHembras || liquidacion.porcentajeDiferenciaUniformidadHembras,
+        real: liquidacion.uniformidadRealHembras || 0,
+        guia: this.uniformidadEsperadaHembrasGuia > 0 ? this.uniformidadEsperadaHembrasGuia : null,
+        diferencia: liquidacion.uniformidadRealHembras && this.uniformidadEsperadaHembrasGuia > 0
+          ? (liquidacion.uniformidadRealHembras - this.uniformidadEsperadaHembrasGuia)
+          : null,
         unidad: '%',
         tipo: 'porcentaje',
-        cumple: comparacion?.cumpleUniformidadHembras || false
+        cumple: liquidacion.uniformidadRealHembras && this.uniformidadEsperadaHembrasGuia > 0
+          ? Math.abs(liquidacion.uniformidadRealHembras - this.uniformidadEsperadaHembrasGuia) <= 2
+          : false
       },
       {
         concepto: 'Uniformidad (Machos)',
-        real: liquidacion.uniformidadRealMachos,
-        guia: comparacion?.uniformidadEsperadaMachos || null,
-        diferencia: comparacion?.diferenciaUniformidadMachos || null,
+        real: liquidacion.uniformidadRealMachos || 0,
+        guia: this.uniformidadEsperadaMachosGuia > 0 ? this.uniformidadEsperadaMachosGuia : null,
+        diferencia: liquidacion.uniformidadRealMachos && this.uniformidadEsperadaMachosGuia > 0
+          ? (liquidacion.uniformidadRealMachos - this.uniformidadEsperadaMachosGuia)
+          : null,
         unidad: '%',
         tipo: 'porcentaje',
-        cumple: comparacion?.cumpleUniformidadMachos || false
+        cumple: liquidacion.uniformidadRealMachos && this.uniformidadEsperadaMachosGuia > 0
+          ? Math.abs(liquidacion.uniformidadRealMachos - this.uniformidadEsperadaMachosGuia) <= 2
+          : false
       }
     ].filter(ind => ind.real != null);
   }
@@ -378,11 +399,11 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     if (cumple !== undefined) {
       return cumple ? 'estado-bueno' : 'estado-critico';
     }
-    
+
     if (diferencia === null || diferencia === undefined) return 'estado-neutral';
-    
+
     const umbral = tipo === 'porcentaje' ? 2 : 5; // 2% para porcentajes, 5% para otros
-    
+
     if (Math.abs(diferencia) <= umbral) return 'estado-bueno';
     if (Math.abs(diferencia) <= umbral * 2) return 'estado-alerta';
     return 'estado-critico';
@@ -686,13 +707,13 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   // Métodos para comparación con Guía Genética
   cargarComparacion(): void {
     const liquidacionData = this.liquidacion();
-    
+
     console.log('=== DEBUG: cargarComparacion() ===');
     console.log('LiquidacionData:', liquidacionData);
     console.log('Raza:', liquidacionData?.raza);
     console.log('Año Tabla Genética:', liquidacionData?.anoTablaGenetica);
     console.log('Fecha Encaset:', liquidacionData?.fechaEncaset);
-    
+
     if (!liquidacionData || !liquidacionData.raza || !liquidacionData.anoTablaGenetica) {
       console.warn('No se puede cargar comparación: faltan datos de raza o año tabla genética');
       console.warn('Raza disponible:', liquidacionData?.raza);
@@ -700,25 +721,66 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Calcular edad en semanas
-    const edadSemanas = this.calcularEdadSemanas(liquidacionData.fechaEncaset || new Date());
-    console.log('Edad en semanas calculada:', edadSemanas);
-    
-    // Cargar datos de la guía genética
+    // Usar semana 25 (175 días) para liquidación técnica, no la edad actual
+    const semanaLiquidacion = 25;
+    console.log('Semana de liquidación (fija): 25 (175 días)');
+
+    // Cargar datos de la guía genética para semana 25
     this.guiaGeneticaService.obtenerGuiaGenetica(
       liquidacionData.raza,
       liquidacionData.anoTablaGenetica,
-      edadSemanas
+      semanaLiquidacion
     ).subscribe({
       next: (guiaData) => {
+        console.log('=== DEBUG: Datos recibidos de guía genética ===');
+        console.log('guiaData:', guiaData);
+        console.log('datos:', guiaData?.datos);
+
         if (guiaData?.datos) {
-          this.pesoEsperadoGuia = (guiaData.datos.pesoHembras + guiaData.datos.pesoMachos) / 2;
+          console.log('mortalidadHembras:', guiaData.datos.mortalidadHembras);
+          console.log('mortalidadMachos:', guiaData.datos.mortalidadMachos);
+          console.log('uniformidad:', guiaData.datos.uniformidad);
+          console.log('pesoHembras:', guiaData.datos.pesoHembras);
+          console.log('pesoMachos:', guiaData.datos.pesoMachos);
+
+          // Guardar pesos por sexo
+          this.pesoEsperadoHembrasGuia = guiaData.datos.pesoHembras || 0;
+          this.pesoEsperadoMachosGuia = guiaData.datos.pesoMachos || 0;
+          this.pesoEsperadoGuia = (this.pesoEsperadoHembrasGuia + this.pesoEsperadoMachosGuia) / 2;
           this.consumoEsperadoGuia = (guiaData.datos.consumoHembras + guiaData.datos.consumoMachos) / 2;
-          this.mortalidadEsperadaGuia = (guiaData.datos.mortalidadHembras + guiaData.datos.mortalidadMachos) / 2;
+
+          // Guardar mortalidades por sexo de la guía
+          this.mortalidadEsperadaHembrasGuia = guiaData.datos.mortalidadHembras || 0;
+          this.mortalidadEsperadaMachosGuia = guiaData.datos.mortalidadMachos || 0;
+
+          // Promedio general para otros usos
+          this.mortalidadEsperadaGuia = (this.mortalidadEsperadaHembrasGuia + this.mortalidadEsperadaMachosGuia) / 2;
+
+          // Uniformidad (única en guía - usaremos el mismo valor para ambos sexos)
+          this.uniformidadEsperadaGuia = guiaData.datos.uniformidad || 0;
+          this.uniformidadEsperadaHembrasGuia = guiaData.datos.uniformidad || 0;
+          this.uniformidadEsperadaMachosGuia = guiaData.datos.uniformidad || 0;
+
+          console.log('Valores finales guardados:');
+          console.log('mortalidadEsperadaHembrasGuia:', this.mortalidadEsperadaHembrasGuia);
+          console.log('mortalidadEsperadaMachosGuia:', this.mortalidadEsperadaMachosGuia);
+          console.log('uniformidadEsperadaGuia:', this.uniformidadEsperadaGuia);
+          console.log('pesoEsperadoHembrasGuia:', this.pesoEsperadoHembrasGuia);
+          console.log('pesoEsperadoMachosGuia:', this.pesoEsperadoMachosGuia);
+
           this.conversionEsperadaGuia = this.calcularConversionEsperada();
-          
+
           // Calcular cumplimiento general
           this.calcularCumplimientoGeneral();
+
+          // Marcar que la guía genética está cargada
+          this.guiaGeneticaCargada = true;
+
+          // Forzar detección de cambios
+          this.cdr.detectChanges();
+        } else {
+          console.warn('No se recibieron datos de guía genética');
+          this.guiaGeneticaCargada = true; // Marcar como cargada aunque no haya datos
         }
       },
       error: (error) => {
@@ -727,6 +789,9 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
         this.pesoEsperadoGuia = 2500;
         this.consumoEsperadoGuia = 180;
         this.mortalidadEsperadaGuia = 4.0;
+        this.mortalidadEsperadaHembrasGuia = 0;
+        this.mortalidadEsperadaMachosGuia = 0;
+        this.uniformidadEsperadaGuia = 0;
         this.conversionEsperadaGuia = 1.8;
         this.calcularCumplimientoGeneral();
       }
@@ -734,13 +799,34 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   }
 
   // Métodos de cálculo para usar en el template
+  calcularConsumoPorAve(): number {
+    const liquidacionData = this.liquidacion();
+    if (!liquidacionData || !liquidacionData.totalAvesEncasetadas) return 0;
+
+    // El backend envía el consumo total del lote, necesitamos dividir por aves vivas
+    const avesVivas = this.calcularAvesVivas();
+    if (avesVivas === 0) return 0;
+
+    // Conversión: gramos totales / aves vivas = gramos por ave
+    return liquidacionData.consumoAlimentoRealGramos / avesVivas;
+  }
+
+  calcularAvesVivas(): number {
+    const liquidacionData = this.liquidacion();
+    if (!liquidacionData || !liquidacionData.totalAvesEncasetadas) return 0;
+
+    // Calcular aves vivas: total inicial - total retiradas
+    const retiroTotal = (liquidacionData.porcentajeRetiroTotalGeneral / 100) * liquidacionData.totalAvesEncasetadas;
+    return liquidacionData.totalAvesEncasetadas - retiroTotal;
+  }
+
   calcularPesoPromedio(): number {
     const liquidacionData = this.liquidacion();
     if (!liquidacionData) return 0;
-    
+
     const pesoHembras = liquidacionData.pesoSemana25RealHembras || 0;
     const pesoMachos = liquidacionData.pesoSemana25RealMachos || 0;
-    
+
     if (pesoHembras > 0 && pesoMachos > 0) {
       return (pesoHembras + pesoMachos) / 2;
     } else if (pesoHembras > 0) {
@@ -748,28 +834,28 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     } else if (pesoMachos > 0) {
       return pesoMachos;
     }
-    
+
     return 0;
   }
 
   calcularMortalidadPromedio(): number {
     const liquidacionData = this.liquidacion();
     if (!liquidacionData) return 0;
-    
+
     return (liquidacionData.porcentajeMortalidadHembras + liquidacionData.porcentajeMortalidadMachos) / 2;
   }
 
   calcularConversionAlimenticia(): number {
     const liquidacionData = this.liquidacion();
     if (!liquidacionData) return 0;
-    
+
     const pesoPromedio = this.calcularPesoPromedio();
     const consumoTotal = liquidacionData.consumoAlimentoRealGramos;
-    
+
     if (pesoPromedio > 0 && consumoTotal > 0) {
       return consumoTotal / pesoPromedio;
     }
-    
+
     return 0;
   }
 
@@ -841,7 +927,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   getEstadoClass(tipo: string, esperado: number, real: number): string {
     const diferencia = Math.abs(esperado - real);
     const porcentaje = esperado > 0 ? (diferencia / esperado) * 100 : 100;
-    
+
     switch (tipo) {
       case 'peso':
         return porcentaje <= 5 ? 'estado-optimo' : porcentaje <= 10 ? 'estado-aceptable' : 'estado-problema';
@@ -859,7 +945,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   getEstadoTexto(tipo: string, esperado: number, real: number): string {
     const diferencia = Math.abs(esperado - real);
     const porcentaje = esperado > 0 ? (diferencia / esperado) * 100 : 100;
-    
+
     switch (tipo) {
       case 'peso':
         if (porcentaje <= 5) return 'Óptimo';
@@ -896,51 +982,64 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     return Math.floor((fechaActual.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  // Métodos auxiliares para obtener datos del lote
+  // Métodos auxiliares para obtener datos del lote - AHORA DESDE LIQUIDACION
   obtenerNombreLote(): string {
-    const lote = this.datosLote();
-    return lote?.loteNombre || this.loteNombre || '—';
+    const liquidacion = this.liquidacion();
+    return liquidacion?.loteNombre || this.loteNombre || '—';
   }
 
   obtenerRaza(): string {
-    const lote = this.datosLote();
-    return lote?.raza || '—';
+    const liquidacion = this.liquidacion();
+    return liquidacion?.raza || '—';
   }
 
   obtenerAnoTablaGenetica(): string {
-    const lote = this.datosLote();
-    return lote?.anoTablaGenetica?.toString() || '—';
+    const liquidacion = this.liquidacion();
+    return liquidacion?.anoTablaGenetica?.toString() || '—';
   }
 
   obtenerGranja(): string {
-    const lote = this.datosLote();
-    return lote?.farm?.name || '—';
+    // No disponible en LiquidacionTecnicaDto
+    return '—';
   }
 
   obtenerNucleo(): string {
-    const lote = this.datosLote();
-    return lote?.nucleo?.nucleoNombre || '—';
+    // No disponible en LiquidacionTecnicaDto
+    return '—';
   }
 
   obtenerGalpon(): string {
-    const lote = this.datosLote();
-    return lote?.galpon?.galponNombre || '—';
+    // No disponible en LiquidacionTecnicaDto
+    return '—';
   }
 
   obtenerFechaEncaset(): string {
-    const lote = this.datosLote();
-    if (!lote?.fechaEncaset) return '—';
-    return this.formatDate(lote.fechaEncaset);
+    const liquidacion = this.liquidacion();
+    if (!liquidacion?.fechaEncaset) return '—';
+    return this.formatDate(liquidacion.fechaEncaset);
   }
 
   obtenerEdadActual(): number {
-    const lote = this.datosLote();
-    if (!lote?.fechaEncaset) return 0;
-    return this.calcularEdadDias(lote.fechaEncaset);
+    const liquidacion = this.liquidacion();
+    if (!liquidacion?.fechaEncaset) return 0;
+    return this.calcularEdadDias(liquidacion.fechaEncaset);
   }
 
   obtenerTotalAvesIniciales(): number {
-    const lote = this.datosLote();
-    return (lote?.hembrasL || 0) + (lote?.machosL || 0);
+    const liquidacion = this.liquidacion();
+    return liquidacion?.totalAvesEncasetadas || 0;
+  }
+
+  /**
+   * Obtiene la uniformidad real única (promedio de H y M si existen ambas)
+   */
+  private getUniformidadRealUnica(): number {
+    const liq = this.liquidacion();
+    if (!liq) return 0;
+    const vals: number[] = [];
+    if (typeof liq.uniformidadRealHembras === 'number') vals.push(liq.uniformidadRealHembras);
+    if (typeof liq.uniformidadRealMachos === 'number') vals.push(liq.uniformidadRealMachos);
+    if (vals.length === 0) return 0;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
   }
 }

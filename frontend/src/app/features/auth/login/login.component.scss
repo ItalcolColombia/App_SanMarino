@@ -125,7 +125,7 @@
   text-underline-offset: 2px;
   padding: 0;
   transition: color 0.2s ease;
-  
+
   &:hover {
     color: #e6a41c; /* Color naranja más oscuro al hover */
     text-decoration: none;
@@ -284,4 +284,63 @@
 /* Responsivo opcional */
 @media (max-width: 480px) {
   :host { --logo-height: 4rem; }
+}
+
+// Spinner y mensaje de carga
+.loading-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-message {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 0.5rem;
+  text-align: center;
+  color: #3b82f6;
+
+  p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+  }
+
+  .loading-subtitle {
+    font-size: 0.85rem;
+    opacity: 0.8;
+    color: #60a5fa;
+  }
+}
+
+// Estilos para reCAPTCHA
+.recaptcha-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.recaptcha-container re-captcha {
+  display: block;
+  margin: 0 auto;
 }

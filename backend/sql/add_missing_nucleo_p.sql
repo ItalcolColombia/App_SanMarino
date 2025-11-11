@@ -8,3 +8,5 @@ FROM information_schema.columns
 WHERE table_name = 'produccion_lotes' 
 AND column_name = 'nucleo_p';
 
+
+

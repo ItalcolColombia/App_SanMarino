@@ -9,16 +9,24 @@
       </select>
     </div>
 
-    <div class="filter">
-      <label class="ux-label">Tipo *</label>
-      <div class="actions">
-        <label class="btn-ghost" style="cursor:pointer;">
+    <div class="filter filter-type">
+      <label class="ux-label">Tipo de Movimiento *</label>
+      <div class="type-selector">
+        <label class="type-option"
+               [class.type-option--selected]="form.value.type === 'in'"
+               [class.type-option--entry]="form.value.type === 'in'">
           <input type="radio" formControlName="type" value="in" class="sr-only" />
-          Entrada
+          <fa-icon [icon]="faIn" class="type-icon"></fa-icon>
+          <span class="type-text">Entrada</span>
+          <span class="type-badge">+</span>
         </label>
-        <label class="btn-ghost" style="cursor:pointer;">
+        <label class="type-option"
+               [class.type-option--selected]="form.value.type === 'out'"
+               [class.type-option--exit]="form.value.type === 'out'">
           <input type="radio" formControlName="type" value="out" class="sr-only" />
-          Salida
+          <fa-icon [icon]="faOut" class="type-icon"></fa-icon>
+          <span class="type-text">Salida</span>
+          <span class="type-badge">−</span>
         </label>
       </div>
     </div>
@@ -54,9 +62,31 @@
     </div>
   </div>
 
-  <div class="actions" style="justify-content:flex-end; padding: .5rem .75rem;">
+  <div class="form-actions">
+    <button class="btn-clear" type="button" (click)="clearForm()" [disabled]="loading">
+      <fa-icon [icon]="faTrash"></fa-icon>
+      <span>Limpiar</span>
+    </button>
     <button class="btn-primary" type="submit" [disabled]="form.invalid || loading">
-      {{ form.value.type === 'in' ? 'Registrar entrada' : 'Registrar salida' }}
+      <fa-icon [icon]="form.value.type === 'in' ? faIn : faOut" *ngIf="!loading"></fa-icon>
+      <span *ngIf="loading">Procesando...</span>
+      <span *ngIf="!loading">{{ form.value.type === 'in' ? 'Registrar entrada' : 'Registrar salida' }}</span>
     </button>
   </div>
 </form>
+
+<!-- Modal de Confirmación de Éxito -->
+<div class="success-modal-backdrop" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
+  <div class="success-modal" (click)="$event.stopPropagation()">
+    <div class="success-modal__icon">
+      <fa-icon [icon]="faCheckCircle"></fa-icon>
+    </div>
+    <h3 class="success-modal__title">¡Movimiento Registrado Exitosamente!</h3>
+    <p class="success-modal__message">
+      El {{ lastMovementType === 'in' ? 'ingreso' : 'egreso' }} de productos ha sido registrado correctamente.
+    </p>
+    <button class="btn-primary btn-primary--modal" type="button" (click)="closeSuccessModal()">
+      Aceptar
+    </button>
+  </div>
+</div>

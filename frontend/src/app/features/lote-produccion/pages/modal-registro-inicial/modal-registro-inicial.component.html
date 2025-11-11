@@ -6,6 +6,16 @@
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
+    <!-- Información del lote -->
+    <div class="modal-lote-info">
+      <div class="info-card">
+        <strong>Lote:</strong> {{ loteNombre || '—' }}
+      </div>
+      <div class="info-card" *ngIf="nucleoAsignado">
+        <strong>Núcleo Actual:</strong> {{ nucleoAsignado }}
+      </div>
+    </div>
+
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
       <div class="ux-tabs" role="tablist" aria-label="Secciones del registro inicial">
         <input type="radio" name="regTab" id="tab-general" checked />
@@ -30,9 +40,30 @@
                 <small class="ux-hint">ID del lote seleccionado</small>
               </div>
 
+              <div class="form-field">
+                <label for="f-tipo-nido">Tipo de Nido</label>
+                <select id="f-tipo-nido" formControlName="tipoNido">
+                  <option value="Manual">Manual</option>
+                  <option value="Jansen">Jansen</option>
+                  <option value="Vencomatic">Vencomatic</option>
+                </select>
+                <small class="ux-hint">Seleccione el tipo de nido</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-ciclo">Ciclo</label>
+                <select id="f-ciclo" formControlName="ciclo">
+                  <option value="normal">Normal</option>
+                  <option value="2 Replume">2 Replume</option>
+                  <option value="D: Depopulación">D: Depopulación</option>
+                </select>
+                <small class="ux-hint">Tipo de ciclo de producción</small>
+              </div>
+
               <div class="form-field form-field--full">
-                <label for="f-obs">Observaciones</label>
-                <textarea id="f-obs" rows="3" formControlName="observaciones" placeholder="Observaciones sobre el inicio de producción..."></textarea>
+                <label for="f-nucleo-p">Núcleo de Producción (NucleoP)</label>
+                <input id="f-nucleo-p" type="text" formControlName="nucleoP" placeholder="Ingrese el núcleo de producción (semana 26)" />
+                <small class="ux-hint">Núcleo de producción correspondiente al cierre de semana 25 (semana 26)</small>
               </div>
             </div>
           </section>
@@ -50,6 +81,12 @@
                 <label for="f-aves-m">Aves Iniciales Machos</label>
                 <input id="f-aves-m" type="number" min="0" formControlName="avesInicialesM" placeholder="0" />
                 <small class="ux-hint">Número total de machos al inicio</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-huevos">Huevos Iniciales</label>
+                <input id="f-huevos" type="number" min="0" formControlName="huevosIniciales" placeholder="0" />
+                <small class="ux-hint">Huevos contados al inicio de producción</small>
               </div>
 
               <div class="form-field form-field--full">

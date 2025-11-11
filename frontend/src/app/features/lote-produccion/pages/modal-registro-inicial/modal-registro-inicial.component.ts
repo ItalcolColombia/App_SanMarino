@@ -13,8 +13,11 @@ import { CrearProduccionLoteRequest } from '../../services/produccion.service';
 export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   @Input() isOpen: boolean = false;
   @Input() loteId: number | null = null;
+  @Input() loteNombre: string = '';
+  @Input() nucleoAsignado: string = '';
+  @Input() nucleosDisponibles: Array<{ nucleoId: string, nucleoNombre: string }> = [];
   @Input() loading: boolean = false;
-  
+
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<CrearProduccionLoteRequest>();
 
@@ -40,7 +43,10 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
       loteId: [null, Validators.required],
       avesInicialesH: [0, [Validators.required, Validators.min(0)]],
       avesInicialesM: [0, [Validators.required, Validators.min(0)]],
-      observaciones: ['']
+      huevosIniciales: [0, [Validators.required, Validators.min(0)]],
+      tipoNido: ['Manual', Validators.required],
+      ciclo: ['normal', Validators.required],
+      nucleoP: ['']
     });
   }
 
@@ -50,7 +56,10 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
       loteId: this.loteId,
       avesInicialesH: 0,
       avesInicialesM: 0,
-      observaciones: ''
+      huevosIniciales: 0,
+      tipoNido: 'Manual',
+      ciclo: 'normal',
+      nucleoP: this.nucleoAsignado || ''
     });
   }
 
@@ -60,9 +69,9 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   }
 
   onSave(): void {
-    if (this.form.invalid) { 
-      this.form.markAllAsTouched(); 
-      return; 
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
     }
 
     const raw = this.form.value;
@@ -73,7 +82,10 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
       fechaInicio: this.ymdToIsoAtNoon(ymd),
       avesInicialesH: Number(raw.avesInicialesH) || 0,
       avesInicialesM: Number(raw.avesInicialesM) || 0,
-      observaciones: raw.observaciones || undefined
+      huevosIniciales: Number(raw.huevosIniciales) || 0,
+      tipoNido: raw.tipoNido,
+      ciclo: raw.ciclo,
+      nucleoP: raw.nucleoP?.trim() || undefined
     };
 
     this.save.emit(request);

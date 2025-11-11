@@ -101,6 +101,11 @@
           <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
             <div class="grid grid-2">
               <div class="form-field">
+                <label for="f-consumo-m">Consumo Machos (kg)</label>
+                <input id="f-consumo-m" type="number" step="0.01" min="0" formControlName="consumoKgMachos" />
+              </div>
+
+              <div class="form-field">
                 <label for="f-mm">Mortalidad Machos</label>
                 <input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" />
               </div>
@@ -116,18 +121,13 @@
               </div>
 
               <div class="form-field">
-                <label for="f-consumo-m">Consumo Machos (kg)</label>
-                <input id="f-consumo-m" type="number" step="0.01" min="0" formControlName="consumoKgMachos" />
+                <label for="f-pm">Promedio peso M</label>
+                <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
               </div>
 
               <div class="form-field">
                 <label for="f-um">Uniformidad Machos (%)</label>
                 <input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-pm">Promedio peso M</label>
-                <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
               </div>
 
               <div class="form-field">

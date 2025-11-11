@@ -10,15 +10,27 @@
 /Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/refint/ZooSanMarino.Domain.dll
 /Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.pdb
 /Users/chelsycardona/proyectos/sanmarinoApp/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ref/ZooSanMarino.Domain.dll
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\bin\Debug\net9.0\ZooSanMarino.Domain.deps.json
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\bin\Debug\net9.0\ZooSanMarino.Domain.dll
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\bin\Debug\net9.0\ZooSanMarino.Domain.pdb
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.AssemblyInfoInputs.cache
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.AssemblyInfo.cs
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.csproj.CoreCompileInputs.cache
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.sourcelink.json
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.dll
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\refint\ZooSanMarino.Domain.dll
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ZooSanMarino.Domain.pdb
-C:\Users\SAN MARINO\Documents\App_SanMarino\backend\src\ZooSanMarino.Domain\obj\Debug\net9.0\ref\ZooSanMarino.Domain.dll
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/bin/Debug/net9.0/ZooSanMarino.Domain.deps.json
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/bin/Debug/net9.0/ZooSanMarino.Domain.dll
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/bin/Debug/net9.0/ZooSanMarino.Domain.pdb
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.AssemblyInfoInputs.cache
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.AssemblyInfo.cs
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.csproj.CoreCompileInputs.cache
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.sourcelink.json
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.dll
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/refint/ZooSanMarino.Domain.dll
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.pdb
+C:/Users/SAN MARINO/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ref/ZooSanMarino.Domain.dll
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/bin/Debug/net9.0/ZooSanMarino.Domain.deps.json
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/bin/Debug/net9.0/ZooSanMarino.Domain.dll
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/bin/Debug/net9.0/ZooSanMarino.Domain.pdb
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.AssemblyInfoInputs.cache
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.AssemblyInfo.cs
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.csproj.CoreCompileInputs.cache
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.sourcelink.json
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.dll
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/refint/ZooSanMarino.Domain.dll
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ZooSanMarino.Domain.pdb
+/Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Domain/obj/Debug/net9.0/ref/ZooSanMarino.Domain.dll

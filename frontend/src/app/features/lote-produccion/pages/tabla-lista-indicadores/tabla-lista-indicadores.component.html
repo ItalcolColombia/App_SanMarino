@@ -1,7 +1,7 @@
 <!-- ================= TABLA DE INDICADORES SEMANALES ================= -->
 <div class="indicadores-container">
   <h3>Indicadores Semanales</h3>
-  
+
   <div class="ux-scroll">
     <table class="ux-table indicadores-table">
       <thead>
@@ -39,7 +39,10 @@
         <tr *ngFor="let ind of indicadoresSemanales" class="indicador-row">
           <td class="semana-cell">{{ ind.semana }}</td>
           <td class="periodo-cell">
-            {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
+            <span *ngIf="ind.fechaInicio && ind.fechaFin">
+              {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
+            </span>
+            <span *ngIf="!ind.fechaInicio || !ind.fechaFin">—</span>
           </td>
           <td>{{ ind.avesInicioSemana | number:'1.0-0' }}</td>
           <td>{{ ind.avesFinSemana | number:'1.0-0' }}</td>

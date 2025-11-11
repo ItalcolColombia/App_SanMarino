@@ -9,3 +9,5 @@ ON CONFLICT ("MigrationId") DO NOTHING;
 SELECT * FROM "__EFMigrationsHistory" 
 WHERE "MigrationId" = '20251029001730_FixProduccionLoteSnapshot';
 
+
+

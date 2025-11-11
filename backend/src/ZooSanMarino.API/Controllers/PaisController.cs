@@ -46,6 +46,16 @@ public class PaisController : ControllerBase
         return (await _svc.UpdateAsync(dto)) is PaisDto upd ? Ok(upd) : NotFound();
     }
 
-    [HttpDelete("{id}")] public async Task<IActionResult> Delete(int id) =>
-        (await _svc.DeleteAsync(id)) ? NoContent() : NotFound();
+    [HttpDelete("{id}")] 
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            return (await _svc.DeleteAsync(id)) ? NoContent() : NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }

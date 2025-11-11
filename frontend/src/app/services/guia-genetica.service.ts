@@ -6,13 +6,15 @@ import { environment } from '../../environments/environment';
 
 export interface GuiaGeneticaDto {
   edad: number;
-  consumoHembras: number;      // Gramos por ave por día
-  consumoMachos: number;       // Gramos por ave por día
-  pesoHembras: number;         // Peso esperado hembras
-  pesoMachos: number;          // Peso esperado machos
-  mortalidadHembras: number;   // Mortalidad esperada hembras
-  mortalidadMachos: number;    // Mortalidad esperada machos
-  uniformidad: number;         // Uniformidad esperada
+  consumoHembras: number;      // GrAveDiaH - Gramos por ave por día hembras
+  consumoMachos: number;       // GrAveDiaM - Gramos por ave por día machos
+  pesoHembras: number;         // PesoH - Peso esperado hembras (gramos)
+  pesoMachos: number;          // PesoM - Peso esperado machos (gramos)
+  mortalidadHembras: number;   // MortSemH - Mortalidad semanal hembras (%)
+  mortalidadMachos: number;    // MortSemM - Mortalidad semanal machos (%)
+  retiroAcumuladoHembras: number;  // RetiroAcH - Retiro acumulado hembras (%)
+  retiroAcumuladoMachos: number;   // RetiroAcM - Retiro acumulado machos (%)
+  uniformidad: number;         // Uniformidad - Único valor no separado por sexo (%)
   pisoTermicoRequerido: boolean; // Si requiere piso térmico
   observaciones?: string;      // Observaciones adicionales
 }
@@ -84,13 +86,13 @@ export class GuiaGeneticaService {
         const razasValidas = razas.filter(raza => {
           const razaTrimmed = raza?.trim();
           // Solo incluir razas que parecen ser códigos de guía genética válidos
-          return razaTrimmed && 
-                 razaTrimmed !== '' && 
+          return razaTrimmed &&
+                 razaTrimmed !== '' &&
                  razaTrimmed !== 'AP' && // Excluir datos hardcodeados
                  razaTrimmed !== 'C500' && // Excluir datos hardcodeados
                  razaTrimmed.length >= 2; // Al menos 2 caracteres
         });
-        
+
         return razasValidas
           .map(raza => raza.trim())
           .sort((a, b) => a.localeCompare(b));
@@ -176,12 +178,12 @@ export class GuiaGeneticaService {
   async obtenerConsumoEsperado(raza: string, anoTabla: number, edad: number): Promise<number> {
     try {
       const response = await this.obtenerGuiaGenetica(raza, anoTabla, edad).toPromise();
-      
+
       if (response?.existe && response.datos) {
         // Promedio entre hembras y machos
         return (response.datos.consumoHembras + response.datos.consumoMachos) / 2;
       }
-      
+
       return 0; // Valor por defecto si no existe la guía
     } catch (error) {
       console.error('Error obteniendo consumo esperado:', error);
@@ -195,11 +197,11 @@ export class GuiaGeneticaService {
   async requierePisoTermico(raza: string, anoTabla: number, edad: number): Promise<boolean> {
     try {
       const response = await this.obtenerGuiaGenetica(raza, anoTabla, edad).toPromise();
-      
+
       if (response?.existe && response.datos) {
         return response.datos.pisoTermicoRequerido;
       }
-      
+
       return edad <= 3; // Valor por defecto: primeras 3 semanas
     } catch (error) {
       console.error('Error verificando piso térmico:', error);
@@ -213,14 +215,14 @@ export class GuiaGeneticaService {
   async obtenerPesoEsperado(raza: string, anoTabla: number, edad: number): Promise<{ pesoHembras: number; pesoMachos: number }> {
     try {
       const response = await this.obtenerGuiaGenetica(raza, anoTabla, edad).toPromise();
-      
+
       if (response?.existe && response.datos) {
         return {
           pesoHembras: response.datos.pesoHembras,
           pesoMachos: response.datos.pesoMachos
         };
       }
-      
+
       return { pesoHembras: 0, pesoMachos: 0 };
     } catch (error) {
       console.error('Error obteniendo peso esperado:', error);

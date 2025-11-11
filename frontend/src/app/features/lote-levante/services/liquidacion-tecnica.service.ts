@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { LoteDto } from '../../lote/services/lote.service';
 
@@ -138,8 +139,24 @@ export class LiquidacionTecnicaService {
 
   /**
    * Obtener datos completos del lote para liquidación técnica
+   * NOTA: Usa el servicio de lotes directamente en lugar de llamar al API
    */
   obtenerDatosCompletosLote(loteId: string): Observable<LoteDto> {
-    return this.http.get<LoteDto>(`${environment.apiUrl}/api/lotes/${loteId}`);
+    // Obtener información del lote de la liquidación que ya tenemos
+    // No necesitamos hacer una petición adicional
+    return this.getLiquidacionTecnica(loteId, new Date()).pipe(
+      map(liquidacion => {
+        return {
+          loteId: parseInt(liquidacion.loteId),
+          loteNombre: liquidacion.loteNombre,
+          fechaEncaset: liquidacion.fechaEncaset,
+          raza: liquidacion.raza,
+          anoTablaGenetica: liquidacion.anoTablaGenetica,
+          hembrasL: liquidacion.hembrasEncasetadas,
+          machosL: liquidacion.machosEncasetados,
+          avesEncasetadas: liquidacion.totalAvesEncasetadas
+        } as LoteDto;
+      })
+    );
   }
 }

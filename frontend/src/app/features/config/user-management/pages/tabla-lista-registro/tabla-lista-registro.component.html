@@ -64,6 +64,20 @@
                 <div class="contact-item">
                   <fa-icon [icon]="faEnvelope" class="contact-icon"></fa-icon>
                   <span class="contact-text">{{ user.email }}</span>
+                  <!-- Icono de estado del correo (solo si tiene emailQueueId) -->
+                  <div *ngIf="getEmailStatusIcon(user)"
+                       class="email-status-indicator"
+                       [title]="getEmailStatusIcon(user)?.tooltip">
+                    <fa-icon
+                      [icon]="getEmailStatusIcon(user)!.icon"
+                      [style.color]="getEmailStatusIcon(user)!.color"
+                      class="email-icon"
+                    ></fa-icon>
+                    <span
+                      class="status-dot"
+                      [style.background-color]="getEmailStatusIcon(user)!.color"
+                    ></span>
+                  </div>
                 </div>
                 <div *ngIf="user.telefono" class="contact-item">
                   <fa-icon [icon]="faPhone" class="contact-icon"></fa-icon>

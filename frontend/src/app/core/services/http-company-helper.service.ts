@@ -20,14 +20,19 @@ export class HttpCompanyHelperService {
   getHeadersWithActiveCompany(additionalHeaders: { [key: string]: string | string[] } = {}): HttpHeaders {
     const session = this.storage.get();
     const activeCompany = session?.activeCompany || '';
-    
-    // Headers base con empresa activa
+    const activePaisId = session?.activePaisId;
+
+    // Headers base con empresa activa y país
     const baseHeaders: { [key: string]: string | string[] } = {
       'X-Active-Company': activeCompany,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...additionalHeaders
     };
+
+    if (activePaisId) {
+      baseHeaders['X-Active-Pais'] = activePaisId.toString();
+    }
 
     return new HttpHeaders(baseHeaders);
   }
@@ -41,6 +46,7 @@ export class HttpCompanyHelperService {
     const session = this.storage.get();
     const token = session?.accessToken;
     const activeCompany = session?.activeCompany || '';
+    const activePaisId = session?.activePaisId;
 
     if (!token) {
       console.warn('HttpCompanyHelper: No hay token disponible, usando headers sin autenticación');
@@ -55,20 +61,31 @@ export class HttpCompanyHelperService {
       ...additionalHeaders
     };
 
+    if (activePaisId) {
+      authHeaders['X-Active-Pais'] = activePaisId.toString();
+    }
+
     return new HttpHeaders(authHeaders);
   }
 
   /**
-   * Obtiene solo el header de empresa activa
-   * @returns Header X-Active-Company
+   * Obtiene solo el header de empresa activa y país
+   * @returns Headers X-Active-Company y X-Active-Pais
    */
   getActiveCompanyHeader(): { [key: string]: string } {
     const session = this.storage.get();
     const activeCompany = session?.activeCompany || '';
-    
-    return {
+    const activePaisId = session?.activePaisId;
+
+    const headers: { [key: string]: string } = {
       'X-Active-Company': activeCompany
     };
+
+    if (activePaisId) {
+      headers['X-Active-Pais'] = activePaisId.toString();
+    }
+
+    return headers;
   }
 
   /**
