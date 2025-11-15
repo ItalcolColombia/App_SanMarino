@@ -155,3 +155,4 @@
 4. **IP del Cliente**: Se obtiene de headers `X-Forwarded-For` o `X-Real-IP` si está detrás de proxy
 
 
+

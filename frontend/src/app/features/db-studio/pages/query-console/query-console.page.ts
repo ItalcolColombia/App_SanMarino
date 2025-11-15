@@ -1,13 +1,14 @@
 // src/app/features/db-studio/pages/query-console/query-console.page.ts
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { DbStudioService, QueryPageDto } from '../../data/db-studio.service';
 import { FormsModule } from '@angular/forms';
 
 @Component({
   standalone: true,
   selector: 'app-db-query-console',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './query-console.page.html',
   styleUrls: ['./query-console.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -48,8 +49,29 @@ export class QueryConsolePage {
     });
   }
 
-  next() { this.offset.set(this.offset() + this.limit()); this.run(); }
-  prev() { this.offset.set(Math.max(0, this.offset() - this.limit())); this.run(); }
+  next() {
+    this.offset.set(this.offset() + this.limit());
+    this.run();
+  }
 
-  keys(row: Record<string, unknown> | null | undefined) { return row ? Object.keys(row) : []; }
+  prev() {
+    this.offset.set(Math.max(0, this.offset() - this.limit()));
+    this.run();
+  }
+
+  keys(row: Record<string, unknown> | null | undefined): string[] {
+    return row ? Object.keys(row) : [];
+  }
+
+  formatValue(value: any): string {
+    if (value === null || value === undefined) return 'null';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
 }

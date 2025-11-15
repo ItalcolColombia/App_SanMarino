@@ -12,33 +12,30 @@
         <p class="ux-header__subtitle">Exploración detallada de tablas y datos</p>
       </div>
       <div class="ux-header__actions">
-        <button type="button" class="btn btn--ghost" (click)="goQueryConsole()">
-          💻 Consola SQL
-        </button>
+        <a routerLink="query" class="btn btn--ghost">💻 Consola SQL</a>
+        <a routerLink="" class="btn btn--ghost">📊 Dashboard</a>
         <button type="button" class="btn btn--outline" (click)="goCreateTable()">
           ➕ Nueva Tabla
         </button>
-        <button 
-          type="button" 
+        <button
+          type="button"
           class="btn btn--primary"
           (click)="exportTable()"
           [disabled]="!hasTableSelected()">
           📤 Exportar
         </button>
-        <button 
-          type="button" 
-          class="btn btn--outline"
-          (click)="goDataManagement()"
-          [disabled]="!hasTableSelected()">
+        <a
+          *ngIf="hasTableSelected()"
+          [routerLink]="['data', selectedSchema(), selectedTable()]"
+          class="btn btn--outline">
           📝 Datos
-        </button>
-        <button 
-          type="button" 
-          class="btn btn--outline"
-          (click)="goIndexManagement()"
-          [disabled]="!hasTableSelected()">
+        </a>
+        <a
+          *ngIf="hasTableSelected()"
+          [routerLink]="['indexes', selectedSchema(), selectedTable()]"
+          class="btn btn--outline">
           🔗 Índices
-        </button>
+        </a>
       </div>
     </header>
 
@@ -79,15 +76,15 @@
     <section class="ux-card lg:col-span-3" *ngIf="hasTableSelected()">
       <div class="flex justify-between items-center">
         <h2 class="ux-card__title">Detalles — {{ selectedTable() }}</h2>
-        <button 
-          type="button" 
-          class="btn btn--ghost btn--sm" 
+        <button
+          type="button"
+          class="btn btn--ghost btn--sm"
           (click)="analyzeTable()"
           title="Actualizar estadísticas">
           🔄 Analizar
         </button>
       </div>
-      
+
       <!-- Estadísticas -->
       <div class="table-stats" *ngIf="hasTableDetails()">
         <div class="stats-grid">

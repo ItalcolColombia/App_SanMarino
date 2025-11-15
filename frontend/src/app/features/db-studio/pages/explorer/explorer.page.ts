@@ -3,13 +3,13 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal, computed } 
 import { CommonModule } from '@angular/common';
 import { DbStudioService, SchemaDto, TableDto, ColumnDto, QueryPageDto, IndexDto, ForeignKeyDto, TableStatsDto } from '../../data/db-studio.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 
 @Component({
   standalone: true,
   selector: 'app-db-explorer',
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, SidebarComponent],
   templateUrl: './explorer.page.html',
   styleUrls: ['./explorer.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -50,7 +50,7 @@ export class ExplorerPage implements OnInit {
   ngOnInit(): void {
     this.loadSchemas();
     this.loadTables();
-    
+
     // Cargar tabla desde query params
     this.route.queryParams.subscribe(params => {
       if (params['schema'] && params['table']) {
@@ -98,16 +98,16 @@ export class ExplorerPage implements OnInit {
     const sc = this.selectedSchema();
     const tb = this.selectedTable();
     if (!tb) return;
-    
+
     this.loading.set(true);
     this.api.getTableDetails(sc, tb).subscribe({
-      next: details => { 
-        this.tableDetails.set(details); 
-        this.loading.set(false); 
+      next: details => {
+        this.tableDetails.set(details);
+        this.loading.set(false);
       },
-      error: err => { 
-        this.error.set(this.msg(err)); 
-        this.loading.set(false); 
+      error: err => {
+        this.error.set(this.msg(err));
+        this.loading.set(false);
       }
     });
   }
@@ -143,35 +143,31 @@ export class ExplorerPage implements OnInit {
 
   // navegación a crear
   goCreateTable() {
-    this.router.navigate(['./create-table']);
+    this.router.navigate(['create-table'], { relativeTo: this.route.parent });
   }
 
   goQueryConsole() {
-    this.router.navigate(['./query-console']);
+    this.router.navigate(['query'], { relativeTo: this.route.parent });
   }
 
   goDataManagement() {
     const sc = this.selectedSchema();
     const tb = this.selectedTable();
     if (!tb) return;
-    
-    this.router.navigate(['./data-management'], {
-      queryParams: { schema: sc, table: tb }
-    });
+
+    this.router.navigate(['data', sc, tb], { relativeTo: this.route.parent });
   }
 
   goIndexManagement() {
     const sc = this.selectedSchema();
     const tb = this.selectedTable();
     if (!tb) return;
-    
-    this.router.navigate(['./index-management'], {
-      queryParams: { schema: sc, table: tb }
-    });
+
+    this.router.navigate(['indexes', sc, tb], { relativeTo: this.route.parent });
   }
 
   goBack() {
-    this.router.navigate(['/db-studio']);
+    this.router.navigate([''], { relativeTo: this.route.parent });
   }
 
   // Acciones de tabla
@@ -179,7 +175,7 @@ export class ExplorerPage implements OnInit {
     const sc = this.selectedSchema();
     const tb = this.selectedTable();
     if (!tb) return;
-    
+
     this.api.exportTable(sc, tb, 'sql').subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
@@ -197,7 +193,7 @@ export class ExplorerPage implements OnInit {
     const sc = this.selectedSchema();
     const tb = this.selectedTable();
     if (!tb) return;
-    
+
     this.loading.set(true);
     this.api.getTableStats(sc, tb).subscribe({
       next: (stats) => {

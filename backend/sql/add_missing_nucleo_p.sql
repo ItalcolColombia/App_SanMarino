@@ -10,3 +10,4 @@ AND column_name = 'nucleo_p';
 
 
 
+

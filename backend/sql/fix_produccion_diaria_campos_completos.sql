@@ -87,3 +87,4 @@ FROM pg_indexes
 WHERE tablename = 'produccion_diaria';
 
 
+

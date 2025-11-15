@@ -530,3 +530,4 @@ builder.Services.AddSingleton<EncryptionService>();
 **Autor**: Sistema de Seguridad ZooSanMarino
 
 
+

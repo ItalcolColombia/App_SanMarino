@@ -1,58 +1,143 @@
 <!-- src/app/features/db-studio/pages/query-console/query-console.page.html -->
 <div class="ux-page" [attr.aria-busy]="loading() ? 'true' : null">
   <header class="ux-header">
-    <h1>DB Studio — Consola SELECT</h1>
-    <a routerLink="/db-studio" class="btn-outline">Volver al Explorador</a>
+    <div class="ux-header__title">
+      <h1>💻 DB Studio — Consola SQL</h1>
+      <p class="ux-header__subtitle">Ejecuta consultas SQL y visualiza resultados</p>
+    </div>
+    <div class="ux-header__actions">
+      <a routerLink="explorer" class="btn btn--outline">🔍 Explorador</a>
+      <a routerLink="" class="btn btn--ghost">📊 Dashboard</a>
+    </div>
   </header>
 
-  <div class="ux-card">
-    <label>SQL (solo SELECT/WITH)</label>
-    <textarea [ngModel]="sql()" (ngModelChange)="sql.set($event)" rows="6" class="sqlbox"></textarea>
+  <div class="query-console-container">
+    <!-- Panel de Consulta SQL -->
+    <div class="ux-card query-panel">
+      <div class="query-header">
+        <h2>📝 Consulta SQL</h2>
+        <div class="query-actions">
+          <button
+            class="btn btn--primary"
+            (click)="run()"
+            [disabled]="loading()">
+            <span *ngIf="!loading()">▶️ Ejecutar</span>
+            <span *ngIf="loading()">⏳ Ejecutando...</span>
+          </button>
+        </div>
+      </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-      <div>
-        <label>Parámetros (JSON)</label>
-        <textarea [ngModel]="paramsText()" (ngModelChange)="paramsText.set($event)" rows="6" class="paramsbox"></textarea>
+      <div class="query-editor">
+        <label class="query-label">SQL Query (SELECT/WITH)</label>
+        <textarea
+          [ngModel]="sql()"
+          (ngModelChange)="sql.set($event)"
+          rows="10"
+          class="sql-editor"
+          placeholder="SELECT * FROM tabla LIMIT 100;">
+        </textarea>
       </div>
-      <div>
-        <label>Límite</label>
-        <input type="number" [ngModel]="limit()" (ngModelChange)="limit.set($event)" min="1" class="inp">
-      </div>
-      <div>
-        <label>Offset</label>
-        <input type="number" [ngModel]="offset()" (ngModelChange)="offset.set($event)" min="0" class="inp">
+
+      <div class="query-options">
+        <div class="options-grid">
+          <div class="option-group">
+            <label class="query-label">Parámetros (JSON opcional)</label>
+            <textarea
+              [ngModel]="paramsText()"
+              (ngModelChange)="paramsText.set($event)"
+              rows="4"
+              class="params-editor"
+              placeholder='{"param1": "value1"}'>
+            </textarea>
+          </div>
+          <div class="option-group">
+            <label class="query-label">Límite de filas</label>
+            <input
+              type="number"
+              [ngModel]="limit()"
+              (ngModelChange)="limit.set($event)"
+              min="1"
+              max="10000"
+              class="number-input">
+          </div>
+          <div class="option-group">
+            <label class="query-label">Offset</label>
+            <input
+              type="number"
+              [ngModel]="offset()"
+              (ngModelChange)="offset.set($event)"
+              min="0"
+              class="number-input">
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="actions">
-      <button class="btn-primary" (click)="run()">Ejecutar</button>
+    <!-- Panel de Resultados -->
+    <div class="ux-card results-panel" *ngIf="page() as p">
+      <div class="results-header">
+        <h2>📊 Resultados</h2>
+        <div class="results-info">
+          <span class="badge badge--info">{{ p.rows.length }} filas</span>
+          <span class="badge badge--success" *ngIf="p.executionTime">
+            {{ p.executionTime }}ms
+          </span>
+        </div>
+      </div>
+
+      <div class="table-container" *ngIf="p.rows.length; else noData">
+        <div class="table-scroll">
+          <table class="ux-table">
+            <thead>
+              <tr>
+                <th *ngFor="let k of keys(p.rows[0])">{{ k }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of p.rows">
+                <td *ngFor="let k of keys(p.rows[0])">
+                  <code class="cell-value">{{ formatValue(r[k]) }}</code>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pager">
+          <button
+            class="btn btn--outline"
+            (click)="prev()"
+            [disabled]="offset() === 0">
+            ← Anterior
+          </button>
+          <span class="pager-info">
+            Mostrando {{ offset() + 1 }} - {{ offset() + p.rows.length }} de {{ p.count || '?' }} registros
+          </span>
+          <button
+            class="btn btn--outline"
+            (click)="next()"
+            [disabled]="p.rows.length < limit()">
+            Siguiente →
+          </button>
+        </div>
+      </div>
+
+      <ng-template #noData>
+        <div class="no-data">
+          <p class="muted">No se encontraron resultados para esta consulta.</p>
+        </div>
+      </ng-template>
+    </div>
+
+    <!-- Mensaje de Error -->
+    <div class="ux-card error-card" *ngIf="error()">
+      <div class="error-content">
+        <span class="error-icon">⚠️</span>
+        <div class="error-message">
+          <strong>Error al ejecutar la consulta:</strong>
+          <p>{{ error() }}</p>
+        </div>
+      </div>
     </div>
   </div>
-
-  <div class="ux-card" *ngIf="page() as p">
-    <h2>Resultado</h2>
-    <div class="table-scroll" *ngIf="p.rows.length; else noData">
-      <table class="ux-table">
-        <thead>
-          <tr>
-            <th *ngFor="let k of keys(p.rows[0])">{{ k }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let r of p.rows">
-            <td *ngFor="let k of keys(p.rows[0])">{{ (r[k] ?? '') | json }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <ng-template #noData><p class="muted">Sin filas.</p></ng-template>
-
-    <div class="pager">
-      <button class="btn-outline" (click)="prev()" [disabled]="offset() === 0">Anterior</button>
-      <span>offset {{ offset() }} • {{ p.rows.length }} filas</span>
-      <button class="btn-outline" (click)="next()" [disabled]="p.rows.length < limit()">Siguiente</button>
-    </div>
-  </div>
-
-  <p class="error" *ngIf="error()">{{ error() }}</p>
 </div>

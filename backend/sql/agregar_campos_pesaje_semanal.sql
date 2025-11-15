@@ -44,3 +44,4 @@ COMMENT ON COLUMN produccion_diaria.coeficiente_variacion IS 'Coeficiente de var
 COMMENT ON COLUMN produccion_diaria.observaciones_pesaje IS 'Observaciones específicas del pesaje semanal';
 
 
+

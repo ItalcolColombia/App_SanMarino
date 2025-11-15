@@ -48,3 +48,4 @@ WHERE table_name = 'produccion_lotes'
 ORDER BY column_name;
 
 
+

@@ -10,12 +10,51 @@ import { DataManagementPage } from './pages/data-management/data-management.page
 import { IndexManagementPage } from './pages/index-management/index-management.page';
 
 const routes: Routes = [
-  { path: '', component: DbStudioMainComponent },
-  { path: 'explorer', component: ExplorerPage },
-  { path: 'query-console', component: QueryConsolePage },
-  { path: 'create-table', component: CreateTablePage },
-  { path: 'data-management', component: DataManagementPage },
-  { path: 'index-management', component: IndexManagementPage },
+  {
+    path: '',
+    component: DbStudioMainComponent,
+    data: { title: 'DB Studio - Dashboard' }
+  },
+  {
+    path: 'explorer',
+    component: ExplorerPage,
+    data: { title: 'DB Studio - Explorador' }
+  },
+  {
+    path: 'query',
+    component: QueryConsolePage,
+    data: { title: 'DB Studio - Consola SQL' }
+  },
+  {
+    path: 'query-console',
+    redirectTo: 'query',
+    pathMatch: 'full'
+  },
+  {
+    path: 'create-table',
+    component: CreateTablePage,
+    data: { title: 'DB Studio - Crear Tabla' }
+  },
+  {
+    path: 'data/:schema/:table',
+    component: DataManagementPage,
+    data: { title: 'DB Studio - Gestión de Datos' }
+  },
+  {
+    path: 'data-management',
+    component: DataManagementPage,
+    data: { title: 'DB Studio - Gestión de Datos' }
+  },
+  {
+    path: 'indexes/:schema/:table',
+    component: IndexManagementPage,
+    data: { title: 'DB Studio - Gestión de Índices' }
+  },
+  {
+    path: 'index-management',
+    component: IndexManagementPage,
+    data: { title: 'DB Studio - Gestión de Índices' }
+  },
 ];
 
 @NgModule({

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { DbStudioService, CreateTableDto } from '../../data/db-studio.service';
 import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 
 type IdentityMode = 'always' | 'by_default' | null;
 
@@ -32,6 +32,7 @@ export class CreateTablePage {
   private fb = inject(FormBuilder);
   private api = inject(DbStudioService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   loading = signal(false);
   error = signal<string | null>(null);
@@ -79,7 +80,7 @@ export class CreateTablePage {
     this.api.createTable(dto).subscribe({
       next: () => {
         this.loading.set(false);
-        this.router.navigate(['/db-studio']);
+        this.router.navigate([''], { relativeTo: this.route.parent });
       },
       error: err => {
         this.error.set(err?.error?.message ?? err?.message ?? 'Error');

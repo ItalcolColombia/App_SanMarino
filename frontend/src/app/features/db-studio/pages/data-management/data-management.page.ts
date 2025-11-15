@@ -48,9 +48,18 @@ export class DataManagementPage {
       where: this.fb.control('', [Validators.required])
     });
 
-    // Obtener parámetros de la URL
-    this.route.queryParams.subscribe(params => {
+    // Obtener parámetros de la ruta o query params
+    this.route.params.subscribe(params => {
       if (params['schema'] && params['table']) {
+        this.schema.set(params['schema']);
+        this.table.set(params['table']);
+        this.loadSampleData();
+      }
+    });
+
+    // Fallback a query params para compatibilidad
+    this.route.queryParams.subscribe(params => {
+      if (params['schema'] && params['table'] && !this.schema()) {
         this.schema.set(params['schema']);
         this.table.set(params['table']);
         this.loadSampleData();
@@ -156,15 +165,13 @@ export class DataManagementPage {
   }
 
   goBack(): void {
-    this.router.navigate(['/db-studio/explorer'], {
-      queryParams: { schema: this.schema(), table: this.table() }
-    });
+    this.router.navigate(['explorer'], { relativeTo: this.route.parent });
   }
 
   private getErrorMessage(error: any): string {
-    return error?.error?.message || 
-           error?.error?.title || 
-           error?.message || 
+    return error?.error?.message ||
+           error?.error?.title ||
+           error?.message ||
            'Error desconocido';
   }
 

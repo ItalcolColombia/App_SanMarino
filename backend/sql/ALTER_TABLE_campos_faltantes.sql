@@ -56,3 +56,4 @@ WHERE table_name = 'produccion_diaria'
 ORDER BY column_name;
 
 
+

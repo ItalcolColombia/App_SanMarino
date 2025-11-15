@@ -22,42 +22,43 @@
     <main class="main-content">
       <!-- Navegación de Vistas -->
       <nav class="view-navigation">
-        <button 
-          class="nav-button" 
-          [class.active]="activeView() === 'overview'"
-          (click)="setActiveView('overview')">
+        <a
+          routerLink=""
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{exact: true}"
+          class="nav-button">
           <span class="nav-icon">📊</span>
-          <span class="nav-label">Resumen</span>
-        </button>
-        <button 
-          class="nav-button" 
+          <span class="nav-label">Dashboard</span>
+        </a>
+        <a
+          routerLink="explorer"
+          routerLinkActive="active"
+          class="nav-button">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-label">Explorador</span>
+        </a>
+        <a
+          routerLink="query"
+          routerLinkActive="active"
+          class="nav-button">
+          <span class="nav-icon">💻</span>
+          <span class="nav-label">SQL Console</span>
+        </a>
+        <button
+          class="nav-button"
           [class.active]="activeView() === 'tables'"
           (click)="setActiveView('tables')">
           <span class="nav-icon">📋</span>
           <span class="nav-label">Tablas</span>
         </button>
-        <button 
-          class="nav-button" 
-          [class.active]="activeView() === 'sql'"
-          (click)="setActiveView('sql')">
-          <span class="nav-icon">💻</span>
-          <span class="nav-label">SQL</span>
-        </button>
-        <button 
-          class="nav-button" 
-          [class.active]="activeView() === 'data'"
-          (click)="setActiveView('data')"
-          [disabled]="!selectedTable()">
+        <a
+          *ngIf="selectedTable()"
+          [routerLink]="['data', selectedTable()?.schema, selectedTable()?.name]"
+          routerLinkActive="active"
+          class="nav-button">
           <span class="nav-icon">📊</span>
           <span class="nav-label">Datos</span>
-        </button>
-        <button 
-          class="nav-button" 
-          [class.active]="activeView() === 'explorer'"
-          (click)="setActiveView('explorer')">
-          <span class="nav-icon">🔍</span>
-          <span class="nav-label">Explorador</span>
-        </button>
+        </a>
       </nav>
 
       <!-- Contenido de Vista -->
@@ -92,7 +93,7 @@
             <h2>Datos de {{ selectedTable()?.name }}</h2>
             <p>Esquema: {{ selectedTable()?.schema }} | Tipo: {{ selectedTable()?.kind }}</p>
           </div>
-          
+
           <div class="data-content">
             <div class="data-placeholder">
               <div class="placeholder-icon">📊</div>
@@ -109,7 +110,7 @@
             <h2>Explorador de Base de Datos</h2>
             <p>Navega por la estructura completa de la base de datos</p>
           </div>
-          
+
           <div class="explorer-content">
             <div class="explorer-placeholder">
               <div class="placeholder-icon">🔍</div>

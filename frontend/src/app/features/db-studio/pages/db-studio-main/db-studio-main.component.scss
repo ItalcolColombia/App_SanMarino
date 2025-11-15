@@ -41,6 +41,7 @@
   transition: all 0.2s ease;
   border-bottom: 3px solid transparent;
   font-weight: 500;
+  text-decoration: none;
 }
 
 .nav-button:hover:not(:disabled) {
@@ -255,15 +256,15 @@
   .tables-grid {
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   }
-  
+
   .view-navigation {
     padding: 0 1rem;
   }
-  
+
   .nav-button {
     padding: 0.75rem 1rem;
   }
-  
+
   .nav-label {
     display: none;
   }
@@ -273,36 +274,36 @@
   .db-studio-layout {
     flex-direction: column;
   }
-  
+
   .view-navigation {
     flex-wrap: wrap;
     gap: 0.25rem;
   }
-  
+
   .nav-button {
     flex: 1;
     justify-content: center;
     padding: 0.75rem 0.5rem;
   }
-  
+
   .tables-view,
   .data-view,
   .explorer-view {
     padding: 1rem;
   }
-  
+
   .tables-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .table-card {
     padding: 1rem;
   }
-  
+
   .table-actions {
     flex-direction: column;
   }
-  
+
   .btn {
     justify-content: center;
   }

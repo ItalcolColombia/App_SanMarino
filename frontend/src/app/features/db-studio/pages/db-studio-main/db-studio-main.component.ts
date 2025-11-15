@@ -1,7 +1,7 @@
 // src/app/features/db-studio/pages/db-studio-main/db-studio-main.component.ts
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, RouterModule, ActivatedRoute } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 
 import { DbStudioService, SchemaDto, TableDto, DatabaseAnalysisDto } from '../../data/db-studio.service';
@@ -20,6 +20,7 @@ export type DbStudioView = 'overview' | 'tables' | 'sql' | 'data' | 'explorer';
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     DbStudioHeaderComponent,
     DbStudioSidebarComponent,
     DbStudioOverviewComponent,
@@ -32,22 +33,23 @@ export type DbStudioView = 'overview' | 'tables' | 'sql' | 'data' | 'explorer';
 export class DbStudioMainComponent implements OnInit, OnDestroy {
   private dbService = inject(DbStudioService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   // ====== Estado Global ======
   loading = signal<boolean>(false);
   error = signal<string | null>(null);
   connectionStatus = signal<'connected' | 'disconnected' | 'connecting'>('connected');
-  
+
   // ====== Datos ======
   schemas = signal<SchemaDto[]>([]);
   tables = signal<TableDto[]>([]);
   databaseAnalysis = signal<DatabaseAnalysisDto | null>(null);
-  
+
   // ====== Vista Actual ======
   activeView = signal<DbStudioView>('overview');
   selectedSchema = signal<string>('public');
   selectedTable = signal<TableDto | null>(null);
-  
+
   // ====== Computed ======
   databaseName = computed(() => {
     const analysis = this.databaseAnalysis();
@@ -70,7 +72,7 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   private loadInitialData(): void {
     this.loading.set(true);
     this.connectionStatus.set('connecting');
-    
+
     // Cargar datos iniciales
     Promise.all([
       this.loadSchemas(),
@@ -219,21 +221,21 @@ export class DbStudioMainComponent implements OnInit, OnDestroy {
   // ====== Navegación ======
   setActiveView(view: DbStudioView): void {
     this.activeView.set(view);
-    
+
     // Navegar a rutas específicas si es necesario
     switch (view) {
       case 'explorer':
-        this.router.navigate(['/db-studio/explorer']);
+        this.router.navigate(['explorer'], { relativeTo: this.route });
         break;
       case 'sql':
-        this.router.navigate(['/db-studio/query-console']);
+        this.router.navigate(['query'], { relativeTo: this.route });
         break;
     }
   }
 
   selectSchema(schema: string): void {
     if (this.selectedSchema() === schema) return;
-    
+
     this.selectedSchema.set(schema);
     this.selectedTable.set(null);
     this.loadTables();

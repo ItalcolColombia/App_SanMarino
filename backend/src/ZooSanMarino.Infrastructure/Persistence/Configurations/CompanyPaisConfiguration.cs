@@ -36,3 +36,4 @@ public class CompanyPaisConfiguration : IEntityTypeConfiguration<CompanyPais>
 }
 
 
+

@@ -132,3 +132,4 @@ recaptcha: {
 - Verificar que el módulo `ng-recaptcha` esté instalado
 
 
+
