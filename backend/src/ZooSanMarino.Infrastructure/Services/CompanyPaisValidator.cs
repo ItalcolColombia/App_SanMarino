@@ -52,13 +52,12 @@ public class CompanyPaisValidator : ICompanyPaisValidator
         return await _context.UserCompanies
             .AsNoTracking()
             .Include(uc => uc.Company)
-            .Include(uc => uc.Pais)
             .Where(uc => uc.UserId == userId)
             .Select(uc => new ValueTuple<int, int, string, string>(
                 uc.CompanyId,
-                uc.PaisId,
-                uc.Company.Name,
-                uc.Pais.PaisNombre
+                0,
+                uc.Company != null ? uc.Company.Name : string.Empty,
+                string.Empty
             ))
             .ToListAsync();
     }

@@ -2,7 +2,7 @@
 
 # Script Automatizado de Despliegue Backend San Marino
 # Para el nuevo AWS: Account 196080479890
-# Configuración validada y funcionando
+# Configuraci??n validada y funcionando
 
 set -e
 
@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# ====== CONFIGURACIÓN ======
+# ====== CONFIGURACI??N ======
 ACCOUNT_ID="196080479890"
 REGION="us-east-2"
 CLUSTER="devSanmarinoZoo"
@@ -28,7 +28,7 @@ echo -e "${CYAN}========================================${NC}"
 echo -e "${CYAN}Despliegue Backend San Marino${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo -e "Account ID: ${GREEN}${ACCOUNT_ID}${NC}"
-echo -e "Región: ${GREEN}${REGION}${NC}"
+echo -e "Regi??n: ${GREEN}${REGION}${NC}"
 echo -e "Cluster: ${GREEN}${CLUSTER}${NC}"
 echo -e "Service: ${GREEN}${SERVICE}${NC}"
 echo -e "ECR URI: ${GREEN}${ECR_URI}${NC}"
@@ -36,7 +36,7 @@ echo -e "Tag: ${GREEN}${TAG}${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
-# Función para log
+# Funci??n para log
 log() {
     echo -e "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
 }
@@ -56,16 +56,16 @@ warning() {
 
 # Verificar Docker
 if ! command -v docker &> /dev/null; then
-    error "Docker no está instalado o no está en el PATH"
+    error "Docker no est?? instalado o no est?? en el PATH"
 fi
 
 if ! docker info &> /dev/null; then
-    error "Docker daemon no está corriendo. Por favor inicia Docker Desktop."
+    error "Docker daemon no est?? corriendo. Por favor inicia Docker Desktop."
 fi
 
 # Verificar AWS CLI
 if ! command -v aws &> /dev/null; then
-    error "AWS CLI no está instalado"
+    error "AWS CLI no est?? instalado"
 fi
 
 # 1) Login a ECR
@@ -87,7 +87,7 @@ success "Imagen construida y pusheada"
 # 3) Actualizar Task Definition
 log "3/7) Actualizando Task Definition..."
 if [ ! -f "$DEPLOY_DIR/ecs-taskdef-new-aws.json" ]; then
-    error "No se encontró ecs-taskdef-new-aws.json"
+    error "No se encontr?? ecs-taskdef-new-aws.json"
 fi
 
 # Actualizar el tag en el JSON
@@ -125,13 +125,13 @@ if ! aws ecs update-service \
 fi
 success "Servicio actualizado"
 
-# 6) Esperar estabilización
+# 6) Esperar estabilizaci??n
 log "6/7) Esperando a que el servicio se estabilice..."
 log "Esto puede tomar 2-3 minutos..."
-aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION 2>&1 || warning "El servicio puede tardar más en estabilizarse"
+aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION 2>&1 || warning "El servicio puede tardar m??s en estabilizarse"
 
-# 7) Verificación
-log "7/7) Verificación..."
+# 7) Verificaci??n
+log "7/7) Verificaci??n..."
 sleep 10
 
 RUNNING_COUNT=$(aws ecs describe-services \
@@ -142,13 +142,13 @@ RUNNING_COUNT=$(aws ecs describe-services \
     --output text)
 
 if [ "$RUNNING_COUNT" -eq "0" ]; then
-    error "El servicio no está corriendo. Revisa los logs."
+    error "El servicio no est?? corriendo. Revisa los logs."
 fi
 
 success "Servicio corriendo con ${RUNNING_COUNT} tarea(s)"
 
-# Obtener IP pública
-log "Obteniendo IP pública..."
+# Obtener IP p??blica
+log "Obteniendo IP p??blica..."
 TASK_ARN=$(aws ecs list-tasks \
     --cluster $CLUSTER \
     --service-name $SERVICE \
@@ -172,11 +172,11 @@ PUBLIC_IP=$(aws ec2 describe-network-interfaces \
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✓ Despliegue completado exitosamente${NC}"
+echo -e "${GREEN}??? Despliegue completado exitosamente${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "Imagen desplegada: ${CYAN}${ECR_URI}:${TAG}${NC}"
-echo -e "IP Pública: ${CYAN}http://${PUBLIC_IP}:5002${NC}"
+echo -e "IP P??blica: ${CYAN}http://${PUBLIC_IP}:5002${NC}"
 echo -e "Health Check: ${CYAN}http://${PUBLIC_IP}:5002/health${NC}"
 echo -e "Swagger: ${CYAN}http://${PUBLIC_IP}:5002/swagger${NC}"
 echo ""

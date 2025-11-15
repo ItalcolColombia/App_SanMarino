@@ -226,14 +226,13 @@ public class CompanyPaisService : ICompanyPaisService
         return await _context.UserCompanies
             .AsNoTracking()
             .Include(uc => uc.Company)
-            .Include(uc => uc.Pais)
             .Where(uc => uc.UserId == userId)
             .Select(uc => new CompanyPaisDto
             {
                 CompanyId = uc.CompanyId,
-                CompanyName = uc.Company.Name,
-                PaisId = uc.PaisId,
-                PaisNombre = uc.Pais.PaisNombre,
+                CompanyName = uc.Company != null ? uc.Company.Name : string.Empty,
+                PaisId = 0,
+                PaisNombre = string.Empty,
                 IsDefault = uc.IsDefault
             })
             .ToListAsync();

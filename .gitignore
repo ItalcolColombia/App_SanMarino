@@ -43,3 +43,11 @@ logs/
 # Build outputs
 dist/
 build/
+/backend/src/ZooSanMarino.API/bin
+/backend/src/ZooSanMarino.Application/obj
+/backend/src/ZooSanMarino.Domain/bin
+/backend/src/ZooSanMarino.Domain/obj
+/backend/src/ZooSanMarino.Domain/obj
+/backend/src/ZooSanMarino.Infrastructure/obj
+/backend/src/ZooSanMarino.API/bin
+/backend/src/ZooSanMarino.API/obj

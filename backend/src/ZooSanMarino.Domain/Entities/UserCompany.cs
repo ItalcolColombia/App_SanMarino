@@ -8,13 +8,13 @@ namespace ZooSanMarino.Domain.Entities
     {
         public Guid UserId   { get; set; }
         public int  CompanyId { get; set; }
-        public int  PaisId   { get; set; } // ← NUEVO: País asociado
+        public int? PaisId   { get; set; } // País asociado (opcional)
 
         public bool IsDefault { get; set; } = false; // Empresa principal
 
         // Navegación
         public User    User    { get; set; } = null!;
         public Company Company { get; set; } = null!;
-        public Pais    Pais    { get; set; } = null!;
+        public Pais?   Pais    { get; set; }
     }
 }

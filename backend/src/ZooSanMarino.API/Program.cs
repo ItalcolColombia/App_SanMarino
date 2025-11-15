@@ -158,7 +158,12 @@ builder.Services.AddSingleton<ZooSanMarino.API.Services.InputSanitizerService>()
 builder.Services.AddSingleton<EncryptionService>(); // Servicio de encriptación (Singleton porque es stateless y solo usa IConfiguration)
 builder.Services.AddScoped<IEmailQueueService, EmailQueueService>(); // Servicio de cola de correos
 builder.Services.AddScoped<IEmailService, EmailService>(); // Servicio de envío de correos (usa cola)
-builder.Services.AddHostedService<ZooSanMarino.API.BackgroundServices.EmailQueueProcessorService>(); // Procesador de cola en segundo plano
+// Registrar procesador de cola de correos solo si está habilitado por configuración
+var emailQueueEnabled = builder.Configuration.GetValue<bool?>("Email:Queue:Enabled") ?? false;
+if (emailQueueEnabled)
+{
+    builder.Services.AddHostedService<ZooSanMarino.API.BackgroundServices.EmailQueueProcessorService>(); // Procesador de cola en segundo plano
+}
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUserFarmService, UserFarmService>();
