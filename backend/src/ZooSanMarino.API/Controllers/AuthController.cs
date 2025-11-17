@@ -285,20 +285,80 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> RecoverPassword([FromBody] PasswordRecoveryRequestDto dto, CancellationToken ct = default)
     {
-        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (!ModelState.IsValid)
+        {
+            _logger.LogWarning("Validación fallida en /api/Auth/recover-password. Errores: {Errors}", 
+                string.Join(", ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+            return ValidationProblem(ModelState);
+        }
 
         try
         {
             // Sanitizar el email antes de procesar
             dto.Email = _sanitizer.Sanitize(dto.Email);
+            
+            _logger.LogInformation("Solicitud de recuperación de contraseña para email: {Email}", 
+                dto.Email?.Substring(0, Math.Min(5, dto.Email?.Length ?? 0)) + "***");
 
             var result = await _auth.RecoverPasswordAsync(dto);
+            
+            if (result.Success)
+            {
+                _logger.LogInformation("Recuperación de contraseña exitosa. Email: {Email}, EmailSent: {EmailSent}, QueueId: {QueueId}",
+                    dto.Email?.Substring(0, Math.Min(5, dto.Email?.Length ?? 0)) + "***", 
+                    result.EmailSent, 
+                    result.EmailQueueId);
+            }
+            else
+            {
+                _logger.LogWarning("Recuperación de contraseña fallida. Email: {Email}, UserFound: {UserFound}, Message: {Message}",
+                    dto.Email?.Substring(0, Math.Min(5, dto.Email?.Length ?? 0)) + "***",
+                    result.UserFound,
+                    result.Message);
+            }
+            
             return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Argumento inválido en /api/Auth/recover-password. Email: {Email}", 
+                dto.Email?.Substring(0, Math.Min(5, dto.Email?.Length ?? 0)) + "***");
+            return BadRequest(new PasswordRecoveryResponseDto
+            {
+                Success = false,
+                Message = "Los datos proporcionados no son válidos. Verifica el formato del correo electrónico.",
+                UserFound = false,
+                EmailSent = false
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Operación inválida en /api/Auth/recover-password. Email: {Email}", 
+                dto.Email?.Substring(0, Math.Min(5, dto.Email?.Length ?? 0)) + "***");
+            return BadRequest(new PasswordRecoveryResponseDto
+            {
+                Success = false,
+                Message = ex.Message,
+                UserFound = false,
+                EmailSent = false
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error inesperado en /api/Auth/recover-password");
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno" });
+            _logger.LogError(ex, 
+                "Error inesperado en /api/Auth/recover-password. Email: {Email}, ExceptionType: {ExceptionType}, Message: {Message}, StackTrace: {StackTrace}",
+                dto.Email?.Substring(0, Math.Min(5, dto.Email?.Length ?? 0)) + "***",
+                ex.GetType().Name,
+                ex.Message,
+                ex.StackTrace);
+            
+            return StatusCode(StatusCodes.Status500InternalServerError, new PasswordRecoveryResponseDto
+            {
+                Success = false,
+                Message = "Ocurrió un error interno al procesar la solicitud. Por favor, intenta nuevamente más tarde.",
+                UserFound = false,
+                EmailSent = false
+            });
         }
     }
 

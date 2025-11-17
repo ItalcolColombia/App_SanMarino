@@ -14,6 +14,7 @@ export interface PasswordRecoveryResponse {
   message: string;
   userFound: boolean;
   emailSent: boolean;
+  emailQueueId?: number | null;
 }
 
 @Injectable({

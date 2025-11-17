@@ -424,6 +424,12 @@ public class AuthService : IAuthService
 
     public async Task<PasswordRecoveryResponseDto> RecoverPasswordAsync(PasswordRecoveryRequestDto dto)
     {
+        // Validar entrada
+        if (string.IsNullOrWhiteSpace(dto.Email))
+        {
+            throw new ArgumentException("El correo electrónico no puede estar vacío", nameof(dto.Email));
+        }
+
         try
         {
             // Buscar el usuario por email
@@ -433,22 +439,38 @@ public class AuthService : IAuthService
 
             if (login == null)
             {
+                // No loguear el email completo por seguridad, solo los primeros caracteres
+                var emailMask = dto.Email.Length > 5 
+                    ? dto.Email.Substring(0, 5) + "***" 
+                    : "***";
+                
                 return new PasswordRecoveryResponseDto
                 {
                     Success = false,
-                    Message = "No se encontró un usuario con ese correo electrónico",
+                    Message = "No se encontró un usuario con ese correo electrónico. Verifica que el correo esté correcto.",
                     UserFound = false,
                     EmailSent = false
                 };
             }
 
             var user = login.UserLogins.FirstOrDefault()?.User;
-            if (user == null || !user.IsActive)
+            if (user == null)
             {
                 return new PasswordRecoveryResponseDto
                 {
                     Success = false,
-                    Message = "El usuario está inactivo o no existe",
+                    Message = "El usuario asociado a este correo no existe en el sistema.",
+                    UserFound = true,
+                    EmailSent = false
+                };
+            }
+
+            if (!user.IsActive)
+            {
+                return new PasswordRecoveryResponseDto
+                {
+                    Success = false,
+                    Message = "Tu cuenta está inactiva. Contacta al administrador para reactivarla.",
                     UserFound = true,
                     EmailSent = false
                 };
@@ -459,11 +481,22 @@ public class AuthService : IAuthService
 
             // Actualizar la contraseña en la base de datos
             login.PasswordHash = _hasher.HashPassword(login, newPassword);
-            await _ctx.SaveChangesAsync();
+            
+            try
+            {
+                await _ctx.SaveChangesAsync();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                throw new InvalidOperationException(
+                    $"Error al actualizar la contraseña en la base de datos: {dbEx.Message}", 
+                    dbEx);
+            }
 
             // Enviar email con la nueva contraseña (asíncrono, no bloquea)
             int? emailQueueId = null;
             bool emailQueued = false;
+            string? emailError = null;
             
             try
             {
@@ -480,33 +513,57 @@ public class AuthService : IAuthService
                 
                 emailQueued = emailQueueId.HasValue;
             }
-            catch (Exception)
+            catch (Exception emailEx)
             {
                 // Log del error pero no fallar - la contraseña ya fue generada y actualizada
-                // Nota: _logger no está disponible en este contexto, el error se registra en EmailService
+                // El error se registra en EmailService, pero capturamos aquí para tener contexto
+                emailError = emailEx.Message;
+                // No lanzamos excepción porque la contraseña ya fue actualizada exitosamente
             }
 
             // Siempre retornar éxito si se generó la contraseña (el correo se procesará en segundo plano)
+            var message = emailQueued 
+                ? "Se ha generado una nueva contraseña y se ha agregado a la cola de envío. Recibirás el correo en breve. Por favor, revisa tu bandeja de entrada y tu carpeta de spam."
+                : emailError != null
+                    ? $"Se ha generado una nueva contraseña. Hubo un problema al agregar el correo a la cola de envío. Contacta al administrador con el código de error: EMAIL_QUEUE_ERROR"
+                    : "Se ha generado una nueva contraseña. El correo se procesará en segundo plano. Si no lo recibes en unos minutos, contacta al administrador.";
+
             return new PasswordRecoveryResponseDto
             {
                 Success = true,
-                Message = emailQueued 
-                    ? "Se ha generado una nueva contraseña y se ha agregado a la cola de envío. Recibirás el correo en breve. Por favor, revisa tu bandeja de entrada y tu carpeta de spam."
-                    : "Se ha generado una nueva contraseña. El correo se procesará en segundo plano. Si no lo recibes, contacta al administrador.",
+                Message = message,
                 UserFound = true,
                 EmailSent = emailQueued,
                 EmailQueueId = emailQueueId
             };
         }
-        catch (Exception)
+        catch (ArgumentException)
         {
-            return new PasswordRecoveryResponseDto
-            {
-                Success = false,
-                Message = "Ocurrió un error interno. Intenta nuevamente más tarde.",
-                UserFound = false,
-                EmailSent = false
-            };
+            throw; // Re-lanzar para que el controlador lo maneje
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // Re-lanzar para que el controlador lo maneje
+        }
+        catch (DbUpdateException dbEx)
+        {
+            throw new InvalidOperationException(
+                $"Error de base de datos al recuperar contraseña: {dbEx.Message}. " +
+                $"InnerException: {dbEx.InnerException?.Message}", 
+                dbEx);
+        }
+        catch (Exception ex)
+        {
+            var stackTrace = ex.StackTrace ?? string.Empty;
+            var stackTracePreview = stackTrace.Length > 500 
+                ? stackTrace.Substring(0, 500) + "..." 
+                : stackTrace;
+            
+            throw new InvalidOperationException(
+                $"Error inesperado al recuperar contraseña: {ex.Message}. " +
+                $"Tipo: {ex.GetType().Name}. " +
+                $"StackTrace: {stackTracePreview}", 
+                ex);
         }
     }
 

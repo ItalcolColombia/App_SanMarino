@@ -115,23 +115,22 @@ export class BaseHttpService {
 
   /**
    * Manejo centralizado de errores HTTP
+   * Preserva la estructura del error para que los componentes puedan acceder a error.status, error.error, etc.
    */
   private handleError(error: HttpErrorResponse): Observable<never> {
-    let errorMessage = 'Error desconocido';
+    // Log detallado para desarrolladores
+    console.error('BaseHttpService Error:', {
+      status: error.status,
+      statusText: error.statusText,
+      url: error.url,
+      message: error.message,
+      error: error.error,
+      headers: error.headers,
+      timestamp: new Date().toISOString()
+    });
     
-    if (error.error instanceof ErrorEvent) {
-      // Error del cliente
-      errorMessage = `Error: ${error.error.message}`;
-    } else {
-      // Error del servidor
-      errorMessage = `Error ${error.status}: ${error.message}`;
-      if (error.error?.message) {
-        errorMessage += ` - ${error.error.message}`;
-      }
-    }
-    
-    console.error('BaseHttpService Error:', errorMessage, error);
-    return throwError(() => new Error(errorMessage));
+    // Preservar el error completo para que los componentes puedan acceder a error.status, error.error.message, etc.
+    return throwError(() => error);
   }
 
   /**

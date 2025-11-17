@@ -59,9 +59,9 @@ public class PlatformSecretMiddleware
             return;
         }
         
-        // Excluir endpoints de autenticación (login/register sin SECRET_UP inicialmente)
+        // Excluir endpoints de autenticación públicos (login/register/recover-password sin SECRET_UP inicialmente)
         // Nota: El login puede requerir SECRET_UP dependiendo de la implementación
-        if (path.Contains("/auth/login") || path.Contains("/auth/register"))
+        if (path.Contains("/auth/login") || path.Contains("/auth/register") || path.Contains("/auth/recover-password"))
         {
             await _next(context);
             return;
