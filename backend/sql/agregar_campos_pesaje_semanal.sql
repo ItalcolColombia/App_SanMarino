@@ -45,3 +45,4 @@ COMMENT ON COLUMN produccion_diaria.observaciones_pesaje IS 'Observaciones espec
 
 
 
+

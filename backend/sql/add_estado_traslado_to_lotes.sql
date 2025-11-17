@@ -28,3 +28,4 @@ END $$;
 -- Comentario en la columna
 COMMENT ON COLUMN public.lotes.estado_traslado IS 'Estado del traslado: NULL/"normal" = lote normal, "trasladado" = lote original que fue trasladado, "en_transferencia" = nuevo lote en granja destino';
 
+

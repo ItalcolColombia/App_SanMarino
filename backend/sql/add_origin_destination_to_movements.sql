@@ -16,3 +16,4 @@ COMMENT ON COLUMN public.farm_inventory_movements.destination IS 'Destino para s
 
 
 
+
