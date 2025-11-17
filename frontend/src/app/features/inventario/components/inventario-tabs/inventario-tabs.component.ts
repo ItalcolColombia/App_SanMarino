@@ -9,7 +9,6 @@ import { MovimientosUnificadoFormComponent } from '../movimientos-unificado-form
 import { InventarioListComponent } from '../inventario-list/inventario-list.component';
 import { AjusteFormComponent } from '../ajuste-form/ajuste-form.component';
 import { KardexListComponent } from '../kardex-list/kardex-list.component';
-import { ConteoFisicoComponent } from '../conteo-fisico/conteo-fisico.component';
 import { CatalogoAlimentosTabComponent } from '../catalogo-alimentos-tab/catalogo-alimentos-tab.component';
 
 type TabKey = 'movimientos' | 'ajuste' | 'kardex' | 'conteo' | 'stock' | 'catalogo';
@@ -24,7 +23,6 @@ type TabKey = 'movimientos' | 'ajuste' | 'kardex' | 'conteo' | 'stock' | 'catalo
     InventarioListComponent,
     AjusteFormComponent,
     KardexListComponent,
-    ConteoFisicoComponent,
     CatalogoAlimentosTabComponent
 ],
   templateUrl: './inventario-tabs.component.html',

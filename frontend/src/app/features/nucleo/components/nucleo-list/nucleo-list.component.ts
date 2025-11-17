@@ -17,7 +17,6 @@ import {
 } from '@angular/forms';
 import { Subject, of } from 'rxjs';
 import { catchError, finalize, takeUntil, tap } from 'rxjs/operators';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPen, faPlus, faTrash, faSearch } from '@fortawesome/free-solid-svg-icons';
 
@@ -43,7 +42,6 @@ type NucleoForm = {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    SidebarComponent,
     FontAwesomeModule
   ],
   templateUrl: './nucleo-list.component.html',

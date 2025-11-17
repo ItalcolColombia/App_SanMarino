@@ -6,7 +6,6 @@ import {
 } from '@angular/forms';
 import { finalize, forkJoin } from 'rxjs';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faEye } from '@fortawesome/free-solid-svg-icons';
 
@@ -23,7 +22,7 @@ interface NucleoOption { id: string; label: string; granjaId: number; }
 @Component({
   selector: 'app-galpon-list',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SidebarComponent, FontAwesomeModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule, FontAwesomeModule, FormsModule],
   templateUrl: './galpon-list.component.html',
   styleUrls: ['./galpon-list.component.scss']
 })

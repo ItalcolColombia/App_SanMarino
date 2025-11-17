@@ -21,9 +21,7 @@ import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../services/nucleo.service';
 import { ModalLiquidacionComponent } from '../modal-liquidacion/modal-liquidacion.component';
 import { ModalCalculosComponent } from '../modal-calculos/modal-calculos.component';
-import { TablaListaRegistroComponent } from '../tabla-lista-registro/tabla-lista-registro.component';
 import { ModalCreateEditComponent } from '../modal-create-edit/modal-create-edit.component';
-import { FichaLoteSelectComponent } from '../ficha-lote-select/ficha-lote-select.component';
 import { FiltroSelectComponent } from '../filtro-select/filtro-select.component';
 import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.component';
 
@@ -42,7 +40,7 @@ import { expand, map, reduce } from 'rxjs/operators';
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, TablaListaRegistroComponent, ModalCreateEditComponent, FichaLoteSelectComponent, FiltroSelectComponent, TabsPrincipalComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, FiltroSelectComponent, TabsPrincipalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })

@@ -5,7 +5,6 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, finalize } from 'rxjs';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { LoteService, LoteDto } from '../../services/lote.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 
@@ -20,7 +19,6 @@ import { ModalCreateEditLoteComponent } from '../../components/modal-create-edit
   imports: [
     CommonModule,
     FontAwesomeModule,
-    SidebarComponent,
     FiltroLotesComponent,
     TablaRegistroListComponent,
     ModalCreateEditLoteComponent

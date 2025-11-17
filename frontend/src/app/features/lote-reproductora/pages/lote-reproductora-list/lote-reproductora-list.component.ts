@@ -9,7 +9,6 @@ import { HttpClientModule } from '@angular/common/http';
 
 import { finalize } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faEye } from '@fortawesome/free-solid-svg-icons';
 
@@ -31,7 +30,7 @@ interface LoteDtoExtendido {
   standalone: true,
   templateUrl: './lote-reproductora-list.component.html',
   styleUrls: ['./lote-reproductora-list.component.scss'],
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, HttpClientModule, SidebarComponent, FontAwesomeModule]
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, HttpClientModule, FontAwesomeModule]
 })
 export class LoteReproductoraListComponent implements OnInit {
   // Icons

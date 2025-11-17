@@ -8,7 +8,6 @@ import { HttpClientModule } from '@angular/common/http';
 import { finalize } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
@@ -94,7 +93,6 @@ export class ThousandSeparatorDirective {
     CommonModule,
     ReactiveFormsModule,
     HttpClientModule,
-    SidebarComponent,
     FontAwesomeModule,
     FormsModule,
     ThousandSeparatorDirective,

@@ -1,13 +1,16 @@
 // src/app/app.component.ts
-import { Component }   from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { SidebarComponent }   from './shared/components/sidebar/sidebar.component';
-
+import { Component, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterOutlet, Router } from '@angular/router';
+import { SidebarComponent } from './shared/components/sidebar/sidebar.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet,SidebarComponent],
-  template: `<router-outlet></router-outlet>`
+  imports: [CommonModule, RouterOutlet, SidebarComponent],
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.scss']
 })
-export class AppComponent {}
+export class AppComponent {
+  router = inject(Router);
+}

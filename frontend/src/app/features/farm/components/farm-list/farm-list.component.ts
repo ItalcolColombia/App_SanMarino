@@ -10,7 +10,6 @@ import {
 } from '@angular/forms';
 import { finalize, forkJoin } from 'rxjs';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash,faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 
@@ -29,7 +28,6 @@ import { PaisService, PaisDto } from '../..//services/pais.service';
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    SidebarComponent,
     FontAwesomeModule,
   ],
   templateUrl: './farm-list.component.html',

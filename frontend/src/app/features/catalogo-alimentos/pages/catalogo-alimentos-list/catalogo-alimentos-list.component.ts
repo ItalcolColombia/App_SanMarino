@@ -8,7 +8,6 @@ import {
   FormGroup,
   Validators
 } from '@angular/forms';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faPlus, faPen, faTrash, faSearch, faChevronLeft, faChevronRight
@@ -29,7 +28,7 @@ type Genero = 'Hembra'|'Macho'|'Mixto';
 @Component({
   selector: 'app-catalogo-alimentos-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, FontAwesomeModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './catalogo-alimentos-list.component.html',
   styleUrls: ['./catalogo-alimentos-list.component.scss']
 })
