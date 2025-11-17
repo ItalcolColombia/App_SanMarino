@@ -1,12 +1,11 @@
 
 <!-- src/app/app.component.html -->
 <div class="flex h-screen">
-    <!-- Sidebar: siempre visible excepto en login -->
-    <app-sidebar *ngIf="!['/login', '/register'].includes(router.url)"></app-sidebar>
-  
+    <!-- Sidebar global oculto - usando sidebars locales en cada componente -->
+    <!-- <app-sidebar *ngIf="!['/login', '/register'].includes(router.url)"></app-sidebar> -->
+
     <!-- Contenido principal -->
     <main class="flex-1 overflow-auto">
       <router-outlet></router-outlet>
     </main>
   </div>
-  
