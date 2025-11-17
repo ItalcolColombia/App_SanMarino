@@ -10,10 +10,13 @@ import { forkJoin } from 'rxjs';
 
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faTimes, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
+import { ToastService } from '../../../../shared/services/toast.service';
 
 import {
-  LoteService, LoteDto, CreateLoteDto, UpdateLoteDto, LoteMortalidadResumenDto
+  LoteService, LoteDto, CreateLoteDto, UpdateLoteDto, LoteMortalidadResumenDto,
+  TrasladoLoteRequest, TrasladoLoteResponse
 } from '../../services/lote.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../nucleo/services/nucleo.service';
@@ -94,20 +97,26 @@ export class ThousandSeparatorDirective {
     SidebarComponent,
     FontAwesomeModule,
     FormsModule,
-    ThousandSeparatorDirective
+    ThousandSeparatorDirective,
+    ModalTrasladoLoteComponent
   ],
   templateUrl: './lote-list.component.html',
   styleUrls: ['./lote-list.component.scss']
 })
 export class LoteListComponent implements OnInit {
   // Iconos
-  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faTimes = faTimes; faEye = faEye;
+  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faTimes = faTimes; faEye = faEye; faArrowRight = faArrowRight;
 
   // Estado UI
   loading = false;
   modalOpen = false;
   editing: LoteDto | null = null;
   selectedLote: LoteDto | null = null;
+  
+  // Modal de traslado
+  modalTrasladoOpen = false;
+  loteParaTrasladar: LoteDto | null = null;
+  loadingTraslado = false;
 
   // Búsqueda y orden
   filtro = '';
@@ -172,6 +181,7 @@ export class LoteListComponent implements OnInit {
     private userSvc:   UserService,
     private companySvc: CompanyService,
     private guiaGeneticaSvc: GuiaGeneticaService,
+    private toastService: ToastService
   ) {}
 
   // Método de prueba para diagnosticar problemas
@@ -642,6 +652,64 @@ export class LoteListComponent implements OnInit {
   }
 
   trackByLote = (_: number, l: LoteDto) => l.loteId;
+
+  // ===================== MÉTODOS DE TRASLADO =====================
+  
+  openTrasladoModal(lote: LoteDto): void {
+    // Validar que el lote no esté ya trasladado
+    if (lote.estadoTraslado === 'trasladado') {
+      this.toastService.warning('Este lote ya ha sido trasladado anteriormente.', 'Lote ya Trasladado');
+      return;
+    }
+
+    this.loteParaTrasladar = lote;
+    this.modalTrasladoOpen = true;
+  }
+
+  closeTrasladoModal(): void {
+    this.modalTrasladoOpen = false;
+    this.loteParaTrasladar = null;
+  }
+
+  onConfirmarTraslado(data: {
+    loteId: number;
+    granjaDestinoId: number;
+    nucleoDestinoId?: string | null;
+    galponDestinoId?: string | null;
+    observaciones?: string | null;
+  }): void {
+    const request: TrasladoLoteRequest = {
+      loteId: data.loteId,
+      granjaDestinoId: data.granjaDestinoId,
+      nucleoDestinoId: data.nucleoDestinoId || null,
+      galponDestinoId: data.galponDestinoId || null,
+      observaciones: data.observaciones || null
+    };
+
+    this.loadingTraslado = true;
+    this.loteSvc.trasladarLote(request).subscribe({
+      next: (response: TrasladoLoteResponse) => {
+        this.loadingTraslado = false;
+        if (response.success) {
+          // Mostrar mensaje de éxito con toast
+          const mensaje = `${response.message}\n\n` +
+            `Lote original: #${response.loteOriginalId} (Trasladado)\n` +
+            `Nuevo lote: #${response.loteNuevoId} (En Transferencia)`;
+          this.toastService.success(mensaje, 'Traslado Exitoso', 6000);
+          this.closeTrasladoModal();
+          this.loadLotes(); // Recargar la lista de lotes
+        } else {
+          this.toastService.error(response.message, 'Error en Traslado');
+        }
+      },
+      error: (error) => {
+        this.loadingTraslado = false;
+        console.error('Error al trasladar lote:', error);
+        const errorMessage = error?.error?.message || error?.message || 'Error desconocido al trasladar el lote';
+        this.toastService.error(errorMessage, 'Error en Traslado');
+      }
+    });
+  }
 
   // ===================== Métodos para años de tabla genética =====================
   

@@ -68,6 +68,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         
         // Cola de correos electrónicos
         public DbSet<EmailQueue> EmailQueue => Set<EmailQueue>();
+        
+        // Historial de traslados de lotes
+        public DbSet<HistorialTrasladoLote> HistorialTrasladoLote => Set<HistorialTrasladoLote>();
 
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

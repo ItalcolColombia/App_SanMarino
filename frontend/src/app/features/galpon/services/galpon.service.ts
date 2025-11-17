@@ -37,6 +37,11 @@ export class GalponService {
     );
   }
 
+  /** Filtrar por granja */
+  getByGranja(granjaId: number): Observable<GalponDetailDto[]> {
+    return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}`);
+  }
+
   /** Filtrar por granja+núcleo */
   getByGranjaAndNucleo(granjaId: number, nucleoId: string): Observable<GalponDetailDto[]> {
     return this.http.get<GalponDetailDto[]>(`${this.baseUrl}/granja/${granjaId}/nucleo/${nucleoId}`);

@@ -82,6 +82,15 @@ public class GalponController : ControllerBase
         return Ok(res);
     }
 
+    /// <summary>Listado por granja (detalle).</summary>
+    [HttpGet("granja/{granjaId:int}")]
+    [ProducesResponseType(typeof(IEnumerable<GalponDtos.GalponDetailDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<GalponDtos.GalponDetailDto>>> GetByGranja(int granjaId)
+    {
+        var items = await _svc.GetByGranjaAsync(granjaId);
+        return Ok(items);
+    }
+
     /// <summary>Listado por granja y núcleo (detalle).</summary>
     [HttpGet("granja/{granjaId:int}/nucleo/{nucleoId}")]
     [ProducesResponseType(typeof(IEnumerable<GalponDtos.GalponDetailDto>), StatusCodes.Status200OK)]

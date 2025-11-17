@@ -42,6 +42,7 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
         b.Property(x => x.PesoMixto).HasColumnName("peso_mixto").HasColumnType("double precision");
         b.Property(x => x.AvesEncasetadas).HasColumnName("aves_encasetadas");
         b.Property(x => x.EdadInicial).HasColumnName("edad_inicial");
+        b.Property(x => x.EstadoTraslado).HasColumnName("estado_traslado").HasMaxLength(50);
 
         // Relaciones
         b.HasMany(x => x.Reproductoras)

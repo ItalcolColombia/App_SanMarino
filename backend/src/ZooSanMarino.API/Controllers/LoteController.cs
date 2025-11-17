@@ -3,7 +3,7 @@ using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Application.DTOs;                     // CreateLoteDto, UpdateLoteDto, LoteDto
 using CommonDtos = ZooSanMarino.Application.DTOs.Common; // PagedResult<T>
 using LoteDtos   = ZooSanMarino.Application.DTOs.Lotes;
-using ZooSanMarino.Application.DTOs.Lotes;  // LoteDetailDto, LoteSearchRequest
+using ZooSanMarino.Application.DTOs.Lotes;  // LoteDetailDto, LoteSearchRequest, HistorialTrasladoLoteDto
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -144,5 +144,54 @@ public class LoteController : ControllerBase
         var dto = await _svc.GetMortalidadResumenAsync(loteId);
         if (dto is null) return NotFound();
         return Ok(dto);
+    }
+
+    // ===========================
+    // TRASLADO DE LOTE
+    // ===========================
+    /// <summary>
+    /// Traslada un lote a otra granja.
+    /// Actualiza el lote original con estado "trasladado" y crea un nuevo lote en la granja destino con estado "en_transferencia".
+    /// </summary>
+    [HttpPost("trasladar")]
+    [ProducesResponseType(typeof(LoteDtos.TrasladoLoteResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<LoteDtos.TrasladoLoteResponseDto>> TrasladarLote([FromBody] LoteDtos.TrasladoLoteRequestDto dto)
+    {
+        if (dto is null) return BadRequest("Body requerido.");
+
+        try
+        {
+            var result = await _svc.TrasladarLoteAsync(dto);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new LoteDtos.TrasladoLoteResponseDto
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new LoteDtos.TrasladoLoteResponseDto
+            {
+                Success = false,
+                Message = $"Error interno al procesar el traslado: {ex.Message}"
+            });
+        }
+    }
+
+    // ===========================
+    // HISTORIAL DE TRASLADOS
+    // ===========================
+    [HttpGet("{loteId}/historial-traslados")]
+    [ProducesResponseType(typeof(IEnumerable<HistorialTrasladoLoteDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<HistorialTrasladoLoteDto>>> GetHistorialTraslados(int loteId)
+    {
+        var historial = await _svc.GetHistorialTrasladosAsync(loteId);
+        return Ok(historial);
     }
 }

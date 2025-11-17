@@ -124,6 +124,15 @@ public class GalponService : AppInterfaces.IGalponService
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 
+    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByGranjaAsync(int granjaId)
+    {
+        var q = _ctx.Galpones.AsNoTracking()
+            .Where(g => g.CompanyId == _current.CompanyId &&
+                        g.DeletedAt  == null &&
+                        g.GranjaId   == granjaId);
+        return await ProjectToDetail(q).ToListAsync();
+    }
+
     public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId)
     {
         var q = _ctx.Galpones.AsNoTracking()

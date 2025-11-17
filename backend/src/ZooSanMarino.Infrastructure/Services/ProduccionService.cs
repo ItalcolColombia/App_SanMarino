@@ -403,6 +403,7 @@ public class ProduccionService : IProduccionService
             l.AvesEncasetadas,
             l.EdadInicial,
             l.LoteErp,
+            l.EstadoTraslado,
             l.CompanyId,
             l.CreatedByUserId,
             l.CreatedAt,

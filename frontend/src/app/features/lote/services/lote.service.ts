@@ -84,6 +84,9 @@ export interface LoteDto {
 
   // (por compatibilidad si tu backend a veces devuelve edad)
   edadInicial?: number | null;
+
+  // Estado de traslado
+  estadoTraslado?: string | null; // "normal", "trasladado", "en_transferencia"
 }
 
 
@@ -140,4 +143,29 @@ export class LoteService {
       `${this.baseUrl}?galponId=${encodeURIComponent(galponId)}`
     );
   }
+
+  // ======================================================
+  // TRASLADO DE LOTE
+  // ======================================================
+  trasladarLote(request: TrasladoLoteRequest): Observable<TrasladoLoteResponse> {
+    return this.http.post<TrasladoLoteResponse>(`${this.baseUrl}/trasladar`, request);
+  }
+}
+
+export interface TrasladoLoteRequest {
+  loteId: number;
+  granjaDestinoId: number;
+  nucleoDestinoId?: string | null;
+  galponDestinoId?: string | null;
+  observaciones?: string | null;
+}
+
+export interface TrasladoLoteResponse {
+  success: boolean;
+  message: string;
+  loteOriginalId?: number | null;
+  loteNuevoId?: number | null;
+  loteNombre?: string | null;
+  granjaOrigen?: string | null;
+  granjaDestino?: string | null;
 }

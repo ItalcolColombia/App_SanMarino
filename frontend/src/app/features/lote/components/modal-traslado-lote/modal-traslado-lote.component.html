@@ -1,0 +1,274 @@
+<!-- src/app/features/lote/components/modal-traslado-lote/modal-traslado-lote.component.html -->
+<div 
+  *ngIf="isOpen" 
+  class="modal-backdrop" 
+  (click)="onBackdropClick($event)"
+  [attr.aria-hidden]="!isOpen"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modal-traslado-title">
+  
+  <div class="modal-container modal-traslado" (click)="$event.stopPropagation()">
+    
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-header-content">
+        <div class="modal-icon-header">
+          <fa-icon [icon]="faArrowRight" class="icon-arrow"></fa-icon>
+        </div>
+        <div>
+          <h2 id="modal-traslado-title" class="modal-title">Trasladar Lote</h2>
+          <p class="modal-subtitle">Mueve el lote a otra granja</p>
+        </div>
+      </div>
+      <button 
+        type="button" 
+        class="modal-close-btn" 
+        (click)="onCancelar()" 
+        aria-label="Cerrar modal"
+        [disabled]="loading">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+      
+      <!-- Información del lote a trasladar -->
+      <div class="info-card" *ngIf="lote">
+        <div class="info-card-header">
+          <fa-icon [icon]="faBuilding" class="info-icon"></fa-icon>
+          <h3 class="info-title">Lote a Trasladar</h3>
+        </div>
+        <div class="info-content">
+          <div class="info-row">
+            <span class="info-label">Nombre:</span>
+            <span class="info-value">{{ lote.loteNombre }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">ID:</span>
+            <span class="info-value">#{{ lote.loteId }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Granja Actual:</span>
+            <span class="info-value">{{ lote.farm?.name || 'N/A' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 1: Selección de destino -->
+      <div *ngIf="pasoActual === 'seleccion'" class="form-step">
+        <div class="step-indicator">
+          <div class="step active">
+            <span class="step-number">1</span>
+            <span class="step-label">Seleccionar Destino</span>
+          </div>
+          <div class="step-line"></div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <span class="step-label">Confirmar</span>
+          </div>
+        </div>
+
+        <form class="traslado-form" (ngSubmit)="onSiguiente()">
+          
+          <!-- Granja Destino -->
+          <div class="form-group">
+            <label for="granjaDestino" class="form-label">
+              <fa-icon [icon]="faBuilding" class="label-icon"></fa-icon>
+              Granja Destino <span class="required">*</span>
+            </label>
+            <select
+              id="granjaDestino"
+              name="granjaDestino"
+              [(ngModel)]="granjaDestinoId"
+              (ngModelChange)="onGranjaDestinoChange()"
+              class="form-select"
+              required
+              [disabled]="loading">
+              <option [value]="null">Selecciona una granja destino...</option>
+              <option *ngFor="let farm of granjasDisponibles" [value]="farm.id">
+                {{ farm.name }}
+              </option>
+            </select>
+            <p class="form-hint">Selecciona la granja a la que se trasladará el lote</p>
+          </div>
+
+          <!-- Núcleo Destino (opcional) -->
+          <div class="form-group" *ngIf="granjaDestinoId">
+            <label for="nucleoDestino" class="form-label">
+              <fa-icon [icon]="faMapMarkerAlt" class="label-icon"></fa-icon>
+              Núcleo Destino <span class="optional">(opcional)</span>
+            </label>
+            <select
+              id="nucleoDestino"
+              name="nucleoDestino"
+              [(ngModel)]="nucleoDestinoId"
+              (ngModelChange)="onNucleoDestinoChange()"
+              class="form-select"
+              [disabled]="loading">
+              <option [value]="null">Sin núcleo específico</option>
+              <option *ngFor="let nucleo of nucleosFiltrados" [value]="nucleo.nucleoId">
+                {{ nucleo.nucleoNombre || nucleo.nucleoId }}
+              </option>
+            </select>
+            <p class="form-hint">Opcional: especifica un núcleo dentro de la granja destino</p>
+          </div>
+
+          <!-- Galpón Destino (opcional) -->
+          <div class="form-group" *ngIf="granjaDestinoId">
+            <label for="galponDestino" class="form-label">
+              <fa-icon [icon]="faWarehouse" class="label-icon"></fa-icon>
+              Galpón Destino <span class="optional">(opcional)</span>
+            </label>
+            <select
+              id="galponDestino"
+              name="galponDestino"
+              [(ngModel)]="galponDestinoId"
+              class="form-select"
+              [disabled]="loading || (!nucleoDestinoId && nucleosFiltrados.length > 0)">
+              <option [value]="null">Sin galpón específico</option>
+              <option *ngFor="let galpon of galponesFiltrados" [value]="galpon.galponId">
+                {{ galpon.galponNombre || galpon.galponId }}
+              </option>
+            </select>
+            <p class="form-hint" *ngIf="nucleoDestinoId">
+              Galpones disponibles en el núcleo seleccionado
+            </p>
+            <p class="form-hint" *ngIf="!nucleoDestinoId && nucleosFiltrados.length > 0">
+              Selecciona un núcleo para ver los galpones disponibles
+            </p>
+          </div>
+
+          <!-- Observaciones -->
+          <div class="form-group">
+            <label for="observaciones" class="form-label">
+              <fa-icon [icon]="faComment" class="label-icon"></fa-icon>
+              Observaciones <span class="optional">(opcional)</span>
+            </label>
+            <textarea
+              id="observaciones"
+              name="observaciones"
+              [(ngModel)]="observaciones"
+              class="form-textarea"
+              rows="3"
+              placeholder="Agrega notas adicionales sobre este traslado..."
+              [disabled]="loading"></textarea>
+            <p class="form-hint">Información adicional sobre el motivo o detalles del traslado</p>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- Paso 2: Confirmación -->
+      <div *ngIf="pasoActual === 'confirmacion'" class="confirm-step">
+        <div class="step-indicator">
+          <div class="step completed">
+            <fa-icon [icon]="faCheckCircle" class="step-check"></fa-icon>
+            <span class="step-label">Seleccionar Destino</span>
+          </div>
+          <div class="step-line completed"></div>
+          <div class="step active">
+            <span class="step-number">2</span>
+            <span class="step-label">Confirmar</span>
+          </div>
+        </div>
+
+        <div class="confirm-content">
+          <div class="confirm-icon">
+            <fa-icon [icon]="faExclamationTriangle"></fa-icon>
+          </div>
+          
+          <h3 class="confirm-title">¿Confirmar Traslado?</h3>
+          
+          <div class="confirm-message">
+            <p>Estás a punto de trasladar el lote <strong>{{ lote?.loteNombre }}</strong> a otra granja.</p>
+            <p class="warning-text">Esta acción no se puede deshacer.</p>
+          </div>
+
+          <div class="confirm-details">
+            <div class="detail-card">
+              <div class="detail-header">
+                <fa-icon [icon]="faBuilding" class="detail-icon"></fa-icon>
+                <span class="detail-title">Origen</span>
+              </div>
+              <div class="detail-content">
+                <p class="detail-item">
+                  <span class="detail-label">Granja:</span>
+                  <span class="detail-value">{{ lote?.farm?.name || 'N/A' }}</span>
+                </p>
+              </div>
+            </div>
+
+            <div class="detail-arrow">
+              <fa-icon [icon]="faArrowRight"></fa-icon>
+            </div>
+
+            <div class="detail-card destination">
+              <div class="detail-header">
+                <fa-icon [icon]="faBuilding" class="detail-icon"></fa-icon>
+                <span class="detail-title">Destino</span>
+              </div>
+              <div class="detail-content">
+                <p class="detail-item">
+                  <span class="detail-label">Granja:</span>
+                  <span class="detail-value">{{ getGranjaDestinoNombre() }}</span>
+                </p>
+                <p class="detail-item" *ngIf="nucleoDestinoId">
+                  <span class="detail-label">Núcleo:</span>
+                  <span class="detail-value">{{ getNucleoDestinoNombre() }}</span>
+                </p>
+                <p class="detail-item" *ngIf="galponDestinoId">
+                  <span class="detail-label">Galpón:</span>
+                  <span class="detail-value">{{ getGalponDestinoNombre() }}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="confirm-warning" *ngIf="observaciones">
+            <fa-icon [icon]="faComment" class="warning-icon"></fa-icon>
+            <div>
+              <p class="warning-title">Observaciones:</p>
+              <p class="warning-text">{{ observaciones }}</p>
+            </div>
+          </div>
+
+          <div class="confirm-info">
+            <p><strong>Nota:</strong> El lote original se marcará como "Trasladado" y se creará un nuevo lote en la granja destino con estado "En Transferencia".</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <button 
+        type="button" 
+        class="btn btn-secondary" 
+        (click)="pasoActual === 'seleccion' ? onCancelar() : onVolver()"
+        [disabled]="loading">
+        <span *ngIf="pasoActual === 'seleccion'">Cancelar</span>
+        <span *ngIf="pasoActual === 'confirmacion'">Volver</span>
+      </button>
+      
+      <button 
+        type="button" 
+        class="btn btn-primary" 
+        (click)="pasoActual === 'seleccion' ? onSiguiente() : onConfirmar()"
+        [disabled]="!validarFormulario() || loading">
+        <span *ngIf="!loading">
+          <span *ngIf="pasoActual === 'seleccion'">Siguiente</span>
+          <span *ngIf="pasoActual === 'confirmacion'">Confirmar Traslado</span>
+        </span>
+        <span *ngIf="loading" class="loading-content">
+          <span class="spinner-small"></span>
+          Procesando...
+        </span>
+      </button>
+    </div>
+
+  </div>
+</div>
+

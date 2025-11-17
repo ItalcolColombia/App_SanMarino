@@ -36,6 +36,7 @@ public class Lote : AuditableEntity
     public int?      AvesEncasetadas    { get; set; }
     public int?      EdadInicial        { get; set; }
     public string?   LoteErp            { get; set; } // ← NUEVO: Código ERP del lote
+    public string?   EstadoTraslado     { get; set; } // ← Estados: null/"normal", "trasladado", "en_transferencia"
 
     public Farm    Farm   { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }

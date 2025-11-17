@@ -150,6 +150,7 @@
               <th scope="col">Total aves</th>
               <th scope="col">Fecha encaset</th>
               <th scope="col">Fecha de registro</th>
+              <th scope="col">Estado</th>
               <th scope="col" class="text-center">Acciones</th>
             </tr>
           </thead>
@@ -170,17 +171,37 @@
               <td>{{ formatNumber((l.hembrasL || 0) + (l.machosL || 0)) }}</td>
               <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
               <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>
+                <span *ngIf="l.estadoTraslado === 'trasladado'" class="ux-badge bg-yellow-100 text-yellow-800">
+                  Trasladado
+                </span>
+                <span *ngIf="l.estadoTraslado === 'en_transferencia'" class="ux-badge bg-blue-100 text-blue-800">
+                  En Transferencia
+                </span>
+                <span *ngIf="!l.estadoTraslado || l.estadoTraslado === 'normal'" class="ux-badge bg-green-100 text-green-800">
+                  Normal
+                </span>
+              </td>
               <td class="text-center">
                 <div class="inline-flex items-center gap-2">
                   <button (click)="openDetail(l)" class="icon-btn" title="Ver detalle">
                     <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
                   </button>
-                  <button (click)="openModal(l)" class="icon-btn" title="Editar">
-                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button (click)="delete(l)" class="icon-btn danger" title="Eliminar">
-                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                  </button>
+                  <!-- Solo mostrar otros botones si el lote NO está trasladado -->
+                  <ng-container *ngIf="l.estadoTraslado !== 'trasladado'">
+                    <button (click)="openModal(l)" class="icon-btn" title="Editar">
+                      <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button 
+                      (click)="openTrasladoModal(l)" 
+                      class="icon-btn" 
+                      title="Trasladar lote">
+                      <fa-icon [icon]="faArrowRight" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button (click)="delete(l)" class="icon-btn danger" title="Eliminar">
+                      <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                    </button>
+                  </ng-container>
                 </div>
               </td>
             </tr>
@@ -502,4 +523,16 @@
     </div>
     <!-- /MODAL Detalle -->
   </div>
+
+  <!-- MODAL TRASLADO DE LOTE -->
+  <app-modal-traslado-lote
+    [isOpen]="modalTrasladoOpen"
+    [lote]="loteParaTrasladar"
+    [farms]="farms"
+    [nucleos]="nucleos"
+    [loading]="loadingTraslado"
+    (closed)="closeTrasladoModal()"
+    (confirm)="onConfirmarTraslado($event)">
+  </app-modal-traslado-lote>
+  <!-- /MODAL TRASLADO -->
 </div>

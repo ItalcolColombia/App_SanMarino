@@ -1,5 +1,5 @@
 using ZooSanMarino.Application.DTOs;           // LoteDto, Create/Update DTOs
-using ZooSanMarino.Application.DTOs.Lotes;     // LoteDetailDto, LoteSearchRequest
+using ZooSanMarino.Application.DTOs.Lotes;     // LoteDetailDto, LoteSearchRequest, TrasladoLoteRequestDto, TrasladoLoteResponseDto, HistorialTrasladoLoteDto
 using CommonDtos = ZooSanMarino.Application.DTOs.Common;
 
 namespace ZooSanMarino.Application.Interfaces;
@@ -24,4 +24,11 @@ public interface ILoteService
         /// Solo resta mortalidad a las bases del lote (y descuenta MortCaja si aplica).
         /// </summary>
         Task<LoteMortalidadResumenDto?> GetMortalidadResumenAsync(int loteId);
+
+        /// <summary>
+        /// Traslada un lote a otra granja.
+        /// Actualiza el lote original con estado "trasladado" y crea un nuevo lote en la granja destino con estado "en_transferencia".
+        /// </summary>
+        Task<TrasladoLoteResponseDto> TrasladarLoteAsync(TrasladoLoteRequestDto dto);
+    Task<IEnumerable<HistorialTrasladoLoteDto>> GetHistorialTrasladosAsync(int loteId);
 }

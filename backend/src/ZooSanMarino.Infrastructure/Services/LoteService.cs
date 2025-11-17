@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
 using ZooSanMarino.Application.DTOs;           // LoteDto, Create/Update
-using ZooSanMarino.Application.DTOs.Lotes;     // LoteDetailDto, LoteSearchRequest
+using ZooSanMarino.Application.DTOs.Lotes;     // LoteDetailDto, LoteSearchRequest, TrasladoLoteRequestDto, TrasladoLoteResponseDto, HistorialTrasladoLoteDto
 using CommonDtos = ZooSanMarino.Application.DTOs.Common;
 using AppInterfaces = ZooSanMarino.Application.Interfaces;
 
@@ -12,6 +12,7 @@ using NucleoLiteDto = ZooSanMarino.Application.DTOs.Shared.NucleoLiteDto;
 using GalponLiteDto = ZooSanMarino.Application.DTOs.Shared.GalponLiteDto;
 
 using ZooSanMarino.Domain.Entities;
+using HistorialTrasladoLote = ZooSanMarino.Domain.Entities.HistorialTrasladoLote;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services
@@ -371,6 +372,7 @@ namespace ZooSanMarino.Infrastructure.Services
                     l.AvesEncasetadas,
                     l.EdadInicial,
                     l.LoteErp,  // ← NUEVO: Código ERP del lote
+                    l.EstadoTraslado,  // ← Estado de traslado
                     l.CompanyId,
                     l.CreatedByUserId,
                     l.CreatedAt,
@@ -472,6 +474,229 @@ namespace ZooSanMarino.Infrastructure.Services
                 SaldoHembras = saldoH,
                 SaldoMachos = saldoM
             };
+        }
+
+        // ======================================================
+        // TRASLADO DE LOTE A OTRA GRANJA
+        // ======================================================
+        public async Task<TrasladoLoteResponseDto> TrasladarLoteAsync(TrasladoLoteRequestDto dto)
+        {
+            // 1. Validar y obtener el lote original
+            var loteOriginal = await _ctx.Lotes
+                .Include(l => l.Farm)
+                .SingleOrDefaultAsync(x =>
+                    x.LoteId == dto.LoteId &&
+                    x.CompanyId == _current.CompanyId &&
+                    x.DeletedAt == null);
+
+            if (loteOriginal == null)
+            {
+                throw new InvalidOperationException($"No se encontró el lote con ID {dto.LoteId} o no pertenece a la compañía actual.");
+            }
+
+            // 2. Validar que no sea el mismo lote (misma granja)
+            if (loteOriginal.GranjaId == dto.GranjaDestinoId)
+            {
+                throw new InvalidOperationException("No se puede trasladar un lote a la misma granja.");
+            }
+
+            // 3. Validar que el lote no esté ya trasladado
+            if (loteOriginal.EstadoTraslado == "trasladado")
+            {
+                throw new InvalidOperationException("Este lote ya ha sido trasladado anteriormente.");
+            }
+
+            // 4. Validar que la granja destino existe y pertenece a la compañía
+            var granjaDestino = await _ctx.Farms
+                .AsNoTracking()
+                .SingleOrDefaultAsync(f =>
+                    f.Id == dto.GranjaDestinoId &&
+                    f.CompanyId == _current.CompanyId);
+
+            if (granjaDestino == null)
+            {
+                throw new InvalidOperationException($"La granja destino con ID {dto.GranjaDestinoId} no existe o no pertenece a la compañía actual.");
+            }
+
+            // 5. Validar núcleo destino si se proporciona
+            if (!string.IsNullOrWhiteSpace(dto.NucleoDestinoId))
+            {
+                var nucleoDestino = await _ctx.Nucleos
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(n =>
+                        n.NucleoId == dto.NucleoDestinoId &&
+                        n.GranjaId == dto.GranjaDestinoId);
+
+                if (nucleoDestino == null)
+                {
+                    throw new InvalidOperationException($"El núcleo destino con ID {dto.NucleoDestinoId} no existe en la granja destino.");
+                }
+            }
+
+            // 6. Validar galpón destino si se proporciona
+            if (!string.IsNullOrWhiteSpace(dto.GalponDestinoId))
+            {
+                var galponDestino = await _ctx.Galpones
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(g =>
+                        g.GalponId == dto.GalponDestinoId &&
+                        g.CompanyId == _current.CompanyId);
+
+                if (galponDestino == null)
+                {
+                    throw new InvalidOperationException($"El galpón destino con ID {dto.GalponDestinoId} no existe o no pertenece a la compañía actual.");
+                }
+
+                if (galponDestino.GranjaId != dto.GranjaDestinoId)
+                {
+                    throw new InvalidOperationException("El galpón destino no pertenece a la granja destino.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(dto.NucleoDestinoId) &&
+                    !string.Equals(galponDestino.NucleoId, dto.NucleoDestinoId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("El galpón destino no pertenece al núcleo destino indicado.");
+                }
+            }
+
+            // 7. Actualizar el lote original con estado "trasladado"
+            loteOriginal.EstadoTraslado = "trasladado";
+            loteOriginal.UpdatedByUserId = _current.UserId;
+            loteOriginal.UpdatedAt = DateTime.UtcNow;
+
+            // 8. Crear nuevo lote en la granja destino con estado "en_transferencia"
+            var nuevoLote = new Lote
+            {
+                CompanyId = _current.CompanyId,
+                LoteNombre = loteOriginal.LoteNombre,
+                GranjaId = dto.GranjaDestinoId,
+                NucleoId = dto.NucleoDestinoId ?? null,
+                GalponId = dto.GalponDestinoId ?? null,
+                Regional = loteOriginal.Regional,
+                FechaEncaset = loteOriginal.FechaEncaset,
+                HembrasL = loteOriginal.HembrasL,
+                MachosL = loteOriginal.MachosL,
+                PesoInicialH = loteOriginal.PesoInicialH,
+                PesoInicialM = loteOriginal.PesoInicialM,
+                UnifH = loteOriginal.UnifH,
+                UnifM = loteOriginal.UnifM,
+                MortCajaH = loteOriginal.MortCajaH,
+                MortCajaM = loteOriginal.MortCajaM,
+                Raza = loteOriginal.Raza,
+                AnoTablaGenetica = loteOriginal.AnoTablaGenetica,
+                Linea = loteOriginal.Linea,
+                TipoLinea = loteOriginal.TipoLinea,
+                CodigoGuiaGenetica = loteOriginal.CodigoGuiaGenetica,
+                LineaGeneticaId = loteOriginal.LineaGeneticaId,
+                Tecnico = loteOriginal.Tecnico,
+                Mixtas = loteOriginal.Mixtas,
+                PesoMixto = loteOriginal.PesoMixto,
+                AvesEncasetadas = loteOriginal.AvesEncasetadas,
+                EdadInicial = loteOriginal.EdadInicial,
+                LoteErp = loteOriginal.LoteErp,
+                EstadoTraslado = "en_transferencia",
+                CreatedByUserId = _current.UserId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _ctx.Lotes.Add(nuevoLote);
+            await _ctx.SaveChangesAsync();
+
+            // 9. Registrar en el historial de traslados
+            var historial = new HistorialTrasladoLote
+            {
+                LoteOriginalId = loteOriginal.LoteId ?? 0,
+                LoteNuevoId = nuevoLote.LoteId ?? 0,
+                GranjaOrigenId = loteOriginal.GranjaId,
+                GranjaDestinoId = dto.GranjaDestinoId,
+                NucleoDestinoId = dto.NucleoDestinoId,
+                GalponDestinoId = dto.GalponDestinoId,
+                Observaciones = dto.Observaciones,
+                CompanyId = _current.CompanyId,
+                CreatedByUserId = _current.UserId,
+                CreatedAt = DateTime.UtcNow
+            };
+            _ctx.HistorialTrasladoLote.Add(historial);
+            await _ctx.SaveChangesAsync();
+
+            // 10. Obtener información de las granjas para la respuesta
+            var granjaOrigenNombre = loteOriginal.Farm?.Name ?? "N/A";
+
+            return new TrasladoLoteResponseDto
+            {
+                Success = true,
+                Message = $"Lote trasladado exitosamente de '{granjaOrigenNombre}' a '{granjaDestino.Name}'.",
+                LoteOriginalId = loteOriginal.LoteId,
+                LoteNuevoId = nuevoLote.LoteId,
+                LoteNombre = loteOriginal.LoteNombre,
+                GranjaOrigen = granjaOrigenNombre,
+                GranjaDestino = granjaDestino.Name
+            };
+        }
+
+        // ======================================================
+        // HISTORIAL DE TRASLADOS
+        // ======================================================
+        public async Task<IEnumerable<HistorialTrasladoLoteDto>> GetHistorialTrasladosAsync(int loteId)
+        {
+            var historiales = await _ctx.HistorialTrasladoLote
+                .AsNoTracking()
+                .Where(h => 
+                    (h.LoteOriginalId == loteId || h.LoteNuevoId == loteId) &&
+                    h.CompanyId == _current.CompanyId)
+                .OrderByDescending(h => h.CreatedAt)
+                .Include(h => h.GranjaOrigen)
+                .Include(h => h.GranjaDestino)
+                .ToListAsync();
+
+            var result = new List<HistorialTrasladoLoteDto>();
+
+            foreach (var h in historiales)
+            {
+                // Obtener nombres de núcleo y galpón si existen
+                string? nucleoNombre = null;
+                if (!string.IsNullOrWhiteSpace(h.NucleoDestinoId))
+                {
+                    var nucleo = await _ctx.Nucleos
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(n => n.NucleoId == h.NucleoDestinoId);
+                    nucleoNombre = nucleo?.NucleoNombre;
+                }
+
+                string? galponNombre = null;
+                if (!string.IsNullOrWhiteSpace(h.GalponDestinoId))
+                {
+                    var galpon = await _ctx.Galpones
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(g => g.GalponId == h.GalponDestinoId);
+                    galponNombre = galpon?.GalponNombre;
+                }
+
+                // Obtener nombre del usuario (CreatedByUserId es int, pero User.Id es Guid)
+                // Por ahora, no podemos hacer la relación directa, así que usamos un valor por defecto
+                // TODO: Si se necesita el nombre del usuario, se podría crear una tabla de mapeo o cambiar el sistema
+                var nombreUsuario = $"Usuario ID: {h.CreatedByUserId}";
+
+                result.Add(new HistorialTrasladoLoteDto(
+                    h.Id,
+                    h.LoteOriginalId,
+                    h.LoteNuevoId,
+                    h.GranjaOrigenId,
+                    h.GranjaOrigen?.Name ?? "N/A",
+                    h.GranjaDestinoId,
+                    h.GranjaDestino?.Name ?? "N/A",
+                    h.NucleoDestinoId,
+                    nucleoNombre,
+                    h.GalponDestinoId,
+                    galponNombre,
+                    h.Observaciones,
+                    h.CreatedByUserId,
+                    nombreUsuario,
+                    h.CreatedAt
+                ));
+            }
+
+            return result;
         }
 
         // Los métodos de generación manual de IDs han sido removidos

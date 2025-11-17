@@ -13,6 +13,7 @@ public interface IGalponService
     // ─────────────────────────────────────────────────────────────────────────────
     Task<IEnumerable<GalponDetailDto>> GetAllAsync();
     Task<GalponDetailDto?>             GetByIdAsync(string galponId);
+    Task<IEnumerable<GalponDetailDto>> GetByGranjaAsync(int granjaId);
     Task<IEnumerable<GalponDetailDto>> GetByGranjaAndNucleoAsync(int granjaId, string nucleoId);
     Task<GalponDetailDto>              CreateAsync(CreateGalponDto dto);
     Task<GalponDetailDto?>             UpdateAsync(UpdateGalponDto dto);
