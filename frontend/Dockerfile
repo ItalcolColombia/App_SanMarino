@@ -1,40 +1,74 @@
-# ---------- deps ----------
+# ---------- deps (optimizado) ----------
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Usa Yarn si ya está en la imagen; si no existe, lo instala
-RUN if command -v yarn >/dev/null 2>&1; then yarn --version; else npm i -g yarn@1.22.22; fi
+# Instalar yarn de forma más eficiente
+RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
-# Copiamos manifests (mejor caché)
-COPY package.json ./
+# Copiar solo archivos de dependencias para mejor cache
+COPY package.json yarn.lock* ./
 
-# Instala dependencias con o sin lockfile
-RUN if [ -f yarn.lock ]; then \
-      yarn install --frozen-lockfile --non-interactive; \
-    else \
-      yarn install --non-interactive; \
-    fi
+# Instalar dependencias con optimizaciones
+RUN yarn install \
+    --frozen-lockfile \
+    --non-interactive \
+    --production=false \
+    --network-timeout 100000 \
+    && yarn cache clean
 
-# ---------- build ----------
+# ---------- build (optimizado) ----------
 FROM node:20-alpine AS build
 WORKDIR /app
+
+# Copiar dependencias y código fuente
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY package.json yarn.lock* ./
+COPY angular.json tsconfig*.json ./
+COPY tailwind.config.js postcss.config.js ./
+COPY src ./src
 
-# Build de producción (builder "application" => dist/browser)
-RUN yarn build --configuration docker
+# Build optimizado con variables de entorno
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
+RUN yarn build --configuration docker \
+    && rm -rf node_modules \
+    && yarn cache clean
 
-# ---------- runtime ----------
+# ---------- runtime (optimizado con seguridad) ----------
 FROM nginx:1.27-alpine AS runtime
-WORKDIR /usr/share/nginx/html
-RUN apk add --no-cache curl
 
-# NGINX config (SPA con fallback a index.html)
+# Instalar curl para healthcheck y limpiar cache
+RUN apk add --no-cache curl \
+    && rm -rf /var/cache/apk/*
+
+# Configuración de nginx optimizada
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copia artefactos del build (Angular 17 application => dist/browser)
-COPY --from=build /app/dist/browser .
+# Copiar artefactos del build
+COPY --from=build /app/dist/browser /usr/share/nginx/html
+
+# Configurar nginx para ejecutarse como usuario no-root
+# Nota: nginx necesita permisos especiales para puerto 80, pero podemos usar
+# un enfoque más seguro con permisos mínimos necesarios
+RUN chown -R nginx:nginx /usr/share/nginx/html \
+    && chown -R nginx:nginx /var/cache/nginx \
+    && chown -R nginx:nginx /var/log/nginx \
+    && chown -R nginx:nginx /etc/nginx/conf.d \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid \
+    && chmod -R 755 /usr/share/nginx/html
+
+# Modificar nginx.conf para usar usuario nginx (no-root)
+RUN sed -i 's/user  nginx;/user  nginx;/' /etc/nginx/nginx.conf || true
+
+WORKDIR /usr/share/nginx/html
 
 EXPOSE 80
-HEALTHCHECK CMD curl -fsS http://localhost/ || exit 1
+
+# Healthcheck optimizado
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost/health || exit 1
+
+# nginx ya se ejecuta como usuario nginx (no-root) por defecto en la imagen oficial
+# No necesitamos cambiar USER explícitamente

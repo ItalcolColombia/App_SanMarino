@@ -1,9 +1,42 @@
+version: "3.9"
+
 services:
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
+      # Usar BuildKit para mejor rendimiento y cache
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     image: sanmarino-frontend:latest
+    container_name: sanmarino-frontend
     ports:
       - "8080:80"
+    # Límites de recursos (nginx es ligero)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     restart: unless-stopped
+    # Logging optimizado
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

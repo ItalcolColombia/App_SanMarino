@@ -1,0 +1,54 @@
+{
+    "family":  "sanmarino-front-task",
+    "networkMode":  "awsvpc",
+    "requiresCompatibilities":  [
+                                    "FARGATE"
+                                ],
+    "cpu":  "512",
+    "memory":  "1024",
+    "runtimePlatform":  {
+                            "cpuArchitecture":  "X86_64",
+                            "operatingSystemFamily":  "LINUX"
+                        },
+    "executionRoleArn":  "arn:aws:iam::196080479890:role/ecsTaskExecutionRole",
+    "taskRoleArn":  "arn:aws:iam::196080479890:role/ecsTaskExecutionRole",
+    "containerDefinitions":  [
+                                 {
+                                     "name":  "frontend",
+                                     "image":  "196080479890.dkr.ecr.us-east-2.amazonaws.com/sanmarino/zootecnia/granjas/frontend:20251117-1820",
+                                     "essential":  true,
+                                     "portMappings":  [
+                                                          {
+                                                              "containerPort":  80,
+                                                              "hostPort":  80,
+                                                              "protocol":  "tcp"
+                                                          }
+                                                      ],
+                                     "environment":  [
+                                                         {
+                                                             "name":  "NODE_ENV",
+                                                             "value":  "production"
+                                                         }
+                                                     ],
+                                     "healthCheck":  {
+                                                         "command":  [
+                                                                         "CMD-SHELL",
+                                                                         "curl -f http://localhost/ || exit 1"
+                                                                     ],
+                                                         "interval":  30,
+                                                         "timeout":  5,
+                                                         "retries":  3,
+                                                         "startPeriod":  10
+                                                     },
+                                     "logConfiguration":  {
+                                                              "logDriver":  "awslogs",
+                                                              "options":  {
+                                                                              "awslogs-group":  "/ecs/sanmarino-front-task",
+                                                                              "awslogs-create-group":  "true",
+                                                                              "awslogs-region":  "us-east-2",
+                                                                              "awslogs-stream-prefix":  "frontend"
+                                                                          }
+                                                          }
+                                 }
+                             ]
+}

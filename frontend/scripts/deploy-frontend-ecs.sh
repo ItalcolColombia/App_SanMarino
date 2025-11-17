@@ -47,32 +47,49 @@ docker info &> /dev/null || error "Docker no corriendo"
 cd "$DEPLOY_DIR"
 
 # Login a ECR
-log "1/6) Login a ECR..."
+log "1/7) Login a ECR..."
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI > /dev/null
 success "Login exitoso"
 
 # Build
-log "2/6) Building imagen para linux/amd64..."
+log "2/7) Building imagen para linux/amd64..."
 docker buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push . > /dev/null
 success "Imagen pusheada"
 
+# Preparar Task Definition
+log "3/7) Actualizando Task Definition con nuevo tag..."
+if [ -f "deploy/ecs-taskdef.json" ]; then
+    cp deploy/ecs-taskdef.json ecs-taskdef.json
+else
+    error "No se encontró deploy/ecs-taskdef.json"
+fi
+
+# Actualizar el tag de la imagen en el JSON (compatible con macOS y Linux)
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i '' "s|${ECR_URI}:[^\"}]*|${ECR_URI}:${TAG}|g" ecs-taskdef.json
+else
+    # Linux
+    sed -i "s|${ECR_URI}:[^\"}]*|${ECR_URI}:${TAG}|g" ecs-taskdef.json
+fi
+
 # Registrar Task Definition
-log "3/6) Registrando Task Definition..."
+log "4/7) Registrando Task Definition..."
 NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://ecs-taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text --region $REGION)
 [ -z "$NEW_TD_ARN" ] && error "Error registrando Task Definition"
 success "TD registrada: $NEW_TD_ARN"
 
 # Actualizar servicio
-log "4/6) Actualizando servicio..."
+log "5/7) Actualizando servicio..."
 aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $NEW_TD_ARN --force-new-deployment --region $REGION > /dev/null
 success "Servicio actualizado"
 
 # Esperar
-log "5/6) Esperando estabilización (2-3 min)..."
+log "6/7) Esperando estabilización (2-3 min)..."
 aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION
 
 # Verificar
-log "6/6) Verificando..."
+log "7/7) Verificando..."
 sleep 10
 RUNNING=$(aws ecs describe-services --cluster $CLUSTER --services $SERVICE --region $REGION --query 'services[0].runningCount' --output text)
 [ "$RUNNING" -eq "0" ] && error "Servicio no corriendo"

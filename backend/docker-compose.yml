@@ -5,25 +5,50 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Usar BuildKit para mejor rendimiento y cache
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: sanmarino-backend:latest
     container_name: sanmarino-backend
     ports:
-      - "5002:5002"          # API accesible en http://localhost:5002
+      - "5002:5002"
     env_file:
-      - .env                 # Usa tu .env (ver abajo)
+      - .env
     environment:
+      # Variables de entorno optimizadas
       ASPNETCORE_ENVIRONMENT: "Production"
       ASPNETCORE_URLS: "http://+:5002"
-      PORT: "5002"
-    # Sin dependencias de base de datos local (usando conexión remota)
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+    # Límites de recursos (ajustar según necesidades)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:5002/health || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 12
-      start_period: 10s
+      test: ["CMD-SHELL", "curl -f http://localhost:5002/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks:
       - app-network
     restart: unless-stopped
+    # Logging optimizado
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Security: read-only root filesystem (opcional, puede requerir ajustes)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+    #   - /var/run
 
 networks:
   app-network:

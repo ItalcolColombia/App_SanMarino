@@ -1,12 +1,70 @@
+# Build artifacts
 **/bin/
 **/obj/
+**/out/
+**/*.dll
+**/*.pdb
+**/*.cache
+
+# IDE
 **/.vs/
 **/.vscode/
+**/.idea/
 **/*.user
 **/*.suo
-**/*.cache
+**/*.swp
+**/*.swo
+**/.fleet/
+**/.history/
+
+# Tests (no necesarios en imagen de producción)
+**/tests/
+**/*.Tests/
+**/*Test*.cs
+**/*.test.cs
+
+# Node modules (si hay algún script)
 **/node_modules/
+**/package-lock.json
+**/yarn.lock
+
+# Docker files
 Dockerfile*
 docker-compose*.yml
-.git
+.dockerignore
+
+# Git
+.git/
 .gitignore
+.gitattributes
+
+# Documentation
+**/docs/
+**/documentacion/
+**/*.md
+!README.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+**/*.log
+**/logs/
+
+# Temporary files
+**/.tmp/
+**/tmp/
+**/temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Scripts de deployment
+**/scripts/
+**/deploy/

@@ -1,50 +1,88 @@
 # =========================
-# Etapa 1: Runtime base
+# Etapa 1: Runtime base (optimizado)
 # =========================
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 
-# Puerto interno de la API
+# Variables de entorno optimizadas
 ENV ASPNETCORE_URLS=http://+:5002
 ENV DOTNET_EnableDiagnostics=0
-# (Forwarded headers útil si luego pones ALB/NGINX delante)
 ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+ENV DOTNET_RUNNING_IN_CONTAINER=true
 
-# Certificados raíz (para HTTPS hacia RDS, etc.)
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+# Instalar dependencias mínimas y limpiar en una sola capa
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        libicu74 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Crear usuario no-root para seguridad
+RUN groupadd -r appuser && useradd -r -g appuser -u 1000 appuser && \
+    chown -R appuser:appuser /app
 
 EXPOSE 5002
 
-# Healthcheck a nivel de imagen (Docker/Compose/ECS lo utiliza si no se sobreescribe)
+# Healthcheck optimizado
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -fsS http://localhost:5002/health || exit 1
+  CMD curl -f http://localhost:5002/health || exit 1
 
 # =========================
-# Etapa 2: Build + Publish
+# Etapa 2: Restore (separado para mejor cache)
 # =========================
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS restore
 WORKDIR /src
 
-# Copiamos solución y proyectos (ajusta si tu layout cambia)
+# Copiar solución y archivos .csproj para optimizar cache de restore
 COPY ./ZooSanMarino.sln ./
-COPY ./src ./src
-COPY ./tests ./tests
+COPY ./src/ZooSanMarino.API/ZooSanMarino.API.csproj ./src/ZooSanMarino.API/
+COPY ./src/ZooSanMarino.Application/ZooSanMarino.Application.csproj ./src/ZooSanMarino.Application/
+COPY ./src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj ./src/ZooSanMarino.Domain/
+COPY ./src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj ./src/ZooSanMarino.Infrastructure/
 
-# Restore
-RUN dotnet restore "ZooSanMarino.sln" --nologo
-
-# Publish API
-WORKDIR /src/src/ZooSanMarino.API
-RUN dotnet publish -c Release -o /app/publish --no-restore /p:UseAppHost=false
+# Restore con cache optimizado
+RUN dotnet restore "ZooSanMarino.sln" \
+    --nologo \
+    --verbosity quiet \
+    --runtime linux-x64
 
 # =========================
-# Etapa 3: Final runtime
+# Etapa 3: Build + Publish
+# =========================
+FROM restore AS build
+WORKDIR /src
+
+# Copiar código fuente (solo src, sin tests para reducir tamaño)
+COPY ./src ./src
+
+# Build y publish optimizado
+WORKDIR /src/src/ZooSanMarino.API
+RUN dotnet publish \
+    -c Release \
+    -o /app/publish \
+    --no-restore \
+    --runtime linux-x64 \
+    --self-contained false \
+    /p:UseAppHost=false \
+    /p:PublishTrimmed=false \
+    /p:EnableCompressionInSingleFile=true
+
+# =========================
+# Etapa 4: Final runtime (optimizado)
 # =========================
 FROM base AS final
 WORKDIR /app
-COPY --from=build /app/publish ./
 
-# Entorno por defecto en contenedor
+# Copiar solo artefactos publicados
+COPY --from=build --chown=appuser:appuser /app/publish ./
+
+# Cambiar a usuario no-root
+USER appuser
+
+# Variables de entorno finales
 ENV ASPNETCORE_ENVIRONMENT=Production
+
 ENTRYPOINT ["dotnet", "ZooSanMarino.API.dll"]
