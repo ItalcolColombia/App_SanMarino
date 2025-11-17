@@ -80,8 +80,11 @@ public class InputSanitizerService
             return obj;
         }
 
-        // Campos que NO deben ser sanitizados (contraseñas pueden contener cualquier carácter)
-        var excludedFields = new[] { "password", "Password", "currentPassword", "newPassword", "confirmPassword", "oldPassword" };
+        // Campos que NO deben ser sanitizados (contraseñas y tokens pueden contener cualquier carácter)
+        var excludedFields = new[] { 
+            "password", "Password", "currentPassword", "newPassword", "confirmPassword", "oldPassword",
+            "recaptchaToken", "RecaptchaToken", "g-recaptcha-response", "gRecaptchaResponse", "recaptcha"
+        };
 
         var objType = typeof(T);
         var sanitized = Activator.CreateInstance<T>();

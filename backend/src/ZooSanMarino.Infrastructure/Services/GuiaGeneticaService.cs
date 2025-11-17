@@ -58,10 +58,10 @@ public class GuiaGeneticaService : IGuiaGeneticaService
                 var conEdadNumerica = candidatos
                     .Select(p => new { p, edadNum = TryParseEdadNumerica(p.Edad) })
                     .Where(x => x.edadNum.HasValue)
-                    .OrderBy(x => Math.Abs(x.edadNum.Value - edadObjetivo))
+                    .OrderBy(x => Math.Abs(x.edadNum!.Value - edadObjetivo))
                     .ToList();
 
-                fila = conEdadNumerica.FirstOrDefault(x => x.edadNum.Value == edadObjetivo)?.p
+                fila = conEdadNumerica.FirstOrDefault(x => x.edadNum!.Value == edadObjetivo)?.p
                     ?? conEdadNumerica.FirstOrDefault()?.p;
             }
 
@@ -126,8 +126,8 @@ public class GuiaGeneticaService : IGuiaGeneticaService
 
         return guias
             .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
-            .Where(x => x.edad.HasValue && x.edad.Value >= edadDesde && x.edad.Value <= edadHasta)
-            .OrderBy(x => x.edad.Value)
+            .Where(x => x.edad.HasValue && x.edad!.Value >= edadDesde && x.edad!.Value <= edadHasta)
+            .OrderBy(x => x.edad!.Value)
             .Select(x => new GuiaGeneticaDto(
                 Edad: x.edad!.Value,
                 ConsumoHembras: ParseDouble(x.g.GrAveDiaH),
@@ -290,8 +290,8 @@ public class GuiaGeneticaService : IGuiaGeneticaService
 
         return guias
             .Select(g => new { g, edad = TryParseEdadNumerica(g.Edad) })
-            .Where(x => x.edad.HasValue && x.edad.Value >= 26) // Solo semanas >= 26
-            .OrderBy(x => x.edad.Value)
+            .Where(x => x.edad.HasValue && x.edad!.Value >= 26) // Solo semanas >= 26
+            .OrderBy(x => x.edad!.Value)
             .Select(x => new GuiaGeneticaDto(
                 Edad: x.edad!.Value,
                 ConsumoHembras: ParseDouble(x.g.GrAveDiaH),

@@ -37,7 +37,8 @@ public class LoteGalponService : ILoteGalponService
         };
         _ctx.LoteGalpones.Add(ent);
         await _ctx.SaveChangesAsync();
-        return await GetByIdAsync(ent.LoteId, ent.ReproductoraId, ent.GalponId)!;
+        var result = await GetByIdAsync(ent.LoteId, ent.ReproductoraId, ent.GalponId);
+        return result ?? throw new InvalidOperationException("Error al crear LoteGalpon: no se pudo recuperar el registro creado");
     }
 
     public async Task<LoteGalponDto?> UpdateAsync(UpdateLoteGalponDto dto)

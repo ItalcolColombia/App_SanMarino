@@ -368,23 +368,28 @@ public class InventarioAvesService : IInventarioAvesService
         if (granjaId.HasValue)
             query = query.Where(i => i.GranjaId == granjaId.Value);
 
-        var resumen = await query
+        // Materializar primero para poder usar expresiones lambda con cuerpo
+        var grupos = await query
             .GroupBy(i => new { i.GranjaId, i.NucleoId, i.GalponId })
-            .Select(g => new ResumenInventarioDto(
+            .ToListAsync();
+
+        var resumen = grupos.Select(g => {
+            var first = g.First();
+            return new ResumenInventarioDto(
                 g.Key.GranjaId,
-                g.First().Granja.Name,
+                first.Granja != null ? first.Granja.Name : string.Empty,
                 g.Key.NucleoId,
-                g.First().Nucleo != null ? g.First().Nucleo.NucleoNombre : null,
+                first.Nucleo != null ? first.Nucleo.NucleoNombre : null,
                 g.Key.GalponId,
-                g.First().Galpon != null ? g.First().Galpon.GalponNombre : null,
+                first.Galpon != null ? first.Galpon.GalponNombre : null,
                 g.Count(),
                 g.Sum(i => i.CantidadHembras),
                 g.Sum(i => i.CantidadMachos),
                 g.Sum(i => i.CantidadMixtas),
                 g.Sum(i => i.CantidadHembras + i.CantidadMachos + i.CantidadMixtas),
                 g.Max(i => i.FechaActualizacion)
-            ))
-            .ToListAsync();
+            );
+        }).ToList();
 
         return resumen;
     }

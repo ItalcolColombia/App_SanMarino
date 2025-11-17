@@ -40,7 +40,7 @@ public class PermissionService : IPermissionService
         var exists = await _ctx.Permissions.AsNoTracking().AnyAsync(p => p.Key == key);
         if (exists) throw new InvalidOperationException($"Ya existe un permiso con key '{key}'.");
 
-        var entity = new Domain.Entities.Permission { Key = key, Description = desc };
+        var entity = new Domain.Entities.Permission { Key = key, Description = desc ?? string.Empty };
         _ctx.Permissions.Add(entity);
         await _ctx.SaveChangesAsync();
 
@@ -61,7 +61,7 @@ public class PermissionService : IPermissionService
         if (taken) throw new InvalidOperationException($"Ya existe un permiso con key '{key}'.");
 
         entity.Key = key;
-        entity.Description = desc;
+        entity.Description = desc ?? string.Empty;
 
         await _ctx.SaveChangesAsync();
         return new PermissionDto(entity.Id, entity.Key, entity.Description);

@@ -30,7 +30,8 @@ public class PaisService : IPaisService
         };
         _ctx.Paises.Add(ent);
         await _ctx.SaveChangesAsync();
-        return await GetByIdAsync(ent.PaisId)!;
+        var result = await GetByIdAsync(ent.PaisId);
+        return result ?? throw new InvalidOperationException("Error al crear País: no se pudo recuperar el registro creado");
     }
 
     public async Task<PaisDto?> UpdateAsync(UpdatePaisDto dto)

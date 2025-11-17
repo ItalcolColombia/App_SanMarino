@@ -169,7 +169,7 @@ public class LiquidacionTecnicaComparacionService : ILiquidacionTecnicaComparaci
         // Buscar primero con el año exacto
         var guiaExacta = await _context.ProduccionAvicolaRaw
             .AsNoTracking()
-            .Where(p => razasParaBuscar.Contains(p.Raza) && 
+            .Where(p => p.Raza != null && razasParaBuscar.Contains(p.Raza) && 
                        p.AnioGuia == anoTablaGenetica.Value.ToString() &&
                        p.CompanyId == _currentUser.CompanyId)
             .FirstOrDefaultAsync();
@@ -188,7 +188,7 @@ public class LiquidacionTecnicaComparacionService : ILiquidacionTecnicaComparaci
 
         var resultados = await _context.ProduccionAvicolaRaw
             .AsNoTracking()
-            .Where(p => razasParaBuscar.Contains(p.Raza) && 
+            .Where(p => p.Raza != null && razasParaBuscar.Contains(p.Raza) && 
                        anosCercanos.Contains(p.AnioGuia) &&
                        p.CompanyId == _currentUser.CompanyId)
             .ToListAsync();

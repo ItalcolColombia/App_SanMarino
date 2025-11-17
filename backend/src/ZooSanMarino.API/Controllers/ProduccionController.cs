@@ -67,7 +67,7 @@ public class ProduccionController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
@@ -92,7 +92,7 @@ public class ProduccionController : ControllerBase
 
             return Ok(detalle);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
@@ -161,7 +161,7 @@ public class ProduccionController : ControllerBase
             var resultado = await _produccionService.ListarSeguimientoAsync(loteId, desde, hasta, page, size);
             return Ok(resultado);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
@@ -186,7 +186,7 @@ public class ProduccionController : ControllerBase
 
             return Ok(seguimiento);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
@@ -228,7 +228,7 @@ public class ProduccionController : ControllerBase
             var lotes = await _produccionService.ObtenerLotesProduccionAsync();
             return Ok(lotes);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(500, new { message = "Error interno del servidor" });
         }

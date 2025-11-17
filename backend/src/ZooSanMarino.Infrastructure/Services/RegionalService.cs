@@ -44,7 +44,8 @@ public class RegionalService : IRegionalService
         };
         _ctx.Regionales.Add(ent);
         await _ctx.SaveChangesAsync();
-        return await GetByIdAsync(ent.RegionalCia, ent.RegionalId)!;
+        var result = await GetByIdAsync(ent.RegionalCia, ent.RegionalId);
+        return result ?? throw new InvalidOperationException("Error al crear Regional: no se pudo recuperar el registro creado");
     }
 
     public async Task<RegionalDto?> UpdateAsync(UpdateRegionalDto dto)

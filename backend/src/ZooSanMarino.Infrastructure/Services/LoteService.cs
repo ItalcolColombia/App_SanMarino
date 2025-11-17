@@ -60,8 +60,8 @@ namespace ZooSanMarino.Infrastructure.Services
             {
                 var term = req.Search.Trim().ToLower();
                 q = q.Where(l =>
-                    l.LoteId.ToString().Contains(term) ||
-                    l.LoteNombre.ToLower().Contains(term));
+                    (l.LoteId.HasValue && l.LoteId.Value.ToString().Contains(term)) ||
+                    EF.Functions.Like(l.LoteNombre!.ToLower(), $"%{term}%"));
             }
 
             if (req.GranjaId.HasValue) q = q.Where(l => l.GranjaId == req.GranjaId.Value);
@@ -405,8 +405,8 @@ namespace ZooSanMarino.Infrastructure.Services
         {
             Expression<Func<Lote, object>> key = (sortBy ?? string.Empty).ToLower() switch
             {
-                "lote_nombre" => l => l.LoteNombre,
-                "lote_id" => l => l.LoteId,
+                "lote_nombre" => l => l.LoteNombre ?? string.Empty,
+                "lote_id" => l => l.LoteId ?? 0,
                 "fecha_encaset" => l => l.FechaEncaset ?? DateTime.MinValue,
                 _ => l => l.FechaEncaset ?? DateTime.MinValue
             };

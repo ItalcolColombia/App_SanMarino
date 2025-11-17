@@ -4,7 +4,7 @@ namespace ZooSanMarino.Domain.Entities;
 public class PlanGramajeGalpon
 {
     public int Id { get; set; }
-    public String GalponId { get; set; }
+    public string GalponId { get; set; } = null!;
     public int SemanaDesde { get; set; }   // inclusive
     public int SemanaHasta { get; set; }   // inclusive
     public string? TipoAlimento { get; set; } // opcional (null = aplica a cualquier tipo)

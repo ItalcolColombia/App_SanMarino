@@ -72,7 +72,8 @@ public class MasterListService : IMasterListService
         _ctx.MasterListOptions.AddRange(options);
         await _ctx.SaveChangesAsync();
 
-        return await GetByIdAsync(ml.Id)!;
+        var result = await GetByIdAsync(ml.Id);
+        return result ?? throw new InvalidOperationException("Error al crear MasterList: no se pudo recuperar el registro creado");
     }
 
     public async Task<MasterListDto?> UpdateAsync(UpdateMasterListDto dto)

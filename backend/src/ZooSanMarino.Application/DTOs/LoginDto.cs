@@ -27,6 +27,6 @@ public class LoginDto
     public int? CompanyId { get; set; }
 
     /// <summary>Token de reCAPTCHA (opcional, solo requerido en producción)</summary>
-    [NoSqlInjection(ErrorMessage = "El token de reCAPTCHA contiene caracteres no permitidos")]
+    // NOTA: No se valida NoSqlInjection en tokens de reCAPTCHA porque son cadenas firmadas por Google que pueden contener cualquier carácter especial
     public string? RecaptchaToken { get; set; }
 }

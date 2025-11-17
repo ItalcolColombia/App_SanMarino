@@ -47,7 +47,7 @@ namespace ZooSanMarino.API.Controllers
         /// </summary>
         [HttpGet("estadisticas-generales")]
         [ProducesResponseType(typeof(DashboardEstadisticasGeneralesDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetEstadisticasGenerales()
+        public IActionResult GetEstadisticasGenerales()
         {
             try
             {
@@ -119,7 +119,7 @@ namespace ZooSanMarino.API.Controllers
         /// </summary>
         [HttpGet("registros-diarios")]
         [ProducesResponseType(typeof(IEnumerable<RegistroDiarioDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetRegistrosDiarios([FromQuery] int dias = 7)
+        public IActionResult GetRegistrosDiarios([FromQuery] int dias = 7)
         {
             try
             {
@@ -158,7 +158,7 @@ namespace ZooSanMarino.API.Controllers
         /// </summary>
         [HttpGet("actividades-recientes")]
         [ProducesResponseType(typeof(IEnumerable<ActividadRecienteDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetActividadesRecientes([FromQuery] int limite = 20)
+        public IActionResult GetActividadesRecientes([FromQuery] int limite = 20)
         {
             try
             {
@@ -234,7 +234,7 @@ namespace ZooSanMarino.API.Controllers
         /// </summary>
         [HttpGet("estadisticas-mortalidad")]
         [ProducesResponseType(typeof(IEnumerable<MortalidadDto>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetEstadisticasMortalidad([FromQuery] int dias = 30)
+        public IActionResult GetEstadisticasMortalidad([FromQuery] int dias = 30)
         {
             try
             {
@@ -298,7 +298,7 @@ namespace ZooSanMarino.API.Controllers
         /// </summary>
         [HttpGet("estadisticas-inventario")]
         [ProducesResponseType(typeof(InventarioEstadisticasDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetEstadisticasInventario()
+        public IActionResult GetEstadisticasInventario()
         {
             try
             {
@@ -326,7 +326,7 @@ namespace ZooSanMarino.API.Controllers
         /// </summary>
         [HttpGet("metricas-rendimiento")]
         [ProducesResponseType(typeof(MetricasRendimientoDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetMetricasRendimiento()
+        public IActionResult GetMetricasRendimiento()
         {
             try
             {

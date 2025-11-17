@@ -48,8 +48,9 @@ public class RoleService : IRoleService
         var permKeys = (dto.Permissions ?? Array.Empty<string>())
             .Select(p => p?.Trim())
             .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
             .Distinct()
-            .ToArray()!;
+            .ToArray();
         var companyIds = (dto.CompanyIds ?? Array.Empty<int>())
             .Distinct()
             .ToArray();
@@ -127,8 +128,9 @@ public class RoleService : IRoleService
         var permKeys = (dto.Permissions ?? Array.Empty<string>())
             .Select(p => p?.Trim())
             .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!)
             .Distinct()
-            .ToArray()!;
+            .ToArray();
         var companyIds = (dto.CompanyIds ?? Array.Empty<int>())
             .Distinct()
             .ToArray();

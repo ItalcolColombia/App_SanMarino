@@ -901,7 +901,7 @@ public class MovimientoAvesService : IMovimientoAvesService
                 new { GranjaId = g.Key.GranjaDestinoId, Tipo = "Entrada", Movimiento = g.First() }
             })
             .Where(x => x.GranjaId.HasValue)
-            .GroupBy(x => x.GranjaId.Value)
+            .GroupBy(x => x.GranjaId!.Value)
             .Select(g => new EstadisticaPorGranjaDto(
                 g.Key,
                 $"Granja {g.Key}", // Se podría mejorar obteniendo el nombre real

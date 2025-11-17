@@ -107,7 +107,7 @@ public class AuthService : IAuthService
             );
             emailQueued = emailQueueId.HasValue;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // Log del error pero no fallar el registro si el email falla
             // El usuario ya está creado, solo falló el envío del correo
@@ -480,7 +480,7 @@ public class AuthService : IAuthService
                 
                 emailQueued = emailQueueId.HasValue;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Log del error pero no fallar - la contraseña ya fue generada y actualizada
                 // Nota: _logger no está disponible en este contexto, el error se registra en EmailService
@@ -498,7 +498,7 @@ public class AuthService : IAuthService
                 EmailQueueId = emailQueueId
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return new PasswordRecoveryResponseDto
             {

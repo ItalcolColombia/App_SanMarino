@@ -65,7 +65,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
 
         // 3. Obtener datos de guía genética si están disponibles
         var tieneGuiaGenetica = !string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue;
-        var guias = tieneGuiaGenetica
+        var guias = tieneGuiaGenetica && lote.AnoTablaGenetica.HasValue
             ? (await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(lote.Raza!, lote.AnoTablaGenetica.Value)).ToList()
             : new List<ZooSanMarino.Application.DTOs.GuiaGeneticaDto>();
 

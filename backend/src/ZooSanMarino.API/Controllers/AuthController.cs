@@ -62,12 +62,10 @@ public class AuthController : ControllerBase
 
             // 1.1. Sanitizar datos después de desencriptar (segunda capa de seguridad)
             // NOTA: No sanitizar contraseñas porque pueden contener cualquier carácter especial
+            // NOTA: No sanitizar tokens de reCAPTCHA porque son cadenas firmadas por Google que pueden contener caracteres especiales
             dto.Email = _sanitizer.Sanitize(dto.Email);
             // dto.Password NO se sanitiza - las contraseñas pueden tener cualquier carácter
-            if (!string.IsNullOrWhiteSpace(dto.RecaptchaToken))
-            {
-                dto.RecaptchaToken = _sanitizer.Sanitize(dto.RecaptchaToken);
-            }
+            // dto.RecaptchaToken NO se sanitiza - los tokens de Google pueden contener cualquier carácter especial
 
             // 2. Validar datos desencriptados
             // Log para debugging (en producción, remover o usar nivel de log apropiado)

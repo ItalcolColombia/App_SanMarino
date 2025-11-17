@@ -11,7 +11,7 @@ public class Galpon : AuditableEntity
     public string? Largo        { get; set; }
     public string? TipoGalpon   { get; set; }
 
-    public int CompanyId { get; set; }
+    public new int CompanyId { get; set; }
 
     // Navegación
     public Nucleo Nucleo   { get; set; } = null!;

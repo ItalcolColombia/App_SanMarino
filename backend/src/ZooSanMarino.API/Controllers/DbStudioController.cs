@@ -370,7 +370,11 @@ namespace ZooSanMarino.API.Controllers
         {
             try
             {
-                await _dbStudioService.InsertDataAsync(schema, table, request.Rows);
+                // Convertir Dictionary<string, object?> a Dictionary<string, object>
+                var rows = request.Rows.Select(row => 
+                    row.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty))
+                ).ToList();
+                await _dbStudioService.InsertDataAsync(schema, table, rows);
                 return Ok();
             }
             catch (Exception ex)
@@ -385,7 +389,10 @@ namespace ZooSanMarino.API.Controllers
         {
             try
             {
-                await _dbStudioService.UpdateDataAsync(schema, table, request.Data, request.Where);
+                // Convertir Dictionary<string, object?> a Dictionary<string, object>
+                var data = request.Data.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
+                var where = request.Where.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
+                await _dbStudioService.UpdateDataAsync(schema, table, data, where);
                 return Ok();
             }
             catch (Exception ex)
@@ -400,7 +407,9 @@ namespace ZooSanMarino.API.Controllers
         {
             try
             {
-                await _dbStudioService.DeleteDataAsync(schema, table, request.Where);
+                // Convertir Dictionary<string, object?> a Dictionary<string, object>
+                var where = request.Where.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
+                await _dbStudioService.DeleteDataAsync(schema, table, where);
                 return Ok();
             }
             catch (Exception ex)
