@@ -5,7 +5,8 @@ import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
   faTable, faEye, faEdit, faTrash, faPlus, faRefresh, faSearch,
-  faDatabase, faColumns, faKey, faDownload, faUpload, faTimes
+  faDatabase, faColumns, faKey, faDownload, faUpload, faTimes,
+  faArrowUp, faArrowDown
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -44,6 +45,8 @@ export class TableManagementComponent implements OnInit, OnDestroy {
   faDownload = faDownload;
   faUpload = faUpload;
   faTimes = faTimes;
+  faArrowUp = faArrowUp;
+  faArrowDown = faArrowDown;
 
   // Estado
   tables = signal<TableDto[]>([]);

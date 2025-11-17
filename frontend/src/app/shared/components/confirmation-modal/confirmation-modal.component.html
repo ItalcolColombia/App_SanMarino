@@ -19,7 +19,7 @@
               class="modal-close" 
               (click)="close()"
               aria-label="Cerrar modal">
-        <fa-icon [icon]="['fas', 'times']" aria-hidden="true"></fa-icon>
+        <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
       </button>
     </div>
 
@@ -33,13 +33,13 @@
       <button type="button" 
               class="btn btn-secondary" 
               (click)="onCancel()">
-        <fa-icon [icon]="['fas', 'times']" aria-hidden="true"></fa-icon>
+        <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
         {{ data.cancelText || 'Cancelar' }}
       </button>
       <button type="button" 
               class="btn btn-primary" 
               (click)="onConfirm()">
-        <fa-icon [icon]="['fas', 'check']" aria-hidden="true"></fa-icon>
+        <fa-icon [icon]="faCheck" aria-hidden="true"></fa-icon>
         {{ data.confirmText || 'Confirmar' }}
       </button>
     </div>

@@ -1,6 +1,11 @@
 import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { 
+  faCheckCircle, faExclamationTriangle, faTimesCircle, 
+  faInfoCircle, faTimes, faCheck
+} from '@fortawesome/free-solid-svg-icons';
+import { IconProp } from '@fortawesome/fontawesome-svg-core';
 
 export interface ConfirmationModalData {
   title: string;
@@ -32,17 +37,25 @@ export class ConfirmationModalComponent {
   @Output() cancelled = new EventEmitter<void>();
   @Output() closed = new EventEmitter<void>();
 
-  getIconClass(): string {
+  // Iconos
+  faCheckCircle = faCheckCircle;
+  faExclamationTriangle = faExclamationTriangle;
+  faTimesCircle = faTimesCircle;
+  faInfoCircle = faInfoCircle;
+  faTimes = faTimes;
+  faCheck = faCheck;
+
+  getIconClass(): IconProp {
     switch (this.data.type) {
       case 'success':
-        return 'fas fa-check-circle';
+        return faCheckCircle;
       case 'warning':
-        return 'fas fa-exclamation-triangle';
+        return faExclamationTriangle;
       case 'error':
-        return 'fas fa-times-circle';
+        return faTimesCircle;
       case 'info':
       default:
-        return 'fas fa-info-circle';
+        return faInfoCircle;
     }
   }
 
