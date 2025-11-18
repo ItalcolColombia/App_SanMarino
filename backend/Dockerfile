@@ -16,7 +16,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        libicu74 \
+        libicu72 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -43,11 +43,13 @@ COPY ./src/ZooSanMarino.Application/ZooSanMarino.Application.csproj ./src/ZooSan
 COPY ./src/ZooSanMarino.Domain/ZooSanMarino.Domain.csproj ./src/ZooSanMarino.Domain/
 COPY ./src/ZooSanMarino.Infrastructure/ZooSanMarino.Infrastructure.csproj ./src/ZooSanMarino.Infrastructure/
 
-# Restore con cache optimizado
-RUN dotnet restore "ZooSanMarino.sln" \
+# Restore optimizado: restaurar solo el proyecto API que automáticamente restaurará sus dependencias
+# Esto es más eficiente que restaurar cada proyecto individualmente
+RUN dotnet restore ./src/ZooSanMarino.API/ZooSanMarino.API.csproj \
     --nologo \
     --verbosity quiet \
-    --runtime linux-x64
+    --runtime linux-x64 \
+    --source https://api.nuget.org/v3/index.json
 
 # =========================
 # Etapa 3: Build + Publish
