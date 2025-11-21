@@ -7,6 +7,7 @@ import { firstValueFrom, forkJoin } from 'rxjs';
 
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { HierarchicalFilterComponent } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
+import { ModalTrasladoLoteComponent } from '../../../lote/components/modal-traslado-lote/modal-traslado-lote.component';
 
 import { LoteDto } from '../../../lote/services/lote.service';
 import {
@@ -18,6 +19,10 @@ import {
   DisponibilidadLoteDto,
   CrearTrasladoAvesDto,
   CrearTrasladoHuevosDto,
+  TrasladoLoteRequest,
+  TrasladoLoteResponse,
+  HistorialTrasladoLoteDto,
+  TrasladoHuevosDto,
 } from '../../services/traslados-aves.service';
 
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -34,7 +39,7 @@ import { LoteProduccionService, CreateLoteProduccionDto } from '../../../lote-pr
 @Component({
   selector: 'app-inventario-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, HierarchicalFilterComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, HierarchicalFilterComponent, ModalTrasladoLoteComponent],
   templateUrl: './inventario-dashboard.component.html',
   styleUrls: ['./inventario-dashboard.component.scss']
 })
@@ -112,6 +117,22 @@ export class InventarioDashboardComponent implements OnInit {
   loteCompleto = signal<LoteDto | null>(null);
   movimientosLote = signal<TrasladoUnificado[]>([]);
   loadingMovimientos = signal<boolean>(false);
+
+  // ====== Tabs de Histórico ======
+  tabHistorialActivo = signal<'lotes' | 'aves' | 'huevos'>('lotes');
+  
+  // ====== Tabs de Registros (solo cuando hay lote seleccionado) ======
+  tabRegistrosActivo = signal<'huevos' | 'aves' | 'lotes'>('huevos');
+  historialTrasladosLote = signal<HistorialTrasladoLoteDto[]>([]);
+  loadingHistorialLotes = signal<boolean>(false);
+  movimientosAvesLote = signal<TrasladoUnificado[]>([]);
+  trasladosHuevosLote = signal<TrasladoHuevosDto[]>([]);
+  loadingTrasladosHuevos = signal<boolean>(false);
+
+  // ====== Modal Traslado de Lote ======
+  modalTrasladoLoteAbierto = signal<boolean>(false);
+  procesandoTrasladoLote = signal<boolean>(false);
+  tipoTrasladoSeleccionado = signal<'lote' | 'aves' | 'huevos' | null>(null);
 
   // 🔴 Computed: ¿Hay lote seleccionado completo?
   get tieneLoteSeleccionadoCompleto(): boolean {
@@ -902,6 +923,10 @@ export class InventarioDashboardComponent implements OnInit {
     this.loteSeleccionado.set(inventario);
 
     if (inventario) {
+      // Inicializar tab de registros al primer tab con datos disponibles
+      // Prioridad: Huevos > Aves > Lotes
+      this.tabRegistrosActivo.set('huevos');
+      
       // Cargar información completa del lote
       const loteIdNum = parseInt(inventario.loteId, 10);
       if (!isNaN(loteIdNum)) {
@@ -916,28 +941,77 @@ export class InventarioDashboardComponent implements OnInit {
 
         // Cargar movimientos del lote
         this.cargarMovimientosLote(loteIdNum);
+        // Cargar historial de traslados de lotes
+        this.cargarHistorialTrasladosLote(loteIdNum);
+        // Cargar traslados de huevos
+        this.cargarTrasladosHuevosLote(String(loteIdNum));
       } else {
         this.loteCompleto.set(null);
         this.movimientosLote.set([]);
+        this.historialTrasladosLote.set([]);
+        this.trasladosHuevosLote.set([]);
       }
     } else {
       this.loteCompleto.set(null);
       this.movimientosLote.set([]);
+      this.historialTrasladosLote.set([]);
+      this.trasladosHuevosLote.set([]);
     }
   }
 
   private async cargarMovimientosLote(loteId: number): Promise<void> {
     this.loadingMovimientos.set(true);
     try {
+      console.log(`[DEBUG] Cargando movimientos para lote ${loteId}`);
       const movimientos = await firstValueFrom(
         this.trasladoNavigationService.getByLote(loteId, 100)
       );
+      console.log(`[DEBUG] Movimientos recibidos:`, movimientos);
       this.movimientosLote.set(movimientos || []);
+      // Filtrar solo movimientos de aves
+      const movimientosAves = movimientos?.filter(m => m.tipoTraslado === 'Aves') || [];
+      console.log(`[DEBUG] Movimientos de aves filtrados:`, movimientosAves);
+      this.movimientosAvesLote.set(movimientosAves);
     } catch (err: any) {
       console.error('Error al cargar movimientos del lote:', err);
       this.movimientosLote.set([]);
+      this.movimientosAvesLote.set([]);
     } finally {
       this.loadingMovimientos.set(false);
+    }
+  }
+
+  private async cargarHistorialTrasladosLote(loteId: number): Promise<void> {
+    this.loadingHistorialLotes.set(true);
+    try {
+      console.log(`[DEBUG] Cargando historial de traslados para lote ${loteId}`);
+      const historial = await firstValueFrom(
+        this.trasladosService.getHistorialTrasladosLote(loteId)
+      );
+      console.log(`[DEBUG] Historial recibido:`, historial);
+      this.historialTrasladosLote.set(historial || []);
+    } catch (err: any) {
+      console.error('Error al cargar historial de traslados de lotes:', err);
+      this.historialTrasladosLote.set([]);
+    } finally {
+      this.loadingHistorialLotes.set(false);
+    }
+  }
+
+  private async cargarTrasladosHuevosLote(loteId: string): Promise<void> {
+    this.loadingTrasladosHuevos.set(true);
+    try {
+      console.log(`[DEBUG] Cargando traslados de huevos para lote ${loteId}`);
+      const traslados = await firstValueFrom(
+        this.trasladosService.getTrasladosHuevosPorLote(loteId)
+      );
+      console.log(`[DEBUG] Traslados de huevos recibidos:`, traslados);
+      this.trasladosHuevosLote.set(traslados || []);
+    } catch (err: any) {
+      console.error('Error al cargar traslados de huevos:', err);
+      this.trasladosHuevosLote.set([]);
+    } finally {
+      this.loadingTrasladosHuevos.set(false);
     }
   }
 
@@ -1026,9 +1100,66 @@ export class InventarioDashboardComponent implements OnInit {
     { key: 'otro', label: 'Otro' }
   ];
 
-  abrirModalTrasladoRetiro(): void {
+  abrirModalTrasladoLote(): void {
+    if (!this.tieneLoteSeleccionadoCompleto) return;
+    this.tipoTrasladoSeleccionado.set('lote');
+    this.modalTrasladoLoteAbierto.set(true);
+  }
+
+  cerrarModalTrasladoLote(): void {
+    this.modalTrasladoLoteAbierto.set(false);
+    this.tipoTrasladoSeleccionado.set(null);
+  }
+
+  async procesarTrasladoLote(data: {
+    loteId: number;
+    granjaDestinoId: number;
+    nucleoDestinoId?: string | null;
+    galponDestinoId?: string | null;
+    observaciones?: string | null;
+  }): Promise<void> {
+    this.procesandoTrasladoLote.set(true);
+    try {
+      const dto: TrasladoLoteRequest = {
+        loteId: data.loteId,
+        granjaDestinoId: data.granjaDestinoId,
+        nucleoDestinoId: data.nucleoDestinoId,
+        galponDestinoId: data.galponDestinoId,
+        observaciones: data.observaciones
+      };
+
+      const response = await firstValueFrom(this.trasladosService.crearTrasladoLote(dto));
+      
+      if (response.success) {
+        // Recargar datos
+        await this.cargarInventarios();
+        await this.cargarResumen();
+        
+        // Recargar historial de traslados de lotes
+        if (this.loteCompleto()) {
+          const loteIdNum = parseInt(String(this.loteCompleto()!.loteId), 10);
+          if (!isNaN(loteIdNum)) {
+            await this.cargarHistorialTrasladosLote(loteIdNum);
+          }
+        }
+
+        // Cerrar modal después de un breve delay
+        setTimeout(() => {
+          this.cerrarModalTrasladoLote();
+        }, 2000);
+      }
+    } catch (err: any) {
+      console.error('Error al procesar traslado de lote:', err);
+      alert(err?.message || 'Error al procesar el traslado de lote');
+    } finally {
+      this.procesandoTrasladoLote.set(false);
+    }
+  }
+
+  abrirModalTrasladoRetiro(tipo: 'aves' | 'huevos' = 'aves'): void {
     if (!this.tieneLoteSeleccionadoCompleto) return;
 
+    this.tipoTrasladoSeleccionado.set(tipo);
     const lote = this.loteCompleto();
     if (lote) {
       this.cargarDisponibilidadLote(String(lote.loteId));
@@ -1036,7 +1167,7 @@ export class InventarioDashboardComponent implements OnInit {
 
     this.initTrasladoRetiroForm();
     this.initTrasladoHuevosForm();
-    this.tabActivo.set('aves');
+    this.tabActivo.set(tipo);
     this.modalTrasladoRetiroAbierto.set(true);
     this.errorRetiro.set(null);
     this.exitoRetiro.set(false);
@@ -1050,6 +1181,7 @@ export class InventarioDashboardComponent implements OnInit {
     this.tabActivo.set('aves');
     this.errorRetiro.set(null);
     this.exitoRetiro.set(false);
+    this.tipoTrasladoSeleccionado.set(null);
   }
 
   private initTrasladoRetiroForm(): void {
@@ -1319,6 +1451,8 @@ export class InventarioDashboardComponent implements OnInit {
         }
         // Recargar disponibilidad
         this.cargarDisponibilidadLote(String(this.loteCompleto()!.loteId));
+        // Recargar traslados de huevos
+        this.cargarTrasladosHuevosLote(String(this.loteCompleto()!.loteId));
       }
 
       // Mantener modal abierto por 3 segundos mostrando éxito, luego cerrar automáticamente

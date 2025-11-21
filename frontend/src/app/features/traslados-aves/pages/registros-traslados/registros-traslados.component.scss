@@ -1,0 +1,379 @@
+/* ==========================================================================
+   🚚 Registros de Traslados - UI SanMarino
+   ========================================================================== */
+
+/* ========== 1) Design Tokens ========== */
+:host {
+  display: block;
+  min-height: 100vh;
+
+  /* Paleta corporativa */
+  --brand-red: #d32f2f;
+  --brand-red-light: #ffebee;
+  --amber-25: #fffbeb;
+  --amber-50: #fff7ed;
+  --warm-100: #f5f5f4;
+  --warm-200: #e7e5e4;
+  --warm-600: #57534e;
+  --white: #fff;
+  --shadow-md: 0 6px 14px rgba(0,0,0,.10);
+  --radius-md: .75rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+}
+
+/* ========== 2) Layout ========== */
+.ux-page {
+  display: flex;
+  min-height: 100vh;
+  background: var(--warm-100);
+}
+
+.ux-sidebar {
+  flex: 0 0 280px;
+  width: 280px;
+}
+
+.ux-main {
+  flex: 1 1 auto;
+  padding: var(--space-6);
+  overflow-y: auto;
+}
+
+/* ========== 3) Header ========== */
+.ux-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-6);
+  padding: var(--space-6);
+  background: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+
+  &__title {
+    h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--brand-red);
+    }
+
+    &__subtitle {
+      margin: var(--space-2) 0 0;
+      color: var(--warm-600);
+      font-size: 0.95rem;
+    }
+  }
+}
+
+/* ========== 4) Cards ========== */
+.ux-card {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-5);
+    border-bottom: 2px solid var(--warm-200);
+    background: var(--amber-25);
+
+    h2 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--brand-red);
+    }
+  }
+
+  &__content {
+    padding: var(--space-5);
+  }
+}
+
+/* ========== 5) Form Fields ========== */
+.form-field {
+  margin-bottom: var(--space-4);
+
+  .ux-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+    color: var(--warm-600);
+  }
+
+  .ux-select {
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--warm-200);
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    transition: border-color 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: var(--brand-red);
+    }
+  }
+}
+
+.farm-info-card {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  background: var(--amber-25);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warm-200);
+
+  &-header {
+    h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--brand-red);
+    }
+  }
+}
+
+/* ========== 6) Tabs ========== */
+.registros-tabs-section {
+  margin-top: var(--space-4);
+}
+
+.registros-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  border-bottom: 2px solid var(--warm-200);
+  padding-bottom: var(--space-2);
+}
+
+.registros-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--warm-600);
+  transition: all 0.2s ease;
+  position: relative;
+
+  &:hover {
+    color: var(--brand-red);
+    background: var(--amber-25);
+  }
+
+  &.active {
+    color: var(--brand-red);
+    border-bottom-color: var(--brand-red);
+    background: var(--amber-25);
+  }
+
+  .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 var(--space-2);
+    background: var(--brand-red);
+    color: var(--white);
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+}
+
+.registros-tab-panel {
+  animation: fadeInTab 0.3s ease-out;
+}
+
+@keyframes fadeInTab {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== 7) Tables ========== */
+.table-container {
+  overflow-x: auto;
+}
+
+.ux-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--white);
+
+  thead {
+    background: var(--amber-25);
+    
+    th {
+      padding: var(--space-4);
+      text-align: left;
+      font-weight: 600;
+      color: var(--brand-red);
+      border-bottom: 2px solid var(--warm-200);
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--warm-200);
+      transition: background 0.2s;
+
+      &:hover {
+        background: var(--amber-25);
+      }
+    }
+
+    td {
+      padding: var(--space-4);
+      color: var(--warm-600);
+    }
+  }
+}
+
+.number-cell {
+  font-weight: 600;
+  text-align: right;
+
+  &.primary {
+    color: var(--brand-red);
+  }
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+/* ========== 8) Badges ========== */
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  &--primary {
+    background: var(--brand-red-light);
+    color: var(--brand-red);
+  }
+
+  &--success {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+
+  &--warning {
+    background: #fff3e0;
+    color: #e65100;
+  }
+
+  &--error {
+    background: #ffebee;
+    color: #c62828;
+  }
+}
+
+/* ========== 9) Loading & Empty States ========== */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10);
+  color: var(--warm-600);
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--warm-200);
+    border-top-color: var(--brand-red);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: var(--space-4);
+  }
+
+  p {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-10);
+  color: var(--warm-600);
+
+  .empty-icon,
+  .empty-illustration {
+    font-size: 4rem;
+    margin-bottom: var(--space-4);
+    opacity: 0.5;
+  }
+
+  h3 {
+    margin: 0 0 var(--space-2);
+    color: var(--brand-red);
+  }
+
+  p {
+    margin: var(--space-2) 0;
+  }
+
+  .text-muted {
+    color: var(--warm-600);
+    font-size: 0.875rem;
+  }
+}
+
+/* ========== 10) Buttons ========== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &--ghost {
+    background: transparent;
+    color: var(--warm-600);
+
+    &:hover {
+      background: var(--warm-200);
+    }
+  }
+
+  &--sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.875rem;
+  }
+}
+
+.text-red-500 {
+  color: var(--brand-red);
+}
+

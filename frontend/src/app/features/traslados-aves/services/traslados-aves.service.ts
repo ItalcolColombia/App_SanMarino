@@ -327,6 +327,41 @@ export interface PagedResult<T> {
   pageSize: number;
 }
 
+// Traslado de Lote
+export interface TrasladoLoteRequest {
+  loteId: number;
+  granjaDestinoId: number;
+  nucleoDestinoId?: string | null;
+  galponDestinoId?: string | null;
+  observaciones?: string | null;
+}
+
+export interface TrasladoLoteResponse {
+  success: boolean;
+  message: string;
+  loteOriginalId?: number;
+  loteNuevoId?: number;
+  loteNombre?: string;
+  granjaOrigen?: string;
+  granjaDestino?: string;
+}
+
+export interface HistorialTrasladoLoteDto {
+  id: number;
+  loteOriginalId: number;
+  loteNuevoId: number;
+  granjaOrigenId: number;
+  granjaOrigenNombre?: string;
+  granjaDestinoId: number;
+  granjaDestinoNombre?: string;
+  nucleoDestinoId?: string;
+  galponDestinoId?: string;
+  observaciones?: string;
+  fechaTraslado: Date;
+  usuarioNombre?: string;
+  createdAt: Date;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -519,6 +554,34 @@ export class TrasladosAvesService {
   // Obtener traslados de huevos por lote
   getTrasladosHuevosPorLote(loteId: string): Observable<TrasladoHuevosDto[]> {
     return this.http.get<TrasladoHuevosDto[]>(`${this.trasladosUrl}/huevos/lote/${loteId}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Obtener traslados de huevos por granja
+  getTrasladosHuevosPorGranja(granjaId: number): Observable<TrasladoHuevosDto[]> {
+    return this.http.get<TrasladoHuevosDto[]>(`${this.trasladosUrl}/huevos/granja/${granjaId}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // =====================================================
+  // TRASLADOS DE LOTES
+  // =====================================================
+
+  // Crear traslado de lote
+  crearTrasladoLote(dto: TrasladoLoteRequest): Observable<TrasladoLoteResponse> {
+    return this.http.post<TrasladoLoteResponse>(`${environment.apiUrl}/Lote/trasladar`, dto)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Obtener historial de traslados de un lote
+  getHistorialTrasladosLote(loteId: number): Observable<HistorialTrasladoLoteDto[]> {
+    return this.http.get<HistorialTrasladoLoteDto[]>(`${environment.apiUrl}/Lote/${loteId}/historial-traslados`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Obtener historial de traslados de lotes por granja
+  getHistorialTrasladosLotesPorGranja(granjaId: number): Observable<HistorialTrasladoLoteDto[]> {
+    return this.http.get<HistorialTrasladoLoteDto[]>(`${environment.apiUrl}/Lote/historial-traslados/granja/${granjaId}`)
       .pipe(catchError(this.handleError));
   }
 

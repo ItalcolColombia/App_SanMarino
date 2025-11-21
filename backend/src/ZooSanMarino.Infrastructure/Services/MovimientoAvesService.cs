@@ -207,6 +207,13 @@ public class MovimientoAvesService : IMovimientoAvesService
 
             await _context.SaveChangesAsync();
 
+            // Si es un traslado de aves y el lote está en producción (semana 26+), aplicar descuento
+            if (movimiento.LoteOrigenId.HasValue && 
+                (movimiento.TipoMovimiento == "Traslado" || movimiento.TipoMovimiento == "Venta"))
+            {
+                await AplicarDescuentoEnProduccionDiariaAvesAsync(movimiento);
+            }
+
             var movimientoDto = await GetByIdAsync(movimiento.Id);
             return new ResultadoMovimientoDto(true, "Movimiento procesado exitosamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimientoDto);
         }
@@ -513,6 +520,102 @@ public class MovimientoAvesService : IMovimientoAvesService
                 null,
                 new List<string> { ex.Message },
                 null);
+        }
+    }
+
+    /// <summary>
+    /// Aplica descuento en seguimiento diario de producción para traslado de aves (solo si el lote está en producción - semana 26+)
+    /// </summary>
+    private async Task AplicarDescuentoEnProduccionDiariaAvesAsync(MovimientoAves movimiento)
+    {
+        if (!movimiento.LoteOrigenId.HasValue || (movimiento.CantidadHembras == 0 && movimiento.CantidadMachos == 0))
+            return;
+
+        // Obtener información del lote
+        var lote = await _context.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteId == movimiento.LoteOrigenId.Value && 
+                       l.CompanyId == _currentUser.CompanyId && 
+                       l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (lote == null || !lote.FechaEncaset.HasValue)
+            return;
+
+        // Calcular semana actual del lote
+        var fechaMovimiento = movimiento.FechaMovimiento.Date;
+        var diasDesdeEncaset = (fechaMovimiento - lote.FechaEncaset.Value.Date).Days;
+        var semanaActual = (diasDesdeEncaset / 7) + 1;
+
+        // Solo aplicar descuento si el lote está en producción (semana 26 o más)
+        if (semanaActual < 26)
+            return;
+
+        var loteIdStr = movimiento.LoteOrigenId.Value.ToString();
+
+        // Buscar registro existente para esa fecha
+        var registroExistente = await _context.SeguimientoProduccion
+            .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+            .FirstOrDefaultAsync();
+
+        if (registroExistente != null)
+        {
+            // Restar las aves trasladadas del registro existente
+            // Las aves trasladadas se registran como mortalidad/selección para descontar
+            // Hembras trasladadas se restan como SelH (selección hembras)
+            // Machos trasladados se restan como MortalidadM
+            registroExistente.SelH = Math.Max(0, registroExistente.SelH - movimiento.CantidadHembras);
+            registroExistente.MortalidadM = Math.Max(0, registroExistente.MortalidadM - movimiento.CantidadMachos);
+
+            // Actualizar observaciones
+            var obsTraslado = $"Descuento por traslado {movimiento.NumeroMovimiento} - {movimiento.TipoMovimiento}";
+            if (movimiento.CantidadHembras > 0)
+                obsTraslado += $" (H: {movimiento.CantidadHembras}";
+            if (movimiento.CantidadMachos > 0)
+                obsTraslado += movimiento.CantidadHembras > 0 ? $", M: {movimiento.CantidadMachos})" : $" (M: {movimiento.CantidadMachos})";
+
+            registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                ? obsTraslado
+                : $"{registroExistente.Observaciones} | {obsTraslado}";
+
+            await _context.SaveChangesAsync();
+        }
+        else
+        {
+            // Si no existe registro para esa fecha, crear uno con valores negativos para descontar
+            var registroDescuento = new SeguimientoProduccion
+            {
+                LoteId = loteIdStr,
+                Fecha = fechaMovimiento,
+                // Valores negativos para descontar aves trasladadas
+                SelH = -movimiento.CantidadHembras, // Hembras trasladadas
+                MortalidadM = -movimiento.CantidadMachos, // Machos trasladados
+                // Otros campos en cero
+                MortalidadH = 0,
+                ConsKgH = 0,
+                ConsKgM = 0,
+                HuevoTot = 0,
+                HuevoInc = 0,
+                HuevoLimpio = 0,
+                HuevoTratado = 0,
+                HuevoSucio = 0,
+                HuevoDeforme = 0,
+                HuevoBlanco = 0,
+                HuevoDobleYema = 0,
+                HuevoPiso = 0,
+                HuevoPequeno = 0,
+                HuevoRoto = 0,
+                HuevoDesecho = 0,
+                HuevoOtro = 0,
+                TipoAlimento = "N/A",
+                PesoHuevo = 0,
+                Etapa = semanaActual >= 26 && semanaActual <= 33 ? 1 : (semanaActual >= 34 && semanaActual <= 50 ? 2 : 3),
+                Observaciones = $"Registro de descuento por traslado {movimiento.NumeroMovimiento} - {movimiento.TipoMovimiento} " +
+                               $"(H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})"
+            };
+
+            _context.SeguimientoProduccion.Add(registroDescuento);
+            await _context.SaveChangesAsync();
         }
     }
 

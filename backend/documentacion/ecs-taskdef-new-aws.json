@@ -29,7 +29,7 @@
         
         { 
           "name": "ConnectionStrings__ZooSanMarinoContext", 
-          "value": "Host=reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com;Port=5432;Username=repropesa01;Password=dcc4M5fyV3x*;Database=sanmarinoappdev;SSL Mode=Require;Trust Server Certificate=true;Timeout=15;Command Timeout=30" 
+          "value": "Host=reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com;Port=5432;Username=repropesa01;Password=dcc4M5fyV3x*;Database=sanmarinoappprod;SSL Mode=Require;Trust Server Certificate=true;Timeout=15;Command Timeout=30" 
         },
         
         { "name": "JwtSettings__Key", "value": "ZooSanMarino_Production_SecretKey_2024_SuperSecure_Key_For_JWT_Tokens_Must_Be_Very_Long_And_Complex_For_Security_Purposes" },

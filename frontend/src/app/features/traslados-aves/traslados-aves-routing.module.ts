@@ -42,6 +42,12 @@ const routes: Routes = [
     loadComponent: () => import('./pages/traslado-aves-huevos/traslado-aves-huevos.component')
       .then(m => m.TrasladoAvesHuevosComponent),
     title: 'Nuevo Traslado'
+  },
+  {
+    path: 'registros',
+    loadComponent: () => import('./pages/registros-traslados/registros-traslados.component')
+      .then(m => m.RegistrosTrasladosComponent),
+    title: 'Registros de Traslados'
   }
 ];
 

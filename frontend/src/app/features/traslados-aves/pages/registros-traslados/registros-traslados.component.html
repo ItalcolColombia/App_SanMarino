@@ -1,0 +1,265 @@
+<div class="ux-page" [attr.aria-busy]="loadingTrasladosLotes() || loadingTrasladosHuevos() || loadingTrasladosAves() ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <!-- Header -->
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>🚚 Registros de Traslados</h1>
+        <p class="ux-header__subtitle">Historial de traslados por granja: Lotes, Huevos y Aves</p>
+      </div>
+    </header>
+
+    <!-- Filtro de Granja -->
+    <section class="ux-card">
+      <header class="ux-card__header">
+        <h2>🔍 Selecciona una Granja</h2>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarSeleccion()" *ngIf="selectedFarmId()">
+          Limpiar
+        </button>
+      </header>
+      <div class="ux-card__content">
+        <div class="form-field">
+          <label class="ux-label">🏠 Granja <span class="text-red-500">*</span></label>
+          <select
+            class="ux-select"
+            [ngModel]="selectedFarmId()"
+            (ngModelChange)="onFarmSelected($event)">
+            <option [ngValue]="null">Seleccione una granja...</option>
+            <option *ngFor="let farm of farms" [ngValue]="farm.id">
+              {{ farm.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Información de la Granja Seleccionada -->
+        <div class="farm-info-card" *ngIf="selectedFarmId()">
+          <div class="farm-info-header">
+            <h3>🏠 Granja: {{ obtenerNombreGranja(selectedFarmId()!) }}</h3>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabs de Registros (solo cuando hay granja seleccionada) -->
+    <section class="ux-card" *ngIf="selectedFarmId()">
+      <header class="ux-card__header">
+        <h2>📊 Registros de Traslados</h2>
+      </header>
+
+      <div class="ux-card__content">
+        <div class="registros-tabs-section">
+          <div class="registros-tabs">
+            <button
+              type="button"
+              class="registros-tab"
+              [class.active]="tabActivo() === 'lotes'"
+              (click)="tabActivo.set('lotes')">
+              📦 Traslados de Lotes
+              <span class="tab-badge" *ngIf="historialTrasladosLotes().length > 0">
+                {{ historialTrasladosLotes().length }}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="registros-tab"
+              [class.active]="tabActivo() === 'huevos'"
+              (click)="tabActivo.set('huevos')">
+              🥚 Traslados de Huevos
+              <span class="tab-badge" *ngIf="trasladosHuevos().length > 0">
+                {{ trasladosHuevos().length }}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="registros-tab"
+              [class.active]="tabActivo() === 'aves'"
+              (click)="tabActivo.set('aves')">
+              🐔 Traslados de Aves
+              <span class="tab-badge" *ngIf="trasladosAves().length > 0">
+                {{ trasladosAves().length }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Tab Panel: Traslados de Lotes -->
+          <div class="registros-tab-panel" *ngIf="tabActivo() === 'lotes'">
+            <!-- Loading state -->
+            <div class="loading-state" *ngIf="loadingTrasladosLotes()">
+              <div class="spinner"></div>
+              <p>Cargando registros de traslados de lotes...</p>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container" *ngIf="!loadingTrasladosLotes()">
+              <table class="ux-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Lote Origen</th>
+                    <th>Lote Destino</th>
+                    <th>Granja Origen</th>
+                    <th>Granja Destino</th>
+                    <th>Usuario</th>
+                    <th>Observaciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let historial of historialTrasladosLotes()" class="ux-row">
+                    <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
+                    <td><strong>#{{ historial.loteOriginalId }}</strong></td>
+                    <td><strong>#{{ historial.loteNuevoId }}</strong></td>
+                    <td>{{ historial.granjaOrigenNombre || '—' }}</td>
+                    <td>{{ historial.granjaDestinoNombre || '—' }}</td>
+                    <td>{{ historial.usuarioNombre || '—' }}</td>
+                    <td class="text-sm">{{ historial.observaciones || '—' }}</td>
+                  </tr>
+                  <tr *ngIf="!loadingTrasladosLotes() && historialTrasladosLotes().length === 0">
+                    <td colspan="7" class="empty-state">
+                      <div class="empty-illustration">📦</div>
+                      <p>No hay registros de traslado de lotes para esta granja.</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab Panel: Traslados de Huevos -->
+          <div class="registros-tab-panel" *ngIf="tabActivo() === 'huevos'">
+            <!-- Loading state -->
+            <div class="loading-state" *ngIf="loadingTrasladosHuevos()">
+              <div class="spinner"></div>
+              <p>Cargando registros de traslados de huevos...</p>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container" *ngIf="!loadingTrasladosHuevos()">
+              <table class="ux-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>N° Traslado</th>
+                    <th>Operación</th>
+                    <th>Lote</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Total Huevos</th>
+                    <th>Detalle</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let traslado of trasladosHuevos()" class="ux-row">
+                    <td>{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                    <td><strong>{{ traslado.numeroTraslado }}</strong></td>
+                    <td>
+                      <span class="badge" [class.badge--primary]="traslado.tipoOperacion === 'Traslado'"
+                            [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
+                        {{ traslado.tipoOperacion }}
+                      </span>
+                    </td>
+                    <td><strong>#{{ traslado.loteId }}</strong></td>
+                    <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
+                    <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
+                    <td class="number-cell primary">{{ formatearNumero(traslado.totalHuevos) }}</td>
+                    <td class="text-sm">
+                      <span *ngIf="traslado.cantidadLimpio > 0">L: {{ traslado.cantidadLimpio }}</span>
+                      <span *ngIf="traslado.cantidadTratado > 0">T: {{ traslado.cantidadTratado }}</span>
+                      <span *ngIf="traslado.cantidadSucio > 0">S: {{ traslado.cantidadSucio }}</span>
+                    </td>
+                    <td>
+                      <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
+                            [class.badge--warning]="traslado.estado === 'Pendiente'"
+                            [class.badge--error]="traslado.estado === 'Cancelado'">
+                        {{ traslado.estado }}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr *ngIf="!loadingTrasladosHuevos() && trasladosHuevos().length === 0">
+                    <td colspan="9" class="empty-state">
+                      <div class="empty-illustration">🥚</div>
+                      <p>No hay registros de traslado de huevos para esta granja.</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab Panel: Traslados de Aves -->
+          <div class="registros-tab-panel" *ngIf="tabActivo() === 'aves'">
+            <!-- Loading state -->
+            <div class="loading-state" *ngIf="loadingTrasladosAves()">
+              <div class="spinner"></div>
+              <p>Cargando registros de traslados de aves...</p>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container" *ngIf="!loadingTrasladosAves()">
+              <table class="ux-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>N° Traslado</th>
+                    <th>Operación</th>
+                    <th>Lote Origen</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Cantidad</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let movimiento of trasladosAves()" class="ux-row">
+                    <td>{{ formatearFecha(movimiento.fechaMovimiento) }}</td>
+                    <td><strong>{{ movimiento.numeroMovimiento }}</strong></td>
+                    <td>
+                      <span class="badge" [class.badge--primary]="movimiento.tipoMovimiento === 'Traslado'"
+                            [class.badge--warning]="movimiento.tipoMovimiento === 'Venta'"
+                            [class.badge--error]="movimiento.tipoMovimiento === 'Retiro'">
+                        {{ movimiento.tipoMovimiento }}
+                      </span>
+                    </td>
+                    <td><strong>#{{ movimiento.origen.loteId || '—' }}</strong></td>
+                    <td>{{ movimiento.origen.granjaNombre || '—' }}</td>
+                    <td>{{ movimiento.destino.granjaNombre || '—' }}</td>
+                    <td class="number-cell">
+                      <span *ngIf="movimiento.cantidadHembras > 0">H: {{ formatearNumero(movimiento.cantidadHembras) }}</span>
+                      <span *ngIf="movimiento.cantidadMachos > 0">M: {{ formatearNumero(movimiento.cantidadMachos) }}</span>
+                      <span *ngIf="movimiento.cantidadHembras === 0 && movimiento.cantidadMachos === 0">—</span>
+                    </td>
+                    <td>
+                      <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
+                            [class.badge--warning]="movimiento.estado === 'Pendiente'"
+                            [class.badge--error]="movimiento.estado === 'Cancelado'">
+                        {{ movimiento.estado }}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr *ngIf="!loadingTrasladosAves() && trasladosAves().length === 0">
+                    <td colspan="8" class="empty-state">
+                      <div class="empty-illustration">🐔</div>
+                      <p>No hay registros de traslado de aves para esta granja.</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mensaje cuando no hay granja seleccionada -->
+    <section class="ux-card" *ngIf="!selectedFarmId()">
+      <div class="empty-state">
+        <div class="empty-icon">🏠</div>
+        <h3>Selecciona una Granja</h3>
+        <p>Usa el filtro de arriba para seleccionar una granja y ver sus registros de traslados.</p>
+        <p class="text-muted">Los registros se mostrarán organizados por tipo: Lotes, Huevos y Aves.</p>
+      </div>
+    </section>
+  </div>
+</div>
+

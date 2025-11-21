@@ -1,12 +1,12 @@
-<div class="ux-page" [attr.aria-busy]="isLoading() ? 'true' : null">
+<div class="ux-page" [attr.aria-busy]="loadingMovimientos() || loadingHistorialLotes() || loadingTrasladosHuevos() ? 'true' : null">
   <app-sidebar class="ux-sidebar"></app-sidebar>
 
   <div class="ux-main">
     <!-- Header -->
     <header class="ux-header">
       <div class="ux-header__title">
-        <h1>📋 Movimientos de Aves</h1>
-        <p class="ux-header__subtitle">Historial y gestión de todos los movimientos</p>
+        <h1>📋 Registros de Traslados</h1>
+        <p class="ux-header__subtitle">Historial de movimientos realizados por lote</p>
       </div>
       <div class="ux-header__actions">
         <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
@@ -18,274 +18,246 @@
       </div>
     </header>
 
-    <!-- Filtros -->
+    <!-- Filtros Jerárquicos -->
     <section class="ux-card">
       <header class="ux-card__header">
-        <h2>🔍 Filtros de Búsqueda</h2>
-        <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarFiltros()">
+        <h2>🔍 Selecciona un Lote</h2>
+        <button type="button" class="btn btn--ghost btn--sm" (click)="limpiarSeleccionLote()">
           Limpiar
         </button>
       </header>
-      
       <div class="ux-card__content">
-        <div class="filter-grid">
-          <div class="form-field">
-            <label class="ux-label">Lote Origen</label>
-            <input 
-              type="text" 
-              class="ux-input" 
-              [(ngModel)]="filtros.loteOrigenId" 
-              (change)="onFiltroChange()" 
-              placeholder="Ej: L001">
+        <app-hierarchical-filter
+          [showLoteSelection]="true"
+          [placeholder]="'Buscar lote...'"
+          [filterLabel]="'Filtros de Lote'"
+          [showChips]="true"
+          (loteSelected)="onLoteSelected($event)">
+        </app-hierarchical-filter>
+      </div>
+    </section>
+
+    <!-- Tabs de Registros (solo cuando hay lote seleccionado) -->
+    <section class="ux-card" *ngIf="loteSeleccionado()">
+      <header class="ux-card__header">
+        <h2>📊 Registros del Lote</h2>
+      </header>
+
+      <div class="ux-card__content">
+        <!-- Tabs -->
+        <div class="registros-tabs-section">
+          <div class="registros-tabs">
+            <button
+              type="button"
+              class="registros-tab"
+              [class.active]="tabRegistrosActivo() === 'huevos'"
+              (click)="tabRegistrosActivo.set('huevos')">
+              🥚 Huevos
+              <span class="tab-badge" *ngIf="trasladosHuevosLote().length > 0">
+                {{ trasladosHuevosLote().length }}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="registros-tab"
+              [class.active]="tabRegistrosActivo() === 'aves'"
+              (click)="tabRegistrosActivo.set('aves')">
+              🐔 Aves
+              <span class="tab-badge" *ngIf="movimientosAvesLote().length > 0">
+                {{ movimientosAvesLote().length }}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="registros-tab"
+              [class.active]="tabRegistrosActivo() === 'lotes'"
+              (click)="tabRegistrosActivo.set('lotes')">
+              📦 Lotes
+              <span class="tab-badge" *ngIf="historialTrasladosLote().length > 0">
+                {{ historialTrasladosLote().length }}
+              </span>
+            </button>
           </div>
-          
-          <div class="form-field">
-            <label class="ux-label">Lote Destino</label>
-            <input 
-              type="text" 
-              class="ux-input" 
-              [(ngModel)]="filtros.loteDestinoId" 
-              (change)="onFiltroChange()" 
-              placeholder="Ej: L002">
+
+          <!-- Tab Panel: Huevos -->
+          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'huevos'">
+            <!-- Loading state -->
+            <div class="loading-state" *ngIf="loadingTrasladosHuevos()">
+              <div class="spinner"></div>
+              <p>Cargando registros de huevos...</p>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container" *ngIf="!loadingTrasladosHuevos()">
+              <table class="ux-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>N° Traslado</th>
+                    <th>Operación</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Total Huevos</th>
+                    <th>Detalle</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let traslado of trasladosHuevosLote()" class="ux-row">
+                    <td>{{ formatearFecha(traslado.fechaTraslado) }}</td>
+                    <td><strong>{{ traslado.numeroTraslado }}</strong></td>
+                    <td>
+                      <span class="badge" [class.badge--primary]="traslado.tipoOperacion === 'Traslado'"
+                            [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
+                        {{ traslado.tipoOperacion }}
+                      </span>
+                    </td>
+                    <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
+                    <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
+                    <td class="number-cell primary">{{ formatearNumero(traslado.totalHuevos) }}</td>
+                    <td class="text-sm">
+                      <span *ngIf="traslado.cantidadLimpio > 0">L: {{ traslado.cantidadLimpio }}</span>
+                      <span *ngIf="traslado.cantidadTratado > 0">T: {{ traslado.cantidadTratado }}</span>
+                      <span *ngIf="traslado.cantidadSucio > 0">S: {{ traslado.cantidadSucio }}</span>
+                    </td>
+                    <td>
+                      <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
+                            [class.badge--warning]="traslado.estado === 'Pendiente'"
+                            [class.badge--error]="traslado.estado === 'Cancelado'">
+                        {{ traslado.estado }}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr *ngIf="!loadingTrasladosHuevos() && trasladosHuevosLote().length === 0">
+                    <td colspan="8" class="empty-state">
+                      <div class="empty-illustration">🥚</div>
+                      <p>No hay registros de traslado de huevos para este lote.</p>
+                      <p class="text-muted text-sm">Total registros: {{ trasladosHuevosLote().length }}</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          
-          <div class="form-field">
-            <label class="ux-label">Tipo de Movimiento</label>
-            <select 
-              class="ux-select" 
-              [(ngModel)]="filtros.tipoMovimiento" 
-              (change)="onFiltroChange()">
-              <option *ngFor="let tipo of tiposMovimiento" [value]="tipo.value">
-                {{ tipo.label }}
-              </option>
-            </select>
+
+          <!-- Tab Panel: Aves -->
+          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'aves'">
+            <!-- Loading state -->
+            <div class="loading-state" *ngIf="loadingMovimientos()">
+              <div class="spinner"></div>
+              <p>Cargando registros de aves...</p>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container" *ngIf="!loadingMovimientos()">
+              <table class="ux-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>N° Traslado</th>
+                    <th>Tipo</th>
+                    <th>Operación</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Cantidad</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let movimiento of movimientosAvesLote()" class="ux-row">
+                    <td>{{ formatearFecha(movimiento.fechaTraslado) }}</td>
+                    <td><strong>{{ movimiento.numeroTraslado }}</strong></td>
+                    <td>
+                      <span class="badge badge--info">Aves</span>
+                    </td>
+                    <td>
+                      <span class="badge" [class.badge--primary]="movimiento.tipoOperacion === 'Traslado'"
+                            [class.badge--warning]="movimiento.tipoOperacion === 'Venta'"
+                            [class.badge--error]="movimiento.tipoOperacion === 'Retiro'">
+                        {{ movimiento.tipoOperacion }}
+                      </span>
+                    </td>
+                    <td>{{ movimiento.granjaOrigenNombre || '—' }}</td>
+                    <td>{{ movimiento.granjaDestinoNombre || movimiento.tipoDestino || '—' }}</td>
+                    <td class="number-cell">
+                      <span *ngIf="(movimiento.cantidadHembras ?? 0) > 0">H: {{ formatearNumero(movimiento.cantidadHembras ?? 0) }}</span>
+                      <span *ngIf="(movimiento.cantidadMachos ?? 0) > 0">M: {{ formatearNumero(movimiento.cantidadMachos ?? 0) }}</span>
+                      <span *ngIf="(movimiento.cantidadHembras ?? 0) === 0 && (movimiento.cantidadMachos ?? 0) === 0">—</span>
+                    </td>
+                    <td>
+                      <span class="badge" [class.badge--success]="movimiento.estado === 'Completado'"
+                            [class.badge--warning]="movimiento.estado === 'Pendiente'"
+                            [class.badge--error]="movimiento.estado === 'Cancelado'">
+                        {{ movimiento.estado }}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr *ngIf="!loadingMovimientos() && movimientosAvesLote().length === 0">
+                    <td colspan="8" class="empty-state">
+                      <div class="empty-illustration">🐔</div>
+                      <p>No hay registros de traslado de aves para este lote.</p>
+                      <p class="text-muted text-sm">Total registros: {{ movimientosAvesLote().length }}</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          
-          <div class="form-field">
-            <label class="ux-label">Estado</label>
-            <select 
-              class="ux-select" 
-              [(ngModel)]="filtros.estado" 
-              (change)="onFiltroChange()">
-              <option *ngFor="let estado of estados" [value]="estado.value">
-                {{ estado.label }}
-              </option>
-            </select>
-          </div>
-          
-          <div class="form-field">
-            <label class="ux-label">Fecha Desde</label>
-            <input 
-              type="date" 
-              class="ux-input" 
-              [(ngModel)]="filtros.fechaDesde" 
-              (change)="onFiltroChange()">
-          </div>
-          
-          <div class="form-field">
-            <label class="ux-label">Fecha Hasta</label>
-            <input 
-              type="date" 
-              class="ux-input" 
-              [(ngModel)]="filtros.fechaHasta" 
-              (change)="onFiltroChange()">
+
+          <!-- Tab Panel: Lotes -->
+          <div class="registros-tab-panel" *ngIf="tabRegistrosActivo() === 'lotes'">
+            <!-- Loading state -->
+            <div class="loading-state" *ngIf="loadingHistorialLotes()">
+              <div class="spinner"></div>
+              <p>Cargando registros de lotes...</p>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container" *ngIf="!loadingHistorialLotes()">
+              <table class="ux-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Lote Origen</th>
+                    <th>Lote Destino</th>
+                    <th>Granja Origen</th>
+                    <th>Granja Destino</th>
+                    <th>Usuario</th>
+                    <th>Observaciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let historial of historialTrasladosLote()" class="ux-row">
+                    <td>{{ formatearFecha(historial.fechaTraslado) }}</td>
+                    <td><strong>#{{ historial.loteOriginalId }}</strong></td>
+                    <td><strong>#{{ historial.loteNuevoId }}</strong></td>
+                    <td>{{ historial.granjaOrigenNombre || '—' }}</td>
+                    <td>{{ historial.granjaDestinoNombre || '—' }}</td>
+                    <td>{{ historial.usuarioNombre || '—' }}</td>
+                    <td class="text-sm">{{ historial.observaciones || '—' }}</td>
+                  </tr>
+                  <tr *ngIf="!loadingHistorialLotes() && historialTrasladosLote().length === 0">
+                    <td colspan="7" class="empty-state">
+                      <div class="empty-illustration">📦</div>
+                      <p>No hay registros de traslado de lotes para este lote.</p>
+                      <p class="text-muted text-sm">Total registros: {{ historialTrasladosLote().length }}</p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Lista de Movimientos -->
-    <section class="ux-card">
-      <header class="ux-card__header">
-        <h2>📊 Lista de Movimientos</h2>
-        <div class="ux-card__actions">
-          <span class="text-muted" *ngIf="totalRecords() > 0">
-            {{ totalRecords() }} movimiento(s) encontrado(s)
-          </span>
-        </div>
-      </header>
-      
-      <div class="ux-card__content">
-        <!-- Loading -->
-        <div class="loading-state" *ngIf="isLoading()">
-          <div class="spinner"></div>
-          <p>Cargando movimientos...</p>
-        </div>
-
-        <!-- Error -->
-        <div class="error-state" *ngIf="hasError()">
-          <div class="error-icon">⚠️</div>
-          <p>{{ error() }}</p>
-          <button type="button" class="btn btn--outline" (click)="cargarMovimientos()">
-            Reintentar
-          </button>
-        </div>
-
-        <!-- Tabla -->
-        <div class="table-container" *ngIf="!isLoading() && !hasError()">
-          <table class="ux-table">
-            <thead>
-              <tr>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('id')">
-                    ID
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'id'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('tipo_movimiento')">
-                    Tipo
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'tipo_movimiento'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('lote_origen_id')">
-                    Lote Origen
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'lote_origen_id'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('lote_destino_id')">
-                    Lote Destino
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'lote_destino_id'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('cantidad_hembras')">
-                    Hembras
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'cantidad_hembras'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('cantidad_machos')">
-                    Machos
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'cantidad_machos'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>Total</th>
-                <th>
-                  <button type="button" class="sort-btn" (click)="onSortChange('fecha_movimiento')">
-                    Fecha
-                    <span class="sort-icon" 
-                          [class.active]="filtros.sortBy === 'fecha_movimiento'"
-                          [class.desc]="filtros.sortDesc">↕️</span>
-                  </button>
-                </th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let movimiento of movimientos(); trackBy: trackByMovimientoId" class="ux-row">
-                <td>
-                  <span class="movimiento-id">#{{ movimiento.id }}</span>
-                </td>
-                <td>
-                  <div class="tipo-movimiento">
-                    <span class="tipo-icon">{{ getTipoMovimientoIcon(movimiento.tipoMovimiento) }}</span>
-                    <span class="tipo-text">{{ movimiento.tipoMovimiento }}</span>
-                  </div>
-                </td>
-                <td>
-                  <strong class="lote-id">{{ movimiento.loteOrigenId }}</strong>
-                </td>
-                <td>
-                  <strong class="lote-id">{{ movimiento.loteDestinoId }}</strong>
-                </td>
-                <td class="number-cell success">
-                  {{ formatearNumero(movimiento.cantidadHembras) }}
-                </td>
-                <td class="number-cell info">
-                  {{ formatearNumero(movimiento.cantidadMachos) }}
-                </td>
-                <td class="number-cell primary">
-                  <strong>{{ formatearNumero(calcularTotalAves(movimiento)) }}</strong>
-                </td>
-                <td class="date-cell">
-                  {{ formatearFecha(movimiento.fechaMovimiento) }}
-                </td>
-                <td>
-                  <div class="action-buttons">
-                    <button 
-                      type="button" 
-                      class="icon-btn icon-btn--info" 
-                      (click)="verDetalleMovimiento(movimiento.id)"
-                      title="Ver detalle">
-                      👁️
-                    </button>
-                    <button 
-                      type="button" 
-                      class="icon-btn icon-btn--success" 
-                      (click)="procesarMovimiento(movimiento.id)"
-                      [disabled]="!puedeSerProcesado(movimiento)"
-                      title="Procesar movimiento">
-                      ✅
-                    </button>
-                    <button 
-                      type="button" 
-                      class="icon-btn icon-btn--danger" 
-                      (click)="cancelarMovimiento(movimiento.id)"
-                      [disabled]="!puedeSerCancelado(movimiento)"
-                      title="Cancelar movimiento">
-                      ❌
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <!-- Empty state -->
-          <div class="empty-state" *ngIf="!hasData()">
-            <div class="empty-icon">📋</div>
-            <h3>No hay movimientos</h3>
-            <p>No se encontraron movimientos con los filtros aplicados.</p>
-            <div class="empty-actions">
-              <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
-                Limpiar filtros
-              </button>
-              <button type="button" class="btn btn--primary" (click)="navegarATraslados()">
-                Crear primer movimiento
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Paginación -->
-        <div class="pagination-container" *ngIf="totalPages() > 1">
-          <div class="pagination">
-            <button 
-              type="button" 
-              class="pagination__btn" 
-              [disabled]="currentPage() === 1"
-              (click)="onPageChange(currentPage() - 1)">
-              ← Anterior
-            </button>
-            
-            <span class="pagination__info">
-              Página {{ currentPage() }} de {{ totalPages() }}
-            </span>
-            
-            <button 
-              type="button" 
-              class="pagination__btn" 
-              [disabled]="currentPage() === totalPages()"
-              (click)="onPageChange(currentPage() + 1)">
-              Siguiente →
-            </button>
-          </div>
-        </div>
+    <!-- Mensaje cuando no hay lote seleccionado -->
+    <section class="ux-card" *ngIf="!loteSeleccionado()">
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <h3>Selecciona un Lote</h3>
+        <p>Usa los filtros de arriba para seleccionar un lote y ver sus registros de traslados.</p>
+        <p class="text-muted">Los registros se mostrarán organizados por tipo: Huevos, Aves y Lotes.</p>
       </div>
     </section>
   </div>
