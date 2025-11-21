@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpErrorResponse } from '@angular/common/http';
 import { map, tap, switchMap, catchError } from 'rxjs/operators';
 import { from, throwError, Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -134,16 +134,78 @@ export class AuthService {
       }),
       catchError(error => {
         console.error('❌ Error en el proceso de login:', error);
-        // Mejorar mensaje de error según el tipo
+        
+        // Detectar tipo de error para mensaje más específico
         let errorMessage = 'Error al procesar el login';
-        if (error.message?.includes('desencriptar')) {
+        let errorType: 'database' | 'network' | 'blocked' | 'credentials' | 'encryption' | 'unknown' = 'unknown';
+        
+        // Verificar si es un HttpErrorResponse
+        if (error.status !== undefined) {
+          const status = error.status;
+          const statusText = error.statusText || '';
+          const errorBody = error.error || {};
+          const errorMessageText = error.message || '';
+          
+          // Error de conexión a base de datos (500 con mensaje específico)
+          if (status === 500) {
+            const errorDetail = errorBody.message || errorBody.detail || errorMessageText || '';
+            if (errorDetail.toLowerCase().includes('database') || 
+                errorDetail.toLowerCase().includes('connection') ||
+                errorDetail.toLowerCase().includes('timeout') ||
+                errorDetail.toLowerCase().includes('npgsql') ||
+                errorDetail.toLowerCase().includes('postgresql') ||
+                errorDetail.toLowerCase().includes('unreachable')) {
+              errorType = 'database';
+              errorMessage = 'Error de conexión a la base de datos. El servidor no puede conectarse a la base de datos en este momento. Por favor, intenta nuevamente en unos momentos o contacta al administrador.';
+            } else {
+              errorMessage = errorDetail || 'Error interno del servidor. Por favor, intenta nuevamente.';
+            }
+          }
+          // Error de bloqueo (429 Too Many Requests)
+          else if (status === 429) {
+            errorType = 'blocked';
+            const retryAfter = error.headers?.get('Retry-After') || errorBody.retryAfter;
+            if (retryAfter) {
+              errorMessage = `Tu IP ha sido bloqueada temporalmente por exceder el límite de intentos. Intenta nuevamente en ${retryAfter} segundos.`;
+            } else {
+              errorMessage = errorBody.message || 'Tu IP ha sido bloqueada temporalmente. Intenta nuevamente más tarde.';
+            }
+          }
+          // Error de credenciales (401 Unauthorized)
+          else if (status === 401) {
+            errorType = 'credentials';
+            errorMessage = errorBody.message || 'Credenciales inválidas. Verifica tu email y contraseña.';
+          }
+          // Error de red/conexión (0, timeout, etc.)
+          else if (status === 0 || statusText.toLowerCase().includes('timeout') || errorMessageText.toLowerCase().includes('timeout')) {
+            errorType = 'network';
+            errorMessage = 'Error de conexión con el servidor. Verifica tu conexión a internet e intenta nuevamente.';
+          }
+          // Otros errores HTTP
+          else {
+            errorMessage = errorBody.message || errorMessageText || `Error ${status}: ${statusText}`;
+          }
+        }
+        // Error de desencriptación
+        else if (error.message?.includes('desencriptar') || error.message?.includes('decrypt')) {
+          errorType = 'encryption';
           errorMessage = 'Error al desencriptar la respuesta del servidor. Intenta de nuevo.';
-        } else if (error.error?.message) {
-          errorMessage = error.error.message;
-        } else if (error.message) {
+        }
+        // Error de red (sin status)
+        else if (error.message?.includes('Network') || error.message?.includes('Failed to fetch') || error.message?.includes('ERR_')) {
+          errorType = 'network';
+          errorMessage = 'Error de conexión con el servidor. Verifica tu conexión a internet e intenta nuevamente.';
+        }
+        // Otros errores
+        else if (error.message) {
           errorMessage = error.message;
         }
-        return throwError(() => new Error(errorMessage));
+        
+        // Crear error con información adicional
+        const enhancedError = new Error(errorMessage);
+        (enhancedError as any).errorType = errorType;
+        (enhancedError as any).originalError = error;
+        return throwError(() => enhancedError);
       })
     );
   }

@@ -99,6 +99,85 @@
   color: var(--brand-red);
 }
 
+/* Alertas de error globales con tipos específicos */
+.alert-error {
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+
+  .error-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  .error-message {
+    margin-top: 0.25rem;
+  }
+
+  // Error de base de datos
+  &.alert-error--database {
+    background: #fef2f2;
+    border-color: #dc2626;
+    color: #991b1b;
+
+    .error-header strong {
+      color: #dc2626;
+    }
+  }
+
+  // Error de red/conexión
+  &.alert-error--network {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1e40af;
+
+    .error-header strong {
+      color: #3b82f6;
+    }
+  }
+
+  // Error de bloqueo
+  &.alert-error--blocked {
+    background: #fff7ed;
+    border-color: #f59e0b;
+    color: #92400e;
+
+    .error-header strong {
+      color: #f59e0b;
+    }
+  }
+
+  // Error de credenciales
+  &.alert-error--credentials {
+    background: #fef3c7;
+    border-color: #fbbf24;
+    color: #78350f;
+
+    .error-header strong {
+      color: #f59e0b;
+    }
+  }
+
+  // Error de encriptación
+  &.alert-error--encryption {
+    background: #f3f4f6;
+    border-color: #6b7280;
+    color: #374151;
+
+    .error-header strong {
+      color: #6b7280;
+    }
+  }
+}
+
 /* Checkbox */
 .remember {
   display: flex;

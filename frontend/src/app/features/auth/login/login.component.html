@@ -17,9 +17,23 @@
 
 
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4" novalidate>
-      <!-- Error global -->
-      <div *ngIf="errorMsg" class="alert-error" role="alert">
-        <strong>⚠️ Error de seguridad:</strong> {{ errorMsg }}
+      <!-- Error global con tipos específicos -->
+      <div *ngIf="errorMsg" class="alert-error" [ngClass]="{
+        'alert-error--database': errorType === 'database',
+        'alert-error--network': errorType === 'network',
+        'alert-error--blocked': errorType === 'blocked',
+        'alert-error--credentials': errorType === 'credentials',
+        'alert-error--encryption': errorType === 'encryption'
+      }" role="alert">
+        <div class="error-header">
+          <strong *ngIf="errorType === 'database'">🔴 Error de Base de Datos:</strong>
+          <strong *ngIf="errorType === 'network'">🌐 Error de Conexión:</strong>
+          <strong *ngIf="errorType === 'blocked'">🚫 Acceso Bloqueado:</strong>
+          <strong *ngIf="errorType === 'credentials'">🔐 Credenciales Inválidas:</strong>
+          <strong *ngIf="errorType === 'encryption'">🔒 Error de Seguridad:</strong>
+          <strong *ngIf="!errorType || errorType === 'unknown'">⚠️ Error:</strong>
+        </div>
+        <div class="error-message">{{ errorMsg }}</div>
       </div>
 
       <!-- Email -->

@@ -21,6 +21,7 @@ export class LoginComponent implements OnInit {
   loginForm!: FormGroup;
   loading = false;
   errorMsg = '';
+  errorType: 'database' | 'network' | 'blocked' | 'credentials' | 'encryption' | 'unknown' | null = null;
   remember = true; // si quieres "Recordarme"
   today = new Date(); // para el {{ today | date:'yyyy' }}
   recaptchaEnabled = false;
@@ -69,6 +70,7 @@ export class LoginComponent implements OnInit {
     }
 
     this.errorMsg = '';
+    this.errorType = null;
     this.loading = true;
 
     console.log('🚀 Iniciando proceso de login...');
@@ -148,18 +150,78 @@ export class LoginComponent implements OnInit {
         console.error('❌ Error en login:', err);
         this.loading = false;
 
-        // Mensajes de error más descriptivos
+        // Obtener mensaje y tipo de error
         let errorMessage = 'Error al procesar el login';
+        let errorType: 'database' | 'network' | 'blocked' | 'credentials' | 'encryption' | 'unknown' = 'unknown';
 
-        if (err?.message) {
+        // Verificar si el error tiene información adicional del servicio
+        if ((err as any)?.errorType) {
+          errorType = (err as any).errorType;
+          errorMessage = err.message || errorMessage;
+        }
+        // Verificar HttpErrorResponse directamente
+        else if (err?.status !== undefined) {
+          const status = err.status;
+          const errorBody = err.error || {};
+          
+          if (status === 500) {
+            const errorDetail = errorBody.message || errorBody.detail || err.message || '';
+            if (errorDetail.toLowerCase().includes('database') || 
+                errorDetail.toLowerCase().includes('connection') ||
+                errorDetail.toLowerCase().includes('timeout') ||
+                errorDetail.toLowerCase().includes('npgsql') ||
+                errorDetail.toLowerCase().includes('postgresql') ||
+                errorDetail.toLowerCase().includes('unreachable')) {
+              errorType = 'database';
+              errorMessage = 'Error de conexión a la base de datos. El servidor no puede conectarse a la base de datos en este momento. Por favor, intenta nuevamente en unos momentos o contacta al administrador.';
+            } else {
+              errorMessage = errorDetail || 'Error interno del servidor. Por favor, intenta nuevamente.';
+            }
+          }
+          else if (status === 429) {
+            errorType = 'blocked';
+            const retryAfter = err.headers?.get('Retry-After') || errorBody.retryAfter;
+            if (retryAfter) {
+              errorMessage = `Tu IP ha sido bloqueada temporalmente por exceder el límite de intentos. Intenta nuevamente en ${retryAfter} segundos.`;
+            } else {
+              errorMessage = errorBody.message || 'Tu IP ha sido bloqueada temporalmente. Intenta nuevamente más tarde.';
+            }
+          }
+          else if (status === 401) {
+            errorType = 'credentials';
+            errorMessage = errorBody.message || 'Credenciales inválidas. Verifica tu email y contraseña.';
+          }
+          else if (status === 0 || err.message?.toLowerCase().includes('timeout')) {
+            errorType = 'network';
+            errorMessage = 'Error de conexión con el servidor. Verifica tu conexión a internet e intenta nuevamente.';
+          }
+          else {
+            errorMessage = errorBody.message || err.message || `Error ${status}`;
+          }
+        }
+        // Error de mensaje directo
+        else if (err?.message) {
           errorMessage = err.message;
-        } else if (err?.error?.message) {
+          // Intentar detectar tipo desde el mensaje
+          if (err.message.toLowerCase().includes('database') || err.message.toLowerCase().includes('connection')) {
+            errorType = 'database';
+          } else if (err.message.toLowerCase().includes('network') || err.message.toLowerCase().includes('timeout')) {
+            errorType = 'network';
+          } else if (err.message.toLowerCase().includes('bloqueada') || err.message.toLowerCase().includes('blocked')) {
+            errorType = 'blocked';
+          } else if (err.message.toLowerCase().includes('credenciales') || err.message.toLowerCase().includes('invalid')) {
+            errorType = 'credentials';
+          }
+        }
+        else if (err?.error?.message) {
           errorMessage = err.error.message;
-        } else if (typeof err === 'string') {
+        }
+        else if (typeof err === 'string') {
           errorMessage = err;
         }
 
         this.errorMsg = errorMessage || 'Credenciales inválidas o error de servidor.';
+        this.errorType = errorType;
       }
     });
   }

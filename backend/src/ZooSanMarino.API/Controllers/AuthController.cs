@@ -134,7 +134,35 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error inesperado en /api/Auth/login");
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno" });
+            
+            // Detectar errores de base de datos
+            var exceptionType = ex.GetType().Name;
+            var exceptionMessage = ex.Message?.ToLower() ?? "";
+            var innerExceptionMessage = ex.InnerException?.Message?.ToLower() ?? "";
+            
+            // Verificar si es un error de conexión a base de datos
+            bool isDatabaseError = exceptionType.Contains("Npgsql") || 
+                                   exceptionType.Contains("Postgres") ||
+                                   exceptionMessage.Contains("database") ||
+                                   exceptionMessage.Contains("connection") ||
+                                   exceptionMessage.Contains("timeout") ||
+                                   exceptionMessage.Contains("unreachable") ||
+                                   exceptionMessage.Contains("refused") ||
+                                   innerExceptionMessage.Contains("database") ||
+                                   innerExceptionMessage.Contains("connection") ||
+                                   innerExceptionMessage.Contains("timeout") ||
+                                   innerExceptionMessage.Contains("unreachable") ||
+                                   innerExceptionMessage.Contains("refused");
+            
+            if (isDatabaseError)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { 
+                    message = "Error de conexión a la base de datos. El servidor no puede conectarse a la base de datos en este momento. Por favor, intenta nuevamente en unos momentos o contacta al administrador.",
+                    detail = "Database connection error"
+                });
+            }
+            
+            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor. Por favor, intenta nuevamente." });
         }
     }
 
