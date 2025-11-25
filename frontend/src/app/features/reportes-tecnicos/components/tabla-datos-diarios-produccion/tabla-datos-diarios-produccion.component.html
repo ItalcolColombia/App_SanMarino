@@ -1,0 +1,57 @@
+<div class="ux-scroll">
+  <table class="ux-table">
+    <thead>
+      <tr>
+        <th>Día</th>
+        <th>Semana</th>
+        <th>Fecha</th>
+        <th>Mort. H</th>
+        <th>Mort. M</th>
+        <th>Selec. H</th>
+        <th>Selec. M</th>
+        <th>Ventas H</th>
+        <th>Ventas M</th>
+        <th>Trasl. H</th>
+        <th>Trasl. M</th>
+        <th>Saldo H</th>
+        <th>Saldo M</th>
+        <th>Huevos</th>
+        <th>% Postura</th>
+        <th>Kg Alim. H</th>
+        <th>Kg Alim. M</th>
+        <th>Env. Planta</th>
+        <th>% Incubable</th>
+        <th>Peso H (kg)</th>
+        <th>Peso M (kg)</th>
+        <th>Peso Huevo (g)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let dato of datos; trackBy: trackByFecha">
+        <td>{{ dato.dia }}</td>
+        <td>{{ dato.semana }}</td>
+        <td>{{ dato.fecha | date:'dd/MM/yyyy' }}</td>
+        <td class="text-right">{{ dato.mortalidadHembras }}</td>
+        <td class="text-right">{{ dato.mortalidadMachos }}</td>
+        <td class="text-right">{{ dato.seleccionHembras }}</td>
+        <td class="text-right">{{ dato.seleccionMachos }}</td>
+        <td class="text-right">{{ dato.ventasHembras }}</td>
+        <td class="text-right">{{ dato.ventasMachos }}</td>
+        <td class="text-right">{{ dato.trasladosHembras }}</td>
+        <td class="text-right">{{ dato.trasladosMachos }}</td>
+        <td class="text-right"><strong>{{ dato.saldoHembras }}</strong></td>
+        <td class="text-right"><strong>{{ dato.saldoMachos }}</strong></td>
+        <td class="text-right">{{ dato.huevosTotales }}</td>
+        <td class="text-right">{{ dato.porcentajePostura | number:'1.2-2' }}%</td>
+        <td class="text-right">{{ dato.kilosAlimentoHembras | number:'1.2-2' }}</td>
+        <td class="text-right">{{ dato.kilosAlimentoMachos | number:'1.2-2' }}</td>
+        <td class="text-right">{{ dato.huevosEnviadosPlanta }}</td>
+        <td class="text-right">{{ dato.porcentajeIncubable | number:'1.2-2' }}%</td>
+        <td class="text-right">{{ dato.pesoHembra ? (dato.pesoHembra | number:'1.2-2') : '-' }}</td>
+        <td class="text-right">{{ dato.pesoMachos ? (dato.pesoMachos | number:'1.2-2') : '-' }}</td>
+        <td class="text-right">{{ dato.pesoHuevo | number:'1.2-2' }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+

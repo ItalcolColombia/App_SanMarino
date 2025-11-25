@@ -1,0 +1,95 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.ux-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  margin: 0;
+  padding: 0;
+}
+
+.ux-table {
+  width: 100%;
+  min-width: 2500px; // Ancho mínimo para todas las columnas semanales de producción (27 columnas)
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+  background: white;
+  margin: 0;
+
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, #d32f2f 0%, #c62828 100%);
+    color: white;
+
+    th {
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 2px solid #b71c1c;
+      white-space: nowrap;
+      background: linear-gradient(180deg, #d32f2f 0%, #c62828 100%);
+      color: white;
+      min-width: 90px;
+
+      &:first-child {
+        border-top-left-radius: 0.75rem;
+        text-align: left;
+        min-width: 60px;
+      }
+
+      &:last-child {
+        border-top-right-radius: 0.75rem;
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      transition: background-color 0.12s;
+
+      &:nth-child(even) {
+        background: #fafaf9;
+      }
+
+      &:hover {
+        background: #fffbeb;
+      }
+    }
+
+    td {
+      padding: 0.7rem 0.5rem;
+      text-align: center;
+      border-bottom: 1px solid #e7e5e4;
+      white-space: nowrap;
+      font-size: 0.9rem;
+      color: #57534e;
+      min-width: 90px;
+
+      &:first-child {
+        text-align: left;
+        min-width: 60px;
+      }
+
+      &.text-right {
+        text-align: right;
+      }
+
+      strong {
+        font-weight: 700;
+        color: #111111;
+      }
+    }
+  }
+}
+

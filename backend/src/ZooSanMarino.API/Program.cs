@@ -28,6 +28,10 @@ using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 using ZooSanMarino.Infrastructure.Providers;
 using ZooSanMarino.Infrastructure.Services;
+using IReporteTecnicoService = ZooSanMarino.Application.Interfaces.IReporteTecnicoService;
+using ReporteTecnicoService = ZooSanMarino.Infrastructure.Services.ReporteTecnicoService;
+using IReporteTecnicoProduccionService = ZooSanMarino.Application.Interfaces.IReporteTecnicoProduccionService;
+using ReporteTecnicoProduccionService = ZooSanMarino.Infrastructure.Services.ReporteTecnicoProduccionService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -217,6 +221,13 @@ builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionS
 
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
+
+// Reporte Técnico Service
+builder.Services.AddScoped<IReporteTecnicoService, ReporteTecnicoService>();
+builder.Services.AddScoped<ReporteTecnicoExcelService>();
+
+// Reporte Técnico Producción Service
+builder.Services.AddScoped<IReporteTecnicoProduccionService, ReporteTecnicoProduccionService>();
 
 // Sistema de Inventario de Aves (ya registrado arriba)
 

@@ -1,0 +1,48 @@
+<div class="tabla-container">
+  <div class="table-responsive">
+    <table class="tabla-datos">
+      <thead>
+        <tr>
+          <th>SEMANA</th>
+          <th>FECHA INICIO</th>
+          <th>FECHA FIN</th>
+          <th>EDAD INICIO</th>
+          <th>EDAD FIN</th>
+          <th>AVES INICIO</th>
+          <th>AVES FIN</th>
+          <th>MORTALIDAD TOTAL</th>
+          <th>% MORTALIDAD</th>
+          <th>CONSUMO KILOS</th>
+          <th>GRAMOS/AVE</th>
+          <th>PESO PROMEDIO</th>
+          <th>UNIFORMIDAD</th>
+          <th>SELECCIÓN VENTAS</th>
+          <th>INGRESOS ALIMENTO</th>
+          <th>TRASLADOS ALIMENTO</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let dato of datos">
+          <td><strong>{{ dato.semana }}</strong></td>
+          <td>{{ formatDate(dato.fechaInicio) }}</td>
+          <td>{{ formatDate(dato.fechaFin) }}</td>
+          <td>{{ dato.edadInicioSemanas }}</td>
+          <td>{{ dato.edadFinSemanas }}</td>
+          <td>{{ dato.avesInicioSemana }}</td>
+          <td>{{ dato.avesFinSemana }}</td>
+          <td>{{ dato.mortalidadTotalSemana }}</td>
+          <td>{{ formatNumber(dato.mortalidadPorcentajeSemana) }}</td>
+          <td>{{ formatNumber(dato.consumoKilosSemana, 1) }}</td>
+          <td>{{ formatNumber(dato.consumoGramosPorAveSemana) }}</td>
+          <td>{{ formatNumber(dato.pesoPromedioSemana, 1) }}</td>
+          <td>{{ formatNumber(dato.uniformidadPromedioSemana, 1) }}</td>
+          <td>{{ dato.seleccionVentasSemana }}</td>
+          <td>{{ formatNumber(dato.ingresosAlimentoKilosSemana, 1) }}</td>
+          <td>{{ formatNumber(dato.trasladosAlimentoKilosSemana, 1) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
