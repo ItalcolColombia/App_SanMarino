@@ -247,3 +247,4 @@ docker inspect --format='{{.State.Health.Status}}' sanmarino-frontend
 **Última actualización**: $(date)
 **Versión**: 1.0
 
+
