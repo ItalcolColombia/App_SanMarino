@@ -229,6 +229,10 @@ builder.Services.AddScoped<ReporteTecnicoExcelService>();
 // Reporte Técnico Producción Service
 builder.Services.AddScoped<IReporteTecnicoProduccionService, ReporteTecnicoProduccionService>();
 
+// Reporte Contable Service
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IReporteContableService, ZooSanMarino.Infrastructure.Services.ReporteContableService>();
+builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableExcelService>();
+
 // Sistema de Inventario de Aves (ya registrado arriba)
 
 // Guía Genética Service

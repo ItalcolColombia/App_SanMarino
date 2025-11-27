@@ -1,0 +1,56 @@
+<!-- src/app/features/reporte-contable/components/tabla-resumen-semanal-contable/tabla-resumen-semanal-contable.component.html -->
+<div class="tabla-container">
+  <table class="ux-table">
+    <thead>
+      <tr>
+        <th>Semana</th>
+        <th>Período</th>
+        <th class="text-right">Alimento (kg)</th>
+        <th class="text-right">Agua (L)</th>
+        <th class="text-right">Medicamento</th>
+        <th class="text-right">Vacuna</th>
+        <th class="text-right">Otros</th>
+        <th class="text-right">Total General</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let reporteSemanal of reportesSemanales">
+        <td>{{ reporteSemanal.semanaContable }}</td>
+        <td>
+          {{ reporteSemanal.fechaInicio | date:'dd/MM' }} - 
+          {{ reporteSemanal.fechaFin | date:'dd/MM' }}
+        </td>
+        <td class="text-right">{{ reporteSemanal.consumoTotalAlimento | number:'1.2-2' }}</td>
+        <td class="text-right">{{ reporteSemanal.consumoTotalAgua | number:'1.2-2' }}</td>
+        <td class="text-right">{{ reporteSemanal.consumoTotalMedicamento | number:'1.2-2' }}</td>
+        <td class="text-right">{{ reporteSemanal.consumoTotalVacuna | number:'1.2-2' }}</td>
+        <td class="text-right">{{ reporteSemanal.otrosConsumos | number:'1.2-2' }}</td>
+        <td class="text-right font-bold">
+          {{ reporteSemanal.totalGeneral | number:'1.2-2' }}
+        </td>
+      </tr>
+      <tr class="total-row" *ngIf="reportesSemanales.length > 0">
+        <td colspan="2"><strong>TOTAL GENERAL</strong></td>
+        <td class="text-right">
+          <strong>{{ getTotalAlimento() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getTotalAgua() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getTotalMedicamento() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getTotalVacuna() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getTotalOtros() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getTotalGeneral() | number:'1.2-2' }}</strong>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+

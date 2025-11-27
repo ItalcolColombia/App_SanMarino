@@ -1,0 +1,68 @@
+// src/app/features/reporte-contable/components/tabla-resumen-semanal-contable/tabla-resumen-semanal-contable.component.scss
+:host {
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --warm-25: #fdfdfc;
+  --warm-50: #fafaf9;
+  --warm-200: #e7e5e4;
+  --text: #111111;
+  --text-sub: #222222;
+  --fs-sm: .85rem;
+}
+
+.tabla-container {
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+}
+
+.ux-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+
+  thead {
+    background-color: var(--warm-50);
+    border-bottom: 2px solid var(--warm-200);
+  }
+
+  th {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    border-bottom: 2px solid var(--warm-200);
+  }
+
+  td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--warm-200);
+    color: var(--text-sub);
+  }
+
+  tbody tr:hover {
+    background-color: var(--warm-25);
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .font-bold {
+    font-weight: 700;
+    color: var(--text);
+  }
+}
+
+.total-row {
+  background-color: #d1fae5 !important;
+  border-top: 2px solid #10b981;
+
+  td {
+    padding: var(--space-4) var(--space-4);
+    font-weight: 700;
+    color: #065f46;
+  }
+}
+

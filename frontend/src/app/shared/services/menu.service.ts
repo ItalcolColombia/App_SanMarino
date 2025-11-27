@@ -5,7 +5,7 @@ import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
-  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse
+  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign
 } from '@fortawesome/free-solid-svg-icons';
 import { environment } from '../../../environments/environment';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
@@ -45,7 +45,8 @@ const ICON_MAP: Record<string, IconDefinition> = {
   'map-marker-alt': faMapMarkerAlt,
   'city':           faCity,
   'boxes-alt':      faBoxesAlt,
-  'warehouse':      faWarehouse
+  'warehouse':      faWarehouse,
+  'dollar-sign':    faDollarSign
 };
 
 function toLinkArray(route?: string | null): string[] | undefined {
