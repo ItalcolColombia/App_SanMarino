@@ -37,10 +37,15 @@ public class Lote : AuditableEntity
     public int?      EdadInicial        { get; set; }
     public string?   LoteErp            { get; set; } // ← NUEVO: Código ERP del lote
     public string?   EstadoTraslado     { get; set; } // ← Estados: null/"normal", "trasladado", "en_transferencia"
+    public int?      LotePadreId         { get; set; } // ← NUEVO: ID del lote padre (para consolidación)
 
     public Farm    Farm   { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }
     public Galpon? Galpon { get; set; }
+
+    // Relación self-referencial para lote padre
+    public Lote? LotePadre { get; set; }
+    public List<Lote> LotesHijos { get; set; } = new();
 
     public List<LoteReproductora> Reproductoras { get; set; } = new();
 }

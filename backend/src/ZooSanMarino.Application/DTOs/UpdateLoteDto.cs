@@ -31,4 +31,5 @@ public class UpdateLoteDto
     public string? LoteErp { get; set; }
     public string? LineaGenetica { get; set; }
     public int?    EdadInicial { get; set; }
+    public int?    LotePadreId { get; set; } // ← NUEVO: ID del lote padre
 }
