@@ -52,17 +52,24 @@ public class ReporteTecnicoController : ControllerBase
 
     /// <summary>
     /// Genera reporte técnico diario consolidado para un lote (todos los sublotes)
+    /// Soporta consolidación por lote padre (loteId) o por nombre base (loteNombre)
     /// </summary>
     [HttpGet("diario/consolidado")]
     public async Task<ActionResult<ReporteTecnicoCompletoDto>> GetReporteDiarioConsolidado(
-        [FromQuery] string loteNombre,
+        [FromQuery] string? loteNombre = null,
+        [FromQuery] int? loteId = null,
         [FromQuery] DateTime? fechaInicio = null,
         [FromQuery] DateTime? fechaFin = null,
         CancellationToken ct = default)
     {
         try
         {
-            var reporte = await _service.GenerarReporteDiarioConsolidadoAsync(loteNombre, fechaInicio, fechaFin, ct);
+            var reporte = await _service.GenerarReporteDiarioConsolidadoAsync(
+                loteNombre ?? string.Empty, 
+                fechaInicio, 
+                fechaFin, 
+                loteId, 
+                ct);
             return Ok(reporte);
         }
         catch (InvalidOperationException ex)
@@ -71,7 +78,7 @@ public class ReporteTecnicoController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al generar reporte diario consolidado para lote {LoteNombre}", loteNombre);
+            _logger.LogError(ex, "Error al generar reporte diario consolidado para lote {LoteNombre} o {LoteId}", loteNombre, loteId);
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }
@@ -104,16 +111,22 @@ public class ReporteTecnicoController : ControllerBase
     /// <summary>
     /// Genera reporte técnico semanal consolidado para un lote
     /// Solo consolida semanas completas (7 días) de todos los sublotes
+    /// Soporta consolidación por lote padre (loteId) o por nombre base (loteNombre)
     /// </summary>
     [HttpGet("semanal/consolidado")]
     public async Task<ActionResult<ReporteTecnicoCompletoDto>> GetReporteSemanalConsolidado(
-        [FromQuery] string loteNombre,
+        [FromQuery] string? loteNombre = null,
+        [FromQuery] int? loteId = null,
         [FromQuery] int? semana = null,
         CancellationToken ct = default)
     {
         try
         {
-            var reporte = await _service.GenerarReporteSemanalConsolidadoAsync(loteNombre, semana, ct);
+            var reporte = await _service.GenerarReporteSemanalConsolidadoAsync(
+                loteNombre ?? string.Empty, 
+                semana, 
+                loteId, 
+                ct);
             return Ok(reporte);
         }
         catch (InvalidOperationException ex)
@@ -122,7 +135,7 @@ public class ReporteTecnicoController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al generar reporte semanal consolidado para lote {LoteNombre}", loteNombre);
+            _logger.LogError(ex, "Error al generar reporte semanal consolidado para lote {LoteNombre} o {LoteId}", loteNombre, loteId);
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }
@@ -157,20 +170,22 @@ public class ReporteTecnicoController : ControllerBase
 
     /// <summary>
     /// Obtiene lista de sublotes disponibles para un lote base
+    /// Soporta búsqueda por loteId (nueva lógica de lote padre) o por loteNombre (compatibilidad)
     /// </summary>
     [HttpGet("sublotes")]
     public async Task<ActionResult<List<string>>> GetSublotes(
-        [FromQuery] string loteNombre,
+        [FromQuery] string? loteNombre = null,
+        [FromQuery] int? loteId = null,
         CancellationToken ct = default)
     {
         try
         {
-            var sublotes = await _service.ObtenerSublotesAsync(loteNombre, ct);
+            var sublotes = await _service.ObtenerSublotesAsync(loteNombre ?? string.Empty, loteId, ct);
             return Ok(sublotes);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener sublotes para lote {LoteNombre}", loteNombre);
+            _logger.LogError(ex, "Error al obtener sublotes para lote {LoteNombre} o {LoteId}", loteNombre, loteId);
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }

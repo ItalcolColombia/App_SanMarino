@@ -78,17 +78,63 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         GenerarReporteTecnicoProduccionRequestDto request,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.LoteNombreBase))
-            throw new ArgumentException("LoteNombreBase es requerido para reporte consolidado");
-
-        // Buscar todos los sublotes del lote base
-        var sublotes = await _ctx.Lotes
-            .AsNoTracking()
-            .Where(l => l.LoteNombre.StartsWith(request.LoteNombreBase) &&
-                       l.CompanyId == _currentUser.CompanyId &&
-                       l.DeletedAt == null)
-            .OrderBy(l => l.LoteNombre)
-            .ToListAsync(ct);
+        List<Lote> sublotes;
+        
+        // Si se proporciona loteId, usar lógica de lote padre
+        if (request.LoteId.HasValue)
+        {
+            var loteSeleccionado = await _ctx.Lotes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == request.LoteId.Value && 
+                                         l.CompanyId == _currentUser.CompanyId &&
+                                         l.DeletedAt == null, ct);
+            
+            if (loteSeleccionado == null)
+                throw new InvalidOperationException($"Lote con ID {request.LoteId.Value} no encontrado");
+            
+            // Si el lote seleccionado es un lote padre, traer todos sus hijos
+            if (loteSeleccionado.LotePadreId == null)
+            {
+                // Es un lote padre, traer todos los lotes que tienen este como padre
+                sublotes = await _ctx.Lotes
+                    .AsNoTracking()
+                    .Where(l => l.LotePadreId == request.LoteId.Value &&
+                               l.CompanyId == _currentUser.CompanyId &&
+                               l.DeletedAt == null)
+                    .OrderBy(l => l.LoteNombre)
+                    .ToListAsync(ct);
+                
+                // Incluir también el lote padre
+                sublotes.Insert(0, loteSeleccionado);
+            }
+            else
+            {
+                // Es un lote hijo, traer el padre y todos sus hermanos (incluyendo el seleccionado)
+                var padreId = loteSeleccionado.LotePadreId.Value;
+                sublotes = await _ctx.Lotes
+                    .AsNoTracking()
+                    .Where(l => (l.LotePadreId == padreId || l.LoteId == padreId) &&
+                               l.CompanyId == _currentUser.CompanyId &&
+                               l.DeletedAt == null)
+                    .OrderBy(l => l.LoteNombre)
+                    .ToListAsync(ct);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(request.LoteNombreBase))
+        {
+            // Lógica antigua: buscar por nombre base (compatibilidad hacia atrás)
+            sublotes = await _ctx.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteNombre.StartsWith(request.LoteNombreBase) &&
+                           l.CompanyId == _currentUser.CompanyId &&
+                           l.DeletedAt == null)
+                .OrderBy(l => l.LoteNombre)
+                .ToListAsync(ct);
+        }
+        else
+        {
+            throw new ArgumentException("LoteId o LoteNombreBase es requerido para reporte consolidado");
+        }
 
         if (!sublotes.Any())
             throw new InvalidOperationException($"No se encontraron sublotes para el lote {request.LoteNombreBase}");
@@ -105,7 +151,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 .FirstOrDefaultAsync(p => p.LoteId == sublote.LoteId.ToString(), ct);
 
             var datosSublote = await ObtenerDatosDiariosAsync(
-                sublote.LoteId.ToString(),
+                sublote.LoteId?.ToString() ?? string.Empty,
                 produccionLote?.FechaInicio ?? sublote.FechaEncaset ?? DateTime.Today,
                 request.FechaInicio,
                 request.FechaFin,

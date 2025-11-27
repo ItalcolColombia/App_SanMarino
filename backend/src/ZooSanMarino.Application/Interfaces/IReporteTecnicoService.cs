@@ -21,9 +21,10 @@ public interface IReporteTecnicoService
     /// Genera reporte técnico diario consolidado para un lote (todos los sublotes)
     /// </summary>
     Task<ReporteTecnicoCompletoDto> GenerarReporteDiarioConsolidadoAsync(
-        string loteNombreBase, // Ej: "K326" sin el sublote
+        string loteNombreBase, // Ej: "K326" sin el sublote (compatibilidad hacia atrás)
         DateTime? fechaInicio = null, 
         DateTime? fechaFin = null,
+        int? loteId = null, // Si se proporciona, usa lógica de lote padre
         CancellationToken ct = default);
 
     /// <summary>
@@ -39,8 +40,9 @@ public interface IReporteTecnicoService
     /// Solo consolida semanas completas (7 días) de todos los sublotes
     /// </summary>
     Task<ReporteTecnicoCompletoDto> GenerarReporteSemanalConsolidadoAsync(
-        string loteNombreBase,
+        string loteNombreBase, // Compatibilidad hacia atrás
         int? semana = null,
+        int? loteId = null, // Si se proporciona, usa lógica de lote padre
         CancellationToken ct = default);
 
     /// <summary>
@@ -53,7 +55,7 @@ public interface IReporteTecnicoService
     /// <summary>
     /// Obtiene lista de sublotes disponibles para un lote base
     /// </summary>
-    Task<List<string>> ObtenerSublotesAsync(string loteNombreBase, CancellationToken ct = default);
+    Task<List<string>> ObtenerSublotesAsync(string loteNombreBase, int? loteId = null, CancellationToken ct = default);
 }
 
 
