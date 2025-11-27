@@ -269,7 +269,8 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   puedeGenerarReporte(): boolean {
     if (this.tabActivo === 'produccion') {
       if (this.tipoConsolidacion === 'consolidado') {
-        if (!this.loteNombreBase.trim()) return false;
+        // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
+        if (!this.selectedLoteId && !this.loteNombreBase.trim()) return false;
       } else {
         if (!this.selectedLoteId) return false;
       }
@@ -277,7 +278,8 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
       return true;
     } else {
       if (!this.selectedLoteId) return false;
-      if (this.tipoConsolidacion === 'consolidado' && !this.loteNombreBase.trim()) return false;
+      // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
+      if (this.tipoConsolidacion === 'consolidado' && !this.selectedLoteId && !this.loteNombreBase.trim()) return false;
       if (this.tipoReporte === 'diario' && (!this.fechaInicio || !this.fechaFin)) return false;
       return true;
     }
@@ -305,7 +307,13 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     };
 
     if (this.tipoConsolidacion === 'consolidado') {
-      request.loteNombre = this.loteNombreBase;
+      // Para consolidado, usar loteId si está disponible (nueva lógica de lote padre)
+      // o loteNombre como fallback (compatibilidad hacia atrás)
+      if (this.selectedLoteId) {
+        request.loteId = this.selectedLoteId;
+      } else {
+        request.loteNombre = this.loteNombreBase;
+      }
     } else {
       if (!this.selectedLoteId) {
         this.error = 'Debe seleccionar un lote';
@@ -347,7 +355,13 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     };
 
     if (this.tipoConsolidacion === 'consolidado') {
-      request.loteNombreBase = this.loteNombreBase;
+      // Para consolidado, usar loteId si está disponible (nueva lógica de lote padre)
+      // o loteNombreBase como fallback (compatibilidad hacia atrás)
+      if (this.selectedLoteId) {
+        request.loteId = this.selectedLoteId;
+      } else {
+        request.loteNombreBase = this.loteNombreBase;
+      }
     } else {
       if (!this.selectedLoteId) {
         this.error = 'Debe seleccionar un lote';
@@ -408,7 +422,13 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     };
 
     if (this.tipoConsolidacion === 'consolidado') {
-      request.loteNombre = this.loteNombreBase;
+      // Para consolidado, usar loteId si está disponible (nueva lógica de lote padre)
+      // o loteNombre como fallback (compatibilidad hacia atrás)
+      if (this.selectedLoteId) {
+        request.loteId = this.selectedLoteId;
+      } else {
+        request.loteNombre = this.loteNombreBase;
+      }
     } else {
       if (this.selectedLoteId) {
         request.loteId = this.selectedLoteId;
@@ -463,8 +483,9 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   private validarFiltros(): boolean {
     if (this.tipoConsolidacion === 'consolidado') {
-      if (!this.loteNombreBase.trim()) {
-        this.error = 'Debe ingresar el nombre del lote base';
+      // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
+      if (!this.selectedLoteId && !this.loteNombreBase.trim()) {
+        this.error = 'Debe seleccionar un lote o ingresar el nombre del lote base';
         return false;
       }
     } else {
