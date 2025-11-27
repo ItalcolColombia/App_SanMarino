@@ -1,0 +1,186 @@
+<!-- src/app/features/reporte-contable/pages/reporte-contable-main/reporte-contable-main.component.html -->
+<div class="ux-page" [attr.aria-busy]="loading() ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>Reporte Contable</h1>
+        <p class="ux-header__subtitle">
+          Elaborado por: Líder Técnico | Enviado a: Contabilidad | Frecuencia: Semanal
+        </p>
+
+        <div class="ux-header__meta">
+          <ng-template #noGranjaChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Selecciona una granja
+            </span>
+          </ng-template>
+
+          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">
+            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedGalponId">
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+
+          <span class="chip chip--info" *ngIf="selectedLoteId">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote Padre: {{ selectedLoteNombre }}
+          </span>
+
+          <span class="chip chip--success" *ngIf="semanaContable">
+            Semana Contable: {{ semanaContable }}
+          </span>
+        </div>
+      </div>
+
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="generarReporte()"
+          [disabled]="loading() || !puedeGenerarReporte()"
+          [title]="!puedeGenerarReporte() ? 'Selecciona un lote padre para generar el reporte' : 'Generar reporte contable'">
+          <fa-icon *ngIf="loading()" [icon]="faSpinner" class="spinning"></fa-icon>
+          <fa-icon *ngIf="!loading()" [icon]="faSearch"></fa-icon>
+          Generar Reporte
+        </button>
+
+        <button
+          type="button"
+          class="btn btn--outline"
+          (click)="exportarExcel()"
+          [disabled]="loading() || !reporte()"
+          [title]="!reporte() ? 'Primero genera un reporte' : 'Exportar a Excel'">
+          <fa-icon [icon]="faFileExcel"></fa-icon>
+          Exportar Excel
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros de selección -->
+    <app-filtro-select
+      [selectedGranjaId]="selectedGranjaId"
+      [selectedNucleoId]="selectedNucleoId"
+      [selectedGalponId]="selectedGalponId"
+      [selectedLoteId]="selectedLoteId"
+      [soloLotesPadres]="true"
+      (granjaChange)="onGranjaChange($event)"
+      (nucleoChange)="onNucleoChange($event)"
+      (galponChange)="onGalponChange($event)"
+      (loteChange)="onLoteChange($event)">
+    </app-filtro-select>
+
+    <!-- Filtros de Reporte -->
+    <section class="ux-card" *ngIf="selectedLoteId">
+      <h3 class="sr-only">Configuración del Reporte Contable</h3>
+      
+      <div class="ux-form">
+        <div class="grid grid-2">
+          <!-- Selector de Semana Contable -->
+          <div class="form-field">
+            <label class="ux-label">Semana Contable</label>
+            <div class="ux-select">
+              <select 
+                class="ux-input"
+                [(ngModel)]="semanaContable"
+                (change)="limpiarReporte()">
+                <option [ngValue]="null">Todas las semanas</option>
+                <option *ngFor="let semana of semanasContablesDisponibles" [ngValue]="semana">
+                  Semana {{ semana }}
+                </option>
+              </select>
+            </div>
+            <small class="ux-hint">
+              La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario
+            </small>
+          </div>
+
+          <!-- Información del Lote Padre -->
+          <div class="form-field" *ngIf="selectedLote">
+            <label class="ux-label">Información del Lote Padre</label>
+            <div class="info-display">
+              <p><strong>Lote:</strong> {{ selectedLote.loteNombre }}</p>
+              <p *ngIf="selectedLote.fechaEncaset">
+                <strong>Fecha Encaset:</strong> {{ formatDate(selectedLote.fechaEncaset) }}
+              </p>
+              <p *ngIf="selectedLote.raza">
+                <strong>Raza:</strong> {{ selectedLote.raza }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mensaje de Error -->
+    <div class="ux-card" *ngIf="error" role="alert">
+      <div class="alert alert-danger">
+        <strong>Error:</strong> {{ error }}
+      </div>
+    </div>
+
+    <!-- Reporte Generado -->
+    <section class="ux-card" *ngIf="reporte()">
+      <div class="reporte-header">
+        <div class="reporte-info">
+          <h2>
+            Informe Contable {{ reporte()!.lotePadreNombre }}
+            <span class="chip chip--warning" *ngIf="semanaContable">
+              Semana {{ semanaContable }}
+            </span>
+          </h2>
+          <div class="reporte-metadata">
+            <span><strong>Granja:</strong> {{ reporte()!.granjaNombre }}</span>
+            <span *ngIf="reporte()!.nucleoNombre"><strong>Núcleo:</strong> {{ reporte()!.nucleoNombre }}</span>
+            <span><strong>Fecha Primera Llegada:</strong> {{ formatDate(reporte()!.fechaPrimeraLlegada) }}</span>
+            <span><strong>Semana Contable Actual:</strong> {{ reporte()!.semanaContableActual }}</span>
+            <span><strong>Período Actual:</strong> {{ formatDate(reporte()!.fechaInicioSemanaActual) }} - {{ formatDate(reporte()!.fechaFinSemanaActual) }}</span>
+            <span *ngIf="reporte()!.reportesSemanales.length > 0 && reporte()!.reportesSemanales[0].sublotes.length > 0">
+              <strong>Sublotes:</strong> {{ reporte()!.reportesSemanales[0].sublotes.join(', ') }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumen Semanal -->
+      <div class="datos-section" *ngIf="reporte()!.reportesSemanales.length > 0">
+        <h3>Resumen Semanal de Consumos</h3>
+        <app-tabla-resumen-semanal-contable [reportesSemanales]="reporte()!.reportesSemanales"></app-tabla-resumen-semanal-contable>
+      </div>
+
+      <!-- Detalle Diario por Semana -->
+      <div class="datos-section" *ngFor="let reporteSemanal of reporte()!.reportesSemanales">
+        <h3>Detalle Diario - Semana {{ reporteSemanal.semanaContable }}</h3>
+        <p class="periodo-info">
+          Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
+        </p>
+        <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
+      </div>
+
+      <!-- Mensaje si no hay datos -->
+      <div class="empty-state" *ngIf="reporte()!.reportesSemanales.length === 0">
+        <p>No se encontraron datos para el período seleccionado.</p>
+      </div>
+    </section>
+
+    <!-- Mensaje cuando no hay reporte -->
+    <div *ngIf="!reporte() && !loading() && selectedLoteId" class="ux-card ux-card--empty">
+      <div class="empty-state">
+        <fa-icon [icon]="faFileAlt" class="empty-icon"></fa-icon>
+        <p>Selecciona un lote padre y genera el reporte contable</p>
+        <p class="empty-hint">
+          El reporte contable se genera solo para lotes padres y consolida todos sus sublotes
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
