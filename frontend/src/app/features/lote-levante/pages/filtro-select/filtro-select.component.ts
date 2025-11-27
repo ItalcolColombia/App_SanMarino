@@ -23,6 +23,8 @@ export class FiltroSelectComponent implements OnInit {
   @Input() selectedNucleoId: string | null = null;
   @Input() selectedGalponId: string | null = null;
   @Input() selectedLoteId: number | null = null;
+  @Input() soloLotesPadres: boolean = false; // Si es true, solo muestra lotes sin padre
+  @Input() excluirLoteId: number | null = null; // Lote a excluir de la lista (para edición)
 
   // ================== outputs ==================
   @Output() granjaChange = new EventEmitter<number | null>();
@@ -121,6 +123,16 @@ export class FiltroSelectComponent implements OnInit {
     if (this.selectedNucleoId) {
       const nid = String(this.selectedNucleoId);
       filtered = filtered.filter(l => String(l.nucleoId) === nid);
+    }
+
+    // Filtrar solo lotes padres si está habilitado
+    if (this.soloLotesPadres) {
+      filtered = filtered.filter(l => !l.lotePadreId);
+    }
+
+    // Excluir lote específico si está configurado
+    if (this.excluirLoteId) {
+      filtered = filtered.filter(l => l.loteId !== this.excluirLoteId);
     }
 
     this.hasSinGalpon = filtered.some(l => !this.hasValue(l.galponId));

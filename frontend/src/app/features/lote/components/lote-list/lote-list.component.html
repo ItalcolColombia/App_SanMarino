@@ -283,6 +283,53 @@
                      [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
             </div>
 
+            <!-- Es Sublote - Checkbox -->
+            <div class="md:col-span-2 lg:col-span-3" style="grid-column: 1 / -1; margin: 12px 0;">
+              <div style="padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb;">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;">
+                  <input formControlName="esLotePadre" 
+                         type="checkbox" 
+                         id="esSubloteCheckbox"
+                         style="width: 18px; height: 18px; cursor: pointer; accent-color: #3b82f6;"
+                         [checked]="form.get('esLotePadre')?.value || false"
+                         (change)="esLotePadre = $event.target.checked; form.patchValue({ esLotePadre: $event.target.checked })">
+                  <span style="font-size: 14px; font-weight: 500; color: #374151;">
+                    Este lote es un sublote (tiene un lote padre)
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Filtros y Selección de Lote Padre (solo si ES sublote) -->
+            <div *ngIf="esLotePadre" class="md:col-span-2 lg:col-span-3" style="grid-column: 1 / -1; margin-top: 8px;">
+              <div style="padding: 16px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #ffffff;">
+                <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #111827;">
+                  Seleccionar Lote Padre <span style="color: #ef4444;">*</span>
+                </h4>
+                
+                <!-- Componente de filtro en cascada -->
+                <app-filtro-select
+                  [selectedGranjaId]="selectedGranjaPadreId"
+                  [selectedNucleoId]="selectedNucleoPadreId"
+                  [selectedGalponId]="selectedGalponPadreId"
+                  [selectedLoteId]="form.get('lotePadreId')?.value"
+                  [soloLotesPadres]="true"
+                  [excluirLoteId]="editing?.loteId || null"
+                  (granjaChange)="onGranjaPadreChange($event)"
+                  (nucleoChange)="onNucleoPadreChange($event)"
+                  (galponChange)="onGalponPadreChange($event)"
+                  (loteChange)="form.patchValue({ lotePadreId: $event })">
+                </app-filtro-select>
+                
+                <div *ngIf="loadingLotesPadres" style="margin-top: 8px; font-size: 12px; color: #6b7280;">
+                  <span>⏳</span> Cargando lotes padres disponibles...
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: #6b7280; line-height: 1.5;">
+                  Use los filtros en cascada (Granja → Núcleo → Galpón → Lote) para seleccionar el lote padre.
+                </div>
+              </div>
+            </div>
+
             <!-- Lote ERP -->
             <div>
               <label class="ux-label">🗃️ Lote ERP</label>
