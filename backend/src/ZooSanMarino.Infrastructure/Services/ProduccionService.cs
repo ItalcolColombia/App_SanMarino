@@ -404,6 +404,7 @@ public class ProduccionService : IProduccionService
             l.EdadInicial,
             l.LoteErp,
             l.EstadoTraslado,
+            l.LotePadreId,  // ← NUEVO: ID del lote padre
             l.CompanyId,
             l.CreatedByUserId,
             l.CreatedAt,
