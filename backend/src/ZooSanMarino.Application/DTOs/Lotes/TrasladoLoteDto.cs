@@ -54,3 +54,4 @@ public class TrasladoLoteResponseDto
     public string? GranjaDestino { get; set; }
 }
 
+
