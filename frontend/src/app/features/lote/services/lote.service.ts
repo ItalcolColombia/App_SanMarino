@@ -87,6 +87,9 @@ export interface LoteDto {
 
   // Estado de traslado
   estadoTraslado?: string | null; // "normal", "trasladado", "en_transferencia"
+  
+  // Lote padre
+  lotePadreId?: number | null; // ID del lote padre
 }
 
 

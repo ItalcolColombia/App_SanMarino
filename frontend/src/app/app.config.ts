@@ -200,6 +200,13 @@ export const appConfig: ApplicationConfig = {
 
       // Módulo de Traslados de Aves (lazy)
       {
+        path: 'reportes-tecnicos',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/reportes-tecnicos/reportes-tecnicos.module')
+            .then(m => m.ReportesTecnicosModule)
+      },
+      {
         path: 'traslados-aves',
         canActivate: [authGuard],
         children: [

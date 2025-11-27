@@ -1,0 +1,65 @@
+<div class="ux-scroll">
+  <table class="ux-table">
+    <thead>
+      <tr>
+        <th>Semana</th>
+        <th>Fecha Inicio</th>
+        <th>Fecha Fin</th>
+        <th>Edad Inicio</th>
+        <th>Edad Fin</th>
+        <th>Mort. H Sem.</th>
+        <th>Mort. M Sem.</th>
+        <th>Selec. H Sem.</th>
+        <th>Selec. M Sem.</th>
+        <th>Ventas H Sem.</th>
+        <th>Ventas M Sem.</th>
+        <th>Trasl. H Sem.</th>
+        <th>Trasl. M Sem.</th>
+        <th>Saldo Inicio H</th>
+        <th>Saldo Fin H</th>
+        <th>Saldo Inicio M</th>
+        <th>Saldo Fin M</th>
+        <th>Huevos Sem.</th>
+        <th>% Postura Prom.</th>
+        <th>Kg Alim. H Sem.</th>
+        <th>Kg Alim. M Sem.</th>
+        <th>Env. Planta Sem.</th>
+        <th>% Incubable Prom.</th>
+        <th>Peso H Prom. (kg)</th>
+        <th>Peso M Prom. (kg)</th>
+        <th>Peso Huevo Prom. (g)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let dato of datos; trackBy: trackBySemana">
+        <td><strong>{{ dato.semana }}</strong></td>
+        <td>{{ dato.fechaInicioSemana | date:'dd/MM/yyyy' }}</td>
+        <td>{{ dato.fechaFinSemana | date:'dd/MM/yyyy' }}</td>
+        <td>{{ dato.edadInicioSemanas }} sem</td>
+        <td>{{ dato.edadFinSemanas }} sem</td>
+        <td class="text-right">{{ dato.mortalidadHembrasSemanal }}</td>
+        <td class="text-right">{{ dato.mortalidadMachosSemanal }}</td>
+        <td class="text-right">{{ dato.seleccionHembrasSemanal }}</td>
+        <td class="text-right">{{ dato.seleccionMachosSemanal }}</td>
+        <td class="text-right">{{ dato.ventasHembrasSemanal }}</td>
+        <td class="text-right">{{ dato.ventasMachosSemanal }}</td>
+        <td class="text-right">{{ dato.trasladosHembrasSemanal }}</td>
+        <td class="text-right">{{ dato.trasladosMachosSemanal }}</td>
+        <td class="text-right">{{ dato.saldoInicioHembras }}</td>
+        <td class="text-right"><strong>{{ dato.saldoFinHembras }}</strong></td>
+        <td class="text-right">{{ dato.saldoInicioMachos }}</td>
+        <td class="text-right"><strong>{{ dato.saldoFinMachos }}</strong></td>
+        <td class="text-right">{{ dato.huevosTotalesSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajePosturaPromedio | number:'1.2-2' }}%</td>
+        <td class="text-right">{{ dato.kilosAlimentoHembrasSemanal | number:'1.2-2' }}</td>
+        <td class="text-right">{{ dato.kilosAlimentoMachosSemanal | number:'1.2-2' }}</td>
+        <td class="text-right">{{ dato.huevosEnviadosPlantaSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeIncubablePromedio | number:'1.2-2' }}%</td>
+        <td class="text-right">{{ dato.pesoHembraPromedio ? (dato.pesoHembraPromedio | number:'1.2-2') : '-' }}</td>
+        <td class="text-right">{{ dato.pesoMachosPromedio ? (dato.pesoMachosPromedio | number:'1.2-2') : '-' }}</td>
+        <td class="text-right">{{ dato.pesoHuevoPromedio | number:'1.2-2' }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+

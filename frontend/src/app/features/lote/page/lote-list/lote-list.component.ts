@@ -208,10 +208,19 @@ export class LoteListComponent implements OnInit, OnDestroy {
   }
 
   onCreateNew(): void {
+    console.log('🆕 ========================================');
+    console.log('🆕 CREAR NUEVO LOTE - Botón presionado');
+    console.log('🆕 Abriendo modal...');
+    console.log('🆕 ========================================');
     this.openModal();
   }
 
   private openModal(lote?: LoteDto): void {
+    console.log('📂 ========================================');
+    console.log('📂 ABRIENDO MODAL CREATE EDIT LOTE');
+    console.log('📂 editingLote:', lote);
+    console.log('📂 modalOpen será:', true);
+    console.log('📂 ========================================');
     this.editingLote = lote || null;
     this.modalOpen = true;
   }

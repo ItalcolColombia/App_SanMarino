@@ -43,6 +43,7 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
         b.Property(x => x.AvesEncasetadas).HasColumnName("aves_encasetadas");
         b.Property(x => x.EdadInicial).HasColumnName("edad_inicial");
         b.Property(x => x.EstadoTraslado).HasColumnName("estado_traslado").HasMaxLength(50);
+        b.Property(x => x.LotePadreId).HasColumnName("lote_padre_id");
 
         // Relaciones
         b.HasMany(x => x.Reproductoras)
@@ -83,5 +84,13 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
          .WithMany(f => f.Lotes)
          .HasForeignKey(x => x.GranjaId)
          .OnDelete(DeleteBehavior.Restrict);
+
+        // Relación self-referencial para lote padre
+        b.HasOne(x => x.LotePadre)
+         .WithMany(x => x.LotesHijos)
+         .HasForeignKey(x => x.LotePadreId)
+         .OnDelete(DeleteBehavior.Restrict);
+
+        b.HasIndex(x => x.LotePadreId).HasDatabaseName("ix_lote_padre");
     }
 }

@@ -82,3 +82,4 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
 
 
 
+

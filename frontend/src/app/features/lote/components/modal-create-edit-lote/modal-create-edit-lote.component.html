@@ -1,14 +1,80 @@
 <!-- src/app/features/lote/components/modal-create-edit-lote/modal-create-edit-lote.component.html -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-modal-title">
+<!-- ✅ ESTE ES EL MODAL QUE ESTAMOS MODIFICANDO - MODAL-CREATE-EDIT-LOTE-V2 -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-modal-title" style="z-index: 9999;">
   <div class="ux-modal__panel ux-modal__panel--wide">
-    <div class="ux-modal__header">
-      <h2 id="lote-modal-title" class="ux-title">
-        {{ modalTitle }}
+    <div class="ux-modal__header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 20px; border-bottom: 3px solid #1e40af;">
+      <h2 id="lote-modal-title" class="ux-title" style="color: white; font-size: 24px; font-weight: 900;">
+        {{ modalTitle }} - ✅ MODAL V2 ACTIVO
       </h2>
-      <button (click)="closeModal()" type="button" class="btn-muted">Cerrar</button>
+      <button (click)="closeModal()" type="button" class="btn-muted" style="background: white; color: #2563eb; font-weight: bold;">Cerrar</button>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
+      
+      <!-- CAMPO DE PRUEBA - PARA VERIFICAR QUE LOS CAMBIOS SE APLICAN -->
+      <div style="padding: 25px; border: 5px solid #ef4444; border-radius: 15px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);">
+        <label style="display: block; font-size: 24px; font-weight: 900; color: #991b1b; margin-bottom: 15px; text-transform: uppercase;">
+          🧪 CAMPO DE PRUEBA - TEST FIELD
+        </label>
+        <input formControlName="campoPrueba" 
+               type="text" 
+               placeholder="Escribe algo aquí para verificar que los cambios se aplican..."
+               style="width: 100%; padding: 15px; font-size: 18px; border: 3px solid #dc2626; border-radius: 8px; background: white; color: #991b1b; font-weight: bold;">
+        <div style="margin-top: 10px; font-size: 16px; color: #991b1b; font-weight: 600;">
+          Si ves este campo, significa que los cambios se están aplicando correctamente ✅
+        </div>
+      </div>
+
+      <!-- Es Lote Padre - CHECKBOX PRIMERO Y FUERA DEL GRID PARA VISIBILIDAD -->
+      <div style="padding: 25px; border: 5px solid #2563eb; border-radius: 15px; background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4);">
+        <label style="display: flex; align-items: center; gap: 20px; cursor: pointer; user-select: none;">
+          <input formControlName="esLotePadre" 
+                 type="checkbox" 
+                 id="esLotePadreCheckbox"
+                 style="width: 35px; height: 35px; cursor: pointer; flex-shrink: 0; accent-color: #2563eb; border: 3px solid #1e40af;"
+                 [checked]="form.get('esLotePadre')?.value || false"
+                 (change)="esLotePadre = $event.target.checked; form.patchValue({ esLotePadre: $event.target.checked })">
+          <span style="font-size: 26px; font-weight: 900; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; flex: 1;">
+            📦 ESTE ES UN LOTE PADRE
+          </span>
+        </label>
+        <div style="margin-top: 15px; margin-left: 55px; font-size: 18px; color: #1e3a8a; line-height: 1.8; font-weight: 600;">
+          Si marca esta opción, este lote será un lote padre y no podrá tener un lote padre asignado
+        </div>
+        <div style="margin-top: 10px; margin-left: 55px; font-size: 14px; color: #3b82f6; font-weight: 500;">
+          Valor actual del checkbox: {{ form.get('esLotePadre')?.value ? '✅ MARCADO' : '❌ DESMARCADO' }}
+        </div>
+      </div>
+
+      <!-- Filtros y Selección de Lote Padre (solo si NO es lote padre) -->
+      <div *ngIf="!esLotePadre" style="padding: 20px; border: 4px solid #10b981; border-radius: 12px; background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); margin-bottom: 24px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+        <h4 style="font-size: 20px; font-weight: bold; margin-bottom: 16px; color: #065f46;">
+          👨‍👩‍👧‍👦 Seleccionar Lote Padre (Opcional)
+        </h4>
+        
+        <!-- Componente de filtro en cascada -->
+        <app-filtro-select
+          [selectedGranjaId]="selectedGranjaPadreId"
+          [selectedNucleoId]="selectedNucleoPadreId"
+          [selectedGalponId]="selectedGalponPadreId"
+          [selectedLoteId]="form.get('lotePadreId')?.value"
+          [soloLotesPadres]="true"
+          [excluirLoteId]="editingLote?.loteId || null"
+          (granjaChange)="onGranjaPadreChange($event)"
+          (nucleoChange)="onNucleoPadreChange($event)"
+          (galponChange)="onGalponPadreChange($event)"
+          (loteChange)="form.patchValue({ lotePadreId: $event })">
+        </app-filtro-select>
+        
+        <div *ngIf="loadingLotesPadres" style="margin-top: 12px; color: #065f46; font-weight: 500;">
+          <span>⏳</span> Cargando lotes padres disponibles...
+        </div>
+        <div style="margin-top: 12px; font-size: 15px; color: #065f46; line-height: 1.6;">
+          Use los filtros en cascada (Granja → Núcleo → Galpón → Lote) para seleccionar un lote padre. 
+          Los reportes consolidados incluirán todos los lotes con el mismo padre.
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- Granja -->
         <div>

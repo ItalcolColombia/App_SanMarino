@@ -194,11 +194,30 @@ namespace ZooSanMarino.Infrastructure.Services
                 AvesEncasetadas = dto.AvesEncasetadas,
                 EdadInicial = dto.EdadInicial,
                 LoteErp = dto.LoteErp,  // ← NUEVO: Código ERP del lote
+                LotePadreId = dto.LotePadreId,  // ← NUEVO: ID del lote padre
 
                 CompanyId = _current.CompanyId,
                 CreatedByUserId = _current.UserId,
                 CreatedAt = DateTime.UtcNow
             };
+
+            // Validar que el lote padre existe y pertenece a la misma compañía
+            if (dto.LotePadreId.HasValue)
+            {
+                var lotePadre = await _ctx.Lotes
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(x =>
+                        x.LoteId == dto.LotePadreId.Value &&
+                        x.CompanyId == _current.CompanyId &&
+                        x.DeletedAt == null);
+                
+                if (lotePadre is null)
+                    throw new InvalidOperationException("El lote padre no existe o no pertenece a la compañía.");
+                
+                // Validar que el lote padre no tenga un padre (evitar jerarquías de más de 2 niveles)
+                if (lotePadre.LotePadreId.HasValue)
+                    throw new InvalidOperationException("El lote seleccionado como padre ya tiene un lote padre asignado. No se permiten jerarquías de más de 2 niveles.");
+            }
 
             _ctx.Lotes.Add(ent);
             await _ctx.SaveChangesAsync();
@@ -290,6 +309,38 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.AvesEncasetadas = dto.AvesEncasetadas;
             ent.EdadInicial = dto.EdadInicial;
             ent.LoteErp = dto.LoteErp;  // ← NUEVO: Código ERP del lote
+            ent.LotePadreId = dto.LotePadreId;  // ← NUEVO: ID del lote padre
+
+            // Validar que el lote padre existe y pertenece a la misma compañía
+            if (dto.LotePadreId.HasValue)
+            {
+                var lotePadre = await _ctx.Lotes
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(x =>
+                        x.LoteId == dto.LotePadreId.Value &&
+                        x.CompanyId == _current.CompanyId &&
+                        x.DeletedAt == null);
+                
+                if (lotePadre is null)
+                    throw new InvalidOperationException("El lote padre no existe o no pertenece a la compañía.");
+                
+                // Evitar referencias circulares
+                if (dto.LotePadreId.Value == dto.LoteId)
+                    throw new InvalidOperationException("Un lote no puede ser su propio padre.");
+                
+                // Validar que el lote padre no tenga un padre (evitar jerarquías de más de 2 niveles)
+                if (lotePadre.LotePadreId.HasValue)
+                    throw new InvalidOperationException("El lote seleccionado como padre ya tiene un lote padre asignado. No se permiten jerarquías de más de 2 niveles.");
+                
+                // Validar que no se cree un ciclo: verificar que el lote padre no sea descendiente del lote actual
+                // Solo validar si estamos actualizando (no creando)
+                if (dto.LoteId > 0)
+                {
+                    var esDescendiente = await EsDescendienteAsync(dto.LoteId, dto.LotePadreId.Value);
+                    if (esDescendiente)
+                        throw new InvalidOperationException("No se puede asignar un lote hijo como padre. Esto crearía una referencia circular.");
+                }
+            }
 
             ent.UpdatedByUserId = _current.UserId;
             ent.UpdatedAt = DateTime.UtcNow;
@@ -373,6 +424,7 @@ namespace ZooSanMarino.Infrastructure.Services
                     l.EdadInicial,
                     l.LoteErp,  // ← NUEVO: Código ERP del lote
                     l.EstadoTraslado,  // ← Estado de traslado
+                    l.LotePadreId,  // ← NUEVO: ID del lote padre
                     l.CompanyId,
                     l.CreatedByUserId,
                     l.CreatedAt,
@@ -701,6 +753,35 @@ namespace ZooSanMarino.Infrastructure.Services
 
         // Los métodos de generación manual de IDs han sido removidos
         // La base de datos ahora genera automáticamente los IDs
+
+        /// <summary>
+        /// Verifica si un lote es descendiente de otro (para evitar ciclos)
+        /// </summary>
+        private async Task<bool> EsDescendienteAsync(int loteIdActual, int loteIdPadre)
+        {
+            // Obtener todos los hijos del lote actual
+            var hijos = await _ctx.Lotes
+                .AsNoTracking()
+                .Where(l => l.LotePadreId == loteIdActual &&
+                           l.CompanyId == _current.CompanyId &&
+                           l.DeletedAt == null)
+                .Select(l => l.LoteId)
+                .ToListAsync();
+
+            // Si el lote padre está en la lista de hijos, es un descendiente
+            if (hijos.Contains(loteIdPadre))
+                return true;
+
+            // Verificar recursivamente en los hijos
+            foreach (var hijoId in hijos.Where(h => h.HasValue).Select(h => h!.Value))
+            {
+                var esDescendiente = await EsDescendienteAsync(hijoId, loteIdPadre);
+                if (esDescendiente)
+                    return true;
+            }
+
+            return false;
+        }
     }
 
 }

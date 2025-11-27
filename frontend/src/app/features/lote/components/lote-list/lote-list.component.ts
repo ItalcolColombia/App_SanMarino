@@ -11,6 +11,7 @@ import { forkJoin } from 'rxjs';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
+import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
 import {
@@ -96,7 +97,8 @@ export class ThousandSeparatorDirective {
     FontAwesomeModule,
     FormsModule,
     ThousandSeparatorDirective,
-    ModalTrasladoLoteComponent
+    ModalTrasladoLoteComponent,
+    FiltroSelectComponent
   ],
   templateUrl: './lote-list.component.html',
   styleUrls: ['./lote-list.component.scss']
@@ -138,6 +140,17 @@ export class LoteListComponent implements OnInit {
   loadingAnos: boolean = false;
   razaValida: boolean = true;
   companies: Company[]  = [];
+
+  // Parent lot functionality
+  esLotePadre: boolean = false;
+  lotesPadresDisponibles: LoteDto[] = [];
+  filteredLotesPadres: LoteDto[] = [];
+  loadingLotesPadres: boolean = false;
+  
+  // Filtros para lote padre (cascada)
+  selectedGranjaPadreId: number | null = null;
+  selectedNucleoPadreId: string | null = null;
+  selectedGalponPadreId: string | null = null;
 
   // Mapas
   farmMap:   Record<number, string> = {};
@@ -290,6 +303,26 @@ export class LoteListComponent implements OnInit {
         console.log('Raza vacía, no cargando años');
       }
     });
+
+    // Chain: Es Sublote -> mostrar/ocultar filtros de lote padre
+    // NOTA: esLotePadre en el formulario significa "es sublote" (tiene padre)
+    this.form.get('esLotePadre')!.valueChanges.subscribe(esSublote => {
+      this.esLotePadre = esSublote;
+      if (esSublote) {
+        // Si es sublote, debe seleccionar un lote padre
+        this.cargarLotesPadres();
+      } else {
+        // Si no es sublote, no tiene padre
+        this.form.patchValue({ lotePadreId: null });
+        this.selectedGranjaPadreId = null;
+        this.selectedNucleoPadreId = null;
+        this.selectedGalponPadreId = null;
+        this.filteredLotesPadres = [];
+      }
+    });
+    
+    // Inicializar el valor de esLotePadre desde el formulario
+    this.esLotePadre = this.form.get('esLotePadre')?.value || false;
   }
 
   // ===================== Init form ==========================
@@ -318,7 +351,9 @@ export class LoteListComponent implements OnInit {
       tecnico:            [''],
       avesEncasetadas:    [null],
       loteErp:            [''],
-      lineaGenetica:      ['']
+      lineaGenetica:      [''],
+      esLotePadre:        [false],
+      lotePadreId:        [null]
     });
   }
 
@@ -484,6 +519,32 @@ export class LoteListComponent implements OnInit {
       );
       this.filteredGalpones = this.galponesFiltrados;
 
+      // Inicializar campos de sublote
+      // Si tiene lotePadreId, es un sublote
+      const esSublote = !!l.lotePadreId;
+      this.esLotePadre = esSublote;
+      this.form.patchValue({ 
+        esLotePadre: esSublote,
+        lotePadreId: l.lotePadreId || null
+      });
+      
+      if (esSublote && l.lotePadreId) {
+        // Si es sublote y tiene padre, cargar los filtros del lote padre
+        this.loteSvc.getById(l.lotePadreId).subscribe({
+          next: (lotePadre) => {
+            this.selectedGranjaPadreId = lotePadre.granjaId;
+            this.selectedNucleoPadreId = lotePadre.nucleoId || null;
+            this.selectedGalponPadreId = lotePadre.galponId || null;
+            this.cargarLotesPadres();
+          }
+        });
+      } else {
+        // Si no es sublote, limpiar filtros
+        this.selectedGranjaPadreId = null;
+        this.selectedNucleoPadreId = null;
+        this.selectedGalponPadreId = null;
+      }
+
     } else {
       // Para creación: no establecer loteId (la base de datos lo generará automáticamente)
       this.form.reset({
@@ -515,15 +576,87 @@ export class LoteListComponent implements OnInit {
 
       this.nucleosFiltrados  = this.filteredNucleos  = [];
       this.galponesFiltrados = this.filteredGalpones = [];
+      
+      // Inicializar campos de sublote para creación (por defecto no es sublote)
+      this.form.patchValue({ esLotePadre: false, lotePadreId: null });
+      this.esLotePadre = false;
+      this.selectedGranjaPadreId = null;
+      this.selectedNucleoPadreId = null;
+      this.selectedGalponPadreId = null;
     }
 
     this.modalOpen = true;
+  }
+
+  // Métodos para lote padre
+  cargarLotesPadres(): void {
+    if (this.esLotePadre) {
+      this.lotesPadresDisponibles = [];
+      this.filteredLotesPadres = [];
+      this.loadingLotesPadres = false;
+      return;
+    }
+
+    this.loadingLotesPadres = true;
+    this.loteSvc.getAll().subscribe({
+      next: (lotes) => {
+        // Filtrar solo lotes que pueden ser padres (sin lotePadreId y no el lote actual)
+        this.lotesPadresDisponibles = lotes.filter(l => 
+          !l.lotePadreId && l.loteId !== this.editing?.loteId
+        );
+        this.filteredLotesPadres = [...this.lotesPadresDisponibles];
+        this.loadingLotesPadres = false;
+      },
+      error: () => {
+        this.loadingLotesPadres = false;
+      }
+    });
+  }
+
+  onGranjaPadreChange(granjaId: number | null): void {
+    this.selectedGranjaPadreId = granjaId;
+    this.selectedNucleoPadreId = null;
+    this.selectedGalponPadreId = null;
+    this.form.patchValue({ lotePadreId: null });
+    this.filtrarLotesPadres();
+  }
+
+  onNucleoPadreChange(nucleoId: string | null): void {
+    this.selectedNucleoPadreId = nucleoId;
+    this.selectedGalponPadreId = null;
+    this.form.patchValue({ lotePadreId: null });
+    this.filtrarLotesPadres();
+  }
+
+  onGalponPadreChange(galponId: string | null): void {
+    this.selectedGalponPadreId = galponId;
+    this.form.patchValue({ lotePadreId: null });
+    this.filtrarLotesPadres();
+  }
+
+  filtrarLotesPadres(): void {
+    let filtrados = [...this.lotesPadresDisponibles];
+
+    if (this.selectedGranjaPadreId) {
+      filtrados = filtrados.filter(l => l.granjaId === this.selectedGranjaPadreId);
+    }
+
+    if (this.selectedNucleoPadreId) {
+      filtrados = filtrados.filter(l => l.nucleoId === this.selectedNucleoPadreId);
+    }
+
+    if (this.selectedGalponPadreId) {
+      filtrados = filtrados.filter(l => l.galponId === this.selectedGalponPadreId);
+    }
+
+    this.filteredLotesPadres = filtrados;
   }
 
   save(): void {
     if (this.form.invalid) return;
 
     const raw = this.form.value;
+    const formValue = this.form.value;
     const dto: CreateLoteDto | UpdateLoteDto = {
       ...raw,
       // Para creación: no enviar loteId (la base de datos lo generará automáticamente)
@@ -534,7 +667,9 @@ export class LoteListComponent implements OnInit {
       galponId: raw.galponId ? String(raw.galponId) : undefined,
       fechaEncaset: raw.fechaEncaset
         ? new Date(raw.fechaEncaset + 'T00:00:00Z').toISOString()
-        : undefined
+        : undefined,
+      // Si es sublote (esLotePadre = true), enviar el lotePadreId, sino null
+      lotePadreId: formValue.esLotePadre ? (formValue.lotePadreId ? Number(formValue.lotePadreId) : null) : null
     };
 
     const op$ = this.editing
