@@ -1,0 +1,625 @@
+PLAN DE IMPLEMENTACION - MODULO MEDICAMENTOS POR GALPON - PANAMA
+Sistema de Registro y Trazabilidad de Medicamentos
+
+Duración Total: 15 días (3 semanas)
+Fecha de Inicio: Después de implementación completa de Ecuador
+Fecha de Finalización: [A definir]
+
+================================================================================
+CONTEXTO Y DEPENDENCIAS
+================================================================================
+
+PREREQUISITO: Este módulo se implementará DESPUES de que el proyecto de Ecuador
+esté completamente implementado y en producción.
+
+SISTEMA BASE DISPONIBLE (gracias a implementación Ecuador):
+- Sistema parametrizable por país (pais_modulo_funcionalidad)
+- Infraestructura de cache para optimización
+- Sistema de validaciones por país
+- Componentes reutilizables de configuración
+- Estructura de servicios y controladores estandarizada
+- Sistema de permisos y auditoría
+
+VENTAJA: Al aprovechar la infraestructura existente, el tiempo de desarrollo
+se reduce significativamente comparado con una implementación desde cero.
+
+================================================================================
+JUSTIFICACION DEL MODULO
+================================================================================
+
+Es necesario mantener un registro por galpón de las medicaciones administradas
+en la granja debido a eventualidades sanitarias u otras. Esta información debe
+estar vinculada al lote de producción de pollos e incluir toda la trazabilidad
+correspondiente.
+
+El desarrollo debe ofrecer versatilidad para crear, editar, borrar y visualizar
+la información consignada. Es importante poder consultar esta información
+individualmente por galpón. Además, cuando se consulte por granja y lote, la
+aplicación debe permitir visualizar un resumen de los galpones que constituyen
+la granja para ese lote de producción, incluyendo los casos donde no se ha hecho
+intervención (indicado en un espacio en blanco).
+
+================================================================================
+FUNCIONALIDADES SOLICITADAS
+================================================================================
+
+1. CRUD COMPLETO
+   - Crear nuevos registros de medicamentos
+   - Editar registros existentes
+   - Eliminar registros (soft delete para mantener trazabilidad)
+   - Visualizar lista de todos los registros
+
+2. CONSULTA INDIVIDUAL POR GALPON
+   - Seleccionar un galpón específico
+   - Ver todos los medicamentos aplicados a ese galpón
+   - Filtrar por tipo de medicación, fecha, respuesta
+   - Ordenar por fecha (más reciente primero)
+
+3. RESUMEN POR GRANJA Y LOTE
+   - Seleccionar granja y lote
+   - Ver resumen de todos los galpones de la granja para ese lote
+   - Incluir galpones sin medicaciones (mostrar en blanco)
+   - Información por galpón:
+     * ID/Nombre del galpón
+     * Indicador si tiene medicaciones
+     * Total de medicaciones
+     * Última fecha de medicación
+     * Tipos de medicación aplicados
+
+4. CALCULO AUTOMATICO
+   - Edad de medicación calculada automáticamente
+   - Fórmula: Fecha de medicación - Fecha de encasetamiento del lote
+   - Ejemplo: Medicación 15 feb, lote encastado 1 feb = 14 días
+
+================================================================================
+CAMPOS REQUERIDOS DEL FORMULARIO
+================================================================================
+
+CAMPO                        TIPO                    REQUERIDO    OBSERVACIONES
+---------------------------- ----------------------- ------------ -------------------
+Granja                       Lista desplegable       Sí           Granjas activas
+Galpón                       Lista desplegable       Sí           Filtrado por granja
+Fecha de medicación          Calendario              Sí           No puede ser futura
+Edad de medicación           Calculado automático    No           Se calcula automático
+Tipo de Medicación           Lista desplegable       Sí           Ver opciones abajo
+Vía de medicación            Lista desplegable       Sí           Ver opciones abajo
+Medicamento suministrado     Campo texto             Sí           Nombre comercial
+Dosis                        Lista desplegable       Sí           Ver opciones abajo
+Descripción dosis            Campo numérico          Sí           Ej: 20 (mg/kg)
+Tiempo medicación/días       Campo numérico          Sí           Ej: 5 días
+Respuesta a la medicación    Lista desplegable       No           Opcional
+Observaciones                Campo texto largo       No           Opcional
+
+OPCIONES DE LISTAS DESPLEGABLES:
+
+Tipo de Medicación:
+1. Tratamiento Antibiótico
+2. Suplemento vitamínico
+3. Tratamiento Anticoccidial
+4. Tratamiento vías respiratorios
+5. Tratamiento gastrointestinal
+6. Otro
+
+Vía de medicación:
+1. Oral
+2. Aspersión
+3. Otro
+
+Dosis:
+1. mg/kg
+2. ml/L
+3. ml/ave
+4. g/ave
+
+Respuesta a la medicación:
+1. Efectiva
+2. Poco efectiva
+3. No fue efectiva
+
+================================================================================
+LO QUE YA TENEMOS (Gracias a implementación Ecuador)
+================================================================================
+
+INFRAESTRUCTURA BASE:
+- Sistema parametrizable por país (tabla pais_modulo_funcionalidad)
+- Servicio IPaisModuloFuncionalidadService con cache
+- Controlador PaisModuloFuncionalidadController
+- Helper frontend para verificar funcionalidades activas
+- Sistema de cache en backend y frontend
+- Estructura de entidades base (AuditableEntity)
+- Sistema de validaciones por país
+- Componentes reutilizables de configuración
+
+SERVICIOS Y COMPONENTES REUTILIZABLES:
+- Servicio de granjas (FarmService)
+- Servicio de galpones (GalponService)
+- Servicio de lotes (LoteService)
+- Componentes de selección de granja
+- Componentes de selección de galpón
+- Componentes de calendario
+- Componentes de listas desplegables
+- Sistema de routing y navegación
+- Sistema de permisos
+
+OPTIMIZACIONES DISPONIBLES:
+- Cache de configuraciones (1 hora)
+- Funciones optimizadas en base de datos
+- Índices para consultas rápidas
+- Sistema de auditoría automático
+
+================================================================================
+LO QUE SE SOLICITA DESARROLLAR (Nuevo para Panamá)
+================================================================================
+
+BASE DE DATOS:
+- Nueva tabla: medicamentos_galpon
+  * Estructura con todos los campos requeridos
+  * Relaciones con granja, galpón y lote
+  * Campos de auditoría
+  * Soft delete para trazabilidad
+
+- Función de cálculo automático:
+  * Calcular edad de medicación basada en fecha de encasetamiento
+  * Trigger automático para actualizar edad
+
+- Función de resumen:
+  * Obtener resumen por granja y lote
+  * Incluir galpones sin medicaciones
+
+- Configuración en sistema parametrizable:
+  * Activar módulo solo para Panamá
+  * Configurar funcionalidades del módulo
+
+BACKEND:
+
+1. Entidades:
+   - MedicamentoGalpon.cs (nueva entidad)
+   - Relaciones con Farm, Galpon, Lote
+
+2. DTOs:
+   - MedicamentoGalponDto.cs
+   - CreateMedicamentoGalponDto.cs
+   - UpdateMedicamentoGalponDto.cs
+   - MedicamentoGalponResumenDto.cs
+
+3. Servicios:
+   - IMedicamentoGalponService.cs (nueva interfaz)
+   - MedicamentoGalponService.cs (nueva implementación)
+     * CRUD completo
+     * Consulta por galpón
+     * Resumen por granja y lote
+     * Validaciones
+     * Integración con sistema parametrizable
+
+4. Controladores:
+   - MedicamentoGalponController.cs (nuevo)
+     * GET /api/medicamentos-galpon (listar con filtros)
+     * GET /api/medicamentos-galpon/{id} (obtener por ID)
+     * GET /api/medicamentos-galpon/galpon/{galponId} (consulta por galpón)
+     * GET /api/medicamentos-galpon/granja/{granjaId}/lote/{loteId}/resumen
+     * POST /api/medicamentos-galpon (crear)
+     * PUT /api/medicamentos-galpon/{id} (actualizar)
+     * DELETE /api/medicamentos-galpon/{id} (eliminar)
+
+5. Validaciones:
+   - Validar granja y galpón activos
+   - Validar que galpón pertenece a granja
+   - Validar fecha no futura
+   - Validar valores de listas desplegables
+   - Validar rangos numéricos
+
+FRONTEND:
+
+1. Servicios:
+   - medicamento-galpon.service.ts (nuevo)
+     * Métodos para CRUD
+     * Métodos para consultas
+     * Métodos para resumen
+
+2. Interfaces TypeScript:
+   - MedicamentoGalpon.interface.ts
+   - CreateMedicamentoGalpon.interface.ts
+   - MedicamentoGalponResumen.interface.ts
+
+3. Componentes:
+   - medicamento-galpon-form.component.ts (nuevo)
+     * Formulario completo con todos los campos
+     * Validaciones en tiempo real
+     * Cálculo automático de edad (visual)
+     * Selectores dinámicos (galpón filtrado por granja)
+
+   - medicamento-galpon-list.component.ts (nuevo)
+     * Lista de medicamentos
+     * Filtros y búsqueda
+     * Acciones: crear, editar, eliminar
+     * Consulta por galpón
+
+   - medicamento-galpon-resumen.component.ts (nuevo)
+     * Resumen por granja y lote
+     * Mostrar galpones con y sin medicaciones
+     * Visualización de información resumida
+
+4. Módulo y Routing:
+   - medicamentos-galpon.module.ts (nuevo)
+   - medicamentos-galpon-routing.module.ts (nuevo)
+   - Integración con menú (solo para Panamá)
+
+5. Integración con Sistema Parametrizable:
+   - Verificar que funcionalidad está activa para Panamá
+   - Mostrar/ocultar módulo según país activo
+   - Usar helper de funcionalidades existente
+
+================================================================================
+CRONOGRAMA DE IMPLEMENTACION (15 DÍAS)
+================================================================================
+
+SEMANA 1: ANALISIS + BASE DE DATOS + BACKEND BASE
+
+DIA 1: Analisis y Diseño
+- Revisar requerimientos completos
+- Diseñar estructura de base de datos
+- Diseñar entidades y DTOs
+- Diseñar servicios y controladores
+- Diseñar componentes frontend
+- Validar con stakeholders
+
+DIA 2: Base de Datos
+- Crear tabla medicamentos_galpon
+- Crear función para cálculo de edad
+- Crear función para resumen
+- Crear índices para performance
+- Crear triggers para auditoría
+- Ejecutar scripts en desarrollo
+
+DIA 3: Backend - Entidades y DTOs
+- Crear entidad MedicamentoGalpon.cs
+- Crear todos los DTOs necesarios
+- Configurar mapeos AutoMapper
+- Actualizar ZooSanMarinoContext.cs
+
+DIA 4: Backend - Servicio y Controlador
+- Crear IMedicamentoGalponService.cs
+- Implementar MedicamentoGalponService.cs
+- Crear MedicamentoGalponController.cs
+- Tests unitarios básicos
+
+DIA 5: Backend - Integración con Sistema Parametrizable
+- Integrar con IPaisModuloFuncionalidadService
+- Configurar funcionalidad para Panamá
+- Validar que solo se muestre para Panamá
+- Tests de integración
+
+SEMANA 2: FRONTEND - COMPONENTES Y FORMULARIOS
+
+DIA 6: Frontend - Servicios y Modelos
+- Crear servicio medicamento-galpon.service.ts
+- Crear interfaces TypeScript
+- Integrar con helper de funcionalidades
+- Tests de servicios
+
+DIA 7: Frontend - Componente Formulario
+- Crear medicamento-galpon-form.component.ts
+- Crear medicamento-galpon-form.component.html
+- Implementar todos los campos
+- Validaciones
+- Tests de componente
+
+DIA 8: Frontend - Componente Lista y Consulta
+- Crear medicamento-galpon-list.component.ts
+- Implementar consulta por galpón
+- Filtros y búsqueda
+- Tabla con todos los campos
+- Acciones: crear, editar, eliminar
+- Tests de componente
+
+DIA 9: Frontend - Componente Resumen
+- Crear medicamento-galpon-resumen.component.ts
+- Implementar resumen por granja y lote
+- Mostrar galpones con y sin medicaciones
+- Visualización de resumen
+- Tests de componente
+
+DIA 10: Frontend - Integración y Routing
+- Crear módulo medicamentos-galpon.module.ts
+- Configurar routing
+- Integrar con sistema de navegación
+- Agregar al menú (solo para Panamá)
+- Validar que solo se muestre para Panamá
+- Tests de integración
+
+SEMANA 3: INTEGRACION + TESTING + DEPLOYMENT
+
+DIA 11: Integración Completa
+- Integración completa Backend + Frontend
+- Validar flujos completos
+- Corregir bugs de integración
+- Validar cálculo automático de edad
+
+DIA 12: Testing Exhaustivo
+- Tests unitarios completos
+- Tests de integración
+- Tests E2E de flujos principales
+- Validar que solo funciona para Panamá
+- Validar que no afecta otros países
+- Tests de cálculo de edad
+- Tests de validaciones
+
+DIA 13: Optimizaciones y Ajustes
+- Optimizar consultas
+- Mejorar performance
+- Ajustes de UI/UX
+- Validar cálculos
+- Optimizar carga de datos
+
+DIA 14: Deployment Staging
+- Ejecutar scripts de migración en staging
+- Deployment backend en staging
+- Deployment frontend en staging
+- Validar datos migrados
+- Validar funcionalidades
+- Testing con usuarios
+
+DIA 15: Deployment Producción + Documentación
+- Backup de base de datos
+- Ejecutar scripts de migración en producción
+- Deployment backend en producción
+- Deployment frontend en producción
+- Validar en producción
+- Documentación técnica
+- Guía de usuario
+- Capacitación
+
+================================================================================
+RESUMEN DE TIEMPOS POR AREA
+================================================================================
+
+Area                    | Días Totales | Porcentaje
+------------------------|--------------|------------
+Análisis y Diseño       | 1 día        | 6.7%
+Base de Datos           | 1 día        | 6.7%
+Backend                 | 4 días       | 26.7%
+Frontend                | 5 días       | 33.3%
+Integración             | 1 día        | 6.7%
+Testing                 | 1 día        | 6.7%
+Optimizaciones          | 1 día        | 6.7%
+Deployment              | 1 día        | 6.7%
+TOTAL                   | 15 días      | 100%
+
+================================================================================
+FUNCIONALIDADES PRINCIPALES
+================================================================================
+
+1. CRUD COMPLETO
+   - Crear registro de medicamento
+   - Editar registro existente
+   - Eliminar registro (soft delete)
+   - Visualizar registros
+
+2. CONSULTAS
+   - Individual por galpón: Ver todos los medicamentos de un galpón específico
+   - Resumen por granja y lote: Ver resumen de todos los galpones de una granja
+     para un lote, incluyendo galpones sin medicaciones
+
+3. CALCULOS AUTOMATICOS
+   - Edad de medicación: Calculada automáticamente como:
+     Fecha medicación - Fecha encasetamiento
+   - Ejemplo: Medicación el 15 de feb, lote encastado el 1 de feb = 14 días
+
+4. TRAZABILIDAD
+   - Vinculación con lote de producción
+   - Historial completo de medicaciones
+   - Auditoría de cambios
+
+================================================================================
+INTEGRACION CON SISTEMA PARAMETRIZABLE
+================================================================================
+
+VENTAJAS DE APROVECHAR SISTEMA EXISTENTE:
+
+1. Sin Código Adicional: El módulo de configuración ya existe y funciona
+2. Aislamiento Automático: Solo se muestra para Panamá automáticamente
+3. Configuración Rápida: Solo insertar registros en tabla de configuración
+4. Escalable: Fácil agregar a otros países si es necesario en el futuro
+
+CONFIGURACION NECESARIA:
+
+Solo se requiere configurar en la tabla pais_modulo_funcionalidad que el módulo
+de medicamentos está activo para Panamá. El sistema automáticamente:
+- Mostrará el módulo solo a usuarios de Panamá
+- Ocultará el módulo para otros países
+- Aplicará las validaciones correspondientes
+
+================================================================================
+VALIDACIONES Y REGLAS DE NEGOCIO
+================================================================================
+
+VALIDACIONES:
+
+1. Granja y Galpón: Deben ser activos y pertenecer a la misma empresa
+2. Fecha de medicación: No puede ser futura
+3. Lote: Debe existir y tener fecha de encasetamiento para calcular edad
+4. Campos requeridos: Todos los campos son requeridos excepto observaciones
+5. Dosis: Descripción dosis debe ser un número positivo
+6. Tiempo medicación: Debe ser un número entero positivo
+
+REGLAS DE NEGOCIO:
+
+1. Cálculo de Edad: Automático basado en fecha de encasetamiento del lote
+2. Trazabilidad: Cada registro está vinculado a un lote específico
+3. Consultas:
+   - Por galpón: Muestra todos los registros del galpón
+   - Por granja/lote: Muestra resumen de todos los galpones, incluso sin
+     medicaciones
+4. Soft Delete: Los registros eliminados se marcan pero no se borran físicamente
+   para mantener trazabilidad
+
+================================================================================
+ESTRUCTURA DE DATOS
+================================================================================
+
+TABLA: medicamentos_galpon
+
+Campos principales:
+- id (PK)
+- granja_id (FK a farms)
+- galpon_id
+- lote_id (FK a lotes, opcional)
+- fecha_medicacion
+- edad_medicacion (calculado automáticamente)
+- tipo_medicacion
+- via_medicacion
+- medicamento_suministrado
+- dosis
+- descripcion_dosis
+- tiempo_medicacion_dias
+- respuesta_medicacion (opcional)
+- observaciones (opcional)
+- Campos de auditoría (company_id, created_by, updated_by, timestamps)
+- deleted_at (para soft delete)
+
+Relaciones:
+- Granja (Farm)
+- Galpón (Galpon)
+- Lote (Lote, opcional)
+
+================================================================================
+ENDPOINTS API REQUERIDOS
+================================================================================
+
+GET    /api/medicamentos-galpon
+       Listar todos los registros (con filtros opcionales)
+
+GET    /api/medicamentos-galpon/{id}
+       Obtener un registro específico por ID
+
+GET    /api/medicamentos-galpon/galpon/{galponId}
+       Consultar todos los medicamentos de un galpón específico
+
+GET    /api/medicamentos-galpon/granja/{granjaId}/lote/{loteId}/resumen
+       Obtener resumen de medicamentos por granja y lote
+
+POST   /api/medicamentos-galpon
+       Crear nuevo registro de medicamento
+
+PUT    /api/medicamentos-galpon/{id}
+       Actualizar registro existente
+
+DELETE /api/medicamentos-galpon/{id}
+       Eliminar registro (soft delete)
+
+================================================================================
+COMPONENTES FRONTEND REQUERIDOS
+================================================================================
+
+1. medicamento-galpon-form.component
+   - Formulario completo con todos los campos
+   - Validaciones en tiempo real
+   - Cálculo automático de edad (visual)
+   - Selectores dinámicos
+
+2. medicamento-galpon-list.component
+   - Lista de medicamentos
+   - Filtros y búsqueda
+   - Consulta por galpón
+   - Acciones: crear, editar, eliminar
+
+3. medicamento-galpon-resumen.component
+   - Resumen por granja y lote
+   - Mostrar galpones con y sin medicaciones
+   - Visualización de información resumida
+
+4. medicamentos-galpon.module
+   - Módulo Angular completo
+   - Routing configurado
+   - Integración con menú
+
+================================================================================
+CASOS DE USO PRINCIPALES
+================================================================================
+
+CASO DE USO 1: Registrar Nueva Medicación
+1. Usuario selecciona "Registrar Medicamento"
+2. Completa formulario con todos los campos
+3. Sistema calcula automáticamente edad
+4. Usuario guarda registro
+5. Sistema muestra confirmación
+
+CASO DE USO 2: Consultar por Galpón
+1. Usuario selecciona "Consultar por Galpón"
+2. Selecciona galpón
+3. Sistema muestra lista de medicamentos del galpón
+4. Usuario puede filtrar y ver detalles
+
+CASO DE USO 3: Ver Resumen por Granja y Lote
+1. Usuario selecciona "Resumen por Granja/Lote"
+2. Selecciona granja y lote
+3. Sistema muestra resumen de todos los galpones
+4. Muestra galpones con y sin medicaciones
+5. Usuario puede ver detalle de cada galpón
+
+================================================================================
+VENTAJAS DE ESTA IMPLEMENTACION
+================================================================================
+
+1. RAPIDA: Aprovecha sistema parametrizable existente
+2. AISLADA: Solo afecta a Panamá, no impacta otros países
+3. COMPLETA: CRUD completo con todas las funcionalidades requeridas
+4. ESCALABLE: Fácil agregar a otros países si es necesario
+5. MANTENIBLE: Código limpio y documentado
+6. OPTIMIZADA: Usa cache y funciones de BD para mejor performance
+
+================================================================================
+RIESGOS Y MITIGACIONES
+================================================================================
+
+RIESGO 1: Dependencia de implementación Ecuador
+PROBABILIDAD: Media
+IMPACTO: Alto
+MITIGACION: Validar que Ecuador esté completamente implementado antes de iniciar
+
+RIESGO 2: Complejidad de cálculo de edad
+PROBABILIDAD: Baja
+IMPACTO: Medio
+MITIGACION: Usar función de BD y trigger automático
+
+RIESGO 3: Tiempo insuficiente
+PROBABILIDAD: Baja
+IMPACTO: Medio
+MITIGACION: Cronograma realista de 15 días, aprovechando infraestructura existente
+
+================================================================================
+ENTREGABLES FINALES
+================================================================================
+
+1. Base de datos migrada con tabla de medicamentos
+2. Backend completo con servicios y controladores
+3. Frontend completo con todos los componentes
+4. Integración con sistema parametrizable
+5. Tests completos (unitarios, integración, E2E)
+6. Documentación técnica
+7. Guía de usuario
+8. Sistema en producción funcionando
+
+================================================================================
+NOTAS IMPORTANTES
+================================================================================
+
+1. PREREQUISITO: Este módulo requiere que Ecuador esté completamente
+   implementado y en producción
+
+2. AISLAMIENTO: El módulo solo se mostrará para usuarios de Panamá usando
+   el sistema parametrizable existente
+
+3. CALCULO AUTOMATICO: La edad se calcula automáticamente usando función
+   de base de datos y trigger
+
+4. TRAZABILIDAD: Cada registro está vinculado a un lote específico para
+   mantener trazabilidad completa
+
+5. CONSULTAS: El resumen incluye galpones sin medicaciones para dar
+   visibilidad completa
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
+
