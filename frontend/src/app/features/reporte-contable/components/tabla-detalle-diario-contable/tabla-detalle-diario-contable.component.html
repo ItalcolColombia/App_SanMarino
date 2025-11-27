@@ -1,0 +1,51 @@
+<!-- src/app/features/reporte-contable/components/tabla-detalle-diario-contable/tabla-detalle-diario-contable.component.html -->
+<div class="tabla-container">
+  <table class="ux-table ux-table--compact">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Lote</th>
+        <th class="text-right">Alimento (kg)</th>
+        <th class="text-right">Agua (L)</th>
+        <th class="text-right">Medicamento</th>
+        <th class="text-right">Vacuna</th>
+        <th class="text-right">Otros</th>
+        <th class="text-right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let consumo of consumosDiarios">
+        <td>{{ consumo.fecha | date:'dd/MM/yyyy' }}</td>
+        <td>{{ consumo.loteNombre }}</td>
+        <td class="text-right">{{ consumo.consumoAlimento | number:'1.2-2' }}</td>
+        <td class="text-right">{{ consumo.consumoAgua | number:'1.2-2' }}</td>
+        <td class="text-right">{{ consumo.consumoMedicamento | number:'1.2-2' }}</td>
+        <td class="text-right">{{ consumo.consumoVacuna | number:'1.2-2' }}</td>
+        <td class="text-right">{{ consumo.otrosConsumos | number:'1.2-2' }}</td>
+        <td class="text-right">{{ consumo.totalConsumo | number:'1.2-2' }}</td>
+      </tr>
+      <tr class="subtotal-row" *ngIf="consumosDiarios.length > 0">
+        <td colspan="2"><strong>Subtotal</strong></td>
+        <td class="text-right">
+          <strong>{{ getSubtotalAlimento() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getSubtotalAgua() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getSubtotalMedicamento() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getSubtotalVacuna() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getSubtotalOtros() | number:'1.2-2' }}</strong>
+        </td>
+        <td class="text-right">
+          <strong>{{ getSubtotalGeneral() | number:'1.2-2' }}</strong>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
