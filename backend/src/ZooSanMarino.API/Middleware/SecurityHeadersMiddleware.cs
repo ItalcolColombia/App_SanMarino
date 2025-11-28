@@ -1,21 +1,26 @@
 // src/ZooSanMarino.API/Middleware/SecurityHeadersMiddleware.cs
+using Microsoft.AspNetCore.Hosting;
+
 namespace ZooSanMarino.API.Middleware;
 
 /// <summary>
 /// Middleware que agrega headers de seguridad HTTP para proteger la aplicación
-/// contra diversos tipos de ataques.
+/// contra diversos tipos de ataques (XSS, clickjacking, MIME sniffing, etc.).
 /// </summary>
 public class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<SecurityHeadersMiddleware> _logger;
+    private readonly IWebHostEnvironment _environment;
 
     public SecurityHeadersMiddleware(
         RequestDelegate next,
-        ILogger<SecurityHeadersMiddleware> logger)
+        ILogger<SecurityHeadersMiddleware> logger,
+        IWebHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
+        _environment = environment;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -24,29 +29,37 @@ public class SecurityHeadersMiddleware
         var response = context.Response;
 
         // Prevenir clickjacking
+        // X-Frame-Options: DENY previene que la página sea incrustada en iframes
         response.Headers["X-Frame-Options"] = "DENY";
 
         // Prevenir MIME type sniffing
+        // X-Content-Type-Options: nosniff previene que el navegador adivine el tipo MIME
         response.Headers["X-Content-Type-Options"] = "nosniff";
 
         // Habilitar XSS protection (modo bloqueo)
+        // X-XSS-Protection: Protección adicional contra XSS en navegadores antiguos
         response.Headers["X-XSS-Protection"] = "1; mode=block";
 
         // Política de referrer (no enviar referrer en requests externos)
+        // Referrer-Policy: Controla qué información de referrer se envía
         response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
 
-        // Content Security Policy (CSP) - ajustar según necesidades
+        // Content Security Policy (CSP) - Previene XSS e inyección de contenido
+        // Nota: 'unsafe-inline' y 'unsafe-eval' son necesarios para Swagger UI
+        // En producción, considerar usar nonce-based CSP para mayor seguridad
+        // frame-ancestors 'none' previene clickjacking (más moderno que X-Frame-Options)
         var csp = "default-src 'self'; " +
                   "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // Swagger necesita unsafe-inline/unsafe-eval
                   "style-src 'self' 'unsafe-inline'; " + // Swagger necesita unsafe-inline
                   "img-src 'self' data: https:; " +
                   "font-src 'self' data:; " +
-                  "connect-src 'self'; " +
-                  "frame-ancestors 'none';";
+                  "connect-src 'self' https:; " + // Permitir conexiones HTTPS para APIs externas
+                  "frame-ancestors 'none';"; // Previene clickjacking
         
         response.Headers["Content-Security-Policy"] = csp;
 
         // Permissions Policy (anteriormente Feature-Policy)
+        // Controla qué APIs del navegador están disponibles
         response.Headers["Permissions-Policy"] = 
             "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=()";
 
@@ -60,14 +73,26 @@ public class SecurityHeadersMiddleware
             response.Headers["Expires"] = "0";
         }
 
-        // En producción con HTTPS, usar cookies seguras
-        if (context.Request.IsHttps)
+        // Strict-Transport-Security (HSTS) - Fuerza uso de HTTPS
+        // Se aplica en producción cuando se detecta HTTPS (directo o a través de proxy)
+        var isProduction = _environment.IsProduction();
+        var isHttps = context.Request.IsHttps;
+        
+        // Verificar también X-Forwarded-Proto para detectar HTTPS cuando está detrás de un proxy/load balancer
+        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
+        
+        if (isProduction && (isHttps || isHttpsViaProxy))
         {
-            // Headers adicionales para producción HTTPS
+            // HSTS solo debe aplicarse cuando hay HTTPS
+            // max-age=31536000 = 1 año
+            // includeSubDomains = aplica a todos los subdominios
+            // preload = permite incluir en listas de HSTS del navegador
             response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload";
         }
 
         // Remover headers que puedan revelar información del servidor
+        // Esto previene que atacantes obtengan información sobre la versión del servidor
         response.Headers.Remove("Server");
         response.Headers.Remove("X-Powered-By");
 
