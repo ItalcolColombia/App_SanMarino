@@ -207,6 +207,9 @@ public class MovimientoAvesService : IMovimientoAvesService
 
             await _context.SaveChangesAsync();
 
+            // Actualizar inventario del lote al procesar el movimiento
+            await ActualizarInventarioPorMovimientoAsync(movimiento, dto.AutoCrearInventarioDestino);
+
             // Si es un traslado de aves y el lote está en producción (semana 26+), aplicar descuento
             if (movimiento.LoteOrigenId.HasValue && 
                 (movimiento.TipoMovimiento == "Traslado" || movimiento.TipoMovimiento == "Venta"))
@@ -617,6 +620,141 @@ public class MovimientoAvesService : IMovimientoAvesService
             _context.SeguimientoProduccion.Add(registroDescuento);
             await _context.SaveChangesAsync();
         }
+    }
+
+    /// <summary>
+    /// Actualiza el inventario del lote al procesar un movimiento (resta del origen, suma al destino)
+    /// </summary>
+    private async Task ActualizarInventarioPorMovimientoAsync(MovimientoAves movimiento, bool autoCrearInventarioDestino = true)
+    {
+        // Si es salida (Venta o Traslado desde origen)
+        if (movimiento.LoteOrigenId.HasValue && 
+            (movimiento.TipoMovimiento == "Traslado" || movimiento.TipoMovimiento == "Venta"))
+        {
+            if (!movimiento.GranjaOrigenId.HasValue)
+            {
+                throw new InvalidOperationException("El movimiento debe tener una granja de origen especificada.");
+            }
+            
+            var inventarioOrigen = await ObtenerOCrearInventarioAsync(
+                movimiento.LoteOrigenId.Value,
+                movimiento.GranjaOrigenId.Value,
+                movimiento.NucleoOrigenId,
+                movimiento.GalponOrigenId);
+            
+            if (inventarioOrigen != null)
+            {
+                // Validar que hay suficientes aves disponibles
+                if (!inventarioOrigen.PuedeRealizarMovimiento(
+                    movimiento.CantidadHembras,
+                    movimiento.CantidadMachos,
+                    movimiento.CantidadMixtas))
+                {
+                    throw new InvalidOperationException(
+                        $"No hay suficientes aves en el inventario del lote {movimiento.LoteOrigenId}. " +
+                        $"Disponibles: H={inventarioOrigen.CantidadHembras}, M={inventarioOrigen.CantidadMachos}, Mixtas={inventarioOrigen.CantidadMixtas}. " +
+                        $"Solicitadas: H={movimiento.CantidadHembras}, M={movimiento.CantidadMachos}, Mixtas={movimiento.CantidadMixtas}");
+                }
+                
+                inventarioOrigen.AplicarMovimientoSalida(
+                    movimiento.CantidadHembras,
+                    movimiento.CantidadMachos,
+                    movimiento.CantidadMixtas);
+                
+                inventarioOrigen.UpdatedByUserId = _currentUser.UserId;
+                inventarioOrigen.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+        
+        // Si es entrada (Traslado a destino)
+        if (movimiento.LoteDestinoId.HasValue && movimiento.TipoMovimiento == "Traslado")
+        {
+            var granjaDestinoId = movimiento.GranjaDestinoId ?? movimiento.GranjaOrigenId;
+            if (!granjaDestinoId.HasValue)
+            {
+                throw new InvalidOperationException("El movimiento debe tener una granja de destino o origen especificada.");
+            }
+            
+            var inventarioDestino = await ObtenerOCrearInventarioAsync(
+                movimiento.LoteDestinoId.Value,
+                granjaDestinoId.Value,
+                movimiento.NucleoDestinoId,
+                movimiento.GalponDestinoId,
+                crearSiNoExiste: autoCrearInventarioDestino);
+            
+            if (inventarioDestino != null)
+            {
+                inventarioDestino.AplicarMovimientoEntrada(
+                    movimiento.CantidadHembras,
+                    movimiento.CantidadMachos,
+                    movimiento.CantidadMixtas);
+                
+                inventarioDestino.UpdatedByUserId = _currentUser.UserId;
+                inventarioDestino.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+        
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Obtiene o crea un inventario para un lote en una ubicación específica
+    /// </summary>
+    private async Task<InventarioAves?> ObtenerOCrearInventarioAsync(
+        int loteId,
+        int granjaId,
+        string? nucleoId = null,
+        string? galponId = null,
+        bool crearSiNoExiste = true)
+    {
+        // Buscar inventario activo existente
+        var inventario = await _context.InventarioAves
+            .Where(i => i.LoteId == loteId && 
+                       i.GranjaId == granjaId &&
+                       (nucleoId == null || i.NucleoId == nucleoId) &&
+                       (galponId == null || i.GalponId == galponId) &&
+                       i.CompanyId == _currentUser.CompanyId && 
+                       i.DeletedAt == null &&
+                       i.Estado == "Activo")
+            .OrderByDescending(i => i.FechaActualizacion)
+            .FirstOrDefaultAsync();
+
+        // Si no existe y se permite crear, crear uno nuevo
+        if (inventario == null && crearSiNoExiste)
+        {
+            // Obtener información del lote para inicializar el inventario
+            var lote = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == loteId && 
+                           l.CompanyId == _currentUser.CompanyId && 
+                           l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (lote == null)
+                return null;
+
+            // Crear inventario con cantidades iniciales del lote
+            inventario = new InventarioAves
+            {
+                LoteId = loteId,
+                GranjaId = granjaId,
+                NucleoId = nucleoId ?? lote.NucleoId,
+                GalponId = galponId ?? lote.GalponId,
+                CantidadHembras = lote.HembrasL ?? 0,
+                CantidadMachos = lote.MachosL ?? 0,
+                CantidadMixtas = lote.Mixtas ?? 0,
+                FechaActualizacion = DateTime.UtcNow,
+                Estado = "Activo",
+                CompanyId = _currentUser.CompanyId,
+                CreatedByUserId = _currentUser.UserId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.InventarioAves.Add(inventario);
+            await _context.SaveChangesAsync();
+        }
+
+        return inventario;
     }
 
     public async Task<IEnumerable<MovimientoAvesDto>> GetMovimientosRecientesAsync(int dias = 7)

@@ -182,5 +182,6 @@ public class TrasladosController : ControllerBase
         var traslados = await _trasladoHuevosService.ObtenerTrasladosPorLoteAsync(loteId);
         return Ok(traslados);
     }
+
 }
 

@@ -45,42 +45,6 @@
       </div>
     </header>
 
-    <!-- Resumen -->
-    <section class="dashboard-summary" *ngIf="resumen()">
-      <div class="summary-grid">
-        <div class="summary-card summary-card--primary">
-          <div class="summary-card__icon">📦</div>
-          <div class="summary-card__content">
-            <h3 class="summary-card__title">Total Lotes</h3>
-            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalLotes) }}</p>
-          </div>
-        </div>
-
-        <div class="summary-card summary-card--success">
-          <div class="summary-card__icon">🐔</div>
-          <div class="summary-card__content">
-            <h3 class="summary-card__title">Total Hembras</h3>
-            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalHembras) }}</p>
-          </div>
-        </div>
-
-        <div class="summary-card summary-card--info">
-          <div class="summary-card__icon">🐓</div>
-          <div class="summary-card__content">
-            <h3 class="summary-card__title">Total Machos</h3>
-            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalMachos) }}</p>
-          </div>
-        </div>
-
-        <div class="summary-card summary-card--warning">
-          <div class="summary-card__icon">🐥</div>
-          <div class="summary-card__content">
-            <h3 class="summary-card__title">Total Aves</h3>
-            <p class="summary-card__value">{{ formatearNumero(resumen()!.totalAves) }}</p>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- ========== FILTROS (ARRIBA) ========== -->
     <section class="filters-section">
@@ -286,9 +250,20 @@
                     <th>Operación</th>
                     <th>Origen</th>
                     <th>Destino</th>
-                    <th>Total Huevos</th>
-                    <th>Detalle</th>
+                    <th>Total</th>
+                    <th>Limpio</th>
+                    <th>Tratado</th>
+                    <th>Sucio</th>
+                    <th>Deforme</th>
+                    <th>Blanco</th>
+                    <th>Doble Yema</th>
+                    <th>Piso</th>
+                    <th>Pequeño</th>
+                    <th>Roto</th>
+                    <th>Desecho</th>
+                    <th>Otro</th>
                     <th>Estado</th>
+                    <th>Observaciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,12 +278,18 @@
                     </td>
                     <td>{{ traslado.granjaOrigenNombre || '—' }}</td>
                     <td>{{ traslado.granjaDestinoNombre || traslado.tipoDestino || '—' }}</td>
-                    <td class="number-cell primary">{{ formatearNumero(traslado.totalHuevos) }}</td>
-                    <td class="text-sm">
-                      <span *ngIf="traslado.cantidadLimpio > 0">L: {{ traslado.cantidadLimpio }}</span>
-                      <span *ngIf="traslado.cantidadTratado > 0">T: {{ traslado.cantidadTratado }}</span>
-                      <span *ngIf="traslado.cantidadSucio > 0">S: {{ traslado.cantidadSucio }}</span>
-                    </td>
+                    <td class="number-cell primary"><strong>{{ formatearNumero(traslado.totalHuevos || 0) }}</strong></td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadLimpio || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadTratado || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadSucio || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadDeforme || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadBlanco || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadDobleYema || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadPiso || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadPequeno || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho || 0) }}</td>
+                    <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro || 0) }}</td>
                     <td>
                       <span class="badge" [class.badge--success]="traslado.estado === 'Completado'"
                             [class.badge--warning]="traslado.estado === 'Pendiente'"
@@ -316,9 +297,10 @@
                         {{ traslado.estado }}
                       </span>
                     </td>
+                    <td class="text-sm">{{ traslado.observaciones || '—' }}</td>
                   </tr>
                   <tr *ngIf="!loadingTrasladosHuevos() && trasladosHuevosLote().length === 0">
-                    <td colspan="8" class="empty-state">
+                    <td colspan="19" class="empty-state">
                       <div class="empty-illustration">🥚</div>
                       <p>No hay registros de traslado de huevos para este lote.</p>
                       <p class="text-muted text-sm">Total registros: {{ trasladosHuevosLote().length }}</p>
@@ -436,6 +418,7 @@
               </table>
             </div>
           </div>
+
         </div>
       </div>
     </section>
@@ -1181,32 +1164,41 @@
                 <!-- Disponibilidad de Aves - Mejorada -->
                 <div class="disponibilidad-section disponibilidad-section--enhanced" *ngIf="disponibilidadLote() && disponibilidadLote()!.tipoLote === 'Levante'">
                   <div class="disponibilidad-header">
-                    <h4>📊 Disponibilidad de Aves</h4>
+                    <h4>📊 Disponibilidad del Lote</h4>
                     <span class="disponibilidad-subtitle">Cantidades disponibles para traslado o venta</span>
                   </div>
                   <div class="disponibilidad-grid disponibilidad-grid--enhanced">
                     <div class="disponibilidad-card disponibilidad-card--hembras">
-                      <div class="disponibilidad-icon">♀</div>
+                      <div class="disponibilidad-icon">🐔</div>
                       <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">Hembras Vivas</span>
+                        <span class="disponibilidad-label">♀ Hembras Disponibles</span>
                         <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.hembrasVivas || 0) }}</span>
                       </div>
                     </div>
                     <div class="disponibilidad-card disponibilidad-card--machos">
-                      <div class="disponibilidad-icon">♂</div>
+                      <div class="disponibilidad-icon">🐓</div>
                       <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">Machos Vivos</span>
+                        <span class="disponibilidad-label">♂ Machos Disponibles</span>
                         <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.machosVivos || 0) }}</span>
                       </div>
                     </div>
                     <div class="disponibilidad-card disponibilidad-card--total highlight">
-                      <div class="disponibilidad-icon">🐔</div>
+                      <div class="disponibilidad-icon">🐥</div>
                       <div class="disponibilidad-content">
-                        <span class="disponibilidad-label">Total Aves</span>
+                        <span class="disponibilidad-label">Total Aves Disponibles</span>
                         <span class="disponibilidad-value">{{ formatearNumero(disponibilidadLote()!.aves?.totalAves || 0) }}</span>
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <!-- Mensaje si no hay disponibilidad cargada -->
+                <div class="alert alert-info" *ngIf="!disponibilidadLote() && !loadingDisponibilidad() && tabActivo() === 'aves'">
+                  <p>⚠️ No se pudo cargar la disponibilidad del lote. Por favor, verifica que el lote sea de tipo "Levante".</p>
+                </div>
+                <div class="loading-state" *ngIf="loadingDisponibilidad() && tabActivo() === 'aves'">
+                  <div class="spinner"></div>
+                  <p>Cargando disponibilidad del lote...</p>
                 </div>
 
                 <form [formGroup]="trasladoRetiroForm" class="traslado-form" (ngSubmit)="procesarRetiroTraslado()">
@@ -1239,30 +1231,48 @@
 
                   <!-- Cantidades -->
                   <div class="form-section">
-                    <h4>🔢 Cantidades</h4>
+                    <h4>🔢 Cantidades a Trasladar/Vender</h4>
                     <div class="cantidades-grid">
                       <div class="cantidad-field">
                         <label class="ux-label" for="aves-hembras">
                           ♀ Hembras
                           <span class="max-disponible" *ngIf="disponibilidadLote()?.aves">
-                            (Máx: {{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }})
+                            (Disponible: {{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }})
+                          </span>
+                          <span class="max-disponible text-muted" *ngIf="!disponibilidadLote()?.aves">
+                            (Cargando disponibilidad...)
                           </span>
                         </label>
                         <input id="aves-hembras" type="number" class="ux-input"
                                formControlName="cantidadHembras" min="0"
-                               [attr.max]="disponibilidadLote()?.aves?.hembrasVivas" />
+                               [attr.max]="disponibilidadLote()?.aves?.hembrasVivas"
+                               [class.error]="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)" />
+                        <div class="field-error" *ngIf="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)">
+                          ⚠️ La cantidad excede las hembras disponibles ({{ formatearNumero(disponibilidadLote()?.aves?.hembrasVivas || 0) }})
+                        </div>
                       </div>
                       <div class="cantidad-field">
                         <label class="ux-label" for="aves-machos">
                           ♂ Machos
                           <span class="max-disponible" *ngIf="disponibilidadLote()?.aves">
-                            (Máx: {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }})
+                            (Disponible: {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }})
+                          </span>
+                          <span class="max-disponible text-muted" *ngIf="!disponibilidadLote()?.aves">
+                            (Cargando disponibilidad...)
                           </span>
                         </label>
                         <input id="aves-machos" type="number" class="ux-input"
                                formControlName="cantidadMachos" min="0"
-                               [attr.max]="disponibilidadLote()?.aves?.machosVivos" />
+                               [attr.max]="disponibilidadLote()?.aves?.machosVivos"
+                               [class.error]="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)" />
+                        <div class="field-error" *ngIf="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)">
+                          ⚠️ La cantidad excede los machos disponibles ({{ formatearNumero(disponibilidadLote()?.aves?.machosVivos || 0) }})
+                        </div>
                       </div>
+                    </div>
+                    <div class="form-hint" *ngIf="disponibilidadLote()?.aves">
+                      <p>💡 Total disponible: <strong>{{ formatearNumero(disponibilidadLote()!.aves!.totalAves) }} aves</strong> 
+                        ({{ formatearNumero(disponibilidadLote()!.aves!.hembrasVivas) }} hembras + {{ formatearNumero(disponibilidadLote()!.aves!.machosVivos) }} machos)</p>
                     </div>
                   </div>
 

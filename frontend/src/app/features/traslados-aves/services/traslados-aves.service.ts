@@ -53,18 +53,44 @@ export interface InventarioAvesSearchRequest {
 }
 
 // Movimiento de Aves
+export interface UbicacionMovimientoDto {
+  loteId?: number | null;
+  loteNombre?: string | null;
+  granjaId?: number | null;
+  granjaNombre?: string | null;
+  nucleoId?: string | null;
+  nucleoNombre?: string | null;
+  galponId?: string | null;
+  galponNombre?: string | null;
+}
+
 export interface MovimientoAvesDto {
   id: number;
-  companyId: number;
-  loteOrigenId: string;
-  loteDestinoId: string;
+  numeroMovimiento: string;
+  fechaMovimiento: string | Date;
+  tipoMovimiento: string;
+  origen?: UbicacionMovimientoDto | null;
+  destino?: UbicacionMovimientoDto | null;
   cantidadHembras: number;
   cantidadMachos: number;
-  tipoMovimiento: string;
-  observaciones?: string;
-  fechaMovimiento: Date;
-  createdAt: Date;
-  updatedAt?: Date;
+  cantidadMixtas: number;
+  totalAves: number;
+  estado: string;
+  motivoMovimiento?: string | null;
+  observaciones?: string | null;
+  usuarioMovimientoId: number;
+  usuarioNombre?: string | null;
+  fechaProcesamiento?: string | Date | null;
+  fechaCancelacion?: string | Date | null;
+  createdAt: string | Date;
+  
+  // Campos adicionales para compatibilidad (si vienen del backend)
+  loteOrigenId?: number | null;
+  loteDestinoId?: number | null;
+  granjaOrigenId?: number | null;
+  granjaDestinoId?: number | null;
+  granjaOrigenNombre?: string | null;
+  granjaDestinoNombre?: string | null;
 }
 
 export interface CreateMovimientoAvesDto {
@@ -370,6 +396,7 @@ export class TrasladosAvesService {
   private movimientoUrl = `${environment.apiUrl}/MovimientoAves`;
   private historialUrl = `${environment.apiUrl}/HistorialInventario`;
   private trasladosUrl = `${environment.apiUrl}/traslados`;
+  private apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -532,6 +559,12 @@ export class TrasladosAvesService {
   // Obtener movimiento de aves por ID
   getMovimientoAves(id: number): Observable<MovimientoAvesDto> {
     return this.http.get<MovimientoAvesDto>(`${this.trasladosUrl}/aves/${id}`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Obtener todos los movimientos de aves por lote (sin límite)
+  getMovimientosAvesPorLote(loteId: number): Observable<MovimientoAvesDto[]> {
+    return this.http.get<MovimientoAvesDto[]>(`${this.apiUrl}/MovimientoAves/lote/${loteId}`)
       .pipe(catchError(this.handleError));
   }
 

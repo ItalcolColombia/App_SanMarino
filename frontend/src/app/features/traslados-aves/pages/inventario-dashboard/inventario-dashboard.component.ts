@@ -877,36 +877,83 @@ export class InventarioDashboardComponent implements OnInit {
 
   // 🔴 Cambios al seleccionar un lote en el filtro superior
   onLoteSelectChange(val: string | null): void {
+    console.log(`[DEBUG] ========== onLoteSelectChange LLAMADO ==========`);
+    console.log(`[DEBUG] Valor recibido: ${val} (tipo: ${typeof val})`);
+    
     this.selectedLoteId = val;
     if (val) {
       this.filtros.loteId = val;
       // Cargar información completa del lote seleccionado
       const loteIdNum = parseInt(val, 10);
+      console.log(`[DEBUG] LoteId parseado: ${loteIdNum} (es válido: ${!isNaN(loteIdNum)})`);
+      
       if (!isNaN(loteIdNum)) {
+        console.log(`[DEBUG] Cargando información del lote ${loteIdNum}...`);
         this.loteService.getById(loteIdNum).subscribe({
           next: (lote) => {
+            console.log(`[DEBUG] ✅ Lote cargado:`, lote);
             this.loteCompleto.set(lote);
+            
             // Buscar el inventario correspondiente para mostrar detalles
             const inventario = this.inventariosBase().find(inv => String(inv.loteId) === val);
+            console.log(`[DEBUG] Inventario encontrado en inventariosBase:`, inventario ? 'Sí' : 'No');
+            
             if (inventario) {
+              // Si encontramos el inventario, usar el método completo
+              console.log(`[DEBUG] Usando método seleccionarLote() con inventario existente`);
               this.seleccionarLote(inventario);
             } else {
-              // Si no está en inventarios, cargar movimientos igualmente
+              // Si no está en inventarios, crear un inventario "virtual" para mostrar los registros
+              console.log(`[DEBUG] Creando inventario virtual para lote ${val}`);
+              const inventarioVirtual: InventarioAvesDto = {
+                id: 0,
+                loteId: val,
+                granjaId: lote.granjaId,
+                nucleoId: lote.nucleoId || '',
+                galponId: lote.galponId || undefined,
+                cantidadHembras: 0,
+                cantidadMachos: 0,
+                fechaUltimoConteo: new Date(),
+                createdAt: new Date(),
+                updatedAt: undefined,
+                companyId: lote.companyId || 0
+              };
+              
+              // Establecer el lote seleccionado y cargar todos los datos
+              console.log(`[DEBUG] Estableciendo loteSeleccionado con inventario virtual`);
+              this.loteSeleccionado.set(inventarioVirtual);
+              this.tabRegistrosActivo.set('huevos');
+              
+              // Cargar todos los registros
+              console.log(`[DEBUG] Iniciando carga de todos los registros...`);
               this.cargarMovimientosLote(loteIdNum);
+              this.cargarHistorialTrasladosLote(loteIdNum);
+              this.cargarTrasladosHuevosLote(val);
             }
           },
-          error: () => {
+          error: (err) => {
+            console.error(`[ERROR] ❌ Error al cargar lote ${loteIdNum}:`, err);
             this.loteCompleto.set(null);
+            this.loteSeleccionado.set(null);
             this.movimientosLote.set([]);
+            this.trasladosHuevosLote.set([]);
+            this.historialTrasladosLote.set([]);
           }
         });
+      } else {
+        // Si el loteId no es un número válido, limpiar
+        console.warn(`[WARN] LoteId inválido: ${val}`);
+        this.loteCompleto.set(null);
+        this.loteSeleccionado.set(null);
       }
     } else {
+      console.log(`[DEBUG] Limpiando selección de lote`);
       delete this.filtros.loteId;
       this.loteCompleto.set(null);
       this.seleccionarLote(null);
     }
     this.recomputeList();
+    console.log(`[DEBUG] ========== FIN onLoteSelectChange ==========`);
   }
 
   private resetLoteIfNotInContext(): void {
@@ -920,64 +967,123 @@ export class InventarioDashboardComponent implements OnInit {
 
   // ===================== Selección de Lote ====================
   seleccionarLote(inventario: InventarioAvesDto | null): void {
+    console.log(`[DEBUG] ========== seleccionarLote LLAMADO ==========`);
+    console.log(`[DEBUG] Inventario recibido:`, inventario);
+    
     this.loteSeleccionado.set(inventario);
+    console.log(`[DEBUG] loteSeleccionado establecido:`, this.loteSeleccionado());
 
     if (inventario) {
       // Inicializar tab de registros al primer tab con datos disponibles
       // Prioridad: Huevos > Aves > Lotes
       this.tabRegistrosActivo.set('huevos');
+      console.log(`[DEBUG] Tab activo establecido a: huevos`);
       
       // Cargar información completa del lote
       const loteIdNum = parseInt(inventario.loteId, 10);
+      console.log(`[DEBUG] LoteId parseado: ${loteIdNum} (es válido: ${!isNaN(loteIdNum)})`);
+      
       if (!isNaN(loteIdNum)) {
         this.loteService.getById(loteIdNum).subscribe({
           next: (lote) => {
+            console.log(`[DEBUG] ✅ Lote completo cargado:`, lote);
             this.loteCompleto.set(lote);
           },
-          error: () => {
+          error: (err) => {
+            console.error(`[ERROR] Error al cargar lote completo:`, err);
             this.loteCompleto.set(null);
           }
         });
 
         // Cargar movimientos del lote
+        console.log(`[DEBUG] Iniciando carga de datos para lote ${loteIdNum}...`);
         this.cargarMovimientosLote(loteIdNum);
         // Cargar historial de traslados de lotes
         this.cargarHistorialTrasladosLote(loteIdNum);
         // Cargar traslados de huevos
         this.cargarTrasladosHuevosLote(String(loteIdNum));
       } else {
+        console.warn(`[WARN] LoteId inválido en inventario: ${inventario.loteId}`);
         this.loteCompleto.set(null);
         this.movimientosLote.set([]);
         this.historialTrasladosLote.set([]);
         this.trasladosHuevosLote.set([]);
       }
     } else {
+      console.log(`[DEBUG] Limpiando selección (inventario es null)`);
       this.loteCompleto.set(null);
       this.movimientosLote.set([]);
       this.historialTrasladosLote.set([]);
       this.trasladosHuevosLote.set([]);
     }
+    console.log(`[DEBUG] ========== FIN seleccionarLote ==========`);
   }
 
   private async cargarMovimientosLote(loteId: number): Promise<void> {
     this.loadingMovimientos.set(true);
     try {
-      console.log(`[DEBUG] Cargando movimientos para lote ${loteId}`);
-      const movimientos = await firstValueFrom(
-        this.trasladoNavigationService.getByLote(loteId, 100)
+      console.log(`[DEBUG] ========== INICIANDO CARGA DE MOVIMIENTOS DE AVES ==========`);
+      console.log(`[DEBUG] LoteId recibido: ${loteId} (tipo: ${typeof loteId})`);
+      
+      // Usar el endpoint directo que retorna TODOS los movimientos sin límite
+      console.log(`[DEBUG] Llamando a API: getMovimientosAvesPorLote(${loteId})`);
+      const movimientosAves = await firstValueFrom(
+        this.trasladosService.getMovimientosAvesPorLote(loteId)
       );
-      console.log(`[DEBUG] Movimientos recibidos:`, movimientos);
-      this.movimientosLote.set(movimientos || []);
-      // Filtrar solo movimientos de aves
-      const movimientosAves = movimientos?.filter(m => m.tipoTraslado === 'Aves') || [];
-      console.log(`[DEBUG] Movimientos de aves filtrados:`, movimientosAves);
-      this.movimientosAvesLote.set(movimientosAves);
+      console.log(`[DEBUG] ✅ Respuesta del API recibida:`, movimientosAves);
+      console.log(`[DEBUG] Cantidad de registros: ${movimientosAves?.length || 0}`);
+      
+      // Convertir MovimientoAvesDto[] a TrasladoUnificado[] para mantener compatibilidad
+      const movimientosUnificados: TrasladoUnificado[] = (movimientosAves || []).map(m => ({
+        id: m.id,
+        numeroTraslado: m.numeroMovimiento,
+        fechaTraslado: typeof m.fechaMovimiento === 'string' ? m.fechaMovimiento : m.fechaMovimiento.toISOString(),
+        tipoOperacion: m.tipoMovimiento,
+        tipoTraslado: 'Aves' as const,
+        loteIdOrigen: (m.origen?.loteId ?? m.loteOrigenId)?.toString() || '',
+        loteIdOrigenInt: m.origen?.loteId ?? m.loteOrigenId ?? undefined,
+        granjaOrigenId: m.origen?.granjaId ?? m.granjaOrigenId ?? 0,
+        granjaOrigenNombre: (m.origen?.granjaNombre ?? m.granjaOrigenNombre) || undefined,
+        loteIdDestino: (m.destino?.loteId ?? m.loteDestinoId)?.toString(),
+        loteIdDestinoInt: m.destino?.loteId ?? m.loteDestinoId ?? undefined,
+        granjaDestinoId: m.destino?.granjaId ?? m.granjaDestinoId ?? undefined,
+        granjaDestinoNombre: (m.destino?.granjaNombre ?? m.granjaDestinoNombre) || undefined,
+        cantidadHembras: m.cantidadHembras,
+        cantidadMachos: m.cantidadMachos,
+        totalAves: m.totalAves ?? (m.cantidadHembras + m.cantidadMachos + (m.cantidadMixtas || 0)),
+        estado: m.estado,
+        motivo: m.motivoMovimiento || undefined,
+        observaciones: m.observaciones || undefined,
+        usuarioTrasladoId: m.usuarioMovimientoId,
+        usuarioNombre: m.usuarioNombre || undefined,
+        fechaProcesamiento: m.fechaProcesamiento ? (typeof m.fechaProcesamiento === 'string' ? m.fechaProcesamiento : m.fechaProcesamiento.toISOString()) : undefined,
+        fechaCancelacion: m.fechaCancelacion ? (typeof m.fechaCancelacion === 'string' ? m.fechaCancelacion : m.fechaCancelacion.toISOString()) : undefined,
+        createdAt: typeof m.createdAt === 'string' ? m.createdAt : m.createdAt.toISOString(),
+        updatedAt: m.fechaProcesamiento ? (typeof m.fechaProcesamiento === 'string' ? m.fechaProcesamiento : m.fechaProcesamiento.toISOString()) : undefined,
+        tieneSeguimientoProduccion: false
+      }));
+      
+      console.log(`[DEBUG] ✅ Movimientos unificados procesados:`, movimientosUnificados);
+      console.log(`[DEBUG] Estableciendo signals con ${movimientosUnificados.length} registros`);
+      this.movimientosAvesLote.set(movimientosUnificados);
+      this.movimientosLote.set(movimientosUnificados);
+      console.log(`[DEBUG] ✅ Signals actualizados. Valores actuales:`, {
+        movimientosAvesLote: this.movimientosAvesLote().length,
+        movimientosLote: this.movimientosLote().length
+      });
     } catch (err: any) {
-      console.error('Error al cargar movimientos del lote:', err);
+      console.error(`[ERROR] ❌ Error al cargar movimientos del lote ${loteId}:`, err);
+      console.error(`[ERROR] Detalles del error:`, {
+        message: err.message,
+        status: err.status,
+        error: err.error,
+        url: err.url
+      });
       this.movimientosLote.set([]);
       this.movimientosAvesLote.set([]);
     } finally {
       this.loadingMovimientos.set(false);
+      console.log(`[DEBUG] ========== FIN CARGA DE MOVIMIENTOS DE AVES ==========`);
     }
   }
 
@@ -1001,19 +1107,46 @@ export class InventarioDashboardComponent implements OnInit {
   private async cargarTrasladosHuevosLote(loteId: string): Promise<void> {
     this.loadingTrasladosHuevos.set(true);
     try {
-      console.log(`[DEBUG] Cargando traslados de huevos para lote ${loteId}`);
+      console.log(`[DEBUG] ========== INICIANDO CARGA DE TRASLADOS DE HUEVOS ==========`);
+      console.log(`[DEBUG] LoteId recibido: ${loteId} (tipo: ${typeof loteId})`);
+      
+      // Usar el endpoint directo de traslados de huevos
+      console.log(`[DEBUG] Llamando a API: getTrasladosHuevosPorLote(${loteId})`);
       const traslados = await firstValueFrom(
         this.trasladosService.getTrasladosHuevosPorLote(loteId)
       );
-      console.log(`[DEBUG] Traslados de huevos recibidos:`, traslados);
-      this.trasladosHuevosLote.set(traslados || []);
+      console.log(`[DEBUG] ✅ Respuesta del API recibida:`, traslados);
+      console.log(`[DEBUG] Cantidad de registros: ${traslados?.length || 0}`);
+      
+      // Asegurar que las fechas se conviertan correctamente
+      const trasladosProcesados: TrasladoHuevosDto[] = (traslados || []).map(t => ({
+        ...t,
+        fechaTraslado: typeof t.fechaTraslado === 'string' ? new Date(t.fechaTraslado) : t.fechaTraslado,
+        fechaProcesamiento: t.fechaProcesamiento ? (typeof t.fechaProcesamiento === 'string' ? new Date(t.fechaProcesamiento) : t.fechaProcesamiento) : undefined,
+        fechaCancelacion: t.fechaCancelacion ? (typeof t.fechaCancelacion === 'string' ? new Date(t.fechaCancelacion) : t.fechaCancelacion) : undefined,
+        createdAt: typeof t.createdAt === 'string' ? new Date(t.createdAt) : t.createdAt,
+        updatedAt: t.updatedAt ? (typeof t.updatedAt === 'string' ? new Date(t.updatedAt) : t.updatedAt) : undefined
+      }));
+      
+      console.log(`[DEBUG] ✅ Traslados de huevos procesados:`, trasladosProcesados);
+      console.log(`[DEBUG] Estableciendo signal con ${trasladosProcesados.length} registros`);
+      this.trasladosHuevosLote.set(trasladosProcesados);
+      console.log(`[DEBUG] ✅ Signal actualizado. Valor actual:`, this.trasladosHuevosLote());
     } catch (err: any) {
-      console.error('Error al cargar traslados de huevos:', err);
+      console.error(`[ERROR] ❌ Error al cargar traslados de huevos para lote ${loteId}:`, err);
+      console.error(`[ERROR] Detalles del error:`, {
+        message: err.message,
+        status: err.status,
+        error: err.error,
+        url: err.url
+      });
       this.trasladosHuevosLote.set([]);
     } finally {
       this.loadingTrasladosHuevos.set(false);
+      console.log(`[DEBUG] ========== FIN CARGA DE TRASLADOS DE HUEVOS ==========`);
     }
   }
+
 
   obtenerTipoMovimientoClass(tipo: string): string {
     const tipoLower = tipo?.toLowerCase() || '';
@@ -1369,7 +1502,7 @@ export class InventarioDashboardComponent implements OnInit {
         if (!isNaN(loteIdNum)) {
           this.cargarMovimientosLote(loteIdNum);
         }
-        // Recargar disponibilidad
+        // Recargar disponibilidad para mostrar valores actualizados
         this.cargarDisponibilidadLote(String(this.loteCompleto()!.loteId));
       }
 
