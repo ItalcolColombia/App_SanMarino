@@ -409,8 +409,8 @@ app.UseCors("AppCors");
 app.UseSecurityHeaders();
 
 // 2. Rate Limiting (proteger contra DDoS y fuerza bruta)
-// DESACTIVADO TEMPORALMENTE - El usuario indicó que ya tiene seguridad completa y está bloqueando demasiado
-// app.UseRateLimiting();
+// Habilitado con configuración ajustada para no bloquear usuarios legítimos
+app.UseRateLimiting();
 
 // 3. Validar SECRET_UP después de CORS pero antes de Authentication/Authorization
 // El middleware ya maneja OPTIONS requests internamente
@@ -446,6 +446,11 @@ app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config)
 
     if (password == expectedPassword)
     {
+        // Detectar HTTPS vía proxy
+        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
+        var isSecure = context.Request.IsHttps || isHttpsViaProxy;
+        
         // Crear cookie de autenticación
         var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(
             System.Text.Encoding.UTF8.GetBytes(expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
@@ -453,10 +458,11 @@ app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config)
         
         var cookieOptions = new CookieOptions
         {
-            HttpOnly = true,
-            Secure = context.Request.IsHttps, // true en producción con HTTPS, false en desarrollo
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6) // 6 minutos de sesión con renovación automática
+            HttpOnly = true, // Previene acceso desde JavaScript (protección XSS)
+            Secure = isSecure, // true en producción con HTTPS
+            SameSite = SameSiteMode.Strict, // Más estricto para cookies de autenticación
+            Expires = DateTimeOffset.UtcNow.AddMinutes(6), // 6 minutos de sesión con renovación automática
+            Path = "/" // Aplicar a todo el sitio
         };
 
         context.Response.Cookies.Append(cookieName, hashString, cookieOptions);
@@ -466,9 +472,10 @@ app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config)
         var lastActivityOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = false,
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6)
+            Secure = isSecure, // Debe ser Secure también
+            SameSite = SameSiteMode.Strict, // Más estricto para cookies de sesión
+            Expires = DateTimeOffset.UtcNow.AddMinutes(6),
+            Path = "/"
         };
         context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
         context.Response.Redirect("/swagger");
@@ -569,7 +576,47 @@ app.MapGet("/db-ping", async (ZooSanMarinoContext ctx) =>
     }
 });
 
-// Catch-all OPTIONS
+// Endpoints de seguridad estándar
+// security.txt - RFC 9116
+app.MapGet("/.well-known/security.txt", () =>
+{
+    var securityTxt = @"Contact: mailto:security@example.com
+Expires: 2026-12-31T23:59:59.000Z
+Preferred-Languages: es, en
+Canonical: https://example.com/.well-known/security.txt
+Policy: https://example.com/security-policy
+
+# Nota: Actualizar con información de contacto real de seguridad";
+    return Results.Text(securityTxt, "text/plain");
+});
+
+// robots.txt
+app.MapGet("/robots.txt", () =>
+{
+    var robotsTxt = @"# robots.txt para ZooSanMarino API
+User-agent: *
+Allow: /api/
+Disallow: /swagger/
+Disallow: /api/auth/
+Disallow: /api/Admin/
+Disallow: /.well-known/
+
+# Permitir acceso a endpoints públicos si existen
+Allow: /api/health
+Allow: /api/db-ping
+
+# Bloquear crawlers de endpoints sensibles
+User-agent: *
+Disallow: /api/*/password
+Disallow: /api/*/token
+Disallow: /api/*/secret";
+    return Results.Text(robotsTxt, "text/plain");
+});
+
+// Catch-all OPTIONS (necesario para CORS preflight)
+// OPTIONS está habilitado intencionalmente para soportar CORS preflight requests
+// Esto es necesario para que los navegadores puedan validar permisos CORS antes de hacer requests reales
+// El método OPTIONS solo retorna headers, no procesa datos sensibles
 app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok()).RequireCors("AppCors");
 
 // ─────────────────────────────────────

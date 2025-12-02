@@ -1,0 +1,18 @@
+# robots.txt para ZooSanMarino API
+User-agent: *
+Allow: /api/
+Disallow: /swagger/
+Disallow: /api/auth/
+Disallow: /api/Admin/
+Disallow: /.well-known/
+
+# Permitir acceso a endpoints públicos si existen
+Allow: /api/health
+Allow: /api/db-ping
+
+# Bloquear crawlers de endpoints sensibles
+User-agent: *
+Disallow: /api/*/password
+Disallow: /api/*/token
+Disallow: /api/*/secret
+

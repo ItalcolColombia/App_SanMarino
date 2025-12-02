@@ -54,14 +54,27 @@ public class SecurityHeadersMiddleware
                   "img-src 'self' data: https:; " +
                   "font-src 'self' data:; " +
                   "connect-src 'self' https:; " + // Permitir conexiones HTTPS para APIs externas
-                  "frame-ancestors 'none';"; // Previene clickjacking
+                  "frame-ancestors 'none'; " + // Previene clickjacking
+                  "base-uri 'self'; " + // Previene inyección de base tag
+                  "form-action 'self'; " + // Previene envío de formularios a dominios externos
+                  "upgrade-insecure-requests;"; // Fuerza HTTPS para recursos HTTP
         
         response.Headers["Content-Security-Policy"] = csp;
+        
+        // Report-URI para CSP (opcional, requiere endpoint de reporte)
+        // response.Headers["Content-Security-Policy-Report-Only"] = csp + " report-uri /api/csp-report;";
 
         // Permissions Policy (anteriormente Feature-Policy)
         // Controla qué APIs del navegador están disponibles
         response.Headers["Permissions-Policy"] = 
             "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=()";
+
+        // Rate Limiting Headers (informativos)
+        // Estos headers informan al cliente sobre los límites de rate limiting
+        // Los valores reales se configuran en el middleware de rate limiting
+        response.Headers["X-RateLimit-Limit"] = "100";
+        response.Headers["X-RateLimit-Remaining"] = "99";
+        response.Headers["X-RateLimit-Reset"] = DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds().ToString();
 
         // Prevenir que el navegador cachee respuestas sensibles
         // (se puede sobrescribir en endpoints específicos si es necesario)
@@ -95,6 +108,14 @@ public class SecurityHeadersMiddleware
         // Esto previene que atacantes obtengan información sobre la versión del servidor
         response.Headers.Remove("Server");
         response.Headers.Remove("X-Powered-By");
+        response.Headers.Remove("X-AspNet-Version");
+        response.Headers.Remove("X-AspNetMvc-Version");
+
+        // Agregar header para prevenir clickjacking adicional
+        response.Headers["X-Download-Options"] = "noopen";
+        
+        // Prevenir que Internet Explorer ejecute archivos descargados
+        response.Headers["X-DNS-Prefetch-Control"] = "off";
 
         await _next(context);
     }

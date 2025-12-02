@@ -27,13 +27,13 @@ public class RateLimitingMiddleware
         _logger = logger;
         _cache = cache;
         
-        // Configuración por defecto
+        // Configuración por defecto (ajustada para balance entre seguridad y usabilidad)
         _options = new RateLimitOptions
         {
-            MaxRequestsPerMinute = 60,          // 60 peticiones por minuto por IP
-            MaxRequestsPerMinuteForAuth = 5,    // 5 intentos de login por minuto
-            MaxRequestsPerMinuteForSwagger = 30, // 30 peticiones por minuto para Swagger
-            BlockDurationMinutes = 15            // Bloquear IP por 15 minutos si excede límites
+            MaxRequestsPerMinute = 100,         // 100 peticiones por minuto por IP (aumentado para usuarios legítimos)
+            MaxRequestsPerMinuteForAuth = 5,    // 5 intentos de login por minuto (mantiene seguridad)
+            MaxRequestsPerMinuteForSwagger = 50, // 50 peticiones por minuto para Swagger
+            BlockDurationMinutes = 10           // Bloquear IP por 10 minutos si excede límites (reducido)
         };
     }
 

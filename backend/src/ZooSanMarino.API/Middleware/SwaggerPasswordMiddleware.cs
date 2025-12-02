@@ -114,13 +114,19 @@ public class SwaggerPasswordMiddleware
             Encoding.UTF8.GetBytes(_expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
         var hashString = Convert.ToBase64String(hash);
 
+        // Detectar HTTPS vía proxy
+        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+        var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
+        var isSecure = context.Request.IsHttps || isHttpsViaProxy;
+        
         // Opciones de cookie con 6 minutos de expiración
         var cookieOptions = new CookieOptions
         {
-            HttpOnly = true,
-            Secure = context.Request.IsHttps, // true en producción con HTTPS, false en desarrollo
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6) // 6 minutos desde ahora
+            HttpOnly = true, // Previene acceso desde JavaScript
+            Secure = isSecure, // Solo enviar por HTTPS
+            SameSite = SameSiteMode.Strict, // Más estricto para cookies de autenticación
+            Expires = DateTimeOffset.UtcNow.AddMinutes(6), // 6 minutos desde ahora
+            Path = "/" // Aplicar a todo el sitio
         };
 
         // Renovar cookie de autenticación
@@ -130,9 +136,10 @@ public class SwaggerPasswordMiddleware
         var lastActivityOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = context.Request.IsHttps, // true en producción con HTTPS, false en desarrollo
-            SameSite = SameSiteMode.Lax,
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6) // 6 minutos desde ahora
+            Secure = isSecure, // Debe ser Secure también
+            SameSite = SameSiteMode.Strict, // Más estricto
+            Expires = DateTimeOffset.UtcNow.AddMinutes(6), // 6 minutos desde ahora
+            Path = "/"
         };
         context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
     }
