@@ -142,6 +142,8 @@
 
 :host .btn--primary { --btn-bg: var(--brand-red); --btn-fg: var(--white); --btn-br: var(--brand-red); }
 :host .btn--primary:hover { background: var(--brand-red-600); }
+:host .btn--secondary { --btn-bg: #2196f3; --btn-fg: var(--white); --btn-br: #2196f3; }
+:host .btn--secondary:hover { background: #1976d2; }
 :host .btn--outline { --btn-bg: var(--bg-card); --btn-fg: var(--brand-red); --btn-br: var(--brand-red); }
 :host .btn--outline:hover { background: #fff1f2; }
 
@@ -342,4 +344,157 @@
 }
 @media (max-width: 480px) {
   :host .ux-header__title h1 { font-size: 1.1rem; }
+}
+
+/* ==========================================================================
+   📐 Modal de Fórmulas
+   ========================================================================== */
+:host .formulas-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-4);
+  animation: fadeIn var(--t-med);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+:host .formulas-content {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 900px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp var(--t-med);
+  overflow: hidden;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+:host .formulas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  background: linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
+  color: var(--white);
+  border-bottom: 2px solid var(--brand-red-700);
+}
+
+:host .formulas-header h4 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+:host .btn-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: var(--white);
+  font-size: 1.5rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t-fast);
+  line-height: 1;
+  padding: 0;
+}
+
+:host .btn-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+:host .formulas-body {
+  padding: var(--space-5);
+  overflow-y: auto;
+  max-height: calc(85vh - 80px);
+}
+
+:host .formula-group {
+  margin-bottom: var(--space-5);
+}
+
+:host .formula-group:last-child {
+  margin-bottom: 0;
+}
+
+:host .formula-group-title {
+  margin: 0 0 var(--space-3) 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--brand-red);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--warm-200);
+}
+
+:host .formula-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+:host .formula-item {
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--warm-50);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--brand-red);
+  transition: all var(--t-fast);
+}
+
+:host .formula-item:hover {
+  background: var(--amber-25);
+  border-left-color: var(--brand-red-600);
+  transform: translateX(4px);
+}
+
+:host .formula-item:last-child {
+  margin-bottom: 0;
+}
+
+:host .formula-item strong {
+  display: block;
+  color: var(--brand-red);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-1);
+  font-weight: 700;
+}
+
+:host .formula-text {
+  display: block;
+  color: var(--text-sub);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  white-space: pre-line;
 }

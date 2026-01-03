@@ -50,6 +50,13 @@
       <div class="ux-header__actions">
         <button
           type="button"
+          class="btn btn--secondary"
+          (click)="mostrarFormulas = !mostrarFormulas">
+          📐 Fórmulas
+        </button>
+
+        <button
+          type="button"
           class="btn btn--primary"
           (click)="generarReporte()"
           [disabled]="loading() || !puedeGenerarReporte()"
@@ -287,5 +294,26 @@
         <p>No se encontraron datos para el período seleccionado.</p>
       </div>
     </section>
+
+    <!-- Modal de Fórmulas -->
+    <div class="formulas-modal" *ngIf="mostrarFormulas" (click)="mostrarFormulas = false">
+      <div class="formulas-content" (click)="$event.stopPropagation()">
+        <div class="formulas-header">
+          <h4>📐 Fórmulas de Reportes Técnicos</h4>
+          <button class="btn-close" (click)="mostrarFormulas = false">×</button>
+        </div>
+        <div class="formulas-body">
+          <div class="formula-group" *ngFor="let grupo of gruposFormulas">
+            <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
+            <ul class="formula-list">
+              <li *ngFor="let formula of grupo.formulas" class="formula-item">
+                <strong>{{ formula.nombre }}:</strong>
+                <span class="formula-text">{{ formula.formula }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>

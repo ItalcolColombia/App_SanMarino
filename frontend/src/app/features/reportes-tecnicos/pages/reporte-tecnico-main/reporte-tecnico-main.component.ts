@@ -1,6 +1,6 @@
 // src/app/features/reportes-tecnicos/pages/reporte-tecnico-main/reporte-tecnico-main.component.ts
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -43,7 +43,6 @@ import { GalponService } from '../../../galpon/services/galpon.service';
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    DatePipe,
     SidebarComponent,
     FiltroSelectComponent,
     TablaDatosDiariosComponent,
@@ -97,6 +96,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   
   // UI
   error: string | null = null;
+  mostrarFormulas: boolean = false;
 
   private destroy$ = new Subject<void>();
 
@@ -558,6 +558,196 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
       return partes[partes.length - 1];
     }
     return '';
+  }
+
+  // ================== FÓRMULAS DE REPORTES TÉCNICOS ==================
+  get gruposFormulas() {
+    return [
+      {
+        titulo: '📅 Información Básica',
+        formulas: [
+          {
+            nombre: 'Edad en Días',
+            formula: 'Fecha Registro - Fecha Encaset'
+          },
+          {
+            nombre: 'Edad en Semanas',
+            formula: 'Edad en Días / 7 (redondeado)'
+          },
+          {
+            nombre: 'Número de Aves Diario',
+            formula: 'Aves Iniciales - Mortalidad Acumulada - Descarte Acumulado'
+          }
+        ]
+      },
+      {
+        titulo: '💀 Mortalidad',
+        formulas: [
+          {
+            nombre: 'Mortalidad Total',
+            formula: 'Mortalidad Hembras + Mortalidad Machos'
+          },
+          {
+            nombre: '% Mortalidad Diaria',
+            formula: '(Mortalidad Total / Aves Actuales) × 100'
+          },
+          {
+            nombre: '% Mortalidad Acumulada',
+            formula: '(Mortalidad Acumulada Total / Aves Iniciales) × 100'
+          },
+          {
+            nombre: 'Mortalidad Total Semana',
+            formula: 'Suma de todas las mortalidades diarias de la semana'
+          },
+          {
+            nombre: '% Mortalidad Semana',
+            formula: 'Promedio de los % Mortalidad Diaria de la semana'
+          }
+        ]
+      },
+      {
+        titulo: '⚠️ Error de Sexaje (Solo Levante)',
+        formulas: [
+          {
+            nombre: 'Error de Sexaje',
+            formula: 'Error Sexaje Hembras + Error Sexaje Machos'
+          },
+          {
+            nombre: '% Error Sexaje',
+            formula: '(Error Sexaje / Aves Actuales) × 100'
+          },
+          {
+            nombre: '% Error Sexaje Acumulado',
+            formula: '(Error Sexaje Acumulado Total / Aves Iniciales) × 100'
+          }
+        ]
+      },
+      {
+        titulo: '🗑️ Descarte / Selección',
+        formulas: [
+          {
+            nombre: 'Descarte (Levante)',
+            formula: 'Selección Hembras + Selección Machos'
+          },
+          {
+            nombre: 'Descarte (Producción)',
+            formula: 'Selección Hembras'
+          },
+          {
+            nombre: '% Descarte Diario',
+            formula: '(Descarte / Aves Actuales) × 100'
+          },
+          {
+            nombre: '% Descarte Acumulado',
+            formula: '(Descarte Acumulado Total / Aves Iniciales) × 100'
+          },
+          {
+            nombre: 'Selección Ventas Semana',
+            formula: 'Suma de todas las selecciones diarias de la semana'
+          }
+        ]
+      },
+      {
+        titulo: '🍽️ Consumo de Alimento',
+        formulas: [
+          {
+            nombre: 'Consumo Kilos',
+            formula: 'Consumo Kg Hembras + Consumo Kg Machos'
+          },
+          {
+            nombre: 'Consumo Kilos Acumulado',
+            formula: 'Suma de todos los consumos diarios desde el inicio'
+          },
+          {
+            nombre: 'Consumo Bultos',
+            formula: 'Consumo Kilos / 40 (asumiendo 40kg por bulto estándar)'
+          },
+          {
+            nombre: 'Gramos por Ave',
+            formula: '(Consumo Kilos × 1000) / Aves Actuales'
+          },
+          {
+            nombre: 'Consumo Kilos Semana',
+            formula: 'Suma de todos los consumos diarios de la semana'
+          },
+          {
+            nombre: 'Gramos por Ave Semana',
+            formula: 'Promedio de los gramos por ave diarios de la semana'
+          }
+        ]
+      },
+      {
+        titulo: '⚖️ Peso Corporal',
+        formulas: [
+          {
+            nombre: 'Peso Actual',
+            formula: 'Peso Promedio Hembras o Peso Promedio Machos (según disponibilidad)'
+          },
+          {
+            nombre: 'Ganancia de Peso',
+            formula: 'Peso Actual - Peso Anterior'
+          },
+          {
+            nombre: 'Peso Promedio Semana',
+            formula: 'Promedio de todos los pesos actuales registrados en la semana'
+          },
+          {
+            nombre: 'Uniformidad',
+            formula: 'Valor de uniformidad del lote (registrado en seguimiento)'
+          },
+          {
+            nombre: 'Uniformidad Promedio Semana',
+            formula: 'Promedio de todas las uniformidades registradas en la semana'
+          },
+          {
+            nombre: 'Coeficiente de Variación (CV)',
+            formula: 'Valor de CV del lote (registrado en seguimiento)'
+          }
+        ]
+      },
+      {
+        titulo: '📦 Movimientos de Alimento',
+        formulas: [
+          {
+            nombre: 'Ingresos Alimento',
+            formula: 'Obtenido de movimientos de inventario (entradas de alimento)'
+          },
+          {
+            nombre: 'Traslados Alimento',
+            formula: 'Obtenido de movimientos de inventario (salidas/traslados de alimento)'
+          },
+          {
+            nombre: 'Ingresos Alimento Semana',
+            formula: 'Suma de todos los ingresos diarios de la semana'
+          },
+          {
+            nombre: 'Traslados Alimento Semana',
+            formula: 'Suma de todos los traslados diarios de la semana'
+          }
+        ]
+      },
+      {
+        titulo: '📊 Consolidación Semanal',
+        formulas: [
+          {
+            nombre: 'Aves Inicio Semana',
+            formula: 'Número de aves del primer día de la semana'
+          },
+          {
+            nombre: 'Aves Fin Semana',
+            formula: 'Número de aves del último día de la semana'
+          },
+          {
+            nombre: 'Semana Completa',
+            formula: 'Una semana se considera completa si tiene 7 o más días de registro'
+          },
+          {
+            nombre: 'Consolidación de Sublotes',
+            formula: 'Solo se consolidan semanas completas de todos los sublotes'
+          }
+        ]
+      }
+    ];
   }
 }
 
