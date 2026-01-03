@@ -125,4 +125,22 @@ public class CatalogoAlimentosController : ControllerBase
         };
         return Ok(metadata);
     }
+
+    /// <summary>Obtiene productos filtrados por tipo de item y búsqueda, solo activos.</summary>
+    /// <param name="typeItem">Tipo de item a filtrar (alimento, medicamento, etc.). Si es null o vacío, trae todos los tipos.</param>
+    /// <param name="search">Texto de búsqueda para filtrar por código o nombre.</param>
+    /// <returns>Lista de productos activos que coinciden con los filtros.</returns>
+    // GET /api/catalogo-alimentos/filter
+    // GET /catalogo-alimentos/filter (alias sin /api)
+    [HttpGet("filter")]
+    [HttpGet("/catalogo-alimentos/filter")]
+    [ProducesResponseType(typeof(IEnumerable<CatalogItemDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByType(
+        [FromQuery] string? typeItem = null,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
+    {
+        var items = await _service.GetByTypeAsync(typeItem, search, ct);
+        return Ok(items);
+    }
 }

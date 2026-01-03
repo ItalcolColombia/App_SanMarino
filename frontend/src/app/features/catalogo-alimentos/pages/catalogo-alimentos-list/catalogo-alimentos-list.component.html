@@ -161,95 +161,228 @@
     </header>
 
     <form [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
-      <div class="grid grid-2">
-        <div class="form-field">
-          <label for="f-cod">Código</label>
-          <input id="f-cod" type="text" formControlName="codigo" [readonly]="editing" />
-        </div>
+      <!-- Paso 1: Información Básica -->
+      <div class="form-section">
+        <h3 class="form-section__title">1. Información Básica</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="f-cod">Código *</label>
+            <input id="f-cod" type="text" formControlName="codigo" [readonly]="editing" 
+                   placeholder="Ej: ALI001" maxlength="10" />
+            <small class="help" *ngIf="!editing">Código único del ítem (máx. 10 caracteres)</small>
+            <small class="help" *ngIf="editing">El código no se puede modificar</small>
+          </div>
 
-        <div class="form-field">
-          <label for="f-nom">Nombre</label>
-          <input id="f-nom" type="text" formControlName="nombre" />
-        </div>
+          <div class="form-field">
+            <label for="f-nom">Nombre *</label>
+            <input id="f-nom" type="text" formControlName="nombre" 
+                   placeholder="Ej: Alimento Iniciador Pollos" maxlength="150" />
+            <small class="help">Nombre descriptivo del ítem (máx. 150 caracteres)</small>
+          </div>
 
-        <div class="form-field">
-          <label for="f-act">Activo</label>
-          <select id="f-act" formControlName="activo">
-            <option [ngValue]="true">Sí</option>
-            <option [ngValue]="false">No</option>
-          </select>
-        </div>
+          <div class="form-field">
+            <label for="f-type">Tipo de ítem *</label>
+            <select id="f-type" formControlName="type_item">
+              <option [ngValue]="null" disabled>Seleccione un tipo...</option>
+              <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
+            </select>
+            <small class="help">Se guardará como <code>type_item</code> en la metadata.</small>
+          </div>
 
-        <!-- Tipo genérico -->
-        <div class="form-field">
-          <label for="f-type">Tipo de ítem</label>
-          <select id="f-type" formControlName="type_item">
-            <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
-          </select>
-          <small class="help">Se guardará como <code>type_item</code> en la metadata.</small>
+          <div class="form-field">
+            <label for="f-act">Estado</label>
+            <select id="f-act" formControlName="activo">
+              <option [ngValue]="true">Activo</option>
+              <option [ngValue]="false">Inactivo</option>
+            </select>
+            <small class="help">Los ítems inactivos no aparecerán en los movimientos</small>
+          </div>
         </div>
+      </div>
 
-        <!-- Solo si es alimento -->
-        <div class="form-field form-field--full" *ngIf="isAlimento">
-          <div class="ux-card ux-card--sub">
-            <div class="ux-card__header">
-              <strong>Alimento — configuración</strong>
+      <!-- Paso 2: Configuración Específica según Tipo de Item -->
+      
+      <!-- Configuración para ALIMENTO -->
+      <div class="form-section" *ngIf="isAlimento">
+        <h3 class="form-section__title">2. Configuración de Alimento</h3>
+        <div class="ux-card ux-card--sub">
+          <div class="grid grid-3">
+            <div class="form-field">
+              <label for="f-especie">Especie *</label>
+              <select id="f-especie" formControlName="especie">
+                <option *ngFor="let e of especies" [ngValue]="e">{{ e | titlecase }}</option>
+              </select>
+              <small class="help">Tipo de animal para este alimento</small>
             </div>
 
-            <div class="grid grid-3">
-              <div class="form-field">
-                <label for="f-pollo">Especie</label>
-                <input id="f-pollo" type="text" value="pollo" readonly aria-readonly="true" />
-                <small class="help">Se guardará como <code>especie: "pollo"</code>.</small>
-              </div>
-
-              <div class="form-field">
-                <label for="f-raza">Raza</label>
-                <select id="f-raza" formControlName="raza">
-                  <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
-                </select>
-              </div>
-
-              <div class="form-field">
-                <label for="f-genero">Género</label>
-                <select id="f-genero" formControlName="genero">
-                  <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
-                </select>
-              </div>
+            <div class="form-field">
+              <label for="f-raza">Raza *</label>
+              <select id="f-raza" formControlName="raza">
+                <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
+              </select>
+              <small class="help">Raza para este alimento</small>
             </div>
 
-            <div class="note note--info">
-              Se requerirán <code>raza</code> y <code>genero</code> para alimento.
+            <div class="form-field">
+              <label for="f-genero">Género *</label>
+              <select id="f-genero" formControlName="genero">
+                <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
+              </select>
+              <small class="help">Género objetivo del alimento</small>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Editor Metadata libre -->
-        <div class="form-field form-field--full">
-          <div class="meta-editor">
-            <div class="meta-header">
-              <strong>Metadata</strong>
-              <button type="button" class="btn btn--ghost" (click)="addMetaRow()">+ Agregar</button>
+      <!-- Configuración para MEDICAMENTO -->
+      <div class="form-section" *ngIf="isMedicamento">
+        <h3 class="form-section__title">2. Configuración de Medicamento</h3>
+        <div class="ux-card ux-card--sub">
+          <div class="grid grid-3">
+            <div class="form-field">
+              <label for="f-tipo-medicamento">Tipo de Medicamento</label>
+              <input id="f-tipo-medicamento" type="text" formControlName="tipo_medicamento" 
+                     placeholder="Ej: Antibiótico, Antiparasitario" maxlength="100" />
+              <small class="help">Clasificación del medicamento</small>
             </div>
 
-            <div class="meta-rows" formArrayName="metadata">
-              <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
-                <input type="text" placeholder="clave" formControlName="key" />
-                <input type="text" placeholder="valor" formControlName="value" />
-                <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" title="Quitar">🗑</button>
-              </div>
+            <div class="form-field">
+              <label for="f-via-admin">Vía de Administración</label>
+              <input id="f-via-admin" type="text" formControlName="via_administracion" 
+                     placeholder="Ej: Oral, Intramuscular" maxlength="100" />
+              <small class="help">Forma de aplicación del medicamento</small>
             </div>
-            <small class="help">
-              Claves reservadas: <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code>.
-            </small>
+
+            <div class="form-field">
+              <label for="f-presentacion">Presentación</label>
+              <input id="f-presentacion" type="text" formControlName="presentacion" 
+                     placeholder="Ej: Inyectable, Polvo" maxlength="100" />
+              <small class="help">Forma física del medicamento</small>
+            </div>
           </div>
         </div>
+      </div>
 
-        <!-- Vista previa JSON -->
-        <div class="form-field form-field--full">
-          <label>Vista previa de metadata (JSON)</label>
+      <!-- Configuración para BIOLÓGICO -->
+      <div class="form-section" *ngIf="isBiologico">
+        <h3 class="form-section__title">2. Configuración de Biológico</h3>
+        <div class="ux-card ux-card--sub">
+          <div class="grid grid-3">
+            <div class="form-field">
+              <label for="f-tipo-biologico">Tipo de Biológico</label>
+              <input id="f-tipo-biologico" type="text" formControlName="tipo_biologico" 
+                     placeholder="Ej: Vacuna, Suero" maxlength="100" />
+              <small class="help">Clasificación del biológico</small>
+            </div>
+
+            <div class="form-field">
+              <label for="f-via-aplicacion">Vía de Aplicación</label>
+              <input id="f-via-aplicacion" type="text" formControlName="via_aplicacion" 
+                     placeholder="Ej: Subcutánea, Intramuscular" maxlength="100" />
+              <small class="help">Forma de aplicación del biológico</small>
+            </div>
+
+            <div class="form-field">
+              <label for="f-temp-almacenamiento">Temperatura de Almacenamiento</label>
+              <input id="f-temp-almacenamiento" type="text" formControlName="temperatura_almacenamiento" 
+                     placeholder="Ej: 2-8°C, Congelado" maxlength="50" />
+              <small class="help">Condiciones de almacenamiento requeridas</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuración para ACCESORIO -->
+      <div class="form-section" *ngIf="isAccesorio">
+        <h3 class="form-section__title">2. Configuración de Accesorio</h3>
+        <div class="ux-card ux-card--sub">
+          <div class="grid grid-3">
+            <div class="form-field">
+              <label for="f-tipo-accesorio">Tipo de Accesorio</label>
+              <input id="f-tipo-accesorio" type="text" formControlName="tipo_accesorio" 
+                     placeholder="Ej: Bebedero, Comedero" maxlength="100" />
+              <small class="help">Categoría del accesorio</small>
+            </div>
+
+            <div class="form-field">
+              <label for="f-material">Material</label>
+              <input id="f-material" type="text" formControlName="material" 
+                     placeholder="Ej: Plástico, Acero" maxlength="100" />
+              <small class="help">Material de fabricación</small>
+            </div>
+
+            <div class="form-field">
+              <label for="f-dimensiones">Dimensiones</label>
+              <input id="f-dimensiones" type="text" formControlName="dimensiones" 
+                     placeholder="Ej: 50x30x20 cm" maxlength="100" />
+              <small class="help">Tamaño o dimensiones del accesorio</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuración para CONSUMIBLE -->
+      <div class="form-section" *ngIf="isConsumible">
+        <h3 class="form-section__title">2. Configuración de Consumible</h3>
+        <div class="ux-card ux-card--sub">
+          <div class="grid grid-2">
+            <div class="form-field">
+              <label for="f-tipo-consumible">Tipo de Consumible</label>
+              <input id="f-tipo-consumible" type="text" formControlName="tipo_consumible" 
+                     placeholder="Ej: Desinfectante, Limpiador" maxlength="100" />
+              <small class="help">Categoría del consumible</small>
+            </div>
+
+            <div class="form-field">
+              <label for="f-unidad-medida">Unidad de Medida</label>
+              <input id="f-unidad-medida" type="text" formControlName="unidad_medida" 
+                     placeholder="Ej: Litro, Kilogramo" maxlength="50" />
+              <small class="help">Unidad estándar de medida</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 3: Metadata Adicional (Opcional) -->
+      <div class="form-section">
+        <h3 class="form-section__title">3. Metadata Adicional (Opcional)</h3>
+        <div class="meta-editor">
+          <div class="meta-header">
+            <span>Información adicional personalizada</span>
+            <button type="button" class="btn btn--ghost btn--sm" (click)="addMetaRow()">
+              <fa-icon [icon]="faPlus" class="mr-1"></fa-icon>
+              Agregar campo
+            </button>
+          </div>
+
+          <div class="meta-rows" formArrayName="metadata">
+            <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
+              <input type="text" placeholder="Clave (ej: fabricante, unidad)" formControlName="key" 
+                     class="meta-key" maxlength="50" />
+              <input type="text" placeholder="Valor (ej: SanMarino, kg)" formControlName="value" 
+                     class="meta-value" maxlength="500" />
+              <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" 
+                      title="Eliminar campo" aria-label="Eliminar">
+                <fa-icon [icon]="faTrash"></fa-icon>
+              </button>
+            </div>
+            <div class="meta-empty" *ngIf="metadataArray.length === 0">
+              <p class="meta-empty-text">No hay campos adicionales. Haga clic en "Agregar campo" para añadir información personalizada.</p>
+            </div>
+          </div>
+          <small class="help">
+            <strong>Claves reservadas:</strong> <code>type_item</code>, <code>especie</code>, <code>raza</code>, <code>genero</code>.
+            Estas se gestionan automáticamente según el tipo seleccionado.
+          </small>
+        </div>
+      </div>
+
+      <!-- Vista previa JSON (colapsable) -->
+      <div class="form-section">
+        <details class="json-preview-section">
+          <summary class="json-preview-toggle">Vista previa de metadata (JSON)</summary>
           <pre class="json-preview">{{ jsonPreview() }}</pre>
-        </div>
+        </details>
       </div>
 
       <footer class="ux-modal__footer">

@@ -54,11 +54,22 @@ export class CatalogoAlimentosListComponent implements OnInit {
 
   // opciones para metadata estructurada
   tiposItem: CatalogItemType[] = ['alimento','medicamento','accesorio','biologico','consumible','otro'];
+  especies = ['pollo', 'pavo', 'pato', 'ganso', 'codorniz', 'otro'];
   razas = ['Ross', 'Cobb', 'Hubbard', 'Lohmann'];
   generos: Genero[] = ['Hembra', 'Macho', 'Mixto'];
 
+  // Campos dinámicos por tipo de item
+  camposPorTipo: Record<CatalogItemType, string[]> = {
+    'alimento': ['especie', 'raza', 'genero'],
+    'medicamento': ['tipo_medicamento', 'via_administracion', 'presentacion'],
+    'biologico': ['tipo_biologico', 'via_aplicacion', 'temperatura_almacenamiento'],
+    'accesorio': ['tipo_accesorio', 'material', 'dimensiones'],
+    'consumible': ['tipo_consumible', 'unidad_medida'],
+    'otro': []
+  };
+
   // Claves reservadas que gestionamos de forma estructurada
-  private readonly RESERVED_KEYS = new Set(['type_item','especie','raza','genero']);
+  private readonly RESERVED_KEYS = new Set(['type_item','especie','raza','genero','tipo_medicamento','via_administracion','presentacion','tipo_biologico','via_aplicacion','temperatura_almacenamiento','tipo_accesorio','material','dimensiones','tipo_consumible','unidad_medida']);
 
   // Form
   form!: FormGroup;
@@ -74,14 +85,58 @@ export class CatalogoAlimentosListComponent implements OnInit {
       nombre: ['', [Validators.required, Validators.maxLength(150)]],
       activo: [true, Validators.required],
       // Estructurados → se guardan dentro de metadata
-      type_item: ['alimento' as CatalogItemType, Validators.required],
+      type_item: [null as CatalogItemType | null, Validators.required], // Sin valor por defecto
+      // Campos para alimento
+      especie: ['pollo'],
       raza: ['Ross'],
       genero: ['Mixto'],
+      // Campos para medicamento
+      tipo_medicamento: [''],
+      via_administracion: [''],
+      presentacion: [''],
+      // Campos para biologico
+      tipo_biologico: [''],
+      via_aplicacion: [''],
+      temperatura_almacenamiento: [''],
+      // Campos para accesorio
+      tipo_accesorio: [''],
+      material: [''],
+      dimensiones: [''],
+      // Campos para consumible
+      tipo_consumible: [''],
+      unidad_medida: [''],
       // key/value libres
       metadata: this.fb.array<FormGroup>([])
     });
 
+    // Mostrar/ocultar campos dinámicos cuando cambia el tipo
+    this.form.get('type_item')?.valueChanges.subscribe(type => {
+      this.resetearCamposDinamicos(type);
+    });
+
     this.load();
+  }
+
+  private resetearCamposDinamicos(type: CatalogItemType | null): void {
+    // Resetear todos los campos dinámicos
+    const campos = ['especie', 'raza', 'genero', 'tipo_medicamento', 'via_administracion', 'presentacion',
+                    'tipo_biologico', 'via_aplicacion', 'temperatura_almacenamiento', 'tipo_accesorio',
+                    'material', 'dimensiones', 'tipo_consumible', 'unidad_medida'];
+    
+    campos.forEach(campo => {
+      const control = this.form.get(campo);
+      if (control) {
+        // Resetear a valores por defecto según el tipo
+        if (type === 'alimento') {
+          if (campo === 'especie') control.setValue('pollo');
+          else if (campo === 'raza') control.setValue('Ross');
+          else if (campo === 'genero') control.setValue('Mixto');
+          else control.setValue('');
+        } else {
+          control.setValue('');
+        }
+      }
+    });
   }
 
   // ======= Helpers formulario =======
@@ -92,10 +147,30 @@ export class CatalogoAlimentosListComponent implements OnInit {
     return this.form?.get('type_item')?.value === 'alimento';
   }
 
+  get isMedicamento(): boolean {
+    return this.form?.get('type_item')?.value === 'medicamento';
+  }
+
+  get isBiologico(): boolean {
+    return this.form?.get('type_item')?.value === 'biologico';
+  }
+
+  get isAccesorio(): boolean {
+    return this.form?.get('type_item')?.value === 'accesorio';
+  }
+
+  get isConsumible(): boolean {
+    return this.form?.get('type_item')?.value === 'consumible';
+  }
+
+  get tipoItemSeleccionado(): CatalogItemType | null {
+    return this.form?.get('type_item')?.value || null;
+  }
+
   addMetaRow(k = '', v = ''): void {
     this.metadataArray.push(this.fb.group({
-      key: [k, [Validators.required, Validators.maxLength(50)]],
-      value: [v, [Validators.required, Validators.maxLength(500)]]
+      key: [k, [Validators.maxLength(50)]], // Sin required - opcional
+      value: [v, [Validators.maxLength(500)]] // Sin required - opcional
     }));
   }
   removeMetaRow(i: number): void {
@@ -105,44 +180,100 @@ export class CatalogoAlimentosListComponent implements OnInit {
   private buildMetadataFromForm(): any {
     const meta: Record<string, any> = {};
     // 1) estructurados
-    const type_item = this.form.get('type_item')?.value as CatalogItemType;
-    meta['type_item'] = type_item;
-    if (type_item === 'alimento') {
-      meta['especie'] = 'pollo';
-      meta['raza'] = this.form.get('raza')?.value;
-      meta['genero'] = this.form.get('genero')?.value;
+    const type_item = this.form.get('type_item')?.value as CatalogItemType | null;
+    if (!type_item) {
+      throw new Error('El tipo de ítem es requerido');
     }
-    // 2) libres (sin pisar reservadas)
+    meta['type_item'] = type_item;
+
+    // Campos específicos según el tipo de item
+    if (type_item === 'alimento') {
+      meta['especie'] = this.form.get('especie')?.value || 'pollo';
+      meta['raza'] = this.form.get('raza')?.value || 'Ross';
+      meta['genero'] = this.form.get('genero')?.value || 'Mixto';
+    } else if (type_item === 'medicamento') {
+      const tipoMed = this.form.get('tipo_medicamento')?.value;
+      const viaAdmin = this.form.get('via_administracion')?.value;
+      const presentacion = this.form.get('presentacion')?.value;
+      if (tipoMed) meta['tipo_medicamento'] = tipoMed;
+      if (viaAdmin) meta['via_administracion'] = viaAdmin;
+      if (presentacion) meta['presentacion'] = presentacion;
+    } else if (type_item === 'biologico') {
+      const tipoBio = this.form.get('tipo_biologico')?.value;
+      const viaAplic = this.form.get('via_aplicacion')?.value;
+      const tempAlm = this.form.get('temperatura_almacenamiento')?.value;
+      if (tipoBio) meta['tipo_biologico'] = tipoBio;
+      if (viaAplic) meta['via_aplicacion'] = viaAplic;
+      if (tempAlm) meta['temperatura_almacenamiento'] = tempAlm;
+    } else if (type_item === 'accesorio') {
+      const tipoAcc = this.form.get('tipo_accesorio')?.value;
+      const material = this.form.get('material')?.value;
+      const dimensiones = this.form.get('dimensiones')?.value;
+      if (tipoAcc) meta['tipo_accesorio'] = tipoAcc;
+      if (material) meta['material'] = material;
+      if (dimensiones) meta['dimensiones'] = dimensiones;
+    } else if (type_item === 'consumible') {
+      const tipoCons = this.form.get('tipo_consumible')?.value;
+      const unidadMed = this.form.get('unidad_medida')?.value;
+      if (tipoCons) meta['tipo_consumible'] = tipoCons;
+      if (unidadMed) meta['unidad_medida'] = unidadMed;
+    }
+
+    // 2) libres (sin pisar reservadas) - solo agregar si tienen clave y valor
     for (const g of this.metadataArray.controls) {
       const k = (g.get('key')?.value || '').trim();
       const v = g.get('value')?.value;
+      // Solo agregar si tiene clave (el valor puede estar vacío)
       if (!k) continue;
       if (this.RESERVED_KEYS.has(k)) continue;
-      meta[k] = v;
+      meta[k] = v || ''; // Permitir valores vacíos
     }
     return meta;
-    }
+  }
 
   private fillFormFromMetadata(meta: any): void {
     // defaults
-    this.form.get('type_item')?.setValue('alimento');
-    this.form.get('raza')?.setValue('Ross');
-    this.form.get('genero')?.setValue('Mixto');
+    this.form.get('type_item')?.setValue(null);
+    this.resetearCamposDinamicos(null);
 
     this.metadataArray.clear();
 
     if (meta && typeof meta === 'object') {
-      if (meta['type_item']) this.form.get('type_item')?.setValue(meta['type_item']);
-      if (meta['raza']) this.form.get('raza')?.setValue(meta['raza']);
-      if (meta['genero']) this.form.get('genero')?.setValue(meta['genero']);
+      // Cargar type_item desde metadata
+      if (meta['type_item']) {
+        const tipo = meta['type_item'] as CatalogItemType;
+        this.form.get('type_item')?.setValue(tipo);
+        
+        // Cargar campos específicos según el tipo
+        if (tipo === 'alimento') {
+          if (meta['especie']) this.form.get('especie')?.setValue(meta['especie']);
+          if (meta['raza']) this.form.get('raza')?.setValue(meta['raza']);
+          if (meta['genero']) this.form.get('genero')?.setValue(meta['genero']);
+        } else if (tipo === 'medicamento') {
+          if (meta['tipo_medicamento']) this.form.get('tipo_medicamento')?.setValue(meta['tipo_medicamento']);
+          if (meta['via_administracion']) this.form.get('via_administracion')?.setValue(meta['via_administracion']);
+          if (meta['presentacion']) this.form.get('presentacion')?.setValue(meta['presentacion']);
+        } else if (tipo === 'biologico') {
+          if (meta['tipo_biologico']) this.form.get('tipo_biologico')?.setValue(meta['tipo_biologico']);
+          if (meta['via_aplicacion']) this.form.get('via_aplicacion')?.setValue(meta['via_aplicacion']);
+          if (meta['temperatura_almacenamiento']) this.form.get('temperatura_almacenamiento')?.setValue(meta['temperatura_almacenamiento']);
+        } else if (tipo === 'accesorio') {
+          if (meta['tipo_accesorio']) this.form.get('tipo_accesorio')?.setValue(meta['tipo_accesorio']);
+          if (meta['material']) this.form.get('material')?.setValue(meta['material']);
+          if (meta['dimensiones']) this.form.get('dimensiones')?.setValue(meta['dimensiones']);
+        } else if (tipo === 'consumible') {
+          if (meta['tipo_consumible']) this.form.get('tipo_consumible')?.setValue(meta['tipo_consumible']);
+          if (meta['unidad_medida']) this.form.get('unidad_medida')?.setValue(meta['unidad_medida']);
+        }
+      }
 
-      // libres
+      // libres - solo cargar los que tienen clave y no son campos estructurados
       Object.keys(meta)
         .filter(k => !this.RESERVED_KEYS.has(k))
-        .forEach(k => this.addMetaRow(k, meta[k]));
+        .forEach(k => this.addMetaRow(k, meta[k] || ''));
     }
 
-    if (this.metadataArray.length === 0) this.addMetaRow();
+    // No agregar fila vacía por defecto al editar - el usuario puede agregar si quiere
   }
 
   // ======= CRUD UI =======
@@ -152,12 +283,25 @@ export class CatalogoAlimentosListComponent implements OnInit {
       codigo: '',
       nombre: '',
       activo: true,
-      type_item: 'alimento',
+      type_item: null, // Sin valor por defecto - usuario debe seleccionar
+      especie: 'pollo',
       raza: 'Ross',
-      genero: 'Mixto'
+      genero: 'Mixto',
+      tipo_medicamento: '',
+      via_administracion: '',
+      presentacion: '',
+      tipo_biologico: '',
+      via_aplicacion: '',
+      temperatura_almacenamiento: '',
+      tipo_accesorio: '',
+      material: '',
+      dimensiones: '',
+      tipo_consumible: '',
+      unidad_medida: ''
     });
     this.metadataArray.clear();
-    this.addMetaRow(); // primera fila vacía
+    // No agregar fila vacía por defecto - el usuario puede agregar si quiere
+    this.form.get('codigo')?.enable(); // Habilitar código al crear
     this.modalOpen = true;
   }
 
@@ -167,7 +311,7 @@ export class CatalogoAlimentosListComponent implements OnInit {
       codigo: item.codigo,
       nombre: item.nombre,
       activo: item.activo,
-      type_item: 'alimento',
+      type_item: null, // Se llenará desde metadata
       raza: 'Ross',
       genero: 'Mixto'
     });
@@ -184,38 +328,69 @@ export class CatalogoAlimentosListComponent implements OnInit {
   }
 
   save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      // Marcar todos los campos como touched para mostrar errores
+      Object.keys(this.form.controls).forEach(key => {
+        this.form.get(key)?.markAsTouched();
+      });
+      return;
+    }
 
-    const raw = this.form.getRawValue();
-    const metadata = this.buildMetadataFromForm();
+    // Validar que type_item esté seleccionado
+    const typeItem = this.form.get('type_item')?.value;
+    if (!typeItem) {
+      alert('Por favor, seleccione un tipo de ítem');
+      this.form.get('type_item')?.markAsTouched();
+      return;
+    }
 
-    this.loading = true;
+    try {
+      const raw = this.form.getRawValue();
+      const metadata = this.buildMetadataFromForm();
 
-    if (this.editing) {
-      const dto: CatalogItemUpdateRequest = {
-        nombre: raw.nombre,
-        activo: raw.activo,
-        metadata
-      };
-      this.svc.update(this.editing.id!, dto)
-        .pipe(finalize(() => this.loading = false))
-        .subscribe(() => {
-          this.cancel();
-          this.load();
-        });
-    } else {
-      const dto: CatalogItemCreateRequest = {
-        codigo: raw.codigo,
-        nombre: raw.nombre,
-        activo: raw.activo,
-        metadata
-      };
-      this.svc.create(dto)
-        .pipe(finalize(() => this.loading = false))
-        .subscribe(() => {
-          this.cancel();
-          this.load();
-        });
+      this.loading = true;
+
+      if (this.editing) {
+        const dto: CatalogItemUpdateRequest = {
+          nombre: raw.nombre,
+          activo: raw.activo,
+          metadata
+        };
+        this.svc.update(this.editing.id!, dto)
+          .pipe(finalize(() => this.loading = false))
+          .subscribe({
+            next: () => {
+              this.cancel();
+              this.load();
+            },
+            error: (err) => {
+              console.error('Error al actualizar:', err);
+              alert('Error al actualizar el ítem. Por favor, intente nuevamente.');
+            }
+          });
+      } else {
+        const dto: CatalogItemCreateRequest = {
+          codigo: raw.codigo,
+          nombre: raw.nombre,
+          activo: raw.activo,
+          metadata
+        };
+        this.svc.create(dto)
+          .pipe(finalize(() => this.loading = false))
+          .subscribe({
+            next: () => {
+              this.cancel();
+              this.load();
+            },
+            error: (err) => {
+              console.error('Error al crear:', err);
+              alert('Error al crear el ítem. Por favor, intente nuevamente.');
+            }
+          });
+      }
+    } catch (error: any) {
+      this.loading = false;
+      alert(error.message || 'Error al procesar el formulario');
     }
   }
 

@@ -160,4 +160,44 @@ public class CatalogItemService : ICatalogItemService
         return items;
     }
 
+    public async Task<List<CatalogItemDto>> GetByTypeAsync(string? typeItem, string? search, CancellationToken ct = default)
+    {
+        var query = _db.CatalogItems.AsNoTracking().Where(x => x.Activo);
+
+        // Filtrar por búsqueda (código o nombre) - esto sí se puede hacer en la query
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Nombre, $"%{search}%") ||
+                EF.Functions.ILike(x.Codigo, $"%{search}%"));
+        }
+
+        // Obtener todos los items activos (con filtro de búsqueda si aplica)
+        var items = await query
+            .OrderBy(x => x.Nombre)
+            .Select(x => new CatalogItemDto
+            {
+                Id = x.Id,
+                Codigo = x.Codigo,
+                Nombre = x.Nombre,
+                Metadata = x.Metadata,
+                Activo = x.Activo
+            })
+            .ToListAsync(ct);
+
+        // Filtrar por tipo de item en memoria (porque TryGetProperty no se puede usar en expression trees)
+        if (!string.IsNullOrWhiteSpace(typeItem))
+        {
+            items = items.Where(x =>
+            {
+                if (x.Metadata == null) return false;
+                if (!x.Metadata.RootElement.TryGetProperty("type_item", out var typeItemProp))
+                    return false;
+                return typeItemProp.GetString() == typeItem;
+            }).ToList();
+        }
+
+        return items;
+    }
+
 }

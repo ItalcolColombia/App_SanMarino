@@ -30,6 +30,7 @@
     width: 1px; height: 1px;
     padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
   }
+  :host .mr-1 { margin-right: .25rem; }
   :host .mr-2 { margin-right: .5rem; }
   :host .spacer { flex: 1 1 auto; }
 
@@ -183,6 +184,10 @@
     --btn-br: var(--warm-gray-200);
   }
   :host .btn--ghost:hover { background: var(--warm-gray-100); }
+  :host .btn--sm {
+    padding: .4rem .65rem;
+    font-size: .85rem;
+  }
 
   /* Icon buttons */
   :host .icon-btn {
@@ -411,6 +416,22 @@
     outline: none; background: var(--white);
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
+  :host .ux-form .form-field input[readonly] {
+    background: var(--warm-gray-50);
+    color: var(--warm-gray-400);
+    cursor: not-allowed;
+  }
+  :host .ux-form .form-field .help {
+    font-size: .75rem;
+    color: var(--warm-gray-400);
+    margin-top: .25rem;
+  }
+  :host .ux-form .form-field .help code {
+    background: rgba(0,0,0,.06);
+    padding: .1rem .25rem;
+    border-radius: .25rem;
+    font-size: .7rem;
+  }
   :host .ux-form .form-field input:focus,
   :host .ux-form .form-field textarea:focus,
   :host .ux-form .form-field select:focus {
@@ -442,6 +463,19 @@
     border-color: var(--brand-red);
     box-shadow: 0 0 0 3px rgba(211,47,47,.12);
   }
+  :host .meta-empty {
+    padding: 1rem;
+    text-align: center;
+    background: var(--warm-gray-50);
+    border: 1px dashed var(--warm-gray-300);
+    border-radius: .5rem;
+  }
+  :host .meta-empty-text {
+    margin: 0;
+    font-size: .85rem;
+    color: var(--warm-gray-400);
+    font-style: italic;
+  }
 
   /* Nota contextual (info) */
   :host .note {
@@ -457,17 +491,68 @@
     border-color: #bfdbfe;
   }
 
-  /* Vista previa JSON */
+  /* Secciones del formulario */
+  :host .form-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px dashed var(--warm-gray-300);
+  }
+  :host .form-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  :host .form-section__title {
+    margin: 0 0 1rem 0;
+    font-size: .95rem;
+    font-weight: 800;
+    color: var(--brand-red);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  :host .form-section__title::before {
+    content: '';
+    width: 4px;
+    height: 1.2rem;
+    background: var(--brand-red);
+    border-radius: 2px;
+  }
+
+  /* Vista previa JSON (colapsable) */
+  :host .json-preview-section {
+    border: 1px solid var(--warm-gray-200);
+    border-radius: .65rem;
+    overflow: hidden;
+  }
+  :host .json-preview-toggle {
+    padding: .75rem 1rem;
+    background: var(--warm-gray-50);
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--warm-gray-600);
+    font-size: .85rem;
+    display: block;
+    width: 100%;
+    text-align: left;
+    transition: background .15s ease;
+  }
+  :host .json-preview-toggle:hover {
+    background: var(--warm-gray-100);
+  }
   :host .json-preview {
     background: #0b1020;
     color: #e6edf3;
     font-family: ui-monospace, Menlo, Monaco, Consolas, "Courier New", monospace;
-    border-radius: .6rem;
     padding: .75rem 1rem;
     font-size: .85rem;
     line-height: 1.4;
     overflow: auto;
     max-height: 240px;
+    margin: 0;
   }
 
   /* ===========================
