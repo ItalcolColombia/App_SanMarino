@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -39,11 +40,13 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             x.ConsumoKgHembras, x.TipoAlimento, x.Observaciones,
             x.KcalAlH, x.ProtAlH, x.KcalAveH, x.ProtAveH, x.Ciclo,
 
-            // NUEVOS
+            // NUEVOS (mantenidos para compatibilidad)
             x.ConsumoKgMachos,
             x.PesoPromH, x.PesoPromM,
             x.UniformidadH, x.UniformidadM,
-            x.CvH, x.CvM
+            x.CvH, x.CvM,
+            // Metadata JSONB para campos adicionales
+            x.Metadata
         );
 
     // ===========================
@@ -134,6 +137,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
             ConsumoKgHembras = consumoKgH,
             ConsumoKgMachos = dto.ConsumoKgMachos,
+            
+            // Metadata JSONB para campos adicionales/extras
+            Metadata = dto.Metadata,
 
             PesoPromH = dto.PesoPromH,
             PesoPromM = dto.PesoPromM,
@@ -254,6 +260,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
         ent.ConsumoKgHembras = consumoKgH;
         ent.ConsumoKgMachos = dto.ConsumoKgMachos;
+        
+        // Metadata JSONB para campos adicionales/extras
+        ent.Metadata = dto.Metadata;
 
         ent.PesoPromH = dto.PesoPromH;
         ent.PesoPromM = dto.PesoPromM;
@@ -304,11 +313,13 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             ent.ConsumoKgHembras, ent.TipoAlimento, ent.Observaciones,
             ent.KcalAlH, ent.ProtAlH, ent.KcalAveH, ent.ProtAveH, ent.Ciclo,
 
-            // NUEVOS
+            // NUEVOS (mantenidos para compatibilidad)
             ent.ConsumoKgMachos,
             ent.PesoPromH, ent.PesoPromM,
             ent.UniformidadH, ent.UniformidadM,
-            ent.CvH, ent.CvM
+            ent.CvH, ent.CvM,
+            // Metadata JSONB para campos adicionales
+            ent.Metadata
         );
     }
 

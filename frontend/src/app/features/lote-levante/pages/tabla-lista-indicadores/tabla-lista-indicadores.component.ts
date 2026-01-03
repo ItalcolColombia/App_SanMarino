@@ -8,19 +8,32 @@ interface IndicadorSemanal {
   semana: number;
   fechaInicio: string;
   fechaFin: string;
+  // Información del lote
+  region?: string | null;
+  granja?: string | null;
+  nave?: string | null;
+  sublote?: string | null;
+  // Aves
   avesInicioSemana: number;
   avesFinSemana: number;
-  consumoReal: number;
-  consumoTabla: number;
+  // Consumo
+  consumoDiario: number; // Consumo diario por ave (g/ave/día) - para comparar con tabla
+  consumoTabla: number; // Consumo esperado de tabla (g/ave/día)
+  consumoTotalSemana: number; // Consumo total de la semana en gramos
   conversionAlimenticia: number;
+  // Ganancia
   gananciaSemana: number;
   gananciaDiariaAcumulada: number;
+  // Mortalidad & Selección
   mortalidadSem: number;
   seleccionSem: number;
+  errorSexajeSem: number; // Error de sexaje semanal (%)
   mortalidadMasSeleccion: number;
+  // Indicadores
   eficiencia: number;
   ip: number;
   vpi: number;
+  // Otros
   saldoAvesSemanal: number;
   mortalidadAcum: number;
   seleccionAcum: number;
@@ -29,6 +42,7 @@ interface IndicadorSemanal {
   pesoInicial: number;
   pesoCierre: number;
   pesoAnterior: number;
+  observaciones?: string | null; // Observaciones de la semana (del último registro)
 }
 
 @Component({
@@ -45,6 +59,9 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
   // Datos calculados
   indicadoresSemanales: IndicadorSemanal[] = [];
+  
+  // Control de modal de fórmulas
+  mostrarFormulas: boolean = false;
   
   // Control de peticiones secuenciales
   private peticionesEnCola: boolean = false;
@@ -187,25 +204,35 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     
     // 🔧 MEJORA: Consumo por ave (más preciso)
     const avesPromedio = (avesInicio + avesFin) / 2;
-    const consumoRealPorAve = avesPromedio > 0 ? consumoTotalGramos / avesPromedio : 0;
+    const diasConRegistro = registros.length; // Número de días con registro en la semana
     
-    // 🔧 MEJORA: Consumo tabla (valor de referencia de guía genética)
+    // 🔧 NUEVO: Consumo diario por ave (g/ave/día) - para comparar con tabla
+    const consumoDiarioPorAve = (avesPromedio > 0 && diasConRegistro > 0) 
+      ? consumoTotalGramos / (avesPromedio * diasConRegistro) 
+      : 0;
+    
+    // 🔧 MEJORA: Consumo tabla (valor de referencia de guía genética) - ya viene en g/ave/día
     const consumoTablaPorAve = await this.obtenerConsumoTabla(semana);
     
-    // 🔧 MEJORA: Conversión alimenticia (FCR) - Consumo por ave / Ganancia por ave
+    // 🔧 MEJORA: Conversión alimenticia (FCR) - Consumo total por ave / Ganancia por ave
     const gananciaSemana = pesoPromedio - pesoAnterior;
-    const conversionAlimenticia = gananciaSemana > 0 ? consumoRealPorAve / gananciaSemana : 0;
+    const consumoTotalPorAve = avesPromedio > 0 ? consumoTotalGramos / avesPromedio : 0;
+    const conversionAlimenticia = gananciaSemana > 0 ? consumoTotalPorAve / gananciaSemana : 0;
     
     // 🔧 MEJORA: Ganancia diaria acumulada
     const gananciaDiariaAcumulada = gananciaSemana / 7;
     
+    // Error de sexaje total de la semana
+    const errorSexajeTotal = registros.reduce((sum, r) => sum + (r.errorSexajeHembras || 0) + (r.errorSexajeMachos || 0), 0);
+    
     // Porcentajes
     const mortalidadSem = avesInicio > 0 ? (mortalidadTotal / avesInicio) * 100 : 0;
     const seleccionSem = avesInicio > 0 ? (seleccionTotal / avesInicio) * 100 : 0;
+    const errorSexajeSem = avesInicio > 0 ? (errorSexajeTotal / avesInicio) * 100 : 0;
     const mortalidadMasSeleccion = mortalidadSem + seleccionSem;
     
-    // 🔧 MEJORA: Eficiencia (Ganancia por ave / Consumo por ave)
-    const eficiencia = consumoRealPorAve > 0 ? gananciaSemana / consumoRealPorAve : 0;
+    // 🔧 MEJORA: Eficiencia (Ganancia por ave / Consumo total por ave)
+    const eficiencia = consumoTotalPorAve > 0 ? gananciaSemana / consumoTotalPorAve : 0;
     
     // 🔧 MEJORA: IP (Índice de Productividad) - Combinación de eficiencia y supervivencia
     const supervivencia = avesInicio > 0 ? avesFin / avesInicio : 0;
@@ -224,20 +251,35 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     
     // 🔧 MEJORA: Piso térmico desde guía genética
     const pisoTermicoVisible = await this.obtenerPisoTermico(semana);
+    
+    // Información del lote (del selectedLote)
+    const region = this.selectedLote?.regional || null;
+    const granja = this.selectedLote?.farm?.name || null;
+    const nave = this.selectedLote?.nucleo?.nucleoNombre || null;
+    const sublote = this.extraerSublote(this.selectedLote?.loteNombre || '');
+    
+    // Observaciones del último registro de la semana
+    const observaciones = ultimoRegistro?.observaciones || null;
 
     return {
       semana,
       fechaInicio: this.obtenerFechaInicioSemana(semana),
       fechaFin: this.obtenerFechaFinSemana(semana),
+      region,
+      granja,
+      nave,
+      sublote,
       avesInicioSemana: avesInicio,
       avesFinSemana: avesFin,
-      consumoReal: consumoRealPorAve, // 🔧 MEJORA: Ahora es por ave
-      consumoTabla: consumoTablaPorAve, // 🔧 MEJORA: Ahora es por ave
+      consumoDiario: consumoDiarioPorAve, // 🔧 NUEVO: Consumo diario por ave (g/ave/día)
+      consumoTabla: consumoTablaPorAve, // Consumo esperado de tabla (g/ave/día)
+      consumoTotalSemana: consumoTotalGramos, // 🔧 NUEVO: Consumo total de la semana en gramos
       conversionAlimenticia,
       gananciaSemana,
       gananciaDiariaAcumulada,
       mortalidadSem,
       seleccionSem,
+      errorSexajeSem, // 🔧 NUEVO: Error de sexaje semanal (%)
       mortalidadMasSeleccion,
       eficiencia,
       ip,
@@ -249,7 +291,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       pisoTermicoVisible,
       pesoInicial: pesoAnterior,
       pesoCierre: pesoPromedio,
-      pesoAnterior
+      pesoAnterior,
+      observaciones
     };
   }
 
@@ -340,11 +383,11 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
         // Validar consumo calculado vs tabla
         const consumoPromedioTabla = (datosGuia.consumoHembras + datosGuia.consumoMachos) / 2;
-        diferenciaConsumo = Math.abs(indicador.consumoTabla - consumoPromedioTabla);
+        diferenciaConsumo = Math.abs(indicador.consumoDiario - consumoPromedioTabla);
         const porcentajeDiferencia = (diferenciaConsumo / consumoPromedioTabla) * 100;
 
         console.log(`\n🔍 === COMPARACIÓN DE CONSUMO ===`);
-        console.log(`   📊 Consumo Calculado: ${indicador.consumoTabla.toFixed(2)}g/ave/día`);
+        console.log(`   📊 Consumo Diario Calculado: ${indicador.consumoDiario.toFixed(2)}g/ave/día`);
         console.log(`   📋 Consumo Tabla: ${consumoPromedioTabla.toFixed(2)}g/ave/día`);
         console.log(`   📈 Diferencia: ${diferenciaConsumo.toFixed(2)}g (${porcentajeDiferencia.toFixed(1)}%)`);
 
@@ -375,7 +418,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
         // Validar indicadores calculados
         console.log(`\n🔍 === INDICADORES CALCULADOS ===`);
-        console.log(`   🍽️ Consumo Real: ${indicador.consumoReal.toFixed(2)}g/ave/día`);
+        console.log(`   🍽️ Consumo Diario: ${indicador.consumoDiario.toFixed(2)}g/ave/día`);
+        console.log(`   🍽️ Consumo Total Semana: ${indicador.consumoTotalSemana.toFixed(2)}g`);
         console.log(`   📈 Ganancia Semana: ${indicador.gananciaSemana.toFixed(2)}g/día`);
         console.log(`   🔄 Conversión Alimenticia: ${indicador.conversionAlimenticia.toFixed(2)}`);
         console.log(`   ⚡ Eficiencia: ${indicador.eficiencia.toFixed(2)}`);
@@ -546,12 +590,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   // ================== VALIDACIONES Y ALERTAS ==================
-  validarConsumo(consumoReal: number, consumoTabla: number): { 
+  validarConsumo(consumoDiario: number, consumoTabla: number): { 
     esValido: boolean; 
     mensaje: string; 
     tipo: 'success' | 'warning' | 'error' 
   } {
-    const diferencia = Math.abs(consumoReal - consumoTabla);
+    const diferencia = Math.abs(consumoDiario - consumoTabla);
     const porcentajeDiferencia = consumoTabla > 0 ? (diferencia / consumoTabla) * 100 : 0;
     
     // Rangos más específicos basados en la guía genética
@@ -570,13 +614,13 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     } else if (porcentajeDiferencia <= 25) {
       return {
         esValido: false,
-        mensaje: `Consumo ${consumoReal < consumoTabla ? 'bajo' : 'alto'} (${porcentajeDiferencia.toFixed(1)}% diferencia)`,
+        mensaje: `Consumo ${consumoDiario < consumoTabla ? 'bajo' : 'alto'} (${porcentajeDiferencia.toFixed(1)}% diferencia)`,
         tipo: 'warning'
       };
     } else {
       return {
         esValido: false,
-        mensaje: `Consumo ${consumoReal < consumoTabla ? 'muy bajo' : 'muy alto'} (${porcentajeDiferencia.toFixed(1)}% diferencia)`,
+        mensaje: `Consumo ${consumoDiario < consumoTabla ? 'muy bajo' : 'muy alto'} (${porcentajeDiferencia.toFixed(1)}% diferencia)`,
         tipo: 'error'
       };
     }
@@ -718,4 +762,122 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   formatDate = (date: string): string => {
     return new Date(date).toLocaleDateString('es-ES');
   };
+
+  // ================== HELPERS ==================
+  private extraerSublote(loteNombre: string): string {
+    if (!loteNombre) return '';
+    const partes = loteNombre.trim().split(' ');
+    if (partes.length > 1 && partes[partes.length - 1].length === 1) {
+      return partes[partes.length - 1];
+    }
+    return '';
+  }
+
+  // ================== FÓRMULAS DE INDICADORES ==================
+  get gruposFormulas() {
+    return [
+      {
+        titulo: '📊 Información Básica',
+        formulas: [
+          {
+            nombre: 'Semana',
+            formula: 'Número de semana desde la fecha de encaset'
+          },
+          {
+            nombre: 'Período',
+            formula: 'Rango de fechas de inicio y fin de la semana'
+          },
+          {
+            nombre: 'Aves Inicio',
+            formula: 'Aves al inicio de la semana (después de mortalidad y selección de semana anterior)'
+          },
+          {
+            nombre: 'Aves Fin',
+            formula: 'Aves Inicio - Mortalidad Total - Selección Total'
+          }
+        ]
+      },
+      {
+        titulo: '🍽️ Consumo',
+        formulas: [
+          {
+            nombre: 'Consumo Diario (g/ave/día)',
+            formula: '(Consumo Total Semana en g) / (Aves Promedio × Días con Registro)'
+          },
+          {
+            nombre: 'Consumo Tabla (g/ave/día)',
+            formula: 'Valor de referencia de la guía genética según semana y raza'
+          },
+          {
+            nombre: 'Consumo Total Semana (g)',
+            formula: 'Σ(Consumo Hembras + Consumo Machos) × 1000 (conversión kg a g)'
+          },
+          {
+            nombre: 'Conversión Alimenticia (FCR)',
+            formula: '(Consumo Total por Ave en g) / (Ganancia de Peso por Ave en g)'
+          }
+        ]
+      },
+      {
+        titulo: '📈 Ganancia',
+        formulas: [
+          {
+            nombre: 'Ganancia Semana (g)',
+            formula: 'Peso Promedio Final - Peso Promedio Anterior'
+          },
+          {
+            nombre: 'Ganancia Diaria (g/día)',
+            formula: 'Ganancia Semana / 7 días'
+          }
+        ]
+      },
+      {
+        titulo: '💀 Mortalidad & Selección',
+        formulas: [
+          {
+            nombre: 'Mortalidad (%)',
+            formula: '(Total Mortalidad Hembras + Mortalidad Machos) / Aves Inicio × 100'
+          },
+          {
+            nombre: 'Selección (%)',
+            formula: '(Total Selección Hembras + Selección Machos) / Aves Inicio × 100'
+          },
+          {
+            nombre: 'Error Sexaje (%)',
+            formula: '(Total Error Sexaje Hembras + Error Sexaje Machos) / Aves Inicio × 100'
+          },
+          {
+            nombre: 'Mortalidad + Selección (%)',
+            formula: 'Mortalidad % + Selección %'
+          }
+        ]
+      },
+      {
+        titulo: '⚡ Indicadores de Rendimiento',
+        formulas: [
+          {
+            nombre: 'Eficiencia',
+            formula: 'Ganancia de Peso por Ave (g) / Consumo Total por Ave (g)'
+          },
+          {
+            nombre: 'IP (Índice de Productividad)',
+            formula: 'Eficiencia × Supervivencia\nDonde: Supervivencia = Aves Fin / Aves Inicio'
+          },
+          {
+            nombre: 'VPI (Índice de Vitalidad)',
+            formula: 'Supervivencia × Eficiencia\nDonde: Supervivencia = Aves Fin / Aves Inicio'
+          }
+        ]
+      },
+      {
+        titulo: '🌡️ Otros',
+        formulas: [
+          {
+            nombre: 'Piso Térmico',
+            formula: 'Requerimiento según guía genética (generalmente semanas 1-3)'
+          }
+        ]
+      }
+    ];
+  }
 }

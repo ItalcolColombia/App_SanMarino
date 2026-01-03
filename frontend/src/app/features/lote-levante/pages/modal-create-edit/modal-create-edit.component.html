@@ -45,108 +45,230 @@
 
           <!-- HEMBRAS -->
           <section id="panel-hembras" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-hembras">
-            <div class="grid grid-2">
-              <div class="form-field">
-                <label for="f-consumo-h">Consumo Hembras (kg)</label>
-                <input id="f-consumo-h" type="number" step="0.01" min="0" formControlName="consumoKgHembras" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-mh">Mortalidad Hembras</label>
-                <input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-selh">Selección Hembras</label>
-                <input id="f-selh" type="number" min="0" formControlName="selH" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-errh">Error Sexaje Hembras</label>
-                <input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-ph">Promedio peso H</label>
-                <input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-uh">Uniformidad Hembras (%)</label>
-                <input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-cvh">CV Hembras</label>
-                <input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" />
-              </div>
-
-              <!-- Tipo de alimento HEMBRAS (desde catálogo backend) -->
-              <div class="form-field">
-                <label for="f-alim-h">Tipo de alimento H</label>
-                <div class="ux-select">
-                  <select id="f-alim-h" formControlName="tipoAlimentoHembras">
-                    <option value="">— Seleccione —</option>
-                    <option *ngFor="let a of alimentosCatalog" [ngValue]="a.nombre">
-                      {{ a.nombre }} <ng-container *ngIf="a.codigo">({{ a.codigo }})</ng-container>
-                    </option>
-                  </select>
+            <!-- CONSUMO DE ALIMENTO -->
+            <div class="data-group">
+              <h3 class="data-group-title">🍽️ Consumo de Alimento</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-tipo-item-h">Tipo de ítem</label>
+                  <div class="ux-select">
+                    <select id="f-tipo-item-h" formControlName="tipoItemHembras" [disabled]="editing && form.get('tipoAlimentoHembras')?.value">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let tipo of tiposItem" [ngValue]="tipo">
+                        {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
+                      </option>
+                    </select>
+                  </div>
+                  <small class="ux-hint text-muted" *ngIf="editing && form.get('tipoAlimentoHembras')?.value">
+                    El tipo de ítem no se puede cambiar cuando el registro ya tiene un alimento seleccionado.
+                  </small>
                 </div>
-                <small class="ux-hint">Origen: catálogo (type_item = "alimento").</small>
+
+                <div class="form-field" *ngIf="form.get('tipoItemHembras')?.value === 'alimento'">
+                  <label for="f-alim-h">Alimento *</label>
+                  <div class="ux-select">
+                    <select id="f-alim-h" formControlName="tipoAlimentoHembras">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let a of alimentosFiltradosHembras" [ngValue]="a.id">
+                        {{ a.codigo }} — {{ a.nombre }}
+                      </option>
+                    </select>
+                  </div>
+                  <small class="ux-hint" *ngIf="cargandoInventarioHembras">Consultando inventario...</small>
+                  <small class="ux-hint text-success" *ngIf="!cargandoInventarioHembras && inventarioDisponibleHembras !== null && inventarioDisponibleHembras > 0">
+                    Disponible: {{ inventarioCantidadOriginalHembras | number:'1.2-2' }} {{ inventarioUnidadHembras }}
+                    <span class="text-muted" *ngIf="inventarioUnidadHembras === 'kg'">
+                      ({{ inventarioDisponibleHembras | number:'1.0-0' }} gramos)
+                    </span>
+                  </small>
+                  <small class="ux-hint text-info" *ngIf="!cargandoInventarioHembras && inventarioDisponibleHembras !== null && inventarioDisponibleHembras > 0 && inventarioUnidadHembras === 'kg'">
+                    <strong>Nota:</strong> El registro es en gramos, pero el inventario está en kilogramos. La conversión se realizará automáticamente.
+                  </small>
+                  <small class="ux-hint text-danger" *ngIf="!cargandoInventarioHembras && mensajeInventarioHembras">
+                    {{ mensajeInventarioHembras }}
+                  </small>
+                </div>
+
+                <div class="form-field form-field--full">
+                  <label for="f-consumo-h">Consumo Hembras *</label>
+                  <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                      <input id="f-consumo-h" type="number" step="0.001" min="0" formControlName="consumoHembras" />
+                    </div>
+                    <div style="width: 100px;">
+                      <select formControlName="unidadConsumoHembras" class="ux-select" style="width: 100%;">
+                        <option value="kg">kg</option>
+                        <option value="g">gramos</option>
+                      </select>
+                    </div>
+                  </div>
+                  <small class="ux-hint" *ngIf="form.get('unidadConsumoHembras')?.value === 'g' && inventarioDisponibleHembras !== null">
+                    Equivale a {{ (form.get('consumoHembras')?.value || 0) / 1000 | number:'1.3-3' }} kg
+                    <span *ngIf="inventarioUnidadHembras === 'kg'" class="text-info">
+                      (se reducirá del inventario en kilogramos)
+                    </span>
+                  </small>
+                  <small class="ux-hint text-muted" *ngIf="form.get('unidadConsumoHembras')?.value === 'kg'">
+                    El valor se guardará directamente en kilogramos.
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- MORTALIDAD Y SELECCIÓN -->
+            <div class="data-group">
+              <h3 class="data-group-title">💀 Mortalidad y Selección</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-mh">Mortalidad Hembras</label>
+                  <input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-selh">Selección Hembras</label>
+                  <input id="f-selh" type="number" min="0" formControlName="selH" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-errh">Error Sexaje Hembras</label>
+                  <input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" />
+                </div>
+              </div>
+            </div>
+
+            <!-- PESO Y UNIFORMIDAD -->
+            <div class="data-group">
+              <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-ph">Promedio Peso Hembras (kg)</label>
+                  <input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-uh">Uniformidad Hembras (%)</label>
+                  <input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-cvh">Coeficiente de Variación (CV) Hembras</label>
+                  <input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" />
+                </div>
               </div>
             </div>
           </section>
 
           <!-- MACHOS -->
           <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
-            <div class="grid grid-2">
-              <div class="form-field">
-                <label for="f-consumo-m">Consumo Machos (kg)</label>
-                <input id="f-consumo-m" type="number" step="0.01" min="0" formControlName="consumoKgMachos" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-mm">Mortalidad Machos</label>
-                <input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-selm">Selección Machos</label>
-                <input id="f-selm" type="number" min="0" formControlName="selM" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-errm">Error Sexaje Machos</label>
-                <input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-pm">Promedio peso M</label>
-                <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-um">Uniformidad Machos (%)</label>
-                <input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" />
-              </div>
-
-              <div class="form-field">
-                <label for="f-cvm">CV Machos</label>
-                <input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" />
-              </div>
-
-              <!-- Tipo de alimento MACHOS (desde catálogo backend) -->
-              <div class="form-field">
-                <label for="f-alim-m">Tipo de alimento M</label>
-                <div class="ux-select">
-                  <select id="f-alim-m" formControlName="tipoAlimentoMachos">
-                    <option value="">— Seleccione —</option>
-                    <option *ngFor="let a of alimentosCatalog" [ngValue]="a.nombre">
-                      {{ a.nombre }} <ng-container *ngIf="a.codigo">({{ a.codigo }})</ng-container>
-                    </option>
-                  </select>
+            <!-- CONSUMO DE ALIMENTO -->
+            <div class="data-group">
+              <h3 class="data-group-title">🍽️ Consumo de Alimento</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-tipo-item-m">Tipo de ítem</label>
+                  <div class="ux-select">
+                    <select id="f-tipo-item-m" formControlName="tipoItemMachos" [disabled]="editing && form.get('tipoAlimentoMachos')?.value">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let tipo of tiposItem" [ngValue]="tipo">
+                        {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
+                      </option>
+                    </select>
+                  </div>
+                  <small class="ux-hint text-muted" *ngIf="editing && form.get('tipoAlimentoMachos')?.value">
+                    El tipo de ítem no se puede cambiar cuando el registro ya tiene un alimento seleccionado.
+                  </small>
                 </div>
-                <small class="ux-hint">Origen: catálogo (type_item = "alimento").</small>
+
+                <div class="form-field" *ngIf="form.get('tipoItemMachos')?.value === 'alimento'">
+                  <label for="f-alim-m">Alimento</label>
+                  <div class="ux-select">
+                    <select id="f-alim-m" formControlName="tipoAlimentoMachos">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let a of alimentosFiltradosMachos" [ngValue]="a.id">
+                        {{ a.codigo }} — {{ a.nombre }}
+                      </option>
+                    </select>
+                  </div>
+                  <small class="ux-hint" *ngIf="cargandoInventarioMachos">Consultando inventario...</small>
+                  <small class="ux-hint text-success" *ngIf="!cargandoInventarioMachos && inventarioDisponibleMachos !== null && inventarioDisponibleMachos > 0">
+                    Disponible: {{ inventarioCantidadOriginalMachos | number:'1.2-2' }} {{ inventarioUnidadMachos }}
+                    <span class="text-muted" *ngIf="inventarioUnidadMachos === 'kg'">
+                      ({{ inventarioDisponibleMachos | number:'1.0-0' }} gramos)
+                    </span>
+                  </small>
+                  <small class="ux-hint text-info" *ngIf="!cargandoInventarioMachos && inventarioDisponibleMachos !== null && inventarioDisponibleMachos > 0 && inventarioUnidadMachos === 'kg'">
+                    <strong>Nota:</strong> El registro es en gramos, pero el inventario está en kilogramos. La conversión se realizará automáticamente.
+                  </small>
+                  <small class="ux-hint text-danger" *ngIf="!cargandoInventarioMachos && mensajeInventarioMachos">
+                    {{ mensajeInventarioMachos }}
+                  </small>
+                </div>
+
+                <div class="form-field form-field--full">
+                  <label for="f-consumo-m">Consumo Machos</label>
+                  <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                      <input id="f-consumo-m" type="number" step="0.001" min="0" formControlName="consumoMachos" />
+                    </div>
+                    <div style="width: 100px;">
+                      <select formControlName="unidadConsumoMachos" class="ux-select" style="width: 100%;">
+                        <option value="kg">kg</option>
+                        <option value="g">gramos</option>
+                      </select>
+                    </div>
+                  </div>
+                  <small class="ux-hint" *ngIf="form.get('unidadConsumoMachos')?.value === 'g' && inventarioDisponibleMachos !== null">
+                    Equivale a {{ (form.get('consumoMachos')?.value || 0) / 1000 | number:'1.3-3' }} kg
+                    <span *ngIf="inventarioUnidadMachos === 'kg'" class="text-info">
+                      (se reducirá del inventario en kilogramos)
+                    </span>
+                  </small>
+                  <small class="ux-hint text-muted" *ngIf="form.get('unidadConsumoMachos')?.value === 'kg'">
+                    El valor se guardará directamente en kilogramos.
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- MORTALIDAD Y SELECCIÓN -->
+            <div class="data-group">
+              <h3 class="data-group-title">💀 Mortalidad y Selección</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-mm">Mortalidad Machos</label>
+                  <input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-selm">Selección Machos</label>
+                  <input id="f-selm" type="number" min="0" formControlName="selM" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-errm">Error Sexaje Machos</label>
+                  <input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" />
+                </div>
+              </div>
+            </div>
+
+            <!-- PESO Y UNIFORMIDAD -->
+            <div class="data-group">
+              <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-pm">Promedio Peso Machos (kg)</label>
+                  <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-um">Uniformidad Machos (%)</label>
+                  <input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" />
+                </div>
+
+                <div class="form-field">
+                  <label for="f-cvm">Coeficiente de Variación (CV) Machos</label>
+                  <input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" />
+                </div>
               </div>
             </div>
           </section>

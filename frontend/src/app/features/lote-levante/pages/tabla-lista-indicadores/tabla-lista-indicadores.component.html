@@ -3,43 +3,71 @@
   <div class="indicadores-header">
     <h3>Indicadores Semanales</h3>
     <button 
-      (click)="validarUsoTablaGenetica()" 
-      class="btn-validation"
-      [disabled]="!selectedLote || indicadoresSemanales.length === 0">
-      🔍 Validar Tabla Genética
+      (click)="mostrarFormulas = !mostrarFormulas" 
+      class="btn-formulas">
+      📐 Fórmulas
     </button>
+  </div>
+
+  <!-- Modal de Fórmulas -->
+  <div class="formulas-modal" *ngIf="mostrarFormulas" (click)="mostrarFormulas = false">
+    <div class="formulas-content" (click)="$event.stopPropagation()">
+      <div class="formulas-header">
+        <h4>📐 Fórmulas de Indicadores</h4>
+        <button class="btn-close" (click)="mostrarFormulas = false">×</button>
+      </div>
+      <div class="formulas-body">
+        <div class="formula-group" *ngFor="let grupo of gruposFormulas">
+          <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
+          <ul class="formula-list">
+            <li *ngFor="let formula of grupo.formulas" class="formula-item">
+              <strong>{{ formula.nombre }}:</strong>
+              <span class="formula-text">{{ formula.formula }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
   
   <div class="ux-scroll">
     <table class="ux-table indicadores-table">
       <thead>
         <tr>
-          <th rowspan="2">Semana</th>
-          <th rowspan="2">Período</th>
-          <th rowspan="2">Aves Inicio</th>
-          <th rowspan="2">Aves Fin</th>
-          <th colspan="2">Consumo</th>
-          <th rowspan="2">Conv. Alimenticia</th>
-          <th colspan="2">Ganancia</th>
-          <th colspan="3">Mortalidad & Selección</th>
-          <th rowspan="2">Eficiencia</th>
-          <th rowspan="2">IP</th>
-          <th rowspan="2">VPI</th>
-          <th rowspan="2">Piso Térmico</th>
+          <th rowspan="2" class="header-group-basic">Semana</th>
+          <th rowspan="2" class="header-group-basic">Período</th>
+          <th colspan="2" class="header-group-info header-group-region">Región y Granja</th>
+          <th colspan="2" class="header-group-info header-group-nave">Nave y Sub Lote</th>
+          <th rowspan="2" class="header-group-aves">Aves Inicio</th>
+          <th rowspan="2" class="header-group-aves">Aves Fin</th>
+          <th colspan="3" class="header-group-main">Consumo</th>
+          <th rowspan="2" class="header-group-main">Conv. Alimenticia</th>
+          <th colspan="2" class="header-group-main">Ganancia</th>
+          <th colspan="3" class="header-group-main">Mortalidad & Selección</th>
+          <th rowspan="2" class="header-group-indicadores">Eficiencia</th>
+          <th rowspan="2" class="header-group-indicadores">IP</th>
+          <th rowspan="2" class="header-group-indicadores">VPI</th>
+          <th rowspan="2" class="header-group-otros">Piso Térmico</th>
+          <th rowspan="2" class="header-group-otros">Observaciones</th>
         </tr>
         <tr>
-          <th>Real (g)</th>
-          <th>Tabla (g)</th>
-          <th>Semana (g)</th>
-          <th>Diaria (g)</th>
-          <th>Mort. %</th>
-          <th>Sel. %</th>
-          <th>Total %</th>
+          <th class="header-sub header-sub-region">Región</th>
+          <th class="header-sub header-sub-region">Granja</th>
+          <th class="header-sub header-sub-nave">Nave</th>
+          <th class="header-sub header-sub-nave">Sub Lote</th>
+          <th class="header-sub">Diario (g)</th>
+          <th class="header-sub">Tabla (g)</th>
+          <th class="header-sub">Real Total Semana (g)</th>
+          <th class="header-sub">Semana (g)</th>
+          <th class="header-sub">Diaria (g/día)</th>
+          <th class="header-sub">Mortalidad (%)</th>
+          <th class="header-sub">Selección (%)</th>
+          <th class="header-sub">Error Sexaje (%)</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngIf="!indicadoresSemanales || indicadoresSemanales.length === 0">
-          <td colspan="16" class="empty-state">
+          <td colspan="21" class="empty-state">
             <div class="empty-illustration" aria-hidden="true">📊</div>
             <p>No hay datos de indicadores disponibles.</p>
           </td>
@@ -50,18 +78,25 @@
           <td class="periodo-cell">
             {{ formatDate(ind.fechaInicio) }} - {{ formatDate(ind.fechaFin) }}
           </td>
+          <td>{{ ind.region || '-' }}</td>
+          <td>{{ ind.granja || '-' }}</td>
+          <td>{{ ind.nave || '-' }}</td>
+          <td>{{ ind.sublote || '-' }}</td>
           <td>{{ ind.avesInicioSemana | number:'1.0-0' }}</td>
           <td>{{ ind.avesFinSemana | number:'1.0-0' }}</td>
-          <td class="consumo-real" 
-              [class]="'consumo-' + validarConsumo(ind.consumoReal, ind.consumoTabla).tipo">
-            {{ formatNumber(ind.consumoReal, 1) }}
+          <td class="consumo-diario" 
+              [class]="'consumo-' + validarConsumo(ind.consumoDiario, ind.consumoTabla).tipo">
+            {{ formatNumber(ind.consumoDiario, 1) }}
             <span class="alert-icon" 
-                  [title]="validarConsumo(ind.consumoReal, ind.consumoTabla).mensaje"
-                  *ngIf="!validarConsumo(ind.consumoReal, ind.consumoTabla).esValido">
+                  [title]="validarConsumo(ind.consumoDiario, ind.consumoTabla).mensaje"
+                  *ngIf="!validarConsumo(ind.consumoDiario, ind.consumoTabla).esValido">
               ⚠️
             </span>
           </td>
           <td>{{ formatNumber(ind.consumoTabla, 1) }}</td>
+          <td class="consumo-total-semana">
+            {{ ind.consumoTotalSemana | number:'1.0-0' }}
+          </td>
           <td>{{ formatNumber(ind.conversionAlimenticia, 2) }}</td>
           <td class="ganancia-semana" 
               [class]="'ganancia-' + validarGanancia(ind.gananciaSemana, ind.semana).tipo">
@@ -83,7 +118,7 @@
             </span>
           </td>
           <td>{{ formatPercentage(ind.seleccionSem) }}</td>
-          <td>{{ formatPercentage(ind.mortalidadMasSeleccion) }}</td>
+          <td>{{ formatPercentage(ind.errorSexajeSem) }}</td>
           <td>{{ formatNumber(ind.eficiencia, 2) }}</td>
           <td>{{ formatNumber(ind.ip, 2) }}</td>
           <td>{{ formatNumber(ind.vpi, 2) }}</td>
@@ -92,6 +127,7 @@
               {{ ind.pisoTermicoVisible ? 'Sí' : 'No' }}
             </span>
           </td>
+          <td class="observaciones-cell">{{ ind.observaciones || '-' }}</td>
         </tr>
       </tbody>
     </table>

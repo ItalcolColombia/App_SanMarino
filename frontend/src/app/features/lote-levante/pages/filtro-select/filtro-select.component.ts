@@ -64,20 +64,48 @@ export class FiltroSelectComponent implements OnInit {
 
   private loadGalponCatalog(): void {
     this.galponNameById.clear();
-    if (!this.selectedGranjaId) return;
+    if (!this.selectedGranjaId) {
+      this.buildGalponesFromLotes(); // Construir con mapa vacío si no hay granja
+      return;
+    }
 
     if (this.selectedNucleoId) {
       this.galponSvc.getByGranjaAndNucleo(this.selectedGranjaId, this.selectedNucleoId).subscribe({
-        next: rows => this.fillGalponMap(rows),
-        error: () => this.galponNameById.clear(),
+        next: rows => {
+          this.fillGalponMap(rows);
+          // Asegurar que se reconstruyan los galpones después de cargar el catálogo
+          // Esperar un tick para asegurar que los lotes estén filtrados
+          setTimeout(() => {
+            this.buildGalponesFromLotes();
+          }, 0);
+        },
+        error: () => {
+          this.galponNameById.clear();
+          // Aún así construir desde lotes aunque falle la carga del catálogo
+          setTimeout(() => {
+            this.buildGalponesFromLotes();
+          }, 0);
+        },
       });
       return;
     }
 
     this.galponSvc.search({ granjaId: this.selectedGranjaId, page: 1, pageSize: 1000, soloActivos: true })
       .subscribe({
-        next: res => this.fillGalponMap(res?.items || []),
-        error: () => this.galponNameById.clear(),
+        next: res => {
+          this.fillGalponMap(res?.items || []);
+          // Asegurar que se reconstruyan los galpones después de cargar el catálogo
+          setTimeout(() => {
+            this.buildGalponesFromLotes();
+          }, 0);
+        },
+        error: () => {
+          this.galponNameById.clear();
+          // Aún así construir desde lotes aunque falle la carga del catálogo
+          setTimeout(() => {
+            this.buildGalponesFromLotes();
+          }, 0);
+        },
       });
   }
 
@@ -87,7 +115,7 @@ export class FiltroSelectComponent implements OnInit {
       if (!id) continue;
       this.galponNameById.set(id, (g.galponNombre || id).trim());
     }
-    this.buildGalponesFromLotes();
+    // No llamar buildGalponesFromLotes aquí, se llama desde loadGalponCatalog después
   }
 
   private reloadLotesThenApplyFilters(): void {
@@ -103,7 +131,14 @@ export class FiltroSelectComponent implements OnInit {
       next: all => {
         this.allLotes = all || [];
         this.applyFiltersToLotes();
-        this.buildGalponesFromLotes();
+        // Cargar catálogo de galpones si no está cargado, luego construir galpones
+        if (this.galponNameById.size > 0) {
+          // Si ya hay catálogo, construir galpones ahora
+          this.buildGalponesFromLotes();
+        } else {
+          // Si no hay catálogo, cargarlo y luego construir galpones
+          this.loadGalponCatalog();
+        }
       },
       error: () => {
         this.allLotes = [];
@@ -155,6 +190,12 @@ export class FiltroSelectComponent implements OnInit {
       return;
     }
 
+    // Si no hay lotes cargados, no podemos construir galpones
+    if (this.allLotes.length === 0) {
+      console.warn('buildGalponesFromLotes: No hay lotes cargados aún');
+      return;
+    }
+
     const gid = String(this.selectedGranjaId);
     let base = this.allLotes.filter(l => String(l.granjaId) === gid);
 
@@ -183,6 +224,8 @@ export class FiltroSelectComponent implements OnInit {
     this.galpones = result.sort((a, b) =>
       a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
     );
+    
+    console.log('buildGalponesFromLotes: Construidos', this.galpones.length, 'galpones desde', base.length, 'lotes');
   }
 
   // ================== EVENTOS DE CAMBIO ==================
@@ -212,8 +255,19 @@ export class FiltroSelectComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.lotes = [];
-    this.applyFiltersToLotes();
-    this.loadGalponCatalog();
+    this.galpones = []; // Limpiar galpones mientras se cargan
+    
+    // Asegurar que los lotes estén cargados antes de filtrar
+    if (this.allLotes.length === 0 && this.selectedGranjaId) {
+      // Si no hay lotes cargados, recargarlos primero
+      // reloadLotesThenApplyFilters ya carga el catálogo de galpones al final
+      this.reloadLotesThenApplyFilters();
+    } else {
+      // Si ya hay lotes, solo aplicar filtros y luego cargar catálogo
+      this.applyFiltersToLotes();
+      // Cargar catálogo de galpones (esto construirá los galpones cuando termine)
+      this.loadGalponCatalog();
+    }
   }
 
   onGalponChange(): void {

@@ -16,7 +16,7 @@ export interface SeguimientoLoteLevanteDto {
   errorSexajeMachos: number;
 
   tipoAlimento: string;
-  consumoKgHembras: number;
+  consumoKgHembras: number; // Consumo convertido a kg (para cálculos)
 
   // Opcionales nuevos
   consumoKgMachos?: number | null;
@@ -26,6 +26,9 @@ export interface SeguimientoLoteLevanteDto {
   uniformidadM?: number | null;
   cvH?: number | null;
   cvM?: number | null;
+
+  // Metadata JSONB para campos adicionales/extras
+  metadata?: any | null; // JSON object con consumo original y otros campos adicionales
 
   observaciones?: string;
   kcalAlH?: number | null;
@@ -49,10 +52,17 @@ export interface CreateSeguimientoLoteLevanteDto {
   errorSexajeMachos: number;
 
   tipoAlimento: string;
-  consumoKgHembras: number;
-
-  // Opcionales nuevos
+  
+  // Consumo con unidad - el backend hace la conversión
+  consumoHembras?: number | null;
+  unidadConsumoHembras?: string; // "kg" o "g" - default "kg"
+  consumoMachos?: number | null;
+  unidadConsumoMachos?: string; // "kg" o "g" - default "kg"
+  
+  // Mantener para compatibilidad (deprecated - usar consumoHembras/Machos con unidad)
+  consumoKgHembras?: number;
   consumoKgMachos?: number | null;
+
   pesoPromH?: number | null;
   pesoPromM?: number | null;
   uniformidadH?: number | null;
@@ -66,8 +76,11 @@ export interface CreateSeguimientoLoteLevanteDto {
   kcalAveH?: number | null;
   protAveH?: number | null;
   ciclo: string;
-  tipoAlimentoHembras?: number | null; // (calculo interno, no se envía en create/update)
-  tipoAlimentoMachos?: number | null;  // (calculo interno, no se envía en create/update)
+  tipoAlimentoHembras?: number | null;
+  tipoAlimentoMachos?: number | null;
+  // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
+  tipoItemHembras?: string | null;
+  tipoItemMachos?: string | null;
 }
 
 export interface UpdateSeguimientoLoteLevanteDto extends CreateSeguimientoLoteLevanteDto {

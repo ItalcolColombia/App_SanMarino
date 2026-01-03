@@ -269,6 +269,8 @@
 .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 :host .ux-hint { font-size: .8rem; color: var(--warm-400); margin-bottom: .5rem; }
+:host .ux-hint.text-success { color: #16a34a; font-weight: 600; }
+:host .ux-hint.text-danger { color: #dc2626; font-weight: 600; }
 
 /* ==========================================================================
    🕳️ Loading
@@ -286,18 +288,52 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ==========================================================================
+   📊 Grupos de Datos Organizados
+   ========================================================================== */
+:host .data-group {
+  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: var(--warm-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warm-200);
+}
+
+:host .data-group:last-child {
+  margin-bottom: 0;
+}
+
+:host .data-group-title {
+  margin: 0 0 var(--space-4) 0;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--brand-red);
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--warm-200);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+:host .data-group .grid {
+  margin-top: var(--space-3);
+}
+
+/* ==========================================================================
    📱 Responsive
    ========================================================================== */
 @media (max-width: 960px)  {
   .grid-4, .grid-3, .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
   :host .ux-form { padding: 1rem; }
+  :host .data-group { padding: var(--space-3); }
 }
 @media (max-width: 680px)  {
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
   :host .ux-modal__dialog { width: 95vw; }
+  :host .data-group-title { font-size: var(--fs-sm); }
 }
 @media (max-width: 480px) { 
   :host .ux-modal__header h2 { font-size: 1.1rem; }
   :host .ux-tabs { grid-template-columns: 1fr; }
   :host .ux-tab { justify-content: center; }
+  :host .data-group { padding: var(--space-2); }
 }

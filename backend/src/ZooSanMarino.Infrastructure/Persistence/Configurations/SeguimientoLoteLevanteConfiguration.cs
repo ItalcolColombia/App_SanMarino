@@ -15,9 +15,14 @@ public class SeguimientoLoteLevanteConfiguration : IEntityTypeConfiguration<Segu
         builder.Property(x => x.TipoAlimento).HasMaxLength(100).IsRequired();
         builder.Property(x => x.Observaciones).HasMaxLength(1000);
 
-        // Consumos
+        // Consumos (en kg, convertidos)
         builder.Property(x => x.ConsumoKgHembras).HasPrecision(12, 3);
         builder.Property(x => x.ConsumoKgMachos).HasPrecision(12, 3);
+        
+        // Metadata JSONB para campos adicionales/extras
+        builder.Property(x => x.Metadata)
+               .HasColumnName("metadata")
+               .HasColumnType("jsonb");
 
         // Pesos promedio (kg)
         builder.Property(x => x.PesoPromH).HasPrecision(8, 2);

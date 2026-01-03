@@ -21,15 +21,17 @@ public class SeguimientoLoteLevanteController : ControllerBase
         return Ok(items);
     }
 
-    /// <summary>Crear un nuevo registro diario.</summary>
+    /// <summary>Crear un nuevo registro diario. Acepta consumo en kg o gramos, el backend hace la conversión.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(SeguimientoLoteLevanteDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<SeguimientoLoteLevanteDto>> Create([FromBody] SeguimientoLoteLevanteDto dto)
+    public async Task<ActionResult<SeguimientoLoteLevanteDto>> Create([FromBody] CreateSeguimientoLoteLevanteRequest request)
     {
-        if (dto is null) return BadRequest("Body requerido.");
+        if (request is null) return BadRequest("Body requerido.");
         try
         {
+            // El request convierte automáticamente las unidades a kg
+            var dto = request.ToDto();
             var result = await _svc.CreateAsync(dto);
             return CreatedAtAction(nameof(GetByLote), new { loteId = result.LoteId }, result);
         }
@@ -40,18 +42,19 @@ public class SeguimientoLoteLevanteController : ControllerBase
         }
     }
 
-    /// <summary>Editar un registro diario.</summary>
+    /// <summary>Editar un registro diario. Acepta consumo en kg o gramos, el backend hace la conversión.</summary>
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(SeguimientoLoteLevanteDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SeguimientoLoteLevanteDto>> Update(int id, [FromBody] SeguimientoLoteLevanteDto dto)
+    public async Task<ActionResult<SeguimientoLoteLevanteDto>> Update(int id, [FromBody] CreateSeguimientoLoteLevanteRequest request)
     {
-        if (dto is null) return BadRequest("Body requerido.");
-        if (id != dto.Id) return BadRequest("El ID de la ruta no coincide con el del cuerpo.");
-
+        if (request is null) return BadRequest("Body requerido.");
+        
         try
         {
+            // El request convierte automáticamente las unidades a kg
+            var dto = request.ToDto(id);
             var updated = await _svc.UpdateAsync(dto);
             return updated is null ? NotFound() : Ok(updated);
         }

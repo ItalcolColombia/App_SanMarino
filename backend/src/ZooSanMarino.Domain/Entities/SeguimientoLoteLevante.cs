@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 /// file: backend/src/ZooSanMarino.Domain/Entities/SeguimientoLoteLevante.cs
 namespace ZooSanMarino.Domain.Entities;
 
@@ -26,6 +28,7 @@ public class SeguimientoLoteLevante
     public string Ciclo { get; set; } = "Normal";
 
     // NUEVOS (double precision en PG → double?)
+    // Estos campos se mantienen para compatibilidad con otros servicios
     public double? ConsumoKgMachos { get; set; }
     public double? PesoPromH { get; set; }
     public double? PesoPromM { get; set; }
@@ -33,6 +36,9 @@ public class SeguimientoLoteLevante
     public double? UniformidadM { get; set; }
     public double? CvH { get; set; }
     public double? CvM { get; set; }
+    
+    // Metadata JSONB para campos adicionales/extras (consumo original con unidad, etc.)
+    public JsonDocument? Metadata { get; set; }
 
     public Lote Lote { get; set; } = null!;
 }
