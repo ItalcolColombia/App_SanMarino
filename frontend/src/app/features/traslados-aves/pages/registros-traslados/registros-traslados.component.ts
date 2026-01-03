@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-import { HierarchicalFilterComponent } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
 import { 
   TrasladosAvesService, 
   HistorialTrasladoLoteDto,
@@ -15,7 +14,7 @@ import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 @Component({
   selector: 'app-registros-traslados',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, HierarchicalFilterComponent],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   templateUrl: './registros-traslados.component.html',
   styleUrls: ['./registros-traslados.component.scss']
 })
