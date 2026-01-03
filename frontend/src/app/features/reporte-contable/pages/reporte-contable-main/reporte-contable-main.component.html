@@ -151,19 +151,26 @@
         </div>
       </div>
 
-      <!-- Resumen Semanal -->
-      <div class="datos-section" *ngIf="reporte()!.reportesSemanales.length > 0">
-        <h3>Resumen Semanal de Consumos</h3>
-        <app-tabla-resumen-semanal-contable [reportesSemanales]="reporte()!.reportesSemanales"></app-tabla-resumen-semanal-contable>
-      </div>
-
-      <!-- Detalle Diario por Semana -->
+      <!-- Reporte por Semana -->
       <div class="datos-section" *ngFor="let reporteSemanal of reporte()!.reportesSemanales">
-        <h3>Detalle Diario - Semana {{ reporteSemanal.semanaContable }}</h3>
-        <p class="periodo-info">
-          Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
-        </p>
-        <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
+        <div class="semana-header">
+          <h2>Semana {{ reporteSemanal.semanaContable }}</h2>
+          <p class="periodo-info">
+            Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
+          </p>
+        </div>
+
+        <!-- Sección AVES -->
+        <app-tabla-aves-contable [reporteSemanal]="reporteSemanal"></app-tabla-aves-contable>
+
+        <!-- Sección BULTO -->
+        <app-tabla-bultos-contable [reporteSemanal]="reporteSemanal"></app-tabla-bultos-contable>
+
+        <!-- Resumen de Consumos (Kg) -->
+        <div class="datos-section">
+          <h3>Resumen de Consumos (Kg)</h3>
+          <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
+        </div>
       </div>
 
       <!-- Mensaje si no hay datos -->

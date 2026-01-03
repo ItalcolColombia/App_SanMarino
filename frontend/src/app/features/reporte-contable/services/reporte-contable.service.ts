@@ -16,6 +16,42 @@ export interface ConsumoDiarioContableDto {
   totalConsumo: number;
 }
 
+export interface DatoDiarioContableDto {
+  fecha: string;
+  loteId: number;
+  loteNombre: string;
+  
+  // AVES
+  entradasHembras: number;
+  entradasMachos: number;
+  mortalidadHembras: number;
+  mortalidadMachos: number;
+  seleccionHembras: number;
+  seleccionMachos: number;
+  ventasHembras: number;
+  ventasMachos: number;
+  trasladosHembras: number;
+  trasladosMachos: number;
+  saldoHembras: number;
+  saldoMachos: number;
+  
+  // CONSUMO (Kg)
+  consumoAlimentoHembras: number;
+  consumoAlimentoMachos: number;
+  consumoAgua: number;
+  consumoMedicamento: number;
+  consumoVacuna: number;
+  
+  // BULTO
+  saldoBultosAnterior: number;
+  trasladosBultos: number;
+  entradasBultos: number;
+  retirosBultos: number;
+  consumoBultosHembras: number;
+  consumoBultosMachos: number;
+  saldoBultos: number;
+}
+
 export interface ReporteContableSemanalDto {
   semanaContable: number;
   fechaInicio: string;
@@ -23,12 +59,58 @@ export interface ReporteContableSemanalDto {
   lotePadreId: number;
   lotePadreNombre: string;
   sublotes: string[];
+  
+  // AVES - Saldo Semana Anterior
+  saldoAnteriorHembras: number;
+  saldoAnteriorMachos: number;
+  
+  // AVES - Entradas
+  entradasHembras: number;
+  entradasMachos: number;
+  totalEntradas: number;
+  
+  // AVES - Mortalidad
+  mortalidadHembrasSemanal: number;
+  mortalidadMachosSemanal: number;
+  mortalidadTotalSemanal: number;
+  
+  // AVES - Selección
+  seleccionHembrasSemanal: number;
+  seleccionMachosSemanal: number;
+  totalSeleccionSemanal: number;
+  
+  // AVES - Ventas y Traslados
+  ventasHembrasSemanal: number;
+  ventasMachosSemanal: number;
+  trasladosHembrasSemanal: number;
+  trasladosMachosSemanal: number;
+  totalVentasSemanal: number;
+  totalTrasladosSemanal: number;
+  
+  // AVES - Saldo Final
+  saldoFinHembras: number;
+  saldoFinMachos: number;
+  totalAvesVivas: number;
+  
+  // BULTO - Resumen Semanal
+  saldoBultosAnterior: number;
+  trasladosBultosSemanal: number;
+  entradasBultosSemanal: number;
+  retirosBultosSemanal: number;
+  consumoBultosHembrasSemanal: number;
+  consumoBultosMachosSemanal: number;
+  saldoBultosFinal: number;
+  
+  // CONSUMO (Kg) - Resumen Semanal
   consumoTotalAlimento: number;
   consumoTotalAgua: number;
   consumoTotalMedicamento: number;
   consumoTotalVacuna: number;
   otrosConsumos: number;
   totalGeneral: number;
+  
+  // Detalle diario
+  datosDiarios: DatoDiarioContableDto[];
   consumosDiarios: ConsumoDiarioContableDto[];
 }
 
@@ -39,6 +121,8 @@ export interface ReporteContableCompletoDto {
   granjaNombre: string;
   nucleoId: string;
   nucleoNombre: string;
+  galponId?: string;
+  galponNombre?: string;
   fechaPrimeraLlegada: string;
   semanaContableActual: number;
   fechaInicioSemanaActual: string;

@@ -1,6 +1,6 @@
 // src/app/features/reporte-contable/pages/reporte-contable-main/reporte-contable-main.component.ts
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -26,8 +26,9 @@ import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
-import { TablaResumenSemanalContableComponent } from '../../components/tabla-resumen-semanal-contable/tabla-resumen-semanal-contable.component';
 import { TablaDetalleDiarioContableComponent } from '../../components/tabla-detalle-diario-contable/tabla-detalle-diario-contable.component';
+import { TablaAvesContableComponent } from '../../components/tabla-aves-contable/tabla-aves-contable.component';
+import { TablaBultosContableComponent } from '../../components/tabla-bultos-contable/tabla-bultos-contable.component';
 
 @Component({
   selector: 'app-reporte-contable-main',
@@ -36,11 +37,11 @@ import { TablaDetalleDiarioContableComponent } from '../../components/tabla-deta
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    DatePipe,
     SidebarComponent,
     FiltroSelectComponent,
-    TablaResumenSemanalContableComponent,
-    TablaDetalleDiarioContableComponent
+    TablaDetalleDiarioContableComponent,
+    TablaAvesContableComponent,
+    TablaBultosContableComponent
   ],
   templateUrl: './reporte-contable-main.component.html',
   styleUrls: ['./reporte-contable-main.component.scss']
