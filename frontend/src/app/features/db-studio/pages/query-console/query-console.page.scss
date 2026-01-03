@@ -1,4 +1,4 @@
-@import '../explorer/explorer.page.scss';
+@use '../explorer/explorer.page.scss' as *;
 
 .query-console-container {
   display: flex;

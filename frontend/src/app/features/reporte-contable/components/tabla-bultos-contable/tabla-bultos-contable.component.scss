@@ -1,0 +1,212 @@
+// src/app/features/reporte-contable/components/tabla-bultos-contable/tabla-bultos-contable.component.scss
+
+.tabla-container {
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #1a1a1a;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+}
+
+.reporte-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: #ffffff;
+  
+  th, td {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    border: 1px solid #e5e7eb;
+  }
+
+  th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    text-align: center;
+  }
+}
+
+// Encabezados
+.header-row {
+  th {
+    background: linear-gradient(to bottom, #f3f4f6, #e5e7eb);
+    font-weight: 700;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 2px solid #d1d5db;
+  }
+}
+
+// Grupos de encabezados con colores
+.header-group {
+  &--saldo {
+    background: linear-gradient(to bottom, #fef3c7, #fde68a) !important;
+  }
+  &--traslados {
+    background: linear-gradient(to bottom, #e0e7ff, #c7d2fe) !important;
+  }
+  &--entradas {
+    background: linear-gradient(to bottom, #d1fae5, #a7f3d0) !important;
+  }
+  &--retiros {
+    background: linear-gradient(to bottom, #fee2e2, #fecaca) !important;
+  }
+  &--consumo {
+    background: linear-gradient(to bottom, #fce7f3, #fbcfe8) !important;
+  }
+  &--saldo-final {
+    background: linear-gradient(to bottom, #dcfce7, #bbf7d0) !important;
+  }
+}
+
+// Columnas diferenciadas por sexo
+.col-hembra {
+  background-color: #fef2f2;
+  font-weight: 500;
+  
+  &:hover {
+    background-color: #fee2e2;
+  }
+}
+
+.col-macho {
+  background-color: #eff6ff;
+  font-weight: 500;
+  
+  &:hover {
+    background-color: #dbeafe;
+  }
+}
+
+.col-fecha {
+  background-color: #f9fafb;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+// Filas de datos
+.data-row {
+  transition: background-color 0.15s ease;
+  
+  &:hover {
+    background-color: #f9fafb;
+  }
+  
+  &:nth-child(even) {
+    background-color: #fafafa;
+    
+    &:hover {
+      background-color: #f3f4f6;
+    }
+  }
+}
+
+// Filas informativas
+.info-row {
+  font-weight: 600;
+  
+  .info-label {
+    background: #f3f4f6;
+    font-weight: 700;
+    color: #1f2937;
+  }
+}
+
+.saldo-anterior-row {
+  background-color: #fffbeb;
+  border-top: 2px solid #fbbf24;
+  
+  .info-label {
+    background: #fef3c7;
+  }
+}
+
+.total-row {
+  background: linear-gradient(to right, #dbeafe, #bfdbfe);
+  border-top: 3px solid #3b82f6;
+  font-weight: 700;
+  
+  .info-label {
+    background: #bfdbfe;
+    color: #1e40af;
+  }
+  
+  td {
+    border-top: 2px solid #3b82f6;
+  }
+}
+
+// Resaltados
+.highlight-yellow {
+  background-color: #fef3c7 !important;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.highlight-green {
+  background-color: #d1fae5 !important;
+  font-weight: 700;
+  color: #065f46;
+}
+
+// Celdas vacías
+.empty-cells {
+  background-color: #fafafa;
+  border: none;
+}
+
+// Alineación
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+// Responsive
+@media (max-width: 1200px) {
+  .reporte-table {
+    font-size: 0.75rem;
+    
+    th, td {
+      padding: 0.5rem 0.35rem;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .table-wrapper {
+    border-radius: 0.25rem;
+  }
+  
+  .reporte-table {
+    font-size: 0.7rem;
+    
+    th, td {
+      padding: 0.4rem 0.25rem;
+    }
+  }
+  
+  .section-title {
+    font-size: 1rem;
+  }
+}
