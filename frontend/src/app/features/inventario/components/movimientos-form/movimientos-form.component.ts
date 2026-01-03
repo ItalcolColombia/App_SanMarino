@@ -12,6 +12,8 @@ import {
   FarmDto
 } from '../../services/inventario.service';
 
+type CatalogItemType = 'alimento' | 'medicamento' | 'accesorio' | 'biologico' | 'consumible' | 'otro';
+
 @Component({
   selector: 'app-movimientos-form',
   standalone: true,
@@ -28,9 +30,13 @@ export class MovimientosFormComponent implements OnInit {
   form!: FormGroup;
   farms: FarmDto[] = [];
   items: CatalogItemDto[] = [];
+  filteredItems: CatalogItemDto[] = [];
   loading = false;
   showSuccessModal = false;
   lastMovementType: 'in' | 'out' = 'in';
+  
+  // Tipos de item disponibles
+  readonly tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
 
   constructor(
     private fb: FormBuilder,
@@ -40,13 +46,22 @@ export class MovimientosFormComponent implements OnInit {
   ngOnInit(): void {
     this.initForm();
     this.invSvc.getFarms().subscribe(f => this.farms = f);
-    this.invSvc.getCatalogo().subscribe(c => this.items = c.filter(x => x.activo));
+    this.invSvc.getCatalogo().subscribe(c => {
+      this.items = c.filter(x => x.activo);
+      this.filteredItems = this.items; // Inicialmente mostrar todos
+    });
+    
+    // Filtrar productos cuando cambia el tipo de item
+    this.form.get('typeItem')?.valueChanges.subscribe(typeItem => {
+      this.filterProductsByType(typeItem);
+    });
   }
 
   initForm() {
     this.form = this.fb.group({
       farmId: [null, Validators.required],
       type:   ['in', Validators.required], // 'in' | 'out'
+      typeItem: [''], // Opcional: si está vacío, muestra todos los productos
       catalogItemId: [null, Validators.required],
       quantity: [null, [Validators.required, Validators.min(0.0001)]],
       unit: ['kg', Validators.required],
@@ -84,6 +99,7 @@ export class MovimientosFormComponent implements OnInit {
     this.form.reset({
       farmId: null,
       type: 'in',
+      typeItem: '',
       catalogItemId: null,
       quantity: null,
       unit: 'kg',
@@ -95,6 +111,28 @@ export class MovimientosFormComponent implements OnInit {
       this.form.controls[key].markAsUntouched();
       this.form.controls[key].markAsPristine();
     });
+    
+    // Restablecer lista filtrada
+    this.filteredItems = this.items;
+  }
+  
+  // Filtrar productos por tipo de item
+  filterProductsByType(typeItem: string | null): void {
+    if (!typeItem || typeItem === '') {
+      this.filteredItems = this.items;
+    } else {
+      this.filteredItems = this.items.filter(item => {
+        const metadata = item.metadata;
+        if (!metadata) return false;
+        return metadata.type_item === typeItem;
+      });
+    }
+    
+    // Limpiar selección de producto si ya no está en la lista filtrada
+    const currentProductId = this.form.get('catalogItemId')?.value;
+    if (currentProductId && !this.filteredItems.find(i => i.id === currentProductId)) {
+      this.form.patchValue({ catalogItemId: null });
+    }
   }
 
   closeSuccessModal() {

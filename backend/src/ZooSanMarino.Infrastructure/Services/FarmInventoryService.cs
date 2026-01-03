@@ -56,6 +56,7 @@ public class FarmInventoryService : IFarmInventoryService
                 ExpirationDate = x.ExpirationDate,
                 UnitCost = x.UnitCost,
                 Metadata = x.Metadata,
+                CatalogItemMetadata = x.CatalogItem.Metadata,
                 Active = x.Active,
                 ResponsibleUserId = x.ResponsibleUserId,
                 CreatedAt = x.CreatedAt,
@@ -89,6 +90,38 @@ public class FarmInventoryService : IFarmInventoryService
             ExpirationDate = x.ExpirationDate,
             UnitCost = x.UnitCost,
             Metadata = x.Metadata,
+            CatalogItemMetadata = x.CatalogItem.Metadata,
+            Active = x.Active,
+            ResponsibleUserId = x.ResponsibleUserId,
+            CreatedAt = x.CreatedAt,
+            UpdatedAt = x.UpdatedAt
+        };
+    }
+
+    public async Task<FarmInventoryDto?> GetByFarmAndCatalogItemAsync(int farmId, int catalogItemId, CancellationToken ct = default)
+    {
+        var x = await _db.FarmProductInventory
+            .AsNoTracking()
+            .Include(p => p.CatalogItem)
+            .FirstOrDefaultAsync(p => p.FarmId == farmId && p.CatalogItemId == catalogItemId && p.Active, ct);
+
+        if (x == null) return null;
+
+        return new FarmInventoryDto
+        {
+            Id = x.Id,
+            FarmId = x.FarmId,
+            CatalogItemId = x.CatalogItemId,
+            Codigo = x.CatalogItem.Codigo,
+            Nombre = x.CatalogItem.Nombre,
+            Quantity = x.Quantity,
+            Unit = x.Unit,
+            Location = x.Location,
+            LotNumber = x.LotNumber,
+            ExpirationDate = x.ExpirationDate,
+            UnitCost = x.UnitCost,
+            Metadata = x.Metadata,
+            CatalogItemMetadata = x.CatalogItem.Metadata,
             Active = x.Active,
             ResponsibleUserId = x.ResponsibleUserId,
             CreatedAt = x.CreatedAt,

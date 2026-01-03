@@ -1,7 +1,8 @@
 // src/app/features/inventario/services/inventario.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, of, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { TokenStorageService } from '../../../core/auth/token-storage.service';
 import { AuthSession } from '../../../core/auth/auth.models';
@@ -25,6 +26,7 @@ export interface CatalogItemDto {
   codigo: string;
   nombre: string;
   activo: boolean;
+  metadata?: any; // aquí vive type_item, especie, raza, genero y otros
 }
 
 /** Inventario (stock actual por granja) */
@@ -41,7 +43,8 @@ export interface FarmInventoryDto {
   expirationDate?: string | null; // ISO
   unitCost?: number | null;
   active: boolean;
-  metadata?: any;
+  metadata?: any; // Metadata del inventario
+  catalogItemMetadata?: any; // Metadata del CatalogItem (incluye type_item, especie, raza, etc.)
   responsibleUserId?: string | null;
   createdAt: string; // ISO
   updatedAt: string; // ISO
@@ -192,6 +195,14 @@ export class InventarioService {
       .pipe(map(res => res.items ?? []));
   }
 
+  /** Obtiene productos filtrados por tipo de item y búsqueda (solo activos) */
+  getCatalogoByType(typeItem: string | null = null, search: string | null = null): Observable<CatalogItemDto[]> {
+    let params = new HttpParams();
+    if (typeItem && typeItem.trim()) params = params.set('typeItem', typeItem.trim());
+    if (search && search.trim()) params = params.set('search', search.trim());
+    return this.http.get<CatalogItemDto[]>(`${this.api}/catalogo-alimentos/filter`, { params });
+  }
+
   /** (Opcional) Catálogo paginado completo */
   getCatalogoPaged(q = '', page = 1, pageSize = 20): Observable<PagedResult<CatalogItemDto>> {
     let params = new HttpParams().set('page', page).set('pageSize', pageSize);
@@ -206,6 +217,19 @@ export class InventarioService {
   /** Alias cómodo para los componentes que esperan getStock() */
   getStock(farmId: number): Observable<FarmInventoryDto[]> {
     return this.getInventory(farmId);
+  }
+  /** Obtener inventario de un producto específico por farmId y catalogItemId */
+  getInventoryByItem(farmId: number, catalogItemId: number): Observable<FarmInventoryDto | null> {
+    return this.http.get<FarmInventoryDto>(`${this.api}/farms/${farmId}/inventory/by-item/${catalogItemId}`).pipe(
+      catchError((err) => {
+        // Si es 404, retornar null (no hay inventario)
+        if (err.status === 404) {
+          return of(null);
+        }
+        // Para otros errores, propagar el error
+        return throwError(() => err);
+      })
+    );
   }
   getInventoryById(farmId: number, id: number): Observable<FarmInventoryDto> {
     return this.http.get<FarmInventoryDto>(`${this.api}/farms/${farmId}/inventory/${id}`);

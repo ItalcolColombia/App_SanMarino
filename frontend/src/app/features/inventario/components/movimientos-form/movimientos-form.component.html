@@ -32,10 +32,20 @@
     </div>
 
     <div class="filter">
+      <label class="ux-label" for="typeItem">Tipo de Item</label>
+      <select id="typeItem" class="ux-select" formControlName="typeItem">
+        <option value="">Todos los tipos</option>
+        <option *ngFor="let tipo of tiposItem" [value]="tipo">
+          {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
+        </option>
+      </select>
+    </div>
+
+    <div class="filter">
       <label class="ux-label" for="itemId">Producto *</label>
       <select id="itemId" class="ux-select" formControlName="catalogItemId">
         <option value="" disabled>Seleccione…</option>
-        <option *ngFor="let it of items" [value]="it.id">
+        <option *ngFor="let it of filteredItems" [value]="it.id">
           {{ it.codigo }} — {{ it.nombre }}
         </option>
       </select>

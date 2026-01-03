@@ -7,6 +7,7 @@ public interface IFarmInventoryService
 {
     Task<List<FarmInventoryDto>> GetByFarmAsync(int farmId, string? q, CancellationToken ct = default);
     Task<FarmInventoryDto?> GetByIdAsync(int farmId, int id, CancellationToken ct = default);
+    Task<FarmInventoryDto?> GetByFarmAndCatalogItemAsync(int farmId, int catalogItemId, CancellationToken ct = default);
 
     // Upsert por (farmId, catalogItemId) para inventario inicial
     Task<FarmInventoryDto> CreateOrReplaceAsync(int farmId, FarmInventoryCreateRequest req, CancellationToken ct = default);

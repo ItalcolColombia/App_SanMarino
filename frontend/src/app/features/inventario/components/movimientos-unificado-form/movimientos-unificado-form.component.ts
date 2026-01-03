@@ -1,7 +1,7 @@
 // src/app/features/inventario/components/movimientos-unificado-form/movimientos-unificado-form.component.ts
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
@@ -20,11 +20,12 @@ import {
 } from '../../services/inventario.service';
 
 type OperationType = 'entrada' | 'salida' | 'traslado';
+type CatalogItemType = 'alimento' | 'medicamento' | 'accesorio' | 'biologico' | 'consumible' | 'otro';
 
 @Component({
   selector: 'app-movimientos-unificado-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, FontAwesomeModule],
   templateUrl: './movimientos-unificado-form.component.html',
   styleUrls: ['./movimientos-unificado-form.component.scss']
 })
@@ -40,8 +41,16 @@ export class MovimientosUnificadoFormComponent implements OnInit {
   form!: FormGroup;
   farms: FarmDto[] = [];
   items: CatalogItemDto[] = [];
+  filteredItems: CatalogItemDto[] = [];
   loading = false;
   showSuccessModal = false;
+  
+  // Tipos de item disponibles
+  readonly tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
+  
+  // Búsqueda de productos
+  searchTerm: string = '';
+  searching = false;
 
   // Datos para el modal
   lastOperationType: OperationType = 'entrada';
@@ -55,7 +64,43 @@ export class MovimientosUnificadoFormComponent implements OnInit {
   ngOnInit(): void {
     this.initForm();
     this.invSvc.getFarms().subscribe(f => this.farms = f);
-    this.invSvc.getCatalogo().subscribe(c => this.items = c.filter(x => x.activo));
+    
+    // Cargar productos iniciales (todos los activos)
+    this.loadProducts();
+    
+    // Filtrar productos cuando cambia el tipo de item
+    this.form.get('typeItem')?.valueChanges.subscribe(typeItem => {
+      this.loadProducts(typeItem || null, this.searchTerm || null);
+    });
+  }
+
+  loadProducts(typeItem: string | null = null, search: string | null = null): void {
+    this.searching = true;
+    this.invSvc.getCatalogoByType(typeItem, search).subscribe({
+      next: (items) => {
+        this.items = items;
+        this.filteredItems = items;
+        this.searching = false;
+        
+        // Limpiar selección de producto si ya no está en la lista filtrada
+        const currentProductId = this.form.get('catalogItemId')?.value;
+        if (currentProductId && !this.filteredItems.find(i => i.id === currentProductId)) {
+          this.form.patchValue({ catalogItemId: null });
+        }
+      },
+      error: (err) => {
+        console.error('Error al cargar productos:', err);
+        this.items = [];
+        this.filteredItems = [];
+        this.searching = false;
+      }
+    });
+  }
+
+  onSearchChange(searchTerm: string): void {
+    this.searchTerm = searchTerm;
+    const typeItem = this.form.get('typeItem')?.value || null;
+    this.loadProducts(typeItem, searchTerm || null);
   }
 
   // Listas predefinidas de motivos
@@ -72,6 +117,9 @@ export class MovimientosUnificadoFormComponent implements OnInit {
       // Para traslado
       fromFarmId: [null],
       toFarmId: [null],
+
+      // Tipo de item (filtro para productos)
+      typeItem: [''], // Opcional: si está vacío, muestra todos los productos
 
       // Campos comunes
       catalogItemId: [null, Validators.required],
@@ -230,6 +278,7 @@ export class MovimientosUnificadoFormComponent implements OnInit {
       farmId: null,
       fromFarmId: null,
       toFarmId: null,
+      typeItem: '',
       catalogItemId: null,
       quantity: null,
       unit: 'kg',
@@ -238,6 +287,10 @@ export class MovimientosUnificadoFormComponent implements OnInit {
       origin: '',
       destination: ''
     });
+    
+    // Restablecer búsqueda y recargar productos
+    this.searchTerm = '';
+    this.loadProducts();
 
     // Actualizar validadores después del reset
     this.updateValidators(operationType);
@@ -289,5 +342,6 @@ export class MovimientosUnificadoFormComponent implements OnInit {
       default: return this.faIn;
     }
   }
+
 }
 

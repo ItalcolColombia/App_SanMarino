@@ -33,10 +33,25 @@ public class FarmInventoryController : ControllerBase
         return Ok(items);
     }
 
+    // GET /api/farms/{farmId}/inventory/by-item/{catalogItemId}
+    // GET /farms/{farmId}/inventory/by-item/{catalogItemId}
+    // IMPORTANTE: Esta ruta debe ir ANTES de {id:int} para evitar conflictos de enrutamiento
+    // Usamos Route con orden de prioridad más alto
+    [HttpGet("by-item/{catalogItemId:int}", Order = 1)]
+    [HttpGet("/farms/{farmId:int}/inventory/by-item/{catalogItemId:int}", Order = 1)]
+    [ProducesResponseType(typeof(FarmInventoryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetByCatalogItem(int farmId, int catalogItemId, CancellationToken ct = default)
+    {
+        var item = await _service.GetByFarmAndCatalogItemAsync(farmId, catalogItemId, ct);
+        return item is null ? NotFound() : Ok(item);
+    }
+
     // GET /api/farms/{farmId}/inventory/{id}
     // GET /farms/{farmId}/inventory/{id}
-    [HttpGet("{id:int}")]
-    [HttpGet("/farms/{farmId:int}/inventory/{id:int}")]
+    // Orden más bajo para que by-item tenga prioridad
+    [HttpGet("{id:int}", Order = 2)]
+    [HttpGet("/farms/{farmId:int}/inventory/{id:int}", Order = 2)]
     [ProducesResponseType(typeof(FarmInventoryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(int farmId, int id, CancellationToken ct = default)

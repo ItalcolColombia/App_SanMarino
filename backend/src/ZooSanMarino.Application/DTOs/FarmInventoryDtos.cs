@@ -18,7 +18,8 @@ public class FarmInventoryDto
     public string? LotNumber { get; set; }
     public DateTime? ExpirationDate { get; set; }
     public decimal? UnitCost { get; set; }
-    public JsonDocument? Metadata { get; set; }
+    public JsonDocument? Metadata { get; set; } // Metadata del inventario
+    public JsonDocument? CatalogItemMetadata { get; set; } // Metadata del CatalogItem (incluye type_item, especie, raza, etc.)
     public bool Active { get; set; }
 
     public string? ResponsibleUserId { get; set; }
