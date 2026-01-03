@@ -31,7 +31,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 x.TipoAlimento,
                 x.Observaciones ?? "",
                 x.PesoHuevo,
-                x.Etapa
+                x.Etapa,
+                x.Metadata
             ))
             .ToListAsync();
     }
@@ -60,7 +61,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.TipoAlimento,
             entity.Observaciones ?? "",
             entity.PesoHuevo,
-            entity.Etapa
+            entity.Etapa,
+            entity.Metadata
         );
     }
 
@@ -80,7 +82,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             TipoAlimento = dto.TipoAlimento,
             Observaciones = dto.Observaciones,
             PesoHuevo = dto.PesoHuevo,
-            Etapa = dto.Etapa
+            Etapa = dto.Etapa,
+            Metadata = dto.Metadata
         };
 
         _ctx.SeguimientoProduccion.Add(entity);
@@ -100,7 +103,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.TipoAlimento,
             entity.Observaciones ?? "",
             entity.PesoHuevo,
-            entity.Etapa
+            entity.Etapa,
+            entity.Metadata
         );
     }
 
@@ -122,6 +126,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         entity.Observaciones = dto.Observaciones;
         entity.PesoHuevo = dto.PesoHuevo;
         entity.Etapa = dto.Etapa;
+        entity.Metadata = dto.Metadata;
 
         await _ctx.SaveChangesAsync();
 
@@ -139,7 +144,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.TipoAlimento,
             entity.Observaciones ?? "",
             entity.PesoHuevo,
-            entity.Etapa
+            entity.Etapa,
+            entity.Metadata
         );
     }
 
@@ -182,7 +188,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 x.TipoAlimento,
                 x.Observaciones ?? "",
                 x.PesoHuevo,
-                x.Etapa
+                x.Etapa,
+                x.Metadata
             ))
             .ToListAsync();
     }

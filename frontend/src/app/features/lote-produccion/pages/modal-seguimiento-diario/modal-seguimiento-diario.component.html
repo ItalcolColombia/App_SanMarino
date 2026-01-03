@@ -119,13 +119,56 @@
                 <small class="ux-hint">Hembras retiradas/seleccionadas</small>
               </div>
 
+              <!-- Tipo de ítem y alimento para hembras -->
               <div class="form-field">
-                <label for="f-cons-kg-h">
-                  <span class="label-icon">🍽️</span>
-                  Consumo Alimento (ConsKgH) - kg *
+                <label for="f-tipo-item-h">
+                  <span class="label-icon">📦</span>
+                  Tipo de Ítem Hembras
                 </label>
-                <input id="f-cons-kg-h" type="number" step="0.01" min="0" formControlName="consKgH" placeholder="0.00" required />
-                <small class="ux-hint">Consumo de alimento en kilogramos</small>
+                <select id="f-tipo-item-h" formControlName="tipoItemHembras" [disabled]="editingSeguimiento && editingSeguimiento.metadata?.tipoItemHembras">
+                  <option [value]="null">Seleccione...</option>
+                  <option *ngFor="let tipo of tiposItem" [value]="tipo">{{ tipo }}</option>
+                </select>
+                <small class="ux-hint">Tipo de ítem (alimento, medicamento, etc.)</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-alimento-h">
+                  <span class="label-icon">🌾</span>
+                  Alimento Hembras
+                </label>
+                <select id="f-alimento-h" formControlName="tipoAlimentoHembras" [disabled]="!form.get('tipoItemHembras')?.value || (editingSeguimiento && editingSeguimiento.metadata?.tipoAlimentoHembras)">
+                  <option [value]="null">Seleccione un alimento...</option>
+                  <option *ngFor="let alimento of alimentosFiltradosHembras" [value]="alimento.id">
+                    {{ alimento.codigo }} - {{ alimento.nombre }}
+                  </option>
+                </select>
+                <small class="ux-hint" *ngIf="mensajeInventarioHembras">{{ mensajeInventarioHembras }}</small>
+              </div>
+
+              <!-- Consumo con unidad de medida -->
+              <div class="form-field">
+                <label for="f-consumo-h">Consumo Hembras *</label>
+                <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                  <div style="flex: 1;">
+                    <input id="f-consumo-h" type="number" step="0.001" min="0" formControlName="consumoHembras" />
+                  </div>
+                  <div style="width: 100px;">
+                    <select formControlName="unidadConsumoHembras" class="ux-select" style="width: 100%;">
+                      <option value="kg">kg</option>
+                      <option value="g">gramos</option>
+                    </select>
+                  </div>
+                </div>
+                <small class="ux-hint" *ngIf="form.get('unidadConsumoHembras')?.value === 'g' && inventarioDisponibleHembras !== null">
+                  Equivale a {{ (form.get('consumoHembras')?.value || 0) / 1000 | number:'1.3-3' }} kg
+                  <span *ngIf="inventarioUnidadHembras === 'kg'" class="text-info">
+                    (se reducirá del inventario en kilogramos)
+                  </span>
+                </small>
+                <small class="ux-hint text-muted" *ngIf="form.get('unidadConsumoHembras')?.value === 'kg'">
+                  El valor se guardará directamente en kilogramos.
+                </small>
               </div>
 
               <div class="form-field form-field--full">
@@ -140,7 +183,7 @@
                       </div>
                       <div class="stat-item">
                         <span class="stat-label">Consumo</span>
-                        <span class="stat-value">{{ form.get('consKgH')?.value || 0 | number:'1.2-2' }} kg</span>
+                        <span class="stat-value">{{ getTotalConsumo() | number:'1.2-2' }} kg</span>
                       </div>
                     </div>
                   </div>
@@ -165,13 +208,56 @@
                 <small class="ux-hint">Número de machos que murieron</small>
               </div>
 
+              <!-- Tipo de ítem y alimento para machos -->
               <div class="form-field">
-                <label for="f-cons-kg-m">
-                  <span class="label-icon">🍽️</span>
-                  Consumo Alimento (ConsKgM) - kg *
+                <label for="f-tipo-item-m">
+                  <span class="label-icon">📦</span>
+                  Tipo de Ítem Machos
                 </label>
-                <input id="f-cons-kg-m" type="number" step="0.01" min="0" formControlName="consKgM" placeholder="0.00" required />
-                <small class="ux-hint">Consumo de alimento en kilogramos</small>
+                <select id="f-tipo-item-m" formControlName="tipoItemMachos" [disabled]="editingSeguimiento && editingSeguimiento.metadata?.tipoItemMachos">
+                  <option [value]="null">Seleccione...</option>
+                  <option *ngFor="let tipo of tiposItem" [value]="tipo">{{ tipo }}</option>
+                </select>
+                <small class="ux-hint">Tipo de ítem (alimento, medicamento, etc.)</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-alimento-m">
+                  <span class="label-icon">🌾</span>
+                  Alimento Machos
+                </label>
+                <select id="f-alimento-m" formControlName="tipoAlimentoMachos" [disabled]="!form.get('tipoItemMachos')?.value || (editingSeguimiento && editingSeguimiento.metadata?.tipoAlimentoMachos)">
+                  <option [value]="null">Seleccione un alimento...</option>
+                  <option *ngFor="let alimento of alimentosFiltradosMachos" [value]="alimento.id">
+                    {{ alimento.codigo }} - {{ alimento.nombre }}
+                  </option>
+                </select>
+                <small class="ux-hint" *ngIf="mensajeInventarioMachos">{{ mensajeInventarioMachos }}</small>
+              </div>
+
+              <!-- Consumo con unidad de medida -->
+              <div class="form-field">
+                <label for="f-consumo-m">Consumo Machos *</label>
+                <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                  <div style="flex: 1;">
+                    <input id="f-consumo-m" type="number" step="0.001" min="0" formControlName="consumoMachos" />
+                  </div>
+                  <div style="width: 100px;">
+                    <select formControlName="unidadConsumoMachos" class="ux-select" style="width: 100%;">
+                      <option value="kg">kg</option>
+                      <option value="g">gramos</option>
+                    </select>
+                  </div>
+                </div>
+                <small class="ux-hint" *ngIf="form.get('unidadConsumoMachos')?.value === 'g' && inventarioDisponibleMachos !== null">
+                  Equivale a {{ (form.get('consumoMachos')?.value || 0) / 1000 | number:'1.3-3' }} kg
+                  <span *ngIf="inventarioUnidadMachos === 'kg'" class="text-info">
+                    (se reducirá del inventario en kilogramos)
+                  </span>
+                </small>
+                <small class="ux-hint text-muted" *ngIf="form.get('unidadConsumoMachos')?.value === 'kg'">
+                  El valor se guardará directamente en kilogramos.
+                </small>
               </div>
 
               <div class="form-field form-field--empty">
@@ -190,7 +276,7 @@
                       </div>
                       <div class="stat-item">
                         <span class="stat-label">Consumo</span>
-                        <span class="stat-value">{{ form.get('consKgM')?.value || 0 | number:'1.2-2' }} kg</span>
+                        <span class="stat-value">{{ (form.get('consumoMachos')?.value || 0) / (form.get('unidadConsumoMachos')?.value === 'g' ? 1000 : 1) | number:'1.2-2' }} kg</span>
                       </div>
                     </div>
                   </div>

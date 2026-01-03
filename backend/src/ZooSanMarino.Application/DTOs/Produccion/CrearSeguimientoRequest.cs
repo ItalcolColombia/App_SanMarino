@@ -9,8 +9,17 @@ public record CrearSeguimientoRequest(
     [Required] [Range(0, int.MaxValue)] int MortalidadH,
     [Required] [Range(0, int.MaxValue)] int MortalidadM,
     [Required] [Range(0, int.MaxValue)] int SelH, // Selección hembras (retiradas)
-    [Required] [Range(0, double.MaxValue)] decimal ConsKgH, // Consumo hembras (kg)
-    [Required] [Range(0, double.MaxValue)] decimal ConsKgM, // Consumo machos (kg)
+    // Consumo con unidad opcional (el backend hace la conversión a kg)
+    double? ConsumoH, // Consumo hembras (puede venir en kg o gramos)
+    string? UnidadConsumoH, // "kg" o "g" - default "kg"
+    double? ConsumoM, // Consumo machos (puede venir en kg o gramos)
+    string? UnidadConsumoM, // "kg" o "g" - default "kg"
+    // IDs de alimentos (opcionales, para validación de inventario)
+    int? TipoAlimentoHembras,
+    int? TipoAlimentoMachos,
+    // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
+    string? TipoItemHembras,
+    string? TipoItemMachos,
     [Required] [Range(0, int.MaxValue)] int HuevosTotales,
     [Required] [Range(0, int.MaxValue)] int HuevosIncubables,
     // Campos de Clasificadora de Huevos - (Limpio, Tratado) = HuevoInc +

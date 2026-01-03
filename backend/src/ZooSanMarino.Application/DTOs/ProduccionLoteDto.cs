@@ -56,7 +56,8 @@ namespace ZooSanMarino.Application.DTOs
         string TipoAlimento,
         string Observaciones,
         decimal PesoHuevo,
-        int Etapa
+        int Etapa,
+        System.Text.Json.JsonDocument? Metadata
     );
 
     public record CreateSeguimientoProduccionDto(
@@ -72,7 +73,8 @@ namespace ZooSanMarino.Application.DTOs
         string TipoAlimento,
         string Observaciones,
         decimal PesoHuevo,
-        int Etapa
+        int Etapa,
+        System.Text.Json.JsonDocument? Metadata
     );
 
     public record UpdateSeguimientoProduccionDto(
@@ -89,7 +91,8 @@ namespace ZooSanMarino.Application.DTOs
         string TipoAlimento,
         string Observaciones,
         decimal PesoHuevo,
-        int Etapa
+        int Etapa,
+        System.Text.Json.JsonDocument? Metadata
     );
 
     public record FilterSeguimientoProduccionDto(

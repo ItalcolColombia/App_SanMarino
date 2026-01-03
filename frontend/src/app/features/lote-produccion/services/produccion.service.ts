@@ -39,8 +39,17 @@ export interface CrearSeguimientoRequest {
   mortalidadH: number;
   mortalidadM: number;
   selH: number; // Selección hembras (retiradas)
-  consKgH: number; // Consumo hembras (kg)
-  consKgM: number; // Consumo machos (kg)
+  // Consumo con unidad opcional (el backend hace la conversión)
+  consumoH?: number; // Consumo hembras (puede venir en kg o gramos)
+  unidadConsumoH?: string; // "kg" o "g" - default "kg"
+  consumoM?: number; // Consumo machos (puede venir en kg o gramos)
+  unidadConsumoM?: string; // "kg" o "g" - default "kg"
+  // IDs de alimentos (opcionales, para validación de inventario)
+  tipoAlimentoHembras?: number;
+  tipoAlimentoMachos?: number;
+  // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
+  tipoItemHembras?: string;
+  tipoItemMachos?: string;
   huevosTotales: number;
   huevosIncubables: number;
   // Campos de Clasificadora de Huevos - (Limpio, Tratado) = HuevoInc +
@@ -86,6 +95,7 @@ export interface SeguimientoItemDto {
   observaciones?: string;
   createdAt: string;
   updatedAt?: string;
+  metadata?: any | null; // Metadata JSONB con consumo original, tipo de ítem, etc.
   // Campos de Clasificadora de Huevos
   huevoLimpio?: number;
   huevoTratado?: number;

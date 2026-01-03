@@ -152,6 +152,13 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .HasColumnName("observaciones_pesaje")
             .HasColumnType("text");
 
+        // Metadata JSONB para campos adicionales
+        // NOTA: Si la columna no existe en la BD, ejecutar: backend/sql/add_metadata_column_seguimiento_produccion.sql
+        builder.Property(x => x.Metadata)
+            .HasColumnName("metadata")
+            .HasColumnType("jsonb")
+            .IsRequired(false);
+
         // NOTA: No hay relación de navegación con Lote porque:
         // - lote_id en produccion_diaria es text
         // - Lote.LoteId es int?

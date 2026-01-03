@@ -142,6 +142,43 @@ public class ProduccionService : IProduccionService
             throw new ArgumentException("La fecha de registro no puede ser en el futuro.");
         }
 
+        // Convertir consumo a kg si viene en gramos
+        decimal consumoKgH = 0;
+        if (request.ConsumoH.HasValue && request.ConsumoH.Value > 0)
+        {
+            var unidadH = (request.UnidadConsumoH ?? "kg").ToLower().Trim();
+            if (unidadH == "g" || unidadH == "gramos" || unidadH == "gramo")
+            {
+                consumoKgH = (decimal)(request.ConsumoH.Value / 1000.0); // Convertir gramos a kg
+            }
+            else
+            {
+                consumoKgH = (decimal)request.ConsumoH.Value; // Ya está en kg
+            }
+        }
+        
+        decimal consumoKgM = 0;
+        if (request.ConsumoM.HasValue && request.ConsumoM.Value > 0)
+        {
+            var unidadM = (request.UnidadConsumoM ?? "kg").ToLower().Trim();
+            if (unidadM == "g" || unidadM == "gramos" || unidadM == "gramo")
+            {
+                consumoKgM = (decimal)(request.ConsumoM.Value / 1000.0); // Convertir gramos a kg
+            }
+            else
+            {
+                consumoKgM = (decimal)request.ConsumoM.Value; // Ya está en kg
+            }
+        }
+        
+        // Construir metadata JSONB
+        var metadata = BuildMetadata(
+            request.ConsumoH, request.UnidadConsumoH, 
+            request.ConsumoM, request.UnidadConsumoM,
+            request.TipoItemHembras, request.TipoItemMachos,
+            request.TipoAlimentoHembras, request.TipoAlimentoMachos
+        );
+
         // Crear seguimiento usando SeguimientoProduccion (tabla produccion_diaria)
         var seguimiento = new Domain.Entities.SeguimientoProduccion
         {
@@ -150,8 +187,8 @@ public class ProduccionService : IProduccionService
             MortalidadH = request.MortalidadH,
             MortalidadM = request.MortalidadM,
             SelH = request.SelH,
-            ConsKgH = request.ConsKgH,
-            ConsKgM = request.ConsKgM,
+            ConsKgH = consumoKgH,
+            ConsKgM = consumoKgM,
             HuevoTot = request.HuevosTotales,
             HuevoInc = request.HuevosIncubables,
             // Campos de Clasificadora de Huevos
@@ -175,7 +212,8 @@ public class ProduccionService : IProduccionService
             PesoM = request.PesoM,
             Uniformidad = request.Uniformidad,
             CoeficienteVariacion = request.CoeficienteVariacion,
-            ObservacionesPesaje = request.ObservacionesPesaje
+            ObservacionesPesaje = request.ObservacionesPesaje,
+            Metadata = metadata
         };
 
         _context.SeguimientoProduccion.Add(seguimiento);
@@ -430,5 +468,56 @@ public class ProduccionService : IProduccionService
                 l.Galpon.GranjaId
             ) : null
         ));
+    }
+    
+    /// <summary>
+    /// Construye el objeto Metadata JSONB con los campos adicionales.
+    /// </summary>
+    private static System.Text.Json.JsonDocument? BuildMetadata(
+        double? consumoHembras, string? unidadHembras, 
+        double? consumoMachos, string? unidadMachos,
+        string? tipoItemHembras, string? tipoItemMachos,
+        int? tipoAlimentoHembras, int? tipoAlimentoMachos)
+    {
+        var metadata = new Dictionary<string, object?>();
+        
+        // Consumo original con unidad
+        if (consumoHembras.HasValue)
+        {
+            metadata["consumoOriginalHembras"] = consumoHembras.Value;
+            metadata["unidadConsumoOriginalHembras"] = unidadHembras ?? "kg";
+        }
+        
+        if (consumoMachos.HasValue)
+        {
+            metadata["consumoOriginalMachos"] = consumoMachos.Value;
+            metadata["unidadConsumoOriginalMachos"] = unidadMachos ?? "kg";
+        }
+        
+        // Tipo de ítem (alimento, medicamento, etc.)
+        if (!string.IsNullOrWhiteSpace(tipoItemHembras))
+        {
+            metadata["tipoItemHembras"] = tipoItemHembras;
+        }
+        
+        if (!string.IsNullOrWhiteSpace(tipoItemMachos))
+        {
+            metadata["tipoItemMachos"] = tipoItemMachos;
+        }
+        
+        // IDs de alimentos seleccionados
+        if (tipoAlimentoHembras.HasValue)
+        {
+            metadata["tipoAlimentoHembras"] = tipoAlimentoHembras.Value;
+        }
+        
+        if (tipoAlimentoMachos.HasValue)
+        {
+            metadata["tipoAlimentoMachos"] = tipoAlimentoMachos.Value;
+        }
+        
+        if (metadata.Count == 0) return null;
+        
+        return System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(metadata));
     }
 }

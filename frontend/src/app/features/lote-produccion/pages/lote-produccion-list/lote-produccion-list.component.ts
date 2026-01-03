@@ -145,6 +145,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.galpones = [];
     this.lotes = [];
     this.selectedLote = null;
+    this.produccionLote = null;
     this.currentProduccionLoteId = null;
     this.nucleos = [];
 
@@ -165,6 +166,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLoteId = null;
     this.seguimientos = [];
     this.selectedLote = null;
+    this.produccionLote = null;
     this.currentProduccionLoteId = null;
     this.applyFiltersToLotes();
     this.loadGalponCatalog();
@@ -175,6 +177,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLoteId = null;
     this.seguimientos = [];
     this.selectedLote = null;
+    this.produccionLote = null;
     this.currentProduccionLoteId = null;
     this.applyFiltersToLotes();
   }
@@ -183,6 +186,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
     this.selectedLote = null;
+    this.produccionLote = null;
     this.currentProduccionLoteId = null;
 
     if (!this.selectedLoteId) return;
@@ -201,13 +205,25 @@ export class LoteProduccionListComponent implements OnInit {
         this.currentProduccionLoteId = response.produccionLoteId || null;
 
         if (response.exists && this.currentProduccionLoteId) {
-          // Cargar seguimientos diarios
-          this.loadSeguimientos();
+          // Cargar el detalle de ProduccionLote
+          this.produccionSvc.getProduccionLote(this.selectedLoteId!).subscribe({
+            next: (detalle) => {
+              this.produccionLote = detalle;
+              // Cargar seguimientos diarios
+              this.loadSeguimientos();
+            },
+            error: () => {
+              this.produccionLote = null;
+              this.loading = false;
+            }
+          });
         } else {
+          this.produccionLote = null;
           this.loading = false;
         }
       },
       error: () => {
+        this.produccionLote = null;
         this.loading = false;
       }
     });
@@ -470,6 +486,15 @@ export class LoteProduccionListComponent implements OnInit {
     const MS_DAY = 24 * 60 * 60 * 1000;
     const now = this.ymdToLocalNoonDate(this.todayYMD())!;
     return Math.max(1, Math.floor((now.getTime() - inicio.getTime()) / MS_DAY) + 1);
+  }
+
+  /** 
+   * Calcula la edad en días desde la fecha de encasetamiento del lote (fechaEncaset).
+   * Siempre usa la fecha de creación/encasetamiento del lote, no la de ProduccionLote.
+   */
+  calcularEdadDiasDesdeEncasetamiento(): number {
+    if (!this.selectedLote?.fechaEncaset) return 0;
+    return this.calcularEdadDias(this.selectedLote.fechaEncaset);
   }
 
   private hasValue(v: unknown): boolean {

@@ -55,15 +55,28 @@
             <div class="resumen-icon">🐔</div>
             <div class="resumen-content">
               <h4>Aves Iniciales</h4>
-              <p class="resumen-number">{{ ((selectedLote.hembrasL || 0) + (selectedLote.machosL || 0)) | number:'1.0-0' }}</p>
+              <p class="resumen-number" *ngIf="produccionLote">
+                {{ (produccionLote.avesInicialesH + produccionLote.avesInicialesM) | number:'1.0-0' }}
+              </p>
+              <p class="resumen-number" *ngIf="!produccionLote">
+                {{ ((selectedLote.hembrasL || 0) + (selectedLote.machosL || 0)) | number:'1.0-0' }}
+              </p>
+              <small *ngIf="produccionLote" class="resumen-detail">
+                H: {{ produccionLote.avesInicialesH | number:'1.0-0' }} | M: {{ produccionLote.avesInicialesM | number:'1.0-0' }}
+              </small>
             </div>
           </div>
 
           <div class="resumen-card">
             <div class="resumen-icon">📅</div>
             <div class="resumen-content">
-              <h4>Fecha Inicio</h4>
-              <p class="resumen-number">{{ selectedLote.fechaEncaset | date:'dd/MM/yyyy' }}</p>
+              <h4>Fecha Encasetamiento</h4>
+              <p class="resumen-number" *ngIf="produccionLote">
+                {{ produccionLote.fechaInicio | date:'dd/MM/yyyy' }}
+              </p>
+              <p class="resumen-number" *ngIf="!produccionLote">
+                {{ selectedLote.fechaEncaset | date:'dd/MM/yyyy' }}
+              </p>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SeguimientoItemDto } from '../../services/produccion.service';
+import { SeguimientoItemDto, ProduccionLoteDetalleDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
@@ -15,6 +15,7 @@ import { GraficasPrincipalComponent } from '../graficas-principal/graficas-princ
 export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
+  @Input() produccionLote: ProduccionLoteDetalleDto | null = null;
   @Input() loading: boolean = false;
 
   @Output() create = new EventEmitter<void>();
@@ -55,6 +56,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   // ================== CALCULO DE EDAD ==================
   calcularEdadDias(fechaRegistro: string | Date): number {
+    // Siempre usar fechaEncaset del lote (fecha de creación/encasetamiento)
     if (!this.selectedLote?.fechaEncaset) return 0;
 
     const fechaInicio = new Date(this.selectedLote.fechaEncaset);

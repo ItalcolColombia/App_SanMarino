@@ -32,8 +32,8 @@
             Lote: {{ selectedLoteNombre }}
           </span>
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId && produccionLote">
-            {{ calcularEdadDias(produccionLote.fechaInicio) }} días
+          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
+            {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
           </span>
 
           <span class="chip chip--muted" *ngIf="selectedLoteId">
@@ -88,6 +88,7 @@
     <app-tabs-principal
       [seguimientos]="seguimientos"
       [selectedLote]="selectedLote"
+      [produccionLote]="produccionLote"
       [loading]="loading"
       (create)="openDailyTrackingModal()"
       (edit)="editDailyTracking($event)"
@@ -116,6 +117,7 @@
   [editingSeguimiento]="editingSeguimiento"
   [loading]="loading"
   [fechaEncaset]="selectedLote?.fechaEncaset || null"
+  [granjaId]="selectedLote?.granjaId || null"
   (close)="cancelSeguimientoDiario()"
   (save)="onSaveSeguimientoDiario($event)">
 </app-modal-seguimiento-diario>

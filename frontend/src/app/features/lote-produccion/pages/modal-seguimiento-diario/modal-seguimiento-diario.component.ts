@@ -2,6 +2,16 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
+import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
+import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
+import { EMPTY, forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+
+// Interfaz extendida localmente para incluir tipoItem y unidad
+interface CatalogItemExtended extends CatalogItemDto {
+  tipoItem?: string;
+  unidad?: string;
+}
 
 @Component({
   selector: 'app-modal-seguimiento-diario',
@@ -16,6 +26,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   @Input() editingSeguimiento: SeguimientoItemDto | null = null;
   @Input() loading: boolean = false;
   @Input() fechaEncaset: string | Date | null = null; // Fecha de encaset para calcular etapa
+  @Input() granjaId: number | null = null; // ID de la granja para cargar inventario
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<CrearSeguimientoRequest>();
@@ -23,10 +34,34 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   // Formulario
   form!: FormGroup;
 
-  // Tipos de alimento disponibles
-  tiposAlimento: string[] = ['Standard', 'Premium', 'Inicio', 'Postura', 'Final'];
+  // Catálogo de alimentos (desde inventario de la granja)
+  alimentosCatalog: CatalogItemExtended[] = [];
+  alimentosFiltradosHembras: CatalogItemExtended[] = [];
+  alimentosFiltradosMachos: CatalogItemExtended[] = [];
+  private alimentosByCode = new Map<string, CatalogItemExtended>();
+  private alimentosById = new Map<number, CatalogItemExtended>();
+  private alimentosByName = new Map<string, CatalogItemExtended>();
 
-  constructor(private fb: FormBuilder) { }
+  // Tipos de ítem
+  tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
+
+  // Inventario
+  inventarioDisponibleHembras: number | null = null;
+  inventarioDisponibleMachos: number | null = null;
+  inventarioUnidadHembras: string = 'kg';
+  inventarioUnidadMachos: string = 'kg';
+  inventarioCantidadOriginalHembras: number | null = null;
+  inventarioCantidadOriginalMachos: number | null = null;
+  cargandoInventarioHembras = false;
+  cargandoInventarioMachos = false;
+  mensajeInventarioHembras: string = '';
+  mensajeInventarioMachos: string = '';
+
+  constructor(
+    private fb: FormBuilder,
+    private catalogSvc: CatalogoAlimentosService,
+    private inventarioSvc: InventarioService
+  ) { }
 
   ngOnInit(): void {
     this.initializeForm();
@@ -37,6 +72,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       // Actualizar produccionLoteId en el formulario si está disponible
       if (this.produccionLoteId && this.form) {
         this.form.patchValue({ produccionLoteId: this.produccionLoteId });
+      }
+
+      // Cargar inventario de la granja si está disponible
+      if (this.granjaId) {
+        this.cargarInventarioGranja(this.granjaId);
       }
 
       if (this.editingSeguimiento) {
@@ -55,8 +95,17 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: [0, [Validators.required, Validators.min(0)]],
       mortalidadM: [0, [Validators.required, Validators.min(0)]],
       selH: [0, [Validators.required, Validators.min(0)]],
-      consKgH: [0, [Validators.required, Validators.min(0)]],
-      consKgM: [0, [Validators.required, Validators.min(0)]],
+      // Nuevos campos para tipo de ítem
+      tipoItemHembras: [null],
+      tipoItemMachos: [null],
+      // Alimentos (filtrados por tipo)
+      tipoAlimentoHembras: [null],
+      tipoAlimentoMachos: [null],
+      // Consumo con unidad de medida - el backend hace la conversión
+      consumoHembras: [0, [Validators.required, Validators.min(0)]],
+      unidadConsumoHembras: ['kg', Validators.required], // 'kg' o 'g'
+      consumoMachos: [0, [Validators.required, Validators.min(0)]],
+      unidadConsumoMachos: ['kg'], // 'kg' o 'g'
       huevosTotales: [0, [Validators.required, Validators.min(0)]],
       huevosIncubables: [0, [Validators.required, Validators.min(0)]],
       // Campos de Clasificadora de Huevos - (Limpio, Tratado) = HuevoInc +
@@ -88,6 +137,40 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     this.form.get('fechaRegistro')?.valueChanges.subscribe(() => {
       this.calcularYActualizarEtapa();
     });
+
+    // Suscribirse a cambios en tipoItem para filtrar productos
+    this.form.get('tipoItemHembras')?.valueChanges.subscribe(tipo => {
+      this.filtrarAlimentosPorTipo('hembras', tipo);
+      this.form.patchValue({ tipoAlimentoHembras: null }, { emitEvent: false });
+      this.inventarioDisponibleHembras = null;
+      this.mensajeInventarioHembras = '';
+    });
+
+    this.form.get('tipoItemMachos')?.valueChanges.subscribe(tipo => {
+      this.filtrarAlimentosPorTipo('machos', tipo);
+      this.form.patchValue({ tipoAlimentoMachos: null }, { emitEvent: false });
+      this.inventarioDisponibleMachos = null;
+      this.mensajeInventarioMachos = '';
+    });
+
+    // Consultar inventario cuando se selecciona un alimento
+    this.form.get('tipoAlimentoHembras')?.valueChanges.subscribe(id => {
+      if (id && this.granjaId) {
+        this.consultarInventario('hembras', id);
+      } else {
+        this.inventarioDisponibleHembras = null;
+        this.mensajeInventarioHembras = '';
+      }
+    });
+
+    this.form.get('tipoAlimentoMachos')?.valueChanges.subscribe(id => {
+      if (id && this.granjaId) {
+        this.consultarInventario('machos', id);
+      } else {
+        this.inventarioDisponibleMachos = null;
+        this.mensajeInventarioMachos = '';
+      }
+    });
   }
 
   private resetForm(): void {
@@ -98,8 +181,14 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: 0,
       mortalidadM: 0,
       selH: 0,
-      consKgH: 0,
-      consKgM: 0,
+      consumoHembras: 0,
+      unidadConsumoHembras: 'kg',
+      consumoMachos: 0,
+      unidadConsumoMachos: 'kg',
+      tipoItemHembras: null,
+      tipoItemMachos: null,
+      tipoAlimentoHembras: null,
+      tipoAlimentoMachos: null,
       huevosTotales: 0,
       huevosIncubables: 0,
       huevoLimpio: 0,
@@ -130,14 +219,43 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     if (!this.editingSeguimiento) return;
 
     const fechaRegistro = this.toYMD(this.editingSeguimiento.fechaRegistro);
+    
+    // Leer valores desde metadata si están disponibles
+    const metadata: any = this.editingSeguimiento.metadata || {};
+    const consumoOriginalHembras = metadata?.consumoOriginalHembras ?? this.editingSeguimiento.consKgH;
+    const unidadConsumoOriginalHembras = metadata?.unidadConsumoOriginalHembras ?? 'kg';
+    const consumoOriginalMachos = metadata?.consumoOriginalMachos ?? this.editingSeguimiento.consKgM;
+    const unidadConsumoOriginalMachos = metadata?.unidadConsumoOriginalMachos ?? 'kg';
+    const tipoItemHembras = metadata?.tipoItemHembras ?? null;
+    const tipoItemMachos = metadata?.tipoItemMachos ?? null;
+    const tipoAlimentoHembras = metadata?.tipoAlimentoHembras ?? null;
+    const tipoAlimentoMachos = metadata?.tipoAlimentoMachos ?? null;
+
+    // Convertir a gramos si la unidad original es kg y el valor es pequeño (para mejor UX)
+    let consumoHembrasDisplay = consumoOriginalHembras;
+    if (unidadConsumoOriginalHembras === 'kg' && consumoOriginalHembras < 1) {
+      consumoHembrasDisplay = consumoOriginalHembras * 1000;
+    }
+    
+    let consumoMachosDisplay = consumoOriginalMachos;
+    if (unidadConsumoOriginalMachos === 'kg' && consumoOriginalMachos < 1) {
+      consumoMachosDisplay = consumoOriginalMachos * 1000;
+    }
+
     this.form.patchValue({
       fechaRegistro: fechaRegistro,
       produccionLoteId: this.editingSeguimiento.produccionLoteId,
       mortalidadH: this.editingSeguimiento.mortalidadH,
       mortalidadM: this.editingSeguimiento.mortalidadM,
       selH: this.editingSeguimiento.selH || 0,
-      consKgH: this.editingSeguimiento.consKgH || 0,
-      consKgM: this.editingSeguimiento.consKgM || 0,
+      consumoHembras: consumoHembrasDisplay,
+      unidadConsumoHembras: unidadConsumoOriginalHembras === 'kg' && consumoOriginalHembras < 1 ? 'g' : unidadConsumoOriginalHembras,
+      consumoMachos: consumoMachosDisplay,
+      unidadConsumoMachos: unidadConsumoOriginalMachos === 'kg' && consumoOriginalMachos < 1 ? 'g' : unidadConsumoOriginalMachos,
+      tipoItemHembras: tipoItemHembras,
+      tipoItemMachos: tipoItemMachos,
+      tipoAlimentoHembras: tipoAlimentoHembras,
+      tipoAlimentoMachos: tipoAlimentoMachos,
       huevosTotales: this.editingSeguimiento.huevosTotales,
       huevosIncubables: this.editingSeguimiento.huevosIncubables,
       huevoLimpio: (this.editingSeguimiento as any).huevoLimpio || 0,
@@ -162,6 +280,25 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       coeficienteVariacion: (this.editingSeguimiento as any).coeficienteVariacion || null,
       observacionesPesaje: (this.editingSeguimiento as any).observacionesPesaje || ''
     });
+
+    // Cargar inventario y alimentos si hay tipo de ítem seleccionado
+    if (tipoItemHembras && this.granjaId) {
+      this.cargarInventarioGranja(this.granjaId);
+      setTimeout(() => {
+        if (tipoAlimentoHembras) {
+          this.consultarInventario('hembras', tipoAlimentoHembras);
+        }
+      }, 100);
+    }
+    
+    if (tipoItemMachos && this.granjaId) {
+      this.cargarInventarioGranja(this.granjaId);
+      setTimeout(() => {
+        if (tipoAlimentoMachos) {
+          this.consultarInventario('machos', tipoAlimentoMachos);
+        }
+      }, 100);
+    }
   }
 
   // ================== EVENTOS ==================
@@ -195,8 +332,14 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: Number(raw.mortalidadH) || 0,
       mortalidadM: Number(raw.mortalidadM) || 0,
       selH: Number(raw.selH) || 0,
-      consKgH: Number(raw.consKgH) || 0,
-      consKgM: Number(raw.consKgM) || 0,
+      consumoH: Number(raw.consumoHembras) || 0,
+      unidadConsumoH: raw.unidadConsumoHembras || 'kg',
+      consumoM: Number(raw.consumoMachos) || 0,
+      unidadConsumoM: raw.unidadConsumoMachos || 'kg',
+      tipoItemHembras: raw.tipoItemHembras || undefined,
+      tipoItemMachos: raw.tipoItemMachos || undefined,
+      tipoAlimentoHembras: raw.tipoAlimentoHembras ? Number(raw.tipoAlimentoHembras) : undefined,
+      tipoAlimentoMachos: raw.tipoAlimentoMachos ? Number(raw.tipoAlimentoMachos) : undefined,
       huevosTotales: Number(raw.huevosTotales) || 0,
       huevosIncubables: Number(raw.huevosIncubables) || 0,
       huevoLimpio: Number(raw.huevoLimpio) || 0,
@@ -246,9 +389,15 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   getTotalConsumo(): number {
-    const consKgH = Number(this.form.get('consKgH')?.value) || 0;
-    const consKgM = Number(this.form.get('consKgM')?.value) || 0;
-    return consKgH + consKgM;
+    const consumoH = Number(this.form.get('consumoHembras')?.value) || 0;
+    const unidadH = this.form.get('unidadConsumoHembras')?.value || 'kg';
+    const consumoM = Number(this.form.get('consumoMachos')?.value) || 0;
+    const unidadM = this.form.get('unidadConsumoMachos')?.value || 'kg';
+    
+    // Convertir todo a kg para sumar
+    const consumoHkg = unidadH === 'g' ? consumoH / 1000 : consumoH;
+    const consumoMkg = unidadM === 'g' ? consumoM / 1000 : consumoM;
+    return consumoHkg + consumoMkg;
   }
 
   getEficienciaProduccion(): number {
@@ -349,5 +498,124 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private ymdToIsoAtNoon(ymd: string): string {
     const iso = new Date(`${ymd}T12:00:00`);
     return iso.toISOString();
+  }
+
+  // ================== INVENTARIO Y ALIMENTOS ==================
+  
+  /**
+   * Carga el inventario de la granja y lo mapea a CatalogItemDto
+   */
+  cargarInventarioGranja(granjaId: number): void {
+    if (!granjaId) return;
+
+    this.inventarioSvc.getInventory(granjaId).pipe(
+      catchError(err => {
+        console.error('Error al cargar inventario:', err);
+        return of([]);
+      })
+    ).subscribe((items: FarmInventoryDto[]) => {
+      // Filtrar solo items activos con cantidad > 0
+      const itemsActivos = items.filter((item: FarmInventoryDto) => item.active && item.quantity > 0);
+      
+      // Mapear a CatalogItemExtended
+      this.alimentosCatalog = itemsActivos.map((item: FarmInventoryDto) => {
+        const catalogItem: CatalogItemExtended = {
+          id: item.catalogItemId,
+          codigo: item.codigo,
+          nombre: item.nombre,
+          tipoItem: item.catalogItemMetadata?.type_item || 'alimento',
+          unidad: item.unit,
+          activo: item.active,
+          metadata: item.catalogItemMetadata
+        };
+        
+        this.alimentosByCode.set(item.codigo, catalogItem);
+        this.alimentosById.set(item.catalogItemId, catalogItem);
+        this.alimentosByName.set(item.nombre.toLowerCase(), catalogItem);
+        
+        return catalogItem;
+      });
+
+      // Aplicar filtros actuales si hay tipo de ítem seleccionado
+      const tipoH = this.form.get('tipoItemHembras')?.value;
+      const tipoM = this.form.get('tipoItemMachos')?.value;
+      if (tipoH) this.filtrarAlimentosPorTipo('hembras', tipoH);
+      if (tipoM) this.filtrarAlimentosPorTipo('machos', tipoM);
+    });
+  }
+
+  /**
+   * Filtra alimentos por tipo de ítem
+   */
+  filtrarAlimentosPorTipo(sexo: 'hembras' | 'machos', tipo: string | null): void {
+    if (!tipo) {
+      if (sexo === 'hembras') {
+        this.alimentosFiltradosHembras = [];
+      } else {
+        this.alimentosFiltradosMachos = [];
+      }
+      return;
+    }
+
+    const filtrados = this.alimentosCatalog.filter((item: CatalogItemExtended) => item.tipoItem === tipo);
+    
+    if (sexo === 'hembras') {
+      this.alimentosFiltradosHembras = filtrados;
+    } else {
+      this.alimentosFiltradosMachos = filtrados;
+    }
+  }
+
+  /**
+   * Consulta el inventario disponible para un alimento específico
+   */
+  consultarInventario(sexo: 'hembras' | 'machos', catalogItemId: number): void {
+    if (!this.granjaId || !catalogItemId) return;
+
+    if (sexo === 'hembras') {
+      this.cargandoInventarioHembras = true;
+      this.mensajeInventarioHembras = '';
+    } else {
+      this.cargandoInventarioMachos = true;
+      this.mensajeInventarioMachos = '';
+    }
+
+    this.inventarioSvc.getInventoryByItem(this.granjaId, catalogItemId).pipe(
+      catchError(err => {
+        console.error('Error al consultar inventario:', err);
+        if (sexo === 'hembras') {
+          this.cargandoInventarioHembras = false;
+          this.mensajeInventarioHembras = 'Error al consultar inventario';
+        } else {
+          this.cargandoInventarioMachos = false;
+          this.mensajeInventarioMachos = 'Error al consultar inventario';
+        }
+        return of(null);
+      })
+    ).subscribe(item => {
+      if (sexo === 'hembras') {
+        this.cargandoInventarioHembras = false;
+        if (item) {
+          this.inventarioDisponibleHembras = item.quantity;
+          this.inventarioUnidadHembras = item.unit;
+          this.inventarioCantidadOriginalHembras = item.quantity;
+          this.mensajeInventarioHembras = `Disponible: ${item.quantity} ${item.unit}`;
+        } else {
+          this.inventarioDisponibleHembras = null;
+          this.mensajeInventarioHembras = 'No hay inventario disponible';
+        }
+      } else {
+        this.cargandoInventarioMachos = false;
+        if (item) {
+          this.inventarioDisponibleMachos = item.quantity;
+          this.inventarioUnidadMachos = item.unit;
+          this.inventarioCantidadOriginalMachos = item.quantity;
+          this.mensajeInventarioMachos = `Disponible: ${item.quantity} ${item.unit}`;
+        } else {
+          this.inventarioDisponibleMachos = null;
+          this.mensajeInventarioMachos = 'No hay inventario disponible';
+        }
+      }
+    });
   }
 }

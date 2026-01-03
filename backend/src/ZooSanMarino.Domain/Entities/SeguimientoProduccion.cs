@@ -46,6 +46,9 @@ public class SeguimientoProduccion
     public decimal? CoeficienteVariacion { get; set; } // Coeficiente de variación (CV)
     public string? ObservacionesPesaje { get; set; } // Observaciones específicas del pesaje
     
+    // Metadata JSONB para campos adicionales (consumo original, tipo de ítem, etc.)
+    public System.Text.Json.JsonDocument? Metadata { get; set; }
+    
     // NOTA: No hay relación de navegación con Lote porque:
     // - LoteId aquí es string (text en BD)
     // - Lote.LoteId es int?
