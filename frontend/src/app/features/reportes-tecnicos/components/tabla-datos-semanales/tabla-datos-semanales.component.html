@@ -12,6 +12,9 @@
           <th>AVES FIN</th>
           <th>MORTALIDAD TOTAL</th>
           <th>% MORTALIDAD</th>
+          <th>DESCARTE</th>
+          <th>TRASLADOS</th>
+          <th>ERROR SEXAJE</th>
           <th>CONSUMO KILOS</th>
           <th>GRAMOS/AVE</th>
           <th>PESO PROMEDIO</th>
@@ -32,6 +35,9 @@
           <td>{{ dato.avesFinSemana }}</td>
           <td>{{ dato.mortalidadTotalSemana }}</td>
           <td>{{ formatNumber(dato.mortalidadPorcentajeSemana) }}</td>
+          <td>{{ dato.descarteTotalSemana }}</td>
+          <td>{{ dato.trasladosTotalSemana }}</td>
+          <td>{{ dato.errorSexajeTotalSemana }}</td>
           <td>{{ formatNumber(dato.consumoKilosSemana, 1) }}</td>
           <td>{{ formatNumber(dato.consumoGramosPorAveSemana) }}</td>
           <td>{{ formatNumber(dato.pesoPromedioSemana, 1) }}</td>

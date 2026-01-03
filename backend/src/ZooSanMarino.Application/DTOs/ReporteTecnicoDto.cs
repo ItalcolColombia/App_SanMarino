@@ -21,10 +21,13 @@ public class ReporteTecnicoDiarioDto
     public decimal ErrorSexajePorcentaje { get; set; }
     public decimal ErrorSexajePorcentajeAcumulado { get; set; }
     
-    // Descarte
+    // Descarte (selección normal - valores positivos)
     public int DescarteNumero { get; set; }
     public decimal DescartePorcentajeDiario { get; set; }
     public decimal DescartePorcentajeAcumulado { get; set; }
+    
+    // Traslados (valores negativos de SelH/SelM en valor absoluto)
+    public int TrasladosNumero { get; set; }
     
     // Consumo de alimento
     public decimal ConsumoBultos { get; set; }
@@ -70,6 +73,9 @@ public class ReporteTecnicoSemanalDto
     public decimal? PesoPromedioSemana { get; set; }
     public decimal? UniformidadPromedioSemana { get; set; }
     public int SeleccionVentasSemana { get; set; }
+    public int DescarteTotalSemana { get; set; } // Total descarte/selección normal de la semana (valores positivos de SelH y SelM)
+    public int TrasladosTotalSemana { get; set; } // Total traslados de la semana (valores negativos de SelH y SelM en valor absoluto)
+    public int ErrorSexajeTotalSemana { get; set; } // Total error de sexaje de la semana (puede aumentar aves)
     public decimal IngresosAlimentoKilosSemana { get; set; }
     public decimal TrasladosAlimentoKilosSemana { get; set; }
     

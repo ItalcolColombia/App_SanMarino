@@ -19,6 +19,7 @@ export interface ReporteTecnicoDiarioDto {
   descarteNumero: number;
   descartePorcentajeDiario: number;
   descartePorcentajeAcumulado: number;
+  trasladosNumero: number;
   consumoBultos: number;
   consumoKilos: number;
   consumoKilosAcumulado: number;
@@ -48,6 +49,9 @@ export interface ReporteTecnicoSemanalDto {
   pesoPromedioSemana?: number | null;
   uniformidadPromedioSemana?: number | null;
   seleccionVentasSemana: number;
+  descarteTotalSemana: number;
+  trasladosTotalSemana: number;
+  errorSexajeTotalSemana: number;
   ingresosAlimentoKilosSemana: number;
   trasladosAlimentoKilosSemana: number;
   detalleDiario: ReporteTecnicoDiarioDto[];

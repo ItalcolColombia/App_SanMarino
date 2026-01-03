@@ -36,15 +36,19 @@ public class ReporteTecnicoService : IReporteTecnicoService
         var infoLote = MapearInformacionLote(lote);
         var sublote = ExtraerSublote(lote.LoteNombre);
         infoLote.Sublote = sublote;
+        infoLote.Etapa = "LEVANTE"; // Forzar etapa a LEVANTE para reporte de levante
 
-        // Determinar si es levante o producción basado en la edad
-        var esLevante = await EsLoteEnLevanteAsync(loteId, ct);
+        // Para reporte de levante, siempre usar datos de levante y filtrar por semana (1-25)
+        // Esto permite ver datos históricos de levante incluso si el lote está en producción
+        var datosDiarios = await ObtenerDatosDiariosLevanteAsync(loteId, lote.FechaEncaset, fechaInicio, fechaFin, ct);
         
-        var datosDiarios = esLevante
-            ? await ObtenerDatosDiariosLevanteAsync(loteId, lote.FechaEncaset, fechaInicio, fechaFin, ct)
-            : await ObtenerDatosDiariosProduccionAsync(loteId.ToString(), lote.FechaEncaset, fechaInicio, fechaFin, ct);
+        // Filtrar solo semanas de levante (1-25)
+        datosDiarios = datosDiarios.Where(d => d.EdadSemanas <= 25).ToList();
 
         var datosSemanales = ConsolidarSemanales(datosDiarios, lote.FechaEncaset);
+        
+        // Filtrar también las semanas consolidadas (solo semanas 1-25)
+        datosSemanales = datosSemanales.Where(s => s.Semana <= 25).ToList();
 
         return new ReporteTecnicoCompletoDto
         {
@@ -128,23 +132,31 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var subloteNombre = ExtraerSublote(sublote.LoteNombre) ?? "Sin sublote";
             sublotesIncluidos.Add(subloteNombre);
 
-            var esLevante = await EsLoteEnLevanteAsync(sublote.LoteId ?? 0, ct);
-            var datosSublote = esLevante
-                ? await ObtenerDatosDiariosLevanteAsync(sublote.LoteId ?? 0, sublote.FechaEncaset, fechaInicio, fechaFin, ct)
-                : await ObtenerDatosDiariosProduccionAsync(sublote.LoteId?.ToString() ?? "", sublote.FechaEncaset, fechaInicio, fechaFin, ct);
+            // Para reporte de levante, siempre usar datos de levante (semanas 1-25)
+            var datosSublote = await ObtenerDatosDiariosLevanteAsync(sublote.LoteId ?? 0, sublote.FechaEncaset, fechaInicio, fechaFin, ct);
+            
+            // Filtrar solo semanas de levante (1-25)
+            datosSublote = datosSublote.Where(d => d.EdadSemanas <= 25).ToList();
 
             todosDatosDiarios.AddRange(datosSublote);
         }
 
         // Consolidar por fecha (sumar datos de todos los sublotes para la misma fecha)
         var datosConsolidados = ConsolidarDatosDiarios(todosDatosDiarios);
+        
+        // Filtrar solo semanas de levante (1-25)
+        datosConsolidados = datosConsolidados.Where(d => d.EdadSemanas <= 25).ToList();
 
         // Usar información del primer sublote como base
         var loteBase = sublotes.First();
         var infoLote = MapearInformacionLote(loteBase);
         infoLote.Sublote = null; // Consolidado no tiene sublote específico
+        infoLote.Etapa = "LEVANTE"; // Forzar etapa a LEVANTE para reporte de levante
 
         var datosSemanales = ConsolidarSemanales(datosConsolidados, loteBase.FechaEncaset);
+        
+        // Filtrar también las semanas consolidadas (solo semanas 1-25)
+        datosSemanales = datosSemanales.Where(s => s.Semana <= 25).ToList();
 
         return new ReporteTecnicoCompletoDto
         {
@@ -164,8 +176,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
         var reporteDiario = await GenerarReporteDiarioSubloteAsync(loteId, null, null, ct);
         
         var datosSemanales = semana.HasValue
-            ? reporteDiario.DatosSemanales.Where(s => s.Semana == semana.Value).ToList()
-            : reporteDiario.DatosSemanales;
+            ? reporteDiario.DatosSemanales.Where(s => s.Semana == semana.Value && s.Semana <= 25).ToList()
+            : reporteDiario.DatosSemanales.Where(s => s.Semana <= 25).ToList();
 
         return new ReporteTecnicoCompletoDto
         {
@@ -246,22 +258,31 @@ public class ReporteTecnicoService : IReporteTecnicoService
         foreach (var sublote in sublotes)
         {
             var subloteNombre = ExtraerSublote(sublote.LoteNombre) ?? "Sin sublote";
-            var esLevante = await EsLoteEnLevanteAsync(sublote.LoteId ?? 0, ct);
             
-            var datosDiarios = esLevante
-                ? await ObtenerDatosDiariosLevanteAsync(sublote.LoteId ?? 0, sublote.FechaEncaset, null, null, ct)
-                : await ObtenerDatosDiariosProduccionAsync(sublote.LoteId?.ToString() ?? "", sublote.FechaEncaset, null, null, ct);
+            // Para reporte de levante, siempre usar datos de levante (semanas 1-25)
+            var datosDiarios = await ObtenerDatosDiariosLevanteAsync(sublote.LoteId ?? 0, sublote.FechaEncaset, null, null, ct);
+            
+            // Filtrar solo semanas de levante (1-25)
+            datosDiarios = datosDiarios.Where(d => d.EdadSemanas <= 25).ToList();
 
             var datosSemanales = ConsolidarSemanales(datosDiarios, sublote.FechaEncaset);
+            
+            // Filtrar también las semanas consolidadas (solo semanas 1-25)
+            datosSemanales = datosSemanales.Where(s => s.Semana <= 25).ToList();
+            
             datosSemanalesPorSublote[subloteNombre] = datosSemanales;
         }
 
         // Consolidar semanas completas (solo si todos los sublotes tienen la semana completa)
         var semanasConsolidadas = ConsolidarSemanasCompletas(datosSemanalesPorSublote, semana);
+        
+        // Filtrar solo semanas de levante (1-25)
+        semanasConsolidadas = semanasConsolidadas.Where(s => s.Semana <= 25).ToList();
 
         var loteBase = sublotes.First();
         var infoLote = MapearInformacionLote(loteBase);
         infoLote.Sublote = null;
+        infoLote.Etapa = "LEVANTE"; // Forzar etapa a LEVANTE para reporte de levante
 
         return new ReporteTecnicoCompletoDto
         {
@@ -386,14 +407,42 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
     private async Task<bool> EsLoteEnLevanteAsync(int loteId, CancellationToken ct)
     {
-        // Verificar si tiene registros en levante
-        var tieneLevante = await _ctx.SeguimientoLoteLevante
+        // Obtener información del lote para calcular la edad
+        var lote = await _ctx.Lotes
             .AsNoTracking()
-            .AnyAsync(s => s.LoteId == loteId, ct);
+            .FirstOrDefaultAsync(l => l.LoteId == loteId, ct);
 
-        // Si tiene registros en levante, asumimos que está en levante
-        // Si no tiene registros en levante pero tiene en producción, está en producción
-        return tieneLevante;
+        if (lote == null || !lote.FechaEncaset.HasValue)
+        {
+            // Si no hay fecha de encaset, verificar por registros
+            var tieneRegistros = await _ctx.SeguimientoLoteLevante
+                .AsNoTracking()
+                .AnyAsync(s => s.LoteId == loteId, ct);
+            return tieneRegistros;
+        }
+
+        // Calcular edad en días
+        var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, DateTime.Now);
+        
+        // Levante es hasta 25 semanas (175 días)
+        // Producción es desde la semana 26 (176 días en adelante)
+        if (edadDias < 175)
+        {
+            // Está en levante por edad
+            return true;
+        }
+        
+        // Está en producción por edad, pero verificar si tiene registros en producción
+        var tieneProduccion = await _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .AnyAsync(s => s.LoteId == loteId.ToString(), ct);
+        
+        // Si tiene registros en producción, definitivamente está en producción
+        if (tieneProduccion)
+            return false;
+        
+        // Si tiene más de 175 días, está en producción aunque tenga registros históricos en levante
+        return false; // Está en producción por edad
     }
 
     private async Task<List<ReporteTecnicoDiarioDto>> ObtenerDatosDiariosLevanteAsync(
@@ -403,19 +452,37 @@ public class ReporteTecnicoService : IReporteTecnicoService
         DateTime? fechaFin,
         CancellationToken ct)
     {
-        var query = _ctx.SeguimientoLoteLevante
+        // IMPORTANTE: Para calcular correctamente aves actuales y acumulados,
+        // necesitamos TODOS los registros desde el inicio, no solo los filtrados
+        var queryTodos = _ctx.SeguimientoLoteLevante
             .AsNoTracking()
-            .Where(s => s.LoteId == loteId);
+            .Where(s => s.LoteId == loteId)
+            .OrderBy(s => s.FechaRegistro);
 
+        // Obtener todos los registros para cálculos acumulados
+        var todosSeguimientos = await queryTodos.ToListAsync(ct);
+
+        // Filtrar por edad/semana: solo semanas 1-25 (levante)
+        // Calcular edad para cada registro y filtrar
+        if (fechaEncaset.HasValue)
+        {
+            todosSeguimientos = todosSeguimientos.Where(seg =>
+            {
+                var edadDias = CalcularEdadDias(fechaEncaset.Value, seg.FechaRegistro);
+                var edadSemanas = CalcularEdadSemanas(edadDias);
+                return edadSemanas <= 25; // Solo levante (semanas 1-25)
+            }).ToList();
+        }
+
+        // Aplicar filtros de fecha solo para los registros que se mostrarán
+        var queryFiltrado = todosSeguimientos.AsQueryable();
         if (fechaInicio.HasValue)
-            query = query.Where(s => s.FechaRegistro >= fechaInicio.Value);
+            queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro >= fechaInicio.Value);
 
         if (fechaFin.HasValue)
-            query = query.Where(s => s.FechaRegistro <= fechaFin.Value);
+            queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro <= fechaFin.Value);
 
-        var seguimientos = await query
-            .OrderBy(s => s.FechaRegistro)
-            .ToListAsync(ct);
+        var seguimientos = queryFiltrado.ToList();
 
         if (!fechaEncaset.HasValue)
             return new List<ReporteTecnicoDiarioDto>();
@@ -429,31 +496,118 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
         var datosDiarios = new List<ReporteTecnicoDiarioDto>();
         var avesIniciales = (lote.HembrasL ?? 0) + (lote.MachosL ?? 0);
-        var avesActuales = avesIniciales;
-        var mortalidadAcumulada = 0;
-        var consumoAcumulado = 0m;
-        var errorSexajeAcumulado = 0;
-        var descarteAcumulado = 0;
+        
+        // Calcular valores acumulados desde el INICIO del lote (todos los registros)
+        var mortalidadAcumuladaTotal = todosSeguimientos.Sum(s => s.MortalidadHembras + s.MortalidadMachos);
+        var consumoAcumuladoTotal = todosSeguimientos.Sum(s => (decimal)s.ConsumoKgHembras + (decimal)(s.ConsumoKgMachos ?? 0));
+        var errorSexajeAcumuladoTotal = todosSeguimientos.Sum(s => s.ErrorSexajeHembras + s.ErrorSexajeMachos);
+        
+        // Calcular descarte acumulado (incluyendo traslados)
+        var descarteAcumuladoTotal = 0;
+        foreach (var seg in todosSeguimientos)
+        {
+            var seleccionH = seg.SelH;
+            var seleccionM = seg.SelM;
+            var seleccionNormal = Math.Max(0, seleccionH) + Math.Max(0, seleccionM);
+            var traslados = Math.Min(0, seleccionH) + Math.Min(0, seleccionM);
+            var trasladosAbsoluto = Math.Abs(traslados);
+            descarteAcumuladoTotal += (int)(seleccionNormal + trasladosAbsoluto);
+        }
+        
+        // Calcular aves actuales desde el inicio
+        var avesActualesBase = avesIniciales;
+        foreach (var seg in todosSeguimientos)
+        {
+            var mortalidadTotal = seg.MortalidadHembras + seg.MortalidadMachos;
+            avesActualesBase -= mortalidadTotal;
+            
+            var seleccionH = seg.SelH;
+            var seleccionM = seg.SelM;
+            var seleccionNormal = Math.Max(0, seleccionH) + Math.Max(0, seleccionM);
+            var traslados = Math.Min(0, seleccionH) + Math.Min(0, seleccionM);
+            var trasladosAbsoluto = Math.Abs(traslados);
+            
+            avesActualesBase -= seleccionNormal;
+            avesActualesBase -= trasladosAbsoluto;
+        }
+        
+        // Variables para acumular solo hasta la fecha actual del registro que se está procesando
         decimal? pesoAnterior = null;
 
+        // Procesar todos los registros desde el inicio para calcular acumulados correctamente
+        // pero solo mostrar los que están en el rango de fechas
         foreach (var seg in seguimientos)
         {
             var edadDias = CalcularEdadDias(fechaEncaset.Value, seg.FechaRegistro);
             var edadSemanas = CalcularEdadSemanas(edadDias);
 
+            // Calcular acumulados hasta esta fecha (incluyendo todos los registros anteriores)
+            var registrosHastaFecha = todosSeguimientos
+                .Where(s => s.FechaRegistro <= seg.FechaRegistro)
+                .ToList();
+
             var mortalidadTotal = seg.MortalidadHembras + seg.MortalidadMachos;
-            mortalidadAcumulada += mortalidadTotal;
-            avesActuales -= mortalidadTotal;
+            var mortalidadAcumulada = registrosHastaFecha.Sum(s => s.MortalidadHembras + s.MortalidadMachos);
 
             var errorSexaje = seg.ErrorSexajeHembras + seg.ErrorSexajeMachos;
-            errorSexajeAcumulado += errorSexaje;
+            var errorSexajeAcumulado = registrosHastaFecha.Sum(s => s.ErrorSexajeHembras + s.ErrorSexajeMachos);
 
-            var descarte = seg.SelH + seg.SelM;
-            descarteAcumulado += descarte;
-            avesActuales -= descarte;
+            // Descarte incluye selecciones (SelH, SelM) que pueden ser negativas si son descuentos por traslado
+            // Separar selección normal de traslados para calcular correctamente
+            var seleccionH = seg.SelH;
+            var seleccionM = seg.SelM;
+            
+            // Selección normal (valores positivos): aves retiradas por selección/descarte
+            var seleccionNormal = Math.Max(0, seleccionH) + Math.Max(0, seleccionM);
+            
+            // Traslados (valores negativos): aves trasladadas a otro lote/granja
+            // Los valores negativos representan aves que salieron, así que debemos restar el valor absoluto
+            var traslados = Math.Min(0, seleccionH) + Math.Min(0, seleccionM);
+            var trasladosAbsoluto = Math.Abs(traslados);
+            
+            // Descarte normal (valores positivos): selección/descarte normal
+            var descarteNormal = seleccionNormal;
+            
+            // Traslados (valores negativos en valor absoluto)
+            var trasladosNumero = (int)trasladosAbsoluto;
+            
+            // Total descarte = selección normal + traslados (en valor absoluto para acumulación)
+            // Este campo se mantiene para compatibilidad, pero ahora tenemos campos separados
+            var descarte = seleccionH + seleccionM;
+            
+            // Calcular descarte acumulado hasta esta fecha (solo valores positivos)
+            var descarteAcumulado = 0;
+            var trasladosAcumulado = 0;
+            foreach (var reg in registrosHastaFecha)
+            {
+                var selH = reg.SelH;
+                var selM = reg.SelM;
+                var selNormal = Math.Max(0, selH) + Math.Max(0, selM);
+                var tras = Math.Min(0, selH) + Math.Min(0, selM);
+                var trasAbs = Math.Abs(tras);
+                descarteAcumulado += (int)selNormal;
+                trasladosAcumulado += (int)trasAbs;
+            }
+            
+            // Calcular aves actuales hasta esta fecha
+            var avesActuales = avesIniciales;
+            foreach (var reg in registrosHastaFecha)
+            {
+                var mortTotal = reg.MortalidadHembras + reg.MortalidadMachos;
+                avesActuales -= mortTotal;
+                
+                var selH = reg.SelH;
+                var selM = reg.SelM;
+                var selNormal = Math.Max(0, selH) + Math.Max(0, selM);
+                var tras = Math.Min(0, selH) + Math.Min(0, selM);
+                var trasAbs = Math.Abs(tras);
+                
+                avesActuales -= selNormal;
+                avesActuales -= trasAbs;
+            }
 
             var consumoKilos = (decimal)seg.ConsumoKgHembras + (decimal)(seg.ConsumoKgMachos ?? 0);
-            consumoAcumulado += consumoKilos;
+            var consumoAcumulado = registrosHastaFecha.Sum(s => (decimal)s.ConsumoKgHembras + (decimal)(s.ConsumoKgMachos ?? 0));
 
             var consumoGramosPorAve = avesActuales > 0 ? (consumoKilos * 1000) / avesActuales : 0;
 
@@ -474,9 +628,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 ErrorSexajeNumero = errorSexaje,
                 ErrorSexajePorcentaje = avesActuales > 0 ? (decimal)errorSexaje / avesActuales * 100 : 0,
                 ErrorSexajePorcentajeAcumulado = avesIniciales > 0 ? (decimal)errorSexajeAcumulado / avesIniciales * 100 : 0,
-                DescarteNumero = descarte,
-                DescartePorcentajeDiario = avesActuales > 0 ? (decimal)descarte / avesActuales * 100 : 0,
+                DescarteNumero = descarteNormal, // Solo descarte normal (valores positivos)
+                DescartePorcentajeDiario = avesActuales > 0 ? (decimal)descarteNormal / avesActuales * 100 : 0,
                 DescartePorcentajeAcumulado = avesIniciales > 0 ? (decimal)descarteAcumulado / avesIniciales * 100 : 0,
+                TrasladosNumero = trasladosNumero, // Traslados (valores negativos en valor absoluto)
                 ConsumoBultos = CalcularBultos(consumoKilos), // Asumiendo 40kg por bulto estándar
                 ConsumoKilos = consumoKilos,
                 ConsumoKilosAcumulado = consumoAcumulado,
@@ -631,6 +786,29 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var diasEnSemana = datosSemana.Count;
                 var semanaCompleta = diasEnSemana >= 7;
 
+                var avesInicioSemana = datosSemana.First().NumeroAves;
+                var avesFinSemana = datosSemana.Last().NumeroAves;
+                var mortalidadTotalSemana = datosSemana.Sum(d => d.MortalidadTotal);
+                var seleccionVentasSemana = datosSemana.Sum(d => d.SeleccionVentasNumero);
+                var descarteTotalSemana = datosSemana.Sum(d => d.DescarteNumero); // Solo descarte normal (valores positivos)
+                var trasladosTotalSemana = datosSemana.Sum(d => d.TrasladosNumero); // Traslados (valores negativos en valor absoluto)
+                var errorSexajeTotalSemana = datosSemana.Sum(d => d.ErrorSexajeNumero);
+                
+                // IMPORTANTE: La diferencia entre avesInicioSemana y avesFinSemana NO es solo mortalidad
+                // También incluye: selección/descarte, traslados, y error de sexaje (que puede aumentar aves)
+                // Fórmula: avesFinSemana = avesInicioSemana - mortalidad - descarte - traslados + errorSexaje
+                // Por lo tanto: diferencia = mortalidad + descarte + traslados - errorSexaje
+                // 
+                // VALIDACIÓN: avesFinSemana debería ser igual a:
+                // avesInicioSemana - mortalidadTotalSemana - descarteTotalSemana - trasladosTotalSemana + errorSexajeTotalSemana
+                // (El error de sexaje puede aumentar aves si corrige clasificaciones)
+                
+                // Calcular porcentaje de mortalidad semanal correctamente
+                // El porcentaje debe ser sobre las aves al inicio de la semana
+                var mortalidadPorcentajeSemana = avesInicioSemana > 0 
+                    ? (decimal)mortalidadTotalSemana / avesInicioSemana * 100 
+                    : 0;
+
                 return new ReporteTecnicoSemanalDto
                 {
                     Semana = g.Key,
@@ -638,15 +816,18 @@ public class ReporteTecnicoService : IReporteTecnicoService
                     FechaFin = ultimaFecha,
                     EdadInicioSemanas = g.Key,
                     EdadFinSemanas = g.Key,
-                    AvesInicioSemana = datosSemana.First().NumeroAves,
-                    AvesFinSemana = datosSemana.Last().NumeroAves,
-                    MortalidadTotalSemana = datosSemana.Sum(d => d.MortalidadTotal),
-                    MortalidadPorcentajeSemana = datosSemana.Average(d => d.MortalidadPorcentajeDiario),
+                    AvesInicioSemana = avesInicioSemana,
+                    AvesFinSemana = avesFinSemana,
+                    MortalidadTotalSemana = mortalidadTotalSemana,
+                    MortalidadPorcentajeSemana = mortalidadPorcentajeSemana,
                     ConsumoKilosSemana = datosSemana.Sum(d => d.ConsumoKilos),
                     ConsumoGramosPorAveSemana = datosSemana.Average(d => d.ConsumoGramosPorAve),
                     PesoPromedioSemana = datosSemana.Where(d => d.PesoActual.HasValue).Select(d => d.PesoActual!.Value).DefaultIfEmpty(0).Average(),
                     UniformidadPromedioSemana = datosSemana.Where(d => d.Uniformidad.HasValue).Select(d => d.Uniformidad!.Value).DefaultIfEmpty(0).Average(),
-                    SeleccionVentasSemana = datosSemana.Sum(d => d.SeleccionVentasNumero),
+                    SeleccionVentasSemana = seleccionVentasSemana,
+                    DescarteTotalSemana = descarteTotalSemana,
+                    TrasladosTotalSemana = trasladosTotalSemana,
+                    ErrorSexajeTotalSemana = errorSexajeTotalSemana,
                     IngresosAlimentoKilosSemana = datosSemana.Sum(d => d.IngresosAlimentoKilos),
                     TrasladosAlimentoKilosSemana = datosSemana.Sum(d => d.TrasladosAlimentoKilos),
                     DetalleDiario = semanaCompleta ? datosSemana : new List<ReporteTecnicoDiarioDto>()
@@ -693,6 +874,18 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var primeraFecha = datosSemanaPorSublote.Min(s => s.FechaInicio);
             var ultimaFecha = datosSemanaPorSublote.Max(s => s.FechaFin);
 
+            var avesInicioSemanaConsolidado = datosSemanaPorSublote.Sum(s => s.AvesInicioSemana);
+            var avesFinSemanaConsolidado = datosSemanaPorSublote.Sum(s => s.AvesFinSemana);
+            var mortalidadTotalSemanaConsolidado = datosSemanaPorSublote.Sum(s => s.MortalidadTotalSemana);
+            var descarteTotalSemanaConsolidado = datosSemanaPorSublote.Sum(s => s.DescarteTotalSemana);
+            var trasladosTotalSemanaConsolidado = datosSemanaPorSublote.Sum(s => s.TrasladosTotalSemana);
+            var errorSexajeTotalSemanaConsolidado = datosSemanaPorSublote.Sum(s => s.ErrorSexajeTotalSemana);
+            
+            // Calcular porcentaje de mortalidad semanal consolidado correctamente
+            var mortalidadPorcentajeSemanaConsolidado = avesInicioSemanaConsolidado > 0 
+                ? (decimal)mortalidadTotalSemanaConsolidado / avesInicioSemanaConsolidado * 100 
+                : 0;
+
             var consolidado = new ReporteTecnicoSemanalDto
             {
                 Semana = semana,
@@ -700,15 +893,18 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 FechaFin = ultimaFecha,
                 EdadInicioSemanas = semana,
                 EdadFinSemanas = semana,
-                AvesInicioSemana = datosSemanaPorSublote.Sum(s => s.AvesInicioSemana),
-                AvesFinSemana = datosSemanaPorSublote.Sum(s => s.AvesFinSemana),
-                MortalidadTotalSemana = datosSemanaPorSublote.Sum(s => s.MortalidadTotalSemana),
-                MortalidadPorcentajeSemana = datosSemanaPorSublote.Average(s => s.MortalidadPorcentajeSemana),
+                AvesInicioSemana = avesInicioSemanaConsolidado,
+                AvesFinSemana = avesFinSemanaConsolidado,
+                MortalidadTotalSemana = mortalidadTotalSemanaConsolidado,
+                MortalidadPorcentajeSemana = mortalidadPorcentajeSemanaConsolidado,
                 ConsumoKilosSemana = datosSemanaPorSublote.Sum(s => s.ConsumoKilosSemana),
                 ConsumoGramosPorAveSemana = datosSemanaPorSublote.Average(s => s.ConsumoGramosPorAveSemana),
                 PesoPromedioSemana = datosSemanaPorSublote.Where(s => s.PesoPromedioSemana.HasValue).Select(s => s.PesoPromedioSemana!.Value).DefaultIfEmpty(0).Average(),
                 UniformidadPromedioSemana = datosSemanaPorSublote.Where(s => s.UniformidadPromedioSemana.HasValue).Select(s => s.UniformidadPromedioSemana!.Value).DefaultIfEmpty(0).Average(),
                 SeleccionVentasSemana = datosSemanaPorSublote.Sum(s => s.SeleccionVentasSemana),
+                DescarteTotalSemana = descarteTotalSemanaConsolidado,
+                TrasladosTotalSemana = trasladosTotalSemanaConsolidado,
+                ErrorSexajeTotalSemana = errorSexajeTotalSemanaConsolidado,
                 IngresosAlimentoKilosSemana = datosSemanaPorSublote.Sum(s => s.IngresosAlimentoKilosSemana),
                 TrasladosAlimentoKilosSemana = datosSemanaPorSublote.Sum(s => s.TrasladosAlimentoKilosSemana),
                 DetalleDiario = new List<ReporteTecnicoDiarioDto>() // No incluir detalle en consolidado
@@ -744,6 +940,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
                     DescarteNumero = datosFecha.Sum(d => d.DescarteNumero),
                     DescartePorcentajeDiario = datosFecha.Average(d => d.DescartePorcentajeDiario),
                     DescartePorcentajeAcumulado = datosFecha.Average(d => d.DescartePorcentajeAcumulado),
+                    TrasladosNumero = datosFecha.Sum(d => d.TrasladosNumero),
                     ConsumoBultos = datosFecha.Sum(d => d.ConsumoBultos),
                     ConsumoKilos = datosFecha.Sum(d => d.ConsumoKilos),
                     ConsumoKilosAcumulado = datosFecha.Sum(d => d.ConsumoKilosAcumulado),
@@ -806,13 +1003,40 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
     private int CalcularEdadDias(DateTime fechaEncaset, DateTime fechaRegistro)
     {
-        var diff = fechaRegistro.Date - fechaEncaset.Date;
-        return Math.Max(1, diff.Days + 1);
+        // Normalizar ambas fechas a la misma zona horaria (local) y obtener solo la fecha
+        // Esto evita problemas con zonas horarias diferentes
+        var fechaEncasetLocal = fechaEncaset.Kind == DateTimeKind.Utc 
+            ? fechaEncaset.ToLocalTime() 
+            : fechaEncaset;
+            
+        var fechaRegistroLocal = fechaRegistro.Kind == DateTimeKind.Utc 
+            ? fechaRegistro.ToLocalTime() 
+            : fechaRegistro;
+        
+        // Obtener solo la fecha (sin hora) para comparar días completos
+        var fechaEncasetDate = fechaEncasetLocal.Date;
+        var fechaRegistroDate = fechaRegistroLocal.Date;
+        
+        // Calcular diferencia en días
+        var diff = fechaRegistroDate - fechaEncasetDate;
+        var diasDiferencia = diff.Days;
+        
+        // En avicultura: día 1 = día del encasetamiento
+        // Si el registro es el mismo día del encaset = día 1
+        // Si el registro es 1 día después = día 2
+        // Por lo tanto: edad = diferencia + 1
+        // Ejemplo: 
+        // - Encaset: 28 enero, Registro: 28 enero → diferencia = 0 → edad = 1 día
+        // - Encaset: 28 enero, Registro: 29 enero → diferencia = 1 → edad = 2 días
+        return Math.Max(1, diasDiferencia + 1);
     }
 
     private int CalcularEdadSemanas(int edadDias)
     {
         // 7 días = 1 semana
+        // Semana 1 = días 1-7
+        // Semana 2 = días 8-14
+        // etc.
         return (int)Math.Ceiling(edadDias / 7.0);
     }
 
