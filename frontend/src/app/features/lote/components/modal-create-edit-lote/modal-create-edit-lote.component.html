@@ -33,7 +33,7 @@
                  id="esLotePadreCheckbox"
                  style="width: 35px; height: 35px; cursor: pointer; flex-shrink: 0; accent-color: #2563eb; border: 3px solid #1e40af;"
                  [checked]="form.get('esLotePadre')?.value || false"
-                 (change)="esLotePadre = $event.target.checked; form.patchValue({ esLotePadre: $event.target.checked })">
+                 (change)="onEsLotePadreChange($event)">
           <span style="font-size: 26px; font-weight: 900; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; flex: 1;">
             📦 ESTE ES UN LOTE PADRE
           </span>

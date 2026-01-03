@@ -588,6 +588,15 @@ export class LoteListComponent implements OnInit {
     this.modalOpen = true;
   }
 
+  onEsLotePadreChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const checked = target?.checked ?? false;
+    this.esLotePadre = checked;
+    this.form.patchValue({ esLotePadre: checked });
+
+    this.modalOpen = true;
+  }
+
   // Métodos para lote padre
   cargarLotesPadres(): void {
     if (this.esLotePadre) {

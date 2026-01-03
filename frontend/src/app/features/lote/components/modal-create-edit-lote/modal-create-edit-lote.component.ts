@@ -312,6 +312,24 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
         this.cargarLotesPadres();
       }
     });
+  }
+
+  onEsLotePadreChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const checked = target?.checked ?? false;
+    this.esLotePadre = checked;
+    this.form.patchValue({ esLotePadre: checked });
+    if (checked) {
+      // Si es lote padre, no puede tener un lote padre
+      this.form.patchValue({ lotePadreId: null });
+      this.selectedGranjaPadreId = null;
+      this.selectedNucleoPadreId = null;
+      this.selectedGalponPadreId = null;
+      this.filteredLotesPadres = [];
+    } else {
+      // Si no es lote padre, puede tener un lote padre
+      this.cargarLotesPadres();
+    }
     
     // Inicializar el valor de esLotePadre desde el formulario
     this.esLotePadre = this.form.get('esLotePadre')?.value || false;

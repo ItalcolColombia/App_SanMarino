@@ -292,7 +292,7 @@
                          id="esSubloteCheckbox"
                          style="width: 18px; height: 18px; cursor: pointer; accent-color: #3b82f6;"
                          [checked]="form.get('esLotePadre')?.value || false"
-                         (change)="esLotePadre = $event.target.checked; form.patchValue({ esLotePadre: $event.target.checked })">
+                         (change)="onEsLotePadreChange($event)">
                   <span style="font-size: 14px; font-weight: 500; color: #374151;">
                     Este lote es un sublote (tiene un lote padre)
                   </span>
