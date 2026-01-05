@@ -231,6 +231,9 @@ public class AuthService : IAuthService
     // El menú se cargará en una segunda petición separada después del login
 
     // ===== Claims para el JWT =====
+    // Generar un identificador numérico único desde el Guid para compatibilidad
+    var userIdHash = Math.Abs(user.Id.GetHashCode());
+    
     var claims = new List<Claim>
     {
         new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -239,6 +242,7 @@ public class AuthService : IAuthService
         new Claim(JwtRegisteredClaimNames.Email, login.email),
         new Claim("firstName", user.firstName ?? string.Empty),
         new Claim("surName",  user.surName   ?? string.Empty),
+        new Claim("user_id", userIdHash.ToString()), // Identificador numérico para compatibilidad
     };
 
     foreach (var roleName in userRoles.Select(r => r.Role?.Name)
@@ -274,6 +278,22 @@ public class AuthService : IAuthService
     );
 
     // ===== Respuesta enriquecida =====
+    var companyPaisesList = userCompanies.Select(uc => new CompanyPaisDto
+    {
+        CompanyId = uc.CompanyId,
+        CompanyName = uc.Company?.Name ?? string.Empty,
+        PaisId = 0,
+        PaisNombre = string.Empty,
+        IsDefault = uc.IsDefault
+    }).ToList();
+
+    // Log para verificación de CompanyIds
+    var companyIds = companyPaisesList.Select(cp => cp.CompanyId).ToList();
+    Console.WriteLine($"=== AuthService.GenerateResponseAsync - Usuario {user.Id} ===");
+    Console.WriteLine($"Empresas asignadas: {userCompanies.Count}");
+    Console.WriteLine($"CompanyIds: {string.Join(", ", companyIds)}");
+    Console.WriteLine($"CompanyPaises: {string.Join(", ", companyPaisesList.Select(cp => $"ID:{cp.CompanyId}, Name:{cp.CompanyName}"))}");
+
     return new AuthResponseDto
     {
         Username = login.email,
@@ -291,14 +311,7 @@ public class AuthService : IAuthService
                                 .Where(n => !string.IsNullOrWhiteSpace(n))
                                 .Distinct()
                                 .ToList()!,
-        CompanyPaises = userCompanies.Select(uc => new CompanyPaisDto
-        {
-            CompanyId = uc.CompanyId,
-            CompanyName = uc.Company?.Name ?? string.Empty,
-            PaisId = 0,
-            PaisNombre = string.Empty,
-            IsDefault = uc.IsDefault
-        }).ToList(),
+        CompanyPaises = companyPaisesList,
         Permisos = permissions
 
         // NOTA: MenusByRole y Menu ya NO se incluyen en el login

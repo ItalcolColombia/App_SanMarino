@@ -85,30 +85,83 @@ export class AuthService {
         const activePaisId = defaultCompanyPais?.paisId;
         const activeCompany = defaultCompanyPais?.companyName || (companies[0] ?? undefined);
 
+        // Extraer IDs de empresas y determinar si tiene múltiples empresas
+        // Asegurar que se extraen correctamente tanto en camelCase como PascalCase
+        const companyIds = companyPaises
+          .map((cp: any) => cp.companyId || cp.CompanyId)
+          .filter((id: any) => id != null && id !== undefined && id !== 0) as number[];
+        const hasMultipleCompanies = companyIds.length > 1;
+
+        console.log('📋 Información de empresas extraída:', {
+          companyPaisesCount: companyPaises.length,
+          companyIds,
+          hasMultipleCompanies,
+          companyPaises: companyPaises.map((cp: any) => ({
+            companyId: cp.companyId || cp.CompanyId,
+            companyName: cp.companyName || cp.CompanyName,
+            isDefault: cp.isDefault || cp.IsDefault
+          }))
+        });
+
+        // Calcular userId numérico desde el Guid (hash)
+        let userIdNumeric: number | undefined;
+        if (userId) {
+          try {
+            // Si userId es un Guid, calcular hash; si es numérico, usarlo directamente
+            const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (guidPattern.test(userId)) {
+              // Es un Guid, calcular hash
+              const guidBytes = userId.split('-').flatMap((part: string) => 
+                part.match(/.{2}/g)?.map((b: string) => parseInt(b, 16)) || []
+              );
+              let hash = 0;
+              for (let i = 0; i < guidBytes.length; i++) {
+                hash = ((hash << 5) - hash) + guidBytes[i];
+                hash = hash & hash; // Convert to 32bit integer
+              }
+              userIdNumeric = Math.abs(hash);
+            } else {
+              // Intentar parsear como número
+              const parsed = parseInt(userId, 10);
+              if (!isNaN(parsed)) {
+                userIdNumeric = parsed;
+              }
+            }
+          } catch (e) {
+            console.warn('Error calculando userId numérico:', e);
+          }
+        }
+
         const session: AuthSession = {
           accessToken: token,
           refreshToken: (res as any).refreshToken || (res as any).RefreshToken, // El backend no retorna refreshToken por ahora
           user: {
             id: userId ? String(userId) : '',
+            userId: userIdNumeric,
             username: username,
             firstName: firstName ?? undefined,
             surName: surName ?? undefined,
             fullName: fullName,
             roles: roles,
             permisos: permisos,
+            hasMultipleCompanies: hasMultipleCompanies,
           },
           companies,
           activeCompany,
           companyPaises: companyPaises.length > 0 ? companyPaises : undefined,
           activeCompanyId,
           activePaisId,
+          companyIds: companyIds.length > 0 ? companyIds : undefined,
           menu: menu,
           menusByRole: menusByRole
         };
 
         console.log('💾 Guardando sesión en storage...', {
           hasMenu: (session.menu?.length ?? 0) > 0,
-          hasRoles: (session.user.roles?.length ?? 0) > 0
+          hasRoles: (session.user.roles?.length ?? 0) > 0,
+          companyIds: session.companyIds,
+          activeCompanyId: session.activeCompanyId,
+          companyPaisesCount: session.companyPaises?.length ?? 0
         });
 
         return session;

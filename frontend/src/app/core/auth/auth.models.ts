@@ -66,13 +66,15 @@ export interface AuthSession {
   refreshToken?: string;
 
   user: {
-    id?: string;
+    id?: string;              // Guid del usuario (desde el backend)
+    userId?: number;         // Identificador numérico del usuario (hash del Guid)
     username?: string;
     firstName?: string | null;
     surName?: string | null;
     fullName?: string;
     roles?: string[];
     permisos?: string[];
+    hasMultipleCompanies?: boolean;  // Indica si el usuario tiene múltiples empresas
   };
 
   companies: string[];       // nombres legibles (legacy)
@@ -82,6 +84,7 @@ export interface AuthSession {
   companyPaises?: CompanyPais[];  // todas las combinaciones empresa-país disponibles
   activeCompanyId?: number;        // ID de la empresa activa
   activePaisId?: number;           // ID del país activo
+  companyIds?: number[];            // IDs de todas las empresas del usuario
 
   // 👇 NUEVO
   menu: MenuItem[];               // árbol efectivo para construir el sidebar
