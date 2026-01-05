@@ -179,48 +179,77 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         // CRUD BÁSICO (compat)
         // ======================================================
-        public async Task<IEnumerable<FarmDto>> GetAllAsync(Guid? userId = null)
+        public async Task<IEnumerable<FarmDto>> GetAllAsync(Guid? userId = null, int? companyId = null)
         {
-            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
-            
-            var query = _ctx.Farms
-                .AsNoTracking()
-                .Where(f => f.CompanyId == effectiveCompanyId && f.DeletedAt == null);
+            IQueryable<Farm> query = _ctx.Farms.AsNoTracking().Where(f => f.DeletedAt == null);
 
-            // Si se proporciona un userId, filtrar SOLO por las granjas asignadas directamente al usuario
+            // Verificar si el usuario actual es admin/administrador usando los países asignados
+            // Si tiene acceso a todos los países, es admin
+            var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
+            var allCountriesCount = await _ctx.Set<Pais>().CountAsync();
+            var isAdmin = assignedCountries.Count() >= allCountriesCount || 
+                         await IsUserAdminOrAdministratorAsync(_current.UserId) ||
+                         await IsSuperAdminAsync(_current.UserId);
+
+            if (isAdmin)
+            {
+                Console.WriteLine($"=== FarmService.GetAllAsync - Usuario es admin/administrador ===");
+                
+                // Si se proporciona un companyId, filtrar por esa empresa
+                if (companyId.HasValue)
+                {
+                    Console.WriteLine($"=== FarmService.GetAllAsync - Admin filtrando por empresa: {companyId.Value} ===");
+                    query = query.Where(f => f.CompanyId == companyId.Value);
+                }
+                else
+                {
+                    Console.WriteLine($"=== FarmService.GetAllAsync - Admin sin filtro de empresa, devolviendo TODAS las granjas ===");
+                    // No filtrar por empresa - mostrar todas las granjas
+                }
+            }
+            else
+            {
+                // Si NO es admin, filtrar solo por las granjas de su empresa
+                var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+                Console.WriteLine($"=== FarmService.GetAllAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
+                query = query.Where(f => f.CompanyId == effectiveCompanyId);
+            }
+
+            // Si se proporciona un userId, filtrar por las granjas de la empresa del usuario
             if (userId.HasValue)
             {
                 Console.WriteLine($"=== FarmService.GetAllAsync - Filtrando por userId: {userId} ===");
                 
-                // Obtener SOLO las granjas asignadas directamente al usuario en UserFarms
-                var userFarmIds = await _ctx.UserFarms
+                // Obtener las empresas asignadas al usuario
+                var userCompanyIds = await _ctx.UserCompanies
                     .AsNoTracking()
-                    .Where(uf => uf.UserId == userId.Value)
-                    .Select(uf => uf.FarmId)
+                    .Where(uc => uc.UserId == userId.Value)
+                    .Select(uc => uc.CompanyId)
+                    .Distinct()
                     .ToListAsync();
 
-                Console.WriteLine($"=== Granjas asignadas directamente al usuario: {string.Join(", ", userFarmIds)} ===");
+                Console.WriteLine($"=== Empresas asignadas al usuario: {string.Join(", ", userCompanyIds)} ===");
                 
-                // Si el usuario tiene granjas asignadas, filtrar por esas
-                // Si no tiene ninguna, devolver lista vacía
-                if (userFarmIds.Any())
+                // Si el usuario tiene empresas asignadas, filtrar por las granjas de esas empresas
+                if (userCompanyIds.Any())
                 {
-                    Console.WriteLine($"✅ Filtrando por {userFarmIds.Count} granjas asignadas: [{string.Join(", ", userFarmIds)}]");
-                    query = query.Where(f => userFarmIds.Contains(f.Id));
+                    Console.WriteLine($"✅ Filtrando por granjas de {userCompanyIds.Count} empresas: [{string.Join(", ", userCompanyIds)}]");
+                    query = query.Where(f => userCompanyIds.Contains(f.CompanyId));
                 }
                 else
                 {
-                    Console.WriteLine("⚠️ Usuario no tiene granjas asignadas - devolviendo lista vacía");
+                    Console.WriteLine("⚠️ Usuario no tiene empresas asignadas - devolviendo lista vacía");
                     // Devolver lista vacía filtrando por un ID que no existe
                     query = query.Where(f => f.Id == -1);
                 }
             }
             else
             {
-                Console.WriteLine("=== FarmService.GetAllAsync - Sin filtro de usuario, devolviendo todas las granjas ===");
+                Console.WriteLine("=== FarmService.GetAllAsync - Sin filtro de usuario ===");
             }
 
             var result = await query
+                .OrderBy(f => f.Name)
                 .Select(f => new FarmDto(
                     f.Id,
                     f.CompanyId,
@@ -234,6 +263,46 @@ namespace ZooSanMarino.Infrastructure.Services
 
             Console.WriteLine($"=== FarmService.GetAllAsync - Devolviendo {result.Count} granjas ===");
             return result;
+        }
+
+        private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            }
+            
+            var userRoles = await _ctx.UserRoles
+                .AsNoTracking()
+                .Include(ur => ur.Role)
+                .Where(ur => ur.UserId == userIdGuid.Value)
+                .Select(ur => ur.Role.Name)
+                .ToListAsync();
+
+            return userRoles.Any(role => 
+                !string.IsNullOrWhiteSpace(role) && 
+                (role.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+                 role.Equals("administrador", StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        private async Task<bool> IsSuperAdminAsync(int userId)
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            }
+            
+            var userEmail = await _ctx.UserLogins
+                .AsNoTracking()
+                .Include(ul => ul.Login)
+                .Where(ul => ul.UserId == userIdGuid.Value)
+                .Select(ul => ul.Login.email)
+                .FirstOrDefaultAsync();
+
+            return userEmail?.ToLower() == "moiesbbuga@gmail.com";
         }
 
         public async Task<FarmDto?> GetByIdAsync(int id) =>
@@ -271,12 +340,60 @@ namespace ZooSanMarino.Infrastructure.Services
             if (departamento == null)
                 throw new ArgumentException("El departamento especificado no existe.", nameof(dto.DepartamentoId));
 
-            var canCreateInCountry = await _userPermissionService.CanCreateFarmInCountryAsync(_current.UserId, departamento.PaisId);
+            // Obtener la empresa activa del usuario
+            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+            
+            // Verificar si el usuario puede crear granjas en este país
+            // Primero verificar si la empresa activa tiene el país asignado
+            var companyHasCountry = await _ctx.CompanyPaises
+                .AsNoTracking()
+                .AnyAsync(cp => cp.CompanyId == effectiveCompanyId && cp.PaisId == departamento.PaisId);
+            
+            // Si la empresa activa tiene el país, permitir crear
+            // Si no, verificar otros permisos (admin, otras empresas, etc.)
+            var canCreateInCountry = companyHasCountry || 
+                await _userPermissionService.CanCreateFarmInCountryAsync(_current.UserId, departamento.PaisId);
+            
             if (!canCreateInCountry)
-                throw new UnauthorizedAccessException("No tienes permisos para crear granjas en este país.");
+            {
+                // Obtener información para el mensaje de error
+                var userIdGuid = _current.UserGuid;
+                var userCompanies = userIdGuid.HasValue 
+                    ? await _ctx.UserCompanies
+                        .AsNoTracking()
+                        .Where(uc => uc.UserId == userIdGuid.Value)
+                        .Select(uc => uc.CompanyId)
+                        .Distinct()
+                        .ToListAsync()
+                    : new List<int>();
+                
+                var companyPaises = userCompanies.Any()
+                    ? await _ctx.CompanyPaises
+                        .AsNoTracking()
+                        .Where(cp => userCompanies.Contains(cp.CompanyId))
+                        .Select(cp => cp.PaisId)
+                        .Distinct()
+                        .ToListAsync()
+                    : new List<int>();
+                
+                var paisNombre = await _ctx.Set<Pais>()
+                    .AsNoTracking()
+                    .Where(p => p.PaisId == departamento.PaisId)
+                    .Select(p => p.PaisNombre)
+                    .FirstOrDefaultAsync() ?? "desconocido";
+                
+                var mensaje = userCompanies.Any()
+                    ? $"No tienes permisos para crear granjas en {paisNombre}. " +
+                      $"Tus empresas están asignadas a los siguientes países: {string.Join(", ", companyPaises)}. " +
+                      $"Asegúrate de que la empresa tenga asignado el país {paisNombre} en la configuración de empresa-país."
+                    : $"No tienes permisos para crear granjas en {paisNombre}. " +
+                      $"No tienes empresas asignadas o tus empresas no tienen países configurados.";
+                
+                throw new UnauthorizedAccessException(mensaje);
+            }
 
             var normalizedStatus = NormalizeStatus(dto.Status);
-            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+            // effectiveCompanyId ya está definido arriba (línea 275)
 
             var dup = await _ctx.Farms
                 .AsNoTracking()
@@ -299,6 +416,44 @@ namespace ZooSanMarino.Infrastructure.Services
 
             _ctx.Farms.Add(entity);
             await _ctx.SaveChangesAsync();
+
+            // Asignar automáticamente la granja al usuario que la creó
+            var creatorUserGuid = _current.UserGuid;
+            if (creatorUserGuid.HasValue)
+            {
+                // Verificar si ya existe la relación (por si acaso)
+                var existingUserFarm = await _ctx.UserFarms
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(uf => uf.UserId == creatorUserGuid.Value && uf.FarmId == entity.Id);
+                
+                if (existingUserFarm == null)
+                {
+                    // Verificar si el usuario ya tiene granjas asignadas para determinar si esta debe ser la default
+                    var hasOtherFarms = await _ctx.UserFarms
+                        .AsNoTracking()
+                        .AnyAsync(uf => uf.UserId == creatorUserGuid.Value);
+                    
+                    // Crear la relación usuario-granja
+                    var userFarm = new UserFarm
+                    {
+                        UserId = creatorUserGuid.Value,
+                        FarmId = entity.Id,
+                        IsAdmin = false, // El creador no es admin de la granja por defecto
+                        IsDefault = !hasOtherFarms, // Si es la primera granja, marcarla como default
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedByUserId = creatorUserGuid.Value // El usuario se asigna a sí mismo
+                    };
+                    
+                    _ctx.UserFarms.Add(userFarm);
+                    await _ctx.SaveChangesAsync();
+                    
+                    Console.WriteLine($"FarmService.CreateAsync - Granja {entity.Id} asignada automáticamente al usuario {creatorUserGuid.Value}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"FarmService.CreateAsync - WARNING: No se pudo obtener UserGuid, no se asignó la granja automáticamente");
+            }
 
             return new FarmDto(
                 entity.Id,

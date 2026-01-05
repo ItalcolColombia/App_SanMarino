@@ -23,10 +23,13 @@ public class FarmController : ControllerBase
     [HttpGet]
     [HttpGet("/Farm")]
     [ProducesResponseType(typeof(IEnumerable<FarmDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<FarmDto>>> GetAll([FromQuery] string? id_user_session = null)
+    public async Task<ActionResult<IEnumerable<FarmDto>>> GetAll(
+        [FromQuery] string? id_user_session = null,
+        [FromQuery] int? companyId = null)
     {
         Console.WriteLine($"=== FarmController.GetAll() ====");
         Console.WriteLine($"Parámetro id_user_session recibido: {id_user_session}");
+        Console.WriteLine($"Parámetro companyId recibido: {companyId}");
         Console.WriteLine($"Tipo del parámetro: {id_user_session?.GetType()}");
         
         Guid? userIdGuid = null;
@@ -49,7 +52,7 @@ public class FarmController : ControllerBase
             Console.WriteLine("⚠️ id_user_session es null o vacío - devolviendo todas las granjas");
         }
         
-        var items = await _svc.GetAllAsync(userIdGuid);
+        var items = await _svc.GetAllAsync(userIdGuid, companyId);
         Console.WriteLine($"✅ Devolviendo {items.Count()} granjas");
         return Ok(items);
     }
