@@ -150,18 +150,43 @@ public class UserService : IUserService
     // ─────────────────────────────────────────────────────────────────────
     public async Task<IEnumerable<UserDto>> GetAllAsync()
     {
-        // Obtener usuarios que pertenecen a las empresas asignadas al usuario actual
-        var usersFromAssignedCompanies = await _userPermissionService.GetUsersFromAssignedCompaniesAsync(_currentUser.UserId);
+        // Verificar si el usuario actual es admin o administrador
+        var isAdmin = await IsUserAdminOrAdministratorAsync(_currentUser.UserId);
         
-        // Convertir a lista de IDs para la consulta
-        var userIds = usersFromAssignedCompanies.Select(u => u.Id).ToList();
-
-        return await _ctx.Users
+        IQueryable<User> query = _ctx.Users
             .AsNoTracking()
-            .Where(u => userIds.Contains(u.Id)) // Filtrar solo usuarios de empresas asignadas
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UserCompanies)
-            .Include(u => u.UserFarms).ThenInclude(uf => uf.Farm)
+            .Include(u => u.UserFarms).ThenInclude(uf => uf.Farm);
+
+        // Si NO es admin/administrador, filtrar solo usuarios de las empresas asignadas al usuario en sesión
+        if (!isAdmin)
+        {
+            // Obtener el Guid del usuario desde ICurrentUser (preferido) o calcular desde int
+            var userIdGuid = _currentUser.UserGuid ?? 
+                throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
+            
+            // Obtener todas las empresas asignadas al usuario en sesión desde UserCompanies
+            var userCompanyIds = await _ctx.UserCompanies
+                .AsNoTracking()
+                .Where(uc => uc.UserId == userIdGuid)
+                .Select(uc => uc.CompanyId)
+                .ToListAsync();
+
+            // Si el usuario tiene empresas asignadas, filtrar usuarios que pertenezcan a esas empresas
+            if (userCompanyIds.Any())
+            {
+                query = query.Where(u => u.UserCompanies.Any(uc => userCompanyIds.Contains(uc.CompanyId)));
+            }
+            else
+            {
+                // Si no tiene empresas asignadas, no mostrar ningún usuario
+                return new List<UserDto>();
+            }
+        }
+        // Si es admin/administrador, no filtrar (mostrar todos los usuarios de todas las empresas)
+
+        return await query
             .Select(u => new UserDto(
                 u.Id,
                 u.surName ?? string.Empty,
@@ -190,11 +215,43 @@ public class UserService : IUserService
     // ─────────────────────────────────────────────────────────────────────
     public async Task<List<UserListDto>> GetUsersAsync()
     {
-        return await _ctx.Users
+        // Verificar si el usuario actual es admin o administrador
+        var isAdmin = await IsUserAdminOrAdministratorAsync(_currentUser.UserId);
+        
+        IQueryable<User> query = _ctx.Users
             .AsNoTracking()
             .Include(u => u.UserLogins).ThenInclude(ul => ul.Login)
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
-            .Include(u => u.UserCompanies).ThenInclude(uc => uc.Company)
+            .Include(u => u.UserCompanies).ThenInclude(uc => uc.Company);
+
+        // Si NO es admin/administrador, filtrar solo usuarios de las empresas asignadas al usuario en sesión
+        if (!isAdmin)
+        {
+            // Obtener el Guid del usuario desde ICurrentUser (preferido) o calcular desde int
+            var userIdGuid = _currentUser.UserGuid ?? 
+                throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
+            
+            // Obtener todas las empresas asignadas al usuario en sesión desde UserCompanies
+            var userCompanyIds = await _ctx.UserCompanies
+                .AsNoTracking()
+                .Where(uc => uc.UserId == userIdGuid)
+                .Select(uc => uc.CompanyId)
+                .ToListAsync();
+
+            // Si el usuario tiene empresas asignadas, filtrar usuarios que pertenezcan a esas empresas
+            if (userCompanyIds.Any())
+            {
+                query = query.Where(u => u.UserCompanies.Any(uc => userCompanyIds.Contains(uc.CompanyId)));
+            }
+            else
+            {
+                // Si no tiene empresas asignadas, no mostrar ningún usuario
+                return new List<UserListDto>();
+            }
+        }
+        // Si es admin/administrador, no filtrar (mostrar todos los usuarios de todas las empresas)
+
+        return await query
             .Select(u => new UserListDto
             {
                 Id        = u.Id,
@@ -213,6 +270,30 @@ public class UserService : IUserService
                 PrimaryCompany = u.UserCompanies.Select(uc => uc.Company.Name).FirstOrDefault(n => n != null && n != "")
             })
             .ToListAsync();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Helper: Verificar si el usuario es admin o administrador
+    // ─────────────────────────────────────────────────────────────────────
+    private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)
+    {
+        // Obtener el Guid del usuario desde ICurrentUser (preferido)
+        var userIdGuid = _currentUser.UserGuid ?? 
+            throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
+        
+        var userRoles = await _ctx.UserRoles
+            .AsNoTracking()
+            .Include(ur => ur.Role)
+            .Where(ur => ur.UserId == userIdGuid)
+            .Select(ur => ur.Role.Name)
+            .ToListAsync();
+
+        // Verificar si tiene rol "admin" o "administrador" (case-insensitive)
+        return userRoles.Any(role => 
+            !string.IsNullOrWhiteSpace(role) && 
+            (role.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+             role.Equals("administrador", StringComparison.OrdinalIgnoreCase))
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────

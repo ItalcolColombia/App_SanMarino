@@ -11,6 +11,7 @@ public sealed class HttpCurrentUser : ICurrentUser
     public int UserId { get; }
     public int? PaisId { get; }
     public string? ActiveCompanyName { get; }
+    public Guid? UserGuid { get; private set; }
 
     public HttpCurrentUser(IHttpContextAccessor accessor)
     {
@@ -34,17 +35,39 @@ public sealed class HttpCurrentUser : ICurrentUser
                 http.User.FindFirst("companyId") ??
                 http.User.FindFirst("tenant_id");
 
-            // UserId: típicos nombres de claim
-            var userClaim =
+            // UserId: buscar primero el claim "user_id" (numérico), luego los otros
+            var userIdClaim = http.User.FindFirst("user_id");
+            Guid? userGuid = null;
+            int uid = 0;
+            
+            // Intentar obtener el Guid del usuario desde NameIdentifier o sub
+            var userGuidClaim =
                 http.User.FindFirst(ClaimTypes.NameIdentifier) ??
-                http.User.FindFirst("sub") ??
-                http.User.FindFirst("user_id");
+                http.User.FindFirst("sub");
+            
+            if (userGuidClaim != null && Guid.TryParse(userGuidClaim.Value, out var parsedGuid))
+            {
+                userGuid = parsedGuid;
+                // Si no existe "user_id", calcular hash desde el Guid
+                if (userIdClaim == null)
+                {
+                    uid = Math.Abs(parsedGuid.GetHashCode());
+                }
+                else
+                {
+                    int.TryParse(userIdClaim.Value, out uid);
+                }
+            }
+            else if (userIdClaim != null)
+            {
+                // Si solo tenemos el claim numérico, intentar parsearlo
+                int.TryParse(userIdClaim.Value, out uid);
+            }
 
             // PaisId: del claim o del header
             var paisClaim = http.User.FindFirst("pais_id") ?? http.User.FindFirst("paisId");
 
             int.TryParse(companyClaim?.Value, out var cid);
-            int.TryParse(userClaim?.Value, out var uid);
             
             // Si no hay PaisId en el header, intentar del claim
             if (!PaisId.HasValue && paisClaim != null)
@@ -56,6 +79,7 @@ public sealed class HttpCurrentUser : ICurrentUser
 
             CompanyId = cid;
             UserId    = uid;
+            UserGuid  = userGuid;
         }
         else
         {
