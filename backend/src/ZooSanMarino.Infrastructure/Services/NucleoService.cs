@@ -18,11 +18,84 @@ namespace ZooSanMarino.Infrastructure.Services
     {
         private readonly ZooSanMarinoContext _ctx;
         private readonly AppInterfaces.ICurrentUser _current;
+        private readonly AppInterfaces.ICompanyResolver _companyResolver;
+        private readonly AppInterfaces.IUserPermissionService _userPermissionService;
 
-        public NucleoService(ZooSanMarinoContext ctx, AppInterfaces.ICurrentUser current)
+        public NucleoService(
+            ZooSanMarinoContext ctx, 
+            AppInterfaces.ICurrentUser current,
+            AppInterfaces.ICompanyResolver companyResolver,
+            AppInterfaces.IUserPermissionService userPermissionService)
         {
             _ctx = ctx;
             _current = current;
+            _companyResolver = companyResolver;
+            _userPermissionService = userPermissionService;
+        }
+
+        /// <summary>
+        /// Obtiene el CompanyId efectivo basado en el header o token JWT
+        /// </summary>
+        private async Task<int> GetEffectiveCompanyIdAsync()
+        {
+            // Si hay una empresa activa especificada en el header, usarla
+            if (!string.IsNullOrWhiteSpace(_current.ActiveCompanyName))
+            {
+                var companyId = await _companyResolver.GetCompanyIdByNameAsync(_current.ActiveCompanyName);
+                if (companyId.HasValue)
+                {
+                    return companyId.Value;
+                }
+            }
+
+            // Fallback al CompanyId del token JWT
+            return _current.CompanyId;
+        }
+
+        /// <summary>
+        /// Verifica si el usuario es admin o administrador
+        /// </summary>
+        private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            }
+            
+            var userRoles = await _ctx.UserRoles
+                .AsNoTracking()
+                .Include(ur => ur.Role)
+                .Where(ur => ur.UserId == userIdGuid.Value)
+                .Select(ur => ur.Role.Name)
+                .ToListAsync();
+
+            return userRoles.Any(role => 
+                !string.IsNullOrWhiteSpace(role) && 
+                (role.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+                 role.Equals("administrador", StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        /// <summary>
+        /// Verifica si el usuario es super admin
+        /// </summary>
+        private async Task<bool> IsSuperAdminAsync(int userId)
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            }
+            
+            var userEmail = await _ctx.UserLogins
+                .AsNoTracking()
+                .Include(ul => ul.Login)
+                .Where(ul => ul.UserId == userIdGuid.Value)
+                .Select(ul => ul.Login.email)
+                .FirstOrDefaultAsync();
+
+            return userEmail?.ToLower() == "moiesbbuga@gmail.com";
         }
 
         // ===========================
@@ -30,8 +103,27 @@ namespace ZooSanMarino.Infrastructure.Services
         // ===========================
         public async Task<CommonDtos.PagedResult<NucleoDetailDto>> SearchAsync(NucleoSearchRequest req)
         {
-            var q = _ctx.Nucleos.AsNoTracking()
-                .Where(n => n.CompanyId == _current.CompanyId);
+            IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking();
+
+            // Verificar si el usuario es admin/administrador
+            var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
+            var allCountriesCount = await _ctx.Set<Pais>().CountAsync();
+            var isAdmin = assignedCountries.Count() >= allCountriesCount || 
+                         await IsUserAdminOrAdministratorAsync(_current.UserId) ||
+                         await IsSuperAdminAsync(_current.UserId);
+
+            if (isAdmin)
+            {
+                Console.WriteLine($"=== NucleoService.SearchAsync - Usuario es admin/administrador, mostrando TODOS los núcleos ===");
+                // No filtrar por empresa - mostrar todos los núcleos
+            }
+            else
+            {
+                // Si NO es admin, filtrar solo por los núcleos de su empresa
+                var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+                Console.WriteLine($"=== NucleoService.SearchAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
+                q = q.Where(n => n.CompanyId == effectiveCompanyId);
+            }
 
             if (req.SoloActivos) q = q.Where(n => n.DeletedAt == null);
 
@@ -79,11 +171,34 @@ namespace ZooSanMarino.Infrastructure.Services
         // ===========================
         // COMPAT
         // ===========================
-        public async Task<IEnumerable<NucleoDto>> GetAllAsync() =>
-            await _ctx.Nucleos.AsNoTracking()
-                .Where(n => n.CompanyId == _current.CompanyId && n.DeletedAt == null)
+        public async Task<IEnumerable<NucleoDto>> GetAllAsync()
+        {
+            IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking().Where(n => n.DeletedAt == null);
+
+            // Verificar si el usuario es admin/administrador
+            var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
+            var allCountriesCount = await _ctx.Set<Pais>().CountAsync();
+            var isAdmin = assignedCountries.Count() >= allCountriesCount || 
+                         await IsUserAdminOrAdministratorAsync(_current.UserId) ||
+                         await IsSuperAdminAsync(_current.UserId);
+
+            if (isAdmin)
+            {
+                Console.WriteLine($"=== NucleoService.GetAllAsync - Usuario es admin/administrador, mostrando TODOS los núcleos ===");
+                // No filtrar por empresa - mostrar todos los núcleos
+            }
+            else
+            {
+                // Si NO es admin, filtrar solo por los núcleos de su empresa
+                var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+                Console.WriteLine($"=== NucleoService.GetAllAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
+                q = q.Where(n => n.CompanyId == effectiveCompanyId);
+            }
+
+            return await q
                 .Select(n => new NucleoDto(n.NucleoId, n.GranjaId, n.NucleoNombre))
                 .ToListAsync();
+        }
 
         public async Task<NucleoDto?> GetByIdAsync(string nucleoId, int granjaId) =>
             await _ctx.Nucleos.AsNoTracking()
@@ -94,20 +209,37 @@ namespace ZooSanMarino.Infrastructure.Services
                 .Select(n => new NucleoDto(n.NucleoId, n.GranjaId, n.NucleoNombre))
                 .SingleOrDefaultAsync();
 
-        public async Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId) =>
-            await _ctx.Nucleos.AsNoTracking()
-                .Where(n => n.CompanyId == _current.CompanyId &&
-                            n.DeletedAt == null &&
-                            n.GranjaId == granjaId)
+        public async Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId)
+        {
+            IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking()
+                .Where(n => n.DeletedAt == null && n.GranjaId == granjaId);
+
+            // Verificar si el usuario es admin/administrador
+            var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
+            var allCountriesCount = await _ctx.Set<Pais>().CountAsync();
+            var isAdmin = assignedCountries.Count() >= allCountriesCount || 
+                         await IsUserAdminOrAdministratorAsync(_current.UserId) ||
+                         await IsSuperAdminAsync(_current.UserId);
+
+            if (!isAdmin)
+            {
+                // Si NO es admin, filtrar solo por los núcleos de su empresa
+                var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+                q = q.Where(n => n.CompanyId == effectiveCompanyId);
+            }
+
+            return await q
                 .Select(n => new NucleoDto(n.NucleoId, n.GranjaId, n.NucleoNombre))
                 .ToListAsync();
+        }
 
         public async Task<NucleoDto> CreateAsync(CreateNucleoDto dto)
         {
             await EnsureFarmExists(dto.GranjaId);
 
+            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             var dup = await _ctx.Nucleos.AsNoTracking()
-                .AnyAsync(n => n.CompanyId == _current.CompanyId &&
+                .AnyAsync(n => n.CompanyId == effectiveCompanyId &&
                                n.NucleoId == dto.NucleoId &&
                                n.GranjaId == dto.GranjaId);
             if (dup) throw new InvalidOperationException("Ya existe un Núcleo con ese Id para la granja.");
@@ -117,7 +249,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 NucleoId        = dto.NucleoId,
                 GranjaId        = dto.GranjaId,
                 NucleoNombre    = dto.NucleoNombre,
-                CompanyId       = _current.CompanyId,
+                CompanyId       = effectiveCompanyId,
                 CreatedByUserId = _current.UserId,
                 CreatedAt       = DateTime.UtcNow
             };
@@ -179,8 +311,9 @@ namespace ZooSanMarino.Infrastructure.Services
         // ===========================
         private async Task EnsureFarmExists(int granjaId)
         {
+            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             var exists = await _ctx.Farms.AsNoTracking()
-                .AnyAsync(f => f.Id == granjaId && f.CompanyId == _current.CompanyId);
+                .AnyAsync(f => f.Id == granjaId && f.CompanyId == effectiveCompanyId);
             if (!exists) throw new InvalidOperationException("La granja no existe o no pertenece a la compañía.");
         }
 
