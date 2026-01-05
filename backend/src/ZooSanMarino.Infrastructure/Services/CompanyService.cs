@@ -21,156 +21,54 @@ namespace ZooSanMarino.Infrastructure.Services
 
         public async Task<IEnumerable<CompanyDto>> GetAllAsync()
         {
-            // Debug: Log de información del usuario actual
-            Console.WriteLine($"CompanyService.GetAllAsync - UserId: {_currentUser.UserId}");
-            Console.WriteLine($"CompanyService.GetAllAsync - CompanyId: {_currentUser.CompanyId}");
-            Console.WriteLine($"CompanyService.GetAllAsync - ActiveCompanyName: '{_currentUser.ActiveCompanyName}'");
-
-            // TEMPORAL: Para pruebas sin autenticación válida, devolver datos de prueba
-            if (_currentUser.UserId == 0) // Usuario no autenticado
-            {
-                Console.WriteLine("CompanyService.GetAllAsync - Usuario no autenticado, devolviendo datos de prueba");
-                
-                // Si hay empresa activa especificada, devolver empresas con ese nombre
-                if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
-                {
-                    Console.WriteLine($"CompanyService.GetAllAsync - Modo prueba: buscando empresas con nombre '{_currentUser.ActiveCompanyName}'");
-                    
-                    var companiesWithSameName = await _ctx.Companies
-                        .AsNoTracking()
-                        .Where(c => c.Name == _currentUser.ActiveCompanyName)
-                        .Select(c => new CompanyDto(
-                            c.Id,
-                            c.Name,
-                            c.Identifier,
-                            c.DocumentType,
-                            c.Address,
-                            c.Phone,
-                            c.Email,
-                            c.Country,
-                            c.State,
-                            c.City,
-                            c.MobileAccess,
-                            c.VisualPermissions
-                        ))
-                        .ToListAsync();
-
-                    Console.WriteLine($"CompanyService.GetAllAsync - Empresas con nombre '{_currentUser.ActiveCompanyName}' encontradas: {companiesWithSameName.Count()}");
-                    
-                    // Si no se encuentran empresas con ese nombre exacto, devolver todas las empresas para prueba
-                    if (companiesWithSameName.Count() == 0)
-                    {
-                        Console.WriteLine("CompanyService.GetAllAsync - No se encontraron empresas con ese nombre, devolviendo todas las empresas para prueba");
-                        return await _ctx.Companies
-                            .AsNoTracking()
-                            .Select(c => new CompanyDto(
-                                c.Id,
-                                c.Name,
-                                c.Identifier,
-                                c.DocumentType,
-                                c.Address,
-                                c.Phone,
-                                c.Email,
-                                c.Country,
-                                c.State,
-                                c.City,
-                                c.MobileAccess,
-                                c.VisualPermissions
-                            ))
-                            .ToListAsync();
-                    }
-                    
-                    return companiesWithSameName;
-                }
-                
-                // Sin empresa activa, devolver todas las empresas para prueba
-                Console.WriteLine("CompanyService.GetAllAsync - Modo prueba: devolviendo todas las empresas");
-                return await _ctx.Companies
-                    .AsNoTracking()
-                    .Select(c => new CompanyDto(
-                        c.Id,
-                        c.Name,
-                        c.Identifier,
-                        c.DocumentType,
-                        c.Address,
-                        c.Phone,
-                        c.Email,
-                        c.Country,
-                        c.State,
-                        c.City,
-                        c.MobileAccess,
-                        c.VisualPermissions
-                    ))
-                    .ToListAsync();
-            }
-
-            // Verificar si es el super admin
-            if (await IsSuperAdminAsync(_currentUser.UserId))
-            {
-                Console.WriteLine("CompanyService.GetAllAsync - Usuario es super admin, devolviendo todas las empresas");
-                // Super admin puede ver todas las empresas
-                return await _ctx.Companies
-                    .Select(c => new CompanyDto(
-                        c.Id,
-                        c.Name,
-                        c.Identifier,
-                        c.DocumentType,
-                        c.Address,
-                        c.Phone,
-                        c.Email,
-                        c.Country,
-                        c.State,
-                        c.City,
-                        c.MobileAccess,
-                        c.VisualPermissions
-                    ))
-                    .ToListAsync();
-            }
-
-            // NUEVA LÓGICA: Si hay empresa activa especificada, devolver todas las empresas con ese nombre
-            if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
-            {
-                Console.WriteLine($"CompanyService.GetAllAsync - Buscando empresas con nombre: '{_currentUser.ActiveCompanyName}'");
-                
-                var companiesWithSameName = await _ctx.Companies
-                    .AsNoTracking()
-                    .Where(c => c.Name == _currentUser.ActiveCompanyName)
-                    .Select(c => new CompanyDto(
-                        c.Id,
-                        c.Name,
-                        c.Identifier,
-                        c.DocumentType,
-                        c.Address,
-                        c.Phone,
-                        c.Email,
-                        c.Country,
-                        c.State,
-                        c.City,
-                        c.MobileAccess,
-                        c.VisualPermissions
-                    ))
-                    .ToListAsync();
-
-                Console.WriteLine($"CompanyService.GetAllAsync - Empresas con nombre '{_currentUser.ActiveCompanyName}' encontradas: {companiesWithSameName.Count()}");
-                foreach (var company in companiesWithSameName)
-                {
-                    Console.WriteLine($"  - {company.Name} (ID: {company.Id})");
-                }
-
-                return companiesWithSameName;
-            }
-
-            // Fallback: Obtener solo las empresas asignadas al usuario actual
-            Console.WriteLine("CompanyService.GetAllAsync - No hay empresa activa, devolviendo empresas asignadas al usuario");
+            // Verificar si el usuario es admin o administrador
+            var isAdmin = await IsUserAdminOrAdministratorAsync(_currentUser.UserId);
+            var isSuperAdmin = await IsSuperAdminAsync(_currentUser.UserId);
             
-            // Convertir userId de int a Guid para la consulta
-            var userIdGuid = new Guid(_currentUser.UserId.ToString("D32").PadLeft(32, '0'));
-            Console.WriteLine($"CompanyService.GetAllAsync - UserIdGuid: {userIdGuid}");
+            Console.WriteLine($"CompanyService.GetAllAsync - UserId: {_currentUser.UserId}");
+            Console.WriteLine($"CompanyService.GetAllAsync - IsSuperAdmin: {isSuperAdmin}");
+            Console.WriteLine($"CompanyService.GetAllAsync - IsAdmin: {isAdmin}");
+            
+            // Si es super admin o admin/administrador, devolver TODAS las empresas
+            if (isSuperAdmin || isAdmin)
+            {
+                Console.WriteLine($"CompanyService.GetAllAsync - Usuario es super admin o admin/administrador, devolviendo TODAS las empresas");
+                return await _ctx.Companies
+                    .AsNoTracking()
+                    .OrderBy(c => c.Name)
+                    .Select(c => new CompanyDto(
+                        c.Id,
+                        c.Name,
+                        c.Identifier,
+                        c.DocumentType,
+                        c.Address,
+                        c.Phone,
+                        c.Email,
+                        c.Country,
+                        c.State,
+                        c.City,
+                        c.MobileAccess,
+                        c.VisualPermissions
+                    ))
+                    .ToListAsync();
+            }
+
+            // Si NO es admin/administrador, devolver solo las empresas asignadas al usuario
+            Console.WriteLine($"CompanyService.GetAllAsync - Usuario NO es admin, devolviendo solo empresas asignadas al usuario");
+            
+            // Obtener el Guid del usuario (preferir UserGuid del token, sino convertir desde int)
+            var userIdGuid = _currentUser.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                // Fallback: convertir desde int (no ideal, pero necesario para compatibilidad)
+                userIdGuid = new Guid(_currentUser.UserId.ToString("D32").PadLeft(32, '0'));
+            }
 
             var companies = await _ctx.UserCompanies
                 .AsNoTracking()
                 .Include(uc => uc.Company)
-                .Where(uc => uc.UserId == userIdGuid)
+                .Where(uc => uc.UserId == userIdGuid.Value)
+                .OrderBy(uc => uc.Company.Name)
                 .Select(uc => new CompanyDto(
                     uc.Company.Id,
                     uc.Company.Name,
@@ -315,18 +213,59 @@ namespace ZooSanMarino.Infrastructure.Services
         /// </summary>
         private async Task<bool> IsSuperAdminAsync(int userId)
         {
-            // Convertir userId de int a Guid para la consulta
-            var userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            // Obtener el Guid del usuario desde ICurrentUser (preferido) o convertir desde int
+            var userIdGuid = _currentUser.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                // Fallback: convertir desde int (no ideal, pero necesario para compatibilidad)
+                userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            }
             
             // Buscar el email del usuario
             var userEmail = await _ctx.UserLogins
                 .AsNoTracking()
                 .Include(ul => ul.Login)
-                .Where(ul => ul.UserId == userIdGuid)
+                .Where(ul => ul.UserId == userIdGuid.Value)
                 .Select(ul => ul.Login.email)
                 .FirstOrDefaultAsync();
 
             return userEmail?.ToLower() == "moiesbbuga@gmail.com";
+        }
+
+        /// <summary>
+        /// Verifica si el usuario tiene rol "admin" o "administrador" (case-insensitive)
+        /// </summary>
+        private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)
+        {
+            // Obtener el Guid del usuario desde ICurrentUser (preferido) o convertir desde int
+            var userIdGuid = _currentUser.UserGuid;
+            if (!userIdGuid.HasValue)
+            {
+                // Fallback: convertir desde int (no ideal, pero necesario para compatibilidad)
+                userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            }
+            
+            Console.WriteLine($"CompanyService.IsUserAdminOrAdministratorAsync - UserIdGuid: {userIdGuid}");
+            
+            var userRoles = await _ctx.UserRoles
+                .AsNoTracking()
+                .Include(ur => ur.Role)
+                .Where(ur => ur.UserId == userIdGuid.Value)
+                .Select(ur => ur.Role.Name)
+                .ToListAsync();
+
+            Console.WriteLine($"CompanyService.IsUserAdminOrAdministratorAsync - Roles encontrados: {string.Join(", ", userRoles)}");
+
+            // Verificar si tiene rol "admin", "Admin", "administrador" o "Administrador" (case-insensitive)
+            var isAdmin = userRoles.Any(role => 
+                !string.IsNullOrWhiteSpace(role) && 
+                (role.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+                 role.Equals("administrador", StringComparison.OrdinalIgnoreCase))
+            );
+            
+            Console.WriteLine($"CompanyService.IsUserAdminOrAdministratorAsync - IsAdmin result: {isAdmin}");
+            
+            return isAdmin;
         }
     }
 }
