@@ -13,22 +13,47 @@ public class InventarioAvesService : IInventarioAvesService
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
     private readonly IHistorialInventarioService _historialService;
+    private readonly ICompanyResolver _companyResolver;
 
     public InventarioAvesService(
         ZooSanMarinoContext context, 
         ICurrentUser currentUser,
-        IHistorialInventarioService historialService)
+        IHistorialInventarioService historialService,
+        ICompanyResolver companyResolver)
     {
         _context = context;
         _currentUser = currentUser;
         _historialService = historialService;
+        _companyResolver = companyResolver;
+    }
+
+    /// <summary>
+    /// Obtiene el CompanyId efectivo basado en el header o token JWT
+    /// </summary>
+    private async Task<int> GetEffectiveCompanyIdAsync()
+    {
+        // Si hay una empresa activa especificada en el header, usarla
+        if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
+        {
+            var companyId = await _companyResolver.GetCompanyIdByNameAsync(_currentUser.ActiveCompanyName);
+            if (companyId.HasValue)
+            {
+                return companyId.Value;
+            }
+        }
+
+        // Fallback al CompanyId del token JWT
+        return _currentUser.CompanyId;
     }
 
     public async Task<InventarioAvesDto> CreateAsync(CreateInventarioAvesDto dto)
     {
+        // Obtener la empresa efectiva del usuario
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+
         // Validar que el lote existe y pertenece a la compañía
         var lote = await _context.Lotes
-            .Where(l => l.LoteId == dto.LoteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+            .Where(l => l.LoteId == dto.LoteId && l.CompanyId == effectiveCompanyId && l.DeletedAt == null)
             .FirstOrDefaultAsync();
 
         if (lote == null)
@@ -51,7 +76,7 @@ public class InventarioAvesService : IInventarioAvesService
             FechaActualizacion = DateTime.UtcNow,
             Estado = "Activo",
             Observaciones = dto.Observaciones,
-            CompanyId = _currentUser.CompanyId,
+            CompanyId = effectiveCompanyId,
             CreatedByUserId = _currentUser.UserId,
             CreatedAt = DateTime.UtcNow
         };
@@ -72,18 +97,20 @@ public class InventarioAvesService : IInventarioAvesService
 
     public async Task<InventarioAvesDto?> GetByIdAsync(int id)
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         return await _context.InventarioAves
             .AsNoTracking()
-            .Where(i => i.Id == id && i.CompanyId == _currentUser.CompanyId && i.DeletedAt == null)
+            .Where(i => i.Id == id && i.CompanyId == effectiveCompanyId && i.DeletedAt == null)
             .Select(ToDto)
             .FirstOrDefaultAsync();
     }
 
     public async Task<IEnumerable<InventarioAvesDto>> GetAllAsync()
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         return await _context.InventarioAves
             .AsNoTracking()
-            .Where(i => i.CompanyId == _currentUser.CompanyId && i.DeletedAt == null)
+            .Where(i => i.CompanyId == effectiveCompanyId && i.DeletedAt == null)
             .OrderBy(i => i.LoteId)
             .ThenBy(i => i.GranjaId)
             .Select(ToDto)
@@ -92,8 +119,9 @@ public class InventarioAvesService : IInventarioAvesService
 
     public async Task<InventarioAvesDto> UpdateAsync(UpdateInventarioAvesDto dto)
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var inventario = await _context.InventarioAves
-            .Where(i => i.Id == dto.Id && i.CompanyId == _currentUser.CompanyId && i.DeletedAt == null)
+            .Where(i => i.Id == dto.Id && i.CompanyId == effectiveCompanyId && i.DeletedAt == null)
             .FirstOrDefaultAsync();
 
         if (inventario == null)
