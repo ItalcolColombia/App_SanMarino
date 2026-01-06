@@ -56,8 +56,10 @@ import {
   forkJoin,
   of,
   switchMap,
-  takeUntil
+  takeUntil,
+  take
 } from 'rxjs';
+import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
   selector: 'app-role-management',
@@ -135,6 +137,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     private companySvc: CompanyService,
     private permSvc: PermissionService,
     private menuSvc: MenuService,
+    private authService: AuthService,
     library: FaIconLibrary
   ) {
     library.addIcons(
@@ -189,8 +192,26 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   // LOADERS
   // =========================
   private loadCompanies() {
-    this.companySvc.getAll()
-      .pipe(takeUntil(this.destroy$))
+    // Obtener información del usuario en sesión y cargar empresas según rol
+    this.authService.session$
+      .pipe(
+        take(1), // Solo tomar el primer valor (valor actual)
+        switchMap((session) => {
+          const userRoles = session?.user?.roles || [];
+          
+          // Verificar si el usuario es admin o administrador (case-insensitive)
+          const isAdmin = userRoles.some(role => 
+            role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'administrador')
+          );
+
+          // Si es admin/administrador, obtener todas las empresas
+          // Si no, obtener solo las empresas del usuario en sesión (ya filtradas por backend)
+          return isAdmin 
+            ? this.companySvc.getAllForAdmin()
+            : this.companySvc.getAll();
+        }),
+        takeUntil(this.destroy$)
+      )
       .subscribe({
         next: (list) => {
           this.companies = list ?? [];
@@ -199,7 +220,22 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
             return m;
           }, {} as Record<number, string>);
         },
-        error: () => alert('No se pudieron cargar las empresas.')
+        error: (error) => {
+          console.error('Error loading companies:', error);
+          // Fallback: cargar empresas normales si hay error
+          this.companySvc.getAll()
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: (list) => {
+                this.companies = list ?? [];
+                this.companiesMap = this.companies.reduce((m, c) => {
+                  if (c.id !== undefined) m[c.id] = c.name;
+                  return m;
+                }, {} as Record<number, string>);
+              },
+              error: () => alert('No se pudieron cargar las empresas.')
+            });
+        }
       });
   }
 

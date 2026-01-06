@@ -7,7 +7,7 @@ import {
   faUserPlus, faUser, faSave, faTimes, faEnvelope, faPhone, faIdCard, faBuilding, faUsers,
   faEye, faEyeSlash, faCheck, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
-import { Subject, takeUntil, forkJoin } from 'rxjs';
+import { Subject, takeUntil, forkJoin, switchMap, take } from 'rxjs';
 
 import { UserService, UserListItem, CreateUserDto, UpdateUserDto } from '../../../../../core/services/user/user.service';
 import { Company, CompanyService } from '../../../../../core/services/company/company.service';
@@ -128,24 +128,62 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   loadLookups(): void {
     this.loading = true;
 
-    forkJoin({
-      companies: this.companyService.getAll(),
-      roles: this.roleService.getAll()
-    })
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (data) => {
-        this.companies = data.companies;
-        this.roles = data.roles;
-        this.filteredRoles = data.roles;
-        this.loading = false;
-        this.cdr.detectChanges();
-      },
-      error: (error) => {
-        console.error('Error loading lookups:', error);
-        this.loading = false;
-      }
-    });
+    // Obtener información del usuario en sesión y cargar datos según rol
+    this.authService.session$
+      .pipe(
+        take(1), // Solo tomar el primer valor (valor actual)
+        switchMap((session) => {
+          const userRoles = session?.user?.roles || [];
+          
+          // Verificar si el usuario es admin o administrador (case-insensitive)
+          const isAdmin = userRoles.some(role => 
+            role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'administrador')
+          );
+
+          // Si es admin/administrador, obtener todas las empresas
+          // Si no, obtener solo las empresas del usuario en sesión (ya filtradas por backend)
+          const companiesObservable = isAdmin 
+            ? this.companyService.getAllForAdmin()
+            : this.companyService.getAll();
+
+          return forkJoin({
+            companies: companiesObservable,
+            roles: this.roleService.getAll()
+          });
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: (data) => {
+          this.companies = data.companies;
+          this.roles = data.roles;
+          this.filteredRoles = data.roles;
+          this.loading = false;
+          this.cdr.detectChanges();
+        },
+        error: (error) => {
+          console.error('Error loading lookups:', error);
+          // Fallback: cargar empresas normales si hay error
+          forkJoin({
+            companies: this.companyService.getAll(),
+            roles: this.roleService.getAll()
+          })
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
+            next: (data) => {
+              this.companies = data.companies;
+              this.roles = data.roles;
+              this.filteredRoles = data.roles;
+              this.loading = false;
+              this.cdr.detectChanges();
+            },
+            error: (err) => {
+              console.error('Error loading lookups (fallback):', err);
+              this.loading = false;
+            }
+          });
+        }
+      });
   }
 
   loadUserData(): void {
