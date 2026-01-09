@@ -217,10 +217,12 @@ public class EmailQueueProcessorService : BackgroundService
         try
         {
             // Configuración mejorada para Office 365
+            // Para puerto 587, Office 365 requiere STARTTLS (EnableSsl = true)
+            // Para puerto 465, Office 365 requiere SSL directo
             using var client = new SmtpClient(_smtpHost, _smtpPort)
             {
                 Credentials = new NetworkCredential(_smtpUsername, _smtpPassword),
-                EnableSsl = _smtpEnableSsl,
+                EnableSsl = _smtpEnableSsl, // Debe ser true para puerto 587 (STARTTLS)
                 DeliveryMethod = SmtpDeliveryMethod.Network,
                 Timeout = 60000, // 60 segundos (aumentado para Office 365)
                 UseDefaultCredentials = false // Importante: no usar credenciales por defecto
@@ -251,15 +253,38 @@ public class EmailQueueProcessorService : BackgroundService
             _logger.LogError(ex, "Error SMTP al enviar correo a {ToEmail}: {Message} | Details: {Details}", 
                 toEmail, ex.Message, smtpDetails);
             
-            // Log detallado para diagnóstico
-            if (ex.Message.Contains("535") || ex.Message.Contains("Authentication") || (int)ex.StatusCode == 535)
+            // Log detallado para diagnóstico según el tipo de error
+            var statusCode = (int)ex.StatusCode;
+            var statusCodeName = ex.StatusCode.ToString();
+            
+            if (statusCodeName.Contains("MustIssueStartTlsFirst") || ex.Message.Contains("MustIssueStartTlsFirst"))
             {
-                _logger.LogWarning("⚠️ Error de autenticación SMTP. Verifica:");
-                _logger.LogWarning("   1. Que SMTP AUTH esté habilitado en Office 365");
-                _logger.LogWarning("   2. Que uses una 'App Password' en lugar de la contraseña normal");
-                _logger.LogWarning("   3. Que la cuenta tenga permisos para enviar correos");
-                _logger.LogWarning("   4. Host: {Host}, Port: {Port}, SSL: {Ssl}", _smtpHost, _smtpPort, _smtpEnableSsl);
-                _logger.LogWarning("   URL: https://aka.ms/smtp_auth_disabled");
+                _logger.LogError("🔴 ERROR CRÍTICO: Office 365 requiere STARTTLS antes de autenticarse");
+                _logger.LogError("   Solución:");
+                _logger.LogError("   1. Verificar que EnableSsl esté en 'true' en la configuración");
+                _logger.LogError("   2. Para puerto 587: EnableSsl debe ser true (usa STARTTLS)");
+                _logger.LogError("   3. Para puerto 465: EnableSsl debe ser true (usa SSL directo)");
+                _logger.LogError("   4. Configuración actual: Host={Host}, Port={Port}, EnableSsl={Ssl}", 
+                    _smtpHost, _smtpPort, _smtpEnableSsl);
+            }
+            else if (ex.Message.Contains("535") || ex.Message.Contains("Authentication") || 
+                     ex.Message.Contains("5.7.139") || ex.Message.Contains("Client not authenticated"))
+            {
+                _logger.LogError("🔴 ERROR DE AUTENTICACIÓN SMTP (535 5.7.139)");
+                _logger.LogError("   Este error indica que Office 365 rechazó las credenciales");
+                _logger.LogError("   Soluciones:");
+                _logger.LogError("   1. HABILITAR SMTP AUTH en Office 365:");
+                _logger.LogError("      - Admin Portal: https://admin.microsoft.com");
+                _logger.LogError("      - Configuración > Configuración de correo > SMTP AUTH");
+                _logger.LogError("      - O PowerShell: Set-CASMailbox -Identity '{Email}' -SmtpClientAuthenticationDisabled $false", _smtpUsername);
+                _logger.LogError("   2. USAR APP PASSWORD (si tiene 2FA habilitado):");
+                _logger.LogError("      - https://account.microsoft.com/security");
+                _logger.LogError("      - Seguridad > Contraseñas de aplicación");
+                _logger.LogError("      - Generar nueva contraseña y reemplazar en configuración");
+                _logger.LogError("   3. Verificar que la cuenta tenga permisos para enviar correos");
+                _logger.LogError("   4. Configuración actual: Host={Host}, Port={Port}, SSL={Ssl}, User={User}", 
+                    _smtpHost, _smtpPort, _smtpEnableSsl, _smtpUsername);
+                _logger.LogError("   URL de ayuda: https://aka.ms/smtp_auth_disabled");
             }
             
             return false;
@@ -351,20 +376,49 @@ public class EmailQueueProcessorService : BackgroundService
             details.AppendLine($"  Inner Message: {ex.InnerException.Message}");
         }
         
-        // Agregar información específica según el código de estado
+        // Agregar información específica según el código de estado y mensaje
         var statusCode = (int)ex.StatusCode;
-        switch (statusCode)
+        var statusCodeName = ex.StatusCode.ToString();
+        
+        if (statusCodeName.Contains("MustIssueStartTlsFirst") || ex.Message.Contains("MustIssueStartTlsFirst"))
         {
-            case 535:
-                details.AppendLine($"  Diagnosis: Error de autenticación. Verificar credenciales SMTP y App Password.");
-                break;
-            case 421:
-            case 454:
-                details.AppendLine($"  Diagnosis: Servicio SMTP no disponible. Verificar conectividad de red.");
-                break;
-            case 550:
-                details.AppendLine($"  Diagnosis: Buzón de correo no disponible. Verificar dirección de email.");
-                break;
+            details.AppendLine($"  Diagnosis: Office 365 requiere STARTTLS antes de autenticarse.");
+            details.AppendLine($"  Solución: Verificar que EnableSsl=true en configuración para puerto 587.");
+            details.AppendLine($"  Configuración actual: EnableSsl={_smtpEnableSsl}, Port={_smtpPort}");
+            if (!_smtpEnableSsl)
+            {
+                details.AppendLine($"  ⚠️ ACCIÓN REQUERIDA: Cambiar Email:Smtp:EnableSsl a 'true' en appsettings.json");
+            }
+        }
+        else if (ex.Message.Contains("535") || ex.Message.Contains("5.7.139") || 
+                 ex.Message.Contains("Authentication unsuccessful") ||
+                 ex.Message.Contains("Client not authenticated"))
+        {
+            details.AppendLine($"  Diagnosis: Error de autenticación SMTP (535 5.7.139).");
+            details.AppendLine($"  Causas posibles:");
+            details.AppendLine($"    1. SMTP AUTH deshabilitado en Office 365 para esta cuenta");
+            details.AppendLine($"    2. Contraseña incorrecta o necesita App Password (si tiene 2FA)");
+            details.AppendLine($"    3. Cuenta sin permisos para enviar correos");
+            details.AppendLine($"  Soluciones:");
+            details.AppendLine($"    - Habilitar SMTP AUTH: https://admin.microsoft.com > Configuración > SMTP AUTH");
+            details.AppendLine($"    - O usar App Password: https://account.microsoft.com/security");
+            details.AppendLine($"    - Verificar permisos de la cuenta {_smtpUsername}");
+        }
+        else
+        {
+            switch (statusCode)
+            {
+                case 421:
+                case 454:
+                    details.AppendLine($"  Diagnosis: Servicio SMTP no disponible. Verificar conectividad de red.");
+                    break;
+                case 550:
+                    details.AppendLine($"  Diagnosis: Buzón de correo no disponible. Verificar dirección de email.");
+                    break;
+                default:
+                    details.AppendLine($"  Diagnosis: Error SMTP con código {statusCode} ({statusCodeName})");
+                    break;
+            }
         }
         
         return details.ToString();
