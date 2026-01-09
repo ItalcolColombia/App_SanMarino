@@ -40,7 +40,17 @@
         { "name": "Database__RunMigrations", "value": "false" },
         { "name": "Database__RunSeed", "value": "false" },
         
-        { "name": "AllowedOrigins", "value": "http://localhost:4200,https://sanmarinoapp.com,http://localhost:8080,http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" }
+        { "name": "AllowedOrigins", "value": "http://localhost:4200,https://sanmarinoapp.com,http://localhost:8080,http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" },
+        
+        { "name": "Email__Smtp__Host", "value": "smtp.office365.com" },
+        { "name": "Email__Smtp__Port", "value": "587" },
+        { "name": "Email__Smtp__Username", "value": "zootecnico@sanmarino.com.co" },
+        { "name": "Email__Smtp__Password", "value": "bvzlsfqddklxldkv" },
+        { "name": "Email__Smtp__EnableSsl", "value": "true" },
+        { "name": "Email__From__Address", "value": "zootecnico@sanmarino.com.co" },
+        { "name": "Email__From__Name", "value": "ZooSanMarino - Sistema Zootécnico" },
+        { "name": "Email__ApplicationUrl", "value": "https://zootecnico.sanmarino.com.co" },
+        { "name": "Email__Queue__Enabled", "value": "true" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "curl -f http://localhost:5002/health || exit 1"],
