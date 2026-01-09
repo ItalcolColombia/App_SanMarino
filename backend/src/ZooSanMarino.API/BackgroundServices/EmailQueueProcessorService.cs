@@ -252,7 +252,7 @@ public class EmailQueueProcessorService : BackgroundService
                 toEmail, ex.Message, smtpDetails);
             
             // Log detallado para diagnóstico
-            if (ex.Message.Contains("535") || ex.Message.Contains("Authentication") || ex.StatusCode == SmtpStatusCode.AuthenticationFailure)
+            if (ex.Message.Contains("535") || ex.Message.Contains("Authentication") || (int)ex.StatusCode == 535)
             {
                 _logger.LogWarning("⚠️ Error de autenticación SMTP. Verifica:");
                 _logger.LogWarning("   1. Que SMTP AUTH esté habilitado en Office 365");
@@ -266,7 +266,11 @@ public class EmailQueueProcessorService : BackgroundService
         }
         catch (Exception ex)
         {
-            var errorDetails = $"Type: {ex.GetType().Name}, Message: {ex.Message}, StackTrace: {ex.StackTrace?.Substring(0, Math.Min(500, ex.StackTrace.Length ?? 0))}";
+            var stackTraceLength = ex.StackTrace?.Length ?? 0;
+            var stackTracePreview = stackTraceLength > 0 
+                ? ex.StackTrace?.Substring(0, Math.Min(500, stackTraceLength)) ?? ""
+                : "";
+            var errorDetails = $"Type: {ex.GetType().Name}, Message: {ex.Message}, StackTrace: {stackTracePreview}";
             _lastEmailErrorDetails = errorDetails;
             
             _logger.LogError(ex, "Error inesperado al enviar correo a {ToEmail}: {Message} | Details: {Details}", 
@@ -275,30 +279,31 @@ public class EmailQueueProcessorService : BackgroundService
         }
     }
 
-    private async Task<string?> GetLastEmailErrorDetailsAsync(string toEmail, string subject)
+    private Task<string?> GetLastEmailErrorDetailsAsync(string toEmail, string subject)
     {
-        return _lastEmailErrorDetails;
+        return Task.FromResult<string?>(_lastEmailErrorDetails);
     }
 
     private string GetErrorType(Exception ex)
     {
         if (ex is SmtpException smtpEx)
         {
-            if (smtpEx.StatusCode == SmtpStatusCode.AuthenticationFailure || 
+            var statusCode = (int)smtpEx.StatusCode;
+            if (statusCode == 535 || 
                 smtpEx.Message.Contains("Authentication") || 
                 smtpEx.Message.Contains("535") ||
                 smtpEx.Message.Contains("535-5.7.3"))
                 return "smtp_auth";
-            if (smtpEx.StatusCode == SmtpStatusCode.ServiceNotAvailable ||
+            if (statusCode == 421 || statusCode == 454 ||
                 smtpEx.Message.Contains("network") || 
                 smtpEx.Message.Contains("timeout") ||
                 smtpEx.Message.Contains("connection"))
                 return "network";
-            if (smtpEx.StatusCode == SmtpStatusCode.MailboxUnavailable ||
+            if (statusCode == 550 ||
                 smtpEx.Message.Contains("550") ||
                 smtpEx.Message.Contains("mailbox"))
                 return "invalid_email";
-            return $"smtp_error_{smtpEx.StatusCode}";
+            return $"smtp_error_{statusCode}";
         }
 
         if (ex.Message.Contains("invalid") || ex.Message.Contains("format") || ex.Message.Contains("address"))
@@ -347,15 +352,17 @@ public class EmailQueueProcessorService : BackgroundService
         }
         
         // Agregar información específica según el código de estado
-        switch (ex.StatusCode)
+        var statusCode = (int)ex.StatusCode;
+        switch (statusCode)
         {
-            case SmtpStatusCode.AuthenticationFailure:
+            case 535:
                 details.AppendLine($"  Diagnosis: Error de autenticación. Verificar credenciales SMTP y App Password.");
                 break;
-            case SmtpStatusCode.ServiceNotAvailable:
+            case 421:
+            case 454:
                 details.AppendLine($"  Diagnosis: Servicio SMTP no disponible. Verificar conectividad de red.");
                 break;
-            case SmtpStatusCode.MailboxUnavailable:
+            case 550:
                 details.AppendLine($"  Diagnosis: Buzón de correo no disponible. Verificar dirección de email.");
                 break;
         }
