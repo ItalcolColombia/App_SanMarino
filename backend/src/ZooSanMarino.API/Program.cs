@@ -409,8 +409,8 @@ app.UseCors("AppCors");
 app.UseSecurityHeaders();
 
 // 2. Rate Limiting (proteger contra DDoS y fuerza bruta)
-// Habilitado con configuración ajustada para no bloquear usuarios legítimos
-app.UseRateLimiting();
+// DESHABILITADO: Comentado para permitir peticiones sin límites
+// app.UseRateLimiting();
 
 // 3. Validar SECRET_UP después de CORS pero antes de Authentication/Authorization
 // El middleware ya maneja OPTIONS requests internamente
