@@ -1,4 +1,5 @@
 // src/ZooSanMarino.API/BackgroundServices/EmailQueueProcessorService.cs
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
@@ -118,22 +119,49 @@ public class EmailQueueProcessorService : BackgroundService
                     // Incrementar contador de reintentos
                     emailQueue.RetryCount++;
                     
+                    // Obtener detalles del último error de SendEmailAsync
+                    var lastErrorDetails = await GetLastEmailErrorDetailsAsync(emailQueue.ToEmail, emailQueue.Subject);
+                    
                     if (emailQueue.RetryCount >= emailQueue.MaxRetries)
                     {
                         // Marcar como fallido después de agotar reintentos
                         emailQueue.Status = "failed";
                         emailQueue.FailedAt = DateTime.UtcNow;
                         emailQueue.ErrorType = "max_retries_exceeded";
-                        _logger.LogWarning("❌ Correo falló después de {RetryCount} intentos: ID={EmailQueueId}, To={ToEmail}", 
-                            emailQueue.RetryCount, emailQueue.Id, emailQueue.ToEmail);
+                        
+                        // Construir mensaje de error detallado
+                        var detailedError = BuildDetailedErrorMessage(
+                            emailQueue.RetryCount,
+                            emailQueue.MaxRetries,
+                            emailQueue.CreatedAt,
+                            lastErrorDetails
+                        );
+                        emailQueue.ErrorMessage = detailedError;
+                        
+                        // Actualizar metadata con información detallada del error
+                        var metadata = UpdateMetadataWithErrorDetails(emailQueue.Metadata, lastErrorDetails, emailQueue.RetryCount);
+                        emailQueue.Metadata = metadata;
+                        
+                        _logger.LogError(
+                            "❌ Correo falló después de {RetryCount}/{MaxRetries} intentos: ID={EmailQueueId}, To={ToEmail}, Type={EmailType}, Error={ErrorDetails}",
+                            emailQueue.RetryCount, emailQueue.MaxRetries, emailQueue.Id, emailQueue.ToEmail, emailQueue.EmailType, detailedError);
                     }
                     else
                     {
                         // Volver a estado pending para reintento
                         emailQueue.Status = "pending";
                         emailQueue.ProcessedAt = null;
-                        _logger.LogWarning("⚠️ Correo falló, reintentando ({RetryCount}/{MaxRetries}): ID={EmailQueueId}, To={ToEmail}", 
-                            emailQueue.RetryCount, emailQueue.MaxRetries, emailQueue.Id, emailQueue.ToEmail);
+                        
+                        // Guardar información del error actual para referencia
+                        if (!string.IsNullOrEmpty(lastErrorDetails))
+                        {
+                            emailQueue.ErrorMessage = $"Intento {emailQueue.RetryCount} fallido: {lastErrorDetails}";
+                            emailQueue.ErrorType = GetErrorTypeFromDetails(lastErrorDetails);
+                        }
+                        
+                        _logger.LogWarning(
+                            "⚠️ Correo falló, reintentando ({RetryCount}/{MaxRetries}): ID={EmailQueueId}, To={ToEmail}, Error={ErrorDetails}",
+                            emailQueue.RetryCount, emailQueue.MaxRetries, emailQueue.Id, emailQueue.ToEmail, lastErrorDetails ?? "Unknown");
                     }
                 }
 
@@ -141,18 +169,33 @@ public class EmailQueueProcessorService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al procesar correo: ID={EmailQueueId}, To={ToEmail}", 
-                    emailQueue.Id, emailQueue.ToEmail);
+                // Construir mensaje de error detallado
+                var detailedError = BuildDetailedExceptionMessage(ex, emailQueue.RetryCount + 1);
+                
+                _logger.LogError(ex, 
+                    "Error al procesar correo: ID={EmailQueueId}, To={ToEmail}, Type={EmailType}, Retry={RetryCount}, Error={ErrorDetails}",
+                    emailQueue.Id, emailQueue.ToEmail, emailQueue.EmailType, emailQueue.RetryCount + 1, detailedError);
 
                 // Registrar error
                 emailQueue.RetryCount++;
-                emailQueue.ErrorMessage = ex.Message;
+                emailQueue.ErrorMessage = detailedError;
                 emailQueue.ErrorType = GetErrorType(ex);
 
                 if (emailQueue.RetryCount >= emailQueue.MaxRetries)
                 {
                     emailQueue.Status = "failed";
                     emailQueue.FailedAt = DateTime.UtcNow;
+                    emailQueue.ErrorType = emailQueue.ErrorType == "max_retries_exceeded" 
+                        ? emailQueue.ErrorType 
+                        : $"max_retries_exceeded_{emailQueue.ErrorType}";
+                    
+                    // Actualizar metadata con información detallada del error
+                    var metadata = UpdateMetadataWithExceptionDetails(emailQueue.Metadata, ex, emailQueue.RetryCount);
+                    emailQueue.Metadata = metadata;
+                    
+                    _logger.LogError(
+                        "❌ Correo falló definitivamente después de {RetryCount}/{MaxRetries} intentos: ID={EmailQueueId}, To={ToEmail}, Type={EmailType}, Error={ErrorDetails}",
+                        emailQueue.RetryCount, emailQueue.MaxRetries, emailQueue.Id, emailQueue.ToEmail, emailQueue.EmailType, detailedError);
                 }
                 else
                 {
@@ -165,8 +208,12 @@ public class EmailQueueProcessorService : BackgroundService
         }
     }
 
+    private string? _lastEmailErrorDetails = null;
+
     private async Task<bool> SendEmailAsync(string toEmail, string subject, string body)
     {
+        _lastEmailErrorDetails = null; // Reset error details
+        
         try
         {
             // Configuración mejorada para Office 365
@@ -197,15 +244,21 @@ public class EmailQueueProcessorService : BackgroundService
         }
         catch (SmtpException ex)
         {
-            _logger.LogError(ex, "Error SMTP al enviar correo a {ToEmail}: {Message}", toEmail, ex.Message);
+            // Capturar información detallada del error SMTP
+            var smtpDetails = BuildSmtpExceptionDetails(ex, toEmail);
+            _lastEmailErrorDetails = smtpDetails;
+            
+            _logger.LogError(ex, "Error SMTP al enviar correo a {ToEmail}: {Message} | Details: {Details}", 
+                toEmail, ex.Message, smtpDetails);
             
             // Log detallado para diagnóstico
-            if (ex.Message.Contains("535") || ex.Message.Contains("Authentication"))
+            if (ex.Message.Contains("535") || ex.Message.Contains("Authentication") || ex.StatusCode == SmtpStatusCode.AuthenticationFailure)
             {
                 _logger.LogWarning("⚠️ Error de autenticación SMTP. Verifica:");
                 _logger.LogWarning("   1. Que SMTP AUTH esté habilitado en Office 365");
                 _logger.LogWarning("   2. Que uses una 'App Password' en lugar de la contraseña normal");
                 _logger.LogWarning("   3. Que la cuenta tenga permisos para enviar correos");
+                _logger.LogWarning("   4. Host: {Host}, Port: {Port}, SSL: {Ssl}", _smtpHost, _smtpPort, _smtpEnableSsl);
                 _logger.LogWarning("   URL: https://aka.ms/smtp_auth_disabled");
             }
             
@@ -213,26 +266,193 @@ public class EmailQueueProcessorService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error inesperado al enviar correo a {ToEmail}: {Message}", toEmail, ex.Message);
+            var errorDetails = $"Type: {ex.GetType().Name}, Message: {ex.Message}, StackTrace: {ex.StackTrace?.Substring(0, Math.Min(500, ex.StackTrace.Length ?? 0))}";
+            _lastEmailErrorDetails = errorDetails;
+            
+            _logger.LogError(ex, "Error inesperado al enviar correo a {ToEmail}: {Message} | Details: {Details}", 
+                toEmail, ex.Message, errorDetails);
             return false;
         }
+    }
+
+    private async Task<string?> GetLastEmailErrorDetailsAsync(string toEmail, string subject)
+    {
+        return _lastEmailErrorDetails;
     }
 
     private string GetErrorType(Exception ex)
     {
         if (ex is SmtpException smtpEx)
         {
-            if (smtpEx.Message.Contains("Authentication") || smtpEx.Message.Contains("535"))
+            if (smtpEx.StatusCode == SmtpStatusCode.AuthenticationFailure || 
+                smtpEx.Message.Contains("Authentication") || 
+                smtpEx.Message.Contains("535") ||
+                smtpEx.Message.Contains("535-5.7.3"))
                 return "smtp_auth";
-            if (smtpEx.Message.Contains("network") || smtpEx.Message.Contains("timeout"))
+            if (smtpEx.StatusCode == SmtpStatusCode.ServiceNotAvailable ||
+                smtpEx.Message.Contains("network") || 
+                smtpEx.Message.Contains("timeout") ||
+                smtpEx.Message.Contains("connection"))
                 return "network";
-            return "smtp_error";
+            if (smtpEx.StatusCode == SmtpStatusCode.MailboxUnavailable ||
+                smtpEx.Message.Contains("550") ||
+                smtpEx.Message.Contains("mailbox"))
+                return "invalid_email";
+            return $"smtp_error_{smtpEx.StatusCode}";
         }
 
-        if (ex.Message.Contains("invalid") || ex.Message.Contains("format"))
+        if (ex.Message.Contains("invalid") || ex.Message.Contains("format") || ex.Message.Contains("address"))
             return "invalid_email";
 
+        if (ex is TimeoutException || ex.Message.Contains("timeout"))
+            return "timeout";
+
+        if (ex is System.Net.Sockets.SocketException)
+            return "network_socket";
+
+        return $"unknown_{ex.GetType().Name}";
+    }
+
+    private string GetErrorTypeFromDetails(string? errorDetails)
+    {
+        if (string.IsNullOrEmpty(errorDetails))
+            return "unknown";
+            
+        if (errorDetails.Contains("Authentication") || errorDetails.Contains("535"))
+            return "smtp_auth";
+        if (errorDetails.Contains("network") || errorDetails.Contains("timeout") || errorDetails.Contains("connection"))
+            return "network";
+        if (errorDetails.Contains("invalid") || errorDetails.Contains("format") || errorDetails.Contains("address"))
+            return "invalid_email";
+            
         return "unknown";
+    }
+
+    private string BuildSmtpExceptionDetails(SmtpException ex, string toEmail)
+    {
+        var details = new StringBuilder();
+        details.AppendLine($"SMTP Error Details:");
+        details.AppendLine($"  Status Code: {ex.StatusCode}");
+        details.AppendLine($"  Message: {ex.Message}");
+        details.AppendLine($"  To Email: {toEmail}");
+        details.AppendLine($"  SMTP Host: {_smtpHost}");
+        details.AppendLine($"  SMTP Port: {_smtpPort}");
+        details.AppendLine($"  SSL Enabled: {_smtpEnableSsl}");
+        details.AppendLine($"  From Email: {_fromEmail}");
+        
+        if (ex.InnerException != null)
+        {
+            details.AppendLine($"  Inner Exception: {ex.InnerException.GetType().Name}");
+            details.AppendLine($"  Inner Message: {ex.InnerException.Message}");
+        }
+        
+        // Agregar información específica según el código de estado
+        switch (ex.StatusCode)
+        {
+            case SmtpStatusCode.AuthenticationFailure:
+                details.AppendLine($"  Diagnosis: Error de autenticación. Verificar credenciales SMTP y App Password.");
+                break;
+            case SmtpStatusCode.ServiceNotAvailable:
+                details.AppendLine($"  Diagnosis: Servicio SMTP no disponible. Verificar conectividad de red.");
+                break;
+            case SmtpStatusCode.MailboxUnavailable:
+                details.AppendLine($"  Diagnosis: Buzón de correo no disponible. Verificar dirección de email.");
+                break;
+        }
+        
+        return details.ToString();
+    }
+
+    private string BuildDetailedErrorMessage(int retryCount, int maxRetries, DateTime createdAt, string? lastErrorDetails)
+    {
+        var details = new StringBuilder();
+        details.AppendLine($"Email failed after {retryCount}/{maxRetries} retry attempts.");
+        details.AppendLine($"Created at: {createdAt:yyyy-MM-dd HH:mm:ss} UTC");
+        details.AppendLine($"Failed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        details.AppendLine($"Total time elapsed: {(DateTime.UtcNow - createdAt).TotalMinutes:F2} minutes");
+        details.AppendLine();
+        details.AppendLine("Last error details:");
+        details.AppendLine(lastErrorDetails ?? "No error details available");
+        details.AppendLine();
+        details.AppendLine("Possible causes:");
+        details.AppendLine("  1. SMTP server authentication failure (check credentials and App Password)");
+        details.AppendLine("  2. Network connectivity issues");
+        details.AppendLine("  3. Invalid email address format");
+        details.AppendLine("  4. SMTP server temporarily unavailable");
+        details.AppendLine("  5. Firewall or security restrictions");
+        
+        return details.ToString();
+    }
+
+    private string BuildDetailedExceptionMessage(Exception ex, int attemptNumber)
+    {
+        var details = new StringBuilder();
+        details.AppendLine($"Exception occurred on attempt #{attemptNumber}:");
+        details.AppendLine($"  Exception Type: {ex.GetType().FullName}");
+        details.AppendLine($"  Message: {ex.Message}");
+        details.AppendLine($"  Source: {ex.Source ?? "Unknown"}");
+        
+        if (ex is SmtpException smtpEx)
+        {
+            details.AppendLine($"  SMTP Status Code: {smtpEx.StatusCode}");
+        }
+        
+        if (ex.InnerException != null)
+        {
+            details.AppendLine($"  Inner Exception: {ex.InnerException.GetType().FullName}");
+            details.AppendLine($"  Inner Message: {ex.InnerException.Message}");
+        }
+        
+        if (!string.IsNullOrEmpty(ex.StackTrace))
+        {
+            var stackTracePreview = ex.StackTrace.Length > 1000 
+                ? ex.StackTrace.Substring(0, 1000) + "... (truncated)" 
+                : ex.StackTrace;
+            details.AppendLine($"  Stack Trace: {stackTracePreview}");
+        }
+        
+        return details.ToString();
+    }
+
+    private string? UpdateMetadataWithErrorDetails(string? existingMetadata, string? errorDetails, int retryCount)
+    {
+        try
+        {
+            var metadata = new Dictionary<string, object>();
+            
+            if (!string.IsNullOrEmpty(existingMetadata))
+            {
+                var existing = JsonSerializer.Deserialize<Dictionary<string, object>>(existingMetadata);
+                if (existing != null)
+                {
+                    foreach (var kvp in existing)
+                    {
+                        metadata[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+            
+            metadata["error_history"] = metadata.ContainsKey("error_history") 
+                ? $"{metadata["error_history"]}\nAttempt {retryCount}: {errorDetails}"
+                : $"Attempt {retryCount}: {errorDetails}";
+            
+            metadata["last_error"] = errorDetails;
+            metadata["last_error_at"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
+            metadata["total_retries"] = retryCount;
+            
+            return JsonSerializer.Serialize(metadata);
+        }
+        catch
+        {
+            // Si falla la serialización, devolver metadata básico
+            return $"{{\"last_error\":\"{errorDetails?.Replace("\"", "\\\"")}\",\"retry_count\":{retryCount}}}";
+        }
+    }
+
+    private string? UpdateMetadataWithExceptionDetails(string? existingMetadata, Exception ex, int retryCount)
+    {
+        var errorDetails = BuildDetailedExceptionMessage(ex, retryCount);
+        return UpdateMetadataWithErrorDetails(existingMetadata, errorDetails, retryCount);
     }
 }
 
