@@ -241,5 +241,31 @@ public class ReporteTecnicoController : ControllerBase
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }
+
+    /// <summary>
+    /// Genera reporte técnico completo de Levante con estructura Excel (25 semanas)
+    /// Incluye todos los campos calculados, manuales y de guía según estructura Excel
+    /// </summary>
+    [HttpGet("levante/completo/{loteId}")]
+    public async Task<ActionResult<ReporteTecnicoLevanteCompletoDto>> GetReporteLevanteCompleto(
+        int loteId,
+        [FromQuery] bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var reporte = await _service.GenerarReporteLevanteCompletoAsync(loteId, consolidarSublotes, ct);
+            return Ok(reporte);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al generar reporte técnico completo de Levante para lote {LoteId}", loteId);
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
 }
 

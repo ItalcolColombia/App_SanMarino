@@ -1,0 +1,144 @@
+.tabla-container {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabla-datos-completa {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  min-width: 3000px; // Mínimo ancho para todas las columnas
+
+  thead {
+    background-color: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    th {
+      padding: 0.5rem 0.25rem;
+      text-align: center;
+      border: 1px solid #dee2e6;
+      font-weight: 600;
+      font-size: 0.7rem;
+      white-space: nowrap;
+      background-color: #e9ecef;
+      
+      // Primera fila (headers principales)
+      &:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 11;
+        background-color: #e9ecef;
+      }
+    }
+
+    // Segunda fila (subheaders)
+    tr:last-child th {
+      background-color: #f8f9fa;
+      font-size: 0.65rem;
+    }
+  }
+
+  tbody {
+    tr {
+      &:nth-child(even) {
+        background-color: #f8f9fa;
+      }
+
+      &:hover {
+        background-color: #e9ecef;
+      }
+
+      td {
+        padding: 0.4rem 0.25rem;
+        text-align: right;
+        border: 1px solid #dee2e6;
+        white-space: nowrap;
+        font-size: 0.7rem;
+
+        // Primera columna (semana) sticky
+        &:first-child {
+          position: sticky;
+          left: 0;
+          z-index: 5;
+          background-color: inherit;
+          font-weight: 600;
+          text-align: center;
+        }
+
+        // Segunda columna (fecha) sticky
+        &:nth-child(2) {
+          position: sticky;
+          left: 50px;
+          z-index: 5;
+          background-color: inherit;
+          text-align: center;
+        }
+
+        // Tercera columna (edad) sticky
+        &:nth-child(3) {
+          position: sticky;
+          left: 120px;
+          z-index: 5;
+          background-color: inherit;
+          text-align: center;
+        }
+
+        // Columnas de iniciales
+        &:nth-child(4),
+        &:nth-child(5) {
+          text-align: center;
+          font-weight: 500;
+        }
+
+        // Columnas de hembras (destacar)
+        &:nth-child(n+6):nth-child(-n+40) {
+          background-color: #fff3cd;
+        }
+
+        // Columnas de machos (destacar)
+        &:nth-child(n+41):nth-child(-n+75) {
+          background-color: #d1ecf1;
+        }
+
+        // Columnas nutricionales (destacar)
+        &:nth-child(n+76):nth-child(-n+91) {
+          background-color: #f8d7da;
+        }
+
+        // Observaciones
+        &.observaciones {
+          text-align: left;
+          max-width: 200px;
+          white-space: normal;
+          word-wrap: break-word;
+        }
+      }
+    }
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 1400px) {
+  .tabla-datos-completa {
+    font-size: 0.65rem;
+    
+    thead th {
+      font-size: 0.6rem;
+      padding: 0.4rem 0.2rem;
+    }
+    
+    tbody td {
+      font-size: 0.65rem;
+      padding: 0.3rem 0.2rem;
+    }
+  }
+}
+

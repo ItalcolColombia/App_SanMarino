@@ -208,6 +208,156 @@ export class ReporteTecnicoService {
       { responseType: 'blob' }
     );
   }
+
+  /**
+   * Genera reporte técnico completo de Levante con estructura Excel (25 semanas)
+   * Incluye todos los campos calculados, manuales y de guía
+   */
+  generarReporteLevanteCompleto(
+    loteId: number,
+    consolidarSublotes: boolean = false
+  ): Observable<ReporteTecnicoLevanteCompletoDto> {
+    const params = new HttpParams().set('consolidarSublotes', consolidarSublotes.toString());
+    return this.http.get<ReporteTecnicoLevanteCompletoDto>(
+      `${this.baseUrl}/levante/completo/${loteId}`,
+      { params }
+    );
+  }
+}
+
+// ========== DTOs para Reporte Técnico Completo de Levante (Estructura Excel) ==========
+
+export interface ReporteTecnicoLevanteSemanalDto {
+  // Identificación y datos manuales
+  codGuia?: string | null;
+  idLoteRAP?: string | null;
+  regional?: string | null;
+  granja?: string | null;
+  lote?: string | null;
+  raza?: string | null;
+  anoG?: number | null;
+  hembraIni: number;
+  machoIni: number;
+  traslado?: number | null;
+  nucleoL?: string | null;
+  anon?: number | null;
+  edad: number;
+  fecha: string;
+  semAno: number;
+  semana: number;
+
+  // Datos hembras
+  hembra: number;
+  mortH: number;
+  selH: number;
+  errorH: number;
+  consKgH: number;
+  pesoH?: number | null;
+  uniformH?: number | null;
+  cvH?: number | null;
+  kcalAlH?: number | null;
+  protAlH?: number | null;
+
+  // Datos machos
+  saldoMacho: number;
+  mortM: number;
+  selM: number;
+  errorM: number;
+  consKgM: number;
+  pesoM?: number | null;
+  uniformM?: number | null;
+  cvM?: number | null;
+  kcalAlM?: number | null;
+  protAlM?: number | null;
+
+  // Cálculos de eficiencia y rendimiento
+  kcalAveH?: number | null;
+  protAveH?: number | null;
+  kcalAveM?: number | null;
+  protAveM?: number | null;
+  relMH?: number | null;
+  porcMortH?: number | null;
+  porcMortHGUIA?: number | null;
+  difMortH?: number | null;
+  acMortH?: number | null;
+  porcSelH?: number | null;
+  acSelH?: number | null;
+  porcErrH?: number | null;
+  acErrH?: number | null;
+  mseh?: number | null;
+  retAcH?: number | null;
+  porcRetiroH?: number | null;
+  retiroHGUIA?: number | null;
+  acConsH?: number | null;
+  consAcGrH?: number | null;
+  consAcGrHGUIA?: number | null;
+  grAveDiaH?: number | null;
+  grAveDiaGUIAH?: number | null;
+  incrConsH?: number | null;
+  incrConsHGUIA?: number | null;
+  porcDifConsH?: number | null;
+  pesoHGUIA?: number | null;
+  porcDifPesoH?: number | null;
+  unifHGUIA?: number | null;
+  porcMortM?: number | null;
+  porcMortMGUIA?: number | null;
+  difMortM?: number | null;
+  acMortM?: number | null;
+  porcSelM?: number | null;
+  acSelM?: number | null;
+  porcErrM?: number | null;
+  acErrM?: number | null;
+  msem?: number | null;
+  retAcM?: number | null;
+  porcRetAcM?: number | null;
+  retiroMGUIA?: number | null;
+  acConsM?: number | null;
+  consAcGrM?: number | null;
+  consAcGrMGUIA?: number | null;
+  grAveDiaM?: number | null;
+  grAveDiaMGUIA?: number | null;
+  incrConsM?: number | null;
+  incrConsMGUIA?: number | null;
+  difConsM?: number | null;
+  pesoMGUIA?: number | null;
+  porcDifPesoM?: number | null;
+  unifMGUIA?: number | null;
+  errSexAcH?: number | null;
+  porcErrSxAcH?: number | null;
+  errSexAcM?: number | null;
+  porcErrSxAcM?: number | null;
+  difConsAcH?: number | null;
+  difConsAcM?: number | null;
+
+  // Datos nutricionales y guía
+  alimHGUIA?: string | null;
+  kcalSemH?: number | null;
+  kcalSemAcH?: number | null;
+  kcalSemHGUIA?: number | null;
+  kcalSemAcHGUIA?: number | null;
+  protSemH?: number | null;
+  protSemAcH?: number | null;
+  protSemHGUIA?: number | null;
+  protSemAcHGUIA?: number | null;
+  alimMGUIA?: string | null;
+  kcalSemM?: number | null;
+  kcalSemAcM?: number | null;
+  kcalSemMGUIA?: number | null;
+  kcalSemAcMGUIA?: number | null;
+  protSemM?: number | null;
+  protSemAcM?: number | null;
+  protSemMGUIA?: number | null;
+  protSemAcMGUIA?: number | null;
+
+  // Observaciones
+  observaciones?: string | null;
+}
+
+export interface ReporteTecnicoLevanteCompletoDto {
+  informacionLote: ReporteTecnicoLoteInfoDto;
+  datosSemanales: ReporteTecnicoLevanteSemanalDto[];
+  esConsolidado: boolean;
+  sublotesIncluidos: string[];
 }
 
 

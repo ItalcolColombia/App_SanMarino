@@ -1,0 +1,234 @@
+<div class="tabla-container">
+  <div class="table-responsive">
+    <table class="tabla-datos-completa">
+      <thead>
+        <tr>
+          <!-- Identificación -->
+          <th rowspan="2">SEM</th>
+          <th rowspan="2">FECHA</th>
+          <th rowspan="2">EDAD</th>
+          <th colspan="2">INICIALES</th>
+          
+          <!-- HEMBRAS -->
+          <th colspan="15">HEMBRAS</th>
+          
+          <!-- MACHOS -->
+          <th colspan="15">MACHOS</th>
+          
+          <!-- NUTRICIONALES HEMBRAS -->
+          <th colspan="8">NUTRICIONALES HEMBRAS</th>
+          
+          <!-- NUTRICIONALES MACHOS -->
+          <th colspan="8">NUTRICIONALES MACHOS</th>
+          
+          <th rowspan="2">OBS</th>
+        </tr>
+        <tr>
+          <!-- Iniciales -->
+          <th>H Ini</th>
+          <th>M Ini</th>
+          
+          <!-- Hembras -->
+          <th>Hembra</th>
+          <th>MortH</th>
+          <th>SelH</th>
+          <th>ErrH</th>
+          <th>ConsKgH</th>
+          <th>PesoH</th>
+          <th>UnifH</th>
+          <th>%CVH</th>
+          <th>%MortH</th>
+          <th>%MortH GUIA</th>
+          <th>Dif MortH</th>
+          <th>AC MortH</th>
+          <th>%SelH</th>
+          <th>AC SelH</th>
+          <th>%ErrH</th>
+          <th>AC ErrH</th>
+          <th>M+S+EH</th>
+          <th>Ret AcH</th>
+          <th>%RetiroH</th>
+          <th>RetiroH GUIA</th>
+          <th>Ac ConsH</th>
+          <th>Cons AcGrH</th>
+          <th>Cons AcGrH GUIA</th>
+          <th>Gr/Ave/DiaH</th>
+          <th>Gr/Ave/DiaH GUIA</th>
+          <th>Incr ConsH</th>
+          <th>Incr ConsH GUIA</th>
+          <th>%Dif ConsH</th>
+          <th>PesoH GUIA</th>
+          <th>%Dif PesoH</th>
+          <th>UnifH GUIA</th>
+          <th>Kcal/AveH</th>
+          <th>Prot/AveH</th>
+          <th>%Rel M/H</th>
+          
+          <!-- Machos -->
+          <th>SaldoM</th>
+          <th>MortM</th>
+          <th>SelM</th>
+          <th>ErrM</th>
+          <th>ConsKgM</th>
+          <th>PesoM</th>
+          <th>UnifM</th>
+          <th>%CVM</th>
+          <th>%MortM</th>
+          <th>%MortM GUIA</th>
+          <th>Dif MortM</th>
+          <th>AC MortM</th>
+          <th>%SelM</th>
+          <th>AC SelM</th>
+          <th>%ErrM</th>
+          <th>AC ErrM</th>
+          <th>M+S+EM</th>
+          <th>Ret AcM</th>
+          <th>%Ret AcM</th>
+          <th>RetiroM GUIA</th>
+          <th>Ac ConsM</th>
+          <th>Cons AcGrM</th>
+          <th>Cons AcGrM GUIA</th>
+          <th>Gr/Ave/DiaM</th>
+          <th>Gr/Ave/DiaM GUIA</th>
+          <th>Incr ConsM</th>
+          <th>Incr ConsM GUIA</th>
+          <th>Dif ConsM</th>
+          <th>PesoM GUIA</th>
+          <th>%Dif PesoM</th>
+          <th>UnifM GUIA</th>
+          <th>Kcal/AveM</th>
+          <th>Prot/AveM</th>
+          
+          <!-- Nutricionales Hembras -->
+          <th>AlimH GUIA</th>
+          <th>Kcal SemH</th>
+          <th>Kcal SemAcH</th>
+          <th>Kcal SemH GUIA</th>
+          <th>Kcal SemAcH GUIA</th>
+          <th>Prot SemH</th>
+          <th>Prot SemAcH</th>
+          <th>Prot SemH GUIA</th>
+          <th>Prot SemAcH GUIA</th>
+          
+          <!-- Nutricionales Machos -->
+          <th>AlimM GUIA</th>
+          <th>Kcal SemM</th>
+          <th>Kcal SemAcM</th>
+          <th>Kcal SemM GUIA</th>
+          <th>Kcal SemAcM GUIA</th>
+          <th>Prot SemM</th>
+          <th>Prot SemAcM</th>
+          <th>Prot SemM GUIA</th>
+          <th>Prot SemAcM GUIA</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let dato of datos">
+          <!-- Identificación -->
+          <td><strong>{{ dato.semana }}</strong></td>
+          <td>{{ formatDate(dato.fecha) }}</td>
+          <td>{{ dato.edad }}</td>
+          <td>{{ dato.hembraIni }}</td>
+          <td>{{ dato.machoIni }}</td>
+          
+          <!-- Hembras -->
+          <td>{{ dato.hembra }}</td>
+          <td>{{ dato.mortH }}</td>
+          <td>{{ dato.selH }}</td>
+          <td>{{ dato.errorH }}</td>
+          <td>{{ formatNumber(dato.consKgH, 2) }}</td>
+          <td>{{ formatNumber(dato.pesoH, 2) }}</td>
+          <td>{{ formatNumber(dato.uniformH, 1) }}</td>
+          <td>{{ formatNumber(dato.cvH, 2) }}</td>
+          <td>{{ formatPercentage(dato.porcMortH) }}</td>
+          <td>{{ formatPercentage(dato.porcMortHGUIA) }}</td>
+          <td>{{ formatPercentage(dato.difMortH) }}</td>
+          <td>{{ dato.acMortH ?? '-' }}</td>
+          <td>{{ formatPercentage(dato.porcSelH) }}</td>
+          <td>{{ dato.acSelH ?? '-' }}</td>
+          <td>{{ formatPercentage(dato.porcErrH) }}</td>
+          <td>{{ dato.acErrH ?? '-' }}</td>
+          <td>{{ dato.mseh ?? '-' }}</td>
+          <td>{{ dato.retAcH ?? '-' }}</td>
+          <td>{{ formatPercentage(dato.porcRetiroH) }}</td>
+          <td>{{ formatPercentage(dato.retiroHGUIA) }}</td>
+          <td>{{ formatNumber(dato.acConsH, 2) }}</td>
+          <td>{{ formatNumber(dato.consAcGrH, 2) }}</td>
+          <td>{{ formatNumber(dato.consAcGrHGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.grAveDiaH, 2) }}</td>
+          <td>{{ formatNumber(dato.grAveDiaGUIAH, 2) }}</td>
+          <td>{{ formatNumber(dato.incrConsH, 2) }}</td>
+          <td>{{ formatNumber(dato.incrConsHGUIA, 2) }}</td>
+          <td>{{ formatPercentage(dato.porcDifConsH) }}</td>
+          <td>{{ formatNumber(dato.pesoHGUIA, 2) }}</td>
+          <td>{{ formatPercentage(dato.porcDifPesoH) }}</td>
+          <td>{{ formatNumber(dato.unifHGUIA, 1) }}</td>
+          <td>{{ formatNumber(dato.kcalAveH, 2) }}</td>
+          <td>{{ formatNumber(dato.protAveH, 3) }}</td>
+          <td>{{ formatPercentage(dato.relMH) }}</td>
+          
+          <!-- Machos -->
+          <td>{{ dato.saldoMacho }}</td>
+          <td>{{ dato.mortM }}</td>
+          <td>{{ dato.selM }}</td>
+          <td>{{ dato.errorM }}</td>
+          <td>{{ formatNumber(dato.consKgM, 2) }}</td>
+          <td>{{ formatNumber(dato.pesoM, 2) }}</td>
+          <td>{{ formatNumber(dato.uniformM, 1) }}</td>
+          <td>{{ formatNumber(dato.cvM, 2) }}</td>
+          <td>{{ formatPercentage(dato.porcMortM) }}</td>
+          <td>{{ formatPercentage(dato.porcMortMGUIA) }}</td>
+          <td>{{ formatPercentage(dato.difMortM) }}</td>
+          <td>{{ dato.acMortM ?? '-' }}</td>
+          <td>{{ formatPercentage(dato.porcSelM) }}</td>
+          <td>{{ dato.acSelM ?? '-' }}</td>
+          <td>{{ formatPercentage(dato.porcErrM) }}</td>
+          <td>{{ dato.acErrM ?? '-' }}</td>
+          <td>{{ dato.msem ?? '-' }}</td>
+          <td>{{ dato.retAcM ?? '-' }}</td>
+          <td>{{ formatPercentage(dato.porcRetAcM) }}</td>
+          <td>{{ formatPercentage(dato.retiroMGUIA) }}</td>
+          <td>{{ formatNumber(dato.acConsM, 2) }}</td>
+          <td>{{ formatNumber(dato.consAcGrM, 2) }}</td>
+          <td>{{ formatNumber(dato.consAcGrMGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.grAveDiaM, 2) }}</td>
+          <td>{{ formatNumber(dato.grAveDiaMGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.incrConsM, 2) }}</td>
+          <td>{{ formatNumber(dato.incrConsMGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.difConsM, 2) }}</td>
+          <td>{{ formatNumber(dato.pesoMGUIA, 2) }}</td>
+          <td>{{ formatPercentage(dato.porcDifPesoM) }}</td>
+          <td>{{ formatNumber(dato.unifMGUIA, 1) }}</td>
+          <td>{{ formatNumber(dato.kcalAveM, 2) }}</td>
+          <td>{{ formatNumber(dato.protAveM, 3) }}</td>
+          
+          <!-- Nutricionales Hembras -->
+          <td>{{ dato.alimHGUIA ?? '-' }}</td>
+          <td>{{ formatNumber(dato.kcalSemH, 2) }}</td>
+          <td>{{ formatNumber(dato.kcalSemAcH, 2) }}</td>
+          <td>{{ formatNumber(dato.kcalSemHGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.kcalSemAcHGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.protSemH, 3) }}</td>
+          <td>{{ formatNumber(dato.protSemAcH, 3) }}</td>
+          <td>{{ formatNumber(dato.protSemHGUIA, 3) }}</td>
+          <td>{{ formatNumber(dato.protSemAcHGUIA, 3) }}</td>
+          
+          <!-- Nutricionales Machos -->
+          <td>{{ dato.alimMGUIA ?? '-' }}</td>
+          <td>{{ formatNumber(dato.kcalSemM, 2) }}</td>
+          <td>{{ formatNumber(dato.kcalSemAcM, 2) }}</td>
+          <td>{{ formatNumber(dato.kcalSemMGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.kcalSemAcMGUIA, 2) }}</td>
+          <td>{{ formatNumber(dato.protSemM, 3) }}</td>
+          <td>{{ formatNumber(dato.protSemAcM, 3) }}</td>
+          <td>{{ formatNumber(dato.protSemMGUIA, 3) }}</td>
+          <td>{{ formatNumber(dato.protSemAcMGUIA, 3) }}</td>
+          
+          <!-- Observaciones -->
+          <td class="observaciones">{{ dato.observaciones ?? '-' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+

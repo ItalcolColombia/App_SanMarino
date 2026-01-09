@@ -12,7 +12,8 @@
           <th>AVES FIN</th>
           <th>MORTALIDAD TOTAL</th>
           <th>% MORTALIDAD</th>
-          <th>DESCARTE</th>
+          <th>DESCARTE TOTAL</th>
+          <th>% DESCARTE</th>
           <th>TRASLADOS</th>
           <th>ERROR SEXAJE</th>
           <th>CONSUMO KILOS</th>
@@ -33,9 +34,10 @@
           <td>{{ dato.edadFinSemanas }}</td>
           <td>{{ dato.avesInicioSemana }}</td>
           <td>{{ dato.avesFinSemana }}</td>
-          <td>{{ dato.mortalidadTotalSemana }}</td>
-          <td>{{ formatNumber(dato.mortalidadPorcentajeSemana) }}</td>
-          <td>{{ dato.descarteTotalSemana }}</td>
+          <td [class.highlight-red]="dato.mortalidadTotalSemana > 0">{{ dato.mortalidadTotalSemana }}</td>
+          <td [class.highlight-red]="dato.mortalidadPorcentajeSemana > 0">{{ formatNumber(dato.mortalidadPorcentajeSemana) }}%</td>
+          <td [class.highlight-orange]="dato.descarteTotalSemana > 0">{{ dato.descarteTotalSemana }}</td>
+          <td [class.highlight-orange]="getDescartePorcentaje(dato) > 0">{{ formatNumber(getDescartePorcentaje(dato)) }}%</td>
           <td>{{ dato.trasladosTotalSemana }}</td>
           <td>{{ dato.errorSexajeTotalSemana }}</td>
           <td>{{ formatNumber(dato.consumoKilosSemana, 1) }}</td>
