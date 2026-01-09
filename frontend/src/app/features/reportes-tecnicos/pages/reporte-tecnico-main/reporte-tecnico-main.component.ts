@@ -18,7 +18,8 @@ import { Subject, takeUntil, finalize } from 'rxjs';
 import { 
   ReporteTecnicoService, 
   ReporteTecnicoCompletoDto,
-  GenerarReporteTecnicoRequestDto 
+  GenerarReporteTecnicoRequestDto,
+  ReporteTecnicoLevanteCompletoDto
 } from '../../services/reporte-tecnico.service';
 import {
   ReporteTecnicoProduccionService,
@@ -30,6 +31,7 @@ import { TablaDatosDiariosComponent } from '../../components/tabla-datos-diarios
 import { TablaDatosSemanalesComponent } from '../../components/tabla-datos-semanales/tabla-datos-semanales.component';
 import { TablaDatosDiariosProduccionComponent } from '../../components/tabla-datos-diarios-produccion/tabla-datos-diarios-produccion.component';
 import { TablaDatosSemanalesProduccionComponent } from '../../components/tabla-datos-semanales-produccion/tabla-datos-semanales-produccion.component';
+import { TablaLevanteCompletaComponent } from '../../components/tabla-levante-completa/tabla-levante-completa.component';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -48,7 +50,8 @@ import { GalponService } from '../../../galpon/services/galpon.service';
     TablaDatosDiariosComponent,
     TablaDatosSemanalesComponent,
     TablaDatosDiariosProduccionComponent,
-    TablaDatosSemanalesProduccionComponent
+    TablaDatosSemanalesProduccionComponent,
+    TablaLevanteCompletaComponent
   ],
   templateUrl: './reporte-tecnico-main.component.html',
   styleUrls: ['./reporte-tecnico-main.component.scss']
@@ -68,7 +71,18 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   loading = signal(false);
   reporte = signal<ReporteTecnicoCompletoDto | null>(null);
   reporteProduccion = signal<ReporteTecnicoProduccionCompletoDto | null>(null);
+  reporteLevanteCompleto = signal<ReporteTecnicoLevanteCompletoDto | null>(null);
   sublotes = signal<string[]>([]);
+  
+  // Modo de reporte
+  modoReporte: 'estandar' | 'completo' = 'estandar';
+  get modoCompleto(): boolean {
+    return this.modoReporte === 'completo';
+  }
+  set modoCompleto(value: boolean) {
+    this.modoReporte = value ? 'completo' : 'estandar';
+    this.limpiarReporte();
+  }
   
   // Filtros de selección (granja, núcleo, galpón, lote)
   selectedGranjaId: number | null = null;
@@ -301,6 +315,39 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   }
 
   private generarReporteLevante(): void {
+    // Si está en modo completo, generar reporte completo
+    if (this.modoReporte === 'completo') {
+      if (!this.selectedLoteId) {
+        this.error = 'Debe seleccionar un lote';
+        this.loading.set(false);
+        return;
+      }
+
+      this.reporteService.generarReporteLevanteCompleto(
+        this.selectedLoteId,
+        this.tipoConsolidacion === 'consolidado'
+      )
+        .pipe(
+          takeUntil(this.destroy$),
+          finalize(() => this.loading.set(false))
+        )
+        .subscribe({
+          next: (reporte) => {
+            this.reporteLevanteCompleto.set(reporte);
+            this.reporte.set(null);
+            this.reporteProduccion.set(null);
+            this.error = null;
+          },
+          error: (err) => {
+            console.error('Error al generar reporte completo:', err);
+            this.error = err.error?.message || 'Error al generar el reporte completo';
+            this.reporteLevanteCompleto.set(null);
+          }
+        });
+      return;
+    }
+
+    // Modo estándar (comportamiento original)
     const request: GenerarReporteTecnicoRequestDto = {
       incluirSemanales: this.tipoReporte === 'semanal',
       consolidarSublotes: this.tipoConsolidacion === 'consolidado'
@@ -338,6 +385,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
         next: (reporte) => {
           this.reporte.set(reporte);
           this.reporteProduccion.set(null);
+          this.reporteLevanteCompleto.set(null);
           this.error = null;
         },
         error: (err) => {
@@ -512,6 +560,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   limpiarReporte(): void {
     this.reporte.set(null);
     this.reporteProduccion.set(null);
+    this.reporteLevanteCompleto.set(null);
     this.error = null;
   }
 
@@ -560,7 +609,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  // ================== FÓRMULAS DE REPORTES TÉCNICOS ==================
+  // ================== FÓRMULAS DE REPORTES TÉCNICOS (Estructura Excel) ==================
   get gruposFormulas() {
     return [
       {
@@ -572,178 +621,270 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
           },
           {
             nombre: 'Edad en Semanas',
-            formula: 'Edad en Días / 7 (redondeado)'
+            formula: 'Edad en Días / 7 (redondeado hacia arriba)'
           },
           {
-            nombre: 'Número de Aves Diario',
-            formula: 'Aves Iniciales - Mortalidad Acumulada - Descarte Acumulado'
+            nombre: 'Semana del Año',
+            formula: 'Semana del año calendario (ISO 8601)'
           }
         ]
       },
       {
-        titulo: '💀 Mortalidad',
+        titulo: '🐔 Cálculos de Eficiencia y Rendimiento - HEMBRAS',
         formulas: [
           {
-            nombre: 'Mortalidad Total',
-            formula: 'Mortalidad Hembras + Mortalidad Machos'
+            nombre: 'KcalAveH',
+            formula: 'SI(Hembra>0; (KcalAlH*ConsKgH)/(Hembra); 0)'
           },
           {
-            nombre: '% Mortalidad Diaria',
-            formula: '(Mortalidad Total / Aves Actuales) × 100'
+            nombre: 'ProtAveH',
+            formula: 'SI(Hembra>0; (%ProtAlH*ConsKgH)/(Hembra); 0)'
           },
           {
-            nombre: '% Mortalidad Acumulada',
-            formula: '(Mortalidad Acumulada Total / Aves Iniciales) × 100'
+            nombre: '%RelM/H',
+            formula: 'SI(Hembra>0; (SaldoMacho/Hembra*100); "")'
           },
           {
-            nombre: 'Mortalidad Total Semana',
-            formula: 'Suma de todas las mortalidades diarias de la semana'
+            nombre: '%MortH',
+            formula: '(MortH/HEMBRAINI)*100'
           },
           {
-            nombre: '% Mortalidad Semana',
-            formula: 'Promedio de los % Mortalidad Diaria de la semana'
+            nombre: 'DifMortH',
+            formula: '%MortH - %MortHGUIA'
+          },
+          {
+            nombre: '%SelH',
+            formula: '(SelH/HEMBRAINI)*100'
+          },
+          {
+            nombre: '%ErrH',
+            formula: '(ErrorH/HEMBRAINI)*100'
+          },
+          {
+            nombre: 'M+S+EH',
+            formula: 'MortH + SelH + ErrorH'
+          },
+          {
+            nombre: 'RetAcH',
+            formula: 'ACMortH + ACSelH + ACErrH'
+          },
+          {
+            nombre: '%RetiroH',
+            formula: '(RetAcH/HEMBRAINI)*100'
+          },
+          {
+            nombre: 'ConsAcGrH',
+            formula: '(AcConsH*1000)/HEMBRAINI'
+          },
+          {
+            nombre: 'GrAveDiaH',
+            formula: 'SI(Hembra>0; (ConsKgH*1000)/Hembra/7; 0)'
+          },
+          {
+            nombre: 'IncrConsH',
+            formula: 'Diferencia con semana anterior (ConsAcGrH - ConsAcGrH anterior)'
+          },
+          {
+            nombre: '%DifConsH',
+            formula: 'SI(ConsAcGrHGUIA>0; (ConsAcGrH-ConsAcGrHGUIA)/(ConsAcGrHGUIA*100); 0)'
+          },
+          {
+            nombre: '%DifPesoH',
+            formula: 'SI(PesoHGUIA>0; (PesoH-PesoHGUIA)/(PesoHGUIA*100); 0)'
           }
         ]
       },
       {
-        titulo: '⚠️ Error de Sexaje (Solo Levante)',
+        titulo: '🐓 Cálculos de Eficiencia y Rendimiento - MACHOS',
         formulas: [
           {
-            nombre: 'Error de Sexaje',
-            formula: 'Error Sexaje Hembras + Error Sexaje Machos'
+            nombre: 'KcalAveM',
+            formula: 'SI(SaldoMacho>0; (KcalAlM*ConsKgM)/(SaldoMacho); 0)'
           },
           {
-            nombre: '% Error Sexaje',
-            formula: '(Error Sexaje / Aves Actuales) × 100'
+            nombre: 'ProtAveM',
+            formula: 'SI(SaldoMacho>0; (%ProtAlM*ConsKgM)/(SaldoMacho); 0)'
           },
           {
-            nombre: '% Error Sexaje Acumulado',
-            formula: '(Error Sexaje Acumulado Total / Aves Iniciales) × 100'
+            nombre: '%MortM',
+            formula: '(MortM/MACHOINI)*100'
+          },
+          {
+            nombre: 'DifMortM',
+            formula: '%MortM - %MortMGUIA'
+          },
+          {
+            nombre: '%SelM',
+            formula: '(SelM/MACHOINI)*100'
+          },
+          {
+            nombre: '%ErrM',
+            formula: '(ErrorM/MACHOINI)*100'
+          },
+          {
+            nombre: 'M+S+EM',
+            formula: 'MortM + SelM + ErrorM'
+          },
+          {
+            nombre: 'RetAcM',
+            formula: 'ACMortM + ACSelM + ACErrM'
+          },
+          {
+            nombre: '%RetAcM',
+            formula: '(RetAcM/MACHOINI)*100'
+          },
+          {
+            nombre: 'ConsAcGrM',
+            formula: '(AcConsM*1000)/MACHOINI'
+          },
+          {
+            nombre: 'GrAveDiaM',
+            formula: 'SI(SaldoMacho>0; (ConsKgM*1000)/SaldoMacho/7; 0)'
+          },
+          {
+            nombre: 'IncrConsM',
+            formula: 'Diferencia con semana anterior (ConsAcGrM - ConsAcGrM anterior)'
+          },
+          {
+            nombre: 'DifConsM',
+            formula: 'ConsAcGrM - ConsAcGrMGUIA'
+          },
+          {
+            nombre: '%DifPesoM',
+            formula: 'SI(PesoMGUIA>0; (PesoM-PesoMGUIA)/(PesoMGUIA*100); 0)'
           }
         ]
       },
       {
-        titulo: '🗑️ Descarte / Selección',
+        titulo: '📊 Valores Acumulados',
         formulas: [
           {
-            nombre: 'Descarte (Levante)',
-            formula: 'Selección Hembras + Selección Machos'
+            nombre: 'ACMortH',
+            formula: 'Acumulado de MortH desde inicio del lote'
           },
           {
-            nombre: 'Descarte (Producción)',
-            formula: 'Selección Hembras'
+            nombre: 'ACSelH',
+            formula: 'Acumulado de SelH desde inicio del lote'
           },
           {
-            nombre: '% Descarte Diario',
-            formula: '(Descarte / Aves Actuales) × 100'
+            nombre: 'ACErrH',
+            formula: 'Acumulado de ErrorH desde inicio del lote'
           },
           {
-            nombre: '% Descarte Acumulado',
-            formula: '(Descarte Acumulado Total / Aves Iniciales) × 100'
+            nombre: 'ACMortM',
+            formula: 'Acumulado de MortM desde inicio del lote'
           },
           {
-            nombre: 'Selección Ventas Semana',
-            formula: 'Suma de todas las selecciones diarias de la semana'
+            nombre: 'ACSelM',
+            formula: 'Acumulado de SelM desde inicio del lote'
+          },
+          {
+            nombre: 'ACErrM',
+            formula: 'Acumulado de ErrorM desde inicio del lote'
+          },
+          {
+            nombre: 'AcConsH',
+            formula: 'Acumulado de ConsKgH desde inicio del lote'
+          },
+          {
+            nombre: 'AcConsM',
+            formula: 'Acumulado de ConsKgM desde inicio del lote'
+          },
+          {
+            nombre: 'ErrSexAcH',
+            formula: 'Error de sexaje acumulado hembras (manual)'
+          },
+          {
+            nombre: '%ErrSxAcH',
+            formula: '(ErrSexAcH/HEMBRAINI)*100'
+          },
+          {
+            nombre: 'ErrSexAcM',
+            formula: 'Error de sexaje acumulado machos (manual)'
+          },
+          {
+            nombre: '%ErrSxAcM',
+            formula: '(ErrSexAcM/MACHOINI)*100'
           }
         ]
       },
       {
-        titulo: '🍽️ Consumo de Alimento',
+        titulo: '🍽️ Datos Nutricionales y Guía - HEMBRAS',
         formulas: [
           {
-            nombre: 'Consumo Kilos',
-            formula: 'Consumo Kg Hembras + Consumo Kg Machos'
+            nombre: 'KcalSemH',
+            formula: 'KcalAlH * ConsKgH'
           },
           {
-            nombre: 'Consumo Kilos Acumulado',
-            formula: 'Suma de todos los consumos diarios desde el inicio'
+            nombre: 'KcalSemAcH',
+            formula: 'Acumulado de KcalSemH desde inicio'
           },
           {
-            nombre: 'Consumo Bultos',
-            formula: 'Consumo Kilos / 40 (asumiendo 40kg por bulto estándar)'
+            nombre: 'ProtSemH',
+            formula: '(%ProtAlH/100) * ConsKgH'
           },
           {
-            nombre: 'Gramos por Ave',
-            formula: '(Consumo Kilos × 1000) / Aves Actuales'
+            nombre: 'ProtSemAcH',
+            formula: 'Acumulado de ProtSemH desde inicio'
           },
           {
-            nombre: 'Consumo Kilos Semana',
-            formula: 'Suma de todos los consumos diarios de la semana'
-          },
-          {
-            nombre: 'Gramos por Ave Semana',
-            formula: 'Promedio de los gramos por ave diarios de la semana'
+            nombre: 'DifConsAcH',
+            formula: 'AcConsH - ConsAcGrHGUIA'
           }
         ]
       },
       {
-        titulo: '⚖️ Peso Corporal',
+        titulo: '🍽️ Datos Nutricionales y Guía - MACHOS',
         formulas: [
           {
-            nombre: 'Peso Actual',
-            formula: 'Peso Promedio Hembras o Peso Promedio Machos (según disponibilidad)'
+            nombre: 'KcalSemM',
+            formula: 'KcalAlM * ConsKgM'
           },
           {
-            nombre: 'Ganancia de Peso',
-            formula: 'Peso Actual - Peso Anterior'
+            nombre: 'KcalSemAcM',
+            formula: 'Acumulado de KcalSemM desde inicio'
           },
           {
-            nombre: 'Peso Promedio Semana',
-            formula: 'Promedio de todos los pesos actuales registrados en la semana'
+            nombre: 'ProtSemM',
+            formula: '(%ProtAlM/100) * ConsKgM'
           },
           {
-            nombre: 'Uniformidad',
-            formula: 'Valor de uniformidad del lote (registrado en seguimiento)'
+            nombre: 'ProtSemAcM',
+            formula: 'Acumulado de ProtSemM desde inicio'
           },
           {
-            nombre: 'Uniformidad Promedio Semana',
-            formula: 'Promedio de todas las uniformidades registradas en la semana'
-          },
-          {
-            nombre: 'Coeficiente de Variación (CV)',
-            formula: 'Valor de CV del lote (registrado en seguimiento)'
+            nombre: 'DifConsAcM',
+            formula: 'AcConsM - ConsAcGrMGUIA'
           }
         ]
       },
       {
-        titulo: '📦 Movimientos de Alimento',
+        titulo: '📋 Campos Manuales (GUIA)',
         formulas: [
           {
-            nombre: 'Ingresos Alimento',
-            formula: 'Obtenido de movimientos de inventario (entradas de alimento)'
+            nombre: 'Campos GUIA',
+            formula: 'Valores de referencia manuales para comparación: %MortHGUIA, RetiroHGUIA, ConsAcGrHGUIA, GrAveDiaGUIAH, PesoHGUIA, UnifHGUIA, etc.'
           },
           {
-            nombre: 'Traslados Alimento',
-            formula: 'Obtenido de movimientos de inventario (salidas/traslados de alimento)'
-          },
-          {
-            nombre: 'Ingresos Alimento Semana',
-            formula: 'Suma de todos los ingresos diarios de la semana'
-          },
-          {
-            nombre: 'Traslados Alimento Semana',
-            formula: 'Suma de todos los traslados diarios de la semana'
+            nombre: 'Campos Manuales Adicionales',
+            formula: 'CODGUÍA, IDLoteRAP, TRASLADO, NÚCLEOL, AÑON, ALIMHGUÍA, ALIMMGUÍA, Observaciones'
           }
         ]
       },
       {
-        titulo: '📊 Consolidación Semanal',
+        titulo: '🔄 Cálculo de Saldos',
         formulas: [
           {
-            nombre: 'Aves Inicio Semana',
-            formula: 'Número de aves del primer día de la semana'
+            nombre: 'Hembra (Saldo Actual)',
+            formula: 'HEMBRAINI - ACMortH - ACSelH - ACErrH'
           },
           {
-            nombre: 'Aves Fin Semana',
-            formula: 'Número de aves del último día de la semana'
+            nombre: 'SaldoMacho',
+            formula: 'MACHOINI - ACMortM - ACSelM - ACErrM'
           },
           {
-            nombre: 'Semana Completa',
-            formula: 'Una semana se considera completa si tiene 7 o más días de registro'
-          },
-          {
-            nombre: 'Consolidación de Sublotes',
-            formula: 'Solo se consolidan semanas completas de todos los sublotes'
+            nombre: 'Nota sobre Traslados',
+            formula: 'Los traslados se registran como valores negativos en SelH/SelM y se restan del saldo'
           }
         ]
       }
