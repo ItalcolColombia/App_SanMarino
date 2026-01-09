@@ -48,6 +48,18 @@
       text-align: center;
       border: 1px solid #e5e7eb;
       white-space: nowrap;
+
+      &.highlight-red {
+        background-color: #fee2e2;
+        color: #991b1b;
+        font-weight: 600;
+      }
+
+      &.highlight-orange {
+        background-color: #fed7aa;
+        color: #9a3412;
+        font-weight: 600;
+      }
     }
   }
 }
