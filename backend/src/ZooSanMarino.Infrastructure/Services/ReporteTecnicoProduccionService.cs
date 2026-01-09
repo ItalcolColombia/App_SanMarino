@@ -204,13 +204,27 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             .OrderBy(s => s.Fecha)
             .ToListAsync(ct);
 
+        // CORRECCIÓN: Si la fechaInicioProduccion es posterior a las fechas de los registros,
+        // usar la fecha del primer registro como referencia para calcular la edad correctamente
+        var fechaReferencia = fechaInicioProduccion;
+        if (seguimientos.Any())
+        {
+            var primeraFecha = seguimientos.Min(s => s.Fecha);
+            // Si la fecha de inicio es posterior a la primera fecha de registro, usar la primera fecha
+            // Esto corrige el problema cuando la fecha de inicio está mal configurada
+            if (fechaInicioProduccion.Date > primeraFecha.Date)
+            {
+                fechaReferencia = primeraFecha.Date;
+            }
+        }
+
         var datosDiarios = new List<ReporteTecnicoProduccionDiarioDto>();
         var saldoHembras = avesInicialesH;
         var saldoMachos = avesInicialesM;
 
         foreach (var seg in seguimientos)
         {
-            var edadDias = CalcularEdadDias(fechaInicioProduccion, seg.Fecha);
+            var edadDias = CalcularEdadDias(fechaReferencia, seg.Fecha);
             var semana = CalcularSemana(edadDias);
 
             // Obtener ventas y traslados del día
@@ -220,6 +234,13 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             // Obtener huevos enviados a planta
             var huevosEnviadosPlanta = await ObtenerHuevosEnviadosPlantaAsync(loteId, seg.Fecha, ct);
 
+            // Obtener transferencias de huevos del día
+            var (huevosTrasladadosTotal, huevosTrasladadosLimpio, huevosTrasladadosTratado, 
+                 huevosTrasladadosSucio, huevosTrasladadosDeforme, huevosTrasladadosBlanco,
+                 huevosTrasladadosDobleYema, huevosTrasladadosPiso, huevosTrasladadosPequeno,
+                 huevosTrasladadosRoto, huevosTrasladadosDesecho, huevosTrasladadosOtro) = 
+                await ObtenerTransferenciasHuevosAsync(loteId, seg.Fecha, ct);
+
             // Actualizar saldos
             saldoHembras = saldoHembras - seg.MortalidadH - seg.SelH - ventasH - trasladosH;
             saldoMachos = saldoMachos - seg.MortalidadM - ventasM - trasladosM;
@@ -228,6 +249,19 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             var totalAves = saldoHembras + saldoMachos;
             var porcentajePostura = totalAves > 0 ? (decimal)seg.HuevoTot / totalAves * 100 : 0;
             var porcentajeIncubable = seg.HuevoTot > 0 ? (decimal)seg.HuevoInc / seg.HuevoTot * 100 : 0;
+
+            // Calcular porcentajes de tipos de huevos
+            var porcentajeLimpio = seg.HuevoTot > 0 ? (decimal?)seg.HuevoLimpio / seg.HuevoTot * 100 : null;
+            var porcentajeTratado = seg.HuevoTot > 0 ? (decimal?)seg.HuevoTratado / seg.HuevoTot * 100 : null;
+            var porcentajeSucio = seg.HuevoTot > 0 ? (decimal?)seg.HuevoSucio / seg.HuevoTot * 100 : null;
+            var porcentajeDeforme = seg.HuevoTot > 0 ? (decimal?)seg.HuevoDeforme / seg.HuevoTot * 100 : null;
+            var porcentajeBlanco = seg.HuevoTot > 0 ? (decimal?)seg.HuevoBlanco / seg.HuevoTot * 100 : null;
+            var porcentajeDobleYema = seg.HuevoTot > 0 ? (decimal?)seg.HuevoDobleYema / seg.HuevoTot * 100 : null;
+            var porcentajePiso = seg.HuevoTot > 0 ? (decimal?)seg.HuevoPiso / seg.HuevoTot * 100 : null;
+            var porcentajePequeno = seg.HuevoTot > 0 ? (decimal?)seg.HuevoPequeno / seg.HuevoTot * 100 : null;
+            var porcentajeRoto = seg.HuevoTot > 0 ? (decimal?)seg.HuevoRoto / seg.HuevoTot * 100 : null;
+            var porcentajeDesecho = seg.HuevoTot > 0 ? (decimal?)seg.HuevoDesecho / seg.HuevoTot * 100 : null;
+            var porcentajeOtro = seg.HuevoTot > 0 ? (decimal?)seg.HuevoOtro / seg.HuevoTot * 100 : null;
 
             var dto = new ReporteTecnicoProduccionDiarioDto(
                 Dia: edadDias,
@@ -251,7 +285,44 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 PorcentajeIncubable: porcentajeIncubable,
                 PesoHembra: seg.PesoH,
                 PesoMachos: seg.PesoM,
-                PesoHuevo: seg.PesoHuevo
+                PesoHuevo: seg.PesoHuevo,
+                // Desglose de tipos de huevos
+                HuevoLimpio: seg.HuevoLimpio,
+                HuevoTratado: seg.HuevoTratado,
+                HuevoSucio: seg.HuevoSucio,
+                HuevoDeforme: seg.HuevoDeforme,
+                HuevoBlanco: seg.HuevoBlanco,
+                HuevoDobleYema: seg.HuevoDobleYema,
+                HuevoPiso: seg.HuevoPiso,
+                HuevoPequeno: seg.HuevoPequeno,
+                HuevoRoto: seg.HuevoRoto,
+                HuevoDesecho: seg.HuevoDesecho,
+                HuevoOtro: seg.HuevoOtro,
+                // Porcentajes de tipos de huevos
+                PorcentajeLimpio: porcentajeLimpio,
+                PorcentajeTratado: porcentajeTratado,
+                PorcentajeSucio: porcentajeSucio,
+                PorcentajeDeforme: porcentajeDeforme,
+                PorcentajeBlanco: porcentajeBlanco,
+                PorcentajeDobleYema: porcentajeDobleYema,
+                PorcentajePiso: porcentajePiso,
+                PorcentajePequeno: porcentajePequeno,
+                PorcentajeRoto: porcentajeRoto,
+                PorcentajeDesecho: porcentajeDesecho,
+                PorcentajeOtro: porcentajeOtro,
+                // Transferencias de huevos
+                HuevosTrasladadosTotal: huevosTrasladadosTotal,
+                HuevosTrasladadosLimpio: huevosTrasladadosLimpio,
+                HuevosTrasladadosTratado: huevosTrasladadosTratado,
+                HuevosTrasladadosSucio: huevosTrasladadosSucio,
+                HuevosTrasladadosDeforme: huevosTrasladadosDeforme,
+                HuevosTrasladadosBlanco: huevosTrasladadosBlanco,
+                HuevosTrasladadosDobleYema: huevosTrasladadosDobleYema,
+                HuevosTrasladadosPiso: huevosTrasladadosPiso,
+                HuevosTrasladadosPequeno: huevosTrasladadosPequeno,
+                HuevosTrasladadosRoto: huevosTrasladadosRoto,
+                HuevosTrasladadosDesecho: huevosTrasladadosDesecho,
+                HuevosTrasladadosOtro: huevosTrasladadosOtro
             );
 
             datosDiarios.Add(dto);
@@ -302,6 +373,33 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         return traslados.Sum(t => t.CantidadLimpio + t.CantidadTratado);
     }
 
+    private async Task<(int total, int limpio, int tratado, int sucio, int deforme, int blanco, 
+                        int dobleYema, int piso, int pequeno, int roto, int desecho, int otro)> 
+        ObtenerTransferenciasHuevosAsync(string loteId, DateTime fecha, CancellationToken ct)
+    {
+        var traslados = await _ctx.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t => t.LoteId == loteId &&
+                       t.FechaTraslado.Date == fecha.Date &&
+                       t.Estado == "Completado")
+            .ToListAsync(ct);
+
+        var total = traslados.Sum(t => t.TotalHuevos);
+        var limpio = traslados.Sum(t => t.CantidadLimpio);
+        var tratado = traslados.Sum(t => t.CantidadTratado);
+        var sucio = traslados.Sum(t => t.CantidadSucio);
+        var deforme = traslados.Sum(t => t.CantidadDeforme);
+        var blanco = traslados.Sum(t => t.CantidadBlanco);
+        var dobleYema = traslados.Sum(t => t.CantidadDobleYema);
+        var piso = traslados.Sum(t => t.CantidadPiso);
+        var pequeno = traslados.Sum(t => t.CantidadPequeno);
+        var roto = traslados.Sum(t => t.CantidadRoto);
+        var desecho = traslados.Sum(t => t.CantidadDesecho);
+        var otro = traslados.Sum(t => t.CantidadOtro);
+
+        return (total, limpio, tratado, sucio, deforme, blanco, dobleYema, piso, pequeno, roto, desecho, otro);
+    }
+
     private List<ReporteTecnicoProduccionDiarioDto> ConsolidarDatosDiarios(
         List<ReporteTecnicoProduccionDiarioDto> todosDatos)
     {
@@ -333,7 +431,44 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 PesoMachos: g.Where(d => d.PesoMachos.HasValue).Select(d => d.PesoMachos!.Value).DefaultIfEmpty(0).Average() > 0
                     ? (decimal?)g.Where(d => d.PesoMachos.HasValue).Select(d => d.PesoMachos!.Value).Average()
                     : null,
-                PesoHuevo: g.Average(d => d.PesoHuevo)
+                PesoHuevo: g.Average(d => d.PesoHuevo),
+                // Desglose de tipos de huevos
+                HuevoLimpio: g.Sum(d => d.HuevoLimpio),
+                HuevoTratado: g.Sum(d => d.HuevoTratado),
+                HuevoSucio: g.Sum(d => d.HuevoSucio),
+                HuevoDeforme: g.Sum(d => d.HuevoDeforme),
+                HuevoBlanco: g.Sum(d => d.HuevoBlanco),
+                HuevoDobleYema: g.Sum(d => d.HuevoDobleYema),
+                HuevoPiso: g.Sum(d => d.HuevoPiso),
+                HuevoPequeno: g.Sum(d => d.HuevoPequeno),
+                HuevoRoto: g.Sum(d => d.HuevoRoto),
+                HuevoDesecho: g.Sum(d => d.HuevoDesecho),
+                HuevoOtro: g.Sum(d => d.HuevoOtro),
+                // Porcentajes promedio de tipos de huevos
+                PorcentajeLimpio: g.Average(d => d.PorcentajeLimpio),
+                PorcentajeTratado: g.Average(d => d.PorcentajeTratado),
+                PorcentajeSucio: g.Average(d => d.PorcentajeSucio),
+                PorcentajeDeforme: g.Average(d => d.PorcentajeDeforme),
+                PorcentajeBlanco: g.Average(d => d.PorcentajeBlanco),
+                PorcentajeDobleYema: g.Average(d => d.PorcentajeDobleYema),
+                PorcentajePiso: g.Average(d => d.PorcentajePiso),
+                PorcentajePequeno: g.Average(d => d.PorcentajePequeno),
+                PorcentajeRoto: g.Average(d => d.PorcentajeRoto),
+                PorcentajeDesecho: g.Average(d => d.PorcentajeDesecho),
+                PorcentajeOtro: g.Average(d => d.PorcentajeOtro),
+                // Transferencias de huevos
+                HuevosTrasladadosTotal: g.Sum(d => d.HuevosTrasladadosTotal),
+                HuevosTrasladadosLimpio: g.Sum(d => d.HuevosTrasladadosLimpio),
+                HuevosTrasladadosTratado: g.Sum(d => d.HuevosTrasladadosTratado),
+                HuevosTrasladadosSucio: g.Sum(d => d.HuevosTrasladadosSucio),
+                HuevosTrasladadosDeforme: g.Sum(d => d.HuevosTrasladadosDeforme),
+                HuevosTrasladadosBlanco: g.Sum(d => d.HuevosTrasladadosBlanco),
+                HuevosTrasladadosDobleYema: g.Sum(d => d.HuevosTrasladadosDobleYema),
+                HuevosTrasladadosPiso: g.Sum(d => d.HuevosTrasladadosPiso),
+                HuevosTrasladadosPequeno: g.Sum(d => d.HuevosTrasladadosPequeno),
+                HuevosTrasladadosRoto: g.Sum(d => d.HuevosTrasladadosRoto),
+                HuevosTrasladadosDesecho: g.Sum(d => d.HuevosTrasladadosDesecho),
+                HuevosTrasladadosOtro: g.Sum(d => d.HuevosTrasladadosOtro)
             ))
             .OrderBy(d => d.Fecha)
             .ToList();
@@ -346,7 +481,9 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         if (!fechaInicioProduccion.HasValue || !datosDiarios.Any())
             return new List<ReporteTecnicoProduccionSemanalDto>();
 
+        // CORRECCIÓN: Filtrar semanas negativas y asegurar que sean positivas
         var semanas = datosDiarios
+            .Where(d => d.Semana > 0 && d.Dia > 0) // Solo días y semanas positivas
             .GroupBy(d => d.Semana)
             .Where(g => g.Count() >= 7) // Solo semanas completas (7 días)
             .Select(g => new
@@ -398,6 +535,43 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                     ? (decimal?)datosSemana.Where(d => d.PesoMachos.HasValue).Select(d => d.PesoMachos!.Value).Average()
                     : null,
                 PesoHuevoPromedio: datosSemana.Average(d => d.PesoHuevo),
+                // Desglose de tipos de huevos semanal
+                HuevoLimpioSemanal: datosSemana.Sum(d => d.HuevoLimpio),
+                HuevoTratadoSemanal: datosSemana.Sum(d => d.HuevoTratado),
+                HuevoSucioSemanal: datosSemana.Sum(d => d.HuevoSucio),
+                HuevoDeformeSemanal: datosSemana.Sum(d => d.HuevoDeforme),
+                HuevoBlancoSemanal: datosSemana.Sum(d => d.HuevoBlanco),
+                HuevoDobleYemaSemanal: datosSemana.Sum(d => d.HuevoDobleYema),
+                HuevoPisoSemanal: datosSemana.Sum(d => d.HuevoPiso),
+                HuevoPequenoSemanal: datosSemana.Sum(d => d.HuevoPequeno),
+                HuevoRotoSemanal: datosSemana.Sum(d => d.HuevoRoto),
+                HuevoDesechoSemanal: datosSemana.Sum(d => d.HuevoDesecho),
+                HuevoOtroSemanal: datosSemana.Sum(d => d.HuevoOtro),
+                // Porcentajes promedio de tipos de huevos
+                PorcentajeLimpioPromedio: datosSemana.Average(d => d.PorcentajeLimpio),
+                PorcentajeTratadoPromedio: datosSemana.Average(d => d.PorcentajeTratado),
+                PorcentajeSucioPromedio: datosSemana.Average(d => d.PorcentajeSucio),
+                PorcentajeDeformePromedio: datosSemana.Average(d => d.PorcentajeDeforme),
+                PorcentajeBlancoPromedio: datosSemana.Average(d => d.PorcentajeBlanco),
+                PorcentajeDobleYemaPromedio: datosSemana.Average(d => d.PorcentajeDobleYema),
+                PorcentajePisoPromedio: datosSemana.Average(d => d.PorcentajePiso),
+                PorcentajePequenoPromedio: datosSemana.Average(d => d.PorcentajePequeno),
+                PorcentajeRotoPromedio: datosSemana.Average(d => d.PorcentajeRoto),
+                PorcentajeDesechoPromedio: datosSemana.Average(d => d.PorcentajeDesecho),
+                PorcentajeOtroPromedio: datosSemana.Average(d => d.PorcentajeOtro),
+                // Transferencias de huevos semanal
+                HuevosTrasladadosTotalSemanal: datosSemana.Sum(d => d.HuevosTrasladadosTotal),
+                HuevosTrasladadosLimpioSemanal: datosSemana.Sum(d => d.HuevosTrasladadosLimpio),
+                HuevosTrasladadosTratadoSemanal: datosSemana.Sum(d => d.HuevosTrasladadosTratado),
+                HuevosTrasladadosSucioSemanal: datosSemana.Sum(d => d.HuevosTrasladadosSucio),
+                HuevosTrasladadosDeformeSemanal: datosSemana.Sum(d => d.HuevosTrasladadosDeforme),
+                HuevosTrasladadosBlancoSemanal: datosSemana.Sum(d => d.HuevosTrasladadosBlanco),
+                HuevosTrasladadosDobleYemaSemanal: datosSemana.Sum(d => d.HuevosTrasladadosDobleYema),
+                HuevosTrasladadosPisoSemanal: datosSemana.Sum(d => d.HuevosTrasladadosPiso),
+                HuevosTrasladadosPequenoSemanal: datosSemana.Sum(d => d.HuevosTrasladadosPequeno),
+                HuevosTrasladadosRotoSemanal: datosSemana.Sum(d => d.HuevosTrasladadosRoto),
+                HuevosTrasladadosDesechoSemanal: datosSemana.Sum(d => d.HuevosTrasladadosDesecho),
+                HuevosTrasladadosOtroSemanal: datosSemana.Sum(d => d.HuevosTrasladadosOtro),
                 DetalleDiario: datosSemana
             );
 
@@ -518,12 +692,44 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 
     private int CalcularEdadDias(DateTime fechaInicio, DateTime fecha)
     {
-        return (fecha.Date - fechaInicio.Date).Days;
+        // Calcular diferencia en días
+        var diff = fecha.Date - fechaInicio.Date;
+        var diasDiferencia = diff.Days;
+        
+        // CORRECCIÓN: Si la fecha es anterior a la fecha de inicio, usar valor absoluto
+        // Esto puede ocurrir si la fecha de inicio está mal configurada
+        // En avicultura: día 1 = día del inicio de producción
+        // Si el registro es el mismo día del inicio = día 1
+        // Si el registro es 1 día después = día 2
+        // Por lo tanto: edad = diferencia + 1
+        // Si la diferencia es negativa, usar valor absoluto y sumar 1
+        if (diasDiferencia < 0)
+        {
+            // Si la fecha de inicio es posterior, usar la fecha del registro como día 1
+            return 1;
+        }
+        
+        // En avicultura: día 1 = día del inicio
+        // Ejemplo: 
+        // - Inicio: 02 nov, Registro: 02 nov → diferencia = 0 → edad = 1 día
+        // - Inicio: 02 nov, Registro: 03 nov → diferencia = 1 → edad = 2 días
+        return Math.Max(1, diasDiferencia + 1);
     }
 
     private int CalcularSemana(int edadDias)
     {
-        return (edadDias / 7) + 1;
+        // PRODUCCIÓN: Comienza desde la semana 26 (después de las 25 semanas de levante)
+        // 7 días = 1 semana
+        // Semana 26 = días 1-7 de producción
+        // Semana 27 = días 8-14 de producción
+        // etc.
+        // Asegurar que siempre sea positivo
+        if (edadDias < 1)
+            return 26; // Mínimo semana 26 para producción
+            
+        // Calcular semana de producción: 25 semanas de levante + semanas de producción
+        var semanasProduccion = (int)Math.Ceiling(edadDias / 7.0);
+        return 25 + semanasProduccion;
     }
 }
 
