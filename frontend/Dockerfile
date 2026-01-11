@@ -26,12 +26,14 @@ COPY package.json yarn.lock* ./
 COPY angular.json tsconfig*.json ./
 COPY tailwind.config.js postcss.config.js ./
 COPY src ./src
+COPY scripts ./scripts
 
 # Build optimizado con variables de entorno
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 RUN yarn build --configuration docker \
+    && node scripts/inject-version.js \
     && rm -rf node_modules \
     && yarn cache clean
 

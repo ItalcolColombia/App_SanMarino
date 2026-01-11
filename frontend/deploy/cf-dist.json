@@ -31,7 +31,35 @@
       "QueryString": true,
       "Cookies": { "Forward": "none" }
     },
-    "MinTTL": 0
+    "MinTTL": 0,
+    "DefaultTTL": 0,
+    "MaxTTL": 0
+  },
+  "CacheBehaviors": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "PathPattern": "index.html",
+        "TargetOriginId": "s3-sanmarino-frontend-021891592771-us-east-2",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "Compress": true,
+        "AllowedMethods": {
+          "Quantity": 2,
+          "Items": ["GET","HEAD"],
+          "CachedMethods": {
+            "Quantity": 2,
+            "Items": ["GET","HEAD"]
+          }
+        },
+        "ForwardedValues": {
+          "QueryString": true,
+          "Cookies": { "Forward": "none" }
+        },
+        "MinTTL": 0,
+        "DefaultTTL": 0,
+        "MaxTTL": 0
+      }
+    ]
   },
   "CustomErrorResponses": {
     "Quantity": 2,
