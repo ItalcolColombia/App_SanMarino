@@ -28,6 +28,43 @@ export interface ReporteTecnicoProduccionDiarioDto {
   pesoHembra?: number | null;
   pesoMachos?: number | null;
   pesoHuevo: number;
+  // Desglose de tipos de huevos
+  huevoLimpio: number;
+  huevoTratado: number;
+  huevoSucio: number;
+  huevoDeforme: number;
+  huevoBlanco: number;
+  huevoDobleYema: number;
+  huevoPiso: number;
+  huevoPequeno: number;
+  huevoRoto: number;
+  huevoDesecho: number;
+  huevoOtro: number;
+  // Porcentajes de tipos de huevos
+  porcentajeLimpio?: number | null;
+  porcentajeTratado?: number | null;
+  porcentajeSucio?: number | null;
+  porcentajeDeforme?: number | null;
+  porcentajeBlanco?: number | null;
+  porcentajeDobleYema?: number | null;
+  porcentajePiso?: number | null;
+  porcentajePequeno?: number | null;
+  porcentajeRoto?: number | null;
+  porcentajeDesecho?: number | null;
+  porcentajeOtro?: number | null;
+  // Transferencias de huevos
+  huevosTrasladadosTotal: number;
+  huevosTrasladadosLimpio: number;
+  huevosTrasladadosTratado: number;
+  huevosTrasladadosSucio: number;
+  huevosTrasladadosDeforme: number;
+  huevosTrasladadosBlanco: number;
+  huevosTrasladadosDobleYema: number;
+  huevosTrasladadosPiso: number;
+  huevosTrasladadosPequeno: number;
+  huevosTrasladadosRoto: number;
+  huevosTrasladadosDesecho: number;
+  huevosTrasladadosOtro: number;
 }
 
 export interface ReporteTecnicoProduccionSemanalDto {
@@ -57,6 +94,43 @@ export interface ReporteTecnicoProduccionSemanalDto {
   pesoHembraPromedio?: number | null;
   pesoMachosPromedio?: number | null;
   pesoHuevoPromedio: number;
+  // Desglose de tipos de huevos semanal
+  huevoLimpioSemanal: number;
+  huevoTratadoSemanal: number;
+  huevoSucioSemanal: number;
+  huevoDeformeSemanal: number;
+  huevoBlancoSemanal: number;
+  huevoDobleYemaSemanal: number;
+  huevoPisoSemanal: number;
+  huevoPequenoSemanal: number;
+  huevoRotoSemanal: number;
+  huevoDesechoSemanal: number;
+  huevoOtroSemanal: number;
+  // Porcentajes promedio de tipos de huevos
+  porcentajeLimpioPromedio?: number | null;
+  porcentajeTratadoPromedio?: number | null;
+  porcentajeSucioPromedio?: number | null;
+  porcentajeDeformePromedio?: number | null;
+  porcentajeBlancoPromedio?: number | null;
+  porcentajeDobleYemaPromedio?: number | null;
+  porcentajePisoPromedio?: number | null;
+  porcentajePequenoPromedio?: number | null;
+  porcentajeRotoPromedio?: number | null;
+  porcentajeDesechoPromedio?: number | null;
+  porcentajeOtroPromedio?: number | null;
+  // Transferencias de huevos semanal
+  huevosTrasladadosTotalSemanal: number;
+  huevosTrasladadosLimpioSemanal: number;
+  huevosTrasladadosTratadoSemanal: number;
+  huevosTrasladadosSucioSemanal: number;
+  huevosTrasladadosDeformeSemanal: number;
+  huevosTrasladadosBlancoSemanal: number;
+  huevosTrasladadosDobleYemaSemanal: number;
+  huevosTrasladadosPisoSemanal: number;
+  huevosTrasladadosPequenoSemanal: number;
+  huevosTrasladadosRotoSemanal: number;
+  huevosTrasladadosDesechoSemanal: number;
+  huevosTrasladadosOtroSemanal: number;
   detalleDiario: ReporteTecnicoProduccionDiarioDto[];
 }
 

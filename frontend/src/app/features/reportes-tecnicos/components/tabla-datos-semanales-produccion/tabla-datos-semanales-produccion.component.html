@@ -28,6 +28,48 @@
         <th>Peso H Prom. (kg)</th>
         <th>Peso M Prom. (kg)</th>
         <th>Peso Huevo Prom. (g)</th>
+        <!-- Tipos de Huevos -->
+        <th colspan="2">Huevos Limpio</th>
+        <th colspan="2">Huevos Tratado</th>
+        <th colspan="2">Huevos Sucio</th>
+        <th colspan="2">Huevos Deforme</th>
+        <th colspan="2">Huevos Blanco</th>
+        <th colspan="2">Huevos Doble Yema</th>
+        <th colspan="2">Huevos Piso</th>
+        <th colspan="2">Huevos Pequeño</th>
+        <th colspan="2">Huevos Roto</th>
+        <th colspan="2">Huevos Desecho</th>
+        <th colspan="2">Huevos Otro</th>
+        <!-- Transferencias de Huevos -->
+        <th>Trasl. Total</th>
+        <th>Trasl. Limpio</th>
+        <th>Trasl. Tratado</th>
+      </tr>
+      <tr>
+        <th colspan="26"></th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th>Cant.</th>
+        <th>%</th>
+        <th colspan="3"></th>
       </tr>
     </thead>
     <tbody>
@@ -58,6 +100,33 @@
         <td class="text-right">{{ dato.pesoHembraPromedio ? (dato.pesoHembraPromedio | number:'1.2-2') : '-' }}</td>
         <td class="text-right">{{ dato.pesoMachosPromedio ? (dato.pesoMachosPromedio | number:'1.2-2') : '-' }}</td>
         <td class="text-right">{{ dato.pesoHuevoPromedio | number:'1.2-2' }}</td>
+        <!-- Tipos de Huevos -->
+        <td class="text-right">{{ dato.huevoLimpioSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeLimpioPromedio ? (dato.porcentajeLimpioPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoTratadoSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeTratadoPromedio ? (dato.porcentajeTratadoPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoSucioSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeSucioPromedio ? (dato.porcentajeSucioPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoDeformeSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeDeformePromedio ? (dato.porcentajeDeformePromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoBlancoSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeBlancoPromedio ? (dato.porcentajeBlancoPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoDobleYemaSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeDobleYemaPromedio ? (dato.porcentajeDobleYemaPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoPisoSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajePisoPromedio ? (dato.porcentajePisoPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoPequenoSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajePequenoPromedio ? (dato.porcentajePequenoPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoRotoSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeRotoPromedio ? (dato.porcentajeRotoPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoDesechoSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeDesechoPromedio ? (dato.porcentajeDesechoPromedio | number:'1.2-2') : '-' }}%</td>
+        <td class="text-right">{{ dato.huevoOtroSemanal }}</td>
+        <td class="text-right">{{ dato.porcentajeOtroPromedio ? (dato.porcentajeOtroPromedio | number:'1.2-2') : '-' }}%</td>
+        <!-- Transferencias de Huevos -->
+        <td class="text-right highlight-blue">{{ dato.huevosTrasladadosTotalSemanal }}</td>
+        <td class="text-right highlight-blue">{{ dato.huevosTrasladadosLimpioSemanal }}</td>
+        <td class="text-right highlight-blue">{{ dato.huevosTrasladadosTratadoSemanal }}</td>
       </tr>
     </tbody>
   </table>

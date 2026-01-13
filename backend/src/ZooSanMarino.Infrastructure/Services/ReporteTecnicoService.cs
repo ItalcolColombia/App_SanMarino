@@ -11,11 +11,16 @@ public class ReporteTecnicoService : IReporteTecnicoService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
+    private readonly IGuiaGeneticaService _guiaGeneticaService;
 
-    public ReporteTecnicoService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    public ReporteTecnicoService(
+        ZooSanMarinoContext ctx, 
+        ICurrentUser currentUser,
+        IGuiaGeneticaService guiaGeneticaService)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _guiaGeneticaService = guiaGeneticaService;
     }
 
     public async Task<ReporteTecnicoCompletoDto> GenerarReporteDiarioSubloteAsync(
@@ -45,7 +50,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
         // Filtrar solo semanas de levante (1-25)
         datosDiarios = datosDiarios.Where(d => d.EdadSemanas <= 25).ToList();
 
-        var datosSemanales = ConsolidarSemanales(datosDiarios, lote.FechaEncaset);
+        var avesIniciales = (lote.HembrasL ?? 0) + (lote.MachosL ?? 0);
+        var datosSemanales = ConsolidarSemanales(datosDiarios, lote.FechaEncaset, avesIniciales);
         
         // Filtrar también las semanas consolidadas (solo semanas 1-25)
         datosSemanales = datosSemanales.Where(s => s.Semana <= 25).ToList();
@@ -153,7 +159,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
         infoLote.Sublote = null; // Consolidado no tiene sublote específico
         infoLote.Etapa = "LEVANTE"; // Forzar etapa a LEVANTE para reporte de levante
 
-        var datosSemanales = ConsolidarSemanales(datosConsolidados, loteBase.FechaEncaset);
+        var avesInicialesConsolidado = sublotes.Sum(s => (s.HembrasL ?? 0) + (s.MachosL ?? 0));
+        var datosSemanales = ConsolidarSemanales(datosConsolidados, loteBase.FechaEncaset, avesInicialesConsolidado);
         
         // Filtrar también las semanas consolidadas (solo semanas 1-25)
         datosSemanales = datosSemanales.Where(s => s.Semana <= 25).ToList();
@@ -265,7 +272,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
             // Filtrar solo semanas de levante (1-25)
             datosDiarios = datosDiarios.Where(d => d.EdadSemanas <= 25).ToList();
 
-            var datosSemanales = ConsolidarSemanales(datosDiarios, sublote.FechaEncaset);
+            var avesInicialesSublote = (sublote.HembrasL ?? 0) + (sublote.MachosL ?? 0);
+            var datosSemanales = ConsolidarSemanales(datosDiarios, sublote.FechaEncaset, avesInicialesSublote);
             
             // Filtrar también las semanas consolidadas (solo semanas 1-25)
             datosSemanales = datosSemanales.Where(s => s.Semana <= 25).ToList();
@@ -590,10 +598,21 @@ public class ReporteTecnicoService : IReporteTecnicoService
             }
             
             // Calcular aves actuales hasta esta fecha
+            // IMPORTANTE: Para calcular el porcentaje de mortalidad diario correctamente,
+            // necesitamos las aves ANTES de aplicar la mortalidad del día actual
             var avesActuales = avesIniciales;
+            var avesAntesMortalidad = avesIniciales; // Aves antes de aplicar la mortalidad del día actual
+            
             foreach (var reg in registrosHastaFecha)
             {
                 var mortTotal = reg.MortalidadHembras + reg.MortalidadMachos;
+                
+                // Si este es el registro actual, guardar aves antes de aplicar mortalidad
+                if (reg.Id == seg.Id)
+                {
+                    avesAntesMortalidad = avesActuales;
+                }
+                
                 avesActuales -= mortTotal;
                 
                 var selH = reg.SelH;
@@ -623,7 +642,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 EdadSemanas = edadSemanas,
                 NumeroAves = avesActuales,
                 MortalidadTotal = mortalidadTotal,
-                MortalidadPorcentajeDiario = avesActuales > 0 ? (decimal)mortalidadTotal / avesActuales * 100 : 0,
+                // CORRECCIÓN: El porcentaje de mortalidad diario debe calcularse sobre las aves ANTES de la mortalidad del día
+                MortalidadPorcentajeDiario = avesAntesMortalidad > 0 ? (decimal)mortalidadTotal / avesAntesMortalidad * 100 : 0,
                 MortalidadPorcentajeAcumulado = avesIniciales > 0 ? (decimal)mortalidadAcumulada / avesIniciales * 100 : 0,
                 ErrorSexajeNumero = errorSexaje,
                 ErrorSexajePorcentaje = avesActuales > 0 ? (decimal)errorSexaje / avesActuales * 100 : 0,
@@ -768,7 +788,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
     private List<ReporteTecnicoSemanalDto> ConsolidarSemanales(
         List<ReporteTecnicoDiarioDto> datosDiarios,
-        DateTime? fechaEncaset)
+        DateTime? fechaEncaset,
+        int avesIniciales = 0)
     {
         if (!fechaEncaset.HasValue || !datosDiarios.Any())
             return new List<ReporteTecnicoSemanalDto>();
@@ -786,7 +807,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var diasEnSemana = datosSemana.Count;
                 var semanaCompleta = diasEnSemana >= 7;
 
-                var avesInicioSemana = datosSemana.First().NumeroAves;
+                // Obtener valores semanales primero
                 var avesFinSemana = datosSemana.Last().NumeroAves;
                 var mortalidadTotalSemana = datosSemana.Sum(d => d.MortalidadTotal);
                 var seleccionVentasSemana = datosSemana.Sum(d => d.SeleccionVentasNumero);
@@ -794,14 +815,37 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var trasladosTotalSemana = datosSemana.Sum(d => d.TrasladosNumero); // Traslados (valores negativos en valor absoluto)
                 var errorSexajeTotalSemana = datosSemana.Sum(d => d.ErrorSexajeNumero);
                 
-                // IMPORTANTE: La diferencia entre avesInicioSemana y avesFinSemana NO es solo mortalidad
-                // También incluye: selección/descarte, traslados, y error de sexaje (que puede aumentar aves)
+                // VALIDACIÓN Y CORRECCIÓN: Calcular avesInicioSemana usando la fórmula inversa para garantizar coherencia
                 // Fórmula: avesFinSemana = avesInicioSemana - mortalidad - descarte - traslados + errorSexaje
-                // Por lo tanto: diferencia = mortalidad + descarte + traslados - errorSexaje
-                // 
-                // VALIDACIÓN: avesFinSemana debería ser igual a:
-                // avesInicioSemana - mortalidadTotalSemana - descarteTotalSemana - trasladosTotalSemana + errorSexajeTotalSemana
-                // (El error de sexaje puede aumentar aves si corrige clasificaciones)
+                // Por lo tanto: avesInicioSemana = avesFinSemana + mortalidad + descarte + traslados - errorSexaje
+                var avesInicioSemanaCalculado = avesFinSemana + mortalidadTotalSemana + descarteTotalSemana + trasladosTotalSemana - errorSexajeTotalSemana;
+                
+                // Inicializar avesInicioSemana desde el primer día
+                var avesInicioSemana = datosSemana.First().NumeroAves;
+                
+                // CORRECCIÓN: Para semana 1, intentar usar avesIniciales si es razonable
+                if (g.Key == 1 && datosSemana.Any() && avesIniciales > 0)
+                {
+                    var primerDia = datosSemana.First();
+                    // Calcular aves al inicio de la semana 1 desde el primer día
+                    var avesInicioDesdePrimerDia = primerDia.NumeroAves + primerDia.MortalidadTotal + primerDia.DescarteNumero + primerDia.TrasladosNumero - primerDia.ErrorSexajeNumero;
+                    
+                    // Si el cálculo desde el primer día está más cerca de avesIniciales, usarlo
+                    if (Math.Abs(avesInicioDesdePrimerDia - avesIniciales) < Math.Abs(avesInicioSemanaCalculado - avesIniciales))
+                    {
+                        avesInicioSemana = avesInicioDesdePrimerDia;
+                    }
+                    else
+                    {
+                        // Priorizar la coherencia de la fórmula
+                        avesInicioSemana = avesInicioSemanaCalculado;
+                    }
+                }
+                else
+                {
+                    // Para semanas siguientes, usar el cálculo basado en la fórmula para garantizar coherencia
+                    avesInicioSemana = avesInicioSemanaCalculado;
+                }
                 
                 // Calcular porcentaje de mortalidad semanal correctamente
                 // El porcentaje debe ser sobre las aves al inicio de la semana
@@ -1081,6 +1125,418 @@ public class ReporteTecnicoService : IReporteTecnicoService
             .SumAsync(m => m.Quantity, ct);
 
         return traslados;
+    }
+
+    public async Task<ReporteTecnicoLevanteCompletoDto> GenerarReporteLevanteCompletoAsync(
+        int loteId,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        var lote = await _ctx.Lotes
+            .AsNoTracking()
+            .Include(l => l.Farm)
+            .Include(l => l.Nucleo)
+            .Include(l => l.Galpon)
+            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+
+        if (lote == null)
+            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+
+        if (!lote.FechaEncaset.HasValue)
+            throw new InvalidOperationException($"El lote {loteId} no tiene fecha de encaset");
+
+        var infoLote = MapearInformacionLote(lote);
+        var sublote = ExtraerSublote(lote.LoteNombre);
+        infoLote.Sublote = sublote;
+
+        // Obtener todos los registros de seguimiento de levante (solo semanas 1-25)
+        var todosSeguimientos = await _ctx.SeguimientoLoteLevante
+            .AsNoTracking()
+            .Where(s => s.LoteId == loteId)
+            .OrderBy(s => s.FechaRegistro)
+            .ToListAsync(ct);
+
+        // Filtrar solo semanas de levante (1-25)
+        var seguimientos = todosSeguimientos.Where(seg =>
+        {
+            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadSemanas = CalcularEdadSemanas(edadDias);
+            return edadSemanas <= 25;
+        }).ToList();
+
+        // Obtener guía genética del lote (desde produccion_avicola_raw)
+        // El lote tiene Raza y AnoTablaGenetica que se usan para buscar la guía
+        Dictionary<int, Domain.Entities.ProduccionAvicolaRaw> guiasRaw = new();
+        Dictionary<int, GuiaGeneticaDto> guiasGenetica = new();
+        
+        if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+        {
+            try
+            {
+                var razaNorm = lote.Raza.Trim().ToLower();
+                var ano = lote.AnoTablaGenetica.Value.ToString();
+                
+                // Obtener datos raw directamente para tener acceso a ConsAcH, ConsAcM, etc.
+                var guiasRawList = await _ctx.ProduccionAvicolaRaw
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.Raza != null && p.AnioGuia != null &&
+                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                        p.AnioGuia.Trim() == ano &&
+                        p.CompanyId == _currentUser.CompanyId &&
+                        p.DeletedAt == null
+                    )
+                    .ToListAsync(ct);
+                
+                // Parsear edades y crear diccionario
+                foreach (var guia in guiasRawList)
+                {
+                    var edadStr = guia.Edad;
+                    if (int.TryParse(edadStr?.Trim().Replace(",", ".").Split('.')[0], out var edad))
+                    {
+                        if (edad >= 1 && edad <= 25)
+                        {
+                            guiasRaw[edad] = guia;
+                        }
+                    }
+                }
+                
+                // También obtener los DTOs procesados para usar los métodos de parseo
+                var guias = await _guiaGeneticaService.ObtenerGuiaGeneticaRangoAsync(
+                    lote.Raza, 
+                    lote.AnoTablaGenetica.Value, 
+                    edadDesde: 1, 
+                    edadHasta: 25);
+                
+                guiasGenetica = guias.ToDictionary(g => g.Edad, g => g);
+            }
+            catch
+            {
+                // Si no se encuentra la guía, continuar sin valores GUIA
+                // Los valores GUIA quedarán como null
+            }
+        }
+
+        // Obtener traslados del lote para verificar reducciones
+        var traslados = await _ctx.Set<Domain.Entities.MovimientoAves>()
+            .AsNoTracking()
+            .Where(m => m.LoteOrigenId == loteId && 
+                       m.Estado == "Completado" &&
+                       m.DeletedAt == null)
+            .OrderBy(m => m.FechaMovimiento)
+            .ToListAsync(ct);
+
+        // Helper para parsear valores de la guía raw
+        static double ParseGuiaRaw(string? value) => 
+            double.TryParse(value?.Trim().Replace(",", "."), System.Globalization.NumberStyles.Any, 
+                System.Globalization.CultureInfo.InvariantCulture, out var result) ? result : 0;
+
+        // Calcular datos semanales (semanas 1-25)
+        var datosSemanales = new List<ReporteTecnicoLevanteSemanalDto>();
+        var hembraIni = lote.HembrasL ?? 0;
+        var machoIni = lote.MachosL ?? 0;
+
+        // Variables acumuladas
+        int acMortH = 0, acSelH = 0, acErrH = 0;
+        int acMortM = 0, acSelM = 0, acErrM = 0;
+        double acConsH = 0, acConsM = 0;
+        double acKcalSemH = 0, acKcalSemM = 0;
+        double acProtSemH = 0, acProtSemM = 0;
+        double? consAcGrHAnterior = null;
+        double? consAcGrMAnterior = null;
+
+        for (int semana = 1; semana <= 25; semana++)
+        {
+            // Calcular rango de fechas para la semana
+            var fechaInicioSemana = lote.FechaEncaset.Value.AddDays((semana - 1) * 7);
+            var fechaFinSemana = fechaInicioSemana.AddDays(6);
+
+            // Obtener registros de esta semana
+            var registrosSemana = seguimientos.Where(s =>
+            {
+                var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, s.FechaRegistro);
+                var edadSemanas = CalcularEdadSemanas(edadDias);
+                return edadSemanas == semana;
+            }).ToList();
+
+            if (!registrosSemana.Any() && semana > 1)
+            {
+                // Si no hay registros y no es la primera semana, podemos saltarla o crear registro vacío
+                // Por ahora, saltamos semanas sin datos
+                continue;
+            }
+
+            // Calcular valores de la semana
+            var mortH = registrosSemana.Sum(s => s.MortalidadHembras);
+            var mortM = registrosSemana.Sum(s => s.MortalidadMachos);
+            var selH = registrosSemana.Sum(s => Math.Max(0, s.SelH)); // Solo valores positivos
+            var selM = registrosSemana.Sum(s => Math.Max(0, s.SelM)); // Solo valores positivos
+            var errorH = registrosSemana.Sum(s => s.ErrorSexajeHembras);
+            var errorM = registrosSemana.Sum(s => s.ErrorSexajeMachos);
+            var consKgH = registrosSemana.Sum(s => s.ConsumoKgHembras);
+            var consKgM = registrosSemana.Sum(s => s.ConsumoKgMachos ?? 0);
+
+            // Calcular traslados de la semana (valores negativos de SelH/SelM)
+            var trasladosSemana = registrosSemana.Sum(s => 
+                Math.Abs(Math.Min(0, s.SelH)) + Math.Abs(Math.Min(0, s.SelM)));
+
+            // Actualizar acumulados
+            acMortH += mortH;
+            acMortM += mortM;
+            acSelH += selH;
+            acSelM += selM;
+            acErrH += errorH;
+            acErrM += errorM;
+            acConsH += consKgH;
+            acConsM += consKgM;
+
+            // Calcular saldos actuales
+            var hembra = hembraIni - acMortH - acSelH - acErrH;
+            var saldoMacho = machoIni - acMortM - acSelM - acErrM;
+
+            // Obtener valores promedio de peso y uniformidad de la semana
+            var pesoH = registrosSemana.Where(s => s.PesoPromH.HasValue)
+                .Select(s => s.PesoPromH!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            var pesoM = registrosSemana.Where(s => s.PesoPromM.HasValue)
+                .Select(s => s.PesoPromM!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            var uniformH = registrosSemana.Where(s => s.UniformidadH.HasValue)
+                .Select(s => s.UniformidadH!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            var uniformM = registrosSemana.Where(s => s.UniformidadM.HasValue)
+                .Select(s => s.UniformidadM!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            var cvH = registrosSemana.Where(s => s.CvH.HasValue)
+                .Select(s => s.CvH!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            var cvM = registrosSemana.Where(s => s.CvM.HasValue)
+                .Select(s => s.CvM!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+
+            // Obtener valores nutricionales (promedio de la semana)
+            // Nota: La entidad solo tiene KcalAlH y ProtAlH, usamos los mismos valores para machos
+            var kcalAlH = registrosSemana.Where(s => s.KcalAlH.HasValue)
+                .Select(s => s.KcalAlH!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            var protAlH = registrosSemana.Where(s => s.ProtAlH.HasValue)
+                .Select(s => s.ProtAlH!.Value)
+                .DefaultIfEmpty(0)
+                .Average();
+            // Usar los mismos valores nutricionales de hembras para machos (mismo tipo de alimento)
+            var kcalAlM = kcalAlH;
+            var protAlM = protAlH;
+
+            // Obtener guía genética para esta semana (desde produccion_avicola_raw)
+            var guiaGenetica = guiasGenetica.TryGetValue(semana, out var guia) ? guia : null;
+            var guiaRaw = guiasRaw.TryGetValue(semana, out var raw) ? raw : null;
+
+            // Calcular campos según fórmulas Excel
+            var dto = new ReporteTecnicoLevanteSemanalDto
+            {
+                // Identificación
+                CodGuia = lote.CodigoGuiaGenetica, // Código de guía genética del lote
+                IdLoteRAP = null, // Se puede agregar si existe en el lote
+                Regional = lote.Regional,
+                Granja = lote.Farm?.Name,
+                Lote = lote.LoteNombre,
+                Raza = lote.Raza,
+                AnoG = lote.AnoTablaGenetica,
+                HembraIni = hembraIni,
+                MachoIni = machoIni,
+                Traslado = null, // Se puede calcular desde traslados si es necesario
+                NucleoL = lote.Nucleo?.NucleoNombre,
+                Anon = null, // Se puede agregar si existe en el lote
+                Edad = CalcularEdadDias(lote.FechaEncaset.Value, fechaInicioSemana),
+                Fecha = fechaInicioSemana,
+                SemAno = GetSemanaAno(fechaInicioSemana),
+                Semana = semana,
+
+                // Datos hembras
+                Hembra = hembra,
+                MortH = mortH,
+                SelH = selH,
+                ErrorH = errorH,
+                ConsKgH = consKgH,
+                PesoH = pesoH > 0 ? pesoH : null,
+                UniformH = uniformH > 0 ? uniformH : null,
+                CvH = cvH > 0 ? cvH : null,
+                KcalAlH = kcalAlH > 0 ? kcalAlH : null,
+                ProtAlH = protAlH > 0 ? protAlH : null,
+
+                // Datos machos
+                SaldoMacho = saldoMacho,
+                MortM = mortM,
+                SelM = selM,
+                ErrorM = errorM,
+                ConsKgM = consKgM,
+                PesoM = pesoM > 0 ? pesoM : null,
+                UniformM = uniformM > 0 ? uniformM : null,
+                CvM = cvM > 0 ? cvM : null,
+                KcalAlM = kcalAlM > 0 ? kcalAlM : null,
+                ProtAlM = protAlM > 0 ? protAlM : null,
+
+                // Cálculos de eficiencia
+                KcalAveH = hembra > 0 && kcalAlH > 0 ? (kcalAlH * consKgH) / hembra : null,
+                ProtAveH = hembra > 0 && protAlH > 0 ? (protAlH * consKgH) / hembra : null,
+                KcalAveM = saldoMacho > 0 && kcalAlM > 0 ? (kcalAlM * consKgM) / saldoMacho : null,
+                ProtAveM = saldoMacho > 0 && protAlM > 0 ? (protAlM * consKgM) / saldoMacho : null,
+
+                RelMH = hembra > 0 ? (saldoMacho / (double)hembra * 100) : null,
+                PorcMortH = hembraIni > 0 ? (mortH / (double)hembraIni * 100) : null,
+                PorcMortHGUIA = guiaGenetica != null ? guiaGenetica.MortalidadHembras : null,
+                DifMortH = guiaGenetica != null && hembraIni > 0 
+                    ? (mortH / (double)hembraIni * 100) - guiaGenetica.MortalidadHembras 
+                    : null,
+                ACMortH = acMortH,
+
+                PorcSelH = hembraIni > 0 ? (selH / (double)hembraIni * 100) : null,
+                ACSelH = acSelH,
+                PorcErrH = hembraIni > 0 ? (errorH / (double)hembraIni * 100) : null,
+                ACErrH = acErrH,
+
+                MSEH = mortH + selH + errorH,
+                RetAcH = acMortH + acSelH + acErrH,
+                PorcRetiroH = hembraIni > 0 ? ((acMortH + acSelH + acErrH) / (double)hembraIni * 100) : null,
+                RetiroHGUIA = guiaGenetica != null ? guiaGenetica.RetiroAcumuladoHembras : null,
+
+                AcConsH = acConsH,
+                ConsAcGrH = hembraIni > 0 ? (acConsH * 1000) / hembraIni : null,
+                ConsAcGrHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.ConsAcH) : null, // ConsAcH de la guía (consumo acumulado en gramos)
+                GrAveDiaH = hembra > 0 ? (consKgH * 1000) / hembra / 7 : null,
+                GrAveDiaGUIAH = guiaGenetica != null ? guiaGenetica.ConsumoHembras : null, // GrAveDiaH de la guía (gramos por ave por día)
+                IncrConsH = consAcGrHAnterior.HasValue 
+                    ? ((acConsH * 1000) / hembraIni) - consAcGrHAnterior.Value 
+                    : null,
+                IncrConsHGUIA = null, // Se puede calcular si hay guía anterior
+                PorcDifConsH = guiaRaw != null && ParseGuiaRaw(guiaRaw.ConsAcH) > 0
+                    ? (((acConsH * 1000) / hembraIni) - ParseGuiaRaw(guiaRaw.ConsAcH)) / ParseGuiaRaw(guiaRaw.ConsAcH) * 100
+                    : null,
+
+                PesoHGUIA = guiaGenetica != null ? guiaGenetica.PesoHembras / 1000.0 : null, // Convertir de gramos a kg
+                PorcDifPesoH = guiaGenetica != null && guiaGenetica.PesoHembras > 0 && pesoH > 0
+                    ? (pesoH - (guiaGenetica.PesoHembras / 1000.0)) / (guiaGenetica.PesoHembras / 1000.0) * 100
+                    : null,
+                UnifHGUIA = guiaGenetica != null ? guiaGenetica.Uniformidad : null,
+
+                PorcMortM = machoIni > 0 ? (mortM / (double)machoIni * 100) : null,
+                PorcMortMGUIA = guiaGenetica != null ? guiaGenetica.MortalidadMachos : null,
+                DifMortM = guiaGenetica != null && machoIni > 0
+                    ? (mortM / (double)machoIni * 100) - guiaGenetica.MortalidadMachos
+                    : null,
+                ACMortM = acMortM,
+
+                PorcSelM = machoIni > 0 ? (selM / (double)machoIni * 100) : null,
+                ACSelM = acSelM,
+                PorcErrM = machoIni > 0 ? (errorM / (double)machoIni * 100) : null,
+                ACErrM = acErrM,
+
+                MSEM = mortM + selM + errorM,
+                RetAcM = acMortM + acSelM + acErrM,
+                PorcRetAcM = machoIni > 0 ? ((acMortM + acSelM + acErrM) / (double)machoIni * 100) : null,
+                RetiroMGUIA = guiaGenetica != null ? guiaGenetica.RetiroAcumuladoMachos : null,
+
+                AcConsM = acConsM,
+                ConsAcGrM = machoIni > 0 ? (acConsM * 1000) / machoIni : null,
+                ConsAcGrMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.ConsAcM) : null, // ConsAcM de la guía (consumo acumulado en gramos)
+                GrAveDiaM = saldoMacho > 0 ? (consKgM * 1000) / saldoMacho / 7 : null,
+                GrAveDiaMGUIA = guiaGenetica != null ? guiaGenetica.ConsumoMachos : null, // GrAveDiaM de la guía (gramos por ave por día)
+                IncrConsM = consAcGrMAnterior.HasValue
+                    ? ((acConsM * 1000) / machoIni) - consAcGrMAnterior.Value
+                    : null,
+                IncrConsMGUIA = null, // Se puede calcular si hay guía anterior
+                DifConsM = guiaRaw != null
+                    ? ((acConsM * 1000) / machoIni) - ParseGuiaRaw(guiaRaw.ConsAcM)
+                    : null,
+
+                PesoMGUIA = guiaGenetica != null ? guiaGenetica.PesoMachos / 1000.0 : null, // Convertir de gramos a kg
+                PorcDifPesoM = guiaGenetica != null && guiaGenetica.PesoMachos > 0 && pesoM > 0
+                    ? (pesoM - (guiaGenetica.PesoMachos / 1000.0)) / (guiaGenetica.PesoMachos / 1000.0) * 100
+                    : null,
+                UnifMGUIA = guiaGenetica != null ? guiaGenetica.Uniformidad : null,
+
+                ErrSexAcH = null, // No está en la guía genética, se puede agregar manualmente si es necesario
+                PorcErrSxAcH = null,
+                ErrSexAcM = null, // No está en la guía genética, se puede agregar manualmente si es necesario
+                PorcErrSxAcM = null,
+
+                DifConsAcH = guiaRaw != null
+                    ? acConsH - (ParseGuiaRaw(guiaRaw.ConsAcH) * hembraIni / 1000)
+                    : null,
+                DifConsAcM = guiaRaw != null
+                    ? acConsM - (ParseGuiaRaw(guiaRaw.ConsAcM) * machoIni / 1000)
+                    : null,
+
+                // Datos nutricionales
+                // Nota: Los valores nutricionales (Kcal, Prot) no están en la guía genética estándar
+                // Se pueden agregar manualmente o desde otra fuente si es necesario
+                AlimHGUIA = null, // Tipo de alimento (se puede obtener del seguimiento)
+                KcalSemH = kcalAlH > 0 ? kcalAlH * consKgH : null,
+                KcalSemAcH = acKcalSemH + (kcalAlH > 0 ? kcalAlH * consKgH : 0),
+                KcalSemHGUIA = null, // No disponible en guía genética estándar
+                KcalSemAcHGUIA = null,
+                ProtSemH = protAlH > 0 ? (protAlH / 100) * consKgH : null,
+                ProtSemAcH = acProtSemH + (protAlH > 0 ? (protAlH / 100) * consKgH : 0),
+                ProtSemHGUIA = null, // No disponible en guía genética estándar
+                ProtSemAcHGUIA = null,
+
+                AlimMGUIA = null, // Tipo de alimento (se puede obtener del seguimiento)
+                KcalSemM = kcalAlM > 0 ? kcalAlM * consKgM : null,
+                KcalSemAcM = acKcalSemM + (kcalAlM > 0 ? kcalAlM * consKgM : 0),
+                KcalSemMGUIA = null, // No disponible en guía genética estándar
+                KcalSemAcMGUIA = null,
+                ProtSemM = protAlM > 0 ? (protAlM / 100) * consKgM : null,
+                ProtSemAcM = acProtSemM + (protAlM > 0 ? (protAlM / 100) * consKgM : 0),
+                ProtSemMGUIA = null, // No disponible en guía genética estándar
+                ProtSemAcMGUIA = null,
+
+                Observaciones = string.Join("; ", registrosSemana
+                    .Where(s => !string.IsNullOrEmpty(s.Observaciones))
+                    .Select(s => s.Observaciones)
+                    .Distinct())
+            };
+
+            // Actualizar acumulados nutricionales
+            if (dto.KcalSemH.HasValue)
+                acKcalSemH += dto.KcalSemH.Value;
+            if (dto.KcalSemM.HasValue)
+                acKcalSemM += dto.KcalSemM.Value;
+            if (dto.ProtSemH.HasValue)
+                acProtSemH += dto.ProtSemH.Value;
+            if (dto.ProtSemM.HasValue)
+                acProtSemM += dto.ProtSemM.Value;
+
+            // Actualizar valores anteriores para siguiente semana
+            if (dto.ConsAcGrH.HasValue)
+                consAcGrHAnterior = dto.ConsAcGrH.Value;
+            if (dto.ConsAcGrM.HasValue)
+                consAcGrMAnterior = dto.ConsAcGrM.Value;
+
+            datosSemanales.Add(dto);
+        }
+
+        return new ReporteTecnicoLevanteCompletoDto
+        {
+            InformacionLote = infoLote,
+            DatosSemanales = datosSemanales,
+            EsConsolidado = consolidarSublotes,
+            SublotesIncluidos = consolidarSublotes ? new List<string> { sublote ?? "Sin sublote" } : new List<string>()
+        };
+    }
+
+    private int GetSemanaAno(DateTime fecha)
+    {
+        var calendar = System.Globalization.CultureInfo.CurrentCulture.Calendar;
+        return calendar.GetWeekOfYear(fecha, 
+            System.Globalization.CalendarWeekRule.FirstDay, 
+            DayOfWeek.Monday);
     }
 
     #endregion

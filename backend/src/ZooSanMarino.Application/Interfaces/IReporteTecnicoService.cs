@@ -56,6 +56,15 @@ public interface IReporteTecnicoService
     /// Obtiene lista de sublotes disponibles para un lote base
     /// </summary>
     Task<List<string>> ObtenerSublotesAsync(string loteNombreBase, int? loteId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera reporte técnico completo de Levante con estructura Excel (25 semanas)
+    /// Incluye todos los campos calculados, manuales y de guía
+    /// </summary>
+    Task<ReporteTecnicoLevanteCompletoDto> GenerarReporteLevanteCompletoAsync(
+        int loteId,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default);
 }
 
 

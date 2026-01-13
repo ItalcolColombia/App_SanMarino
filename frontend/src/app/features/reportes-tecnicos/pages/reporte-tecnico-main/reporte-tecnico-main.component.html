@@ -15,6 +15,14 @@
           <label for="tab-produccion" class="ux-tab">Producción</label>
         </div>
 
+        <!-- Toggle Modo Reporte (solo para Levante) -->
+        <div class="modo-reporte-toggle" *ngIf="tabActivo === 'levante'">
+          <label class="toggle-label">
+            <input type="checkbox" [(ngModel)]="modoCompleto" [ngModelOptions]="{standalone: true}">
+            <span>Modo Completo (Estructura Excel - 25 semanas)</span>
+          </label>
+        </div>
+
         <div class="ux-header__meta">
           <ng-template #noGranjaChip>
             <span class="chip chip--warning">
@@ -207,8 +215,47 @@
       </div>
     </div>
 
-    <!-- Reporte Generado - Levante -->
-    <section class="ux-card" *ngIf="reporte() && tabActivo === 'levante'">
+    <!-- Reporte Completo - Levante (Estructura Excel) -->
+    <section class="ux-card" *ngIf="reporteLevanteCompleto() && tabActivo === 'levante'">
+      <div class="reporte-header">
+        <div class="reporte-info">
+          <h2>
+            Reporte Técnico Completo - {{ reporteLevanteCompleto()!.informacionLote.loteNombre }}
+            <span *ngIf="reporteLevanteCompleto()!.informacionLote.sublote" class="chip chip--info">
+              {{ reporteLevanteCompleto()!.informacionLote.sublote }}
+            </span>
+            <span *ngIf="reporteLevanteCompleto()!.esConsolidado" class="chip chip--warning">
+              Consolidado
+            </span>
+            <span class="chip chip--success">
+              25 Semanas
+            </span>
+          </h2>
+          <div class="reporte-metadata">
+            <span><strong>Raza:</strong> {{ reporteLevanteCompleto()!.informacionLote.raza || 'N/A' }}</span>
+            <span><strong>Línea:</strong> {{ reporteLevanteCompleto()!.informacionLote.linea || 'N/A' }}</span>
+            <span><strong>Etapa:</strong> {{ reporteLevanteCompleto()!.informacionLote.etapa || 'N/A' }}</span>
+            <span *ngIf="reporteLevanteCompleto()!.informacionLote.fechaEncaset">
+              <strong>Encaset:</strong> {{ formatDate(reporteLevanteCompleto()!.informacionLote.fechaEncaset) }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla Completa -->
+      <div class="datos-section" *ngIf="reporteLevanteCompleto()!.datosSemanales.length > 0">
+        <h3>Datos Semanales Completos (Estructura Excel)</h3>
+        <app-tabla-levante-completa [datos]="reporteLevanteCompleto()!.datosSemanales"></app-tabla-levante-completa>
+      </div>
+
+      <!-- Mensaje si no hay datos -->
+      <div class="empty-state" *ngIf="reporteLevanteCompleto()!.datosSemanales.length === 0">
+        <p>No se encontraron datos para el lote seleccionado.</p>
+      </div>
+    </section>
+
+    <!-- Reporte Generado - Levante (Modo Estándar) -->
+    <section class="ux-card" *ngIf="reporte() && tabActivo === 'levante' && modoReporte === 'estandar'">
       <div class="reporte-header">
         <div class="reporte-info">
           <h2>

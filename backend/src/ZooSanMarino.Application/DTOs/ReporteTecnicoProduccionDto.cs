@@ -26,7 +26,44 @@ public record ReporteTecnicoProduccionDiarioDto(
     decimal PorcentajeIncubable, // % de huevos incubables
     decimal? PesoHembra, // Peso promedio hembras (kg)
     decimal? PesoMachos, // Peso promedio machos (kg)
-    decimal PesoHuevo // Peso promedio del huevo (g)
+    decimal PesoHuevo, // Peso promedio del huevo (g)
+    // Desglose de tipos de huevos
+    int HuevoLimpio,
+    int HuevoTratado,
+    int HuevoSucio,
+    int HuevoDeforme,
+    int HuevoBlanco,
+    int HuevoDobleYema,
+    int HuevoPiso,
+    int HuevoPequeno,
+    int HuevoRoto,
+    int HuevoDesecho,
+    int HuevoOtro,
+    // Porcentajes de tipos de huevos
+    decimal? PorcentajeLimpio,
+    decimal? PorcentajeTratado,
+    decimal? PorcentajeSucio,
+    decimal? PorcentajeDeforme,
+    decimal? PorcentajeBlanco,
+    decimal? PorcentajeDobleYema,
+    decimal? PorcentajePiso,
+    decimal? PorcentajePequeno,
+    decimal? PorcentajeRoto,
+    decimal? PorcentajeDesecho,
+    decimal? PorcentajeOtro,
+    // Transferencias de huevos del día
+    int HuevosTrasladadosTotal,
+    int HuevosTrasladadosLimpio,
+    int HuevosTrasladadosTratado,
+    int HuevosTrasladadosSucio,
+    int HuevosTrasladadosDeforme,
+    int HuevosTrasladadosBlanco,
+    int HuevosTrasladadosDobleYema,
+    int HuevosTrasladadosPiso,
+    int HuevosTrasladadosPequeno,
+    int HuevosTrasladadosRoto,
+    int HuevosTrasladadosDesecho,
+    int HuevosTrasladadosOtro
 );
 
 /// <summary>
@@ -59,6 +96,43 @@ public record ReporteTecnicoProduccionSemanalDto(
     decimal? PesoHembraPromedio,
     decimal? PesoMachosPromedio,
     decimal PesoHuevoPromedio,
+    // Desglose de tipos de huevos semanal
+    int HuevoLimpioSemanal,
+    int HuevoTratadoSemanal,
+    int HuevoSucioSemanal,
+    int HuevoDeformeSemanal,
+    int HuevoBlancoSemanal,
+    int HuevoDobleYemaSemanal,
+    int HuevoPisoSemanal,
+    int HuevoPequenoSemanal,
+    int HuevoRotoSemanal,
+    int HuevoDesechoSemanal,
+    int HuevoOtroSemanal,
+    // Porcentajes promedio de tipos de huevos
+    decimal? PorcentajeLimpioPromedio,
+    decimal? PorcentajeTratadoPromedio,
+    decimal? PorcentajeSucioPromedio,
+    decimal? PorcentajeDeformePromedio,
+    decimal? PorcentajeBlancoPromedio,
+    decimal? PorcentajeDobleYemaPromedio,
+    decimal? PorcentajePisoPromedio,
+    decimal? PorcentajePequenoPromedio,
+    decimal? PorcentajeRotoPromedio,
+    decimal? PorcentajeDesechoPromedio,
+    decimal? PorcentajeOtroPromedio,
+    // Transferencias de huevos semanal
+    int HuevosTrasladadosTotalSemanal,
+    int HuevosTrasladadosLimpioSemanal,
+    int HuevosTrasladadosTratadoSemanal,
+    int HuevosTrasladadosSucioSemanal,
+    int HuevosTrasladadosDeformeSemanal,
+    int HuevosTrasladadosBlancoSemanal,
+    int HuevosTrasladadosDobleYemaSemanal,
+    int HuevosTrasladadosPisoSemanal,
+    int HuevosTrasladadosPequenoSemanal,
+    int HuevosTrasladadosRotoSemanal,
+    int HuevosTrasladadosDesechoSemanal,
+    int HuevosTrasladadosOtroSemanal,
     List<ReporteTecnicoProduccionDiarioDto> DetalleDiario
 );
 

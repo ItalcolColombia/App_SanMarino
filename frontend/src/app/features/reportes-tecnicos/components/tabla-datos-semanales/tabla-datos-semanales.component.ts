@@ -25,6 +25,11 @@ export class TablaDatosSemanalesComponent {
       year: '2-digit' 
     });
   }
+
+  getDescartePorcentaje(dato: ReporteTecnicoSemanalDto): number {
+    if (!dato.avesInicioSemana || dato.avesInicioSemana === 0) return 0;
+    return (dato.descarteTotalSemana / dato.avesInicioSemana) * 100;
+  }
 }
 
 

@@ -71,6 +71,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         
         // Historial de traslados de lotes
         public DbSet<HistorialTrasladoLote> HistorialTrasladoLote => Set<HistorialTrasladoLote>();
+        
+        // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
+        // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

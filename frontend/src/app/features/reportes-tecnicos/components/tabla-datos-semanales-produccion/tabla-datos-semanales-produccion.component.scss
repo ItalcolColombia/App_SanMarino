@@ -15,7 +15,7 @@
 
 .ux-table {
   width: 100%;
-  min-width: 2500px; // Ancho mínimo para todas las columnas semanales de producción (27 columnas)
+  min-width: 3500px; // Ancho mínimo para todas las columnas semanales de producción (incluye tipos de huevos y transferencias)
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.875rem;
@@ -88,6 +88,12 @@
       strong {
         font-weight: 700;
         color: #111111;
+      }
+
+      &.highlight-blue {
+        background-color: #dbeafe;
+        color: #1e40af;
+        font-weight: 600;
       }
     }
   }

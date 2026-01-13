@@ -215,30 +215,30 @@ namespace ZooSanMarino.Infrastructure.Services
                 query = query.Where(f => f.CompanyId == effectiveCompanyId);
             }
 
-            // Si se proporciona un userId, filtrar por las granjas de la empresa del usuario
+            // Si se proporciona un userId, filtrar por las granjas asignadas directamente al usuario
             if (userId.HasValue)
             {
                 Console.WriteLine($"=== FarmService.GetAllAsync - Filtrando por userId: {userId} ===");
                 
-                // Obtener las empresas asignadas al usuario
-                var userCompanyIds = await _ctx.UserCompanies
+                // Obtener las granjas asignadas directamente al usuario (UserFarms)
+                var userFarmIds = await _ctx.UserFarms
                     .AsNoTracking()
-                    .Where(uc => uc.UserId == userId.Value)
-                    .Select(uc => uc.CompanyId)
+                    .Where(uf => uf.UserId == userId.Value)
+                    .Select(uf => uf.FarmId)
                     .Distinct()
                     .ToListAsync();
 
-                Console.WriteLine($"=== Empresas asignadas al usuario: {string.Join(", ", userCompanyIds)} ===");
+                Console.WriteLine($"=== Granjas asignadas directamente al usuario: {string.Join(", ", userFarmIds)} ===");
                 
-                // Si el usuario tiene empresas asignadas, filtrar por las granjas de esas empresas
-                if (userCompanyIds.Any())
+                // Si el usuario tiene granjas asignadas, filtrar solo por esas granjas
+                if (userFarmIds.Any())
                 {
-                    Console.WriteLine($"✅ Filtrando por granjas de {userCompanyIds.Count} empresas: [{string.Join(", ", userCompanyIds)}]");
-                    query = query.Where(f => userCompanyIds.Contains(f.CompanyId));
+                    Console.WriteLine($"✅ Filtrando por {userFarmIds.Count} granjas asignadas: [{string.Join(", ", userFarmIds)}]");
+                    query = query.Where(f => userFarmIds.Contains(f.Id));
                 }
                 else
                 {
-                    Console.WriteLine("⚠️ Usuario no tiene empresas asignadas - devolviendo lista vacía");
+                    Console.WriteLine("⚠️ Usuario no tiene granjas asignadas - devolviendo lista vacía");
                     // Devolver lista vacía filtrando por un ID que no existe
                     query = query.Where(f => f.Id == -1);
                 }
