@@ -1,0 +1,127 @@
+<div class="tabla-container">
+  <!-- Encabezado del Reporte (similar a la imagen) -->
+  <div class="reporte-encabezado" *ngIf="informacionLote">
+    <div class="encabezado-info">
+      <div class="info-row">
+        <span class="info-label">SANMARINO</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">Línea: {{ informacionLote.linea || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">Raza: {{ informacionLote.raza || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">Etapa: LEVANTE</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">REPORTE DIARIO HEMBRAS</span>
+        <span class="info-separator">|</span>
+        <span class="info-value" *ngIf="informacionLote.granjaNombre">{{ informacionLote.granjaNombre }}</span>
+        <span class="info-separator" *ngIf="informacionLote.granjaNombre">|</span>
+        <span class="info-value">Número de Hembras: {{ informacionLote.numeroHembras || 0 }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value" *ngIf="informacionLote.fechaEncaset">
+          Encaset: {{ formatDate(informacionLote.fechaEncaset) }}
+        </span>
+        <span class="info-separator" *ngIf="informacionLote.galpon">|</span>
+        <span class="info-value" *ngIf="informacionLote.galpon">Galpón: {{ informacionLote.galpon }}</span>
+        <span class="info-separator" *ngIf="informacionLote.loteNombre">|</span>
+        <span class="info-value" *ngIf="informacionLote.loteNombre">Lote: {{ informacionLote.loteNombre }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="tabla-datos">
+      <thead>
+        <tr>
+          <th rowspan="2">FECHA DIARIA</th>
+          <th rowspan="2">EDAD EN SEM.</th>
+          <th rowspan="2">Nro. Aves Diario</th>
+          <th colspan="3">MORTALIDAD</th>
+          <th colspan="3">ERRORES DE SEXAJE</th>
+          <th colspan="3">DESCARTES</th>
+          <th colspan="4">CONSUMIDO ALIMENTO</th>
+          <th colspan="4">PESO CORPORAL Grs.</th>
+          <th rowspan="2">INGRESOS ALIMENTO</th>
+          <th rowspan="2">TRASLADOS ALIMENTO</th>
+          <th rowspan="2">SELECCIÓN VENTAS</th>
+        </tr>
+        <tr>
+          <!-- Mortalidad -->
+          <th>TOTAL DIARIO</th>
+          <th>% MORT. DIARIA</th>
+          <th>% MORT. ACUM.</th>
+          <!-- Errores de Sexaje -->
+          <th>No. AVES</th>
+          <th>%</th>
+          <th>% ACUM.</th>
+          <!-- Descartes -->
+          <th>No. AVES</th>
+          <th>% DIA</th>
+          <th>% ACUM.</th>
+          <!-- Consumido Alimento -->
+          <th>CONSUMO BULTO</th>
+          <th>CONSUMO KILOS</th>
+          <th>ACUM KILOS</th>
+          <th>GRAM. AVE</th>
+          <!-- Peso Corporal -->
+          <th>ACTUAL</th>
+          <th>UNIFOR.</th>
+          <th>GANAN</th>
+          <th>COEF.V</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let dato of datos; trackBy: trackByFecha">
+          <!-- Fecha Diaria -->
+          <td class="text-left">{{ formatDate(dato.fecha) }}</td>
+          
+          <!-- Edad en Semanas -->
+          <td>{{ dato.edadSemanas }}</td>
+          
+          <!-- Nro. Aves Diario (Saldo Hembras) -->
+          <td class="text-right"><strong>{{ dato.saldoHembras }}</strong></td>
+          
+          <!-- Mortalidad -->
+          <td [class]="getMortalidadClass(dato.mortalidadHembras)" class="text-right">
+            {{ dato.mortalidadHembras }}
+          </td>
+          <td [class]="getPorcentajeClass(dato.mortalidadHembrasPorcentajeDiario)" class="text-right">
+            {{ formatNumber(dato.mortalidadHembrasPorcentajeDiario) }}%
+          </td>
+          <td class="text-right">{{ formatNumber(dato.mortalidadHembrasPorcentajeAcumulado) }}%</td>
+          
+          <!-- Errores de Sexaje -->
+          <td class="text-right">{{ dato.errorSexajeHembras }}</td>
+          <td class="text-right">{{ formatNumber(dato.errorSexajeHembrasPorcentajeDiario) }}%</td>
+          <td class="text-right">{{ formatNumber(dato.errorSexajeHembrasPorcentajeAcumulado) }}%</td>
+          
+          <!-- Descarte (Selección Hembras) -->
+          <td class="text-right">{{ dato.seleccionHembras }}</td>
+          <td class="text-right">{{ formatNumber(dato.seleccionHembrasPorcentajeDiario) }}%</td>
+          <td class="text-right">{{ formatNumber(dato.seleccionHembrasPorcentajeAcumulado) }}%</td>
+          
+          <!-- Consumido Alimento -->
+          <td class="text-right">{{ formatNumber(calcularConsumoBultos(dato.consumoKgHembras), 3) }}</td>
+          <td class="text-right">{{ formatNumber(dato.consumoKgHembras, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.consumoKgHembrasAcumulado, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.consumoGramosPorAveHembras, 2) }}</td>
+          
+          <!-- Peso Corporal -->
+          <td class="text-right">{{ formatNumber(dato.pesoPromedioHembras ? dato.pesoPromedioHembras * 1000 : null, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.uniformidadHembras, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.gananciaPesoHembras ? dato.gananciaPesoHembras * 1000 : null, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.coeficienteVariacionHembras, 1) }}</td>
+          
+          <!-- Ingresos Alimento -->
+          <td class="text-right">{{ formatNumber(dato.ingresosAlimentoKilos, 1) }}</td>
+          
+          <!-- Traslados Alimento -->
+          <td class="text-right">{{ formatNumber(dato.trasladosAlimentoKilos, 1) }}</td>
+          
+          <!-- Selección Ventas (Selección Hembras) -->
+          <td class="text-right">{{ dato.seleccionHembras }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

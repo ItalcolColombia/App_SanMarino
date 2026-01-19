@@ -1023,6 +1023,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
             Etapa = etapa,
             FechaEncaset = lote.FechaEncaset,
             NumeroHembras = lote.HembrasL,
+            NumeroMachos = lote.MachosL,
             Galpon = int.TryParse(lote.GalponId, out var galponId) ? galponId : null,
             Tecnico = lote.Tecnico,
             GranjaNombre = lote.Farm?.Name,
@@ -1095,36 +1096,52 @@ public class ReporteTecnicoService : IReporteTecnicoService
     {
         // Obtener ingresos de alimentos (Entry, TransferIn) del día
         // Filtrar por nombre que contenga "alimento" o códigos comunes de alimentos
-        var ingresos = await _ctx.FarmInventoryMovements
-            .AsNoTracking()
-            .Include(m => m.CatalogItem)
-            .Where(m => m.FarmId == granjaId &&
-                       m.CreatedAt.Date == fecha.Date &&
-                       (m.MovementType == Domain.Enums.InventoryMovementType.Entry ||
-                        m.MovementType == Domain.Enums.InventoryMovementType.TransferIn) &&
-                       (m.CatalogItem.Nombre.ToLower().Contains("alimento") ||
-                        m.CatalogItem.Nombre.ToLower().Contains("food") ||
-                        m.CatalogItem.Codigo.ToLower().StartsWith("al")))
-            .SumAsync(m => m.Quantity, ct);
+        try
+        {
+            var ingresos = await _ctx.FarmInventoryMovements
+                .AsNoTracking()
+                .Include(m => m.CatalogItem)
+                .Where(m => m.FarmId == granjaId &&
+                           m.CreatedAt.Date == fecha.Date &&
+                           (m.MovementType == Domain.Enums.InventoryMovementType.Entry ||
+                            m.MovementType == Domain.Enums.InventoryMovementType.TransferIn) &&
+                           m.CatalogItem != null &&
+                           (m.CatalogItem.Nombre.ToLower().Contains("alimento") ||
+                            m.CatalogItem.Nombre.ToLower().Contains("food") ||
+                            (m.CatalogItem.Codigo != null && m.CatalogItem.Codigo.ToLower().StartsWith("al"))))
+                .SumAsync(m => m.Quantity, ct);
 
-        return ingresos;
+            return ingresos;
+        }
+        catch
+        {
+            return 0; // Si hay error, retornar 0
+        }
     }
 
     private async Task<decimal> ObtenerTrasladosAlimentoAsync(int granjaId, DateTime fecha, CancellationToken ct)
     {
         // Obtener traslados de alimentos (TransferOut) del día
-        var traslados = await _ctx.FarmInventoryMovements
-            .AsNoTracking()
-            .Include(m => m.CatalogItem)
-            .Where(m => m.FarmId == granjaId &&
-                       m.CreatedAt.Date == fecha.Date &&
-                       m.MovementType == Domain.Enums.InventoryMovementType.TransferOut &&
-                       (m.CatalogItem.Nombre.ToLower().Contains("alimento") ||
-                        m.CatalogItem.Nombre.ToLower().Contains("food") ||
-                        m.CatalogItem.Codigo.ToLower().StartsWith("al")))
-            .SumAsync(m => m.Quantity, ct);
+        try
+        {
+            var traslados = await _ctx.FarmInventoryMovements
+                .AsNoTracking()
+                .Include(m => m.CatalogItem)
+                .Where(m => m.FarmId == granjaId &&
+                           m.CreatedAt.Date == fecha.Date &&
+                           m.MovementType == Domain.Enums.InventoryMovementType.TransferOut &&
+                           m.CatalogItem != null &&
+                           (m.CatalogItem.Nombre.ToLower().Contains("alimento") ||
+                            m.CatalogItem.Nombre.ToLower().Contains("food") ||
+                            (m.CatalogItem.Codigo != null && m.CatalogItem.Codigo.ToLower().StartsWith("al"))))
+                .SumAsync(m => m.Quantity, ct);
 
-        return traslados;
+            return traslados;
+        }
+        catch
+        {
+            return 0; // Si hay error, retornar 0
+        }
     }
 
     public async Task<ReporteTecnicoLevanteCompletoDto> GenerarReporteLevanteCompletoAsync(
@@ -1537,6 +1554,451 @@ public class ReporteTecnicoService : IReporteTecnicoService
         return calendar.GetWeekOfYear(fecha, 
             System.Globalization.CalendarWeekRule.FirstDay, 
             DayOfWeek.Monday);
+    }
+
+    /// <summary>
+    /// Genera reporte diario específico de MACHOS desde el seguimiento diario de levante
+    /// </summary>
+    public async Task<List<ReporteTecnicoDiarioMachosDto>> GenerarReporteDiarioMachosAsync(
+        int loteId,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            // Obtener lote para información inicial
+            var lote = await _ctx.Lotes
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            
+            if (lote == null)
+                throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+            
+            if (!lote.FechaEncaset.HasValue)
+                throw new InvalidOperationException($"El lote {loteId} no tiene fecha de encaset");
+            
+            var machosIniciales = lote.MachosL ?? 0;
+            var granjaId = lote.GranjaId;
+        
+        // Obtener todos los registros de seguimiento (para cálculos acumulados correctos)
+        var queryTodos = _ctx.SeguimientoLoteLevante
+            .AsNoTracking()
+            .Where(s => s.LoteId == loteId)
+            .OrderBy(s => s.FechaRegistro);
+        
+        var todosSeguimientos = await queryTodos.ToListAsync(ct);
+        
+        // Filtrar solo semanas de levante (1-25)
+        todosSeguimientos = todosSeguimientos.Where(seg =>
+        {
+            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadSemanas = CalcularEdadSemanas(edadDias);
+            return edadSemanas <= 25;
+        }).ToList();
+        
+        // Aplicar filtros de fecha
+        var queryFiltrado = todosSeguimientos.AsQueryable();
+        if (fechaInicio.HasValue)
+            queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro >= fechaInicio.Value);
+        if (fechaFin.HasValue)
+            queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro <= fechaFin.Value);
+        
+        var seguimientos = queryFiltrado.ToList();
+        
+        // Procesar cada registro diario
+        var datosMachos = new List<ReporteTecnicoDiarioMachosDto>();
+        decimal? pesoAnterior = null;
+        
+        foreach (var seg in seguimientos)
+        {
+            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadSemanas = CalcularEdadSemanas(edadDias);
+            
+            // Calcular acumulados hasta esta fecha (incluyendo todos los registros anteriores)
+            var registrosHastaFecha = todosSeguimientos
+                .Where(s => s.FechaRegistro <= seg.FechaRegistro)
+                .ToList();
+            
+            // Calcular saldo actual de machos
+            var machosActuales = machosIniciales;
+            var machosAntesMortalidad = machosIniciales; // Para calcular % mortalidad diario correctamente
+            
+            foreach (var reg in registrosHastaFecha)
+            {
+                // Guardar aves antes de aplicar mortalidad del registro actual
+                if (reg.Id == seg.Id)
+                {
+                    machosAntesMortalidad = machosActuales;
+                }
+                
+                // Aplicar mortalidad
+                machosActuales -= reg.MortalidadMachos;
+                
+                // Separar selección normal de traslados
+                var selMReg = reg.SelM;
+                var seleccionNormalReg = Math.Max(0, selMReg);
+                var trasladosReg = Math.Abs(Math.Min(0, selMReg));
+                
+                machosActuales -= seleccionNormalReg;
+                machosActuales -= trasladosReg;
+            }
+            
+            // Calcular valores del día actual
+            var mortalidad = seg.MortalidadMachos;
+            var mortalidadAcumulada = registrosHastaFecha.Sum(s => s.MortalidadMachos);
+            
+            var selM = seg.SelM;
+            var seleccionNormal = Math.Max(0, selM);
+            var traslados = Math.Abs(Math.Min(0, selM));
+            var seleccionAcumulada = registrosHastaFecha.Sum(s => Math.Max(0, s.SelM));
+            var trasladosAcumulados = registrosHastaFecha.Sum(s => Math.Abs(Math.Min(0, s.SelM)));
+            
+            var errorSexaje = seg.ErrorSexajeMachos;
+            var errorSexajeAcumulado = registrosHastaFecha.Sum(s => s.ErrorSexajeMachos);
+            
+            var consumo = (decimal)(seg.ConsumoKgMachos ?? 0);
+            var consumoAcumulado = registrosHastaFecha.Sum(s => (decimal)(s.ConsumoKgMachos ?? 0));
+            var consumoGramosPorAve = machosActuales > 0 ? (consumo * 1000) / machosActuales : 0;
+            
+            // Peso y ganancia
+            var pesoActual = (decimal?)(seg.PesoPromM);
+            var gananciaPeso = pesoActual.HasValue && pesoAnterior.HasValue 
+                ? pesoActual.Value - pesoAnterior.Value 
+                : (decimal?)null;
+            
+            // Valores nutricionales
+            var kcalAl = seg.KcalAlH; // Mismo alimento para machos y hembras
+            var protAl = seg.ProtAlH;
+            var kcalAve = machosActuales > 0 && kcalAl.HasValue 
+                ? (kcalAl.Value * (double)consumo) / machosActuales 
+                : (double?)null;
+            var protAve = machosActuales > 0 && protAl.HasValue 
+                ? (protAl.Value * (double)consumo) / machosActuales 
+                : (double?)null;
+            
+            // Ingresos y traslados de alimento
+            var ingresosAlimento = await ObtenerIngresosAlimentoAsync(lote.GranjaId, seg.FechaRegistro, ct);
+            var trasladosAlimento = await ObtenerTrasladosAlimentoAsync(lote.GranjaId, seg.FechaRegistro, ct);
+            
+            var dto = new ReporteTecnicoDiarioMachosDto
+            {
+                Fecha = seg.FechaRegistro,
+                EdadDias = edadDias,
+                EdadSemanas = edadSemanas,
+                SaldoMachos = machosActuales,
+                MortalidadMachos = mortalidad,
+                MortalidadMachosAcumulada = mortalidadAcumulada,
+                MortalidadMachosPorcentajeDiario = machosAntesMortalidad > 0 
+                    ? (decimal)mortalidad / machosAntesMortalidad * 100 
+                    : 0,
+                MortalidadMachosPorcentajeAcumulado = machosIniciales > 0 
+                    ? (decimal)mortalidadAcumulada / machosIniciales * 100 
+                    : 0,
+                SeleccionMachos = seleccionNormal,
+                SeleccionMachosAcumulada = seleccionAcumulada,
+                SeleccionMachosPorcentajeDiario = machosActuales > 0 
+                    ? (decimal)seleccionNormal / machosActuales * 100 
+                    : 0,
+                SeleccionMachosPorcentajeAcumulado = machosIniciales > 0 
+                    ? (decimal)seleccionAcumulada / machosIniciales * 100 
+                    : 0,
+                TrasladosMachos = traslados,
+                TrasladosMachosAcumulados = trasladosAcumulados,
+                ErrorSexajeMachos = errorSexaje,
+                ErrorSexajeMachosAcumulado = errorSexajeAcumulado,
+                ErrorSexajeMachosPorcentajeDiario = machosActuales > 0 
+                    ? (decimal)errorSexaje / machosActuales * 100 
+                    : 0,
+                ErrorSexajeMachosPorcentajeAcumulado = machosIniciales > 0 
+                    ? (decimal)errorSexajeAcumulado / machosIniciales * 100 
+                    : 0,
+                ConsumoKgMachos = consumo,
+                ConsumoKgMachosAcumulado = consumoAcumulado,
+                ConsumoGramosPorAveMachos = consumoGramosPorAve,
+                PesoPromedioMachos = pesoActual,
+                UniformidadMachos = (decimal?)(seg.UniformidadM),
+                CoeficienteVariacionMachos = (decimal?)(seg.CvM),
+                GananciaPesoMachos = gananciaPeso,
+                KcalAlMachos = kcalAl,
+                ProtAlMachos = protAl,
+                KcalAveMachos = kcalAve,
+                ProtAveMachos = protAve,
+                IngresosAlimentoKilos = ingresosAlimento,
+                TrasladosAlimentoKilos = trasladosAlimento,
+                Observaciones = seg.Observaciones
+            };
+            
+            if (pesoActual.HasValue)
+                pesoAnterior = pesoActual;
+            
+            datosMachos.Add(dto);
+        }
+        
+        return datosMachos;
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // Re-lanzar excepciones de operación inválida
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error al generar reporte diario de machos para lote {loteId}: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Genera reporte diario específico de HEMBRAS desde el seguimiento diario de levante
+    /// </summary>
+    public async Task<List<ReporteTecnicoDiarioHembrasDto>> GenerarReporteDiarioHembrasAsync(
+        int loteId,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            // Obtener lote para información inicial
+            var lote = await _ctx.Lotes
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            
+            if (lote == null)
+                throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+            
+            if (!lote.FechaEncaset.HasValue)
+                throw new InvalidOperationException($"El lote {loteId} no tiene fecha de encaset");
+            
+            var hembrasIniciales = lote.HembrasL ?? 0;
+            var granjaId = lote.GranjaId;
+        
+        // Obtener todos los registros de seguimiento (para cálculos acumulados correctos)
+        var queryTodos = _ctx.SeguimientoLoteLevante
+            .AsNoTracking()
+            .Where(s => s.LoteId == loteId)
+            .OrderBy(s => s.FechaRegistro);
+        
+        var todosSeguimientos = await queryTodos.ToListAsync(ct);
+        
+        // Filtrar solo semanas de levante (1-25)
+        todosSeguimientos = todosSeguimientos.Where(seg =>
+        {
+            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadSemanas = CalcularEdadSemanas(edadDias);
+            return edadSemanas <= 25;
+        }).ToList();
+        
+        // Aplicar filtros de fecha
+        var queryFiltrado = todosSeguimientos.AsQueryable();
+        if (fechaInicio.HasValue)
+            queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro >= fechaInicio.Value);
+        if (fechaFin.HasValue)
+            queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro <= fechaFin.Value);
+        
+        var seguimientos = queryFiltrado.ToList();
+        
+        // Procesar cada registro diario
+        var datosHembras = new List<ReporteTecnicoDiarioHembrasDto>();
+        decimal? pesoAnterior = null;
+        
+        foreach (var seg in seguimientos)
+        {
+            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadSemanas = CalcularEdadSemanas(edadDias);
+            
+            // Calcular acumulados hasta esta fecha (incluyendo todos los registros anteriores)
+            var registrosHastaFecha = todosSeguimientos
+                .Where(s => s.FechaRegistro <= seg.FechaRegistro)
+                .ToList();
+            
+            // Calcular saldo actual de hembras
+            var hembrasActuales = hembrasIniciales;
+            var hembrasAntesMortalidad = hembrasIniciales; // Para calcular % mortalidad diario correctamente
+            
+            foreach (var reg in registrosHastaFecha)
+            {
+                // Guardar aves antes de aplicar mortalidad del registro actual
+                if (reg.Id == seg.Id)
+                {
+                    hembrasAntesMortalidad = hembrasActuales;
+                }
+                
+                // Aplicar mortalidad
+                hembrasActuales -= reg.MortalidadHembras;
+                
+                // Separar selección normal de traslados
+                var selHReg = reg.SelH;
+                var seleccionNormalReg = Math.Max(0, selHReg);
+                var trasladosReg = Math.Abs(Math.Min(0, selHReg));
+                
+                hembrasActuales -= seleccionNormalReg;
+                hembrasActuales -= trasladosReg;
+            }
+            
+            // Calcular valores del día actual
+            var mortalidad = seg.MortalidadHembras;
+            var mortalidadAcumulada = registrosHastaFecha.Sum(s => s.MortalidadHembras);
+            
+            var selH = seg.SelH;
+            var seleccionNormal = Math.Max(0, selH);
+            var traslados = Math.Abs(Math.Min(0, selH));
+            var seleccionAcumulada = registrosHastaFecha.Sum(s => Math.Max(0, s.SelH));
+            var trasladosAcumulados = registrosHastaFecha.Sum(s => Math.Abs(Math.Min(0, s.SelH)));
+            
+            var errorSexaje = seg.ErrorSexajeHembras;
+            var errorSexajeAcumulado = registrosHastaFecha.Sum(s => s.ErrorSexajeHembras);
+            
+            var consumo = (decimal)seg.ConsumoKgHembras;
+            var consumoAcumulado = registrosHastaFecha.Sum(s => (decimal)s.ConsumoKgHembras);
+            var consumoGramosPorAve = hembrasActuales > 0 ? (consumo * 1000) / hembrasActuales : 0;
+            
+            // Peso y ganancia
+            var pesoActual = (decimal?)(seg.PesoPromH);
+            var gananciaPeso = pesoActual.HasValue && pesoAnterior.HasValue 
+                ? pesoActual.Value - pesoAnterior.Value 
+                : (decimal?)null;
+            
+            // Valores nutricionales
+            var kcalAl = seg.KcalAlH;
+            var protAl = seg.ProtAlH;
+            // KcalAveH y ProtAveH pueden venir del seguimiento o calcularse
+            var kcalAve = seg.KcalAveH ?? (hembrasActuales > 0 && kcalAl.HasValue 
+                ? (kcalAl.Value * (double)consumo) / hembrasActuales 
+                : (double?)null);
+            var protAve = seg.ProtAveH ?? (hembrasActuales > 0 && protAl.HasValue 
+                ? (protAl.Value * (double)consumo) / hembrasActuales 
+                : (double?)null);
+            
+            // Ingresos y traslados de alimento
+            var ingresosAlimento = granjaId > 0 
+                ? await ObtenerIngresosAlimentoAsync(granjaId, seg.FechaRegistro, ct) 
+                : 0;
+            var trasladosAlimento = granjaId > 0 
+                ? await ObtenerTrasladosAlimentoAsync(granjaId, seg.FechaRegistro, ct) 
+                : 0;
+            
+            var dto = new ReporteTecnicoDiarioHembrasDto
+            {
+                Fecha = seg.FechaRegistro,
+                EdadDias = edadDias,
+                EdadSemanas = edadSemanas,
+                SaldoHembras = hembrasActuales,
+                MortalidadHembras = mortalidad,
+                MortalidadHembrasAcumulada = mortalidadAcumulada,
+                MortalidadHembrasPorcentajeDiario = hembrasAntesMortalidad > 0 
+                    ? (decimal)mortalidad / hembrasAntesMortalidad * 100 
+                    : 0,
+                MortalidadHembrasPorcentajeAcumulado = hembrasIniciales > 0 
+                    ? (decimal)mortalidadAcumulada / hembrasIniciales * 100 
+                    : 0,
+                SeleccionHembras = seleccionNormal,
+                SeleccionHembrasAcumulada = seleccionAcumulada,
+                SeleccionHembrasPorcentajeDiario = hembrasActuales > 0 
+                    ? (decimal)seleccionNormal / hembrasActuales * 100 
+                    : 0,
+                SeleccionHembrasPorcentajeAcumulado = hembrasIniciales > 0 
+                    ? (decimal)seleccionAcumulada / hembrasIniciales * 100 
+                    : 0,
+                TrasladosHembras = traslados,
+                TrasladosHembrasAcumulados = trasladosAcumulados,
+                ErrorSexajeHembras = errorSexaje,
+                ErrorSexajeHembrasAcumulado = errorSexajeAcumulado,
+                ErrorSexajeHembrasPorcentajeDiario = hembrasActuales > 0 
+                    ? (decimal)errorSexaje / hembrasActuales * 100 
+                    : 0,
+                ErrorSexajeHembrasPorcentajeAcumulado = hembrasIniciales > 0 
+                    ? (decimal)errorSexajeAcumulado / hembrasIniciales * 100 
+                    : 0,
+                ConsumoKgHembras = consumo,
+                ConsumoKgHembrasAcumulado = consumoAcumulado,
+                ConsumoGramosPorAveHembras = consumoGramosPorAve,
+                PesoPromedioHembras = pesoActual,
+                UniformidadHembras = (decimal?)(seg.UniformidadH),
+                CoeficienteVariacionHembras = (decimal?)(seg.CvH),
+                GananciaPesoHembras = gananciaPeso,
+                KcalAlHembras = kcalAl,
+                ProtAlHembras = protAl,
+                KcalAveHembras = kcalAve,
+                ProtAveHembras = protAve,
+                IngresosAlimentoKilos = ingresosAlimento,
+                TrasladosAlimentoKilos = trasladosAlimento,
+                Observaciones = seg.Observaciones
+            };
+            
+            if (pesoActual.HasValue)
+                pesoAnterior = pesoActual;
+            
+            datosHembras.Add(dto);
+        }
+        
+        return datosHembras;
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // Re-lanzar excepciones de operación inválida
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error al generar reporte diario de hembras para lote {loteId}: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Genera reporte técnico de Levante con estructura de tabs
+    /// Incluye datos diarios separados (machos y hembras) y datos semanales completos
+    /// </summary>
+    public async Task<ReporteTecnicoLevanteConTabsDto> GenerarReporteLevanteConTabsAsync(
+        int loteId,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var lote = await _ctx.Lotes
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .Include(l => l.Nucleo)
+                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            
+            if (lote == null)
+                throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+            
+            var infoLote = MapearInformacionLote(lote);
+            var sublote = ExtraerSublote(lote.LoteNombre);
+            infoLote.Sublote = sublote;
+            infoLote.Etapa = "LEVANTE";
+            
+            // Generar datos para cada tab
+            var datosDiariosMachos = await GenerarReporteDiarioMachosAsync(loteId, fechaInicio, fechaFin, ct);
+            var datosDiariosHembras = await GenerarReporteDiarioHembrasAsync(loteId, fechaInicio, fechaFin, ct);
+            
+            // Reutilizar método existente para datos semanales
+            var reporteCompleto = await GenerarReporteLevanteCompletoAsync(loteId, consolidarSublotes, ct);
+            
+            return new ReporteTecnicoLevanteConTabsDto
+            {
+                InformacionLote = infoLote,
+                DatosDiariosMachos = datosDiariosMachos,
+                DatosDiariosHembras = datosDiariosHembras,
+                DatosSemanales = reporteCompleto.DatosSemanales,
+                EsConsolidado = consolidarSublotes,
+                SublotesIncluidos = consolidarSublotes 
+                    ? reporteCompleto.SublotesIncluidos 
+                    : new List<string> { sublote ?? "Sin sublote" }
+            };
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // Re-lanzar excepciones de operación inválida
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error al generar reporte con tabs para lote {loteId}: {ex.Message}", ex);
+        }
     }
 
     #endregion

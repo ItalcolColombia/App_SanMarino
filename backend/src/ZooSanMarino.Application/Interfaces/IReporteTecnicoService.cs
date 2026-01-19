@@ -65,6 +65,35 @@ public interface IReporteTecnicoService
         int loteId,
         bool consolidarSublotes = false,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera reporte diario específico de MACHOS desde el seguimiento diario de levante
+    /// </summary>
+    Task<List<ReporteTecnicoDiarioMachosDto>> GenerarReporteDiarioMachosAsync(
+        int loteId,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera reporte diario específico de HEMBRAS desde el seguimiento diario de levante
+    /// </summary>
+    Task<List<ReporteTecnicoDiarioHembrasDto>> GenerarReporteDiarioHembrasAsync(
+        int loteId,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera reporte técnico de Levante con estructura de tabs
+    /// Incluye datos diarios separados (machos y hembras) y datos semanales completos
+    /// </summary>
+    Task<ReporteTecnicoLevanteConTabsDto> GenerarReporteLevanteConTabsAsync(
+        int loteId,
+        DateTime? fechaInicio = null,
+        DateTime? fechaFin = null,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default);
 }
 
 

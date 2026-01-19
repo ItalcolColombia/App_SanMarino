@@ -96,6 +96,7 @@ public class ReporteTecnicoLoteInfoDto
     public string? Etapa { get; set; } // "LEVANTE", "PRODUCCION"
     public DateTime? FechaEncaset { get; set; }
     public int? NumeroHembras { get; set; }
+    public int? NumeroMachos { get; set; } // Número inicial de machos
     public int? Galpon { get; set; }
     public string? Tecnico { get; set; }
     public string? GranjaNombre { get; set; }
@@ -126,6 +127,149 @@ public class GenerarReporteTecnicoRequestDto
     public DateTime? FechaFin { get; set; }
     public bool IncluirSemanales { get; set; } = true;
     public bool ConsolidarSublotes { get; set; } = false; // Si true, consolida todos los sublotes del lote
+}
+
+// ========== DTOs para Reporte Técnico Diario Separado por Sexo ==========
+
+/// <summary>
+/// DTO para datos diarios de reporte técnico específico de MACHOS
+/// </summary>
+public class ReporteTecnicoDiarioMachosDto
+{
+    // ========== IDENTIFICACIÓN ==========
+    public DateTime Fecha { get; set; }
+    public int EdadDias { get; set; }
+    public int EdadSemanas { get; set; }
+    
+    // ========== SALDO ACTUAL ==========
+    public int SaldoMachos { get; set; } // Saldo actual de machos
+    
+    // ========== MORTALIDAD ==========
+    public int MortalidadMachos { get; set; } // Mortalidad diaria
+    public int MortalidadMachosAcumulada { get; set; } // Mortalidad acumulada desde inicio
+    public decimal MortalidadMachosPorcentajeDiario { get; set; } // % sobre aves antes de mortalidad
+    public decimal MortalidadMachosPorcentajeAcumulado { get; set; } // % sobre aves iniciales
+    
+    // ========== SELECCIÓN/RETIRO (Valores Positivos) ==========
+    public int SeleccionMachos { get; set; } // Solo valores positivos de SelM
+    public int SeleccionMachosAcumulada { get; set; }
+    public decimal SeleccionMachosPorcentajeDiario { get; set; }
+    public decimal SeleccionMachosPorcentajeAcumulado { get; set; }
+    
+    // ========== TRASLADOS (Valores Negativos en Valor Absoluto) ==========
+    public int TrasladosMachos { get; set; } // Valores negativos de SelM en valor absoluto
+    public int TrasladosMachosAcumulados { get; set; }
+    
+    // ========== ERROR DE SEXAJE ==========
+    public int ErrorSexajeMachos { get; set; } // Error sexaje diario
+    public int ErrorSexajeMachosAcumulado { get; set; } // Error sexaje acumulado
+    public decimal ErrorSexajeMachosPorcentajeDiario { get; set; }
+    public decimal ErrorSexajeMachosPorcentajeAcumulado { get; set; }
+    
+    // ========== CONSUMO DE ALIMENTO ==========
+    public decimal ConsumoKgMachos { get; set; } // Consumo diario en kg
+    public decimal ConsumoKgMachosAcumulado { get; set; } // Consumo acumulado en kg
+    public decimal ConsumoGramosPorAveMachos { get; set; } // Gramos por ave por día
+    
+    // ========== PESO Y UNIFORMIDAD ==========
+    public decimal? PesoPromedioMachos { get; set; } // Peso promedio en kg
+    public decimal? UniformidadMachos { get; set; } // Uniformidad (%)
+    public decimal? CoeficienteVariacionMachos { get; set; } // Coeficiente de variación (%)
+    public decimal? GananciaPesoMachos { get; set; } // Ganancia de peso vs día anterior
+    
+    // ========== VALORES NUTRICIONALES ==========
+    public double? KcalAlMachos { get; set; } // Kcal por kg de alimento
+    public double? ProtAlMachos { get; set; } // % Proteína en alimento
+    public double? KcalAveMachos { get; set; } // Kcal por ave por día
+    public double? ProtAveMachos { get; set; } // Proteína por ave por día
+    
+    // ========== INGRESOS Y TRASLADOS DE ALIMENTO ==========
+    public decimal IngresosAlimentoKilos { get; set; } // Ingresos de alimento del día
+    public decimal TrasladosAlimentoKilos { get; set; } // Traslados de alimento del día
+    
+    // ========== OBSERVACIONES ==========
+    public string? Observaciones { get; set; }
+}
+
+/// <summary>
+/// DTO para datos diarios de reporte técnico específico de HEMBRAS
+/// </summary>
+public class ReporteTecnicoDiarioHembrasDto
+{
+    // ========== IDENTIFICACIÓN ==========
+    public DateTime Fecha { get; set; }
+    public int EdadDias { get; set; }
+    public int EdadSemanas { get; set; }
+    
+    // ========== SALDO ACTUAL ==========
+    public int SaldoHembras { get; set; } // Saldo actual de hembras
+    
+    // ========== MORTALIDAD ==========
+    public int MortalidadHembras { get; set; }
+    public int MortalidadHembrasAcumulada { get; set; }
+    public decimal MortalidadHembrasPorcentajeDiario { get; set; }
+    public decimal MortalidadHembrasPorcentajeAcumulado { get; set; }
+    
+    // ========== SELECCIÓN/RETIRO ==========
+    public int SeleccionHembras { get; set; } // Solo valores positivos de SelH
+    public int SeleccionHembrasAcumulada { get; set; }
+    public decimal SeleccionHembrasPorcentajeDiario { get; set; }
+    public decimal SeleccionHembrasPorcentajeAcumulado { get; set; }
+    
+    // ========== TRASLADOS ==========
+    public int TrasladosHembras { get; set; } // Valores negativos de SelH en valor absoluto
+    public int TrasladosHembrasAcumulados { get; set; }
+    
+    // ========== ERROR DE SEXAJE ==========
+    public int ErrorSexajeHembras { get; set; }
+    public int ErrorSexajeHembrasAcumulado { get; set; }
+    public decimal ErrorSexajeHembrasPorcentajeDiario { get; set; }
+    public decimal ErrorSexajeHembrasPorcentajeAcumulado { get; set; }
+    
+    // ========== CONSUMO DE ALIMENTO ==========
+    public decimal ConsumoKgHembras { get; set; }
+    public decimal ConsumoKgHembrasAcumulado { get; set; }
+    public decimal ConsumoGramosPorAveHembras { get; set; }
+    
+    // ========== PESO Y UNIFORMIDAD ==========
+    public decimal? PesoPromedioHembras { get; set; }
+    public decimal? UniformidadHembras { get; set; }
+    public decimal? CoeficienteVariacionHembras { get; set; }
+    public decimal? GananciaPesoHembras { get; set; }
+    
+    // ========== VALORES NUTRICIONALES ==========
+    public double? KcalAlHembras { get; set; }
+    public double? ProtAlHembras { get; set; }
+    public double? KcalAveHembras { get; set; } // Puede venir del seguimiento o calcularse
+    public double? ProtAveHembras { get; set; } // Puede venir del seguimiento o calcularse
+    
+    // ========== INGRESOS Y TRASLADOS DE ALIMENTO ==========
+    public decimal IngresosAlimentoKilos { get; set; } // Ingresos de alimento del día
+    public decimal TrasladosAlimentoKilos { get; set; } // Traslados de alimento del día
+    
+    // ========== OBSERVACIONES ==========
+    public string? Observaciones { get; set; }
+}
+
+/// <summary>
+/// DTO completo para reporte técnico de Levante con estructura de tabs
+/// Incluye datos diarios separados (machos y hembras) y datos semanales completos
+/// </summary>
+public class ReporteTecnicoLevanteConTabsDto
+{
+    public ReporteTecnicoLoteInfoDto InformacionLote { get; set; } = new();
+    
+    // Tab 1: Diario Machos
+    public List<ReporteTecnicoDiarioMachosDto> DatosDiariosMachos { get; set; } = new();
+    
+    // Tab 2: Diario Hembras
+    public List<ReporteTecnicoDiarioHembrasDto> DatosDiariosHembras { get; set; } = new();
+    
+    // Tab 3: Semanal (reutiliza DTO existente)
+    public List<ReporteTecnicoLevanteSemanalDto> DatosSemanales { get; set; } = new();
+    
+    public bool EsConsolidado { get; set; }
+    public List<string> SublotesIncluidos { get; set; } = new();
 }
 
 

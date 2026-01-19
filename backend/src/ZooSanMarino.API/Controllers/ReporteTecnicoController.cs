@@ -267,5 +267,38 @@ public class ReporteTecnicoController : ControllerBase
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }
+
+    /// <summary>
+    /// Genera reporte técnico de Levante con estructura de tabs
+    /// Incluye datos diarios separados (machos y hembras) y datos semanales completos
+    /// </summary>
+    [HttpGet("levante/tabs/{loteId}")]
+    public async Task<ActionResult<ReporteTecnicoLevanteConTabsDto>> GetReporteLevanteConTabs(
+        int loteId,
+        [FromQuery] DateTime? fechaInicio = null,
+        [FromQuery] DateTime? fechaFin = null,
+        [FromQuery] bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var reporte = await _service.GenerarReporteLevanteConTabsAsync(
+                loteId, 
+                fechaInicio, 
+                fechaFin, 
+                consolidarSublotes, 
+                ct);
+            return Ok(reporte);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al generar reporte técnico con tabs para lote {LoteId}", loteId);
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
 }
 

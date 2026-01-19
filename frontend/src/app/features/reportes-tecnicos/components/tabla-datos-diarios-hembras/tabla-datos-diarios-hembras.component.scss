@@ -1,0 +1,129 @@
+.tabla-container {
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.reporte-encabezado {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+
+  .encabezado-info {
+    .info-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .info-label {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #212529;
+      }
+
+      .info-value {
+        font-size: 0.875rem;
+        color: #495057;
+      }
+
+      .info-separator {
+        color: #adb5bd;
+        font-weight: 300;
+      }
+    }
+  }
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabla-datos {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: white;
+  min-width: 1800px; // Ancho mínimo para todas las columnas
+
+  thead {
+    background: #f3f4f6;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    th {
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.75rem;
+      border: 1px solid #d1d5db;
+      background: #f3f4f6;
+      white-space: nowrap;
+      vertical-align: middle;
+
+      &:first-child {
+        text-align: left;
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      &:nth-child(even) {
+        background: #f9fafb;
+      }
+
+      &:hover {
+        background: #f3f4f6;
+      }
+    }
+
+    td {
+      padding: 0.625rem 0.5rem;
+      text-align: center;
+      border: 1px solid #e5e7eb;
+      white-space: nowrap;
+      font-size: 0.8125rem;
+
+      &.text-left {
+        text-align: left;
+      }
+
+      &.text-right {
+        text-align: right;
+      }
+
+      &.highlight-yellow {
+        background: #fef3c7;
+        font-weight: 600;
+        color: #92400e;
+      }
+
+      &.highlight-orange {
+        background: #fed7aa;
+        font-weight: 600;
+        color: #9a3412;
+      }
+
+      &.highlight-red {
+        background: #fee2e2;
+        font-weight: 600;
+        color: #991b1b;
+      }
+
+      strong {
+        font-weight: 700;
+        color: #1f2937;
+      }
+    }
+  }
+}

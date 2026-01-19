@@ -1,0 +1,154 @@
+<div class="tabla-container">
+  <!-- Encabezado del Reporte -->
+  <div class="reporte-encabezado" *ngIf="informacionLote">
+    <div class="encabezado-info">
+      <div class="info-row">
+        <span class="info-label">MACHOS</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">LOTE: {{ informacionLote.loteNombre || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">RAZA: {{ informacionLote.raza || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">GRANJA: {{ informacionLote.granjaNombre || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">AVES INICIALES: {{ informacionLote.numeroMachos || 0 }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value" *ngIf="informacionLote.fechaEncaset">
+          FECHA DE RECIBIMIENTO: {{ formatDate(informacionLote.fechaEncaset) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="tabla-datos-semanal-machos">
+      <thead>
+        <tr>
+          <th rowspan="2">FECHA FIN</th>
+          <th rowspan="2">EDAD EN SEM.</th>
+          <th rowspan="2">SALDO AVES</th>
+          <th colspan="3">AVES</th>
+          <th colspan="4">% SEM. MORT.</th>
+          <th colspan="5">% MORTALIDAD ACUMULADA</th>
+          <th colspan="2">CONSUMIDO ALIMENTO (Kg)</th>
+          <th colspan="3">cons.acumulado</th>
+          <th colspan="4">TOSCANA</th>
+          <th colspan="3">PESO CORPORAL Grs.</th>
+          <th colspan="2">GANANCIA</th>
+          <th rowspan="2">MACHO</th>
+          <th colspan="2">%</th>
+        </tr>
+        <tr>
+          <!-- AVES -->
+          <th>M</th>
+          <th>S</th>
+          <th>E.S.</th>
+          
+          <!-- % SEM. MORT. -->
+          <th>M</th>
+          <th class="highlight-yellow">M std</th>
+          <th>S</th>
+          <th>E.S.</th>
+          
+          <!-- % MORTALIDAD ACUMULADA -->
+          <th>M</th>
+          <th>S</th>
+          <th>E.S.</th>
+          <th>{{ informacionLote?.loteNombre || 'LOTE' }}</th>
+          <th class="highlight-yellow">PTO. Dif.</th>
+          
+          <!-- CONSUMIDO ALIMENTO -->
+          <th>SEM (KG)</th>
+          <th>ACUM. KG</th>
+          
+          <!-- cons.acumulado -->
+          <th>REAL</th>
+          <th class="highlight-yellow">TABLA</th>
+          <th>% DIF</th>
+          
+          <!-- TOSCANA -->
+          <th>gr. / AVE / DIA</th>
+          <th class="highlight-yellow">Tabla</th>
+          <th>CON LOTE</th>
+          <th>Incrementos</th>
+          <th class="highlight-yellow">Tabla</th>
+          
+          <!-- PESO CORPORAL -->
+          <th class="highlight-yellow">Tabla</th>
+          <th>PESO LOTE</th>
+          <th>DIF LOTE</th>
+          
+          <!-- GANANCIA -->
+          <th class="highlight-yellow">TABLA</th>
+          <th>REAL</th>
+          
+          <!-- % -->
+          <th>COEF.V</th>
+          <th>CON</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let dato of datos">
+          <!-- FECHA FIN -->
+          <td class="text-center">{{ formatDate(dato.fecha) }}</td>
+          
+          <!-- EDAD EN SEM. -->
+          <td class="text-center"><strong>{{ dato.semana }}</strong></td>
+          
+          <!-- SALDO AVES -->
+          <td class="text-right"><strong>{{ dato.saldoMacho }}</strong></td>
+          
+          <!-- AVES -->
+          <td class="text-right">{{ dato.mortM }}</td>
+          <td class="text-right">{{ dato.selM }}</td>
+          <td class="text-right">{{ dato.errorM }}</td>
+          
+          <!-- % SEM. MORT. -->
+          <td class="text-right">{{ formatPercentage(dato.porcMortM) }}</td>
+          <td class="text-right highlight-yellow">{{ formatPercentage(dato.porcMortMGUIA) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcSelM) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcErrM) }}</td>
+          
+          <!-- % MORTALIDAD ACUMULADA -->
+          <td class="text-right">{{ formatPercentage(dato.porcMortM) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcSelM) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcErrM) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcRetAcM) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(dato.retiroMGUIA, 2) }}</td>
+          
+          <!-- CONSUMIDO ALIMENTO -->
+          <td class="text-right">{{ formatNumber(dato.consKgM, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.acConsM, 1) }}</td>
+          
+          <!-- cons.acumulado -->
+          <td class="text-right">{{ formatNumber(dato.consAcGrM, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(dato.consAcGrMGUIA, 1) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcDifConsH) }}</td>
+          
+          <!-- TOSCANA -->
+          <td class="text-right">{{ formatNumber(dato.grAveDiaM, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(dato.grAveDiaMGUIA, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.grAveDiaM, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.incrConsM, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(dato.incrConsMGUIA, 1) }}</td>
+          
+          <!-- PESO CORPORAL -->
+          <td class="text-right highlight-yellow">{{ formatNumber(dato.pesoMGUIA, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.pesoM ? dato.pesoM * 1000 : null, 1) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcDifPesoM) }}</td>
+          
+          <!-- GANANCIA -->
+          <td class="text-right highlight-yellow">{{ formatNumber(dato.incrConsMGUIA, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.incrConsM, 1) }}</td>
+          
+          <!-- MACHO -->
+          <td class="text-right">{{ formatNumber(dato.uniformM, 1) }}</td>
+          
+          <!-- % -->
+          <td class="text-right">{{ formatNumber(dato.cvM, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.consKgM > 0 && dato.saldoMacho > 0 ? (dato.consKgM / dato.saldoMacho) : null, 2) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
