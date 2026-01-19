@@ -4,24 +4,7 @@
   <div class="ux-main">
     <header class="ux-header">
       <div class="ux-header__title">
-        <h1>Reportes Técnicos</h1>
-
-        <!-- Tabs para alternar entre Levante y Producción -->
-        <div class="ux-tabs">
-          <input type="radio" id="tab-levante" name="tab-tipo" [checked]="tabActivo === 'levante'" (change)="tabActivo = 'levante'; limpiarReporte()">
-          <label for="tab-levante" class="ux-tab">Levante</label>
-
-          <input type="radio" id="tab-produccion" name="tab-tipo" [checked]="tabActivo === 'produccion'" (change)="tabActivo = 'produccion'; limpiarReporte()">
-          <label for="tab-produccion" class="ux-tab">Producción</label>
-        </div>
-
-        <!-- Toggle Modo Reporte (solo para Levante) -->
-        <div class="modo-reporte-toggle" *ngIf="tabActivo === 'levante'">
-          <label class="toggle-label">
-            <input type="checkbox" [(ngModel)]="modoCompleto" [ngModelOptions]="{standalone: true}">
-            <span>Modo Completo (Estructura Excel - 25 semanas)</span>
-          </label>
-        </div>
+        <h1>Reporte Técnico Levante SanMarino</h1>
 
         <div class="ux-header__meta">
           <ng-template #noGranjaChip>
@@ -78,8 +61,8 @@
           type="button"
           class="btn btn--outline"
           (click)="exportarExcel()"
-          [disabled]="loading() || (tabActivo === 'levante' && !reporte()) || (tabActivo === 'produccion' && !reporteProduccion())"
-          [title]="(tabActivo === 'levante' && !reporte()) || (tabActivo === 'produccion' && !reporteProduccion()) ? 'Primero genera un reporte' : 'Exportar a Excel'">
+          [disabled]="loading() || !reporteLevanteConTabs()"
+          [title]="!reporteLevanteConTabs() ? 'Primero genera un reporte' : 'Exportar a Excel'">
           <fa-icon [icon]="faFileExcel"></fa-icon>
           Exportar Excel
         </button>
@@ -104,31 +87,6 @@
       
       <div class="ux-form">
         <div class="grid grid-2">
-          <!-- Tipo de Reporte -->
-          <div class="form-field">
-            <label class="ux-label">Tipo de Reporte</label>
-            <div class="radio-group">
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="tipoReporte" 
-                  value="diario"
-                  [(ngModel)]="tipoReporte">
-                <fa-icon [icon]="faCalendarDay" class="mr-1"></fa-icon>
-                Diario
-              </label>
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="tipoReporte" 
-                  value="semanal"
-                  [(ngModel)]="tipoReporte">
-                <fa-icon [icon]="faCalendarWeek" class="mr-1"></fa-icon>
-                Semanal
-              </label>
-            </div>
-          </div>
-
           <!-- Tipo de Consolidación -->
           <div class="form-field">
             <label class="ux-label">Tipo de Consolidación</label>
@@ -166,19 +124,8 @@
             <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
           </div>
 
-          <!-- Sublote (Solo para sublote individual) -->
-          <div class="form-field" *ngIf="tipoConsolidacion === 'sublote' && sublotes().length > 0">
-            <label class="ux-label">Sublote (Opcional)</label>
-            <select class="ux-select" [(ngModel)]="subloteSeleccionado">
-              <option [ngValue]="null">Todos los sublotes</option>
-              <option *ngFor="let sublote of sublotes()" [ngValue]="sublote">
-                {{ sublote }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Fechas (Solo para diario) -->
-          <div class="form-field" *ngIf="tipoReporte === 'diario'">
+          <!-- Fechas para reportes diarios -->
+          <div class="form-field">
             <label class="ux-label">Fecha Inicio</label>
             <input 
               type="date"
@@ -186,23 +133,12 @@
               [(ngModel)]="fechaInicio">
           </div>
 
-          <div class="form-field" *ngIf="tipoReporte === 'diario'">
+          <div class="form-field">
             <label class="ux-label">Fecha Fin</label>
             <input 
               type="date"
               class="ux-input"
               [(ngModel)]="fechaFin">
-          </div>
-
-          <!-- Semana (Solo para semanal) -->
-          <div class="form-field" *ngIf="tipoReporte === 'semanal'">
-            <label class="ux-label">Semana (Opcional)</label>
-            <input 
-              type="number"
-              class="ux-input"
-              [(ngModel)]="semana"
-              placeholder="Dejar vacío para todas las semanas"
-              min="1">
           </div>
         </div>
       </div>
@@ -215,130 +151,129 @@
       </div>
     </div>
 
-    <!-- Reporte Completo - Levante (Estructura Excel) -->
-    <section class="ux-card" *ngIf="reporteLevanteCompleto() && tabActivo === 'levante'">
+    <!-- Tabs Internos: Diario Hembras, Diario Machos, Registro Semanal -->
+    <section class="ux-card" *ngIf="reporteLevanteConTabs()">
+      <!-- Tabs Navigation -->
+      <div class="ux-tabs-internos">
+        <input 
+          type="radio" 
+          id="tab-hembras" 
+          name="tab-levante-interno" 
+          [checked]="tabLevanteActivo === 'hembras'"
+          (change)="tabLevanteActivo = 'hembras'">
+        <label for="tab-hembras" class="ux-tab">📊 Diario Hembras</label>
+        
+        <input 
+          type="radio" 
+          id="tab-machos" 
+          name="tab-levante-interno" 
+          [checked]="tabLevanteActivo === 'machos'"
+          (change)="tabLevanteActivo = 'machos'">
+        <label for="tab-machos" class="ux-tab">📊 Diario Machos</label>
+        
+        <input 
+          type="radio" 
+          id="tab-semanal-hembras" 
+          name="tab-levante-interno" 
+          [checked]="tabLevanteActivo === 'semanal-hembras'"
+          (change)="tabLevanteActivo = 'semanal-hembras'">
+        <label for="tab-semanal-hembras" class="ux-tab">📊 Registro Semana Hembras</label>
+        
+        <input 
+          type="radio" 
+          id="tab-semanal-machos" 
+          name="tab-levante-interno" 
+          [checked]="tabLevanteActivo === 'semanal-machos'"
+          (change)="tabLevanteActivo = 'semanal-machos'">
+        <label for="tab-semanal-machos" class="ux-tab">📊 Registro Semana Machos</label>
+      </div>
+
+      <!-- Encabezado del Reporte -->
       <div class="reporte-header">
         <div class="reporte-info">
           <h2>
-            Reporte Técnico Completo - {{ reporteLevanteCompleto()!.informacionLote.loteNombre }}
-            <span *ngIf="reporteLevanteCompleto()!.informacionLote.sublote" class="chip chip--info">
-              {{ reporteLevanteCompleto()!.informacionLote.sublote }}
+            Reporte Técnico Levante SanMarino - {{ reporteLevanteConTabs()!.informacionLote.loteNombre }}
+            <span *ngIf="reporteLevanteConTabs()!.informacionLote.sublote" class="chip chip--info">
+              {{ reporteLevanteConTabs()!.informacionLote.sublote }}
             </span>
-            <span *ngIf="reporteLevanteCompleto()!.esConsolidado" class="chip chip--warning">
+            <span *ngIf="reporteLevanteConTabs()!.esConsolidado" class="chip chip--warning">
               Consolidado
-            </span>
-            <span class="chip chip--success">
-              25 Semanas
             </span>
           </h2>
           <div class="reporte-metadata">
-            <span><strong>Raza:</strong> {{ reporteLevanteCompleto()!.informacionLote.raza || 'N/A' }}</span>
-            <span><strong>Línea:</strong> {{ reporteLevanteCompleto()!.informacionLote.linea || 'N/A' }}</span>
-            <span><strong>Etapa:</strong> {{ reporteLevanteCompleto()!.informacionLote.etapa || 'N/A' }}</span>
-            <span *ngIf="reporteLevanteCompleto()!.informacionLote.fechaEncaset">
-              <strong>Encaset:</strong> {{ formatDate(reporteLevanteCompleto()!.informacionLote.fechaEncaset) }}
+            <span><strong>Línea:</strong> {{ reporteLevanteConTabs()!.informacionLote.linea || 'N/A' }}</span>
+            <span><strong>Raza:</strong> {{ reporteLevanteConTabs()!.informacionLote.raza || 'N/A' }}</span>
+            <span><strong>Etapa:</strong> LEVANTE</span>
+            <span *ngIf="reporteLevanteConTabs()!.informacionLote.fechaEncaset">
+              <strong>Encaset:</strong> {{ formatDate(reporteLevanteConTabs()!.informacionLote.fechaEncaset) }}
+            </span>
+            <span *ngIf="reporteLevanteConTabs()!.informacionLote.granjaNombre">
+              <strong>Granja:</strong> {{ reporteLevanteConTabs()!.informacionLote.granjaNombre }}
+            </span>
+            <span *ngIf="reporteLevanteConTabs()!.informacionLote.galpon">
+              <strong>Galpón:</strong> {{ reporteLevanteConTabs()!.informacionLote.galpon }}
+            </span>
+            <span *ngIf="reporteLevanteConTabs()!.informacionLote.numeroHembras">
+              <strong>Número de Hembras:</strong> {{ reporteLevanteConTabs()!.informacionLote.numeroHembras }}
             </span>
           </div>
         </div>
       </div>
 
-      <!-- Tabla Completa -->
-      <div class="datos-section" *ngIf="reporteLevanteCompleto()!.datosSemanales.length > 0">
-        <h3>Datos Semanales Completos (Estructura Excel)</h3>
-        <app-tabla-levante-completa [datos]="reporteLevanteCompleto()!.datosSemanales"></app-tabla-levante-completa>
-      </div>
-
-      <!-- Mensaje si no hay datos -->
-      <div class="empty-state" *ngIf="reporteLevanteCompleto()!.datosSemanales.length === 0">
-        <p>No se encontraron datos para el lote seleccionado.</p>
-      </div>
-    </section>
-
-    <!-- Reporte Generado - Levante (Modo Estándar) -->
-    <section class="ux-card" *ngIf="reporte() && tabActivo === 'levante' && modoReporte === 'estandar'">
-      <div class="reporte-header">
-        <div class="reporte-info">
-          <h2>
-            Reporte {{ tipoReporte === 'diario' ? 'Diario' : 'Semanal' }} - 
-            {{ reporte()!.informacionLote.loteNombre }}
-            <span *ngIf="reporte()!.informacionLote.sublote" class="chip chip--info">
-              {{ reporte()!.informacionLote.sublote }}
-            </span>
-            <span *ngIf="tipoConsolidacion === 'consolidado'" class="chip chip--warning">
-              Consolidado
-            </span>
-          </h2>
-          <div class="reporte-metadata">
-            <span><strong>Raza:</strong> {{ reporte()!.informacionLote.raza || 'N/A' }}</span>
-            <span><strong>Línea:</strong> {{ reporte()!.informacionLote.linea || 'N/A' }}</span>
-            <span><strong>Etapa:</strong> {{ reporte()!.informacionLote.etapa || 'N/A' }}</span>
-            <span *ngIf="reporte()!.informacionLote.fechaEncaset">
-              <strong>Encaset:</strong> {{ formatDate(reporte()!.informacionLote.fechaEncaset) }}
-            </span>
-          </div>
+      <!-- Tab 1: Diario Hembras -->
+      <div class="tab-content" *ngIf="tabLevanteActivo === 'hembras'">
+        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosDiariosHembras.length > 0">
+          <h3>ETAPA DE LEVANTE DIARIO - HEMBRAS</h3>
+          <app-tabla-datos-diarios-hembras 
+            [datos]="reporteLevanteConTabs()!.datosDiariosHembras"
+            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
+          </app-tabla-datos-diarios-hembras>
+        </div>
+        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosDiariosHembras.length === 0">
+          <p>No se encontraron datos diarios de hembras para el período seleccionado.</p>
         </div>
       </div>
 
-      <!-- Datos Diarios -->
-      <div class="datos-section" *ngIf="tipoReporte === 'diario' && reporte()!.datosDiarios.length > 0">
-        <h3>Datos Diarios</h3>
-        <app-tabla-datos-diarios [datos]="reporte()!.datosDiarios"></app-tabla-datos-diarios>
-      </div>
-
-      <!-- Datos Semanales -->
-      <div class="datos-section" *ngIf="tipoReporte === 'semanal' && reporte()!.datosSemanales.length > 0">
-        <h3>Datos Semanales</h3>
-        <app-tabla-datos-semanales [datos]="reporte()!.datosSemanales"></app-tabla-datos-semanales>
-      </div>
-
-      <!-- Mensaje si no hay datos -->
-      <div class="empty-state" *ngIf="
-        (tipoReporte === 'diario' && reporte()!.datosDiarios.length === 0) ||
-        (tipoReporte === 'semanal' && reporte()!.datosSemanales.length === 0)
-      ">
-        <p>No se encontraron datos para el período seleccionado.</p>
-      </div>
-    </section>
-
-    <!-- Reporte Generado - Producción -->
-    <section class="ux-card" *ngIf="reporteProduccion() && tabActivo === 'produccion'">
-      <div class="reporte-header">
-        <div class="reporte-info">
-          <h2>
-            Reporte {{ tipoReporte === 'diario' ? 'Diario' : 'Semanal' }} - 
-            {{ reporteProduccion()!.loteInfo.loteNombre }}
-            <span *ngIf="tipoConsolidacion === 'consolidado'" class="chip chip--warning">
-              Consolidado
-            </span>
-          </h2>
-          <div class="reporte-metadata">
-            <span><strong>Raza:</strong> {{ reporteProduccion()!.loteInfo.raza || 'N/A' }}</span>
-            <span><strong>Línea:</strong> {{ reporteProduccion()!.loteInfo.linea || 'N/A' }}</span>
-            <span *ngIf="reporteProduccion()!.loteInfo.fechaInicioProduccion">
-              <strong>Inicio Producción:</strong> {{ formatDate(reporteProduccion()!.loteInfo.fechaInicioProduccion) }}
-            </span>
-          </div>
+      <!-- Tab 2: Diario Machos -->
+      <div class="tab-content" *ngIf="tabLevanteActivo === 'machos'">
+        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosDiariosMachos.length > 0">
+          <h3>ETAPA DE LEVANTE DIARIO - MACHOS</h3>
+          <app-tabla-datos-diarios-machos 
+            [datos]="reporteLevanteConTabs()!.datosDiariosMachos"
+            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
+          </app-tabla-datos-diarios-machos>
+        </div>
+        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosDiariosMachos.length === 0">
+          <p>No se encontraron datos diarios de machos para el período seleccionado.</p>
         </div>
       </div>
 
-      <!-- Datos Diarios Producción -->
-      <div class="datos-section" *ngIf="tipoReporte === 'diario' && reporteProduccion()!.datosDiarios.length > 0">
-        <h3>Datos Diarios</h3>
-        <app-tabla-datos-diarios-produccion [datos]="reporteProduccion()!.datosDiarios"></app-tabla-datos-diarios-produccion>
+      <!-- Tab 3: Registro Semana Hembras -->
+      <div class="tab-content" *ngIf="tabLevanteActivo === 'semanal-hembras'">
+        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosSemanales.length > 0">
+          <h3>REGISTRO SEMANA HEMBRAS</h3>
+          <app-tabla-levante-semanal-hembras 
+            [datos]="reporteLevanteConTabs()!.datosSemanales"
+            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
+          </app-tabla-levante-semanal-hembras>
+        </div>
+        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosSemanales.length === 0">
+          <p>No se encontraron datos semanales de hembras para el lote seleccionado.</p>
+        </div>
       </div>
 
-      <!-- Datos Semanales Producción -->
-      <div class="datos-section" *ngIf="tipoReporte === 'semanal' && reporteProduccion()!.datosSemanales.length > 0">
-        <h3>Datos Semanales</h3>
-        <app-tabla-datos-semanales-produccion [datos]="reporteProduccion()!.datosSemanales"></app-tabla-datos-semanales-produccion>
-      </div>
-
-      <!-- Mensaje si no hay datos -->
-      <div class="empty-state" *ngIf="
-        (tipoReporte === 'diario' && reporteProduccion()!.datosDiarios.length === 0) ||
-        (tipoReporte === 'semanal' && reporteProduccion()!.datosSemanales.length === 0)
-      ">
-        <p>No se encontraron datos para el período seleccionado.</p>
+      <!-- Tab 4: Registro Semana Machos -->
+      <div class="tab-content" *ngIf="tabLevanteActivo === 'semanal-machos'">
+        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosSemanales.length > 0">
+          <h3>REGISTRO SEMANA MACHOS</h3>
+          <app-tabla-levante-semanal-machos 
+            [datos]="reporteLevanteConTabs()!.datosSemanales"
+            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
+          </app-tabla-levante-semanal-machos>
+        </div>
+        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosSemanales.length === 0">
+          <p>No se encontraron datos semanales de machos para el lote seleccionado.</p>
+        </div>
       </div>
     </section>
 

@@ -66,6 +66,7 @@ export interface ReporteTecnicoLoteInfoDto {
   etapa?: string | null;
   fechaEncaset?: string | null;
   numeroHembras?: number | null;
+  numeroMachos?: number | null; // Número inicial de machos
   galpon?: number | null;
   tecnico?: string | null;
   granjaNombre?: string | null;
@@ -223,6 +224,32 @@ export class ReporteTecnicoService {
       { params }
     );
   }
+
+  /**
+   * Genera reporte técnico de Levante con estructura de tabs
+   * Incluye datos diarios separados (machos y hembras) y datos semanales completos
+   */
+  generarReporteLevanteConTabs(
+    loteId: number,
+    fechaInicio?: string,
+    fechaFin?: string,
+    consolidarSublotes: boolean = false
+  ): Observable<ReporteTecnicoLevanteConTabsDto> {
+    let params = new HttpParams()
+      .set('consolidarSublotes', consolidarSublotes.toString());
+    
+    if (fechaInicio) {
+      params = params.set('fechaInicio', fechaInicio);
+    }
+    if (fechaFin) {
+      params = params.set('fechaFin', fechaFin);
+    }
+    
+    return this.http.get<ReporteTecnicoLevanteConTabsDto>(
+      `${this.baseUrl}/levante/tabs/${loteId}`,
+      { params }
+    );
+  }
 }
 
 // ========== DTOs para Reporte Técnico Completo de Levante (Estructura Excel) ==========
@@ -355,6 +382,87 @@ export interface ReporteTecnicoLevanteSemanalDto {
 
 export interface ReporteTecnicoLevanteCompletoDto {
   informacionLote: ReporteTecnicoLoteInfoDto;
+  datosSemanales: ReporteTecnicoLevanteSemanalDto[];
+  esConsolidado: boolean;
+  sublotesIncluidos: string[];
+}
+
+// ========== DTOs para Reporte Técnico Diario Separado ==========
+
+export interface ReporteTecnicoDiarioMachosDto {
+  fecha: string;
+  edadDias: number;
+  edadSemanas: number;
+  saldoMachos: number;
+  mortalidadMachos: number;
+  mortalidadMachosAcumulada: number;
+  mortalidadMachosPorcentajeDiario: number;
+  mortalidadMachosPorcentajeAcumulado: number;
+  seleccionMachos: number;
+  seleccionMachosAcumulada: number;
+  seleccionMachosPorcentajeDiario: number;
+  seleccionMachosPorcentajeAcumulado: number;
+  trasladosMachos: number;
+  trasladosMachosAcumulados: number;
+  errorSexajeMachos: number;
+  errorSexajeMachosAcumulado: number;
+  errorSexajeMachosPorcentajeDiario: number;
+  errorSexajeMachosPorcentajeAcumulado: number;
+  consumoKgMachos: number;
+  consumoKgMachosAcumulado: number;
+  consumoGramosPorAveMachos: number;
+  pesoPromedioMachos?: number | null;
+  uniformidadMachos?: number | null;
+  coeficienteVariacionMachos?: number | null;
+  gananciaPesoMachos?: number | null;
+  kcalAlMachos?: number | null;
+  protAlMachos?: number | null;
+  kcalAveMachos?: number | null;
+  protAveMachos?: number | null;
+  ingresosAlimentoKilos: number;
+  trasladosAlimentoKilos: number;
+  observaciones?: string | null;
+}
+
+export interface ReporteTecnicoDiarioHembrasDto {
+  fecha: string;
+  edadDias: number;
+  edadSemanas: number;
+  saldoHembras: number;
+  mortalidadHembras: number;
+  mortalidadHembrasAcumulada: number;
+  mortalidadHembrasPorcentajeDiario: number;
+  mortalidadHembrasPorcentajeAcumulado: number;
+  seleccionHembras: number;
+  seleccionHembrasAcumulada: number;
+  seleccionHembrasPorcentajeDiario: number;
+  seleccionHembrasPorcentajeAcumulado: number;
+  trasladosHembras: number;
+  trasladosHembrasAcumulados: number;
+  errorSexajeHembras: number;
+  errorSexajeHembrasAcumulado: number;
+  errorSexajeHembrasPorcentajeDiario: number;
+  errorSexajeHembrasPorcentajeAcumulado: number;
+  consumoKgHembras: number;
+  consumoKgHembrasAcumulado: number;
+  consumoGramosPorAveHembras: number;
+  pesoPromedioHembras?: number | null;
+  uniformidadHembras?: number | null;
+  coeficienteVariacionHembras?: number | null;
+  gananciaPesoHembras?: number | null;
+  kcalAlHembras?: number | null;
+  protAlHembras?: number | null;
+  kcalAveHembras?: number | null;
+  protAveHembras?: number | null;
+  ingresosAlimentoKilos: number;
+  trasladosAlimentoKilos: number;
+  observaciones?: string | null;
+}
+
+export interface ReporteTecnicoLevanteConTabsDto {
+  informacionLote: ReporteTecnicoLoteInfoDto;
+  datosDiariosMachos: ReporteTecnicoDiarioMachosDto[];
+  datosDiariosHembras: ReporteTecnicoDiarioHembrasDto[];
   datosSemanales: ReporteTecnicoLevanteSemanalDto[];
   esConsolidado: boolean;
   sublotesIncluidos: string[];

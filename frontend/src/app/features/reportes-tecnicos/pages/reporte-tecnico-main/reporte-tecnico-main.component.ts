@@ -17,21 +17,13 @@ import { Subject, takeUntil, finalize } from 'rxjs';
 
 import { 
   ReporteTecnicoService, 
-  ReporteTecnicoCompletoDto,
-  GenerarReporteTecnicoRequestDto,
-  ReporteTecnicoLevanteCompletoDto
+  ReporteTecnicoLevanteConTabsDto
 } from '../../services/reporte-tecnico.service';
-import {
-  ReporteTecnicoProduccionService,
-  ReporteTecnicoProduccionCompletoDto,
-  GenerarReporteTecnicoProduccionRequestDto
-} from '../../services/reporte-tecnico-produccion.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
-import { TablaDatosDiariosComponent } from '../../components/tabla-datos-diarios/tabla-datos-diarios.component';
-import { TablaDatosSemanalesComponent } from '../../components/tabla-datos-semanales/tabla-datos-semanales.component';
-import { TablaDatosDiariosProduccionComponent } from '../../components/tabla-datos-diarios-produccion/tabla-datos-diarios-produccion.component';
-import { TablaDatosSemanalesProduccionComponent } from '../../components/tabla-datos-semanales-produccion/tabla-datos-semanales-produccion.component';
-import { TablaLevanteCompletaComponent } from '../../components/tabla-levante-completa/tabla-levante-completa.component';
+import { TablaDatosDiariosHembrasComponent } from '../../components/tabla-datos-diarios-hembras/tabla-datos-diarios-hembras.component';
+import { TablaDatosDiariosMachosComponent } from '../../components/tabla-datos-diarios-machos/tabla-datos-diarios-machos.component';
+import { TablaLevanteSemanalHembrasComponent } from '../../components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component';
+import { TablaLevanteSemanalMachosComponent } from '../../components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -47,11 +39,10 @@ import { GalponService } from '../../../galpon/services/galpon.service';
     FontAwesomeModule,
     SidebarComponent,
     FiltroSelectComponent,
-    TablaDatosDiariosComponent,
-    TablaDatosSemanalesComponent,
-    TablaDatosDiariosProduccionComponent,
-    TablaDatosSemanalesProduccionComponent,
-    TablaLevanteCompletaComponent
+    TablaDatosDiariosHembrasComponent,
+    TablaDatosDiariosMachosComponent,
+    TablaLevanteSemanalHembrasComponent,
+    TablaLevanteSemanalMachosComponent
   ],
   templateUrl: './reporte-tecnico-main.component.html',
   styleUrls: ['./reporte-tecnico-main.component.scss']
@@ -69,20 +60,8 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   // Estado
   loading = signal(false);
-  reporte = signal<ReporteTecnicoCompletoDto | null>(null);
-  reporteProduccion = signal<ReporteTecnicoProduccionCompletoDto | null>(null);
-  reporteLevanteCompleto = signal<ReporteTecnicoLevanteCompletoDto | null>(null);
+  reporteLevanteConTabs = signal<ReporteTecnicoLevanteConTabsDto | null>(null);
   sublotes = signal<string[]>([]);
-  
-  // Modo de reporte
-  modoReporte: 'estandar' | 'completo' = 'estandar';
-  get modoCompleto(): boolean {
-    return this.modoReporte === 'completo';
-  }
-  set modoCompleto(value: boolean) {
-    this.modoReporte = value ? 'completo' : 'estandar';
-    this.limpiarReporte();
-  }
   
   // Filtros de selección (granja, núcleo, galpón, lote)
   selectedGranjaId: number | null = null;
@@ -96,17 +75,15 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   private allLotes: LoteDto[] = [];
   selectedLote: LoteDto | null = null;
   
-  // Tab activo
-  tabActivo: 'levante' | 'produccion' = 'levante';
+  // Tab activo interno (Diario Hembras, Diario Machos, Registro Semana Hembras, Registro Semana Machos)
+  tabLevanteActivo: 'hembras' | 'machos' | 'semanal-hembras' | 'semanal-machos' = 'hembras';
 
   // Filtros de reporte
-  tipoReporte: 'diario' | 'semanal' = 'diario';
   tipoConsolidacion: 'sublote' | 'consolidado' = 'sublote';
   loteNombreBase: string = '';
   subloteSeleccionado: string | null = null;
   fechaInicio: string = '';
   fechaFin: string = '';
-  semana: number | null = null;
   
   // UI
   error: string | null = null;
@@ -116,7 +93,6 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   constructor(
     private reporteService: ReporteTecnicoService,
-    private reporteProduccionService: ReporteTecnicoProduccionService,
     private loteService: LoteService,
     private farmService: FarmService,
     private nucleoService: NucleoService,
@@ -163,7 +139,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.selectedLote = null;
-    this.reporte.set(null);
+    this.reporteLevanteConTabs.set(null);
     this.nucleos = [];
 
     if (!this.selectedGranjaId) return;
@@ -183,7 +159,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.selectedLote = null;
-    this.reporte.set(null);
+    this.reporteLevanteConTabs.set(null);
     this.applyFiltersToLotes();
   }
 
@@ -191,14 +167,13 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
     this.selectedLote = null;
-    this.reporte.set(null);
+    this.reporteLevanteConTabs.set(null);
     this.applyFiltersToLotes();
   }
 
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
-    this.reporte.set(null);
-    this.reporteProduccion.set(null);
+    this.reporteLevanteConTabs.set(null);
 
     if (!this.selectedLoteId) {
       this.selectedLote = null;
@@ -255,48 +230,24 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   }
 
   cargarSublotes(loteNombreBase: string): void {
-    if (this.tabActivo === 'produccion') {
-      this.reporteProduccionService.obtenerSublotes(loteNombreBase)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (sublotes) => {
-            this.sublotes.set(sublotes);
-          },
-          error: (err) => {
-            console.error('Error al cargar sublotes:', err);
-          }
-        });
-    } else {
-      this.reporteService.obtenerSublotes(loteNombreBase)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (sublotes) => {
-            this.sublotes.set(sublotes);
-          },
-          error: (err) => {
-            console.error('Error al cargar sublotes:', err);
-          }
-        });
-    }
+    this.reporteService.obtenerSublotes(loteNombreBase)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (sublotes) => {
+          this.sublotes.set(sublotes);
+        },
+        error: (err) => {
+          console.error('Error al cargar sublotes:', err);
+        }
+      });
   }
 
   puedeGenerarReporte(): boolean {
-    if (this.tabActivo === 'produccion') {
-      if (this.tipoConsolidacion === 'consolidado') {
-        // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
-        if (!this.selectedLoteId && !this.loteNombreBase.trim()) return false;
-      } else {
-        if (!this.selectedLoteId) return false;
-      }
-      if (this.tipoReporte === 'diario' && (!this.fechaInicio || !this.fechaFin)) return false;
-      return true;
-    } else {
-      if (!this.selectedLoteId) return false;
-      // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
-      if (this.tipoConsolidacion === 'consolidado' && !this.selectedLoteId && !this.loteNombreBase.trim()) return false;
-      if (this.tipoReporte === 'diario' && (!this.fechaInicio || !this.fechaFin)) return false;
-      return true;
-    }
+    if (!this.selectedLoteId) return false;
+    // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
+    if (this.tipoConsolidacion === 'consolidado' && !this.selectedLoteId && !this.loteNombreBase.trim()) return false;
+    if (!this.fechaInicio || !this.fechaFin) return false;
+    return true;
   }
 
   generarReporte(): void {
@@ -307,156 +258,39 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error = null;
 
-    if (this.tabActivo === 'produccion') {
-      this.generarReporteProduccion();
-    } else {
-      this.generarReporteLevante();
-    }
-  }
-
-  private generarReporteLevante(): void {
-    // Si está en modo completo, generar reporte completo
-    if (this.modoReporte === 'completo') {
-      if (!this.selectedLoteId) {
-        this.error = 'Debe seleccionar un lote';
-        this.loading.set(false);
-        return;
-      }
-
-      this.reporteService.generarReporteLevanteCompleto(
-        this.selectedLoteId,
-        this.tipoConsolidacion === 'consolidado'
-      )
-        .pipe(
-          takeUntil(this.destroy$),
-          finalize(() => this.loading.set(false))
-        )
-        .subscribe({
-          next: (reporte) => {
-            this.reporteLevanteCompleto.set(reporte);
-            this.reporte.set(null);
-            this.reporteProduccion.set(null);
-            this.error = null;
-          },
-          error: (err) => {
-            console.error('Error al generar reporte completo:', err);
-            this.error = err.error?.message || 'Error al generar el reporte completo';
-            this.reporteLevanteCompleto.set(null);
-          }
-        });
+    if (!this.selectedLoteId) {
+      this.error = 'Debe seleccionar un lote';
+      this.loading.set(false);
       return;
     }
 
-    // Modo estándar (comportamiento original)
-    const request: GenerarReporteTecnicoRequestDto = {
-      incluirSemanales: this.tipoReporte === 'semanal',
-      consolidarSublotes: this.tipoConsolidacion === 'consolidado'
-    };
-
-    if (this.tipoConsolidacion === 'consolidado') {
-      // Para consolidado, usar loteId si está disponible (nueva lógica de lote padre)
-      // o loteNombre como fallback (compatibilidad hacia atrás)
-      if (this.selectedLoteId) {
-        request.loteId = this.selectedLoteId;
-      } else {
-        request.loteNombre = this.loteNombreBase;
-      }
-    } else {
-      if (!this.selectedLoteId) {
-        this.error = 'Debe seleccionar un lote';
-        this.loading.set(false);
-        return;
-      }
-      request.loteId = this.selectedLoteId;
-      request.sublote = this.subloteSeleccionado || undefined;
-    }
-
-    if (this.tipoReporte === 'diario') {
-      request.fechaInicio = this.fechaInicio || undefined;
-      request.fechaFin = this.fechaFin || undefined;
-    }
-
-    this.reporteService.generarReporte(request)
+    // Generar reporte con tabs (diario hembras, diario machos, semanal)
+    this.reporteService.generarReporteLevanteConTabs(
+      this.selectedLoteId,
+      this.fechaInicio || undefined,
+      this.fechaFin || undefined,
+      this.tipoConsolidacion === 'consolidado'
+    )
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => this.loading.set(false))
       )
       .subscribe({
         next: (reporte) => {
-          this.reporte.set(reporte);
-          this.reporteProduccion.set(null);
-          this.reporteLevanteCompleto.set(null);
+          this.reporteLevanteConTabs.set(reporte);
           this.error = null;
         },
         error: (err) => {
-          console.error('Error al generar reporte:', err);
+          console.error('Error al generar reporte con tabs:', err);
           this.error = err.error?.message || 'Error al generar el reporte';
-          this.reporte.set(null);
+          this.reporteLevanteConTabs.set(null);
         }
       });
   }
 
-  private generarReporteProduccion(): void {
-    const request: GenerarReporteTecnicoProduccionRequestDto = {
-      tipoReporte: this.tipoReporte,
-      tipoConsolidacion: this.tipoConsolidacion
-    };
-
-    if (this.tipoConsolidacion === 'consolidado') {
-      // Para consolidado, usar loteId si está disponible (nueva lógica de lote padre)
-      // o loteNombreBase como fallback (compatibilidad hacia atrás)
-      if (this.selectedLoteId) {
-        request.loteId = this.selectedLoteId;
-      } else {
-        request.loteNombreBase = this.loteNombreBase;
-      }
-    } else {
-      if (!this.selectedLoteId) {
-        this.error = 'Debe seleccionar un lote';
-        this.loading.set(false);
-        return;
-      }
-      request.loteId = this.selectedLoteId;
-    }
-
-    if (this.tipoReporte === 'diario') {
-      request.fechaInicio = this.fechaInicio || undefined;
-      request.fechaFin = this.fechaFin || undefined;
-    } else {
-      request.semana = this.semana || undefined;
-    }
-
-    this.reporteProduccionService.generarReporte(request)
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading.set(false))
-      )
-      .subscribe({
-        next: (reporte) => {
-          this.reporteProduccion.set(reporte);
-          this.reporte.set(null);
-          this.error = null;
-        },
-        error: (err) => {
-          console.error('Error al generar reporte de producción:', err);
-          this.error = err.error?.message || 'Error al generar el reporte';
-          this.reporteProduccion.set(null);
-        }
-      });
-  }
 
   exportarExcel(): void {
-    if (this.tabActivo === 'produccion') {
-      if (!this.reporteProduccion()) {
-        this.error = 'Debe generar un reporte primero';
-        return;
-      }
-      // TODO: Implementar exportación Excel para producción
-      this.error = 'Exportación a Excel para producción aún no implementada';
-      return;
-    }
-
-    if (!this.reporte()) {
+    if (!this.reporteLevanteConTabs()) {
       this.error = 'Debe generar un reporte primero';
       return;
     }
@@ -464,69 +298,18 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error = null;
 
-    const request: GenerarReporteTecnicoRequestDto = {
-      incluirSemanales: this.tipoReporte === 'semanal',
-      consolidarSublotes: this.tipoConsolidacion === 'consolidado'
-    };
-
-    if (this.tipoConsolidacion === 'consolidado') {
-      // Para consolidado, usar loteId si está disponible (nueva lógica de lote padre)
-      // o loteNombre como fallback (compatibilidad hacia atrás)
-      if (this.selectedLoteId) {
-        request.loteId = this.selectedLoteId;
-      } else {
-        request.loteNombre = this.loteNombreBase;
-      }
-    } else {
-      if (this.selectedLoteId) {
-        request.loteId = this.selectedLoteId;
-        request.sublote = this.subloteSeleccionado || undefined;
-      }
+    // TODO: Implementar exportación Excel para reporte con tabs
+    // Por ahora, exportar según el tab activo
+    const reporte = this.reporteLevanteConTabs();
+    if (!reporte) {
+      this.error = 'No hay datos para exportar';
+      this.loading.set(false);
+      return;
     }
 
-    if (this.tipoReporte === 'diario') {
-      request.fechaInicio = this.fechaInicio || undefined;
-      request.fechaFin = this.fechaFin || undefined;
-    }
-
-    const exportService = this.tipoReporte === 'diario'
-      ? this.reporteService.exportarExcelDiario(request)
-      : this.reporteService.exportarExcelSemanal(request);
-
-    exportService
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading.set(false))
-      )
-      .subscribe({
-        next: (blob) => {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          
-          const reporte = this.reporte();
-          const info = reporte?.informacionLote;
-          const nombreBase = info?.loteNombre?.replace(/\s+/g, '_') || 'reporte';
-          const sublote = info?.sublote ? `_${info.sublote}` : '';
-          const raza = info?.raza?.replace(/\s+/g, '_') || '';
-          const tipo = this.tipoReporte;
-          const fecha = new Date().toISOString().split('T')[0];
-          
-          const nombreArchivo = reporte?.esConsolidado
-            ? `Lote_${nombreBase}_General_${raza}_${tipo}_${fecha}.xlsx`
-            : `Lote_${nombreBase}${sublote}_${raza}_${tipo}_${fecha}.xlsx`;
-          
-          a.download = nombreArchivo;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-        },
-        error: (err) => {
-          console.error('Error al exportar Excel:', err);
-          this.error = err.error?.message || 'Error al exportar el reporte a Excel';
-        }
-      });
+    // Por ahora mostrar mensaje - se implementará después
+    this.error = 'Exportación a Excel en desarrollo';
+    this.loading.set(false);
   }
 
   private validarFiltros(): boolean {
@@ -543,24 +326,20 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
       }
     }
 
-    if (this.tipoReporte === 'diario') {
-      if (!this.fechaInicio || !this.fechaFin) {
-        this.error = 'Debe seleccionar fecha de inicio y fin';
-        return false;
-      }
-      if (new Date(this.fechaInicio) > new Date(this.fechaFin)) {
-        this.error = 'La fecha de inicio debe ser anterior a la fecha de fin';
-        return false;
-      }
+    if (!this.fechaInicio || !this.fechaFin) {
+      this.error = 'Debe seleccionar fecha de inicio y fin';
+      return false;
+    }
+    if (new Date(this.fechaInicio) > new Date(this.fechaFin)) {
+      this.error = 'La fecha de inicio debe ser anterior a la fecha de fin';
+      return false;
     }
 
     return true;
   }
 
   limpiarReporte(): void {
-    this.reporte.set(null);
-    this.reporteProduccion.set(null);
-    this.reporteLevanteCompleto.set(null);
+    this.reporteLevanteConTabs.set(null);
     this.error = null;
   }
 

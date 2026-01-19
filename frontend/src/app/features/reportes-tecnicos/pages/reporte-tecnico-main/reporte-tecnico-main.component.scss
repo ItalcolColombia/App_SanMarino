@@ -334,6 +334,66 @@
 }
 
 /* ==========================================================================
+   📑 Tabs Internos (Diario Hembras, Diario Machos, Registro Semanal)
+   ========================================================================== */
+:host .ux-tabs-internos {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: var(--space-4);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+
+:host .ux-tabs-internos input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:host .ux-tabs-internos .ux-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: .6rem 1.2rem;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+  background: var(--bg-muted);
+  color: var(--text-sub);
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--t-med), color var(--t-med), transform var(--t-fast);
+  outline: none;
+  font-size: var(--fs-sm);
+}
+
+:host .ux-tabs-internos .ux-tab:hover {
+  background: var(--bg-card);
+  color: var(--brand-red);
+}
+
+:host .ux-tabs-internos .ux-tab:focus-visible {
+  box-shadow: var(--ring);
+}
+
+:host #tab-hembras:checked + label.ux-tab,
+:host #tab-machos:checked + label.ux-tab,
+:host #tab-semanal-hembras:checked + label.ux-tab,
+:host #tab-semanal-machos:checked + label.ux-tab {
+  background: var(--bg-card);
+  color: var(--brand-red);
+  transform: translateY(1px);
+  border-bottom: 2px solid var(--bg-card);
+}
+
+:host .tab-content {
+  padding-top: var(--space-4);
+}
+
+/* ==========================================================================
    📱 Responsivo
    ========================================================================== */
 @media (max-width: 960px) {
