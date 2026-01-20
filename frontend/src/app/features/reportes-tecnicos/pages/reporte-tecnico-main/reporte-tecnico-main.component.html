@@ -61,8 +61,8 @@
           type="button"
           class="btn btn--outline"
           (click)="exportarExcel()"
-          [disabled]="loading() || !reporteLevanteConTabs()"
-          [title]="!reporteLevanteConTabs() ? 'Primero genera un reporte' : 'Exportar a Excel'">
+          [disabled]="loading() || !selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona un lote y genera un reporte' : 'Exportar todos los tabs a Excel'">
           <fa-icon [icon]="faFileExcel"></fa-icon>
           Exportar Excel
         </button>

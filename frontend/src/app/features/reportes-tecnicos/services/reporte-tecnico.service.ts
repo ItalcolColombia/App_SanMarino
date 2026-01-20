@@ -250,6 +250,34 @@ export class ReporteTecnicoService {
       { params }
     );
   }
+
+  /**
+   * Exporta todos los reportes de Levante a Excel (múltiples hojas)
+   */
+  exportarExcelCompletoLevante(
+    loteId: number,
+    fechaInicio?: string | null,
+    fechaFin?: string | null,
+    consolidarSublotes: boolean = false
+  ): Observable<Blob> {
+    let params = new HttpParams()
+      .set('consolidarSublotes', consolidarSublotes.toString());
+
+    if (fechaInicio) {
+      params = params.set('fechaInicio', fechaInicio);
+    }
+    if (fechaFin) {
+      params = params.set('fechaFin', fechaFin);
+    }
+
+    return this.http.get(
+      `${this.baseUrl}/levante/exportar/excel/${loteId}`,
+      { 
+        params,
+        responseType: 'blob'
+      }
+    );
+  }
 }
 
 // ========== DTOs para Reporte Técnico Completo de Levante (Estructura Excel) ==========

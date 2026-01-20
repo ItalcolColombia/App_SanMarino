@@ -308,6 +308,546 @@ public class ReporteTecnicoExcelService
             return $"Lote_{nombreBase}{sublote}_{raza}_{tipo}_{fecha}.xlsx";
         }
     }
+
+    /// <summary>
+    /// Genera archivo Excel completo para reporte técnico de Levante con múltiples hojas
+    /// Hoja 1: Diario Hembras, Hoja 2: Diario Machos, Hoja 3: Semanal Hembras, Hoja 4: Semanal Machos
+    /// </summary>
+    public byte[] GenerarExcelCompletoLevante(ReporteTecnicoLevanteConTabsDto reporte)
+    {
+        using var package = new ExcelPackage();
+
+        // Hoja 1: Diario Hembras
+        if (reporte.DatosDiariosHembras.Any())
+        {
+            var wsHembras = package.Workbook.Worksheets.Add("Diario Hembras");
+            EscribirDiarioHembras(wsHembras, reporte);
+        }
+
+        // Hoja 2: Diario Machos
+        if (reporte.DatosDiariosMachos.Any())
+        {
+            var wsMachos = package.Workbook.Worksheets.Add("Diario Machos");
+            EscribirDiarioMachos(wsMachos, reporte);
+        }
+
+        // Hoja 3: Semanal Hembras
+        if (reporte.DatosSemanales.Any())
+        {
+            var wsSemanalHembras = package.Workbook.Worksheets.Add("Semanal Hembras");
+            EscribirSemanalHembras(wsSemanalHembras, reporte);
+        }
+
+        // Hoja 4: Semanal Machos
+        if (reporte.DatosSemanales.Any())
+        {
+            var wsSemanalMachos = package.Workbook.Worksheets.Add("Semanal Machos");
+            EscribirSemanalMachos(wsSemanalMachos, reporte);
+        }
+
+        return package.GetAsByteArray();
+    }
+
+    private void EscribirDiarioHembras(ExcelWorksheet ws, ReporteTecnicoLevanteConTabsDto reporte)
+    {
+        var row = 1;
+
+        // Encabezado
+        ws.Cells[row, 1].Value = "REPORTE TÉCNICO LEVANTE - DIARIO HEMBRAS";
+        ws.Cells[row, 1, row, 20].Merge = true;
+        ws.Cells[row, 1].Style.Font.Size = 16;
+        ws.Cells[row, 1].Style.Font.Bold = true;
+        ws.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        row += 2;
+
+        // Información del lote
+        EscribirInfoLoteLevante(ws, reporte.InformacionLote, ref row);
+
+        row += 2;
+
+        // Encabezados de columnas
+        var headers = new[]
+        {
+            "FECHA", "EDAD DÍAS", "EDAD SEM.", "SALDO HEMBRAS",
+            "MORTALIDAD", "", "", "",
+            "SELECCIÓN", "", "", "",
+            "TRASLADOS", "", "ERROR SEXAJE", "", "", "",
+            "CONSUMO ALIMENTO", "", "", "PESO", "UNIF.", "CV", "GANANCIA",
+            "INGRESOS ALIMENTO", "TRASLADOS ALIMENTO"
+        };
+
+        var subHeaders = new[]
+        {
+            "", "", "", "",
+            "DIARIA", "ACUM.", "% DIA", "% ACUM.",
+            "DIARIA", "ACUM.", "% DIA", "% ACUM.",
+            "DIARIA", "ACUM.", "DIARIA", "ACUM.", "% DIA", "% ACUM.",
+            "KG DIA", "KG ACUM.", "GR/AVE",
+            "PROM.", "", "", "",
+            "KG", "KG"
+        };
+
+        // Escribir encabezados
+        for (int col = 1; col <= headers.Length; col++)
+        {
+            ws.Cells[row, col].Value = headers[col - 1];
+            ws.Cells[row, col].Style.Font.Bold = true;
+            ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            ws.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        for (int col = 1; col <= subHeaders.Length; col++)
+        {
+            ws.Cells[row, col].Value = subHeaders[col - 1];
+            ws.Cells[row, col].Style.Font.Bold = true;
+            ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            ws.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        // Escribir datos
+        foreach (var dato in reporte.DatosDiariosHembras.OrderBy(d => d.Fecha))
+        {
+            ws.Cells[row, 1].Value = dato.Fecha.ToString("dd/MM/yyyy");
+            ws.Cells[row, 2].Value = dato.EdadDias;
+            ws.Cells[row, 3].Value = dato.EdadSemanas;
+            ws.Cells[row, 4].Value = dato.SaldoHembras;
+            ws.Cells[row, 5].Value = dato.MortalidadHembras;
+            ws.Cells[row, 6].Value = dato.MortalidadHembrasAcumulada;
+            ws.Cells[row, 7].Value = dato.MortalidadHembrasPorcentajeDiario;
+            ws.Cells[row, 8].Value = dato.MortalidadHembrasPorcentajeAcumulado;
+            ws.Cells[row, 9].Value = dato.SeleccionHembras;
+            ws.Cells[row, 10].Value = dato.SeleccionHembrasAcumulada;
+            ws.Cells[row, 11].Value = dato.SeleccionHembrasPorcentajeDiario;
+            ws.Cells[row, 12].Value = dato.SeleccionHembrasPorcentajeAcumulado;
+            ws.Cells[row, 13].Value = dato.TrasladosHembras;
+            ws.Cells[row, 14].Value = dato.TrasladosHembrasAcumulados;
+            ws.Cells[row, 15].Value = dato.ErrorSexajeHembras;
+            ws.Cells[row, 16].Value = dato.ErrorSexajeHembrasAcumulado;
+            ws.Cells[row, 17].Value = dato.ErrorSexajeHembrasPorcentajeDiario;
+            ws.Cells[row, 18].Value = dato.ErrorSexajeHembrasPorcentajeAcumulado;
+            ws.Cells[row, 19].Value = dato.ConsumoKgHembras;
+            ws.Cells[row, 20].Value = dato.ConsumoKgHembrasAcumulado;
+            ws.Cells[row, 21].Value = dato.ConsumoGramosPorAveHembras;
+            ws.Cells[row, 22].Value = dato.PesoPromedioHembras;
+            ws.Cells[row, 23].Value = dato.UniformidadHembras;
+            ws.Cells[row, 24].Value = dato.CoeficienteVariacionHembras;
+            ws.Cells[row, 25].Value = dato.GananciaPesoHembras;
+            ws.Cells[row, 26].Value = dato.IngresosAlimentoKilos;
+            ws.Cells[row, 27].Value = dato.TrasladosAlimentoKilos;
+
+            // Formato de números
+            ws.Cells[row, 7].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 8].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 11].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 12].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 17].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 18].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 19].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 20].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 21].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 22].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 23].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 24].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 25].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 26].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 27].Style.Numberformat.Format = "0.0";
+
+            row++;
+        }
+
+        ws.Cells.AutoFitColumns();
+    }
+
+    private void EscribirDiarioMachos(ExcelWorksheet ws, ReporteTecnicoLevanteConTabsDto reporte)
+    {
+        var row = 1;
+
+        // Encabezado
+        ws.Cells[row, 1].Value = "REPORTE TÉCNICO LEVANTE - DIARIO MACHOS";
+        ws.Cells[row, 1, row, 20].Merge = true;
+        ws.Cells[row, 1].Style.Font.Size = 16;
+        ws.Cells[row, 1].Style.Font.Bold = true;
+        ws.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        row += 2;
+
+        // Información del lote
+        EscribirInfoLoteLevante(ws, reporte.InformacionLote, ref row);
+
+        row += 2;
+
+        // Encabezados de columnas (mismo formato que hembras)
+        var headers = new[]
+        {
+            "FECHA", "EDAD DÍAS", "EDAD SEM.", "SALDO MACHOS",
+            "MORTALIDAD", "", "", "",
+            "SELECCIÓN", "", "", "",
+            "TRASLADOS", "", "ERROR SEXAJE", "", "", "",
+            "CONSUMO ALIMENTO", "", "", "PESO", "UNIF.", "CV", "GANANCIA",
+            "INGRESOS ALIMENTO", "TRASLADOS ALIMENTO"
+        };
+
+        var subHeaders = new[]
+        {
+            "", "", "", "",
+            "DIARIA", "ACUM.", "% DIA", "% ACUM.",
+            "DIARIA", "ACUM.", "% DIA", "% ACUM.",
+            "DIARIA", "ACUM.", "DIARIA", "ACUM.", "% DIA", "% ACUM.",
+            "KG DIA", "KG ACUM.", "GR/AVE",
+            "PROM.", "", "", "",
+            "KG", "KG"
+        };
+
+        // Escribir encabezados
+        for (int col = 1; col <= headers.Length; col++)
+        {
+            ws.Cells[row, col].Value = headers[col - 1];
+            ws.Cells[row, col].Style.Font.Bold = true;
+            ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            ws.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        for (int col = 1; col <= subHeaders.Length; col++)
+        {
+            ws.Cells[row, col].Value = subHeaders[col - 1];
+            ws.Cells[row, col].Style.Font.Bold = true;
+            ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            ws.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        // Escribir datos
+        foreach (var dato in reporte.DatosDiariosMachos.OrderBy(d => d.Fecha))
+        {
+            ws.Cells[row, 1].Value = dato.Fecha.ToString("dd/MM/yyyy");
+            ws.Cells[row, 2].Value = dato.EdadDias;
+            ws.Cells[row, 3].Value = dato.EdadSemanas;
+            ws.Cells[row, 4].Value = dato.SaldoMachos;
+            ws.Cells[row, 5].Value = dato.MortalidadMachos;
+            ws.Cells[row, 6].Value = dato.MortalidadMachosAcumulada;
+            ws.Cells[row, 7].Value = dato.MortalidadMachosPorcentajeDiario;
+            ws.Cells[row, 8].Value = dato.MortalidadMachosPorcentajeAcumulado;
+            ws.Cells[row, 9].Value = dato.SeleccionMachos;
+            ws.Cells[row, 10].Value = dato.SeleccionMachosAcumulada;
+            ws.Cells[row, 11].Value = dato.SeleccionMachosPorcentajeDiario;
+            ws.Cells[row, 12].Value = dato.SeleccionMachosPorcentajeAcumulado;
+            ws.Cells[row, 13].Value = dato.TrasladosMachos;
+            ws.Cells[row, 14].Value = dato.TrasladosMachosAcumulados;
+            ws.Cells[row, 15].Value = dato.ErrorSexajeMachos;
+            ws.Cells[row, 16].Value = dato.ErrorSexajeMachosAcumulado;
+            ws.Cells[row, 17].Value = dato.ErrorSexajeMachosPorcentajeDiario;
+            ws.Cells[row, 18].Value = dato.ErrorSexajeMachosPorcentajeAcumulado;
+            ws.Cells[row, 19].Value = dato.ConsumoKgMachos;
+            ws.Cells[row, 20].Value = dato.ConsumoKgMachosAcumulado;
+            ws.Cells[row, 21].Value = dato.ConsumoGramosPorAveMachos;
+            ws.Cells[row, 22].Value = dato.PesoPromedioMachos;
+            ws.Cells[row, 23].Value = dato.UniformidadMachos;
+            ws.Cells[row, 24].Value = dato.CoeficienteVariacionMachos;
+            ws.Cells[row, 25].Value = dato.GananciaPesoMachos;
+            ws.Cells[row, 26].Value = dato.IngresosAlimentoKilos;
+            ws.Cells[row, 27].Value = dato.TrasladosAlimentoKilos;
+
+            // Formato de números
+            ws.Cells[row, 7].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 8].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 11].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 12].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 17].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 18].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 19].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 20].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 21].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 22].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 23].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 24].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 25].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 26].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 27].Style.Numberformat.Format = "0.0";
+
+            row++;
+        }
+
+        ws.Cells.AutoFitColumns();
+    }
+
+    private void EscribirSemanalHembras(ExcelWorksheet ws, ReporteTecnicoLevanteConTabsDto reporte)
+    {
+        var row = 1;
+
+        // Encabezado
+        ws.Cells[row, 1].Value = "REPORTE TÉCNICO LEVANTE - SEMANAL HEMBRAS";
+        ws.Cells[row, 1, row, 30].Merge = true;
+        ws.Cells[row, 1].Style.Font.Size = 16;
+        ws.Cells[row, 1].Style.Font.Bold = true;
+        ws.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        row += 2;
+
+        // Información del lote
+        EscribirInfoLoteLevante(ws, reporte.InformacionLote, ref row);
+
+        row += 2;
+
+        // Encabezados simplificados para semanal hembras
+        var headers = new[]
+        {
+            "SEMANA", "FECHA", "EDAD", "SALDO H", "MORT H", "% MORT H", "% MORT H GUIA",
+            "SEL H", "% SEL H", "ERROR H", "% ERROR H", "CONS KG H", "CONS ACUM H",
+            "GR/AVE H", "GR/AVE H GUIA", "PESO H", "PESO H GUIA", "UNIF H", "UNIF H GUIA"
+        };
+
+        for (int col = 1; col <= headers.Length; col++)
+        {
+            ws.Cells[row, col].Value = headers[col - 1];
+            ws.Cells[row, col].Style.Font.Bold = true;
+            ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            ws.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        // Escribir datos semanales (solo columnas de hembras)
+        foreach (var dato in reporte.DatosSemanales.OrderBy(d => d.Semana))
+        {
+            ws.Cells[row, 1].Value = dato.Semana;
+            ws.Cells[row, 2].Value = dato.Fecha.ToString("dd/MM/yyyy");
+            ws.Cells[row, 3].Value = dato.Edad;
+            ws.Cells[row, 4].Value = dato.Hembra;
+            ws.Cells[row, 5].Value = dato.MortH;
+            ws.Cells[row, 6].Value = dato.PorcMortH;
+            ws.Cells[row, 7].Value = dato.PorcMortHGUIA;
+            ws.Cells[row, 8].Value = dato.SelH;
+            ws.Cells[row, 9].Value = dato.PorcSelH;
+            ws.Cells[row, 10].Value = dato.ErrorH;
+            ws.Cells[row, 11].Value = dato.PorcErrH;
+            ws.Cells[row, 12].Value = dato.ConsKgH;
+            ws.Cells[row, 13].Value = dato.AcConsH;
+            ws.Cells[row, 14].Value = dato.GrAveDiaH;
+            ws.Cells[row, 15].Value = dato.GrAveDiaGUIAH;
+            ws.Cells[row, 16].Value = dato.PesoH;
+            ws.Cells[row, 17].Value = dato.PesoHGUIA;
+            ws.Cells[row, 18].Value = dato.UniformH;
+            ws.Cells[row, 19].Value = dato.UnifHGUIA;
+
+            // Resaltar valores de guía genética (amarillo)
+            if (dato.PorcMortHGUIA.HasValue)
+            {
+                ws.Cells[row, 7].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 7].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+            if (dato.GrAveDiaGUIAH.HasValue)
+            {
+                ws.Cells[row, 15].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 15].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+            if (dato.PesoHGUIA.HasValue)
+            {
+                ws.Cells[row, 17].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 17].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+            if (dato.UnifHGUIA.HasValue)
+            {
+                ws.Cells[row, 19].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 19].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+
+            // Formato de números
+            ws.Cells[row, 6].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 7].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 9].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 11].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 12].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 13].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 14].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 15].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 16].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 17].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 18].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 19].Style.Numberformat.Format = "0.0";
+
+            row++;
+        }
+
+        ws.Cells.AutoFitColumns();
+    }
+
+    private void EscribirSemanalMachos(ExcelWorksheet ws, ReporteTecnicoLevanteConTabsDto reporte)
+    {
+        var row = 1;
+
+        // Encabezado
+        ws.Cells[row, 1].Value = "REPORTE TÉCNICO LEVANTE - SEMANAL MACHOS";
+        ws.Cells[row, 1, row, 30].Merge = true;
+        ws.Cells[row, 1].Style.Font.Size = 16;
+        ws.Cells[row, 1].Style.Font.Bold = true;
+        ws.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        row += 2;
+
+        // Información del lote
+        EscribirInfoLoteLevante(ws, reporte.InformacionLote, ref row);
+
+        row += 2;
+
+        // Encabezados simplificados para semanal machos
+        var headers = new[]
+        {
+            "SEMANA", "FECHA", "EDAD", "SALDO M", "MORT M", "% MORT M", "% MORT M GUIA",
+            "SEL M", "% SEL M", "ERROR M", "% ERROR M", "CONS KG M", "CONS ACUM M",
+            "GR/AVE M", "GR/AVE M GUIA", "PESO M", "PESO M GUIA", "UNIF M", "UNIF M GUIA"
+        };
+
+        for (int col = 1; col <= headers.Length; col++)
+        {
+            ws.Cells[row, col].Value = headers[col - 1];
+            ws.Cells[row, col].Style.Font.Bold = true;
+            ws.Cells[row, col].Style.Fill.PatternType = ExcelFillStyle.Solid;
+            ws.Cells[row, col].Style.Fill.BackgroundColor.SetColor(Color.LightGray);
+            ws.Cells[row, col].Style.Border.BorderAround(ExcelBorderStyle.Thin);
+            ws.Cells[row, col].Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+        }
+        row++;
+
+        // Escribir datos semanales (solo columnas de machos)
+        foreach (var dato in reporte.DatosSemanales.OrderBy(d => d.Semana))
+        {
+            ws.Cells[row, 1].Value = dato.Semana;
+            ws.Cells[row, 2].Value = dato.Fecha.ToString("dd/MM/yyyy");
+            ws.Cells[row, 3].Value = dato.Edad;
+            ws.Cells[row, 4].Value = dato.SaldoMacho;
+            ws.Cells[row, 5].Value = dato.MortM;
+            ws.Cells[row, 6].Value = dato.PorcMortM;
+            ws.Cells[row, 7].Value = dato.PorcMortMGUIA;
+            ws.Cells[row, 8].Value = dato.SelM;
+            ws.Cells[row, 9].Value = dato.PorcSelM;
+            ws.Cells[row, 10].Value = dato.ErrorM;
+            ws.Cells[row, 11].Value = dato.PorcErrM;
+            ws.Cells[row, 12].Value = dato.ConsKgM;
+            ws.Cells[row, 13].Value = dato.AcConsM;
+            ws.Cells[row, 14].Value = dato.GrAveDiaM;
+            ws.Cells[row, 15].Value = dato.GrAveDiaMGUIA;
+            ws.Cells[row, 16].Value = dato.PesoM;
+            ws.Cells[row, 17].Value = dato.PesoMGUIA;
+            ws.Cells[row, 18].Value = dato.UniformM;
+            ws.Cells[row, 19].Value = dato.UnifMGUIA;
+
+            // Resaltar valores de guía genética (amarillo)
+            if (dato.PorcMortMGUIA.HasValue)
+            {
+                ws.Cells[row, 7].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 7].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+            if (dato.GrAveDiaMGUIA.HasValue)
+            {
+                ws.Cells[row, 15].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 15].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+            if (dato.PesoMGUIA.HasValue)
+            {
+                ws.Cells[row, 17].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 17].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+            if (dato.UnifMGUIA.HasValue)
+            {
+                ws.Cells[row, 19].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                ws.Cells[row, 19].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 243, 199));
+            }
+
+            // Formato de números
+            ws.Cells[row, 6].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 7].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 9].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 11].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 12].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 13].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 14].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 15].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 16].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 17].Style.Numberformat.Format = "0.00";
+            ws.Cells[row, 18].Style.Numberformat.Format = "0.0";
+            ws.Cells[row, 19].Style.Numberformat.Format = "0.0";
+
+            row++;
+        }
+
+        ws.Cells.AutoFitColumns();
+    }
+
+    private void EscribirInfoLoteLevante(ExcelWorksheet ws, ReporteTecnicoLoteInfoDto loteInfo, ref int row)
+    {
+        ws.Cells[row, 1].Value = "LOTE:";
+        ws.Cells[row, 2].Value = loteInfo.LoteNombre;
+        ws.Cells[row, 1].Style.Font.Bold = true;
+        ws.Cells[row, 2].Style.Font.Bold = true;
+        row++;
+
+        if (!string.IsNullOrWhiteSpace(loteInfo.Raza))
+        {
+            ws.Cells[row, 1].Value = "RAZA:";
+            ws.Cells[row, 2].Value = loteInfo.Raza;
+            ws.Cells[row, 1].Style.Font.Bold = true;
+            row++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(loteInfo.Linea))
+        {
+            ws.Cells[row, 1].Value = "LÍNEA:";
+            ws.Cells[row, 2].Value = loteInfo.Linea;
+            ws.Cells[row, 1].Style.Font.Bold = true;
+            row++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(loteInfo.GranjaNombre))
+        {
+            ws.Cells[row, 1].Value = "GRANJA:";
+            ws.Cells[row, 2].Value = loteInfo.GranjaNombre;
+            ws.Cells[row, 1].Style.Font.Bold = true;
+            row++;
+        }
+
+        if (loteInfo.NumeroHembras.HasValue)
+        {
+            ws.Cells[row, 1].Value = "HEMBRAS INICIALES:";
+            ws.Cells[row, 2].Value = loteInfo.NumeroHembras.Value;
+            ws.Cells[row, 1].Style.Font.Bold = true;
+            row++;
+        }
+
+        if (loteInfo.NumeroMachos.HasValue)
+        {
+            ws.Cells[row, 1].Value = "MACHOS INICIALES:";
+            ws.Cells[row, 2].Value = loteInfo.NumeroMachos.Value;
+            ws.Cells[row, 1].Style.Font.Bold = true;
+            row++;
+        }
+
+        if (loteInfo.FechaEncaset.HasValue)
+        {
+            ws.Cells[row, 1].Value = "FECHA ENCASET:";
+            ws.Cells[row, 2].Value = loteInfo.FechaEncaset.Value.ToString("dd/MM/yyyy");
+            ws.Cells[row, 1].Style.Font.Bold = true;
+            row++;
+        }
+    }
+
+    /// <summary>
+    /// Genera nombre de archivo para reporte de Levante con tabs
+    /// </summary>
+    public string GenerarNombreArchivoLevante(ReporteTecnicoLevanteConTabsDto reporte, string tipo = "completo")
+    {
+        var loteNombre = reporte.InformacionLote.LoteNombre?.Replace(" ", "_") ?? "Lote";
+        var fecha = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        return $"Reporte_Tecnico_Levante_{loteNombre}_{tipo}_{fecha}.xlsx";
+    }
 }
 
 

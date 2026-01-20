@@ -290,26 +290,51 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
 
   exportarExcel(): void {
-    if (!this.reporteLevanteConTabs()) {
-      this.error = 'Debe generar un reporte primero';
+    if (!this.selectedLoteId) {
+      this.error = 'Debe seleccionar un lote primero';
       return;
     }
 
     this.loading.set(true);
     this.error = null;
 
-    // TODO: Implementar exportación Excel para reporte con tabs
-    // Por ahora, exportar según el tab activo
-    const reporte = this.reporteLevanteConTabs();
-    if (!reporte) {
-      this.error = 'No hay datos para exportar';
-      this.loading.set(false);
-      return;
-    }
+    const fechaInicio = this.fechaInicio ? new Date(this.fechaInicio).toISOString() : null;
+    const fechaFin = this.fechaFin ? new Date(this.fechaFin).toISOString() : null;
 
-    // Por ahora mostrar mensaje - se implementará después
-    this.error = 'Exportación a Excel en desarrollo';
-    this.loading.set(false);
+    this.reporteService.exportarExcelCompletoLevante(
+      this.selectedLoteId,
+      fechaInicio,
+      fechaFin,
+      this.tipoConsolidacion === 'consolidado'
+    )
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loading.set(false))
+      )
+      .subscribe({
+        next: (blob) => {
+          // Crear URL del blob y descargar
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          
+          // Generar nombre de archivo
+          const loteNombre = this.selectedLote?.loteNombre?.replace(/\s+/g, '_') || 'Lote';
+          const fecha = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+          link.download = `Reporte_Tecnico_Levante_${loteNombre}_${fecha}.xlsx`;
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          this.error = null;
+        },
+        error: (err) => {
+          console.error('Error al exportar a Excel:', err);
+          this.error = err.error?.message || 'Error al exportar el archivo Excel';
+        }
+      });
   }
 
   private validarFiltros(): boolean {

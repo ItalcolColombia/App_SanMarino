@@ -300,5 +300,45 @@ public class ReporteTecnicoController : ControllerBase
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }
+
+    /// <summary>
+    /// Exporta todos los reportes de Levante a Excel (múltiples hojas)
+    /// Hoja 1: Diario Hembras, Hoja 2: Diario Machos, Hoja 3: Semanal Hembras, Hoja 4: Semanal Machos
+    /// </summary>
+    [HttpGet("levante/exportar/excel/{loteId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ExportarExcelCompletoLevante(
+        int loteId,
+        [FromQuery] DateTime? fechaInicio = null,
+        [FromQuery] DateTime? fechaFin = null,
+        [FromQuery] bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            // Generar reporte con tabs de forma secuencial para evitar conflictos de DbContext
+            var reporte = await _service.GenerarReporteLevanteConTabsAsync(
+                loteId, fechaInicio, fechaFin, consolidarSublotes, ct);
+
+            // Generar Excel con todas las hojas
+            var excelBytes = _excelService.GenerarExcelCompletoLevante(reporte);
+            var fileName = _excelService.GenerarNombreArchivoLevante(reporte, "completo");
+
+            return File(excelBytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al exportar reportes de Levante a Excel para lote {LoteId}", loteId);
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
 }
 
