@@ -11,11 +11,16 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
+    private readonly IGuiaGeneticaService _guiaGeneticaService;
 
-    public ReporteTecnicoProduccionService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    public ReporteTecnicoProduccionService(
+        ZooSanMarinoContext ctx, 
+        ICurrentUser currentUser,
+        IGuiaGeneticaService guiaGeneticaService)
     {
         _ctx = ctx;
         _currentUser = currentUser;
+        _guiaGeneticaService = guiaGeneticaService;
     }
 
     public async Task<ReporteTecnicoProduccionCompletoDto> GenerarReporteAsync(
@@ -245,10 +250,25 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             saldoHembras = saldoHembras - seg.MortalidadH - seg.SelH - ventasH - trasladosH;
             saldoMachos = saldoMachos - seg.MortalidadM - ventasM - trasladosM;
 
+            // Obtener venta de huevos del día
+            var ventaHuevo = await ObtenerVentaHuevosAsync(loteId, seg.Fecha, ct);
+            
+            // Obtener huevos cargados (por ahora igual a incubables, puede venir de otra fuente)
+            var huevosCargados = seg.HuevoInc; // TODO: Si hay tabla de incubación, obtener de ahí
+            
             // Calcular porcentajes
-            var totalAves = saldoHembras + saldoMachos;
-            var porcentajePostura = totalAves > 0 ? (decimal)seg.HuevoTot / totalAves * 100 : 0;
-            var porcentajeIncubable = seg.HuevoTot > 0 ? (decimal)seg.HuevoInc / seg.HuevoTot * 100 : 0;
+            // Porcentaje de postura se calcula sobre hembras (solo hembras ponen huevos)
+            var porcentajePostura = saldoHembras > 0 ? (decimal)seg.HuevoTot / saldoHembras * 100 : 0;
+            var porcentajeEnviadoPlanta = seg.HuevoTot > 0 ? (decimal)huevosEnviadosPlanta / seg.HuevoTot * 100 : 0;
+            
+            // Porcentaje de nacimientos (por ahora null, requiere tabla de nacimientos)
+            decimal? porcentajeNacimientos = null; // TODO: Calcular si hay datos de nacimientos
+            
+            // Pollitos vendidos (por ahora null, requiere tabla de ventas de pollitos)
+            int? pollitosVendidos = null; // TODO: Obtener de tabla de ventas de pollitos
+            
+            // Porcentaje de grasa corporal (por ahora null, requiere datos de pesaje)
+            decimal? porcentajeGrasaCorporal = null; // TODO: Calcular si hay datos de grasa corporal
 
             // Calcular porcentajes de tipos de huevos
             var porcentajeLimpio = seg.HuevoTot > 0 ? (decimal?)seg.HuevoLimpio / seg.HuevoTot * 100 : null;
@@ -282,10 +302,16 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 KilosAlimentoHembras: seg.ConsKgH,
                 KilosAlimentoMachos: seg.ConsKgM,
                 HuevosEnviadosPlanta: huevosEnviadosPlanta,
-                PorcentajeIncubable: porcentajeIncubable,
+                PorcentajeEnviadoPlanta: porcentajeEnviadoPlanta,
+                HuevosIncubables: seg.HuevoInc,
+                HuevosCargados: huevosCargados,
+                PorcentajeNacimientos: porcentajeNacimientos,
+                VentaHuevo: ventaHuevo,
+                PollitosVendidos: pollitosVendidos,
                 PesoHembra: seg.PesoH,
                 PesoMachos: seg.PesoM,
                 PesoHuevo: seg.PesoHuevo,
+                PorcentajeGrasaCorporal: porcentajeGrasaCorporal,
                 // Desglose de tipos de huevos
                 HuevoLimpio: seg.HuevoLimpio,
                 HuevoTratado: seg.HuevoTratado,
@@ -373,6 +399,20 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         return traslados.Sum(t => t.CantidadLimpio + t.CantidadTratado);
     }
 
+    private async Task<int?> ObtenerVentaHuevosAsync(string loteId, DateTime fecha, CancellationToken ct)
+    {
+        var ventas = await _ctx.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t => t.LoteId == loteId &&
+                       t.FechaTraslado.Date == fecha.Date &&
+                       t.TipoOperacion == "Venta" &&
+                       t.Estado == "Completado")
+            .ToListAsync(ct);
+
+        var total = ventas.Sum(t => t.TotalHuevos);
+        return total > 0 ? total : null;
+    }
+
     private async Task<(int total, int limpio, int tratado, int sucio, int deforme, int blanco, 
                         int dobleYema, int piso, int pequeno, int roto, int desecho, int otro)> 
         ObtenerTransferenciasHuevosAsync(string loteId, DateTime fecha, CancellationToken ct)
@@ -424,7 +464,20 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 KilosAlimentoHembras: g.Sum(d => d.KilosAlimentoHembras),
                 KilosAlimentoMachos: g.Sum(d => d.KilosAlimentoMachos),
                 HuevosEnviadosPlanta: g.Sum(d => d.HuevosEnviadosPlanta),
-                PorcentajeIncubable: g.Average(d => d.PorcentajeIncubable),
+                PorcentajeEnviadoPlanta: g.Sum(d => d.HuevosTotales) > 0 
+                    ? (decimal)g.Sum(d => d.HuevosEnviadosPlanta) / g.Sum(d => d.HuevosTotales) * 100 
+                    : 0,
+                HuevosIncubables: g.Sum(d => d.HuevosIncubables),
+                HuevosCargados: g.Sum(d => d.HuevosCargados),
+                PorcentajeNacimientos: g.Where(d => d.PorcentajeNacimientos.HasValue).Select(d => d.PorcentajeNacimientos!.Value).DefaultIfEmpty(0).Average() > 0
+                    ? (decimal?)g.Where(d => d.PorcentajeNacimientos.HasValue).Select(d => d.PorcentajeNacimientos!.Value).Average()
+                    : null,
+                VentaHuevo: g.Where(d => d.VentaHuevo.HasValue).Sum(d => d.VentaHuevo!.Value) > 0
+                    ? g.Where(d => d.VentaHuevo.HasValue).Sum(d => d.VentaHuevo!.Value)
+                    : null,
+                PollitosVendidos: g.Where(d => d.PollitosVendidos.HasValue).Sum(d => d.PollitosVendidos!.Value) > 0
+                    ? g.Where(d => d.PollitosVendidos.HasValue).Sum(d => d.PollitosVendidos!.Value)
+                    : null,
                 PesoHembra: g.Where(d => d.PesoHembra.HasValue).Select(d => d.PesoHembra!.Value).DefaultIfEmpty(0).Average() > 0
                     ? (decimal?)g.Where(d => d.PesoHembra.HasValue).Select(d => d.PesoHembra!.Value).Average()
                     : null,
@@ -432,6 +485,9 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                     ? (decimal?)g.Where(d => d.PesoMachos.HasValue).Select(d => d.PesoMachos!.Value).Average()
                     : null,
                 PesoHuevo: g.Average(d => d.PesoHuevo),
+                PorcentajeGrasaCorporal: g.Where(d => d.PorcentajeGrasaCorporal.HasValue).Select(d => d.PorcentajeGrasaCorporal!.Value).DefaultIfEmpty(0).Average() > 0
+                    ? (decimal?)g.Where(d => d.PorcentajeGrasaCorporal.HasValue).Select(d => d.PorcentajeGrasaCorporal!.Value).Average()
+                    : null,
                 // Desglose de tipos de huevos
                 HuevoLimpio: g.Sum(d => d.HuevoLimpio),
                 HuevoTratado: g.Sum(d => d.HuevoTratado),
@@ -527,7 +583,18 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 KilosAlimentoHembrasSemanal: datosSemana.Sum(d => d.KilosAlimentoHembras),
                 KilosAlimentoMachosSemanal: datosSemana.Sum(d => d.KilosAlimentoMachos),
                 HuevosEnviadosPlantaSemanal: datosSemana.Sum(d => d.HuevosEnviadosPlanta),
-                PorcentajeIncubablePromedio: datosSemana.Average(d => d.PorcentajeIncubable),
+                PorcentajeEnviadoPlantaPromedio: datosSemana.Average(d => d.PorcentajeEnviadoPlanta),
+                HuevosIncubablesSemanal: datosSemana.Sum(d => d.HuevosIncubables),
+                HuevosCargadosSemanal: datosSemana.Sum(d => d.HuevosCargados),
+                PorcentajeNacimientosPromedio: datosSemana.Where(d => d.PorcentajeNacimientos.HasValue).Select(d => d.PorcentajeNacimientos!.Value).DefaultIfEmpty(0).Average() > 0
+                    ? (decimal?)datosSemana.Where(d => d.PorcentajeNacimientos.HasValue).Select(d => d.PorcentajeNacimientos!.Value).Average()
+                    : null,
+                VentaHuevoSemanal: datosSemana.Where(d => d.VentaHuevo.HasValue).Sum(d => d.VentaHuevo!.Value) > 0
+                    ? datosSemana.Where(d => d.VentaHuevo.HasValue).Sum(d => d.VentaHuevo!.Value)
+                    : null,
+                PollitosVendidosSemanal: datosSemana.Where(d => d.PollitosVendidos.HasValue).Sum(d => d.PollitosVendidos!.Value) > 0
+                    ? datosSemana.Where(d => d.PollitosVendidos.HasValue).Sum(d => d.PollitosVendidos!.Value)
+                    : null,
                 PesoHembraPromedio: datosSemana.Where(d => d.PesoHembra.HasValue).Select(d => d.PesoHembra!.Value).DefaultIfEmpty(0).Average() > 0
                     ? (decimal?)datosSemana.Where(d => d.PesoHembra.HasValue).Select(d => d.PesoHembra!.Value).Average()
                     : null,
@@ -535,6 +602,9 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                     ? (decimal?)datosSemana.Where(d => d.PesoMachos.HasValue).Select(d => d.PesoMachos!.Value).Average()
                     : null,
                 PesoHuevoPromedio: datosSemana.Average(d => d.PesoHuevo),
+                PorcentajeGrasaCorporalPromedio: datosSemana.Where(d => d.PorcentajeGrasaCorporal.HasValue).Select(d => d.PorcentajeGrasaCorporal!.Value).DefaultIfEmpty(0).Average() > 0
+                    ? (decimal?)datosSemana.Where(d => d.PorcentajeGrasaCorporal.HasValue).Select(d => d.PorcentajeGrasaCorporal!.Value).Average()
+                    : null,
                 // Desglose de tipos de huevos semanal
                 HuevoLimpioSemanal: datosSemana.Sum(d => d.HuevoLimpio),
                 HuevoTratadoSemanal: datosSemana.Sum(d => d.HuevoTratado),
@@ -665,6 +735,32 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         );
     }
 
+    public async Task<ReporteTecnicoProduccionCompletoDto> GenerarReporteDiarioAsync(
+        int loteId,
+        DateTime? fechaInicio,
+        DateTime? fechaFin,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        if (consolidarSublotes)
+        {
+            var request = new GenerarReporteTecnicoProduccionRequestDto(
+                TipoReporte: "diario",
+                TipoConsolidacion: "consolidado",
+                LoteId: loteId,
+                LoteNombreBase: null,
+                FechaInicio: fechaInicio,
+                FechaFin: fechaFin,
+                Semana: null
+            );
+            return await GenerarReporteConsolidadoAsync(request, ct);
+        }
+        else
+        {
+            return await GenerarReporteSubloteAsync(loteId, fechaInicio, fechaFin, ct);
+        }
+    }
+
     public async Task<List<string>> ObtenerSublotesAsync(string loteNombreBase, CancellationToken ct = default)
     {
         var sublotes = await _ctx.Lotes
@@ -730,6 +826,409 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         // Calcular semana de producción: 25 semanas de levante + semanas de producción
         var semanasProduccion = (int)Math.Ceiling(edadDias / 7.0);
         return 25 + semanasProduccion;
+    }
+
+    public async Task<ReporteTecnicoProduccionCuadroCompletoDto> GenerarReporteCuadroAsync(
+        int loteId,
+        DateTime? fechaInicio,
+        DateTime? fechaFin,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        // Obtener el reporte semanal completo primero
+        var reporteCompleto = await GenerarReporteDiarioAsync(loteId, fechaInicio, fechaFin, consolidarSublotes, ct);
+        
+        // Obtener información del lote para guía genética
+        var lote = await _ctx.Lotes
+            .AsNoTracking()
+            .Include(l => l.Farm)
+            .Include(l => l.Nucleo)
+            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+
+        if (lote == null)
+            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+
+        // Obtener datos de guía genética si están disponibles
+        var guiasProduccion = new List<GuiaGeneticaDto>();
+        if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+        {
+            try
+            {
+                var guias = await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(
+                    lote.Raza,
+                    lote.AnoTablaGenetica.Value);
+                guiasProduccion = guias.ToList();
+            }
+            catch
+            {
+                // Si no hay guía genética, continuar sin valores amarillos
+            }
+        }
+
+        // Obtener datos completos de ProduccionAvicolaRaw para valores adicionales
+        var guiasCompletas = new List<Domain.Entities.ProduccionAvicolaRaw>();
+        if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+        {
+            var razaNorm = lote.Raza.Trim().ToLower();
+            var ano = lote.AnoTablaGenetica.Value.ToString();
+            
+            guiasCompletas = await _ctx.ProduccionAvicolaRaw
+                .AsNoTracking()
+                .Where(p =>
+                    p.Raza != null && p.AnioGuia != null &&
+                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                    p.AnioGuia.Trim() == ano)
+                .ToListAsync(ct);
+        }
+
+        // Convertir datos semanales a formato Cuadro con valores de guía genética
+        var datosCuadro = new List<ReporteTecnicoProduccionCuadroDto>();
+        
+        foreach (var semanal in reporteCompleto.DatosSemanales)
+        {
+            // Obtener guía genética para esta semana (edad en semanas de producción)
+            var edadProduccionSemanas = semanal.EdadInicioSemanas;
+            var guiaSemana = guiasProduccion.FirstOrDefault(g => g.Edad == edadProduccionSemanas);
+            
+            // Helper para parsear edad en ProduccionAvicolaRaw
+            int? TryParseEdad(string? edadStr)
+            {
+                if (string.IsNullOrWhiteSpace(edadStr)) return null;
+                var s = edadStr.Trim().Replace(",", ".");
+                if (int.TryParse(s, System.Globalization.NumberStyles.Any, 
+                    System.Globalization.CultureInfo.InvariantCulture, out var n))
+                    return n;
+                var match = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)");
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var n2))
+                    return n2;
+                return null;
+            }
+
+            var guiaCompletaSemana = guiasCompletas
+                .Where(g =>
+                {
+                    var edad = TryParseEdad(g.Edad);
+                    return edad.HasValue && edad.Value == edadProduccionSemanas;
+                })
+                .FirstOrDefault();
+
+            // Helper para parsear valores decimales
+            decimal? ParseDecimal(string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return null;
+                var clean = value.Trim().Replace(",", ".");
+                if (decimal.TryParse(clean, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var result))
+                    return result;
+                return null;
+            }
+
+            // Calcular valores acumulados y promedios
+            var datosHastaSemana = reporteCompleto.DatosSemanales
+                .Where(d => d.Semana <= semanal.Semana)
+                .ToList();
+
+            // Mortalidad acumulada
+            var mortalidadAcumHembras = datosHastaSemana.Sum(d => d.MortalidadHembrasSemanal);
+            var mortalidadAcumMachos = datosHastaSemana.Sum(d => d.MortalidadMachosSemanal);
+            var avesInicialesHembras = reporteCompleto.LoteInfo.NumeroHembrasIniciales ?? 0;
+            var avesInicialesMachos = reporteCompleto.LoteInfo.NumeroMachosIniciales ?? 0;
+            
+            var mortalidadAcumPorcentajeHembras = avesInicialesHembras > 0
+                ? (decimal)mortalidadAcumHembras / avesInicialesHembras * 100
+                : 0;
+            var mortalidadAcumPorcentajeMachos = avesInicialesMachos > 0
+                ? (decimal)mortalidadAcumMachos / avesInicialesMachos * 100
+                : 0;
+
+            // Huevos acumulados
+            var huevosAcum = datosHastaSemana.Sum(d => d.HuevosTotalesSemanal);
+            
+            // Consumo acumulado
+            var consumoAcumHembras = datosHastaSemana.Sum(d => d.KilosAlimentoHembrasSemanal);
+            var consumoAcumMachos = datosHastaSemana.Sum(d => d.KilosAlimentoMachosSemanal);
+
+            // Crear DTO del cuadro
+            var cuadro = new ReporteTecnicoProduccionCuadroDto(
+                Semana: semanal.Semana,
+                Fecha: semanal.FechaInicioSemana,
+                EdadProduccionSemanas: edadProduccionSemanas,
+                AvesFinHembras: semanal.SaldoFinHembras,
+                AvesFinMachos: semanal.SaldoFinMachos,
+                // MORTALIDAD HEMBRAS
+                MortalidadHembrasN: semanal.MortalidadHembrasSemanal,
+                MortalidadHembrasDescPorcentajeSem: avesInicialesHembras > 0
+                    ? (decimal)semanal.MortalidadHembrasSemanal / avesInicialesHembras * 100
+                    : 0,
+                MortalidadHembrasPorcentajeAcum: mortalidadAcumPorcentajeHembras,
+                MortalidadHembrasStandarM: guiaSemana != null ? (decimal?)guiaSemana.MortalidadHembras : null,
+                MortalidadHembrasAcumStandar: null, // Se calcularía acumulando valores de guía
+                // MORTALIDAD MACHOS
+                MortalidadMachosN: semanal.MortalidadMachosSemanal,
+                MortalidadMachosDescPorcentajeSem: avesInicialesMachos > 0
+                    ? (decimal)semanal.MortalidadMachosSemanal / avesInicialesMachos * 100
+                    : 0,
+                MortalidadMachosPorcentajeAcum: mortalidadAcumPorcentajeMachos,
+                MortalidadMachosStandarM: guiaSemana != null ? (decimal?)guiaSemana.MortalidadMachos : null,
+                MortalidadMachosAcumStandar: null,
+                // PRODUCCION TOTAL DE HUEVOS
+                HuevosVentaSemana: semanal.HuevosTotalesSemanal,
+                HuevosAcum: huevosAcum,
+                PorcentajeSem: semanal.PorcentajePosturaPromedio,
+                PorcentajeRoss: ParseDecimal(guiaCompletaSemana?.ProdPorcentaje),
+                Taa: datosHastaSemana.Count > 0 ? huevosAcum / datosHastaSemana.Count : 0,
+                TaaRoss: ParseDecimal(guiaCompletaSemana?.HTotalAa),
+                // HUEVOS ENVIADOS PLANTA
+                EnviadosPlanta: semanal.HuevosEnviadosPlantaSemanal,
+                AcumEnviaP: datosHastaSemana.Sum(d => d.HuevosEnviadosPlantaSemanal),
+                PorcentajeEnviaP: semanal.PorcentajeEnviadoPlantaPromedio,
+                PorcentajeHala: null, // % HALA - se obtendría de guía genética si existe
+                // HUEVO INCUBABLE
+                HuevosIncub: semanal.HuevosIncubablesSemanal,
+                PorcentajeDescarte: semanal.HuevosTotalesSemanal > 0
+                    ? (decimal)(semanal.HuevosTotalesSemanal - semanal.HuevosIncubablesSemanal) / semanal.HuevosTotalesSemanal * 100
+                    : 0,
+                PorcentajeAcumIncub: datosHastaSemana.Sum(d => d.HuevosTotalesSemanal) > 0
+                    ? (decimal)datosHastaSemana.Sum(d => d.HuevosIncubablesSemanal) / datosHastaSemana.Sum(d => d.HuevosTotalesSemanal) * 100
+                    : 0,
+                Laa: datosHastaSemana.Count > 0 
+                    ? (decimal)datosHastaSemana.Sum(d => d.HuevosIncubablesSemanal) / datosHastaSemana.Count
+                    : 0,
+                StdRoss: ParseDecimal(guiaCompletaSemana?.HIncAa),
+                // HUEVOS CARGADOS Y POLLITOS
+                HCarga: semanal.HuevosCargadosSemanal,
+                HCargaAcu: datosHastaSemana.Sum(d => d.HuevosCargadosSemanal),
+                VHuevo: semanal.VentaHuevoSemanal ?? 0,
+                VHuevoPollitos: semanal.PollitosVendidosSemanal ?? 0,
+                PollAcum: datosHastaSemana.Sum(d => d.PollitosVendidosSemanal ?? 0),
+                Paa: datosHastaSemana.Count > 0
+                    ? (decimal)datosHastaSemana.Sum(d => d.PollitosVendidosSemanal ?? 0) / datosHastaSemana.Count
+                    : 0,
+                PaaRoss: ParseDecimal(guiaCompletaSemana?.PollitoAa),
+                // CONSUMO DE ALIMENTO HEMBRA
+                KgSemHembra: semanal.KilosAlimentoHembrasSemanal,
+                AcumHembra: consumoAcumHembras,
+                AcumAaHembra: datosHastaSemana.Count > 0 ? consumoAcumHembras / datosHastaSemana.Count : 0,
+                StAcumHembra: guiaSemana != null ? (decimal?)guiaSemana.ConsumoHembras * 7 / 1000 : null, // Convertir gramos/día a kg/semana
+                LoteHembra: null,
+                StGrHembra: guiaSemana != null ? (decimal?)guiaSemana.ConsumoHembras : null,
+                // CONSUMO DE ALIMENTO MACHO
+                KgSemMachos: semanal.KilosAlimentoMachosSemanal,
+                AcumMachos: consumoAcumMachos,
+                AcumAaMachos: datosHastaSemana.Count > 0 ? consumoAcumMachos / datosHastaSemana.Count : 0,
+                StAcumMachos: guiaSemana != null ? (decimal?)guiaSemana.ConsumoMachos * 7 / 1000 : null,
+                GrDiaMachos: semanal.KilosAlimentoMachosSemanal * 1000 / 7, // Convertir kg/semana a gramos/día
+                StGrMachos: guiaSemana != null ? (decimal?)guiaSemana.ConsumoMachos : null,
+                // PESOS
+                PesoHembraKg: semanal.PesoHembraPromedio,
+                PesoHembraStd: guiaSemana != null ? (decimal?)guiaSemana.PesoHembras / 1000 : null, // Convertir gramos a kg
+                PesoMachosKg: semanal.PesoMachosPromedio,
+                PesoMachosStd: guiaSemana != null ? (decimal?)guiaSemana.PesoMachos / 1000 : null,
+                PesoHuevoSem: semanal.PesoHuevoPromedio,
+                PesoHuevoStd: ParseDecimal(guiaCompletaSemana?.PesoHuevo),
+                MasaSem: semanal.PesoHuevoPromedio * (decimal)semanal.PorcentajePosturaPromedio / 100, // Aproximación
+                MasaStd: ParseDecimal(guiaCompletaSemana?.MasaHuevo),
+                // % APROV
+                PorcentajeAprovSem: null, // Se calcularía si hay datos de aprovechamiento
+                PorcentajeAprovStd: ParseDecimal(guiaCompletaSemana?.AprovSem),
+                // TIPO DE ALIMENTO
+                TipoAlimento: null, // Se obtendría de seguimiento si existe
+                // OBSERVACIONES
+                Observaciones: null
+            );
+
+            datosCuadro.Add(cuadro);
+        }
+
+        return new ReporteTecnicoProduccionCuadroCompletoDto(
+            reporteCompleto.LoteInfo,
+            datosCuadro
+        );
+    }
+
+    public async Task<ReporteClasificacionHuevoComercioCompletoDto> GenerarReporteClasificacionHuevoComercioAsync(
+        int loteId,
+        DateTime? fechaInicio,
+        DateTime? fechaFin,
+        bool consolidarSublotes = false,
+        CancellationToken ct = default)
+    {
+        // Obtener el lote
+        var lote = await _ctx.Lotes
+            .AsNoTracking()
+            .Include(l => l.Farm)
+            .Include(l => l.Nucleo)
+            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+
+        if (lote == null)
+            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+
+        // Obtener ProduccionLote para fecha de inicio
+        var produccionLote = await _ctx.ProduccionLotes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.LoteId == loteId.ToString(), ct);
+
+        var fechaInicioProduccion = produccionLote?.FechaInicio ?? lote.FechaEncaset ?? DateTime.Today;
+
+        // Obtener datos de seguimiento de producción
+        var loteIdStr = loteId.ToString();
+        var query = _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => s.LoteId == loteIdStr);
+
+        if (fechaInicio.HasValue)
+            query = query.Where(s => s.Fecha >= fechaInicio.Value);
+
+        if (fechaFin.HasValue)
+            query = query.Where(s => s.Fecha <= fechaFin.Value);
+
+        var seguimientos = await query
+            .OrderBy(s => s.Fecha)
+            .ToListAsync(ct);
+
+        // Mapear información del lote una sola vez
+        var loteInfoClasificacion = MapearInformacionLote(lote, produccionLote);
+
+        if (!seguimientos.Any())
+        {
+            return new ReporteClasificacionHuevoComercioCompletoDto(
+                loteInfoClasificacion,
+                new List<ReporteClasificacionHuevoComercioDto>()
+            );
+        }
+
+        // Agrupar por semana
+        var datosPorSemana = seguimientos
+            .GroupBy(s =>
+            {
+                var edadDias = CalcularEdadDias(fechaInicioProduccion, s.Fecha);
+                return CalcularSemana(edadDias);
+            })
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        var datosClasificacion = new List<ReporteClasificacionHuevoComercioDto>();
+
+        foreach (var grupoSemana in datosPorSemana)
+        {
+            var semana = grupoSemana.Key;
+            var seguimientosSemana = grupoSemana.OrderBy(s => s.Fecha).ToList();
+            var fechaInicioSemana = seguimientosSemana.First().Fecha;
+            var fechaFinSemana = seguimientosSemana.Last().Fecha;
+
+            // Calcular totales semanales
+            var incubableLimpio = seguimientosSemana.Sum(s => s.HuevoLimpio);
+            var huevoTratado = seguimientosSemana.Sum(s => s.HuevoTratado);
+            var huevoDY = seguimientosSemana.Sum(s => s.HuevoDobleYema);
+            var huevoRoto = seguimientosSemana.Sum(s => s.HuevoRoto);
+            var huevoDeforme = seguimientosSemana.Sum(s => s.HuevoDeforme);
+            var huevoPiso = seguimientosSemana.Sum(s => s.HuevoPiso);
+            var huevoDesecho = seguimientosSemana.Sum(s => s.HuevoDesecho);
+            var huevoPIP = seguimientosSemana.Sum(s => s.HuevoPequeno); // PIP = Pequeño
+            var huevoSucioDeBanda = seguimientosSemana.Sum(s => s.HuevoSucio);
+            var totalPN = seguimientosSemana.Sum(s => s.HuevoTot);
+
+            // Calcular porcentajes
+            var porcentajeTratado = totalPN > 0 ? (decimal)huevoTratado / totalPN * 100 : 0;
+            var porcentajeDY = totalPN > 0 ? (decimal)huevoDY / totalPN * 100 : 0;
+            var porcentajeRoto = totalPN > 0 ? (decimal)huevoRoto / totalPN * 100 : 0;
+            var porcentajeDeforme = totalPN > 0 ? (decimal)huevoDeforme / totalPN * 100 : 0;
+            var porcentajePiso = totalPN > 0 ? (decimal)huevoPiso / totalPN * 100 : 0;
+            var porcentajeDesecho = totalPN > 0 ? (decimal)huevoDesecho / totalPN * 100 : 0;
+            var porcentajePIP = totalPN > 0 ? (decimal)huevoPIP / totalPN * 100 : 0;
+            var porcentajeSucioDeBanda = totalPN > 0 ? (decimal)huevoSucioDeBanda / totalPN * 100 : 0;
+            var porcentajeTotal = 100m; // El total siempre es 100%
+
+            // Obtener valores de guía genética si están disponibles
+            // Por ahora, los valores de guía genética para clasificación de huevos no están en la tabla estándar
+            // Se pueden agregar más adelante si se requiere
+            var edadProduccionSemanas = CalcularEdadDias(fechaInicioProduccion, fechaInicioSemana) / 7;
+            var guiasProduccion = new List<GuiaGeneticaDto>();
+            var guiasCompletas = new List<Domain.Entities.ProduccionAvicolaRaw>();
+
+            if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+            {
+                try
+                {
+                    var guias = await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(
+                        lote.Raza,
+                        lote.AnoTablaGenetica.Value);
+                    guiasProduccion = guias.ToList();
+
+                    var razaNorm = lote.Raza.Trim().ToLower();
+                    var ano = lote.AnoTablaGenetica.Value.ToString();
+
+                    guiasCompletas = await _ctx.ProduccionAvicolaRaw
+                        .AsNoTracking()
+                        .Where(p =>
+                            p.Raza != null && p.AnioGuia != null &&
+                            EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                            p.AnioGuia.Trim() == ano)
+                        .ToListAsync(ct);
+                }
+                catch
+                {
+                    // Si no hay guía genética, continuar sin valores amarillos
+                }
+            }
+
+            // Por ahora, los valores de guía genética para clasificación de huevos se dejan como null
+            // Se pueden implementar más adelante si se agregan a la tabla de guía genética
+
+            var clasificacion = new ReporteClasificacionHuevoComercioDto(
+                Semana: semana,
+                FechaInicioSemana: fechaInicioSemana,
+                FechaFinSemana: fechaFinSemana,
+                LoteNombre: lote.LoteNombre,
+                // Datos reales
+                IncubableLimpio: incubableLimpio,
+                HuevoTratado: huevoTratado,
+                PorcentajeTratado: porcentajeTratado,
+                HuevoDY: huevoDY,
+                PorcentajeDY: porcentajeDY,
+                HuevoRoto: huevoRoto,
+                PorcentajeRoto: porcentajeRoto,
+                HuevoDeforme: huevoDeforme,
+                PorcentajeDeforme: porcentajeDeforme,
+                HuevoPiso: huevoPiso,
+                PorcentajePiso: porcentajePiso,
+                HuevoDesecho: huevoDesecho,
+                PorcentajeDesecho: porcentajeDesecho,
+                HuevoPIP: huevoPIP,
+                PorcentajePIP: porcentajePIP,
+                HuevoSucioDeBanda: huevoSucioDeBanda,
+                PorcentajeSucioDeBanda: porcentajeSucioDeBanda,
+                TotalPN: totalPN,
+                PorcentajeTotal: porcentajeTotal,
+                // Valores de guía genética (amarillos) - Por ahora null, se implementarán más adelante
+                IncubableLimpioGuia: null,
+                HuevoTratadoGuia: null,
+                PorcentajeTratadoGuia: null,
+                HuevoDYGuia: null,
+                PorcentajeDYGuia: null,
+                HuevoRotoGuia: null,
+                PorcentajeRotoGuia: null,
+                HuevoDeformeGuia: null,
+                PorcentajeDeformeGuia: null,
+                HuevoPisoGuia: null,
+                PorcentajePisoGuia: null,
+                HuevoDesechoGuia: null,
+                PorcentajeDesechoGuia: null,
+                HuevoPIPGuia: null,
+                PorcentajePIPGuia: null,
+                HuevoSucioDeBandaGuia: null,
+                PorcentajeSucioDeBandaGuia: null,
+                TotalPNGuia: null,
+                PorcentajeTotalGuia: null
+            );
+
+            datosClasificacion.Add(clasificacion);
+        }
+
+        return new ReporteClasificacionHuevoComercioCompletoDto(
+            loteInfoClasificacion,
+            datosClasificacion
+        );
     }
 }
 
