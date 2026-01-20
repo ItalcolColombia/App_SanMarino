@@ -1,0 +1,122 @@
+<div class="tabla-container">
+  <!-- Encabezado del Reporte -->
+  <div class="reporte-encabezado" *ngIf="informacionLote">
+    <div class="encabezado-info">
+      <div class="info-row">
+        <span class="info-label">AGROAVICOLA SANMARINO</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">CLASIFICACIÓN HUEVO</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">LOTE: {{ informacionLote.loteNombre || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">RAZA: {{ informacionLote.raza || 'N/A' }}</span>
+        <span class="info-separator" *ngIf="informacionLote.granjaNombre">|</span>
+        <span class="info-value" *ngIf="informacionLote.granjaNombre">GRANJA: {{ informacionLote.granjaNombre }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive" *ngFor="let dato of datos; trackBy: trackBySemana">
+    <!-- Encabezado de Semana -->
+    <div class="semana-header">
+      <h3>CLASIFICACIÓN HUEVO SEMANA DEL {{ formatDate(dato.fechaInicioSemana) }} AL {{ formatDate(dato.fechaFinSemana) }}</h3>
+    </div>
+
+    <table class="tabla-clasificacion-huevo">
+      <thead>
+        <tr>
+          <th>LOTE</th>
+          <th>SEMANA</th>
+          <th>RESUMEN SEMANAL</th>
+          <th>INCUBABLE LIMPIO</th>
+          <th colspan="2">HUEVO TRATADO</th>
+          <th colspan="2">HUEVO DY</th>
+          <th colspan="2">HUEVO ROTO</th>
+          <th colspan="2">HUEVO DEFORME</th>
+          <th colspan="2">HUEVO PISO</th>
+          <th colspan="2">HUEVO DESECHO</th>
+          <th colspan="2">HUEVO PIP</th>
+          <th colspan="2">HUEVO SUCIO DE BANDA</th>
+          <th colspan="2">TOTAL PN</th>
+        </tr>
+        <tr>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th>Cantidad</th>
+          <th>% TRATADO</th>
+          <th>Cantidad</th>
+          <th>% DY</th>
+          <th>Cantidad</th>
+          <th>% ROTO</th>
+          <th>Cantidad</th>
+          <th>% DEFORME</th>
+          <th>Cantidad</th>
+          <th>% PISO</th>
+          <th>Cantidad</th>
+          <th>% DESECHO</th>
+          <th>Cantidad</th>
+          <th>% PIP</th>
+          <th>Cantidad</th>
+          <th>% SUCIO DE BANDA</th>
+          <th>Cantidad</th>
+          <th>%</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Fila de Datos Reales (Fondo Blanco) -->
+        <tr class="fila-datos-reales">
+          <td class="text-center"><strong>{{ dato.loteNombre }}</strong></td>
+          <td class="text-center"><strong>{{ dato.semana }}</strong></td>
+          <td class="text-center">REAL</td>
+          <td class="text-right">{{ formatNumber(dato.incubableLimpio) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoTratado) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeTratado, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoDY) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeDY, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoRoto) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeRoto, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoDeforme) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeDeforme, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoPiso) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajePiso, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoDesecho) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeDesecho, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoPIP) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajePIP, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.huevoSucioDeBanda) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeSucioDeBanda, 1) }}</td>
+          <td class="text-right"><strong>{{ formatNumber(dato.totalPN) }}</strong></td>
+          <td class="text-right"><strong>{{ formatPercentage(dato.porcentajeTotal, 1) }}</strong></td>
+        </tr>
+
+        <!-- Fila de Valores de Guía Genética (Fondo Amarillo) -->
+        <tr class="fila-guia-genetica highlight-yellow">
+          <td class="text-center">{{ dato.loteNombre }}</td>
+          <td class="text-center">{{ dato.semana }}</td>
+          <td class="text-center">GUÍA</td>
+          <td class="text-right">{{ dato.incubableLimpioGuia ? formatNumber(dato.incubableLimpioGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoTratadoGuia ? formatNumber(dato.huevoTratadoGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeTratadoGuia ? formatPercentage(dato.porcentajeTratadoGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoDYGuia ? formatNumber(dato.huevoDYGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeDYGuia ? formatPercentage(dato.porcentajeDYGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoRotoGuia ? formatNumber(dato.huevoRotoGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeRotoGuia ? formatPercentage(dato.porcentajeRotoGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoDeformeGuia ? formatNumber(dato.huevoDeformeGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeDeformeGuia ? formatPercentage(dato.porcentajeDeformeGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoPisoGuia ? formatNumber(dato.huevoPisoGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajePisoGuia ? formatPercentage(dato.porcentajePisoGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoDesechoGuia ? formatNumber(dato.huevoDesechoGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeDesechoGuia ? formatPercentage(dato.porcentajeDesechoGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoPIPGuia ? formatNumber(dato.huevoPIPGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajePIPGuia ? formatPercentage(dato.porcentajePIPGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.huevoSucioDeBandaGuia ? formatNumber(dato.huevoSucioDeBandaGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeSucioDeBandaGuia ? formatPercentage(dato.porcentajeSucioDeBandaGuia, 1) : '-' }}</td>
+          <td class="text-right">{{ dato.totalPNGuia ? formatNumber(dato.totalPNGuia) : '-' }}</td>
+          <td class="text-right">{{ dato.porcentajeTotalGuia ? formatPercentage(dato.porcentajeTotalGuia, 1) : '-' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

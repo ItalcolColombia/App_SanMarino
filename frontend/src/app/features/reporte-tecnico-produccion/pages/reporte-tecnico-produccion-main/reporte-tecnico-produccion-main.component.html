@@ -1,0 +1,221 @@
+<div class="ux-page" [attr.aria-busy]="loading() ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>Reporte Técnico Producción SanMarino</h1>
+
+        <div class="ux-header__meta">
+          <ng-template #noGranjaChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Selecciona una granja
+            </span>
+          </ng-template>
+
+          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">
+            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedGalponId">
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+
+          <span class="chip chip--info" *ngIf="selectedLoteId">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote: {{ selectedLoteNombre }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId && reporte()?.loteInfo?.fechaInicioProduccion">
+            {{ calcularEdadDias(reporte()?.loteInfo?.fechaInicioProduccion) }} días
+          </span>
+        </div>
+      </div>
+
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="generarReporte()"
+          [disabled]="loading() || !puedeGenerarReporte()"
+          [title]="!puedeGenerarReporte() ? 'Selecciona un lote y completa los filtros' : 'Generar reporte'">
+          <fa-icon *ngIf="loading()" [icon]="faSpinner" class="spinning"></fa-icon>
+          <fa-icon *ngIf="!loading()" [icon]="faSearch"></fa-icon>
+          Generar Reporte
+        </button>
+
+        <button
+          type="button"
+          class="btn btn--outline"
+          (click)="exportarExcel()"
+          [disabled]="loading() || !selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona un lote y genera un reporte' : 'Exportar todos los tabs a Excel'">
+          <fa-icon [icon]="faFileExcel"></fa-icon>
+          Exportar Excel
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros de selección -->
+    <app-filtro-select
+      [selectedGranjaId]="selectedGranjaId"
+      [selectedNucleoId]="selectedNucleoId"
+      [selectedGalponId]="selectedGalponId"
+      [selectedLoteId]="selectedLoteId"
+      (granjaChange)="onGranjaChange($event)"
+      (nucleoChange)="onNucleoChange($event)"
+      (galponChange)="onGalponChange($event)"
+      (loteChange)="onLoteChange($event)">
+    </app-filtro-select>
+
+    <!-- Filtros de Reporte -->
+    <section class="ux-card" *ngIf="selectedLoteId">
+      <h3 class="sr-only">Configuración del Reporte</h3>
+      
+      <div class="ux-form">
+        <div class="grid grid-3">
+          <!-- Tipo de Consolidación -->
+          <div class="form-field">
+            <label class="ux-label">Tipo de Consolidación</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input 
+                  type="radio" 
+                  name="tipoConsolidacion" 
+                  value="sublote"
+                  [(ngModel)]="tipoConsolidacion"
+                  (change)="limpiarReporte()">
+                Sublote
+              </label>
+              <label class="radio-label">
+                <input 
+                  type="radio" 
+                  name="tipoConsolidacion" 
+                  value="consolidado"
+                  [(ngModel)]="tipoConsolidacion"
+                  (change)="limpiarReporte()">
+                Consolidado
+              </label>
+            </div>
+          </div>
+
+          <!-- Fecha Inicio -->
+          <div class="form-field">
+            <label class="ux-label">Fecha Inicio (Opcional)</label>
+            <input 
+              type="date"
+              class="ux-input"
+              [(ngModel)]="fechaInicio"
+              (change)="limpiarReporte()">
+          </div>
+
+          <!-- Fecha Fin -->
+          <div class="form-field">
+            <label class="ux-label">Fecha Fin (Opcional)</label>
+            <input 
+              type="date"
+              class="ux-input"
+              [(ngModel)]="fechaFin"
+              (change)="limpiarReporte()">
+          </div>
+        </div>
+
+        <!-- Nombre Base del Lote (Consolidado) -->
+        <div class="form-field" *ngIf="tipoConsolidacion === 'consolidado'">
+          <label class="ux-label">Nombre del Lote Base</label>
+          <input 
+            type="text"
+            class="ux-input"
+            [(ngModel)]="loteNombreBase"
+            placeholder="Ej: K326"
+            (blur)="cargarSublotes(loteNombreBase)">
+          <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mensaje de Error -->
+    <div class="ux-card" *ngIf="error" role="alert">
+      <div class="alert alert-danger">
+        <strong>Error:</strong> {{ error }}
+      </div>
+    </div>
+
+    <!-- Tabs de Navegación -->
+    <section class="ux-card" *ngIf="reporte() || reporteCuadro() || reporteClasificacion()">
+      <div class="tabs-container">
+        <input 
+          type="radio" 
+          id="tab-diario" 
+          name="tab-produccion" 
+          [checked]="tabActivo === 'diario'"
+          (change)="tabActivo = 'diario'">
+        <label for="tab-diario" class="ux-tab">📅 Reporte Diario</label>
+        
+        <input 
+          type="radio" 
+          id="tab-cuadro" 
+          name="tab-produccion" 
+          [checked]="tabActivo === 'cuadro'"
+          (change)="tabActivo = 'cuadro'">
+        <label for="tab-cuadro" class="ux-tab">📊 Cuadro</label>
+        
+        <input 
+          type="radio" 
+          id="tab-clasificacion" 
+          name="tab-produccion" 
+          [checked]="tabActivo === 'clasificacion'"
+          (change)="tabActivo = 'clasificacion'">
+        <label for="tab-clasificacion" class="ux-tab">🥚 % Clasif. Huevo Comercio</label>
+      </div>
+
+      <!-- Tab 1: Reporte Diario -->
+      <div class="tab-content" *ngIf="tabActivo === 'diario' && reporte()">
+        <div class="datos-section" *ngIf="reporte()?.datosDiarios && reporte()!.datosDiarios.length > 0">
+          <h3>REPORTE DIARIO DE PRODUCCIÓN</h3>
+          <app-tabla-reporte-diario-produccion 
+            [datos]="reporte()!.datosDiarios"
+            [informacionLote]="reporte()!.loteInfo">
+          </app-tabla-reporte-diario-produccion>
+        </div>
+        <div class="empty-state" *ngIf="reporte()?.datosDiarios && reporte()!.datosDiarios.length === 0">
+          <p>No se encontraron datos diarios para el período seleccionado.</p>
+        </div>
+      </div>
+
+      <!-- Tab 2: Cuadro -->
+      <div class="tab-content" *ngIf="tabActivo === 'cuadro' && reporteCuadro()">
+        <div class="datos-section" *ngIf="reporteCuadro()?.datosCuadro && reporteCuadro()!.datosCuadro.length > 0">
+          <h3>REPORTE CUADRO DE PRODUCCIÓN</h3>
+          <app-tabla-reporte-cuadro-produccion 
+            [datos]="reporteCuadro()!.datosCuadro"
+            [informacionLote]="reporteCuadro()!.loteInfo">
+          </app-tabla-reporte-cuadro-produccion>
+        </div>
+        <div class="empty-state" *ngIf="reporteCuadro()?.datosCuadro && reporteCuadro()!.datosCuadro.length === 0">
+          <p>No se encontraron datos del cuadro para el período seleccionado.</p>
+        </div>
+      </div>
+
+      <!-- Tab 3: Clasificación Huevo Comercio -->
+      <div class="tab-content" *ngIf="tabActivo === 'clasificacion' && reporteClasificacion()">
+        <div class="datos-section" *ngIf="reporteClasificacion()?.datosClasificacion && reporteClasificacion()!.datosClasificacion.length > 0">
+          <h3>% CLASIFICACIÓN HUEVO COMERCIO SEMANA</h3>
+          <app-tabla-clasificacion-huevo-comercio 
+            [datos]="reporteClasificacion()!.datosClasificacion"
+            [informacionLote]="reporteClasificacion()!.loteInfo">
+          </app-tabla-clasificacion-huevo-comercio>
+        </div>
+        <div class="empty-state" *ngIf="reporteClasificacion()?.datosClasificacion && reporteClasificacion()!.datosClasificacion.length === 0">
+          <p>No se encontraron datos de clasificación de huevos para el período seleccionado.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

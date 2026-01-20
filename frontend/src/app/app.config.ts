@@ -221,6 +221,13 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.ReporteTecnicoAdministrativoModule)
       },
       {
+        path: 'reporte-tecnico-produccion',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/reporte-tecnico-produccion/reporte-tecnico-produccion.module')
+            .then(m => m.ReporteTecnicoProduccionModule)
+      },
+      {
         path: 'traslados-aves',
         canActivate: [authGuard],
         children: [

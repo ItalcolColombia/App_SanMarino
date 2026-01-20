@@ -1,0 +1,241 @@
+<div class="tabla-container">
+  <!-- Encabezado del Reporte -->
+  <div class="reporte-encabezado" *ngIf="informacionLote">
+    <div class="encabezado-info">
+      <div class="info-row">
+        <span class="info-label">AGROAVICOLA SANMARINO</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">LINEA: {{ informacionLote.linea || 'REPRODUCTORA' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">RAZA: {{ informacionLote.raza || 'N/A' }}</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">ETAPA: PRODUCCION</span>
+        <span class="info-separator">|</span>
+        <span class="info-value">AVES INICIO: {{ informacionLote.numeroHembrasIniciales || 0 }} (Hembras), {{ informacionLote.numeroMachosIniciales || 0 }} (Machos)</span>
+        <span class="info-separator" *ngIf="informacionLote.fechaInicioProduccion">|</span>
+        <span class="info-value" *ngIf="informacionLote.fechaInicioProduccion">
+          FECHA LLEGADA: {{ formatDate(informacionLote.fechaInicioProduccion) }}
+        </span>
+        <span class="info-separator">|</span>
+        <span class="info-value">LOTE NUMERO: {{ informacionLote.loteNombre || 'N/A' }}</span>
+        <span class="info-separator" *ngIf="informacionLote.granjaNombre">|</span>
+        <span class="info-value" *ngIf="informacionLote.granjaNombre">GRANJA: {{ informacionLote.granjaNombre }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="tabla-reporte-cuadro-produccion">
+      <thead>
+        <tr>
+          <th rowspan="3">SEMANA</th>
+          <th rowspan="3">FECHA</th>
+          <th rowspan="3">ED PrH</th>
+          <th colspan="2">AVES FIN</th>
+          <th colspan="5">MORTALIDAD HEMBRAS</th>
+          <th colspan="5">MORTALIDAD MACHOS</th>
+          <th colspan="6">PRODUCCION TOTAL DE HUEVOS</th>
+          <th colspan="4">HUEVOS ENVIADOS PLANTA</th>
+          <th colspan="5">HUEVO INCUBABLE</th>
+          <th colspan="7">HUEVOS CARGADOS Y POLLITOS</th>
+          <th colspan="6">CONSUMO DE ALIMENTO HEMBRA</th>
+          <th colspan="6">CONSUMO DE ALIMENTO MACHO</th>
+          <th colspan="2">PESOS HEMBRA</th>
+          <th colspan="2">PESOS MACHO</th>
+          <th colspan="2">PESO HUEVO</th>
+          <th colspan="2">MASA</th>
+          <th colspan="2">% APROV</th>
+          <th rowspan="3">TIPO DE ALIMENTO</th>
+          <th rowspan="3">OBSERVACIONES</th>
+        </tr>
+        <tr>
+          <!-- AVES FIN -->
+          <th>HEMBRA</th>
+          <th>MACHO</th>
+          
+          <!-- MORTALIDAD HEMBRAS -->
+          <th>N</th>
+          <th>DESC% SEM</th>
+          <th>% ACUM</th>
+          <th>STANDA M</th>
+          <th>ACUM</th>
+          
+          <!-- MORTALIDAD MACHOS -->
+          <th>N</th>
+          <th>DESC% SEM</th>
+          <th>% ACUM</th>
+          <th>STANDA M</th>
+          <th>ACUM</th>
+          
+          <!-- PRODUCCION TOTAL DE HUEVOS -->
+          <th>HUEVOS VENTA SEMANA</th>
+          <th>HUEVOS ACUM</th>
+          <th>% SEM</th>
+          <th>% ROSS</th>
+          <th>TAA</th>
+          <th>TAA ROSS</th>
+          
+          <!-- HUEVOS ENVIADOS PLANTA -->
+          <th>ENVIADOS PLANTA</th>
+          <th>ACUM ENVIAP</th>
+          <th>% ENVIA P</th>
+          <th>% HALA</th>
+          
+          <!-- HUEVO INCUBABLE -->
+          <th>HUEVOS INCUB</th>
+          <th>% DESCARTE</th>
+          <th>% ACUM INCUB</th>
+          <th>LAA</th>
+          <th>STD ROSS</th>
+          
+          <!-- HUEVOS CARGADOS Y POLLITOS -->
+          <th>H. CARGA</th>
+          <th>H. CAR ACU</th>
+          <th>V. HUEVO</th>
+          <th>V. HUEVO POLLITOS</th>
+          <th>POLL. ACUM</th>
+          <th>PAA</th>
+          <th>PAA ROSS</th>
+          
+          <!-- CONSUMO DE ALIMENTO HEMBRA -->
+          <th>KG SEM</th>
+          <th>ACUM</th>
+          <th>ACUM AA</th>
+          <th>ST ACUM</th>
+          <th>LOTE</th>
+          <th>ST GR</th>
+          
+          <!-- CONSUMO DE ALIMENTO MACHO -->
+          <th>KG SEM</th>
+          <th>ACUM</th>
+          <th>ACUM AA</th>
+          <th>ST ACUM</th>
+          <th>GR DIA</th>
+          <th>ST GR</th>
+          
+          <!-- PESOS HEMBRA -->
+          <th>KG</th>
+          <th>STD</th>
+          
+          <!-- PESOS MACHO -->
+          <th>KG</th>
+          <th>STD</th>
+          
+          <!-- PESO HUEVO -->
+          <th>SEM</th>
+          <th>STD</th>
+          
+          <!-- MASA -->
+          <th>SEM</th>
+          <th>STD</th>
+          
+          <!-- % APROV -->
+          <th>SEM</th>
+          <th>STD</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let dato of datos; trackBy: trackBySemana">
+          <!-- SEMANA -->
+          <td class="text-center"><strong>{{ dato.semana }}</strong></td>
+          
+          <!-- FECHA -->
+          <td class="text-center">{{ formatDate(dato.fecha) }}</td>
+          
+          <!-- ED PrH -->
+          <td class="text-center highlight-yellow">{{ dato.edadProduccionSemanas }}</td>
+          
+          <!-- AVES FIN -->
+          <td class="text-right"><strong>{{ dato.avesFinHembras }}</strong></td>
+          <td class="text-right"><strong>{{ dato.avesFinMachos }}</strong></td>
+          
+          <!-- MORTALIDAD HEMBRAS -->
+          <td class="text-right">{{ dato.mortalidadHembrasN }}</td>
+          <td class="text-right">{{ formatPercentage(dato.mortalidadHembrasDescPorcentajeSem, 2) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.mortalidadHembrasPorcentajeAcum, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.mortalidadHembrasStandarM ? formatPercentage(dato.mortalidadHembrasStandarM, 2) : '-' }}</td>
+          <td class="text-right highlight-yellow">{{ dato.mortalidadHembrasAcumStandar ? formatPercentage(dato.mortalidadHembrasAcumStandar, 2) : '-' }}</td>
+          
+          <!-- MORTALIDAD MACHOS -->
+          <td class="text-right">{{ dato.mortalidadMachosN }}</td>
+          <td class="text-right">{{ formatPercentage(dato.mortalidadMachosDescPorcentajeSem, 2) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.mortalidadMachosPorcentajeAcum, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.mortalidadMachosStandarM ? formatPercentage(dato.mortalidadMachosStandarM, 2) : '-' }}</td>
+          <td class="text-right highlight-yellow">{{ dato.mortalidadMachosAcumStandar ? formatPercentage(dato.mortalidadMachosAcumStandar, 2) : '-' }}</td>
+          
+          <!-- PRODUCCION TOTAL DE HUEVOS -->
+          <td class="text-right">{{ dato.huevosVentaSemana }}</td>
+          <td class="text-right">{{ dato.huevosAcum }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeSem, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.porcentajeRoss ? formatPercentage(dato.porcentajeRoss, 2) : '-' }}</td>
+          <td class="text-right">{{ formatNumber(dato.taa, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.taaRoss ? formatNumber(dato.taaRoss, 2) : '-' }}</td>
+          
+          <!-- HUEVOS ENVIADOS PLANTA -->
+          <td class="text-right">{{ dato.enviadosPlanta }}</td>
+          <td class="text-right">{{ dato.acumEnviaP }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeEnviaP, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.porcentajeHala ? formatPercentage(dato.porcentajeHala, 2) : '-' }}</td>
+          
+          <!-- HUEVO INCUBABLE -->
+          <td class="text-right">{{ dato.huevosIncub }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeDescarte, 2) }}</td>
+          <td class="text-right">{{ formatPercentage(dato.porcentajeAcumIncub, 2) }}</td>
+          <td class="text-right">{{ formatNumber(dato.laa, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.stdRoss ? formatNumber(dato.stdRoss, 2) : '-' }}</td>
+          
+          <!-- HUEVOS CARGADOS Y POLLITOS -->
+          <td class="text-right">{{ dato.hCarga }}</td>
+          <td class="text-right">{{ dato.hCargaAcu }}</td>
+          <td class="text-right">{{ dato.vHuevo }}</td>
+          <td class="text-right">{{ dato.vHuevoPollitos }}</td>
+          <td class="text-right">{{ dato.pollAcum }}</td>
+          <td class="text-right">{{ formatNumber(dato.paa, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.paaRoss ? formatNumber(dato.paaRoss, 2) : '-' }}</td>
+          
+          <!-- CONSUMO DE ALIMENTO HEMBRA -->
+          <td class="text-right">{{ formatNumber(dato.kgSemHembra, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.acumHembra, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.acumAaHembra, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.stAcumHembra ? formatNumber(dato.stAcumHembra, 2) : '-' }}</td>
+          <td class="text-right">{{ dato.loteHembra ? formatNumber(dato.loteHembra, 2) : '-' }}</td>
+          <td class="text-right highlight-yellow">{{ dato.stGrHembra ? formatNumber(dato.stGrHembra, 2) : '-' }}</td>
+          
+          <!-- CONSUMO DE ALIMENTO MACHO -->
+          <td class="text-right">{{ formatNumber(dato.kgSemMachos, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.acumMachos, 1) }}</td>
+          <td class="text-right">{{ formatNumber(dato.acumAaMachos, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.stAcumMachos ? formatNumber(dato.stAcumMachos, 2) : '-' }}</td>
+          <td class="text-right">{{ formatNumber(dato.grDiaMachos, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.stGrMachos ? formatNumber(dato.stGrMachos, 2) : '-' }}</td>
+          
+          <!-- PESOS HEMBRA -->
+          <td class="text-right">{{ dato.pesoHembraKg ? formatNumber(dato.pesoHembraKg, 2) : '-' }}</td>
+          <td class="text-right highlight-yellow">{{ dato.pesoHembraStd ? formatNumber(dato.pesoHembraStd, 2) : '-' }}</td>
+          
+          <!-- PESOS MACHO -->
+          <td class="text-right">{{ dato.pesoMachosKg ? formatNumber(dato.pesoMachosKg, 2) : '-' }}</td>
+          <td class="text-right highlight-yellow">{{ dato.pesoMachosStd ? formatNumber(dato.pesoMachosStd, 2) : '-' }}</td>
+          
+          <!-- PESO HUEVO -->
+          <td class="text-right">{{ formatNumber(dato.pesoHuevoSem, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.pesoHuevoStd ? formatNumber(dato.pesoHuevoStd, 2) : '-' }}</td>
+          
+          <!-- MASA -->
+          <td class="text-right">{{ formatNumber(dato.masaSem, 2) }}</td>
+          <td class="text-right highlight-yellow">{{ dato.masaStd ? formatNumber(dato.masaStd, 2) : '-' }}</td>
+          
+          <!-- % APROV -->
+          <td class="text-right">{{ dato.porcentajeAprovSem ? formatPercentage(dato.porcentajeAprovSem, 2) : '-' }}</td>
+          <td class="text-right highlight-yellow">{{ dato.porcentajeAprovStd ? formatPercentage(dato.porcentajeAprovStd, 2) : '-' }}</td>
+          
+          <!-- TIPO DE ALIMENTO -->
+          <td class="text-center">{{ dato.tipoAlimento || '-' }}</td>
+          
+          <!-- OBSERVACIONES -->
+          <td class="text-left">{{ dato.observaciones || '-' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

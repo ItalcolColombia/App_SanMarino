@@ -228,6 +228,7 @@ builder.Services.AddScoped<ReporteTecnicoExcelService>();
 
 // Reporte Técnico Producción Service
 builder.Services.AddScoped<IReporteTecnicoProduccionService, ReporteTecnicoProduccionService>();
+builder.Services.AddScoped<ReporteTecnicoProduccionExcelService>();
 
 // Reporte Contable Service
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IReporteContableService, ZooSanMarino.Infrastructure.Services.ReporteContableService>();
