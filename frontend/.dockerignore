@@ -60,8 +60,9 @@ yarn-error.log*
 tmp/
 temp/
 
-# Scripts de deployment
-scripts/
+# Scripts de deployment (excepto el necesario para build)
+scripts/*
+!scripts/inject-version.js
 deploy/
 
 # Configuración local
