@@ -52,6 +52,19 @@ export interface DatoDiarioContableDto {
   saldoBultos: number;
 }
 
+export interface SeccionReporteContableDto {
+  tipoSeccion: string; // "INICIO" o "LEVANTE"
+  fechaInicio: string;
+  fechaFin: string;
+  saldoBultosAnterior: number;
+  trasladosBultos: number;
+  entradasBultos: number;
+  consumoBultosHembras: number;
+  consumoBultosMachos: number;
+  saldoBultosFinal: number;
+  datosDiarios: DatoDiarioContableDto[];
+}
+
 export interface ReporteContableSemanalDto {
   semanaContable: number;
   fechaInicio: string;
@@ -108,6 +121,10 @@ export interface ReporteContableSemanalDto {
   consumoTotalVacuna: number;
   otrosConsumos: number;
   totalGeneral: number;
+  
+  // Secciones INICIO y LEVANTE
+  seccionInicio?: SeccionReporteContableDto;
+  seccionLevante?: SeccionReporteContableDto;
   
   // Detalle diario
   datosDiarios: DatoDiarioContableDto[];
