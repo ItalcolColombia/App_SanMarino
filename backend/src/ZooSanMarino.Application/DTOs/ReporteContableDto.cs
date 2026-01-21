@@ -58,6 +58,35 @@ public record ConsumoDiarioContableDto
 }
 
 /// <summary>
+/// DTO para sección INICIO (primeros 7 días) o LEVANTE (después de 7 días) del reporte contable
+/// </summary>
+public record SeccionReporteContableDto
+{
+    public string TipoSeccion { get; init; } = string.Empty; // "INICIO" o "LEVANTE"
+    public DateTime FechaInicio { get; init; }
+    public DateTime FechaFin { get; init; }
+    
+    // BULTO - Saldo Anterior
+    public decimal SaldoBultosAnterior { get; init; }
+    
+    // BULTO - Traslados
+    public decimal TrasladosBultos { get; init; }
+    
+    // BULTO - Entradas
+    public decimal EntradasBultos { get; init; }
+    
+    // BULTO - Producto (Consumo)
+    public decimal ConsumoBultosHembras { get; init; }
+    public decimal ConsumoBultosMachos { get; init; }
+    
+    // BULTO - Saldo Final
+    public decimal SaldoBultosFinal { get; init; }
+    
+    // Detalle diario para esta sección
+    public List<DatoDiarioContableDto> DatosDiarios { get; init; } = new();
+}
+
+/// <summary>
 /// DTO para reporte contable semanal
 /// </summary>
 public record ReporteContableSemanalDto
@@ -102,7 +131,7 @@ public record ReporteContableSemanalDto
     public int SaldoFinMachos { get; init; }
     public int TotalAvesVivas { get; init; }
     
-    // BULTO - Resumen Semanal
+    // BULTO - Resumen Semanal (mantener compatibilidad)
     public decimal SaldoBultosAnterior { get; init; }
     public decimal TrasladosBultosSemanal { get; init; }
     public decimal EntradasBultosSemanal { get; init; }
@@ -119,7 +148,11 @@ public record ReporteContableSemanalDto
     public decimal OtrosConsumos { get; init; }
     public decimal TotalGeneral { get; init; }
     
-    // Detalle diario
+    // Secciones INICIO y LEVANTE
+    public SeccionReporteContableDto? SeccionInicio { get; init; }
+    public SeccionReporteContableDto? SeccionLevante { get; init; }
+    
+    // Detalle diario (mantener compatibilidad)
     public List<DatoDiarioContableDto> DatosDiarios { get; init; } = new();
     
     // Mantener compatibilidad con versión anterior
