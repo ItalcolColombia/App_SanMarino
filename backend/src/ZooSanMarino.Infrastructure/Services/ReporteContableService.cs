@@ -72,29 +72,113 @@ public class ReporteContableService : IReporteContableService
             ? fechasEncaset.Min() 
             : DateTime.Today;
 
-        // Calcular semanas contables
-        var semanasContables = CalcularSemanasContables(fechaPrimeraLlegada, DateTime.Today);
+        // Obtener fecha del primer registro de seguimiento diario levante o producción
+        var loteIds = todosLotes.Where(l => l.LoteId.HasValue).Select(l => l.LoteId!.Value).ToList();
+        var loteIdsString = loteIds.Select(id => id.ToString()).ToList();
+        
+        // Buscar primera fecha en seguimiento diario levante
+        var primeraFechaRegistroLevante = await _ctx.SeguimientoLoteLevante
+            .AsNoTracking()
+            .Where(s => loteIds.Contains(s.LoteId))
+            .OrderBy(s => s.FechaRegistro)
+            .Select(s => s.FechaRegistro.Date)
+            .FirstOrDefaultAsync(ct);
 
-        // Filtrar por semana contable si se especifica
-        var semanasAFiltrar = request.SemanaContable.HasValue
-            ? semanasContables.Where(s => s.Semana == request.SemanaContable.Value).ToList()
-            : semanasContables;
+        // Buscar primera fecha en seguimiento producción
+        var primeraFechaRegistroProduccion = await _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => loteIdsString.Contains(s.LoteId))
+            .OrderBy(s => s.Fecha)
+            .Select(s => s.Fecha.Date)
+            .FirstOrDefaultAsync(ct);
+
+        // Usar la fecha más antigua entre levante y producción, o fecha de encaset si no hay registros
+        var fechaInicioRegistro = fechaPrimeraLlegada;
+        if (primeraFechaRegistroLevante != default(DateTime))
+        {
+            fechaInicioRegistro = primeraFechaRegistroLevante;
+        }
+        if (primeraFechaRegistroProduccion != default(DateTime) && 
+            (fechaInicioRegistro == fechaPrimeraLlegada || primeraFechaRegistroProduccion < fechaInicioRegistro))
+        {
+            fechaInicioRegistro = primeraFechaRegistroProduccion;
+        }
+
+        // Calcular fecha fin para filtro (usar fecha fin del request o hoy)
+        // Si se especifica rango de fechas, usar la fecha fin del rango; si no, usar hoy
+        var fechaFinFiltro = request.FechaFin?.Date ?? DateTime.Today;
+        
+        // Si se especifica fecha inicio pero no fecha fin, usar fecha inicio + 90 días como límite razonable
+        if (request.FechaInicio.HasValue && !request.FechaFin.HasValue)
+        {
+            fechaFinFiltro = request.FechaInicio.Value.Date.AddDays(90);
+        }
+
+        // Calcular semanas contables desde fecha primera llegada hasta fecha fin filtro
+        var semanasContables = CalcularSemanasContables(fechaPrimeraLlegada, fechaFinFiltro);
+
+        // Si se especifica semana contable, usar solo esa semana
+        // Si se especifica rango de fechas, filtrar semanas que intersectan con el rango
+        // Si no se especifica nada, usar todas las semanas
+        List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> semanasAFiltrar;
+        
+        if (request.SemanaContable.HasValue)
+        {
+            // Prioridad: Si se especifica semana contable, usar solo esa semana
+            semanasAFiltrar = semanasContables
+                .Where(s => s.Semana == request.SemanaContable.Value)
+                .ToList();
+        }
+        else if (request.FechaInicio.HasValue || request.FechaFin.HasValue)
+        {
+            // Si se especifica rango de fechas, filtrar semanas que intersectan con el rango
+            var fechaInicioFiltro = request.FechaInicio?.Date ?? fechaPrimeraLlegada;
+            // Usar la variable fechaFinFiltro ya declarada arriba, o recalcular si es necesario
+            if (request.FechaFin.HasValue)
+            {
+                fechaFinFiltro = request.FechaFin.Value.Date;
+            }
+            
+            // Validar que fecha inicio no sea mayor que fecha fin
+            if (fechaInicioFiltro > fechaFinFiltro)
+            {
+                throw new ArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
+            }
+            
+            // Incluir todas las semanas que tengan al menos un día dentro del rango
+            semanasAFiltrar = semanasContables
+                .Where(s => s.FechaInicio <= fechaFinFiltro && s.FechaFin >= fechaInicioFiltro)
+                .ToList();
+        }
+        else
+        {
+            // Si no se especifica nada, usar todas las semanas disponibles
+            semanasAFiltrar = semanasContables;
+        }
 
         // Obtener entradas iniciales
         var entradasIniciales = await ObtenerEntradasInicialesAsync(todosLotes, ct);
 
-        // Obtener datos diarios completos
+        // Obtener datos diarios completos (aplicar filtro de fecha si existe)
         var datosDiarios = await ObtenerDatosDiariosCompletosAsync(
             todosLotes, 
             entradasIniciales, 
             lotePadre.LoteId ?? 0,
             lotePadre.LoteNombre ?? string.Empty,
+            request.FechaInicio,
+            request.FechaFin,
             ct);
 
         // Calcular saldos acumulativos
         var datosConSaldos = CalcularSaldosAcumulativos(datosDiarios, entradasIniciales, semanasContables, lotePadre.GranjaId, ct);
 
         // Agrupar por semana contable y consolidar
+        // Validar que haya semanas para procesar
+        if (!semanasAFiltrar.Any())
+        {
+            throw new InvalidOperationException("No se encontraron semanas contables para el período especificado");
+        }
+
         var reportesSemanales = semanasAFiltrar.Select(semana => 
         {
             var datosSemana = datosConSaldos
@@ -113,7 +197,9 @@ public class ReporteContableService : IReporteContableService
                 sublotes.Select(s => s.LoteNombre ?? string.Empty).ToList(),
                 datosSemana,
                 saldoAnterior,
-                semanasContables
+                semanasContables,
+                fechaInicioRegistro,
+                fechaPrimeraLlegada
             );
         }).ToList();
 
@@ -122,10 +208,16 @@ public class ReporteContableService : IReporteContableService
             .Where(s => s.FechaInicio <= DateTime.Today && s.FechaFin >= DateTime.Today)
             .FirstOrDefault();
 
-        // Si no hay semana actual, usar la primera semana
+        // Si no hay semana actual, usar la última semana disponible o la primera
         var semanaActualFinal = semanaActual.Semana == 0 
-            ? semanasContables.FirstOrDefault() 
+            ? (semanasContables.Any() ? semanasContables.LastOrDefault() : default((int Semana, DateTime FechaInicio, DateTime FechaFin)))
             : semanaActual;
+        
+        // Si aún no hay semana, usar valores por defecto
+        if (semanaActualFinal.Semana == 0)
+        {
+            semanaActualFinal = (1, fechaPrimeraLlegada, fechaPrimeraLlegada.AddDays(6));
+        }
 
         return new ReporteContableCompletoDto
         {
@@ -188,18 +280,25 @@ public class ReporteContableService : IReporteContableService
     #region Métodos Privados
 
     /// <summary>
-    /// Calcula las semanas contables desde la fecha de primera llegada hasta hoy
+    /// Calcula las semanas contables desde la fecha de primera llegada hasta la fecha especificada
     /// La semana contable inicia cuando llega el primer lote y dura 7 días calendario
     /// </summary>
     private List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> CalcularSemanasContables(
         DateTime fechaPrimeraLlegada, 
         DateTime fechaHasta)
     {
+        if (fechaPrimeraLlegada > fechaHasta)
+        {
+            throw new ArgumentException("La fecha de primera llegada no puede ser posterior a la fecha hasta");
+        }
+
         var semanas = new List<(int Semana, DateTime FechaInicio, DateTime FechaFin)>();
         var fechaInicio = fechaPrimeraLlegada.Date;
+        var fechaHastaDate = fechaHasta.Date;
         var semana = 1;
+        const int maxSemanas = 200; // Límite de seguridad para evitar loops infinitos
 
-        while (fechaInicio <= fechaHasta)
+        while (fechaInicio <= fechaHastaDate && semana <= maxSemanas)
         {
             var fechaFin = fechaInicio.AddDays(6); // 7 días calendario (incluyendo el día inicial)
             semanas.Add((semana, fechaInicio, fechaFin));
@@ -259,19 +358,29 @@ public class ReporteContableService : IReporteContableService
                        s.Fecha.Date >= fechaMinima)
             .ToListAsync(ct);
 
-        // Obtener nombres de lotes para producción
+        // Obtener nombres de lotes para producción (optimizado: una sola consulta)
         // ProduccionLote usa LoteId como string, necesitamos obtener el nombre desde la tabla lotes
         var lotesProduccionDict = new Dictionary<string, string>();
-        foreach (var loteIdStr in loteIdsString)
+        if (loteIdsString.Any())
         {
-            if (int.TryParse(loteIdStr, out var loteIdInt))
+            // Convertir loteIdsString a enteros válidos
+            var loteIdsInt = loteIdsString
+                .Where(id => int.TryParse(id, out _))
+                .Select(id => int.Parse(id))
+                .ToList();
+
+            if (loteIdsInt.Any())
             {
-                var lote = await _ctx.Lotes
+                // Obtener todos los lotes en una sola consulta
+                var lotesProduccion = await _ctx.Lotes
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(l => l.LoteId == loteIdInt, ct);
-                if (lote != null)
+                    .Where(l => loteIdsInt.Contains(l.LoteId ?? 0))
+                    .Select(l => new { LoteId = l.LoteId ?? 0, LoteNombre = l.LoteNombre ?? string.Empty })
+                    .ToListAsync(ct);
+
+                foreach (var lote in lotesProduccion)
                 {
-                    lotesProduccionDict[loteIdStr] = lote.LoteNombre ?? string.Empty;
+                    lotesProduccionDict[lote.LoteId.ToString()] = lote.LoteNombre;
                 }
             }
         }
@@ -360,25 +469,42 @@ public class ReporteContableService : IReporteContableService
         Dictionary<int, (int hembras, int machos)> entradasIniciales,
         int lotePadreId,
         string lotePadreNombre,
+        DateTime? fechaInicioFiltro,
+        DateTime? fechaFinFiltro,
         CancellationToken ct)
     {
         var datosDiarios = new List<DatoDiarioContableDto>();
         var loteIds = lotes.Where(l => l.LoteId.HasValue).Select(l => l.LoteId!.Value).ToList();
         var loteIdsString = loteIds.Select(id => id.ToString()).ToList();
 
-        // Obtener datos de levante
-        var datosLevante = await _ctx.SeguimientoLoteLevante
+        // Obtener datos de levante (aplicar filtro de fecha si existe)
+        var queryLevante = _ctx.SeguimientoLoteLevante
             .AsNoTracking()
             .Include(s => s.Lote)
-            .Where(s => loteIds.Contains(s.LoteId))
-            .ToListAsync(ct);
+            .Where(s => loteIds.Contains(s.LoteId));
 
-        // Obtener datos de producción
+        if (fechaInicioFiltro.HasValue)
+            queryLevante = queryLevante.Where(s => s.FechaRegistro.Date >= fechaInicioFiltro.Value.Date);
+        
+        if (fechaFinFiltro.HasValue)
+            queryLevante = queryLevante.Where(s => s.FechaRegistro.Date <= fechaFinFiltro.Value.Date);
+
+        var datosLevante = await queryLevante.ToListAsync(ct);
+
+        // Obtener datos de producción (aplicar filtro de fecha si existe)
+        var queryProduccion = _ctx.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => loteIdsString.Contains(s.LoteId));
+
+        if (fechaInicioFiltro.HasValue)
+            queryProduccion = queryProduccion.Where(s => s.Fecha.Date >= fechaInicioFiltro.Value.Date);
+        
+        if (fechaFinFiltro.HasValue)
+            queryProduccion = queryProduccion.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
+
         // NOTA: Usar proyección explícita para evitar error si la columna metadata no existe
         // TODO: Ejecutar script SQL: backend/sql/add_metadata_column_seguimiento_produccion.sql
-        var datosProduccion = await _ctx.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => loteIdsString.Contains(s.LoteId))
+        var datosProduccion = await queryProduccion
             .Select(s => new
             {
                 s.Id,
@@ -415,21 +541,41 @@ public class ReporteContableService : IReporteContableService
             })
             .ToListAsync(ct);
 
-        // Obtener ventas y traslados
-        var ventasTraslados = await ObtenerVentasYTrasladosAsync(loteIds, ct);
+        // Obtener ventas y traslados (solo si hay lotes)
+        var ventasTraslados = loteIds.Any() 
+            ? await ObtenerVentasYTrasladosAsync(loteIds, ct)
+            : new Dictionary<(int loteId, DateTime fecha), (int ventasH, int ventasM, int trasladosH, int trasladosM)>();
 
-        // Obtener datos de bultos (si hay granja)
+        // Obtener datos de bultos (si hay granja y lotes)
         var granjaId = lotes.FirstOrDefault()?.GranjaId ?? 0;
-        var datosBultos = await ObtenerDatosBultosAsync(loteIds, granjaId, ct);
+        var datosBultos = (loteIds.Any() && granjaId > 0)
+            ? await ObtenerDatosBultosAsync(loteIds, granjaId, ct)
+            : new List<(DateTime Fecha, decimal SaldoAnterior, decimal Traslados, decimal Entradas, decimal Retiros, decimal ConsumoHembras, decimal ConsumoMachos)>();
 
-        // Consolidar todas las fechas
-        var todasLasFechas = datosLevante.Select(d => d.FechaRegistro.Date)
-            .Union(datosProduccion.Select(d => d.Fecha.Date))
-            .Union(ventasTraslados.Select(v => v.Key.fecha))
-            .Union(datosBultos.Select(b => b.Fecha))
-            .Distinct()
-            .OrderBy(f => f)
-            .ToList();
+        // Consolidar todas las fechas (usar HashSet para mejor rendimiento con muchos datos)
+        var todasLasFechasSet = new HashSet<DateTime>();
+        
+        foreach (var d in datosLevante)
+        {
+            todasLasFechasSet.Add(d.FechaRegistro.Date);
+        }
+        
+        foreach (var d in datosProduccion)
+        {
+            todasLasFechasSet.Add(d.Fecha.Date);
+        }
+        
+        foreach (var v in ventasTraslados)
+        {
+            todasLasFechasSet.Add(v.Key.fecha);
+        }
+        
+        foreach (var b in datosBultos)
+        {
+            todasLasFechasSet.Add(b.Fecha);
+        }
+        
+        var todasLasFechas = todasLasFechasSet.OrderBy(f => f).ToList();
 
         // Consolidar datos por fecha (sumando todos los sublotes)
         foreach (var fecha in todasLasFechas)
@@ -831,7 +977,9 @@ public class ReporteContableService : IReporteContableService
         List<string> sublotes,
         List<DatoDiarioContableDto> datosDiarios,
         (int hembras, int machos, decimal bultos) saldoAnterior,
-        List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> semanasContables)
+        List<(int Semana, DateTime FechaInicio, DateTime FechaFin)> semanasContables,
+        DateTime fechaInicioRegistro,
+        DateTime fechaPrimeraLlegada)
     {
         // Calcular totales semanales
         var mortalidadH = datosDiarios.Sum(d => d.MortalidadHembras);
@@ -873,6 +1021,92 @@ public class ReporteContableService : IReporteContableService
             OtrosConsumos = 0,
             TotalConsumo = d.ConsumoAlimentoHembras + d.ConsumoAlimentoMachos
         }).ToList();
+
+        // Calcular secciones INICIO (primeros 7 días) y LEVANTE (después de 7 días)
+        // Validar que fechaInicioRegistro sea válida
+        if (fechaInicioRegistro == default(DateTime))
+        {
+            fechaInicioRegistro = fechaPrimeraLlegada;
+        }
+        
+        var fechaFinInicio = fechaInicioRegistro.AddDays(6); // Primeros 7 días (día 0 al día 6)
+        
+        // Datos de INICIO (primeros 7 días desde fechaInicioRegistro)
+        var datosInicio = datosDiarios
+            .Where(d => d.Fecha.Date >= fechaInicioRegistro.Date && d.Fecha.Date <= fechaFinInicio.Date)
+            .ToList();
+        
+        // Datos de LEVANTE (después de los primeros 7 días)
+        var datosLevante = datosDiarios
+            .Where(d => d.Fecha.Date > fechaFinInicio.Date)
+            .ToList();
+
+        // Calcular sección INICIO
+        SeccionReporteContableDto? seccionInicio = null;
+        if (datosInicio.Any())
+        {
+            // Obtener saldo anterior del primer día de INICIO
+            var primerDiaInicio = datosInicio.OrderBy(d => d.Fecha).First();
+            var saldoBultosAnteriorInicio = primerDiaInicio.SaldoBultosAnterior;
+            
+            var trasladosBultosInicio = datosInicio.Sum(d => d.TrasladosBultos);
+            var entradasBultosInicio = datosInicio.Sum(d => d.EntradasBultos);
+            var consumoBultosHInicio = datosInicio.Sum(d => d.ConsumoBultosHembras);
+            var consumoBultosMInicio = datosInicio.Sum(d => d.ConsumoBultosMachos);
+            
+            // Obtener saldo final del último día de INICIO
+            var ultimoDiaInicio = datosInicio.OrderByDescending(d => d.Fecha).First();
+            var saldoBultosFinalInicio = ultimoDiaInicio.SaldoBultos;
+
+            seccionInicio = new SeccionReporteContableDto
+            {
+                TipoSeccion = "INICIO",
+                FechaInicio = fechaInicioRegistro,
+                FechaFin = fechaFinInicio,
+                SaldoBultosAnterior = saldoBultosAnteriorInicio,
+                TrasladosBultos = trasladosBultosInicio,
+                EntradasBultos = entradasBultosInicio,
+                ConsumoBultosHembras = consumoBultosHInicio,
+                ConsumoBultosMachos = consumoBultosMInicio,
+                SaldoBultosFinal = Math.Max(0, saldoBultosFinalInicio),
+                DatosDiarios = datosInicio.OrderBy(d => d.Fecha).ToList()
+            };
+        }
+
+        // Calcular sección LEVANTE
+        SeccionReporteContableDto? seccionLevante = null;
+        if (datosLevante.Any())
+        {
+            // Obtener saldo anterior del primer día de LEVANTE
+            var primerDiaLevante = datosLevante.OrderBy(d => d.Fecha).First();
+            var saldoBultosAnteriorLevante = primerDiaLevante.SaldoBultosAnterior;
+            
+            var trasladosBultosLevante = datosLevante.Sum(d => d.TrasladosBultos);
+            var entradasBultosLevante = datosLevante.Sum(d => d.EntradasBultos);
+            var consumoBultosHLevante = datosLevante.Sum(d => d.ConsumoBultosHembras);
+            var consumoBultosMLevante = datosLevante.Sum(d => d.ConsumoBultosMachos);
+            
+            // Obtener saldo final del último día de LEVANTE
+            var ultimoDiaLevante = datosLevante.OrderByDescending(d => d.Fecha).First();
+            var saldoBultosFinalLevante = ultimoDiaLevante.SaldoBultos;
+            
+            var fechaInicioLevante = fechaFinInicio.AddDays(1);
+            var fechaFinLevante = datosLevante.Max(d => d.Fecha);
+
+            seccionLevante = new SeccionReporteContableDto
+            {
+                TipoSeccion = "LEVANTE",
+                FechaInicio = fechaInicioLevante,
+                FechaFin = fechaFinLevante,
+                SaldoBultosAnterior = saldoBultosAnteriorLevante,
+                TrasladosBultos = trasladosBultosLevante,
+                EntradasBultos = entradasBultosLevante,
+                ConsumoBultosHembras = consumoBultosHLevante,
+                ConsumoBultosMachos = consumoBultosMLevante,
+                SaldoBultosFinal = Math.Max(0, saldoBultosFinalLevante),
+                DatosDiarios = datosLevante.OrderBy(d => d.Fecha).ToList()
+            };
+        }
 
         return new ReporteContableSemanalDto
         {
@@ -931,6 +1165,10 @@ public class ReporteContableService : IReporteContableService
             ConsumoTotalVacuna = datosDiarios.Sum(d => d.ConsumoVacuna),
             OtrosConsumos = 0,
             TotalGeneral = consumoAlimento,
+            
+            // Secciones INICIO y LEVANTE
+            SeccionInicio = seccionInicio,
+            SeccionLevante = seccionLevante,
             
             // Detalle diario
             DatosDiarios = datosDiarios.OrderBy(d => d.Fecha).ToList(),
