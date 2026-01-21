@@ -128,6 +128,6 @@ Write-Step "6) Verificación"
 $activeTd = aws ecs describe-services --cluster $CLUSTER --services $SERVICE --query 'services[0].taskDefinition' --output text --region $REGION
 Write-Info "Task Definition activa: $activeTd"
 
-Write-Step "✓ Despliegue completado exitosamente"
+Write-Step "Despliegue completado exitosamente"
 Write-Host "Imagen desplegada: $imgEcr" -ForegroundColor Green
 
