@@ -306,6 +306,191 @@
 :host .mr-2 { margin-right: .5rem; }
 
 /* ==========================================================================
+   📑 Tabs
+   ========================================================================== */
+:host .tabs-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+:host .tabs-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  background: var(--bg-muted);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  
+  &::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: var(--warm-100);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--warm-300);
+    border-radius: 2px;
+  }
+}
+
+:host .tab-button {
+  position: relative;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--warm-600);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--t-med);
+  outline: none;
+  
+  &:hover {
+    background: var(--warm-100);
+    color: var(--text);
+  }
+  
+  &.active {
+    background: var(--bg-card);
+    color: var(--brand-red);
+    border-bottom-color: var(--brand-red);
+    
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--bg-card);
+    }
+  }
+  
+  &:focus-visible {
+    box-shadow: var(--ring);
+  }
+}
+
+:host .tabs-content {
+  padding: var(--space-6);
+  min-height: 200px;
+}
+
+:host .tab-panel {
+  display: block;
+  animation: fadeIn var(--t-med) ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+:host .semana-header {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--border);
+  
+  h2 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--fs-xl);
+    font-weight: 800;
+    color: var(--brand-red);
+  }
+}
+
+:host .seccion-info {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  
+  p {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--text-sub);
+  }
+}
+
+/* ==========================================================================
+   📊 Tabla
+   ========================================================================== */
+:host .table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-4);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  
+  thead {
+    background: var(--warm-100);
+    
+    th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-weight: 800;
+      font-size: var(--fs-sm);
+      color: var(--text);
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+  }
+  
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--border);
+      transition: background var(--t-fast);
+      
+      &:hover {
+        background: var(--bg-muted);
+      }
+      
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+    
+    td {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--fs-sm);
+      color: var(--text-sub);
+    }
+  }
+  
+  tfoot {
+    background: var(--amber-100);
+    border-top: 2px solid var(--border);
+    
+    tr {
+      border-top: 2px solid var(--border);
+    }
+    
+    td {
+      padding: var(--space-4);
+      font-weight: 800;
+      font-size: var(--fs-sm);
+      color: var(--text);
+    }
+  }
+}
+
+/* ==========================================================================
    📱 Responsivo
    ========================================================================== */
 @media (max-width: 960px) {
@@ -313,7 +498,30 @@
   :host .ux-header { flex-direction: column; align-items: flex-start; gap: .75rem; }
   :host .ux-header__actions { width: 100%; }
   :host .btn { flex: 1; }
+  
+  :host .tabs-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  
+  :host .tab-button {
+    min-width: max-content;
+  }
+  
+  :host .table {
+    font-size: var(--fs-xs);
+    
+    thead th,
+    tbody td,
+    tfoot td {
+      padding: var(--space-2) var(--space-3);
+    }
+  }
 }
 @media (max-width: 480px) {
   :host .ux-header__title h1 { font-size: 1.1rem; }
+  
+  :host .tabs-content {
+    padding: var(--space-4);
+  }
 }

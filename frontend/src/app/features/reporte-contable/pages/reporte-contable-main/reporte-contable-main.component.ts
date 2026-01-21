@@ -77,9 +77,13 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   // Filtros de reporte
   semanaContable: number | null = null;
   semanasContablesDisponibles: number[] = [];
+  fechaInicio: string | null = null;
+  fechaFin: string | null = null;
+  usarRangoFechas: boolean = false;
   
   // UI
   error: string | null = null;
+  activeTab: 'resumen' | number = 'resumen'; // Tab activo: 'resumen' o número de semana
 
   private destroy$ = new Subject<void>();
 
@@ -159,6 +163,10 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.reporte.set(null);
     this.semanaContable = null;
     this.semanasContablesDisponibles = [];
+    this.fechaInicio = null;
+    this.fechaFin = null;
+    this.usarRangoFechas = false;
+    this.error = null;
 
     if (!this.selectedLoteId) {
       this.selectedLote = null;
@@ -249,9 +257,13 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error = null;
 
+    // Si se usa rango de fechas, limpiar semana contable
+    // Si se usa semana contable, limpiar rango de fechas
     const request: GenerarReporteContableRequestDto = {
       lotePadreId: this.selectedLoteId!,
-      semanaContable: this.semanaContable || undefined
+      semanaContable: this.usarRangoFechas ? undefined : (this.semanaContable || undefined),
+      fechaInicio: this.usarRangoFechas ? (this.fechaInicio || undefined) : undefined,
+      fechaFin: this.usarRangoFechas ? (this.fechaFin || undefined) : undefined
     };
 
     this.reporteContableService.generarReporte(request)
@@ -285,6 +297,30 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
       return false;
     }
 
+    // Validar rango de fechas si se está usando
+    if (this.usarRangoFechas || this.fechaInicio || this.fechaFin) {
+      if (this.fechaInicio && this.fechaFin) {
+        const inicio = new Date(this.fechaInicio);
+        const fin = new Date(this.fechaFin);
+        if (inicio > fin) {
+          this.error = 'La fecha de inicio debe ser anterior a la fecha de fin';
+          return false;
+        }
+        // Validar que el rango no sea excesivamente grande (máximo 1 año)
+        const diasDiferencia = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (diasDiferencia > 365) {
+          this.error = 'El rango de fechas no puede ser mayor a 365 días';
+          return false;
+        }
+      } else if (this.fechaInicio && !this.fechaFin) {
+        this.error = 'Debe seleccionar también la fecha de fin';
+        return false;
+      } else if (this.fechaFin && !this.fechaInicio) {
+        this.error = 'Debe seleccionar también la fecha de inicio';
+        return false;
+      }
+    }
+
     this.error = null;
     return true;
   }
@@ -298,9 +334,12 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error = null;
 
+    // Usar la misma lógica que generarReporte para determinar qué filtros enviar
     const request: GenerarReporteContableRequestDto = {
       lotePadreId: this.selectedLoteId!,
-      semanaContable: this.semanaContable || undefined
+      semanaContable: this.usarRangoFechas ? undefined : (this.semanaContable || undefined),
+      fechaInicio: this.usarRangoFechas ? (this.fechaInicio || undefined) : undefined,
+      fechaFin: this.usarRangoFechas ? (this.fechaFin || undefined) : undefined
     };
 
     this.reporteContableService.exportarExcel(request)
@@ -335,6 +374,77 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   limpiarReporte(): void {
     this.reporte.set(null);
     this.error = null;
+    this.activeTab = 'resumen'; // Resetear al tab de resumen
+  }
+
+  // ================== MÉTODOS PARA TABS ==================
+  setActiveTab(tab: 'resumen' | number): void {
+    this.activeTab = tab;
+  }
+
+  isTabActive(tab: 'resumen' | number): boolean {
+    return this.activeTab === tab;
+  }
+
+  getTabLabel(semana: number): string {
+    const reporte = this.reporte();
+    if (!reporte) return `Semana ${semana}`;
+    
+    const reporteSemanal = reporte.reportesSemanales.find(r => r.semanaContable === semana);
+    if (!reporteSemanal) return `Semana ${semana}`;
+    
+    const fechaInicio = this.formatDateShort(reporteSemanal.fechaInicio);
+    const fechaFin = this.formatDateShort(reporteSemanal.fechaFin);
+    return `Sem ${semana} (${fechaInicio}-${fechaFin})`;
+  }
+
+  formatDateShort(date: string | Date | null | undefined): string {
+    if (!date) return '';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+  }
+
+  onSemanaChange(): void {
+    // Si se selecciona una semana, desactivar rango de fechas
+    if (this.semanaContable !== null) {
+      this.usarRangoFechas = false;
+      this.fechaInicio = null;
+      this.fechaFin = null;
+    } else {
+      // Si se deselecciona la semana, permitir usar rango de fechas si ya hay fechas
+      if (this.fechaInicio || this.fechaFin) {
+        this.usarRangoFechas = true;
+      }
+    }
+    this.limpiarReporte();
+  }
+
+  onFechaInicioChange(): void {
+    // Si se selecciona fecha inicio, activar rango de fechas y limpiar semana
+    if (this.fechaInicio) {
+      this.usarRangoFechas = true;
+      this.semanaContable = null;
+    } else {
+      // Si se limpia fecha inicio y no hay fecha fin, desactivar rango de fechas
+      if (!this.fechaFin) {
+        this.usarRangoFechas = false;
+      }
+    }
+    this.limpiarReporte();
+  }
+
+  onFechaFinChange(): void {
+    // Si se selecciona fecha fin, activar rango de fechas y limpiar semana
+    if (this.fechaFin) {
+      this.usarRangoFechas = true;
+      this.semanaContable = null;
+    } else {
+      // Si se limpia fecha fin y no hay fecha inicio, desactivar rango de fechas
+      if (!this.fechaInicio) {
+        this.usarRangoFechas = false;
+      }
+    }
+    this.limpiarReporte();
   }
 
   // ================== COMPUTED PROPERTIES ==================
@@ -349,7 +459,10 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   }
 
   get selectedGalponNombre(): string {
-    // TODO: Implementar si es necesario
+    // Obtener nombre del galpón desde el lote seleccionado si está disponible
+    if (this.selectedLote?.galponId) {
+      return this.selectedLote.galponId;
+    }
     return this.selectedGalponId || '';
   }
 
@@ -369,6 +482,70 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     if (!date) return 'N/A';
     const d = typeof date === 'string' ? new Date(date) : date;
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  // ================== MÉTODOS PARA TOTALES DEL RESUMEN ==================
+  getTotalMortalidad(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.mortalidadHembrasSemanal + semanal.mortalidadMachosSemanal, 0);
+  }
+
+  getTotalTraslados(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.trasladosHembrasSemanal + semanal.trasladosMachosSemanal, 0);
+  }
+
+  getTotalVentas(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.ventasHembrasSemanal + semanal.ventasMachosSemanal, 0);
+  }
+
+  getTotalAlimento(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.consumoTotalAlimento, 0);
+  }
+
+  getTotalAgua(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.consumoTotalAgua, 0);
+  }
+
+  getTotalMedicamento(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.consumoTotalMedicamento, 0);
+  }
+
+  getTotalVacuna(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.consumoTotalVacuna, 0);
+  }
+
+  getTotalOtros(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.otrosConsumos, 0);
+  }
+
+  getTotalGeneral(): number {
+    const reporte = this.reporte();
+    if (!reporte) return 0;
+    return reporte.reportesSemanales.reduce((total, semanal) => 
+      total + semanal.totalGeneral, 0);
   }
 
 }

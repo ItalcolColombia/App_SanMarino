@@ -92,7 +92,8 @@
               <select 
                 class="ux-input"
                 [(ngModel)]="semanaContable"
-                (change)="limpiarReporte()">
+                (change)="onSemanaChange()"
+                [disabled]="!!(usarRangoFechas && (fechaInicio || fechaFin))">
                 <option [ngValue]="null">Todas las semanas</option>
                 <option *ngFor="let semana of semanasContablesDisponibles" [ngValue]="semana">
                   Semana {{ semana }}
@@ -100,7 +101,8 @@
               </select>
             </div>
             <small class="ux-hint">
-              La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario
+              La semana contable inicia cuando llega el primer lote/sublote y dura 7 días calendario.
+              <span *ngIf="usarRangoFechas && (fechaInicio || fechaFin)" class="text-warning">(Desactive el rango de fechas para usar semana contable)</span>
             </small>
           </div>
 
@@ -117,6 +119,46 @@
               </p>
             </div>
           </div>
+        </div>
+
+        <!-- Filtro por Rango de Fechas -->
+        <div class="grid grid-2" style="margin-top: 1rem;">
+          <div class="form-field">
+            <label class="ux-label">Fecha Inicio</label>
+            <input 
+              type="date"
+              class="ux-input"
+              [(ngModel)]="fechaInicio"
+              (change)="onFechaInicioChange()"
+              [max]="fechaFin || ''"
+              [disabled]="semanaContable !== null">
+            <small class="ux-hint">
+              Fecha inicial del rango para generar el reporte semanal
+              <span *ngIf="semanaContable !== null" class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
+            </small>
+          </div>
+
+          <div class="form-field">
+            <label class="ux-label">Fecha Fin</label>
+            <input 
+              type="date"
+              class="ux-input"
+              [(ngModel)]="fechaFin"
+              (change)="onFechaFinChange()"
+              [min]="fechaInicio || ''"
+              [disabled]="semanaContable !== null">
+            <small class="ux-hint">
+              Fecha final del rango para generar el reporte semanal
+              <span *ngIf="semanaContable !== null" class="text-warning">(Desactive la semana contable para usar rango de fechas)</span>
+            </small>
+          </div>
+        </div>
+        
+        <div class="form-field" style="margin-top: 0.5rem;">
+          <small class="ux-hint">
+            <strong>Nota:</strong> Puede seleccionar una semana contable específica O un rango de fechas. 
+            Si selecciona un rango de fechas, se generarán reportes semanales para todas las semanas que caigan dentro del rango.
+          </small>
         </div>
       </div>
     </section>
@@ -151,25 +193,171 @@
         </div>
       </div>
 
-      <!-- Reporte por Semana -->
-      <div class="datos-section" *ngFor="let reporteSemanal of reporte()!.reportesSemanales">
-        <div class="semana-header">
-          <h2>Semana {{ reporteSemanal.semanaContable }}</h2>
-          <p class="periodo-info">
-            Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
-          </p>
+      <!-- Sistema de Tabs -->
+      <div class="tabs-container" *ngIf="reporte()!.reportesSemanales.length > 0">
+        <!-- Navegación de Tabs -->
+        <div class="tabs-nav">
+          <button 
+            type="button"
+            class="tab-button"
+            [class.active]="isTabActive('resumen')"
+            (click)="setActiveTab('resumen')">
+            Resumen
+          </button>
+          <button 
+            type="button"
+            *ngFor="let reporteSemanal of reporte()!.reportesSemanales"
+            class="tab-button"
+            [class.active]="isTabActive(reporteSemanal.semanaContable)"
+            (click)="setActiveTab(reporteSemanal.semanaContable)">
+            {{ getTabLabel(reporteSemanal.semanaContable) }}
+          </button>
         </div>
 
-        <!-- Sección AVES -->
-        <app-tabla-aves-contable [reporteSemanal]="reporteSemanal"></app-tabla-aves-contable>
+        <!-- Contenido de Tabs -->
+        <div class="tabs-content">
+          <!-- Tab Resumen -->
+          <div class="tab-panel" *ngIf="isTabActive('resumen')">
+            <div class="datos-section">
+              <h2>Resumen Semanal</h2>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Semana</th>
+                    <th>Período</th>
+                    <th>Mortalidad</th>
+                    <th>Traslados</th>
+                    <th>Ventas</th>
+                    <th>Alimento (kg)</th>
+                    <th>Agua (L)</th>
+                    <th>Medicamento</th>
+                    <th>Vacuna</th>
+                    <th>Otros</th>
+                    <th>Total General</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let reporteSemanal of reporte()!.reportesSemanales">
+                    <td><strong>{{ reporteSemanal.semanaContable }}</strong></td>
+                    <td>{{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}</td>
+                    <td>{{ (reporteSemanal.mortalidadHembrasSemanal + reporteSemanal.mortalidadMachosSemanal) | number:'1.0-0' }}</td>
+                    <td>{{ (reporteSemanal.trasladosHembrasSemanal + reporteSemanal.trasladosMachosSemanal) | number:'1.0-0' }}</td>
+                    <td>{{ (reporteSemanal.ventasHembrasSemanal + reporteSemanal.ventasMachosSemanal) | number:'1.0-0' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalAlimento | number:'1.2-2' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalAgua | number:'1.2-2' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalMedicamento | number:'1.2-2' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalVacuna | number:'1.2-2' }}</td>
+                    <td>{{ reporteSemanal.otrosConsumos | number:'1.2-2' }}</td>
+                    <td><strong>{{ reporteSemanal.totalGeneral | number:'1.2-2' }}</strong></td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="2"><strong>TOTAL GENERAL</strong></td>
+                    <td><strong>{{ getTotalMortalidad() | number:'1.0-0' }}</strong></td>
+                    <td><strong>{{ getTotalTraslados() | number:'1.0-0' }}</strong></td>
+                    <td><strong>{{ getTotalVentas() | number:'1.0-0' }}</strong></td>
+                    <td><strong>{{ getTotalAlimento() | number:'1.2-2' }}</strong></td>
+                    <td><strong>{{ getTotalAgua() | number:'1.2-2' }}</strong></td>
+                    <td><strong>{{ getTotalMedicamento() | number:'1.2-2' }}</strong></td>
+                    <td><strong>{{ getTotalVacuna() | number:'1.2-2' }}</strong></td>
+                    <td><strong>{{ getTotalOtros() | number:'1.2-2' }}</strong></td>
+                    <td><strong>{{ getTotalGeneral() | number:'1.2-2' }}</strong></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
 
-        <!-- Sección BULTO -->
-        <app-tabla-bultos-contable [reporteSemanal]="reporteSemanal"></app-tabla-bultos-contable>
+          <!-- Tabs de Semanas -->
+          <ng-container *ngFor="let reporteSemanal of reporte()!.reportesSemanales">
+            <div 
+              class="tab-panel" 
+              *ngIf="isTabActive(reporteSemanal.semanaContable)">
+              <div class="semana-header">
+                <h2>Semana {{ reporteSemanal.semanaContable }}</h2>
+                <p class="periodo-info">
+                  Período: {{ formatDate(reporteSemanal.fechaInicio) }} - {{ formatDate(reporteSemanal.fechaFin) }}
+                </p>
+              </div>
 
-        <!-- Resumen de Consumos (Kg) -->
-        <div class="datos-section">
-          <h3>Resumen de Consumos (Kg)</h3>
-          <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
+              <!-- Sección AVES -->
+              <app-tabla-aves-contable [reporteSemanal]="reporteSemanal"></app-tabla-aves-contable>
+
+              <!-- Sección BULTO -->
+              <app-tabla-bultos-contable [reporteSemanal]="reporteSemanal"></app-tabla-bultos-contable>
+
+              <!-- Sección INICIO (Primeros 7 días) -->
+              <div class="datos-section" *ngIf="reporteSemanal.seccionInicio">
+                <h3>BULTO / INICIO (Primeros 7 días)</h3>
+                <div class="seccion-info">
+                  <p><strong>Período:</strong> {{ formatDate(reporteSemanal.seccionInicio.fechaInicio) }} - {{ formatDate(reporteSemanal.seccionInicio.fechaFin) }}</p>
+                </div>
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th>Saldo Ant.</th>
+                      <th>Traslados</th>
+                      <th>Entradas</th>
+                      <th>Producto - Hembra</th>
+                      <th>Producto - Macho</th>
+                      <th>Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Totales</td>
+                      <td>{{ reporteSemanal.seccionInicio.saldoBultosAnterior | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.trasladosBultos | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.entradasBultos | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.consumoBultosHembras | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.1-1' }}</td>
+                      <td><strong>{{ reporteSemanal.seccionInicio.saldoBultosFinal | number:'1.1-1' }}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Sección LEVANTE (Después de 7 días) -->
+              <div class="datos-section" *ngIf="reporteSemanal.seccionLevante">
+                <h3>BULTO / LEVANTE (Después de 7 días)</h3>
+                <div class="seccion-info">
+                  <p><strong>Período:</strong> {{ formatDate(reporteSemanal.seccionLevante.fechaInicio) }} - {{ formatDate(reporteSemanal.seccionLevante.fechaFin) }}</p>
+                </div>
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th>Saldo Ant.</th>
+                      <th>Traslados</th>
+                      <th>Entradas</th>
+                      <th>Producto - Hembra</th>
+                      <th>Producto - Macho</th>
+                      <th>Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Totales</td>
+                      <td>{{ reporteSemanal.seccionLevante.saldoBultosAnterior | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.trasladosBultos | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.entradasBultos | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.consumoBultosHembras | number:'1.1-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.1-1' }}</td>
+                      <td><strong>{{ reporteSemanal.seccionLevante.saldoBultosFinal | number:'1.1-1' }}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Resumen de Consumos (Kg) -->
+              <div class="datos-section">
+                <h3>Resumen de Consumos (Kg)</h3>
+                <app-tabla-detalle-diario-contable [consumosDiarios]="reporteSemanal.consumosDiarios"></app-tabla-detalle-diario-contable>
+              </div>
+            </div>
+          </ng-container>
         </div>
       </div>
 
