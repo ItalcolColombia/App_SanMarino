@@ -11,10 +11,26 @@ namespace ZooSanMarino.Infrastructure.Services;
 public class GuiaGeneticaService : IGuiaGeneticaService
 {
     private readonly ZooSanMarinoContext _ctx;
+    private readonly ICurrentUser _currentUser;
+    private readonly ICompanyResolver _companyResolver;
 
-    public GuiaGeneticaService(ZooSanMarinoContext ctx)
+    public GuiaGeneticaService(ZooSanMarinoContext ctx, ICurrentUser currentUser, ICompanyResolver companyResolver)
     {
         _ctx = ctx;
+        _currentUser = currentUser;
+        _companyResolver = companyResolver;
+    }
+
+    private async Task<int> GetEffectiveCompanyIdAsync()
+    {
+        // Prioridad: nombre de compañía activa (header/frontend storage) -> CompanyId del token
+        if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
+        {
+            var byName = await _companyResolver.GetCompanyIdByNameAsync(_currentUser.ActiveCompanyName.Trim());
+            if (byName.HasValue) return byName.Value;
+        }
+
+        return _currentUser.CompanyId;
     }
 
     /// <summary>
@@ -24,6 +40,7 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     {
         try
         {
+            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             var raza = (request.Raza ?? string.Empty).Trim();
             var anio = request.AnoTabla.ToString(CultureInfo.InvariantCulture);
             var edadObjetivo = request.Edad;
@@ -32,6 +49,8 @@ public class GuiaGeneticaService : IGuiaGeneticaService
             var candidatos = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
                 .Where(p =>
+                    p.CompanyId == effectiveCompanyId &&
+                    p.DeletedAt == null &&
                     p.Raza != null && p.AnioGuia != null &&
                     EF.Functions.Like(p.Raza.Trim().ToLower(), raza.ToLower()) &&
                     p.AnioGuia.Trim() == anio
@@ -112,12 +131,15 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<IEnumerable<GuiaGeneticaDto>> ObtenerGuiaGeneticaRangoAsync(string raza, int anoTabla, int edadDesde, int edadHasta)
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
         var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
 
         var guias = await _ctx.ProduccionAvicolaRaw
             .AsNoTracking()
             .Where(p =>
+                p.CompanyId == effectiveCompanyId &&
+                p.DeletedAt == null &&
                 p.Raza != null && p.AnioGuia != null &&
                 EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
                 p.AnioGuia.Trim() == ano
@@ -149,12 +171,15 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<bool> ExisteGuiaGeneticaAsync(string raza, int anoTabla)
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
         var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
 
         return await _ctx.ProduccionAvicolaRaw
             .AsNoTracking()
             .AnyAsync(p =>
+                p.CompanyId == effectiveCompanyId &&
+                p.DeletedAt == null &&
                 p.Raza != null && p.AnioGuia != null &&
                 EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
                 p.AnioGuia.Trim() == ano
@@ -166,9 +191,13 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<IEnumerable<string>> ObtenerRazasDisponiblesAsync()
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var razas = await _ctx.ProduccionAvicolaRaw
             .AsNoTracking()
-            .Where(p => !string.IsNullOrWhiteSpace(p.Raza))
+            .Where(p =>
+                p.CompanyId == effectiveCompanyId &&
+                p.DeletedAt == null &&
+                !string.IsNullOrWhiteSpace(p.Raza))
             .Select(p => p.Raza!)
             .Distinct()
             .ToListAsync();
@@ -184,12 +213,15 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<IEnumerable<int>> ObtenerAnosDisponiblesAsync(string raza)
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
 
         var anos = await _ctx.ProduccionAvicolaRaw
             .AsNoTracking()
             .Where(p => p.Raza != null &&
                         p.AnioGuia != null &&
+                        p.CompanyId == effectiveCompanyId &&
+                        p.DeletedAt == null &&
                         EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm))
             .Select(p => p.AnioGuia!)
             .Distinct()
@@ -276,12 +308,15 @@ public class GuiaGeneticaService : IGuiaGeneticaService
     /// </summary>
     public async Task<IEnumerable<GuiaGeneticaDto>> ObtenerGuiaGeneticaProduccionAsync(string raza, int anoTabla)
     {
+        var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
         var razaNorm = (raza ?? string.Empty).Trim().ToLower();
         var ano = anoTabla.ToString(CultureInfo.InvariantCulture);
 
         var guias = await _ctx.ProduccionAvicolaRaw
             .AsNoTracking()
             .Where(p =>
+                p.CompanyId == effectiveCompanyId &&
+                p.DeletedAt == null &&
                 p.Raza != null && p.AnioGuia != null &&
                 EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
                 p.AnioGuia.Trim() == ano

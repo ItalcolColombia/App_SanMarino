@@ -1,0 +1,42 @@
+<div class="gg-container flex">
+  <app-sidebar class="flex-shrink-0"></app-sidebar>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen">
+    <div class="header card mb-4">
+      <div class="header-left">
+        <h2 class="title">{{ editing ? 'Editar guía genética' : 'Nueva guía genética' }}</h2>
+        <p class="subtitle">Todos los campos corresponden a `produccion_avicola_raw`.</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-subtle" (click)="back()" [disabled]="loading">
+          <fa-icon [icon]="faBack" class="mr-2"></fa-icon>
+          Volver
+        </button>
+        <button type="button" class="btn-primary" (click)="save()" [disabled]="loading">
+          <fa-icon [icon]="faSpinner" class="spin mr-2" *ngIf="loading"></fa-icon>
+          <fa-icon [icon]="faFloppy" class="mr-2" *ngIf="!loading"></fa-icon>
+          Guardar
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="alert error" *ngIf="error">{{ error }}</div>
+
+      <form [formGroup]="form" class="grid">
+        <div class="field" *ngFor="let f of fields">
+          <label [for]="f.key">{{ f.label }}</label>
+          <input
+            class="input"
+            [id]="f.key"
+            [formControlName]="f.key"
+            [placeholder]="f.placeholder || ''"
+            [disabled]="isAutoField(f.key)"
+          />
+          <small class="hint" *ngIf="isAutoField(f.key)">Calculado automáticamente</small>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+

@@ -3,6 +3,7 @@ using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
+using System.Globalization;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
@@ -10,30 +11,66 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
 {
     private readonly ZooSanMarinoContext _context;
     private readonly IGuiaGeneticaService _guiaGeneticaService;
+    private readonly ICurrentUser _currentUser;
+    private readonly ICompanyResolver _companyResolver;
 
     public IndicadoresProduccionService(
         ZooSanMarinoContext context,
-        IGuiaGeneticaService guiaGeneticaService)
+        IGuiaGeneticaService guiaGeneticaService,
+        ICurrentUser currentUser,
+        ICompanyResolver companyResolver)
     {
         _context = context;
         _guiaGeneticaService = guiaGeneticaService;
+        _currentUser = currentUser;
+        _companyResolver = companyResolver;
+    }
+
+    private async Task<int?> TryResolveCompanyIdFromHeaderAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
+        {
+            var byName = await _companyResolver.GetCompanyIdByNameAsync(_currentUser.ActiveCompanyName.Trim());
+            if (byName.HasValue) return byName.Value;
+        }
+        return null;
     }
 
     public async Task<IndicadoresProduccionResponse> ObtenerIndicadoresSemanalesAsync(IndicadoresProduccionRequest request)
     {
-        // 1. Obtener lote y producción
+        // 1) Obtener lote (y su granja) sin depender del header, para inferir compañía correcta
         var lote = await _context.Lotes
             .AsNoTracking()
-            .Where(l => l.LoteId == request.LoteId)
+            .Where(l => l.LoteId == request.LoteId && l.DeletedAt == null)
             .FirstOrDefaultAsync();
 
         if (lote == null || !lote.FechaEncaset.HasValue)
             throw new ArgumentException($"Lote {request.LoteId} no encontrado o sin fecha de encaset");
 
+        // 2) Resolver CompanyId "real" desde la granja (fuente de verdad)
+        var farmCompanyId = await _context.Farms
+            .AsNoTracking()
+            .Where(f => f.Id == lote.GranjaId)
+            .Select(f => (int?)f.CompanyId)
+            .SingleOrDefaultAsync();
+
+        var loteCompanyId = farmCompanyId ?? lote.CompanyId;
+        if (loteCompanyId <= 0)
+            throw new ArgumentException("No fue posible determinar la compañía del lote (CompanyId inválido).");
+
+        // 3) Validación contra compañía activa (si viene header); si no viene, usa el claim
+        var headerCompanyId = await TryResolveCompanyIdFromHeaderAsync();
+        var userCompanyId = headerCompanyId ?? _currentUser.CompanyId;
+        if (userCompanyId > 0 && userCompanyId != loteCompanyId)
+            throw new ArgumentException("El lote no pertenece a la compañía activa.");
+
+        var companyId = loteCompanyId;
+
         var loteIdStr = request.LoteId.ToString();
         var produccionLote = await _context.ProduccionLotes
             .AsNoTracking()
-            .Where(p => p.LoteId == loteIdStr)
+            // Compatibilidad: algunos registros antiguos pueden tener CompanyId=0
+            .Where(p => p.LoteId == loteIdStr && p.DeletedAt == null && (p.CompanyId == companyId || p.CompanyId == 0))
             .FirstOrDefaultAsync();
 
         if (produccionLote == null)
@@ -68,6 +105,32 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         var guias = tieneGuiaGenetica && lote.AnoTablaGenetica.HasValue
             ? (await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(lote.Raza!, lote.AnoTablaGenetica.Value)).ToList()
             : new List<ZooSanMarino.Application.DTOs.GuiaGeneticaDto>();
+
+        // Prefetch de la guía completa (ProduccionAvicolaRaw) UNA sola vez para los campos de huevos
+        Dictionary<int, ProduccionAvicolaRaw> guiaRawBySemana = new();
+        if (tieneGuiaGenetica && lote.AnoTablaGenetica.HasValue)
+        {
+            var razaNorm = lote.Raza!.Trim().ToLowerInvariant();
+            var ano = lote.AnoTablaGenetica.Value.ToString(CultureInfo.InvariantCulture);
+
+            var raw = await _context.ProduccionAvicolaRaw
+                .AsNoTracking()
+                .Where(p =>
+                    p.CompanyId == companyId &&
+                    p.DeletedAt == null &&
+                    p.Raza != null &&
+                    p.AnioGuia != null &&
+                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                    p.AnioGuia.Trim() == ano
+                )
+                .ToListAsync();
+
+            guiaRawBySemana = raw
+                .Select(r => new { r, edad = TryParseEdadNumerica(r.Edad) })
+                .Where(x => x.edad.HasValue)
+                .GroupBy(x => x.edad!.Value)
+                .ToDictionary(g => g.Key, g => g.First().r);
+        }
 
         // 4. Agrupar seguimientos por semana
         var fechaEncaset = lote.FechaEncaset.Value;
@@ -192,27 +255,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 pesoGuiaM = (decimal)guiaSemana.PesoMachos / 1000;
                 uniformidadGuia = (decimal)guiaSemana.Uniformidad;
 
-                // Obtener datos completos de ProduccionAvicolaRaw para huevos
-                var razaNorm = lote.Raza!.Trim().ToLower();
-                var ano = lote.AnoTablaGenetica!.Value.ToString();
-                
-                var guiaCompleta = await _context.ProduccionAvicolaRaw
-                    .AsNoTracking()
-                    .Where(p =>
-                        p.Raza != null && p.AnioGuia != null &&
-                        EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                        p.AnioGuia.Trim() == ano)
-                    .ToListAsync();
-
-                var guiaCompletaSemana = guiaCompleta
-                    .Where(g =>
-                    {
-                        var edad = TryParseEdadNumerica(g.Edad);
-                        return edad.HasValue && edad.Value == semana;
-                    })
-                    .FirstOrDefault();
-
-                if (guiaCompletaSemana != null)
+                if (guiaRawBySemana.TryGetValue(semana, out var guiaCompletaSemana) && guiaCompletaSemana != null)
                 {
                     huevosTotalesGuia = ParseDecimal(guiaCompletaSemana.HTotalAa);
                     huevosIncubablesGuia = ParseDecimal(guiaCompletaSemana.HIncAa);

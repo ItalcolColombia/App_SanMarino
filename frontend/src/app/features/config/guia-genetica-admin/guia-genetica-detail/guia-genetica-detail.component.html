@@ -1,0 +1,122 @@
+<div class="gg-container flex">
+  <app-sidebar class="flex-shrink-0"></app-sidebar>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen">
+    <div class="header card mb-4">
+      <div class="header-left">
+        <h2 class="title">Detalle guía genética</h2>
+        <p class="subtitle" *ngIf="item">ID: {{ item.id }} · CompanyId: {{ item.companyId }}</p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="btn-subtle" (click)="back()">
+          <fa-icon [icon]="faBack" class="mr-2"></fa-icon>
+          Volver
+        </button>
+        <button type="button" class="btn-primary" (click)="edit()" [disabled]="!item">
+          <fa-icon [icon]="faPen" class="mr-2"></fa-icon>
+          Editar
+        </button>
+      </div>
+    </div>
+
+    <div class="card" *ngIf="error">
+      <div class="alert error">{{ error }}</div>
+    </div>
+
+    <div class="card" *ngIf="loading">
+      <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+      Cargando…
+    </div>
+
+    <div class="card" *ngIf="item && !loading">
+      <div class="section">
+        <h3>Identificación</h3>
+        <table class="kv">
+          <tr><th>Código guía genética</th><td>{{ item.codigoGuiaGenetica || '—' }}</td></tr>
+          <tr><th>Año guía</th><td>{{ item.anioGuia || '—' }}</td></tr>
+          <tr><th>Raza</th><td>{{ item.raza || '—' }}</td></tr>
+          <tr><th>Edad</th><td>{{ item.edad || '—' }}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Mortalidad / Retiro</h3>
+        <table class="kv">
+          <tr><th>%MortSemH</th><td>{{ item.mortSemH || '—' }}</td></tr>
+          <tr><th>RetiroAcH</th><td>{{ item.retiroAcH || '—' }}</td></tr>
+          <tr><th>%MortSemM</th><td>{{ item.mortSemM || '—' }}</td></tr>
+          <tr><th>RetiroAcM</th><td>{{ item.retiroAcM || '—' }}</td></tr>
+          <tr><th>Hembras</th><td>{{ item.hembras || '—' }}</td></tr>
+          <tr><th>Machos</th><td>{{ item.machos || '—' }}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Consumo / Energía</h3>
+        <table class="kv">
+          <tr><th>ConsAcH</th><td>{{ item.consAcH || '—' }}</td></tr>
+          <tr><th>ConsAcM</th><td>{{ item.consAcM || '—' }}</td></tr>
+          <tr><th>KcalAveDiaH</th><td>{{ item.kcalAveDiaH || '—' }}</td></tr>
+          <tr><th>KcalAveDiaM</th><td>{{ item.kcalAveDiaM || '—' }}</td></tr>
+          <tr><th>KcalH</th><td>{{ item.kcalH || '—' }}</td></tr>
+          <tr><th>ProtH (%)</th><td>{{ item.protH || '—' }}</td></tr>
+          <tr><th>KcalM</th><td>{{ item.kcalM || '—' }}</td></tr>
+          <tr><th>ProtM (%)</th><td>{{ item.protM || '—' }}</td></tr>
+          <tr><th>KcalSemH</th><td>{{ item.kcalSemH || '—' }}</td></tr>
+          <tr><th>ProtHSem</th><td>{{ item.protHSem || '—' }}</td></tr>
+          <tr><th>KcalSemM</th><td>{{ item.kcalSemM || '—' }}</td></tr>
+          <tr><th>ProtSemM</th><td>{{ item.protSemM || '—' }}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Peso / Uniformidad / Ganancia</h3>
+        <table class="kv">
+          <tr><th>GrAveDiaH</th><td>{{ item.grAveDiaH || '—' }}</td></tr>
+          <tr><th>GrAveDiaM</th><td>{{ item.grAveDiaM || '—' }}</td></tr>
+          <tr><th>PesoH</th><td>{{ item.pesoH || '—' }}</td></tr>
+          <tr><th>PesoM</th><td>{{ item.pesoM || '—' }}</td></tr>
+          <tr><th>%Uniform</th><td>{{ item.uniformidad || '—' }}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Producción</h3>
+        <table class="kv">
+          <tr><th>HTotalAA</th><td>{{ item.hTotalAa || '—' }}</td></tr>
+          <tr><th>%Prod</th><td>{{ item.prodPorcentaje || '—' }}</td></tr>
+          <tr><th>HIncAA</th><td>{{ item.hIncAa || '—' }}</td></tr>
+          <tr><th>%AprovSem</th><td>{{ item.aprovSem || '—' }}</td></tr>
+          <tr><th>PesoHuevo</th><td>{{ item.pesoHuevo || '—' }}</td></tr>
+          <tr><th>MasaHuevo</th><td>{{ item.masaHuevo || '—' }}</td></tr>
+          <tr><th>%Grasa</th><td>{{ item.grasaPorcentaje || '—' }}</td></tr>
+          <tr><th>%Nacim</th><td>{{ item.nacimPorcentaje || '—' }}</td></tr>
+          <tr><th>PollitoAA</th><td>{{ item.pollitoAa || '—' }}</td></tr>
+          <tr><th>%AprovAc</th><td>{{ item.aprovAc || '—' }}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Pesos específicos / Valores</h3>
+        <table class="kv">
+          <tr><th>GR/HuevoT</th><td>{{ item.grHuevoT || '—' }}</td></tr>
+          <tr><th>GR/HuevoInc</th><td>{{ item.grHuevoInc || '—' }}</td></tr>
+          <tr><th>GR/Pollito</th><td>{{ item.grPollito || '—' }}</td></tr>
+          <tr><th>Valor 1000</th><td>{{ item.valor1000 || '—' }}</td></tr>
+          <tr><th>Valor 150</th><td>{{ item.valor150 || '—' }}</td></tr>
+          <tr><th>%Apareo</th><td>{{ item.apareo || '—' }}</td></tr>
+          <tr><th>Peso M/H</th><td>{{ item.pesoMh || '—' }}</td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>Auditoría</h3>
+        <table class="kv">
+          <tr><th>Creado</th><td>{{ item.createdAt }}</td></tr>
+          <tr><th>Actualizado</th><td>{{ item.updatedAt || '—' }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+

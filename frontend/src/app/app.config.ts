@@ -40,6 +40,11 @@ import { GalponListComponent } from './features/galpon/components/galpon-list/ga
 import { GalponFormComponent } from './features/galpon/components/galpon-form/galpon-form.component';
 import { LoteListComponent }   from './features/lote/components/lote-list/lote-list.component';
 
+// Config: Guía genética (CRUD sobre ProduccionAvicolaRaw)
+import { GuiaGeneticaListComponent } from './features/config/guia-genetica-admin/guia-genetica-list/guia-genetica-list.component';
+import { GuiaGeneticaFormComponent } from './features/config/guia-genetica-admin/guia-genetica-form/guia-genetica-form.component';
+import { GuiaGeneticaDetailComponent } from './features/config/guia-genetica-admin/guia-genetica-detail/guia-genetica-detail.component';
+
 export const appConfig: ApplicationConfig = {
   providers: [
     importProvidersFrom(ReactiveFormsModule),
@@ -153,6 +158,12 @@ export const appConfig: ApplicationConfig = {
           },
           // Lotes
           { path: 'lotes', component: LoteListComponent },
+
+          // Guía genética (produccion_avicola_raw)
+          { path: 'guia-genetica', component: GuiaGeneticaListComponent },
+          { path: 'guia-genetica/new', component: GuiaGeneticaFormComponent },
+          { path: 'guia-genetica/:id', component: GuiaGeneticaDetailComponent },
+          { path: 'guia-genetica/:id/edit', component: GuiaGeneticaFormComponent },
 
           // Catálogo de Alimentos (lazy)
           {

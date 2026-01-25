@@ -79,6 +79,24 @@ public class ProduccionAvicolaRawController : ControllerBase
         }
     }
 
+    /// <summary>Obtiene opciones de filtros (Año guía y Raza) según datos cargados.</summary>
+    [HttpGet("filters")]
+    [ProducesResponseType(typeof(ProduccionAvicolaRawFilterOptionsDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ProduccionAvicolaRawFilterOptionsDto>> GetFilters()
+    {
+        try
+        {
+            var filters = await _service.GetFilterOptionsAsync();
+            return Ok(filters);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener filtros de producción avícola raw");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "Error interno del servidor" });
+        }
+    }
+
     /// <summary>Crea un nuevo registro de producción avícola.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(ProduccionAvicolaRawDto), StatusCodes.Status201Created)]

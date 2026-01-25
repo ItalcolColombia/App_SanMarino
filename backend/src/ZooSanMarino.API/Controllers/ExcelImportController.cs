@@ -170,15 +170,24 @@ public class ExcelImportController : ControllerBase
             using var package = new OfficeOpenXml.ExcelPackage();
             var worksheet = package.Workbook.Worksheets.Add("ProduccionAvicola");
 
-            // Agregar encabezados
+            // Agregar encabezados (Excel rojo) EXACTOS solicitados
             var headers = new[]
             {
-                "anio_guia", "raza", "edad", "mort_sem_h", "retiro_ac_h", "mort_sem_m", "retiro_ac_m",
-                "cons_ac_h", "cons_ac_m", "gr_ave_dia_h", "gr_ave_dia_m", "peso_h", "peso_m",
-                "uniformidad", "h_total_aa", "prod_porcentaje", "h_inc_aa", "aprov_sem",
-                "peso_huevo", "masa_huevo", "grasa_porcentaje", "nacim_porcentaje", "pollito_aa",
-                "kcal_ave_dia_h", "kcal_ave_dia_m", "aprov_ac", "gr_huevo_t", "gr_huevo_inc",
-                "gr_pollito", "valor_1000", "valor_150", "apareo", "peso_mh"
+                "CODGUÍA", "AÑOGUÍA", "RAZA", "Edad",
+                "%MortSemH", "RetiroAcH", "%MortSemM", "RetiroAcM",
+                "ConsAcH", "ConsAcM",
+                "GrAveDiaH", "GrAveDiaM",
+                "PesoH", "PesoM",
+                "%Uniform",
+                "HTotalAA", "%Prod", "HIncAA", "%AprovSem",
+                "PesoHuevo", "MasaHuevo",
+                "%Grasa", "%Nac", "PollitoAA",
+                "%AprovAc",
+                "GR/HuevoT", "GR/HuevoInc", "GR/Pollito",
+                "Hembras", "Machos", "%Apareo",
+                "PesoM/H",
+                "AlimH", "KcalH", "KcalSemH", "ProtH", "ProtHSem",
+                "AlimM", "KcalM", "KcalSemM", "ProtM", "ProtSemM"
             };
 
             for (int i = 0; i < headers.Length; i++)
@@ -187,15 +196,24 @@ public class ExcelImportController : ControllerBase
                 worksheet.Cells[1, i + 1].Style.Font.Bold = true;
             }
 
-            // Agregar fila de ejemplo
+            // Agregar fila de ejemplo (los campos automáticos pueden ir vacíos)
             var exampleData = new[]
             {
-                "2024", "Cobb 500", "42", "0.5", "0.2", "0.3", "0.1",
-                "120.5", "135.2", "85.3", "92.1", "2.1", "2.8",
-                "85", "150", "92.5", "140", "88.2",
-                "62.3", "58.7", "15.2", "82.5", "125",
-                "280.5", "310.2", "85.7", "45.2", "42.8",
-                "45.5", "1250", "187", "1:8", "2.45"
+                "", "2024", "Cobb 500", "42",
+                "0.5", "0.2", "0.3", "0.1",
+                "120.5", "135.2",
+                "85.3", "92.1",
+                "2.1", "2.8",
+                "85",
+                "150", "92.5", "140", "88.2",
+                "62.3", "",   // MasaHuevo auto
+                "15.2", "82.5", "125",
+                "", // %AprovAc auto
+                "", "", "", // GR/* auto
+                "", "", "", // Hembras/Machos/%Apareo auto
+                "2.45",
+                "AlimentoH", "2800", "", "18", "", // KcalSemH/ProtHSem auto
+                "AlimentoM", "2800", "", "16", ""  // KcalSemM/ProtSemM auto
             };
 
             for (int i = 0; i < exampleData.Length; i++)

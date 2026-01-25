@@ -19,6 +19,10 @@ public class ProduccionAvicolaRawConfiguration : IEntityTypeConfiguration<Produc
             .HasColumnName("id")
             .ValueGeneratedOnAdd();
 
+        builder.Property(x => x.CodigoGuiaGenetica)
+            .HasColumnName("codigo_guia_genetica")
+            .HasMaxLength(255);
+
         builder.Property(x => x.AnioGuia)
             .HasColumnName("anio_guia")
             .HasMaxLength(50);
@@ -45,6 +49,14 @@ public class ProduccionAvicolaRawConfiguration : IEntityTypeConfiguration<Produc
 
         builder.Property(x => x.RetiroAcM)
             .HasColumnName("retiro_ac_m")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.Hembras)
+            .HasColumnName("hembras")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.Machos)
+            .HasColumnName("machos")
             .HasMaxLength(50);
 
         builder.Property(x => x.ConsAcH)
@@ -111,12 +123,52 @@ public class ProduccionAvicolaRawConfiguration : IEntityTypeConfiguration<Produc
             .HasColumnName("pollito_aa")
             .HasMaxLength(50);
 
+        builder.Property(x => x.AlimH)
+            .HasColumnName("alim_h")
+            .HasMaxLength(50);
+
         builder.Property(x => x.KcalAveDiaH)
             .HasColumnName("kcal_ave_dia_h")
             .HasMaxLength(50);
 
         builder.Property(x => x.KcalAveDiaM)
             .HasColumnName("kcal_ave_dia_m")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.KcalH)
+            .HasColumnName("kcal_h")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.ProtH)
+            .HasColumnName("prot_h")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.AlimM)
+            .HasColumnName("alim_m")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.KcalM)
+            .HasColumnName("kcal_m")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.ProtM)
+            .HasColumnName("prot_m")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.KcalSemH)
+            .HasColumnName("kcal_sem_h")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.ProtHSem)
+            .HasColumnName("prot_h_sem")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.KcalSemM)
+            .HasColumnName("kcal_sem_m")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.ProtSemM)
+            .HasColumnName("prot_sem_m")
             .HasMaxLength(50);
 
         builder.Property(x => x.AprovAc)

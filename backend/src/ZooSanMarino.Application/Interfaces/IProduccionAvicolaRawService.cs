@@ -12,4 +12,5 @@ public interface IProduccionAvicolaRawService
     Task<ProduccionAvicolaRawDto> UpdateAsync(UpdateProduccionAvicolaRawDto dto);
     Task<bool> DeleteAsync(int id);
     Task<ZooSanMarino.Application.DTOs.Common.PagedResult<ProduccionAvicolaRawDto>> SearchAsync(ProduccionAvicolaRawSearchRequest request);
+    Task<ProduccionAvicolaRawFilterOptionsDto> GetFilterOptionsAsync();
 }

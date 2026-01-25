@@ -1,0 +1,186 @@
+<div class="gg-container flex">
+  <app-sidebar class="flex-shrink-0"></app-sidebar>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 min-h-screen">
+    <div class="gg-toolbar flex items-center justify-between mb-6">
+      <div class="flex items-center gap-2">
+        <fa-icon [icon]="faList" class="title-icon" aria-hidden="true"></fa-icon>
+        <h2 class="title">Guía genética (Producción avícola raw)</h2>
+        <span class="counter-pill">{{ total }} registro(s)</span>
+      </div>
+
+      <div class="toolbar-actions">
+        <button type="button" class="btn-subtle" (click)="descargarPlantilla()">
+          <fa-icon [icon]="faDownload" class="mr-2"></fa-icon>
+          Descargar plantilla
+        </button>
+        <button type="button" class="btn-subtle" (click)="openUploadModal()">
+          <fa-icon [icon]="faUpload" class="mr-2"></fa-icon>
+          Carga masiva
+        </button>
+        <button type="button" class="btn-primary" (click)="goNuevo()">
+          <fa-icon [icon]="faPlus" class="mr-2"></fa-icon>
+          Nuevo
+        </button>
+      </div>
+    </div>
+
+    <div class="gg-filters card mb-4">
+      <div class="grid grid-3 gap-3">
+        <div class="field">
+          <label>Año guía</label>
+          <select class="input" [(ngModel)]="filtroAnioGuia">
+            <option value="">Todos</option>
+            <option *ngFor="let a of anioGuias" [value]="a">{{ a }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Raza</label>
+          <select class="input" [(ngModel)]="filtroRaza">
+            <option value="">Todas</option>
+            <option *ngFor="let r of razas" [value]="r">{{ r }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Edad</label>
+          <input [(ngModel)]="filtroEdad" class="input" placeholder="42" />
+        </div>
+      </div>
+
+      <div class="filters-actions mt-3">
+        <button type="button" class="btn-primary" (click)="page=1; buscar()">
+          <fa-icon [icon]="faSearch" class="mr-2"></fa-icon>
+          Buscar
+        </button>
+        <button type="button" class="btn-subtle" (click)="resetFiltros()">
+          Limpiar
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="alert error" *ngIf="error">{{ error }}</div>
+
+      <div class="table-scroll">
+        <table class="gg-table" role="grid" aria-label="Guía genética">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Código</th>
+              <th>Año</th>
+              <th>Raza</th>
+              <th>Edad</th>
+              <th>Hembras</th>
+              <th>Machos</th>
+              <th>%Apareo</th>
+              <th>%MortSemH</th>
+              <th>%MortSemM</th>
+              <th>PesoH</th>
+              <th>PesoM</th>
+              <th>%Prod</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="!loading && !items.length">
+              <td colspan="14" class="empty">
+                No hay datos para los filtros actuales.
+              </td>
+            </tr>
+
+            <tr *ngFor="let it of items">
+              <td class="mono">{{ it.id }}</td>
+              <td class="mono">{{ it.codigoGuiaGenetica || '—' }}</td>
+              <td>{{ it.anioGuia || '—' }}</td>
+              <td>{{ it.raza || '—' }}</td>
+              <td>{{ it.edad || '—' }}</td>
+              <td>{{ it.hembras || '—' }}</td>
+              <td>{{ it.machos || '—' }}</td>
+              <td>{{ it.apareo || '—' }}</td>
+              <td>{{ it.mortSemH || '—' }}</td>
+              <td>{{ it.mortSemM || '—' }}</td>
+              <td>{{ it.pesoH || '—' }}</td>
+              <td>{{ it.pesoM || '—' }}</td>
+              <td>{{ it.prodPorcentaje || '—' }}</td>
+              <td class="text-right">
+                <button class="icon-btn" type="button" title="Ver" (click)="goDetalle(it.id)">
+                  <fa-icon [icon]="faEye"></fa-icon>
+                </button>
+                <button class="icon-btn" type="button" title="Editar" (click)="goEditar(it.id)">
+                  <fa-icon [icon]="faPen"></fa-icon>
+                </button>
+                <button class="icon-btn danger" type="button" title="Eliminar" (click)="eliminar(it.id)">
+                  <fa-icon [icon]="faTrash"></fa-icon>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <button class="btn-subtle" type="button" (click)="prevPage()" [disabled]="page<=1">Anterior</button>
+        <span>Página {{ page }} / {{ totalPages }}</span>
+        <button class="btn-subtle" type="button" (click)="nextPage()" [disabled]="page>=totalPages">Siguiente</button>
+      </div>
+
+      <div class="loading-overlay" *ngIf="loading" aria-live="polite">
+        <fa-icon [icon]="faSpinner" class="spin mr-2"></fa-icon>
+        <span>Cargando…</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Carga Masiva -->
+<div class="modal-backdrop" *ngIf="uploadModalOpen">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Carga masiva de guía genética</h3>
+      <button type="button" class="icon-btn" (click)="closeUploadModal()">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="field">
+        <label>Archivo Excel (.xlsx / .xls)</label>
+        <input type="file" accept=".xlsx,.xls" (change)="onFileSelected($event)" />
+      </div>
+
+      <div class="field mt-3">
+        <label>Modo</label>
+        <select class="input" [(ngModel)]="uploadMode">
+          <option value="import">Importar (guardar en base)</option>
+          <option value="validate">Validar (sin guardar)</option>
+        </select>
+      </div>
+
+      <div class="alert error mt-3" *ngIf="uploadErrors.length">
+        <div *ngFor="let e of uploadErrors">{{ e }}</div>
+      </div>
+
+      <div class="result mt-3" *ngIf="uploadResult">
+        <div class="result-grid">
+          <div><strong>Éxito:</strong> {{ uploadResult.success }}</div>
+          <div><strong>Filas:</strong> {{ uploadResult.totalRows }}</div>
+          <div><strong>Procesadas:</strong> {{ uploadResult.processedRows }}</div>
+          <div><strong>Errores:</strong> {{ uploadResult.errorRows }}</div>
+        </div>
+      </div>
+
+      <div class="result mt-3" *ngIf="uploadPreview">
+        <div><strong>Filas válidas encontradas:</strong> {{ uploadPreview.length }}</div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-subtle" (click)="closeUploadModal()" [disabled]="uploadLoading">Cerrar</button>
+      <button type="button" class="btn-primary" (click)="runUpload()" [disabled]="uploadLoading">
+        <fa-icon [icon]="faSpinner" class="spin mr-2" *ngIf="uploadLoading"></fa-icon>
+        Ejecutar
+      </button>
+    </div>
+  </div>
+</div>
+
