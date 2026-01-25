@@ -15,6 +15,7 @@ public class CreateSeguimientoProduccionRequest
     public int MortalidadH { get; set; }
     public int MortalidadM { get; set; }
     public int SelH { get; set; }
+    public int SelM { get; set; }
     
     // Consumo con unidad opcional (el backend convierte a kg)
     public double? ConsumoH { get; set; }
@@ -100,6 +101,7 @@ public class CreateSeguimientoProduccionRequest
             MortalidadH: MortalidadH,
             MortalidadM: MortalidadM,
             SelH: SelH,
+            SelM: SelM,
             ConsKgH: consumoKgH,
             ConsKgM: consumoKgM,
             HuevoTot: HuevoTot,

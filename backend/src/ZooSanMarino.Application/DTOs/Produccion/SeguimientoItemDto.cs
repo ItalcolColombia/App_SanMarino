@@ -8,6 +8,7 @@ public record SeguimientoItemDto(
     int MortalidadH,
     int MortalidadM,
     int SelH,
+    int SelM,
     decimal ConsKgH,
     decimal ConsKgM,
     decimal ConsumoKg, // Mantener para compatibilidad (suma de ConsKgH + ConsKgM)

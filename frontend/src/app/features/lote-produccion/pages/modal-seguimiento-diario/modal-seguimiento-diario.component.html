@@ -196,7 +196,7 @@
           <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
             <div class="tab-panel-header">
               <h3>Información de Machos ♂️</h3>
-              <p class="tab-description">Registro de mortalidad y consumo de machos</p>
+              <p class="tab-description">Registro de mortalidad, retiros y consumo de machos</p>
             </div>
             <div class="grid grid-3">
               <div class="form-field">
@@ -206,6 +206,15 @@
                 </label>
                 <input id="f-mortalidad-m" type="number" min="0" formControlName="mortalidadM" placeholder="0" required />
                 <small class="ux-hint">Número de machos que murieron</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-sel-m">
+                  <span class="label-icon">↩️</span>
+                  SelM (Retiradas) *
+                </label>
+                <input id="f-sel-m" type="number" min="0" formControlName="selM" placeholder="0" required />
+                <small class="ux-hint">Machos retirados/seleccionados</small>
               </div>
 
               <!-- Tipo de ítem y alimento para machos -->
@@ -271,8 +280,8 @@
                     <h4>Resumen Machos</h4>
                     <div class="resumen-stats">
                       <div class="stat-item">
-                        <span class="stat-label">Mortalidad</span>
-                        <span class="stat-value">{{ form.get('mortalidadM')?.value || 0 }}</span>
+                        <span class="stat-label">Total Retiradas</span>
+                        <span class="stat-value">{{ getTotalRetiradasMachos() }}</span>
                       </div>
                       <div class="stat-item">
                         <span class="stat-label">Consumo</span>

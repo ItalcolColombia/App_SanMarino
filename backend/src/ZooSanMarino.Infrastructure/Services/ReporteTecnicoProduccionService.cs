@@ -248,7 +248,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 
             // Actualizar saldos
             saldoHembras = saldoHembras - seg.MortalidadH - seg.SelH - ventasH - trasladosH;
-            saldoMachos = saldoMachos - seg.MortalidadM - ventasM - trasladosM;
+            saldoMachos = saldoMachos - seg.MortalidadM - seg.SelM - ventasM - trasladosM;
 
             // Obtener venta de huevos del día
             var ventaHuevo = await ObtenerVentaHuevosAsync(loteId, seg.Fecha, ct);
@@ -290,7 +290,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 MortalidadHembras: seg.MortalidadH,
                 MortalidadMachos: seg.MortalidadM,
                 SeleccionHembras: seg.SelH,
-                SeleccionMachos: 0, // No hay selección de machos en producción típicamente
+                SeleccionMachos: seg.SelM,
                 VentasHembras: ventasH,
                 VentasMachos: ventasM,
                 TrasladosHembras: trasladosH,

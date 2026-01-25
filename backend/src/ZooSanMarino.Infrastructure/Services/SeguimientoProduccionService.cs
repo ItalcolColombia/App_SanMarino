@@ -24,6 +24,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 x.MortalidadH,
                 x.MortalidadM,
                 x.SelH,
+                x.SelM,
                 x.ConsKgH,
                 x.ConsKgM,
                 x.HuevoTot,
@@ -54,6 +55,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.MortalidadH,
             entity.MortalidadM,
             entity.SelH,
+            entity.SelM,
             entity.ConsKgH,
             entity.ConsKgM,
             entity.HuevoTot,
@@ -75,6 +77,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             MortalidadH = dto.MortalidadH,
             MortalidadM = dto.MortalidadM,
             SelH = dto.SelH,
+            SelM = dto.SelM,
             ConsKgH = dto.ConsKgH,
             ConsKgM = dto.ConsKgM,
             HuevoTot = dto.HuevoTot,
@@ -96,6 +99,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.MortalidadH,
             entity.MortalidadM,
             entity.SelH,
+            entity.SelM,
             entity.ConsKgH,
             entity.ConsKgM,
             entity.HuevoTot,
@@ -118,6 +122,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         entity.MortalidadH = dto.MortalidadH;
         entity.MortalidadM = dto.MortalidadM;
         entity.SelH = dto.SelH;
+        entity.SelM = dto.SelM;
         entity.ConsKgH = dto.ConsKgH;
         entity.ConsKgM = dto.ConsKgM;
         entity.HuevoTot = dto.HuevoTot;
@@ -137,6 +142,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             entity.MortalidadH,
             entity.MortalidadM,
             entity.SelH,
+            entity.SelM,
             entity.ConsKgH,
             entity.ConsKgM,
             entity.HuevoTot,
@@ -181,6 +187,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
                 x.MortalidadH,
                 x.MortalidadM,
                 x.SelH,
+                x.SelM,
                 x.ConsKgH,
                 x.ConsKgM,
                 x.HuevoTot,

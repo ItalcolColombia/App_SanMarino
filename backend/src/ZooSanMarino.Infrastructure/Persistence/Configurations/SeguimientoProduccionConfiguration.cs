@@ -37,6 +37,11 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
         builder.Property(x => x.SelH)
             .IsRequired()
             .HasColumnName("sel_h");
+
+        builder.Property(x => x.SelM)
+            .IsRequired()
+            .HasColumnName("sel_m")
+            .HasDefaultValue(0);
         
         builder.Property(x => x.ConsKgH)
             .IsRequired()

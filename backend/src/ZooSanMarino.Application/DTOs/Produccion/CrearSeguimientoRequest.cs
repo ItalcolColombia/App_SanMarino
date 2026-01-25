@@ -44,7 +44,8 @@ public record CrearSeguimientoRequest(
     [Range(0, double.MaxValue)] decimal? PesoM, // Peso promedio machos (kg)
     [Range(0, 100)] decimal? Uniformidad, // Uniformidad del lote (%)
     [Range(0, 100)] decimal? CoeficienteVariacion, // Coeficiente de variación (CV)
-    string? ObservacionesPesaje // Observaciones específicas del pesaje
+    string? ObservacionesPesaje, // Observaciones específicas del pesaje
+    [Range(0, int.MaxValue)] int SelM = 0 // Selección machos (retiradas) - default para compatibilidad
 );
 
 

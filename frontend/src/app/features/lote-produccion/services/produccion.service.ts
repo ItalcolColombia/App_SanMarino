@@ -39,6 +39,7 @@ export interface CrearSeguimientoRequest {
   mortalidadH: number;
   mortalidadM: number;
   selH: number; // Selección hembras (retiradas)
+  selM: number; // Selección machos (retiradas)
   // Consumo con unidad opcional (el backend hace la conversión)
   consumoH?: number; // Consumo hembras (puede venir en kg o gramos)
   unidadConsumoH?: string; // "kg" o "g" - default "kg"
@@ -84,6 +85,7 @@ export interface SeguimientoItemDto {
   mortalidadH: number;
   mortalidadM: number;
   selH: number;
+  selM: number;
   consKgH: number;
   consKgM: number;
   consumoKg: number; // Para compatibilidad (suma de consKgH + consKgM)

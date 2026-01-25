@@ -187,6 +187,7 @@ public class ProduccionService : IProduccionService
             MortalidadH = request.MortalidadH,
             MortalidadM = request.MortalidadM,
             SelH = request.SelH,
+            SelM = request.SelM,
             ConsKgH = consumoKgH,
             ConsKgM = consumoKgM,
             HuevoTot = request.HuevosTotales,
@@ -268,6 +269,7 @@ public class ProduccionService : IProduccionService
             s.MortalidadH,
             s.MortalidadM,
             s.SelH,
+            s.SelM,
             s.ConsKgH,
             s.ConsKgM,
             s.ConsKgH + s.ConsKgM, // ConsumoKg = suma de consumos (para compatibilidad)
@@ -328,6 +330,7 @@ public class ProduccionService : IProduccionService
             seguimiento.MortalidadH,
             seguimiento.MortalidadM,
             seguimiento.SelH,
+            seguimiento.SelM,
             seguimiento.ConsKgH,
             seguimiento.ConsKgM,
             seguimiento.ConsKgH + seguimiento.ConsKgM,

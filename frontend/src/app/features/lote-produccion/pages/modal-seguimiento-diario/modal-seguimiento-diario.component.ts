@@ -95,6 +95,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: [0, [Validators.required, Validators.min(0)]],
       mortalidadM: [0, [Validators.required, Validators.min(0)]],
       selH: [0, [Validators.required, Validators.min(0)]],
+      selM: [0, [Validators.required, Validators.min(0)]],
       // Nuevos campos para tipo de ítem
       tipoItemHembras: [null],
       tipoItemMachos: [null],
@@ -181,6 +182,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: 0,
       mortalidadM: 0,
       selH: 0,
+      selM: 0,
       consumoHembras: 0,
       unidadConsumoHembras: 'kg',
       consumoMachos: 0,
@@ -248,6 +250,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: this.editingSeguimiento.mortalidadH,
       mortalidadM: this.editingSeguimiento.mortalidadM,
       selH: this.editingSeguimiento.selH || 0,
+      selM: (this.editingSeguimiento as any).selM || 0,
       consumoHembras: consumoHembrasDisplay,
       unidadConsumoHembras: unidadConsumoOriginalHembras === 'kg' && consumoOriginalHembras < 1 ? 'g' : unidadConsumoOriginalHembras,
       consumoMachos: consumoMachosDisplay,
@@ -332,6 +335,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadH: Number(raw.mortalidadH) || 0,
       mortalidadM: Number(raw.mortalidadM) || 0,
       selH: Number(raw.selH) || 0,
+      selM: Number(raw.selM) || 0,
       consumoH: Number(raw.consumoHembras) || 0,
       unidadConsumoH: raw.unidadConsumoHembras || 'kg',
       consumoM: Number(raw.consumoMachos) || 0,
@@ -379,13 +383,20 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     const hembras = Number(this.form.get('mortalidadH')?.value) || 0;
     const machos = Number(this.form.get('mortalidadM')?.value) || 0;
     const selH = Number(this.form.get('selH')?.value) || 0;
-    return hembras + machos + selH;
+    const selM = Number(this.form.get('selM')?.value) || 0;
+    return hembras + machos + selH + selM;
   }
 
   getTotalRetiradasHembras(): number {
     const hembras = Number(this.form.get('mortalidadH')?.value) || 0;
     const selH = Number(this.form.get('selH')?.value) || 0;
     return hembras + selH;
+  }
+
+  getTotalRetiradasMachos(): number {
+    const machos = Number(this.form.get('mortalidadM')?.value) || 0;
+    const selM = Number(this.form.get('selM')?.value) || 0;
+    return machos + selM;
   }
 
   getTotalConsumo(): number {

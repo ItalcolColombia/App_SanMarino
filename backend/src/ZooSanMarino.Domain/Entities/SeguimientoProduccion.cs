@@ -10,6 +10,7 @@ public class SeguimientoProduccion
     public int MortalidadH { get; set; }
     public int MortalidadM { get; set; }
     public int SelH { get; set; }
+    public int SelM { get; set; }
     
     public decimal ConsKgH { get; set; }
     public decimal ConsKgM { get; set; }

@@ -91,6 +91,10 @@
             <div class="detail-value highlight">{{ seguimiento.mortalidadM }}</div>
           </div>
           <div class="detail-field">
+            <label>SelM (Retiradas)</label>
+            <div class="detail-value highlight">{{ seguimiento.selM }}</div>
+          </div>
+          <div class="detail-field">
             <label>Consumo (ConsKgM) - kg</label>
             <div class="detail-value highlight">{{ seguimiento.consKgM | number:'1.2-2' }} kg</div>
           </div>
@@ -105,8 +109,8 @@
             <h4>Resumen Machos</h4>
             <div class="summary-stats">
               <div class="stat">
-                <span class="stat-label">Mortalidad</span>
-                <span class="stat-value">{{ seguimiento.mortalidadM }}</span>
+                <span class="stat-label">Total Retiradas</span>
+                <span class="stat-value">{{ seguimiento.mortalidadM + seguimiento.selM }}</span>
               </div>
               <div class="stat">
                 <span class="stat-label">Consumo</span>
