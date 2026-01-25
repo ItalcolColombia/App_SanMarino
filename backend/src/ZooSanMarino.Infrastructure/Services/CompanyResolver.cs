@@ -22,9 +22,11 @@ public class CompanyResolver : ICompanyResolver
         if (string.IsNullOrWhiteSpace(companyName))
             return null;
 
+        var name = companyName.Trim();
         var company = await _context.Companies
             .AsNoTracking()
-            .Where(c => c.Name == companyName)
+            // Comparación case-insensitive (evita fallos por mayúsculas/minúsculas desde el storage)
+            .Where(c => EF.Functions.ILike(c.Name, name))
             .Select(c => new { c.Id })
             .FirstOrDefaultAsync();
 
@@ -36,9 +38,10 @@ public class CompanyResolver : ICompanyResolver
         if (string.IsNullOrWhiteSpace(companyName))
             return null;
 
+        var name = companyName.Trim();
         var company = await _context.Companies
             .AsNoTracking()
-            .Where(c => c.Name == companyName)
+            .Where(c => EF.Functions.ILike(c.Name, name))
             .Select(c => new CompanyDto(
                 c.Id,
                 c.Name,
@@ -63,9 +66,10 @@ public class CompanyResolver : ICompanyResolver
         if (string.IsNullOrWhiteSpace(companyName))
             return false;
 
+        var name = companyName.Trim();
         return await _context.Companies
             .AsNoTracking()
-            .AnyAsync(c => c.Name == companyName);
+            .AnyAsync(c => EF.Functions.ILike(c.Name, name));
     }
 
     public async Task<IEnumerable<CompanyDto>> GetCompaniesForUserAsync(int userId)

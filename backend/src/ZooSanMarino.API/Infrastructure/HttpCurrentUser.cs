@@ -68,6 +68,14 @@ public sealed class HttpCurrentUser : ICurrentUser
             var paisClaim = http.User.FindFirst("pais_id") ?? http.User.FindFirst("paisId");
 
             int.TryParse(companyClaim?.Value, out var cid);
+
+            // Si el middleware resolvió CompanyId efectivo por empresa activa, usarlo
+            if (http.Items.TryGetValue(ActiveCompanyMiddleware.EffectiveCompanyIdItemKey, out var effObj) &&
+                effObj is int effCid &&
+                effCid > 0)
+            {
+                cid = effCid;
+            }
             
             // Si no hay PaisId en el header, intentar del claim
             if (!PaisId.HasValue && paisClaim != null)
@@ -84,7 +92,17 @@ public sealed class HttpCurrentUser : ICurrentUser
         else
         {
             // Fallback para dev/local si no hay token
-            CompanyId = TryGetEnvInt("DEFAULT_COMPANY_ID", 1);
+            var fallbackCid = TryGetEnvInt("DEFAULT_COMPANY_ID", 1);
+            // Si el middleware resolvió CompanyId efectivo por empresa activa, usarlo también en dev
+            if (http?.Items != null &&
+                http.Items.TryGetValue(ActiveCompanyMiddleware.EffectiveCompanyIdItemKey, out var effObj) &&
+                effObj is int effCid &&
+                effCid > 0)
+            {
+                fallbackCid = effCid;
+            }
+
+            CompanyId = fallbackCid;
             UserId    = TryGetEnvInt("DEFAULT_USER_ID", 0);
             if (!PaisId.HasValue)
                 PaisId = TryGetEnvInt("DEFAULT_PAIS_ID", null);

@@ -527,6 +527,10 @@ app.UseSwaggerUI(c =>
 // Routing, CORS y SECRET_UP ya fueron configurados arriba (líneas 350-357)
 
 app.UseAuthentication();
+
+// Resuelve CompanyId efectivo desde X-Active-Company para toda la app
+app.UseMiddleware<ZooSanMarino.API.Infrastructure.ActiveCompanyMiddleware>();
+
 app.UseAuthorization();
 
 // Health
