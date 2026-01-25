@@ -43,7 +43,9 @@
           <th colspan="3" class="header-group-main">Consumo</th>
           <th rowspan="2" class="header-group-main">Conv. Alimenticia</th>
           <th colspan="2" class="header-group-main">Ganancia</th>
-          <th colspan="3" class="header-group-main">Mortalidad & Selección</th>
+          <th colspan="3" class="header-group-main">Peso (Real vs Tabla)</th>
+          <th colspan="2" class="header-group-main">Uniformidad (Real vs Tabla)</th>
+          <th colspan="4" class="header-group-main">Mortalidad & Selección</th>
           <th rowspan="2" class="header-group-indicadores">Eficiencia</th>
           <th rowspan="2" class="header-group-indicadores">IP</th>
           <th rowspan="2" class="header-group-indicadores">VPI</th>
@@ -60,14 +62,20 @@
           <th class="header-sub">Real Total Semana (g)</th>
           <th class="header-sub">Semana (g)</th>
           <th class="header-sub">Diaria (g/día)</th>
+          <th class="header-sub">Real (g)</th>
+          <th class="header-sub">Tabla (g)</th>
+          <th class="header-sub">Dif (%)</th>
+          <th class="header-sub">Real (%)</th>
+          <th class="header-sub">Tabla (%)</th>
           <th class="header-sub">Mortalidad (%)</th>
+          <th class="header-sub">Tabla (%)</th>
           <th class="header-sub">Selección (%)</th>
           <th class="header-sub">Error Sexaje (%)</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngIf="!indicadoresSemanales || indicadoresSemanales.length === 0">
-          <td colspan="21" class="empty-state">
+          <td colspan="28" class="empty-state">
             <div class="empty-illustration" aria-hidden="true">📊</div>
             <p>No hay datos de indicadores disponibles.</p>
           </td>
@@ -99,26 +107,32 @@
           </td>
           <td>{{ formatNumber(ind.conversionAlimenticia, 2) }}</td>
           <td class="ganancia-semana" 
-              [class]="'ganancia-' + validarGanancia(ind.gananciaSemana, ind.semana).tipo">
+              [class]="'ganancia-' + validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).tipo">
             {{ formatNumber(ind.gananciaSemana, 2) }}
             <span class="alert-icon" 
-                  [title]="validarGanancia(ind.gananciaSemana, ind.semana).mensaje"
-                  *ngIf="!validarGanancia(ind.gananciaSemana, ind.semana).esValido">
+                  [title]="validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).mensaje"
+                  *ngIf="!validarGanancia(ind.gananciaSemana, ind.semana, ind.gananciaTabla).esValido">
               ⚠️
             </span>
           </td>
           <td>{{ formatNumber(ind.gananciaDiariaAcumulada, 2) }}</td>
           <td class="mortalidad-semana" 
-              [class]="'mortalidad-' + validarMortalidad(ind.mortalidadSem, ind.semana).tipo">
+              [class]="'mortalidad-' + validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).tipo">
             {{ formatPercentage(ind.mortalidadSem) }}
             <span class="alert-icon" 
-                  [title]="validarMortalidad(ind.mortalidadSem, ind.semana).mensaje"
-                  *ngIf="!validarMortalidad(ind.mortalidadSem, ind.semana).esValido">
+                  [title]="validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).mensaje"
+                  *ngIf="!validarMortalidad(ind.mortalidadSem, ind.semana, ind.mortTabla).esValido">
               ⚠️
             </span>
           </td>
+          <td>{{ formatPercentage(ind.mortTabla) }}</td>
           <td>{{ formatPercentage(ind.seleccionSem) }}</td>
           <td>{{ formatPercentage(ind.errorSexajeSem) }}</td>
+          <td>{{ formatNumber(ind.pesoCierre, 0) }}</td>
+          <td>{{ formatNumber(ind.pesoTabla, 0) }}</td>
+          <td>{{ formatPercentage(ind.difPesoPct, 1) }}</td>
+          <td>{{ formatPercentage(ind.unifReal, 1) }}</td>
+          <td>{{ formatPercentage(ind.unifTabla, 1) }}</td>
           <td>{{ formatNumber(ind.eficiencia, 2) }}</td>
           <td>{{ formatNumber(ind.ip, 2) }}</td>
           <td>{{ formatNumber(ind.vpi, 2) }}</td>

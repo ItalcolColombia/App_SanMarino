@@ -20,6 +20,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   loadingIndicadores = false;
   tieneDatosGuiaGenetica = false;
   error: string | null = null;
+  expanded = new Set<number>(); // semanas expandidas para detalle clasificadora
 
   constructor(private produccionService: ProduccionService) { }
 
@@ -115,6 +116,30 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     } else {
       return { clase: 'estado-problema', texto: 'Requiere atención' };
     }
+  }
+
+  toggleExpanded(semana: number): void {
+    if (this.expanded.has(semana)) this.expanded.delete(semana);
+    else this.expanded.add(semana);
+  }
+
+  isExpanded(semana: number): boolean {
+    return this.expanded.has(semana);
+  }
+
+  // Consumo real g/ave/día (para mostrar siempre, con fallback seguro)
+  consumoRealGrAveDiaH(ind: IndicadorProduccionSemanalDto): number | null {
+    const aves = ind.avesHembrasInicioSemana || 0;
+    const dias = ind.totalRegistros || 0;
+    if (!aves || !dias) return null;
+    return Number((ind.consumoKgHembras * 1000) / (dias * aves));
+  }
+
+  consumoRealGrAveDiaM(ind: IndicadorProduccionSemanalDto): number | null {
+    const aves = ind.avesMachosInicioSemana || 0;
+    const dias = ind.totalRegistros || 0;
+    if (!aves || !dias) return null;
+    return Number((ind.consumoKgMachos * 1000) / (dias * aves));
   }
 
   calcularEtapa(semana: number): string {

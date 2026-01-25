@@ -2,7 +2,8 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChange
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto, ProduccionLoteDetalleDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
-import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
+// Usar versión "components" que trae indicadores desde backend en 1 sola petición
+import { TablaListaIndicadoresComponent } from '../../components/tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 
 @Component({

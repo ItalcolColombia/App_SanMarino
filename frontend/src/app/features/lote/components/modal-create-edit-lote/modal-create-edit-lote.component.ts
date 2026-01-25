@@ -524,7 +524,16 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   private resetForm(): void {
     this.form.reset();
     // Inicializar campo de prueba
-    this.form.patchValue({ campoPrueba: 'Campo de prueba inicializado' });
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const todayIsoDate = `${yyyy}-${mm}-${dd}`; // para <input type="date">
+
+    this.form.patchValue({
+      campoPrueba: 'Campo de prueba inicializado',
+      fechaEncaset: todayIsoDate
+    });
     this.nucleosFiltrados = [];
     this.galponesFiltrados = [];
     this.filteredNucleos = [];

@@ -1,8 +1,9 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
-import { GuiaGeneticaService } from '../../../../services/guia-genetica.service';
+import { GuiaGeneticaDto, GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 
 interface IndicadorSemanal {
   semana: number;
@@ -21,9 +22,16 @@ interface IndicadorSemanal {
   consumoTabla: number; // Consumo esperado de tabla (g/ave/día)
   consumoTotalSemana: number; // Consumo total de la semana en gramos
   conversionAlimenticia: number;
+  // Guía genética / comparativos
+  pesoTabla: number; // peso esperado tabla (promedio H/M)
+  unifReal: number; // uniformidad real (promedio H/M del último registro)
+  unifTabla: number; // uniformidad esperada tabla
+  mortTabla: number; // mortalidad esperada tabla (promedio H/M)
+  difPesoPct: number; // diferencia % vs tabla (peso)
   // Ganancia
   gananciaSemana: number;
   gananciaDiariaAcumulada: number;
+  gananciaTabla: number; // ganancia esperada según tabla (pesoTabla - pesoTablaAnterior)
   // Mortalidad & Selección
   mortalidadSem: number;
   seleccionSem: number;
@@ -42,6 +50,7 @@ interface IndicadorSemanal {
   pesoInicial: number;
   pesoCierre: number;
   pesoAnterior: number;
+  pesoTablaAnterior: number;
   observaciones?: string | null; // Observaciones de la semana (del último registro)
 }
 
@@ -64,8 +73,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   mostrarFormulas: boolean = false;
   
   // Control de peticiones secuenciales
-  private peticionesEnCola: boolean = false;
-  private cacheGuiaGenetica: Map<string, any> = new Map();
+  private cacheGuiaRango: Map<string, Map<number, GuiaGeneticaDto>> = new Map();
+  private guiaRangoKeyActual: string | null = null;
 
   constructor(private guiaGeneticaService: GuiaGeneticaService) { }
 
@@ -80,8 +89,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       // Limpiar cache cuando cambie el lote
       if (changes['selectedLote']) {
         console.log('🔄 Lote cambiado, limpiando cache...');
-        this.cacheGuiaGenetica.clear();
-        this.peticionesEnCola = false;
+        this.cacheGuiaRango.clear();
+        this.guiaRangoKeyActual = null;
       }
       
       this.calcularIndicadores().catch(error => {
@@ -99,6 +108,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
 
     // Agrupar registros por semana
     const registrosPorSemana = this.agruparPorSemana(this.seguimientos);
+
+    // Prefetch guía genética en UNA sola petición (rango 1..25)
+    const semanas = Array.from(registrosPorSemana.keys());
+    const minSemana = semanas.length ? Math.max(1, Math.min(...semanas)) : 1;
+    const maxSemana = semanas.length ? Math.min(25, Math.max(...semanas)) : 25;
+    await this.prefetchGuiaGeneticaRango(minSemana, maxSemana);
     
     // Calcular indicadores para cada semana
     this.indicadoresSemanales = await this.calcularIndicadoresSemanales(registrosPorSemana);
@@ -113,6 +128,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     
     registros.forEach(registro => {
       const semana = this.calcularSemana(registro.fechaRegistro);
+      // Levante normal: solo semanas 1..25 (no tiene sentido consultar guía fuera de rango)
+      if (semana < 1 || semana > 25) return;
       if (!grupos.has(semana)) {
         grupos.set(semana, []);
       }
@@ -146,9 +163,9 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     let mortalidadAcumulada = 0;
     let seleccionAcumulada = 0;
     let pesoAnterior = this.selectedLote?.pesoInicialH || 0;
+    let pesoTablaAnterior = 0;
 
-    // 🔧 CONTROL SECUENCIAL: Procesar semanas una por una para evitar colisiones
-    console.log(`🔄 Procesando ${semanas.length} semanas secuencialmente...`);
+    console.log(`🔄 Procesando ${semanas.length} semanas...`);
     
     for (let i = 0; i < semanas.length; i++) {
       const semana = semanas[i];
@@ -156,13 +173,15 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       
       console.log(`📊 Procesando semana ${semana} (${i + 1}/${semanas.length})...`);
       
-      // Esperar a que termine la petición anterior antes de continuar
-      if (this.peticionesEnCola) {
-        console.log(`⏳ Esperando que termine la petición anterior...`);
-        await this.esperarPeticionAnterior();
-      }
-      
-      const indicador = await this.calcularIndicadorSemana(semana, registros, avesAcumuladas, mortalidadAcumulada, seleccionAcumulada, pesoAnterior);
+      const indicador = await this.calcularIndicadorSemana(
+        semana,
+        registros,
+        avesAcumuladas,
+        mortalidadAcumulada,
+        seleccionAcumulada,
+        pesoAnterior,
+        pesoTablaAnterior
+      );
       
       indicadores.push(indicador);
       
@@ -171,6 +190,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       mortalidadAcumulada += indicador.mortalidadSem;
       seleccionAcumulada += indicador.seleccionSem;
       pesoAnterior = indicador.pesoCierre;
+      pesoTablaAnterior = indicador.pesoTabla;
       
       console.log(`✅ Semana ${semana} procesada exitosamente`);
     }
@@ -185,7 +205,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     avesInicio: number,
     mortalidadAcum: number,
     seleccionAcum: number,
-    pesoAnterior: number
+    pesoAnterior: number,
+    pesoTablaAnterior: number
   ): Promise<IndicadorSemanal> {
     // Calcular totales de la semana
     const mortalidadTotal = registros.reduce((sum, r) => sum + (r.mortalidadHembras || 0) + (r.mortalidadMachos || 0), 0);
@@ -198,6 +219,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     // Peso promedio de la semana (usar el último registro de la semana)
     const ultimoRegistro = registros[registros.length - 1];
     const pesoPromedio = ((ultimoRegistro?.pesoPromH || 0) + (ultimoRegistro?.pesoPromM || 0)) / 2;
+    const unifReal = ((ultimoRegistro?.uniformidadH || 0) + (ultimoRegistro?.uniformidadM || 0)) / 2;
     
     // 🔧 MEJORA: Consumo real en gramos (convertir de kg a gramos)
     const consumoTotalGramos = consumoTotal * 1000;
@@ -211,8 +233,13 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       ? consumoTotalGramos / (avesPromedio * diasConRegistro) 
       : 0;
     
+    // Guía genética (levante normal: hasta semana 25, sin indicadores de huevos)
+    const guia = await this.obtenerGuiaSemana(semana);
+
     // 🔧 MEJORA: Consumo tabla (valor de referencia de guía genética) - ya viene en g/ave/día
-    const consumoTablaPorAve = await this.obtenerConsumoTabla(semana);
+    const consumoTablaPorAve = guia
+      ? (guia.consumoHembras + guia.consumoMachos) / 2
+      : await this.obtenerConsumoTabla(semana);
     
     // 🔧 MEJORA: Conversión alimenticia (FCR) - Consumo total por ave / Ganancia por ave
     const gananciaSemana = pesoPromedio - pesoAnterior;
@@ -221,6 +248,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     
     // 🔧 MEJORA: Ganancia diaria acumulada
     const gananciaDiariaAcumulada = gananciaSemana / 7;
+
+    // Tabla: peso esperado y ganancia esperada
+    const pesoTabla = guia ? (guia.pesoHembras + guia.pesoMachos) / 2 : 0;
+    const unifTabla = guia ? (guia.uniformidad ?? 0) : 0;
+    const mortTabla = guia ? (guia.mortalidadHembras + guia.mortalidadMachos) / 2 : 0;
+    const gananciaTabla = (pesoTabla > 0 && pesoTablaAnterior > 0) ? (pesoTabla - pesoTablaAnterior) : 0;
     
     // Error de sexaje total de la semana
     const errorSexajeTotal = registros.reduce((sum, r) => sum + (r.errorSexajeHembras || 0) + (r.errorSexajeMachos || 0), 0);
@@ -250,7 +283,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     const mortalidadMasSeleccionAcumTotal = mortalidadAcumTotal + seleccionAcumTotal;
     
     // 🔧 MEJORA: Piso térmico desde guía genética
-    const pisoTermicoVisible = await this.obtenerPisoTermico(semana);
+    const pisoTermicoVisible = guia ? !!guia.pisoTermicoRequerido : await this.obtenerPisoTermico(semana);
     
     // Información del lote (del selectedLote)
     const region = this.selectedLote?.regional || null;
@@ -261,6 +294,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     // Observaciones del último registro de la semana
     const observaciones = ultimoRegistro?.observaciones || null;
 
+    // Diferencias vs tabla
+    const difPesoPct = pesoTabla > 0 ? ((pesoPromedio - pesoTabla) / pesoTabla) * 100 : 0;
+
+    // Nota: pesoTablaAnterior / gananciaTabla se setean en el loop principal (semanal)
     return {
       semana,
       fechaInicio: this.obtenerFechaInicioSemana(semana),
@@ -275,8 +312,14 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       consumoTabla: consumoTablaPorAve, // Consumo esperado de tabla (g/ave/día)
       consumoTotalSemana: consumoTotalGramos, // 🔧 NUEVO: Consumo total de la semana en gramos
       conversionAlimenticia,
+      pesoTabla,
+      unifReal,
+      unifTabla,
+      mortTabla,
+      difPesoPct,
       gananciaSemana,
       gananciaDiariaAcumulada,
+      gananciaTabla,
       mortalidadSem,
       seleccionSem,
       errorSexajeSem, // 🔧 NUEVO: Error de sexaje semanal (%)
@@ -292,6 +335,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       pesoInicial: pesoAnterior,
       pesoCierre: pesoPromedio,
       pesoAnterior,
+      pesoTablaAnterior,
       observaciones
     };
   }
@@ -448,84 +492,87 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
    * Obtiene datos completos de la guía genética para una semana
    */
   private async obtenerDatosCompletosGuia(semana: number): Promise<any> {
+    return await this.obtenerGuiaSemana(semana);
+  }
+
+  private async obtenerGuiaSemana(semana: number): Promise<GuiaGeneticaDto | null> {
+    // Levante normal: semanas 1..25 (sin registro de huevos)
+    if (semana < 1 || semana > 25) return null;
+
     if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) {
       return null;
     }
 
+    const raza = this.selectedLote.raza;
+    const ano = this.selectedLote.anoTablaGenetica;
+    const key = `${raza}-${ano}`;
+    const map = this.cacheGuiaRango.get(key);
+    if (!map) return null;
+    return map.get(semana) ?? null;
+  }
+
+  private async prefetchGuiaGeneticaRango(desde: number, hasta: number): Promise<void> {
+    // Solo aplica a levante normal
+    const desdeClamped = Math.max(1, Math.min(25, desde));
+    const hastaClamped = Math.max(1, Math.min(25, hasta));
+    if (hastaClamped < desdeClamped) return;
+
+    if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) return;
+
+    const raza = this.selectedLote.raza;
+    const ano = this.selectedLote.anoTablaGenetica;
+    const key = `${raza}-${ano}`;
+
+    // Evitar pedir varias veces si ya tenemos el rango para ese lote
+    if (this.guiaRangoKeyActual === key && this.cacheGuiaRango.has(key)) return;
+
     try {
-      const response = await this.guiaGeneticaService.obtenerGuiaGenetica(
-        this.selectedLote.raza,
-        this.selectedLote.anoTablaGenetica,
-        semana
-      ).toPromise();
+      const rows = await firstValueFrom(
+        this.guiaGeneticaService.obtenerGuiaGeneticaRango(raza, ano, desdeClamped, hastaClamped)
+      );
 
-      return response?.datos || null;
+      const map = new Map<number, GuiaGeneticaDto>();
+      for (const r of rows || []) {
+        if (typeof r?.edad === 'number') map.set(r.edad, r);
+      }
+
+      this.cacheGuiaRango.set(key, map);
+      this.guiaRangoKeyActual = key;
+      console.log(`✅ Guía genética precargada: ${key} (semanas ${desdeClamped}-${hastaClamped})`);
     } catch (error) {
-      console.error(`Error obteniendo datos completos de guía genética para semana ${semana}:`, error);
-      return null;
+      console.error('❌ Error precargando guía genética por rango:', error);
+      this.cacheGuiaRango.set(key, new Map());
+      this.guiaRangoKeyActual = key;
     }
-  }
-
-  // ================== CONTROL DE PETICIONES SECUENCIALES ==================
-  private async esperarPeticionAnterior(): Promise<void> {
-    return new Promise((resolve) => {
-      const checkInterval = setInterval(() => {
-        if (!this.peticionesEnCola) {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 100); // Verificar cada 100ms
-    });
-  }
-
-  private generarClaveCache(raza: string, anoTabla: number, edad: number): string {
-    return `${raza}-${anoTabla}-${edad}`;
   }
 
   // ================== HELPERS DE CONSUMO TABLA ==================
   private async obtenerConsumoTabla(semana: number): Promise<number> {
-    // 🔧 MEJORA: Obtener consumo de la guía genética real con cache y control secuencial
+    if (semana < 1 || semana > 25) {
+      // Fuera de levante: no consultar guía genética
+      return this.obtenerConsumoPorDefecto(Math.min(Math.max(semana, 1), 16));
+    }
+
+    const guia = await this.obtenerGuiaSemana(semana);
+    if (guia) {
+      return (guia.consumoHembras + guia.consumoMachos) / 2;
+    }
+
+    // fallback
     if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) {
       return this.obtenerConsumoPorDefecto(semana);
     }
 
-    const claveCache = this.generarClaveCache(this.selectedLote.raza, this.selectedLote.anoTablaGenetica, semana);
-    
-    // Verificar cache primero
-    if (this.cacheGuiaGenetica.has(claveCache)) {
-      console.log(`📋 Cache hit para semana ${semana}`);
-      const datosCache = this.cacheGuiaGenetica.get(claveCache);
-      return (datosCache.consumoHembras + datosCache.consumoMachos) / 2;
-    }
-
     try {
-      // Marcar que hay una petición en curso
-      this.peticionesEnCola = true;
-      console.log(`🌐 Petición a API para semana ${semana}...`);
-      
       const consumoEsperado = await this.guiaGeneticaService.obtenerConsumoEsperado(
         this.selectedLote.raza,
         this.selectedLote.anoTablaGenetica,
         semana
       );
-
-      // Guardar en cache
-      if (consumoEsperado > 0) {
-        this.cacheGuiaGenetica.set(claveCache, {
-          consumoHembras: consumoEsperado,
-          consumoMachos: consumoEsperado,
-          semana: semana
-        });
-        console.log(`💾 Datos guardados en cache para semana ${semana}`);
-      }
-
-      // Marcar que la petición terminó
-      this.peticionesEnCola = false;
       
       return consumoEsperado > 0 ? consumoEsperado : this.obtenerConsumoPorDefecto(semana);
     } catch (error) {
       console.error(`❌ Error obteniendo consumo de guía genética para semana ${semana}:`, error);
-      this.peticionesEnCola = false;
       return this.obtenerConsumoPorDefecto(semana);
     }
   }
@@ -555,18 +602,17 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   private async obtenerPisoTermico(semana: number): Promise<boolean> {
-    // 🔧 MEJORA: Obtener piso térmico de la guía genética real con cache
-    if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) {
-      return semana <= 3; // Valor por defecto
+    if (semana < 1 || semana > 25) {
+      // Fuera de levante: no consultar guía genética
+      return false;
     }
 
-    const claveCache = this.generarClaveCache(this.selectedLote.raza, this.selectedLote.anoTablaGenetica, semana);
-    
-    // Verificar cache primero
-    if (this.cacheGuiaGenetica.has(claveCache)) {
-      console.log(`📋 Cache hit para piso térmico semana ${semana}`);
-      const datosCache = this.cacheGuiaGenetica.get(claveCache);
-      return datosCache.pisoTermicoRequerido || semana <= 3;
+    const guia = await this.obtenerGuiaSemana(semana);
+    if (guia) return !!guia.pisoTermicoRequerido;
+
+    // fallback
+    if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) {
+      return semana <= 3; // Valor por defecto
     }
 
     try {
@@ -575,12 +621,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
         this.selectedLote.anoTablaGenetica,
         semana
       );
-
-      // Guardar en cache
-      this.cacheGuiaGenetica.set(claveCache, {
-        ...this.cacheGuiaGenetica.get(claveCache),
-        pisoTermicoRequerido: requierePisoTermico
-      });
 
       return requierePisoTermico;
     } catch (error) {
@@ -626,11 +666,23 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     }
   }
 
-  validarGanancia(gananciaSemana: number, semana: number): { 
+  validarGanancia(gananciaSemana: number, semana: number, gananciaTabla?: number): { 
     esValido: boolean; 
     mensaje: string; 
     tipo: 'success' | 'warning' | 'error' 
   } {
+    if (gananciaTabla && gananciaTabla > 0) {
+      const diff = gananciaSemana - gananciaTabla;
+      const pct = (Math.abs(diff) / gananciaTabla) * 100;
+      if (pct <= 10) {
+        return { esValido: true, mensaje: `Ganancia vs tabla OK (${pct.toFixed(1)}%)`, tipo: 'success' };
+      }
+      if (pct <= 25) {
+        return { esValido: false, mensaje: `Ganancia difiere de tabla (${pct.toFixed(1)}%)`, tipo: 'warning' };
+      }
+      return { esValido: false, mensaje: `Ganancia muy diferente a tabla (${pct.toFixed(1)}%)`, tipo: 'error' };
+    }
+
     // Rangos de ganancia esperada según la edad
     const gananciaEsperadaPorSemana: { [key: number]: { min: number; max: number; ideal: number } } = {
       1: { min: 8, max: 15, ideal: 12 },   // Semana 1: 8-15g/día, ideal 12g
@@ -683,11 +735,23 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     }
   }
 
-  validarMortalidad(mortalidadSemana: number, semana: number): { 
+  validarMortalidad(mortalidadSemana: number, semana: number, mortalidadTabla?: number): { 
     esValido: boolean; 
     mensaje: string; 
     tipo: 'success' | 'warning' | 'error' 
   } {
+    if (mortalidadTabla && mortalidadTabla > 0) {
+      const diff = mortalidadSemana - mortalidadTabla;
+      const pct = (Math.abs(diff) / mortalidadTabla) * 100;
+      if (pct <= 15) {
+        return { esValido: true, mensaje: `Mortalidad vs tabla OK (${pct.toFixed(1)}%)`, tipo: 'success' };
+      }
+      if (pct <= 40) {
+        return { esValido: false, mensaje: `Mortalidad difiere de tabla (${pct.toFixed(1)}%)`, tipo: 'warning' };
+      }
+      return { esValido: false, mensaje: `Mortalidad muy diferente a tabla (${pct.toFixed(1)}%)`, tipo: 'error' };
+    }
+
     // Mortalidad esperada según la edad (porcentaje semanal)
     const mortalidadEsperadaPorSemana: { [key: number]: { min: number; max: number; ideal: number } } = {
       1: { min: 0.1, max: 0.5, ideal: 0.3 },   // Semana 1: 0.1-0.5%, ideal 0.3%
