@@ -436,6 +436,10 @@ export interface ReporteTecnicoDiarioMachosDto {
   errorSexajeMachosAcumulado: number;
   errorSexajeMachosPorcentajeDiario: number;
   errorSexajeMachosPorcentajeAcumulado: number;
+  descarteMachos: number;
+  descarteMachosAcumulado: number;
+  descarteMachosPorcentajeDiario: number;
+  descarteMachosPorcentajeAcumulado: number;
   consumoKgMachos: number;
   consumoKgMachosAcumulado: number;
   consumoGramosPorAveMachos: number;
@@ -471,6 +475,10 @@ export interface ReporteTecnicoDiarioHembrasDto {
   errorSexajeHembrasAcumulado: number;
   errorSexajeHembrasPorcentajeDiario: number;
   errorSexajeHembrasPorcentajeAcumulado: number;
+  descarteHembras: number;
+  descarteHembrasAcumulado: number;
+  descarteHembrasPorcentajeDiario: number;
+  descarteHembrasPorcentajeAcumulado: number;
   consumoKgHembras: number;
   consumoKgHembrasAcumulado: number;
   consumoGramosPorAveHembras: number;

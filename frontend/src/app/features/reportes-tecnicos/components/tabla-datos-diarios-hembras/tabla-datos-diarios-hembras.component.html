@@ -95,10 +95,10 @@
           <td class="text-right">{{ formatNumber(dato.errorSexajeHembrasPorcentajeDiario) }}%</td>
           <td class="text-right">{{ formatNumber(dato.errorSexajeHembrasPorcentajeAcumulado) }}%</td>
           
-          <!-- Descarte (Selección Hembras) -->
-          <td class="text-right">{{ dato.seleccionHembras }}</td>
-          <td class="text-right">{{ formatNumber(dato.seleccionHembrasPorcentajeDiario) }}%</td>
-          <td class="text-right">{{ formatNumber(dato.seleccionHembrasPorcentajeAcumulado) }}%</td>
+          <!-- Descarte (Selección + Error Sexaje) -->
+          <td class="text-right">{{ dato.descarteHembras }}</td>
+          <td class="text-right">{{ formatNumber(dato.descarteHembrasPorcentajeDiario) }}%</td>
+          <td class="text-right">{{ formatNumber(dato.descarteHembrasPorcentajeAcumulado) }}%</td>
           
           <!-- Consumido Alimento -->
           <td class="text-right">{{ formatNumber(calcularConsumoBultos(dato.consumoKgHembras), 3) }}</td>
