@@ -166,6 +166,12 @@ public class ReporteTecnicoDiarioMachosDto
     public decimal ErrorSexajeMachosPorcentajeDiario { get; set; }
     public decimal ErrorSexajeMachosPorcentajeAcumulado { get; set; }
     
+    // ========== DESCARTE (Selección + Error Sexaje) ==========
+    public int DescarteMachos { get; set; } // Selección + Error Sexaje
+    public int DescarteMachosAcumulado { get; set; }
+    public decimal DescarteMachosPorcentajeDiario { get; set; }
+    public decimal DescarteMachosPorcentajeAcumulado { get; set; }
+    
     // ========== CONSUMO DE ALIMENTO ==========
     public decimal ConsumoKgMachos { get; set; } // Consumo diario en kg
     public decimal ConsumoKgMachosAcumulado { get; set; } // Consumo acumulado en kg
@@ -225,6 +231,12 @@ public class ReporteTecnicoDiarioHembrasDto
     public int ErrorSexajeHembrasAcumulado { get; set; }
     public decimal ErrorSexajeHembrasPorcentajeDiario { get; set; }
     public decimal ErrorSexajeHembrasPorcentajeAcumulado { get; set; }
+    
+    // ========== DESCARTE (Selección + Error Sexaje) ==========
+    public int DescarteHembras { get; set; } // Selección + Error Sexaje
+    public int DescarteHembrasAcumulado { get; set; }
+    public decimal DescarteHembrasPorcentajeDiario { get; set; }
+    public decimal DescarteHembrasPorcentajeAcumulado { get; set; }
     
     // ========== CONSUMO DE ALIMENTO ==========
     public decimal ConsumoKgHembras { get; set; }

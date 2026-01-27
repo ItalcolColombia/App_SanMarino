@@ -1611,6 +1611,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
         var datosMachos = new List<ReporteTecnicoDiarioMachosDto>();
         decimal? pesoAnterior = null;
         
+        // Variables para acumular porcentajes (según fórmulas Excel)
+        decimal porcMortalidadAcumuladaAnterior = 0;
+        decimal porcSeleccionAcumuladaAnterior = 0;
+        decimal porcDescarteAcumuladaAnterior = 0;
+        decimal porcErrorSexajeAcumuladaAnterior = 0;
+        decimal consumoAcumuladoAnterior = 0;
+        
         foreach (var seg in seguimientos)
         {
             var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
@@ -1621,18 +1628,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 .Where(s => s.FechaRegistro <= seg.FechaRegistro)
                 .ToList();
             
-            // Calcular saldo actual de machos
+            // Calcular saldo actual de machos (aves_vivas)
+            // FÓRMULA EXCEL: aves_vivas = aves_vivas_anterior - mortalidad_diaria - seleccion_diaria - descarte_diaria
+            // Donde: seleccion_diaria = traslados, descarte_diaria = seleccion_normal + error_sexaje
             var machosActuales = machosIniciales;
-            var machosAntesMortalidad = machosIniciales; // Para calcular % mortalidad diario correctamente
             
             foreach (var reg in registrosHastaFecha)
             {
-                // Guardar aves antes de aplicar mortalidad del registro actual
-                if (reg.Id == seg.Id)
-                {
-                    machosAntesMortalidad = machosActuales;
-                }
-                
                 // Aplicar mortalidad
                 machosActuales -= reg.MortalidadMachos;
                 
@@ -1641,8 +1643,12 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var seleccionNormalReg = Math.Max(0, selMReg);
                 var trasladosReg = Math.Abs(Math.Min(0, selMReg));
                 
-                machosActuales -= seleccionNormalReg;
-                machosActuales -= trasladosReg;
+                // Descarte = selección normal + error de sexaje
+                var descarteReg = seleccionNormalReg + reg.ErrorSexajeMachos;
+                
+                // FÓRMULA EXCEL: aves_vivas = aves_vivas_anterior - mortalidad - seleccion (traslados) - descarte
+                machosActuales -= trasladosReg; // seleccion_diaria (traslados)
+                machosActuales -= descarteReg;  // descarte_diaria (seleccion_normal + error_sexaje)
             }
             
             // Calcular valores del día actual
@@ -1658,9 +1664,55 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var errorSexaje = seg.ErrorSexajeMachos;
             var errorSexajeAcumulado = registrosHastaFecha.Sum(s => s.ErrorSexajeMachos);
             
-            var consumo = (decimal)(seg.ConsumoKgMachos ?? 0);
-            var consumoAcumulado = registrosHastaFecha.Sum(s => (decimal)(s.ConsumoKgMachos ?? 0));
-            var consumoGramosPorAve = machosActuales > 0 ? (consumo * 1000) / machosActuales : 0;
+            // Descarte = selección + error de sexaje
+            var descarteDiaria = seleccionNormal + errorSexaje;
+            var descarteAcumulada = seleccionAcumulada + errorSexajeAcumulado;
+            
+            // FÓRMULAS SEGÚN EXCEL:
+            // porc_mortalidad_diaria = (mortalidad_diaria / total_inicial_aves) * 100
+            var porcMortalidadDiaria = machosIniciales > 0 
+                ? (decimal)mortalidad / machosIniciales * 100 
+                : 0;
+            
+            // porc_mortalidad_acumulada = porc_mortalidad_acumulada_anterior + porc_mortalidad_diaria
+            var porcMortalidadAcumulada = porcMortalidadAcumuladaAnterior + porcMortalidadDiaria;
+            
+            // porc_seleccion_diaria = (seleccion_diaria / total_inicial_aves) * 100
+            var porcSeleccionDiaria = machosIniciales > 0 
+                ? (decimal)seleccionNormal / machosIniciales * 100 
+                : 0;
+            
+            // porc_seleccion_acumulada = porc_seleccion_acumulada_anterior + porc_seleccion_diaria
+            var porcSeleccionAcumulada = porcSeleccionAcumuladaAnterior + porcSeleccionDiaria;
+            
+            // porc_descarte_diario = (descarte_diaria / total_inicial_aves) * 100
+            var porcDescarteDiario = machosIniciales > 0 
+                ? (decimal)descarteDiaria / machosIniciales * 100 
+                : 0;
+            
+            // porc_descarte_acumulada = porc_descarte_acumulada_anterior + porc_descarte_diario
+            var porcDescarteAcumulada = porcDescarteAcumuladaAnterior + porcDescarteDiario;
+            
+            // CONSUMO según fórmulas Excel:
+            // consumo_diario = consumo_semanal / 40 (en bultos, asumiendo 40kg por bulto)
+            // Nota: En el seguimiento tenemos consumo diario en kg, así que:
+            // consumo_diario_bultos = consumo_kg / 40
+            var consumoKg = (decimal)(seg.ConsumoKgMachos ?? 0);
+            var consumoDiarioBultos = consumoKg / 40;
+            
+            // consumo_acumulado = consumo_acumulado_anterior + consumo_semanal
+            // Nota: consumo_semanal en kg, así que acumulamos en kg
+            var consumoAcumulado = consumoAcumuladoAnterior + consumoKg;
+            
+            // consumo_por_ave = (consumo_diario * 40000) / aves_vivas
+            // consumo_diario está en bultos, entonces (bultos * 40000g) / aves = gramos por ave
+            var consumoGramosPorAve = machosActuales > 0 
+                ? (consumoDiarioBultos * 40000) / machosActuales 
+                : 0;
+            
+            // consumo_total_kg = (aves_vivas * consumo_unitario_gramos) / 1000
+            // consumo_unitario_gramos es el consumo por ave en gramos
+            var consumoTotalKg = (machosActuales * consumoGramosPorAve) / 1000;
             
             // Peso y ganancia
             var pesoActual = (decimal?)(seg.PesoPromM);
@@ -1672,15 +1724,19 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var kcalAl = seg.KcalAlH; // Mismo alimento para machos y hembras
             var protAl = seg.ProtAlH;
             var kcalAve = machosActuales > 0 && kcalAl.HasValue 
-                ? (kcalAl.Value * (double)consumo) / machosActuales 
+                ? (kcalAl.Value * (double)consumoKg) / machosActuales 
                 : (double?)null;
             var protAve = machosActuales > 0 && protAl.HasValue 
-                ? (protAl.Value * (double)consumo) / machosActuales 
+                ? (protAl.Value * (double)consumoKg) / machosActuales 
                 : (double?)null;
             
             // Ingresos y traslados de alimento
-            var ingresosAlimento = await ObtenerIngresosAlimentoAsync(lote.GranjaId, seg.FechaRegistro, ct);
-            var trasladosAlimento = await ObtenerTrasladosAlimentoAsync(lote.GranjaId, seg.FechaRegistro, ct);
+            var ingresosAlimento = granjaId > 0 
+                ? await ObtenerIngresosAlimentoAsync(granjaId, seg.FechaRegistro, ct) 
+                : 0;
+            var trasladosAlimento = granjaId > 0 
+                ? await ObtenerTrasladosAlimentoAsync(granjaId, seg.FechaRegistro, ct) 
+                : 0;
             
             var dto = new ReporteTecnicoDiarioMachosDto
             {
@@ -1690,32 +1746,42 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SaldoMachos = machosActuales,
                 MortalidadMachos = mortalidad,
                 MortalidadMachosAcumulada = mortalidadAcumulada,
-                MortalidadMachosPorcentajeDiario = machosAntesMortalidad > 0 
-                    ? (decimal)mortalidad / machosAntesMortalidad * 100 
-                    : 0,
-                MortalidadMachosPorcentajeAcumulado = machosIniciales > 0 
-                    ? (decimal)mortalidadAcumulada / machosIniciales * 100 
-                    : 0,
+                // FÓRMULA EXCEL: porc_mortalidad_diaria = (mortalidad_diaria / total_inicial_aves) * 100
+                MortalidadMachosPorcentajeDiario = porcMortalidadDiaria,
+                // FÓRMULA EXCEL: porc_mortalidad_acumulada = porc_mortalidad_acumulada_anterior + porc_mortalidad_diaria
+                MortalidadMachosPorcentajeAcumulado = porcMortalidadAcumulada,
                 SeleccionMachos = seleccionNormal,
                 SeleccionMachosAcumulada = seleccionAcumulada,
-                SeleccionMachosPorcentajeDiario = machosActuales > 0 
-                    ? (decimal)seleccionNormal / machosActuales * 100 
-                    : 0,
-                SeleccionMachosPorcentajeAcumulado = machosIniciales > 0 
-                    ? (decimal)seleccionAcumulada / machosIniciales * 100 
-                    : 0,
+                // FÓRMULA EXCEL: porc_seleccion_diaria = (seleccion_diaria / total_inicial_aves) * 100
+                SeleccionMachosPorcentajeDiario = porcSeleccionDiaria,
+                // FÓRMULA EXCEL: porc_seleccion_acumulada = porc_seleccion_acumulada_anterior + porc_seleccion_diaria
+                SeleccionMachosPorcentajeAcumulado = porcSeleccionAcumulada,
                 TrasladosMachos = traslados,
                 TrasladosMachosAcumulados = trasladosAcumulados,
                 ErrorSexajeMachos = errorSexaje,
                 ErrorSexajeMachosAcumulado = errorSexajeAcumulado,
-                ErrorSexajeMachosPorcentajeDiario = machosActuales > 0 
-                    ? (decimal)errorSexaje / machosActuales * 100 
+                // Error de sexaje también sobre total_inicial_aves
+                // porc_error_diario = (error_diario / total_inicial_aves) * 100
+                ErrorSexajeMachosPorcentajeDiario = machosIniciales > 0 
+                    ? (decimal)errorSexaje / machosIniciales * 100 
                     : 0,
-                ErrorSexajeMachosPorcentajeAcumulado = machosIniciales > 0 
-                    ? (decimal)errorSexajeAcumulado / machosIniciales * 100 
-                    : 0,
-                ConsumoKgMachos = consumo,
+                // porc_error_acumulado = porc_error_acumulado_anterior + porc_error_diario
+                ErrorSexajeMachosPorcentajeAcumulado = porcErrorSexajeAcumuladaAnterior + (machosIniciales > 0 
+                    ? (decimal)errorSexaje / machosIniciales * 100 
+                    : 0),
+                // DESCARTE (Selección + Error Sexaje)
+                DescarteMachos = descarteDiaria,
+                DescarteMachosAcumulado = descarteAcumulada,
+                // FÓRMULA EXCEL: porc_descarte_diario = (descarte_diaria / total_inicial_aves) * 100
+                DescarteMachosPorcentajeDiario = porcDescarteDiario,
+                // FÓRMULA EXCEL: porc_descarte_acumulada = porc_descarte_acumulada_anterior + porc_descarte_diario
+                DescarteMachosPorcentajeAcumulado = porcDescarteAcumulada,
+                // FÓRMULA EXCEL: consumo_diario = consumo_semanal / 40 (en bultos)
+                // Guardamos consumo en kg (consumoKg), pero el cálculo de gramos/ave usa la fórmula Excel
+                ConsumoKgMachos = consumoKg,
+                // FÓRMULA EXCEL: consumo_acumulado = consumo_acumulado_anterior + consumo_semanal
                 ConsumoKgMachosAcumulado = consumoAcumulado,
+                // FÓRMULA EXCEL: consumo_por_ave = (consumo_diario * 40000) / aves_vivas
                 ConsumoGramosPorAveMachos = consumoGramosPorAve,
                 PesoPromedioMachos = pesoActual,
                 UniformidadMachos = (decimal?)(seg.UniformidadM),
@@ -1729,6 +1795,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 TrasladosAlimentoKilos = trasladosAlimento,
                 Observaciones = seg.Observaciones
             };
+            
+            // Actualizar valores acumulados para la siguiente iteración
+            porcMortalidadAcumuladaAnterior = porcMortalidadAcumulada;
+            porcSeleccionAcumuladaAnterior = porcSeleccionAcumulada;
+            porcDescarteAcumuladaAnterior = porcDescarteAcumulada;
+            porcErrorSexajeAcumuladaAnterior = dto.ErrorSexajeMachosPorcentajeAcumulado;
+            consumoAcumuladoAnterior = consumoAcumulado;
             
             if (pesoActual.HasValue)
                 pesoAnterior = pesoActual;
@@ -1803,6 +1876,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
         var datosHembras = new List<ReporteTecnicoDiarioHembrasDto>();
         decimal? pesoAnterior = null;
         
+        // Variables para acumular porcentajes (según fórmulas Excel)
+        decimal porcMortalidadAcumuladaAnterior = 0;
+        decimal porcSeleccionAcumuladaAnterior = 0;
+        decimal porcDescarteAcumuladaAnterior = 0;
+        decimal porcErrorSexajeAcumuladaAnterior = 0;
+        decimal consumoAcumuladoAnterior = 0;
+        
         foreach (var seg in seguimientos)
         {
             var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
@@ -1813,18 +1893,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 .Where(s => s.FechaRegistro <= seg.FechaRegistro)
                 .ToList();
             
-            // Calcular saldo actual de hembras
+            // Calcular saldo actual de hembras (aves_vivas)
+            // FÓRMULA EXCEL: aves_vivas = aves_vivas_anterior - mortalidad_diaria - seleccion_diaria - descarte_diaria
+            // Donde: seleccion_diaria = traslados, descarte_diaria = seleccion_normal + error_sexaje
             var hembrasActuales = hembrasIniciales;
-            var hembrasAntesMortalidad = hembrasIniciales; // Para calcular % mortalidad diario correctamente
             
             foreach (var reg in registrosHastaFecha)
             {
-                // Guardar aves antes de aplicar mortalidad del registro actual
-                if (reg.Id == seg.Id)
-                {
-                    hembrasAntesMortalidad = hembrasActuales;
-                }
-                
                 // Aplicar mortalidad
                 hembrasActuales -= reg.MortalidadHembras;
                 
@@ -1833,8 +1908,12 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 var seleccionNormalReg = Math.Max(0, selHReg);
                 var trasladosReg = Math.Abs(Math.Min(0, selHReg));
                 
-                hembrasActuales -= seleccionNormalReg;
-                hembrasActuales -= trasladosReg;
+                // Descarte = selección normal + error de sexaje
+                var descarteReg = seleccionNormalReg + reg.ErrorSexajeHembras;
+                
+                // FÓRMULA EXCEL: aves_vivas = aves_vivas_anterior - mortalidad - seleccion (traslados) - descarte
+                hembrasActuales -= trasladosReg; // seleccion_diaria (traslados)
+                hembrasActuales -= descarteReg;  // descarte_diaria (seleccion_normal + error_sexaje)
             }
             
             // Calcular valores del día actual
@@ -1850,9 +1929,55 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var errorSexaje = seg.ErrorSexajeHembras;
             var errorSexajeAcumulado = registrosHastaFecha.Sum(s => s.ErrorSexajeHembras);
             
-            var consumo = (decimal)seg.ConsumoKgHembras;
-            var consumoAcumulado = registrosHastaFecha.Sum(s => (decimal)s.ConsumoKgHembras);
-            var consumoGramosPorAve = hembrasActuales > 0 ? (consumo * 1000) / hembrasActuales : 0;
+            // Descarte = selección + error de sexaje
+            var descarteDiaria = seleccionNormal + errorSexaje;
+            var descarteAcumulada = seleccionAcumulada + errorSexajeAcumulado;
+            
+            // FÓRMULAS SEGÚN EXCEL:
+            // porc_mortalidad_diaria = (mortalidad_diaria / total_inicial_aves) * 100
+            var porcMortalidadDiaria = hembrasIniciales > 0 
+                ? (decimal)mortalidad / hembrasIniciales * 100 
+                : 0;
+            
+            // porc_mortalidad_acumulada = porc_mortalidad_acumulada_anterior + porc_mortalidad_diaria
+            var porcMortalidadAcumulada = porcMortalidadAcumuladaAnterior + porcMortalidadDiaria;
+            
+            // porc_seleccion_diaria = (seleccion_diaria / total_inicial_aves) * 100
+            var porcSeleccionDiaria = hembrasIniciales > 0 
+                ? (decimal)seleccionNormal / hembrasIniciales * 100 
+                : 0;
+            
+            // porc_seleccion_acumulada = porc_seleccion_acumulada_anterior + porc_seleccion_diaria
+            var porcSeleccionAcumulada = porcSeleccionAcumuladaAnterior + porcSeleccionDiaria;
+            
+            // porc_descarte_diario = (descarte_diaria / total_inicial_aves) * 100
+            var porcDescarteDiario = hembrasIniciales > 0 
+                ? (decimal)descarteDiaria / hembrasIniciales * 100 
+                : 0;
+            
+            // porc_descarte_acumulada = porc_descarte_acumulada_anterior + porc_descarte_diario
+            var porcDescarteAcumulada = porcDescarteAcumuladaAnterior + porcDescarteDiario;
+            
+            // CONSUMO según fórmulas Excel:
+            // consumo_diario = consumo_semanal / 40 (en bultos, asumiendo 40kg por bulto)
+            // Nota: En el seguimiento tenemos consumo diario en kg, así que:
+            // consumo_diario_bultos = consumo_kg / 40
+            var consumoKg = (decimal)seg.ConsumoKgHembras;
+            var consumoDiarioBultos = consumoKg / 40;
+            
+            // consumo_acumulado = consumo_acumulado_anterior + consumo_semanal
+            // Nota: consumo_semanal en kg, así que acumulamos en kg
+            var consumoAcumulado = consumoAcumuladoAnterior + consumoKg;
+            
+            // consumo_por_ave = (consumo_diario * 40000) / aves_vivas
+            // consumo_diario está en bultos, entonces (bultos * 40000g) / aves = gramos por ave
+            var consumoGramosPorAve = hembrasActuales > 0 
+                ? (consumoDiarioBultos * 40000) / hembrasActuales 
+                : 0;
+            
+            // consumo_total_kg = (aves_vivas * consumo_unitario_gramos) / 1000
+            // consumo_unitario_gramos es el consumo por ave en gramos
+            var consumoTotalKg = (hembrasActuales * consumoGramosPorAve) / 1000;
             
             // Peso y ganancia
             var pesoActual = (decimal?)(seg.PesoPromH);
@@ -1865,10 +1990,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var protAl = seg.ProtAlH;
             // KcalAveH y ProtAveH pueden venir del seguimiento o calcularse
             var kcalAve = seg.KcalAveH ?? (hembrasActuales > 0 && kcalAl.HasValue 
-                ? (kcalAl.Value * (double)consumo) / hembrasActuales 
+                ? (kcalAl.Value * (double)consumoKg) / hembrasActuales 
                 : (double?)null);
             var protAve = seg.ProtAveH ?? (hembrasActuales > 0 && protAl.HasValue 
-                ? (protAl.Value * (double)consumo) / hembrasActuales 
+                ? (protAl.Value * (double)consumoKg) / hembrasActuales 
                 : (double?)null);
             
             // Ingresos y traslados de alimento
@@ -1887,32 +2012,42 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 SaldoHembras = hembrasActuales,
                 MortalidadHembras = mortalidad,
                 MortalidadHembrasAcumulada = mortalidadAcumulada,
-                MortalidadHembrasPorcentajeDiario = hembrasAntesMortalidad > 0 
-                    ? (decimal)mortalidad / hembrasAntesMortalidad * 100 
-                    : 0,
-                MortalidadHembrasPorcentajeAcumulado = hembrasIniciales > 0 
-                    ? (decimal)mortalidadAcumulada / hembrasIniciales * 100 
-                    : 0,
+                // FÓRMULA EXCEL: porc_mortalidad_diaria = (mortalidad_diaria / total_inicial_aves) * 100
+                MortalidadHembrasPorcentajeDiario = porcMortalidadDiaria,
+                // FÓRMULA EXCEL: porc_mortalidad_acumulada = porc_mortalidad_acumulada_anterior + porc_mortalidad_diaria
+                MortalidadHembrasPorcentajeAcumulado = porcMortalidadAcumulada,
                 SeleccionHembras = seleccionNormal,
                 SeleccionHembrasAcumulada = seleccionAcumulada,
-                SeleccionHembrasPorcentajeDiario = hembrasActuales > 0 
-                    ? (decimal)seleccionNormal / hembrasActuales * 100 
-                    : 0,
-                SeleccionHembrasPorcentajeAcumulado = hembrasIniciales > 0 
-                    ? (decimal)seleccionAcumulada / hembrasIniciales * 100 
-                    : 0,
+                // FÓRMULA EXCEL: porc_seleccion_diaria = (seleccion_diaria / total_inicial_aves) * 100
+                SeleccionHembrasPorcentajeDiario = porcSeleccionDiaria,
+                // FÓRMULA EXCEL: porc_seleccion_acumulada = porc_seleccion_acumulada_anterior + porc_seleccion_diaria
+                SeleccionHembrasPorcentajeAcumulado = porcSeleccionAcumulada,
                 TrasladosHembras = traslados,
                 TrasladosHembrasAcumulados = trasladosAcumulados,
                 ErrorSexajeHembras = errorSexaje,
                 ErrorSexajeHembrasAcumulado = errorSexajeAcumulado,
-                ErrorSexajeHembrasPorcentajeDiario = hembrasActuales > 0 
-                    ? (decimal)errorSexaje / hembrasActuales * 100 
+                // Error de sexaje también sobre total_inicial_aves
+                // porc_error_diario = (error_diario / total_inicial_aves) * 100
+                ErrorSexajeHembrasPorcentajeDiario = hembrasIniciales > 0 
+                    ? (decimal)errorSexaje / hembrasIniciales * 100 
                     : 0,
-                ErrorSexajeHembrasPorcentajeAcumulado = hembrasIniciales > 0 
-                    ? (decimal)errorSexajeAcumulado / hembrasIniciales * 100 
-                    : 0,
-                ConsumoKgHembras = consumo,
+                // porc_error_acumulado = porc_error_acumulado_anterior + porc_error_diario
+                ErrorSexajeHembrasPorcentajeAcumulado = porcErrorSexajeAcumuladaAnterior + (hembrasIniciales > 0 
+                    ? (decimal)errorSexaje / hembrasIniciales * 100 
+                    : 0),
+                // DESCARTE (Selección + Error Sexaje)
+                DescarteHembras = descarteDiaria,
+                DescarteHembrasAcumulado = descarteAcumulada,
+                // FÓRMULA EXCEL: porc_descarte_diario = (descarte_diaria / total_inicial_aves) * 100
+                DescarteHembrasPorcentajeDiario = porcDescarteDiario,
+                // FÓRMULA EXCEL: porc_descarte_acumulada = porc_descarte_acumulada_anterior + porc_descarte_diario
+                DescarteHembrasPorcentajeAcumulado = porcDescarteAcumulada,
+                // FÓRMULA EXCEL: consumo_diario = consumo_semanal / 40 (en bultos)
+                // Guardamos consumo en kg (consumoKg), pero el cálculo de gramos/ave usa la fórmula Excel
+                ConsumoKgHembras = consumoKg,
+                // FÓRMULA EXCEL: consumo_acumulado = consumo_acumulado_anterior + consumo_semanal
                 ConsumoKgHembrasAcumulado = consumoAcumulado,
+                // FÓRMULA EXCEL: consumo_por_ave = (consumo_diario * 40000) / aves_vivas
                 ConsumoGramosPorAveHembras = consumoGramosPorAve,
                 PesoPromedioHembras = pesoActual,
                 UniformidadHembras = (decimal?)(seg.UniformidadH),
@@ -1926,6 +2061,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 TrasladosAlimentoKilos = trasladosAlimento,
                 Observaciones = seg.Observaciones
             };
+            
+            // Actualizar valores acumulados para la siguiente iteración
+            porcMortalidadAcumuladaAnterior = porcMortalidadAcumulada;
+            porcSeleccionAcumuladaAnterior = porcSeleccionAcumulada;
+            porcDescarteAcumuladaAnterior = porcDescarteAcumulada;
+            porcErrorSexajeAcumuladaAnterior = dto.ErrorSexajeHembrasPorcentajeAcumulado;
+            consumoAcumuladoAnterior = consumoAcumulado;
             
             if (pesoActual.HasValue)
                 pesoAnterior = pesoActual;
