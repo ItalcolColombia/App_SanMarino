@@ -122,23 +122,23 @@
           
           <!-- cons.acumulado -->
           <td class="text-right">{{ formatNumber(dato.consAcGrH, 1) }}</td>
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.consAcGrHGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getConsumoAcumuladoTabla(dato.semana, dato.consAcGrHGUIA), 1) }}</td>
           <td class="text-right">{{ formatPercentage(dato.porcDifConsH) }}</td>
           
           <!-- TOSCANA -->
           <td class="text-right">{{ formatNumber(dato.grAveDiaH, 1) }}</td>
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.grAveDiaGUIAH, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getGrAveDiaTabla(dato.semana, dato.grAveDiaGUIAH), 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.grAveDiaH, 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.incrConsH, 1) }}</td>
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.incrConsHGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getIncrementoTabla(dato.semana, dato.incrConsHGUIA), 1) }}</td>
           
           <!-- PESO CORPORAL -->
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.pesoHGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getPesoTabla(dato.semana, dato.pesoHGUIA), 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.pesoH ? dato.pesoH * 1000 : null, 1) }}</td>
           <td class="text-right">{{ formatPercentage(dato.porcDifPesoH) }}</td>
           
           <!-- GANANCIA -->
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.incrConsHGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getGananciaTabla(dato.semana, dato.incrConsHGUIA), 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.incrConsH, 1) }}</td>
           
           <!-- HEMBRA -->
