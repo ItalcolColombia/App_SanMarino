@@ -1261,6 +1261,11 @@ public class ReporteTecnicoService : IReporteTecnicoService
         double acProtSemH = 0, acProtSemM = 0;
         double? consAcGrHAnterior = null;
         double? consAcGrMAnterior = null;
+        // Variables para calcular incrementos de la guía genética
+        double? consAcGrHGUIAAnterior = null;
+        double? consAcGrMGUIAAnterior = null;
+        double? pesoHGUIAAnterior = null;
+        double? pesoMGUIAAnterior = null;
 
         for (int semana = 1; semana <= 25; semana++)
         {
@@ -1432,7 +1437,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 IncrConsH = consAcGrHAnterior.HasValue 
                     ? ((acConsH * 1000) / hembraIni) - consAcGrHAnterior.Value 
                     : null,
-                IncrConsHGUIA = null, // Se puede calcular si hay guía anterior
+                IncrConsHGUIA = consAcGrHGUIAAnterior.HasValue && guiaRaw != null
+                    ? ParseGuiaRaw(guiaRaw.ConsAcH) - consAcGrHGUIAAnterior.Value
+                    : (semana == 1 && guiaRaw != null ? ParseGuiaRaw(guiaRaw.ConsAcH) : null), // Primera semana: el valor es el incremento inicial
                 PorcDifConsH = guiaRaw != null && ParseGuiaRaw(guiaRaw.ConsAcH) > 0
                     ? (((acConsH * 1000) / hembraIni) - ParseGuiaRaw(guiaRaw.ConsAcH)) / ParseGuiaRaw(guiaRaw.ConsAcH) * 100
                     : null,
@@ -1468,7 +1475,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 IncrConsM = consAcGrMAnterior.HasValue
                     ? ((acConsM * 1000) / machoIni) - consAcGrMAnterior.Value
                     : null,
-                IncrConsMGUIA = null, // Se puede calcular si hay guía anterior
+                IncrConsMGUIA = consAcGrMGUIAAnterior.HasValue && guiaRaw != null
+                    ? ParseGuiaRaw(guiaRaw.ConsAcM) - consAcGrMGUIAAnterior.Value
+                    : (semana == 1 && guiaRaw != null ? ParseGuiaRaw(guiaRaw.ConsAcM) : null), // Primera semana: el valor es el incremento inicial
                 DifConsM = guiaRaw != null
                     ? ((acConsM * 1000) / machoIni) - ParseGuiaRaw(guiaRaw.ConsAcM)
                     : null,
@@ -1535,6 +1544,16 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 consAcGrHAnterior = dto.ConsAcGrH.Value;
             if (dto.ConsAcGrM.HasValue)
                 consAcGrMAnterior = dto.ConsAcGrM.Value;
+            
+            // Actualizar valores anteriores de la guía genética para calcular incrementos
+            if (dto.ConsAcGrHGUIA.HasValue)
+                consAcGrHGUIAAnterior = dto.ConsAcGrHGUIA.Value;
+            if (dto.ConsAcGrMGUIA.HasValue)
+                consAcGrMGUIAAnterior = dto.ConsAcGrMGUIA.Value;
+            if (dto.PesoHGUIA.HasValue)
+                pesoHGUIAAnterior = dto.PesoHGUIA.Value;
+            if (dto.PesoMGUIA.HasValue)
+                pesoMGUIAAnterior = dto.PesoMGUIA.Value;
 
             datosSemanales.Add(dto);
         }
