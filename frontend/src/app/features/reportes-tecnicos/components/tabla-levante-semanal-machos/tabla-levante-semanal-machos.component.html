@@ -35,7 +35,7 @@
           <th colspan="4">TOSCANA</th>
           <th colspan="3">PESO CORPORAL Grs.</th>
           <th colspan="2">GANANCIA</th>
-          <th rowspan="2">MACHO</th>
+          <th colspan="2">MACHO</th>
           <th colspan="2">%</th>
         </tr>
         <tr>
@@ -82,6 +82,10 @@
           <th class="highlight-yellow">TABLA</th>
           <th>REAL</th>
           
+          <!-- MACHO (Uniformidad) -->
+          <th>REAL</th>
+          <th class="highlight-yellow">TABLA</th>
+          
           <!-- % -->
           <th>COEF.V</th>
           <th>CON</th>
@@ -122,27 +126,28 @@
           
           <!-- cons.acumulado -->
           <td class="text-right">{{ formatNumber(dato.consAcGrM, 1) }}</td>
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.consAcGrMGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getConsumoAcumuladoTabla(dato.semana, dato.consAcGrMGUIA), 1) }}</td>
           <td class="text-right">{{ formatPercentage(dato.porcDifConsH) }}</td>
           
           <!-- TOSCANA -->
           <td class="text-right">{{ formatNumber(dato.grAveDiaM, 1) }}</td>
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.grAveDiaMGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getGrAveDiaTabla(dato.semana, dato.grAveDiaMGUIA), 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.grAveDiaM, 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.incrConsM, 1) }}</td>
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.incrConsMGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getIncrementoTabla(dato.semana, dato.incrConsMGUIA), 1) }}</td>
           
           <!-- PESO CORPORAL -->
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.pesoMGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getPesoTabla(dato.semana, dato.pesoMGUIA), 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.pesoM ? dato.pesoM * 1000 : null, 1) }}</td>
           <td class="text-right">{{ formatPercentage(dato.porcDifPesoM) }}</td>
           
           <!-- GANANCIA -->
-          <td class="text-right highlight-yellow">{{ formatNumber(dato.incrConsMGUIA, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getGananciaTabla(dato.semana, dato.incrConsMGUIA), 1) }}</td>
           <td class="text-right">{{ formatNumber(dato.incrConsM, 1) }}</td>
           
-          <!-- MACHO -->
+          <!-- MACHO (Uniformidad) -->
           <td class="text-right">{{ formatNumber(dato.uniformM, 1) }}</td>
+          <td class="text-right highlight-yellow">{{ formatNumber(getUniformidadTabla(dato.semana, dato.unifMGUIA), 1) }}</td>
           
           <!-- % -->
           <td class="text-right">{{ formatNumber(dato.cvM, 1) }}</td>
