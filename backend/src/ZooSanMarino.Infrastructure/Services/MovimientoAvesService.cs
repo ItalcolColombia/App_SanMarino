@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/MovimientoAvesService.cs
 using System;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -14,17 +15,20 @@ public class MovimientoAvesService : IMovimientoAvesService
     private readonly ICurrentUser _currentUser;
     private readonly IInventarioAvesService _inventarioService;
     private readonly IHistorialInventarioService _historialService;
+    private readonly ILogger<MovimientoAvesService> _logger;
 
     public MovimientoAvesService(
         ZooSanMarinoContext context, 
         ICurrentUser currentUser,
         IInventarioAvesService inventarioService,
-        IHistorialInventarioService historialService)
+        IHistorialInventarioService historialService,
+        ILogger<MovimientoAvesService> logger)
     {
         _context = context;
         _currentUser = currentUser;
         _inventarioService = inventarioService;
         _historialService = historialService;
+        _logger = logger;
     }
 
     public async Task<MovimientoAvesDto> CreateAsync(CreateMovimientoAvesDto dto)
@@ -48,10 +52,12 @@ public class MovimientoAvesService : IMovimientoAvesService
             GranjaDestinoId = dto.GranjaDestinoId,
             NucleoDestinoId = dto.NucleoDestinoId,
             GalponDestinoId = dto.GalponDestinoId,
+            PlantaDestino = dto.PlantaDestino,
             CantidadHembras = dto.CantidadHembras,
             CantidadMachos = dto.CantidadMachos,
             CantidadMixtas = dto.CantidadMixtas,
             MotivoMovimiento = dto.MotivoMovimiento,
+            Descripcion = dto.Descripcion,
             Observaciones = dto.Observaciones,
             Estado = "Pendiente",
             UsuarioMovimientoId = dto.UsuarioMovimientoId > 0 ? dto.UsuarioMovimientoId : _currentUser.UserId,
@@ -59,6 +65,7 @@ public class MovimientoAvesService : IMovimientoAvesService
             CreatedByUserId = _currentUser.UserId,
             CreatedAt = DateTime.UtcNow
         };
+        
 
         // Agregar al contexto y guardar para obtener el ID
         _context.MovimientoAves.Add(movimiento);
@@ -67,6 +74,22 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Generar número de movimiento con el ID obtenido
         movimiento.NumeroMovimiento = $"MOV-{DateTime.UtcNow:yyyyMMdd}-{movimiento.Id:D6}";
         await _context.SaveChangesAsync();
+
+        // Procesar automáticamente el movimiento (aplicar cambios en inventario y seguimiento diario)
+        try
+        {
+            await ProcesarMovimientoAsync(new ProcesarMovimientoDto
+            {
+                MovimientoId = movimiento.Id,
+                AutoCrearInventarioDestino = true
+            });
+        }
+        catch (Exception ex)
+        {
+            // Si falla el procesamiento, marcar el movimiento como pendiente para que se pueda procesar manualmente
+            _logger.LogError(ex, "Error al procesar automáticamente el movimiento {MovimientoId}", movimiento.Id);
+            // No lanzar excepción, dejar el movimiento en estado Pendiente
+        }
 
         return await GetByIdAsync(movimiento.Id) ?? throw new InvalidOperationException("Error al crear movimiento");
     }
@@ -214,11 +237,18 @@ public class MovimientoAvesService : IMovimientoAvesService
             if (movimiento.LoteOrigenId.HasValue && 
                 (movimiento.TipoMovimiento == "Traslado" || movimiento.TipoMovimiento == "Venta"))
             {
-                // Aplicar descuento en producción (semana 26+)
+                // Aplicar descuento en producción (semana 26+) - RESTAR del origen
                 await AplicarDescuentoEnProduccionDiariaAvesAsync(movimiento);
                 
-                // Aplicar descuento en levante (semana < 26)
+                // Aplicar descuento en levante (semana < 26) - RESTAR del origen
                 await AplicarDescuentoEnLevanteDiariaAvesAsync(movimiento);
+            }
+
+            // Si es un traslado entre lotes, crear registro de entrada en el lote destino
+            if (movimiento.LoteDestinoId.HasValue && movimiento.TipoMovimiento == "Traslado")
+            {
+                // Crear registro de entrada en seguimiento diario del lote destino
+                await CrearRegistroEntradaEnLoteDestinoAsync(movimiento);
             }
 
             var movimientoDto = await GetByIdAsync(movimiento.Id);
@@ -239,9 +269,46 @@ public class MovimientoAvesService : IMovimientoAvesService
         if (movimiento == null)
             return new ResultadoMovimientoDto(false, "Movimiento no encontrado", null, null, new List<string> { "Movimiento no encontrado" }, null);
 
+        // Si ya está cancelado, no hacer nada
+        if (movimiento.Estado == "Cancelado")
+        {
+            var movimientoDto = await GetByIdAsync(movimiento.Id);
+            return new ResultadoMovimientoDto(true, "Movimiento ya estaba cancelado", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimientoDto);
+        }
+
         try
         {
-            movimiento.Cancelar(dto.MotivoCancelacion);
+            // Si el movimiento está en estado "Completado", significa que ya se aplicó el descuento
+            // Necesitamos devolver las aves al inventario antes de cancelar
+            if (movimiento.Estado == "Completado")
+            {
+                // Devolver las aves al inventario antes de cancelar
+                await DevolverAvesAlInventarioAsync(movimiento);
+            }
+            // Si está en "Pendiente", también puede haber descuento aplicado (si se procesó automáticamente)
+            else if (movimiento.Estado == "Pendiente")
+            {
+                // Verificar si hay descuento aplicado y devolver las aves
+                await DevolverAvesAlInventarioAsync(movimiento);
+            }
+
+            // Cancelar el movimiento
+            if (movimiento.Estado == "Completado")
+            {
+                // Permitir cancelar movimientos completados para devolver aves
+                movimiento.Estado = "Cancelado";
+                movimiento.FechaCancelacion = DateTime.UtcNow;
+                var motivoCompleto = $"Cancelado (movimiento completado): {dto.MotivoCancelacion}";
+                movimiento.Observaciones = string.IsNullOrEmpty(movimiento.Observaciones)
+                    ? motivoCompleto
+                    : $"{movimiento.Observaciones} | {motivoCompleto}";
+            }
+            else
+            {
+                // Usar el método de dominio para cancelar movimientos pendientes
+                movimiento.Cancelar(dto.MotivoCancelacion);
+            }
+
             await _context.SaveChangesAsync();
 
             var movimientoDto = await GetByIdAsync(movimiento.Id);
@@ -328,14 +395,17 @@ public class MovimientoAvesService : IMovimientoAvesService
         var tieneOrigen = dto.InventarioOrigenId.HasValue || dto.LoteOrigenId.HasValue;
         if (!tieneOrigen) return false;
 
-        // Para retiros, no se requiere destino; para otros tipos, sí
+        // Para retiros y ventas, no se requiere destino; para otros tipos (traslados), sí
         var esRetiro = dto.TipoMovimiento?.Equals("Retiro", StringComparison.OrdinalIgnoreCase) == true;
-        if (!esRetiro)
+        var esVenta = dto.TipoMovimiento?.Equals("Venta", StringComparison.OrdinalIgnoreCase) == true;
+        var noRequiereDestino = esRetiro || esVenta;
+        
+        if (!noRequiereDestino)
         {
-            var tieneDestino = dto.InventarioDestinoId.HasValue || dto.LoteDestinoId.HasValue;
+            var tieneDestino = dto.InventarioDestinoId.HasValue || dto.LoteDestinoId.HasValue || !string.IsNullOrWhiteSpace(dto.PlantaDestino);
             if (!tieneDestino) return false;
 
-            // Origen y destino no pueden ser el mismo lote (excepto para retiros)
+            // Origen y destino no pueden ser el mismo lote (excepto para retiros y ventas)
             if (dto.LoteOrigenId.HasValue && dto.LoteDestinoId.HasValue &&
                 dto.LoteOrigenId.Value == dto.LoteDestinoId.Value)
                 return false;
@@ -917,6 +987,8 @@ public class MovimientoAvesService : IMovimientoAvesService
             // Estado e información
             m.Estado,
             m.MotivoMovimiento,
+            m.Descripcion,
+            m.PlantaDestino,
             m.Observaciones,
             // Usuario
             m.UsuarioMovimientoId,
@@ -1260,5 +1332,528 @@ public class MovimientoAvesService : IMovimientoAvesService
                 total > 0 ? (double)g.Count() / total * 100 : 0
             ))
             .ToList();
+    }
+
+    /// <summary>
+    /// Actualiza un movimiento de aves existente
+    /// </summary>
+    public async Task<MovimientoAvesDto> ActualizarMovimientoAvesAsync(int movimientoId, ActualizarMovimientoAvesDto dto, int usuarioId)
+    {
+        var movimiento = await _context.MovimientoAves
+            .FirstOrDefaultAsync(m => 
+                m.Id == movimientoId && 
+                m.CompanyId == _currentUser.CompanyId && 
+                m.DeletedAt == null);
+
+        if (movimiento == null)
+        {
+            throw new InvalidOperationException($"Movimiento {movimientoId} no encontrado");
+        }
+
+        if (movimiento.Estado != "Pendiente")
+        {
+            throw new InvalidOperationException($"Solo se pueden actualizar movimientos en estado 'Pendiente'. El movimiento actual está en estado '{movimiento.Estado}'");
+        }
+
+        // Guardar las cantidades originales antes de la actualización
+        var cantidadesOriginales = new Dictionary<string, int>
+        {
+            { "Hembras", movimiento.CantidadHembras },
+            { "Machos", movimiento.CantidadMachos },
+            { "Mixtas", movimiento.CantidadMixtas }
+        };
+
+        // Si se actualizan las cantidades, validar disponibilidad
+        if (dto.CantidadHembras.HasValue || dto.CantidadMachos.HasValue || dto.CantidadMixtas.HasValue)
+        {
+            var nuevasCantidades = new Dictionary<string, int>
+            {
+                { "Hembras", dto.CantidadHembras ?? movimiento.CantidadHembras },
+                { "Machos", dto.CantidadMachos ?? movimiento.CantidadMachos },
+                { "Mixtas", dto.CantidadMixtas ?? movimiento.CantidadMixtas }
+            };
+
+            var cantidadesParaValidar = new Dictionary<string, int>();
+            foreach (var tipo in nuevasCantidades.Keys)
+            {
+                var diferencia = nuevasCantidades[tipo] - cantidadesOriginales[tipo];
+                if (diferencia > 0) // Solo validar si estamos pidiendo más aves
+                {
+                    cantidadesParaValidar[tipo] = diferencia;
+                }
+            }
+
+            if (cantidadesParaValidar.Count > 0 && movimiento.LoteOrigenId.HasValue)
+            {
+                var inventarioOrigen = await ObtenerOCrearInventarioAsync(
+                    movimiento.LoteOrigenId.Value,
+                    movimiento.GranjaOrigenId ?? 0,
+                    movimiento.NucleoOrigenId,
+                    movimiento.GalponOrigenId,
+                    crearSiNoExiste: false);
+
+                if (inventarioOrigen != null)
+                {
+                    var hembrasDisponibles = inventarioOrigen.CantidadHembras + cantidadesOriginales["Hembras"];
+                    var machosDisponibles = inventarioOrigen.CantidadMachos + cantidadesOriginales["Machos"];
+                    var mixtasDisponibles = inventarioOrigen.CantidadMixtas + cantidadesOriginales["Mixtas"];
+
+                    if (nuevasCantidades["Hembras"] > hembrasDisponibles ||
+                        nuevasCantidades["Machos"] > machosDisponibles ||
+                        nuevasCantidades["Mixtas"] > mixtasDisponibles)
+                    {
+                        throw new InvalidOperationException("No hay suficientes aves disponibles para esta actualización. Las nuevas cantidades exceden la disponibilidad actual.");
+                    }
+                }
+            }
+        }
+
+        // Actualizar campos del movimiento
+        movimiento.FechaMovimiento = dto.FechaMovimiento ?? movimiento.FechaMovimiento;
+        movimiento.TipoMovimiento = dto.TipoMovimiento ?? movimiento.TipoMovimiento;
+        movimiento.LoteOrigenId = dto.LoteOrigenId ?? movimiento.LoteOrigenId;
+        movimiento.GranjaOrigenId = dto.GranjaOrigenId ?? movimiento.GranjaOrigenId;
+        movimiento.NucleoOrigenId = dto.NucleoOrigenId ?? movimiento.NucleoOrigenId;
+        movimiento.GalponOrigenId = dto.GalponOrigenId ?? movimiento.GalponOrigenId;
+        movimiento.LoteDestinoId = dto.LoteDestinoId ?? movimiento.LoteDestinoId;
+        movimiento.GranjaDestinoId = dto.GranjaDestinoId ?? movimiento.GranjaDestinoId;
+        movimiento.NucleoDestinoId = dto.NucleoDestinoId ?? movimiento.NucleoDestinoId;
+        movimiento.GalponDestinoId = dto.GalponDestinoId ?? movimiento.GalponDestinoId;
+        movimiento.CantidadHembras = dto.CantidadHembras ?? movimiento.CantidadHembras;
+        movimiento.CantidadMachos = dto.CantidadMachos ?? movimiento.CantidadMachos;
+        movimiento.CantidadMixtas = dto.CantidadMixtas ?? movimiento.CantidadMixtas;
+        movimiento.MotivoMovimiento = dto.MotivoMovimiento ?? movimiento.MotivoMovimiento;
+        movimiento.PlantaDestino = dto.PlantaDestino ?? movimiento.PlantaDestino;
+        movimiento.Descripcion = dto.Descripcion ?? movimiento.Descripcion;
+        movimiento.Observaciones = dto.Observaciones ?? movimiento.Observaciones;
+
+        movimiento.UpdatedByUserId = usuarioId;
+        movimiento.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        // Si se actualizaron las cantidades y el movimiento ya estaba procesado, ajustar seguimiento diario
+        if (movimiento.Estado == "Completado" && 
+            (dto.CantidadHembras.HasValue || dto.CantidadMachos.HasValue || dto.CantidadMixtas.HasValue))
+        {
+            // Ajustar los registros en seguimiento diario
+            await AjustarSeguimientoDiarioPorEdicionAsync(movimiento, cantidadesOriginales);
+        }
+
+        return await GetByIdAsync(movimiento.Id) ?? throw new InvalidOperationException("Error al actualizar movimiento");
+    }
+
+    /// <summary>
+    /// Devuelve las aves al inventario cuando se cancela un movimiento
+    /// </summary>
+    private async Task DevolverAvesAlInventarioAsync(MovimientoAves movimiento)
+    {
+        // Si el movimiento ya fue procesado, necesitamos revertir los cambios en inventario y seguimiento diario
+        if (movimiento.Estado == "Completado")
+        {
+            // Revertir cambios en inventario
+            if (movimiento.LoteOrigenId.HasValue && movimiento.GranjaOrigenId.HasValue)
+            {
+                var inventarioOrigen = await ObtenerOCrearInventarioAsync(
+                    movimiento.LoteOrigenId.Value,
+                    movimiento.GranjaOrigenId.Value,
+                    movimiento.NucleoOrigenId,
+                    movimiento.GalponOrigenId,
+                    crearSiNoExiste: false);
+
+                if (inventarioOrigen != null)
+                {
+                    // Devolver las aves al inventario origen (sumar)
+                    inventarioOrigen.AplicarMovimientoEntrada(
+                        movimiento.CantidadHembras,
+                        movimiento.CantidadMachos,
+                        movimiento.CantidadMixtas);
+                    inventarioOrigen.UpdatedByUserId = _currentUser.UserId;
+                    inventarioOrigen.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            // Revertir cambios en inventario destino (restar)
+            if (movimiento.LoteDestinoId.HasValue && movimiento.GranjaDestinoId.HasValue)
+            {
+                var inventarioDestino = await ObtenerOCrearInventarioAsync(
+                    movimiento.LoteDestinoId.Value,
+                    movimiento.GranjaDestinoId.Value,
+                    movimiento.NucleoDestinoId,
+                    movimiento.GalponDestinoId,
+                    crearSiNoExiste: false);
+
+                if (inventarioDestino != null)
+                {
+                    // Restar las aves del inventario destino
+                    inventarioDestino.AplicarMovimientoSalida(
+                        movimiento.CantidadHembras,
+                        movimiento.CantidadMachos,
+                        movimiento.CantidadMixtas);
+                    inventarioDestino.UpdatedByUserId = _currentUser.UserId;
+                    inventarioDestino.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Revertir cambios en seguimiento diario (Levante y Producción)
+            if (movimiento.LoteOrigenId.HasValue)
+            {
+                await DevolverAvesEnSeguimientoDiarioAsync(movimiento);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Devuelve las aves en el seguimiento diario cuando se cancela un movimiento
+    /// </summary>
+    private async Task DevolverAvesEnSeguimientoDiarioAsync(MovimientoAves movimiento)
+    {
+        if (!movimiento.LoteOrigenId.HasValue)
+            return;
+
+        var lote = await _context.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteId == movimiento.LoteOrigenId.Value && 
+                       l.CompanyId == _currentUser.CompanyId && 
+                       l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (lote == null || !lote.FechaEncaset.HasValue)
+            return;
+
+        var fechaMovimiento = movimiento.FechaMovimiento.Date;
+        var diasDesdeEncaset = (fechaMovimiento - lote.FechaEncaset.Value.Date).Days;
+        var semanaActual = (diasDesdeEncaset / 7) + 1;
+        var loteIdStr = movimiento.LoteOrigenId.Value.ToString();
+
+        // Si es Levante (semana < 26)
+        if (semanaActual < 26)
+        {
+            var registroLevante = await _context.SeguimientoLoteLevante
+                .Where(s => s.LoteId == movimiento.LoteOrigenId.Value && 
+                           s.FechaRegistro.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroLevante != null)
+            {
+                // Devolver las aves (sumar SelH y SelM)
+                registroLevante.SelH += movimiento.CantidadHembras;
+                registroLevante.SelM += movimiento.CantidadMachos;
+
+                var obsDevolucion = $"Aves devueltas por cancelación de movimiento {movimiento.NumeroMovimiento}";
+                registroLevante.Observaciones = string.IsNullOrEmpty(registroLevante.Observaciones)
+                    ? obsDevolucion
+                    : $"{registroLevante.Observaciones} | {obsDevolucion}";
+
+                await _context.SaveChangesAsync();
+            }
+        }
+        // Si es Producción (semana >= 26)
+        else
+        {
+            var registroProduccion = await _context.SeguimientoProduccion
+                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroProduccion != null)
+            {
+                // Devolver las aves (sumar SelH y MortalidadM)
+                registroProduccion.SelH += movimiento.CantidadHembras;
+                registroProduccion.MortalidadM += movimiento.CantidadMachos;
+
+                var obsDevolucion = $"Aves devueltas por cancelación de movimiento {movimiento.NumeroMovimiento}";
+                registroProduccion.Observaciones = string.IsNullOrEmpty(registroProduccion.Observaciones)
+                    ? obsDevolucion
+                    : $"{registroProduccion.Observaciones} | {obsDevolucion}";
+
+                await _context.SaveChangesAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Crea un registro de entrada en el seguimiento diario del lote destino cuando se procesa un movimiento
+    /// </summary>
+    private async Task CrearRegistroEntradaEnLoteDestinoAsync(MovimientoAves movimiento)
+    {
+        if (!movimiento.LoteDestinoId.HasValue)
+            return;
+
+        var loteDestino = await _context.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteId == movimiento.LoteDestinoId.Value && 
+                       l.CompanyId == _currentUser.CompanyId && 
+                       l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (loteDestino == null || !loteDestino.FechaEncaset.HasValue)
+            return;
+
+        var fechaMovimiento = movimiento.FechaMovimiento.Date;
+        var diasDesdeEncaset = (fechaMovimiento - loteDestino.FechaEncaset.Value.Date).Days;
+        var semanaActual = (diasDesdeEncaset / 7) + 1;
+
+        // Si es Levante (semana < 26)
+        if (semanaActual < 26)
+        {
+            var registroExistente = await _context.SeguimientoLoteLevante
+                .Where(s => s.LoteId == movimiento.LoteDestinoId.Value && 
+                           s.FechaRegistro.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroExistente != null)
+            {
+                // Sumar las aves que entran (como entrada positiva)
+                registroExistente.SelH = registroExistente.SelH + movimiento.CantidadHembras;
+                registroExistente.SelM = registroExistente.SelM + movimiento.CantidadMachos;
+
+                var obsEntrada = $"Entrada por movimiento {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
+                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                    ? obsEntrada
+                    : $"{registroExistente.Observaciones} | {obsEntrada}";
+
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Crear nuevo registro de entrada
+                var registroEntrada = new SeguimientoLoteLevante
+                {
+                    LoteId = movimiento.LoteDestinoId.Value,
+                    FechaRegistro = fechaMovimiento,
+                    SelH = movimiento.CantidadHembras, // Entrada de hembras
+                    SelM = movimiento.CantidadMachos, // Entrada de machos
+                    MortalidadHembras = 0,
+                    MortalidadMachos = 0,
+                    ErrorSexajeHembras = 0,
+                    ErrorSexajeMachos = 0,
+                    ConsumoKgHembras = 0,
+                    ConsumoKgMachos = 0,
+                    TipoAlimento = "N/A",
+                    Observaciones = $"Entrada por movimiento {movimiento.NumeroMovimiento} desde lote origen (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})",
+                    Ciclo = "Normal"
+                };
+
+                _context.SeguimientoLoteLevante.Add(registroEntrada);
+                await _context.SaveChangesAsync();
+            }
+        }
+        // Si es Producción (semana >= 26)
+        else
+        {
+            var loteIdStr = movimiento.LoteDestinoId.Value.ToString();
+            var registroExistente = await _context.SeguimientoProduccion
+                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroExistente != null)
+            {
+                // Sumar las aves que entran (como entrada positiva)
+                registroExistente.SelH = registroExistente.SelH + movimiento.CantidadHembras;
+                registroExistente.MortalidadM = registroExistente.MortalidadM + movimiento.CantidadMachos;
+
+                var obsEntrada = $"Entrada por movimiento {movimiento.NumeroMovimiento} (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})";
+                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                    ? obsEntrada
+                    : $"{registroExistente.Observaciones} | {obsEntrada}";
+
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Crear nuevo registro de entrada
+                var registroEntrada = new SeguimientoProduccion
+                {
+                    LoteId = loteIdStr,
+                    Fecha = fechaMovimiento,
+                    SelH = movimiento.CantidadHembras, // Entrada de hembras
+                    MortalidadM = movimiento.CantidadMachos, // Entrada de machos
+                    MortalidadH = 0,
+                    ConsKgH = 0,
+                    ConsKgM = 0,
+                    HuevoTot = 0,
+                    HuevoInc = 0,
+                    HuevoLimpio = 0,
+                    HuevoTratado = 0,
+                    HuevoSucio = 0,
+                    HuevoDeforme = 0,
+                    HuevoBlanco = 0,
+                    HuevoDobleYema = 0,
+                    HuevoPiso = 0,
+                    HuevoPequeno = 0,
+                    HuevoRoto = 0,
+                    HuevoDesecho = 0,
+                    HuevoOtro = 0,
+                    TipoAlimento = "N/A",
+                    PesoHuevo = 0,
+                    Etapa = semanaActual >= 26 && semanaActual <= 33 ? 1 : (semanaActual >= 34 && semanaActual <= 50 ? 2 : 3),
+                    Observaciones = $"Entrada por movimiento {movimiento.NumeroMovimiento} desde lote origen (H: {movimiento.CantidadHembras}, M: {movimiento.CantidadMachos})"
+                };
+
+                _context.SeguimientoProduccion.Add(registroEntrada);
+                await _context.SaveChangesAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ajusta el seguimiento diario cuando se edita un movimiento completado
+    /// Devuelve las cantidades originales y luego aplica las nuevas cantidades
+    /// </summary>
+    private async Task AjustarSeguimientoDiarioPorEdicionAsync(MovimientoAves movimiento, Dictionary<string, int> cantidadesOriginales)
+    {
+        if (!movimiento.LoteOrigenId.HasValue)
+            return;
+
+        var lote = await _context.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteId == movimiento.LoteOrigenId.Value && 
+                       l.CompanyId == _currentUser.CompanyId && 
+                       l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (lote == null || !lote.FechaEncaset.HasValue)
+            return;
+
+        var fechaMovimiento = movimiento.FechaMovimiento.Date;
+        var diasDesdeEncaset = (fechaMovimiento - lote.FechaEncaset.Value.Date).Days;
+        var semanaActual = (diasDesdeEncaset / 7) + 1;
+
+        // Si es Levante (semana < 26)
+        if (semanaActual < 26)
+        {
+            var registroExistente = await _context.SeguimientoLoteLevante
+                .Where(s => s.LoteId == movimiento.LoteOrigenId.Value && 
+                           s.FechaRegistro.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroExistente != null)
+            {
+                // PRIMERO: Devolver las cantidades originales (sumarlas de vuelta)
+                registroExistente.SelH += cantidadesOriginales["Hembras"];
+                registroExistente.SelM += cantidadesOriginales["Machos"];
+
+                // AHORA: Aplicar las nuevas cantidades (restarlas)
+                registroExistente.SelH -= movimiento.CantidadHembras;
+                registroExistente.SelM -= movimiento.CantidadMachos;
+
+                var obsAjuste = $"Ajuste por edición de movimiento {movimiento.NumeroMovimiento}";
+                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                    ? obsAjuste
+                    : $"{registroExistente.Observaciones} | {obsAjuste}";
+
+                await _context.SaveChangesAsync();
+            }
+        }
+        // Si es Producción (semana >= 26)
+        else
+        {
+            var loteIdStr = movimiento.LoteOrigenId.Value.ToString();
+            var registroExistente = await _context.SeguimientoProduccion
+                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroExistente != null)
+            {
+                // PRIMERO: Devolver las cantidades originales (sumarlas de vuelta)
+                registroExistente.SelH += cantidadesOriginales["Hembras"];
+                registroExistente.MortalidadM += cantidadesOriginales["Machos"];
+
+                // AHORA: Aplicar las nuevas cantidades (restarlas)
+                registroExistente.SelH -= movimiento.CantidadHembras;
+                registroExistente.MortalidadM -= movimiento.CantidadMachos;
+
+                var obsAjuste = $"Ajuste por edición de movimiento {movimiento.NumeroMovimiento}";
+                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                    ? obsAjuste
+                    : $"{registroExistente.Observaciones} | {obsAjuste}";
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Si hay lote destino, también ajustar el registro de entrada
+        if (movimiento.LoteDestinoId.HasValue)
+        {
+            await AjustarRegistroEntradaEnLoteDestinoAsync(movimiento, cantidadesOriginales);
+        }
+    }
+
+    /// <summary>
+    /// Ajusta el registro de entrada en el lote destino cuando se edita un movimiento
+    /// </summary>
+    private async Task AjustarRegistroEntradaEnLoteDestinoAsync(MovimientoAves movimiento, Dictionary<string, int> cantidadesOriginales)
+    {
+        if (!movimiento.LoteDestinoId.HasValue)
+            return;
+
+        var loteDestino = await _context.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteId == movimiento.LoteDestinoId.Value && 
+                       l.CompanyId == _currentUser.CompanyId && 
+                       l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (loteDestino == null || !loteDestino.FechaEncaset.HasValue)
+            return;
+
+        var fechaMovimiento = movimiento.FechaMovimiento.Date;
+        var diasDesdeEncaset = (fechaMovimiento - loteDestino.FechaEncaset.Value.Date).Days;
+        var semanaActual = (diasDesdeEncaset / 7) + 1;
+
+        // Si es Levante (semana < 26)
+        if (semanaActual < 26)
+        {
+            var registroExistente = await _context.SeguimientoLoteLevante
+                .Where(s => s.LoteId == movimiento.LoteDestinoId.Value && 
+                           s.FechaRegistro.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroExistente != null)
+            {
+                // PRIMERO: Revertir las cantidades originales (restarlas)
+                registroExistente.SelH -= cantidadesOriginales["Hembras"];
+                registroExistente.SelM -= cantidadesOriginales["Machos"];
+
+                // AHORA: Aplicar las nuevas cantidades (sumarlas)
+                registroExistente.SelH += movimiento.CantidadHembras;
+                registroExistente.SelM += movimiento.CantidadMachos;
+
+                var obsAjuste = $"Ajuste por edición de movimiento {movimiento.NumeroMovimiento}";
+                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                    ? obsAjuste
+                    : $"{registroExistente.Observaciones} | {obsAjuste}";
+
+                await _context.SaveChangesAsync();
+            }
+        }
+        // Si es Producción (semana >= 26)
+        else
+        {
+            var loteIdStr = movimiento.LoteDestinoId.Value.ToString();
+            var registroExistente = await _context.SeguimientoProduccion
+                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .FirstOrDefaultAsync();
+
+            if (registroExistente != null)
+            {
+                // PRIMERO: Revertir las cantidades originales (restarlas)
+                registroExistente.SelH -= cantidadesOriginales["Hembras"];
+                registroExistente.MortalidadM -= cantidadesOriginales["Machos"];
+
+                // AHORA: Aplicar las nuevas cantidades (sumarlas)
+                registroExistente.SelH += movimiento.CantidadHembras;
+                registroExistente.MortalidadM += movimiento.CantidadMachos;
+
+                var obsAjuste = $"Ajuste por edición de movimiento {movimiento.NumeroMovimiento}";
+                registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
+                    ? obsAjuste
+                    : $"{registroExistente.Observaciones} | {obsAjuste}";
+
+                await _context.SaveChangesAsync();
+            }
+        }
     }
 }

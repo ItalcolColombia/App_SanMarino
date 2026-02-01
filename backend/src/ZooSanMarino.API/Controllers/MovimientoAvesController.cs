@@ -1,8 +1,10 @@
 // src/ZooSanMarino.API/Controllers/MovimientoAvesController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -16,13 +18,22 @@ namespace ZooSanMarino.API.Controllers;
 public class MovimientoAvesController : ControllerBase
 {
     private readonly IMovimientoAvesService _movimientoService;
+    private readonly IInventarioAvesService _inventarioService;
+    private readonly ZooSanMarinoContext _context;
+    private readonly ICurrentUser _currentUser;
     private readonly ILogger<MovimientoAvesController> _logger;
 
     public MovimientoAvesController(
         IMovimientoAvesService movimientoService,
+        IInventarioAvesService inventarioService,
+        ZooSanMarinoContext context,
+        ICurrentUser currentUser,
         ILogger<MovimientoAvesController> logger)
     {
         _movimientoService = movimientoService;
+        _inventarioService = inventarioService;
+        _context = context;
+        _currentUser = currentUser;
         _logger = logger;
     }
 
@@ -187,6 +198,184 @@ public class MovimientoAvesController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene información del lote para movimientos (etapa, aves disponibles, etc.)
+    /// Calcula las aves actuales desde los registros diarios de seguimiento (Producción o Levante)
+    /// </summary>
+    [HttpGet("lote/{loteId}/informacion")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInformacionLote(int loteId)
+    {
+        try
+        {
+            // Obtener información del lote
+            var lote = await _context.Lotes
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .Include(l => l.Nucleo)
+                .Include(l => l.Galpon)
+                .Where(l => l.LoteId == loteId && 
+                           l.CompanyId == _currentUser.CompanyId && 
+                           l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (lote == null)
+                return NotFound(new { error = $"Lote {loteId} no encontrado" });
+
+            // Calcular etapa
+            var diasDesdeEncaset = lote.FechaEncaset.HasValue 
+                ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days 
+                : 0;
+            var etapa = (diasDesdeEncaset / 7) + 1;
+            var tipoLote = etapa >= 26 ? "Produccion" : "Levante"; // Corregido: >= 26 para Producción
+
+            int hembrasIniciales = 0;
+            int machosIniciales = 0;
+            int hembrasActuales = 0;
+            int machosActuales = 0;
+            int mixtasActuales = 0;
+
+            if (tipoLote == "Produccion")
+            {
+                // PRODUCCIÓN: Obtener aves iniciales desde ProduccionLotes
+                var produccionLote = await _context.ProduccionLotes
+                    .AsNoTracking()
+                    .Where(p => p.LoteId == loteId.ToString())
+                    .FirstOrDefaultAsync();
+
+                if (produccionLote != null)
+                {
+                    hembrasIniciales = produccionLote.AvesInicialesH;
+                    machosIniciales = produccionLote.AvesInicialesM;
+
+                    // Obtener todos los registros de seguimiento de producción
+                    var seguimientos = await _context.SeguimientoProduccion
+                        .AsNoTracking()
+                        .Where(s => s.LoteId == loteId.ToString())
+                        .ToListAsync();
+
+                    // Calcular descuentos acumulados
+                    var totalMortalidadH = seguimientos.Sum(s => s.MortalidadH);
+                    var totalMortalidadM = seguimientos.Sum(s => s.MortalidadM);
+                    var totalSeleccionH = seguimientos.Sum(s => s.SelH);
+                    var totalSeleccionM = seguimientos.Sum(s => s.SelM);
+
+                    // Obtener movimientos de aves completados que salen del lote
+                    var movimientosSalida = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteOrigenId == loteId && 
+                                   m.Estado == "Completado" &&
+                                   m.DeletedAt == null)
+                        .ToListAsync();
+
+                    var totalMovimientosSalidaH = movimientosSalida.Sum(m => m.CantidadHembras);
+                    var totalMovimientosSalidaM = movimientosSalida.Sum(m => m.CantidadMachos);
+
+                    // Obtener movimientos de aves completados que entran al lote
+                    var movimientosEntrada = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteDestinoId == loteId && 
+                                   m.Estado == "Completado" &&
+                                   m.DeletedAt == null)
+                        .ToListAsync();
+
+                    var totalMovimientosEntradaH = movimientosEntrada.Sum(m => m.CantidadHembras);
+                    var totalMovimientosEntradaM = movimientosEntrada.Sum(m => m.CantidadMachos);
+                    var totalMovimientosEntradaMixtas = movimientosEntrada.Sum(m => m.CantidadMixtas);
+
+                    // Calcular aves actuales
+                    hembrasActuales = Math.Max(0, hembrasIniciales - totalMortalidadH - totalSeleccionH - totalMovimientosSalidaH + totalMovimientosEntradaH);
+                    machosActuales = Math.Max(0, machosIniciales - totalMortalidadM - totalSeleccionM - totalMovimientosSalidaM + totalMovimientosEntradaM);
+                    mixtasActuales = totalMovimientosEntradaMixtas; // Las mixtas solo vienen de movimientos de entrada
+                }
+            }
+            else
+            {
+                // LEVANTE: Obtener aves iniciales desde Lotes
+                hembrasIniciales = lote.HembrasL ?? 0;
+                machosIniciales = lote.MachosL ?? 0;
+                var mortCajaH = lote.MortCajaH ?? 0;
+                var mortCajaM = lote.MortCajaM ?? 0;
+
+                // Obtener todos los registros de seguimiento de levante
+                var seguimientos = await _context.SeguimientoLoteLevante
+                    .AsNoTracking()
+                    .Where(s => s.LoteId == loteId)
+                    .ToListAsync();
+
+                // Calcular descuentos acumulados
+                var totalMortalidadH = seguimientos.Sum(s => s.MortalidadHembras);
+                var totalMortalidadM = seguimientos.Sum(s => s.MortalidadMachos);
+                var totalSeleccionH = seguimientos.Sum(s => s.SelH);
+                var totalSeleccionM = seguimientos.Sum(s => s.SelM);
+                var totalErrorSexajeH = seguimientos.Sum(s => s.ErrorSexajeHembras);
+                var totalErrorSexajeM = seguimientos.Sum(s => s.ErrorSexajeMachos);
+
+                // Obtener movimientos de aves completados que salen del lote
+                var movimientosSalida = await _context.MovimientoAves
+                    .AsNoTracking()
+                    .Where(m => m.LoteOrigenId == loteId && 
+                               m.Estado == "Completado" &&
+                               m.DeletedAt == null)
+                    .ToListAsync();
+
+                var totalMovimientosSalidaH = movimientosSalida.Sum(m => m.CantidadHembras);
+                var totalMovimientosSalidaM = movimientosSalida.Sum(m => m.CantidadMachos);
+
+                // Obtener movimientos de aves completados que entran al lote
+                var movimientosEntrada = await _context.MovimientoAves
+                    .AsNoTracking()
+                    .Where(m => m.LoteDestinoId == loteId && 
+                               m.Estado == "Completado" &&
+                               m.DeletedAt == null)
+                    .ToListAsync();
+
+                var totalMovimientosEntradaH = movimientosEntrada.Sum(m => m.CantidadHembras);
+                var totalMovimientosEntradaM = movimientosEntrada.Sum(m => m.CantidadMachos);
+                var totalMovimientosEntradaMixtas = movimientosEntrada.Sum(m => m.CantidadMixtas);
+
+                // Calcular aves actuales (incluyendo mortalidad en caja)
+                hembrasActuales = Math.Max(0, hembrasIniciales - mortCajaH - totalMortalidadH - totalSeleccionH - totalErrorSexajeH - totalMovimientosSalidaH + totalMovimientosEntradaH);
+                machosActuales = Math.Max(0, machosIniciales - mortCajaM - totalMortalidadM - totalSeleccionM - totalErrorSexajeM - totalMovimientosSalidaM + totalMovimientosEntradaM);
+                mixtasActuales = totalMovimientosEntradaMixtas; // Las mixtas solo vienen de movimientos de entrada
+            }
+
+            var totalAvesActuales = hembrasActuales + machosActuales + mixtasActuales;
+
+            var informacion = new
+            {
+                loteId = lote.LoteId,
+                loteNombre = lote.LoteNombre,
+                granjaId = lote.GranjaId,
+                granjaNombre = lote.Farm?.Name,
+                nucleoId = lote.NucleoId,
+                nucleoNombre = lote.Nucleo?.NucleoNombre,
+                galponId = lote.GalponId,
+                galponNombre = lote.Galpon?.GalponNombre,
+                etapa = etapa,
+                tipoLote = tipoLote,
+                // Aves iniciales
+                hembrasIniciales = hembrasIniciales,
+                machosIniciales = machosIniciales,
+                // Aves actuales calculadas desde registros diarios
+                cantidadHembras = hembrasActuales,
+                cantidadMachos = machosActuales,
+                cantidadMixtas = mixtasActuales,
+                totalAves = totalAvesActuales,
+                fechaEncasetamiento = lote.FechaEncaset,
+                diasDesdeEncasetamiento = diasDesdeEncaset
+            };
+
+            return Ok(informacion);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener información del lote {LoteId}", loteId);
+            return StatusCode(500, new { error = "Error interno del servidor", details = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Crea un nuevo movimiento
     /// </summary>
     [HttpPost]
@@ -253,7 +442,35 @@ public class MovimientoAvesController : ControllerBase
     }
 
     /// <summary>
-    /// Cancela un movimiento pendiente
+    /// Actualiza un movimiento pendiente
+    /// </summary>
+    [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(MovimientoAvesDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Update(int id, [FromBody] ActualizarMovimientoAvesDto dto)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var movimiento = await _movimientoService.ActualizarMovimientoAvesAsync(id, dto, _currentUser.UserId);
+            return Ok(movimiento);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al actualizar movimiento {Id}", id);
+            return StatusCode(500, new { message = "Error interno del servidor", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Cancela un movimiento pendiente o completado
     /// </summary>
     [HttpPost("{id}/cancelar")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]

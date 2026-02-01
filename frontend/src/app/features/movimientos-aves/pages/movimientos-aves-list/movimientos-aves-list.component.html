@@ -1,0 +1,275 @@
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>Movimientos de Aves</h1>
+
+        <div class="ux-header__meta">
+          <ng-template #noGranjaChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Selecciona una granja
+            </span>
+          </ng-template>
+
+          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">
+            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedGalponId">
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+
+          <span class="chip chip--info" *ngIf="selectedLoteId">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote: {{ selectedLoteNombre }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
+            {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId">
+            {{ filteredMovimientos.length || 0 }} de {{ movimientos.length || 0 }} registro(s)
+          </span>
+        </div>
+      </div>
+
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          (click)="create()"
+          class="btn btn--primary"
+          [disabled]="!selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
+          Nuevo registro
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros de selección -->
+    <app-filtro-select
+      [selectedGranjaId]="selectedGranjaId"
+      [selectedNucleoId]="selectedNucleoId"
+      [selectedGalponId]="selectedGalponId"
+      [selectedLoteId]="selectedLoteId"
+      (granjaChange)="onGranjaChange($event)"
+      (nucleoChange)="onNucleoChange($event)"
+      (galponChange)="onGalponChange($event)"
+      (loteChange)="onLoteChange($event)">
+    </app-filtro-select>
+
+    <!-- Mensaje de error -->
+    <div *ngIf="error" class="alert alert-error">
+      {{ error }}
+    </div>
+
+    <!-- Tabla de movimientos -->
+    <section class="ux-card" *ngIf="selectedLoteId">
+      <div class="ux-card__header">
+        <h2>Registros de Movimientos de Aves</h2>
+      </div>
+
+      <!-- Filtros de tabla -->
+      <div class="ux-card__filters">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="filtroBusqueda">Buscar</label>
+            <input 
+              type="text" 
+              id="filtroBusqueda"
+              [(ngModel)]="filtroBusqueda"
+              (ngModelChange)="onFiltroChange()"
+              placeholder="Buscar por número, tipo, destino..."
+              class="filter-input">
+          </div>
+
+          <div class="filter-group">
+            <label for="filtroTipoMovimiento">Tipo</label>
+            <select 
+              id="filtroTipoMovimiento"
+              [(ngModel)]="filtroTipoMovimiento"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-select">
+              <option value="">Todos</option>
+              <option value="Traslado">Traslado</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="filtroEstado">Estado</label>
+            <select 
+              id="filtroEstado"
+              [(ngModel)]="filtroEstado"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-select">
+              <option value="">Todos</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Completado">Completado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <button 
+              type="button" 
+              class="btn btn--outline"
+              (click)="limpiarFiltros()"
+              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ux-card__body">
+        <!-- Estado de carga -->
+        <div *ngIf="loading" class="loading-state">
+          <p>Cargando movimientos...</p>
+        </div>
+
+        <!-- Tabla -->
+        <div *ngIf="!loading" class="table-container">
+          <div class="ux-scroll">
+            <table class="ux-table">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Origen</th>
+                  <th>Destino</th>
+                  <th>Total Aves</th>
+                  <th>Hembras</th>
+                  <th>Machos</th>
+                  <th>Mixtas</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="movimientos.length === 0">
+                  <td colspan="11" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🐔</div>
+                    <p>No hay registros de movimientos para este lote.</p>
+                    <button type="button" class="btn btn--outline" (click)="create()">
+                      Crear el primero
+                    </button>
+                  </td>
+                </tr>
+
+                <tr *ngIf="movimientos.length > 0 && filteredMovimientos.length === 0">
+                  <td colspan="11" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🔍</div>
+                    <p>No se encontraron registros con los filtros aplicados.</p>
+                    <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+                      Limpiar filtros
+                    </button>
+                  </td>
+                </tr>
+
+                <tr *ngFor="let movimiento of filteredMovimientos" class="ux-row">
+                  <td>
+                    <strong>{{ movimiento.numeroMovimiento }}</strong>
+                  </td>
+                  <td>{{ movimiento.fechaMovimiento | date:'dd/MM/yyyy' }}</td>
+                  <td>
+                    <span class="badge badge--info">
+                      {{ movimiento.tipoMovimiento }}
+                    </span>
+                  </td>
+                  <td>
+                    <div *ngIf="movimiento.origen">
+                      <div>{{ movimiento.origen.granjaNombre || 'N/A' }}</div>
+                      <small class="text-muted" *ngIf="movimiento.origen.loteNombre">
+                        Lote: {{ movimiento.origen.loteNombre }}
+                      </small>
+                    </div>
+                    <div *ngIf="!movimiento.origen">N/A</div>
+                  </td>
+                  <td>
+                    <div *ngIf="movimiento.destino">
+                      <div>{{ movimiento.destino.granjaNombre || 'N/A' }}</div>
+                      <small class="text-muted" *ngIf="movimiento.destino.loteNombre">
+                        Lote: {{ movimiento.destino.loteNombre }}
+                      </small>
+                    </div>
+                    <div *ngIf="!movimiento.destino">N/A</div>
+                  </td>
+                  <td class="number-cell">
+                    <strong>{{ formatearNumero(movimiento.totalAves) }}</strong>
+                  </td>
+                  <td class="number-cell">{{ formatearNumero(movimiento.cantidadHembras) }}</td>
+                  <td class="number-cell">{{ formatearNumero(movimiento.cantidadMachos) }}</td>
+                  <td class="number-cell">{{ formatearNumero(movimiento.cantidadMixtas) }}</td>
+                  <td>
+                    <span class="badge" 
+                          [class.badge--success]="movimiento.estado === 'Completado'"
+                          [class.badge--warning]="movimiento.estado === 'Pendiente'"
+                          [class.badge--danger]="movimiento.estado === 'Cancelado'">
+                      {{ movimiento.estado }}
+                    </span>
+                  </td>
+                  <td class="text-right">
+                    <div class="btn-group">
+                      <button 
+                        type="button" 
+                        (click)="viewDetail(movimiento)" 
+                        class="action-btn action-btn--view" 
+                        title="Ver detalle">
+                        <span class="action-icon">👁</span>
+                        <span class="action-label">Ver</span>
+                      </button>
+                      <button 
+                        type="button" 
+                        (click)="editMovimiento(movimiento)" 
+                        class="action-btn action-btn--edit" 
+                        title="Editar"
+                        [disabled]="movimiento.estado === 'Completado'">
+                        <span class="action-icon">✎</span>
+                        <span class="action-label">Editar</span>
+                      </button>
+                      <button 
+                        type="button" 
+                        (click)="deleteMovimiento(movimiento)" 
+                        class="action-btn action-btn--delete" 
+                        title="Eliminar"
+                        [disabled]="movimiento.estado === 'Cancelado'">
+                        <span class="action-icon">🗑</span>
+                        <span class="action-label">Eliminar</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mensaje cuando no hay lote seleccionado -->
+    <section class="ux-card" *ngIf="!selectedLoteId">
+      <div class="empty-state">
+        <div class="empty-illustration" aria-hidden="true">🔍</div>
+        <p>Selecciona un lote para ver sus movimientos de aves</p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal para crear/editar movimiento -->
+<app-modal-movimiento-aves
+  [isOpen]="modalOpen"
+  [loteId]="selectedLoteId"
+  [editingMovimiento]="editingMovimiento"
+  (close)="closeModal()"
+  (save)="onMovimientoSaved()">
+</app-modal-movimiento-aves>

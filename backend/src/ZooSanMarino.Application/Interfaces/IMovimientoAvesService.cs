@@ -14,6 +14,7 @@ public interface IMovimientoAvesService
     Task<MovimientoAvesDto?> GetByIdAsync(int id);
     Task<MovimientoAvesDto?> GetByNumeroMovimientoAsync(string numeroMovimiento);
     Task<IEnumerable<MovimientoAvesDto>> GetAllAsync();
+    Task<MovimientoAvesDto> ActualizarMovimientoAvesAsync(int movimientoId, ActualizarMovimientoAvesDto dto, int usuarioId);
     
     // Búsqueda y filtrado
     Task<ZooSanMarino.Application.DTOs.Common.PagedResult<MovimientoAvesDto>> SearchAsync(MovimientoAvesSearchRequest request);

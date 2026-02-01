@@ -1,0 +1,472 @@
+<!-- Modal de Movimiento de Aves -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="movimiento-aves-modal-title" (click)="onOverlayClick($event)">
+  <div class="ux-modal__dialog ux-modal__dialog--xl" (click)="$event.stopPropagation()">
+    <header class="ux-modal__header">
+      <h2 id="movimiento-aves-modal-title">
+        {{ modalTitle() }}
+        <span *ngIf="editingMovimiento" class="modal-subtitle">
+          - {{ editingMovimiento.numeroMovimiento }}
+        </span>
+      </h2>
+      <button type="button" class="icon-btn" (click)="closeModal()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <div class="ux-modal__body">
+      <!-- Mensajes de error y éxito -->
+      <div *ngIf="error()" class="alert alert-error">
+        {{ error() }}
+      </div>
+      <div *ngIf="success()" class="alert alert-success">
+        {{ success() }}
+      </div>
+
+      <!-- Formulario -->
+      <form [formGroup]="formMovimiento" (ngSubmit)="onSubmitMovimiento()" class="movimiento-form">
+        <div class="form-section">
+          <h3>Información del Lote</h3>
+
+          <!-- Información de Disponibilidad de Aves -->
+          <div *ngIf="loadingInfo()" class="loading-info">
+            Cargando información del lote...
+          </div>
+
+          <!-- Información del Lote Seleccionado -->
+          <div *ngIf="informacionLote() && !loadingInfo()" class="lote-info-card">
+            <div class="lote-info-grid">
+              <div class="lote-info-item">
+                <span class="label">Lote:</span>
+                <span class="value">{{ informacionLote()!.loteNombre }} (ID: {{ informacionLote()!.loteId }})</span>
+              </div>
+              <div class="lote-info-item">
+                <span class="label">Granja:</span>
+                <span class="value">{{ informacionLote()!.granjaNombre || 'N/A' }}</span>
+              </div>
+              <div class="lote-info-item" *ngIf="informacionLote()?.nucleoNombre">
+                <span class="label">Núcleo:</span>
+                <span class="value">{{ informacionLote()!.nucleoNombre }}</span>
+              </div>
+              <div class="lote-info-item" *ngIf="informacionLote()?.galponNombre">
+                <span class="label">Galpón:</span>
+                <span class="value">{{ informacionLote()!.galponNombre }}</span>
+              </div>
+              <div class="lote-info-item" *ngIf="informacionLote()?.diasDesdeEncasetamiento !== undefined">
+                <span class="label">Edad:</span>
+                <span class="value">{{ informacionLote()!.diasDesdeEncasetamiento }} días ({{ informacionLote()!.etapa }} semanas)</span>
+              </div>
+              <div class="lote-info-item">
+                <span class="label">Etapa:</span>
+                <span class="value badge" [class.badge--info]="informacionLote()!.tipoLote === 'Levante'" [class.badge--success]="informacionLote()!.tipoLote === 'Produccion'">
+                  {{ informacionLote()!.tipoLote }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Información de Aves Iniciales Registradas en el Lote -->
+          <div *ngIf="informacionLote() && !loadingInfo()" class="aves-registradas-card">
+            <h4>Inventario Inicial del Lote</h4>
+            <div class="aves-registradas-grid">
+              <div class="aves-registradas-item">
+                <span class="label">Hembras Iniciales:</span>
+                <span class="value">{{ informacionLote()!.hembrasIniciales || 0 }}</span>
+              </div>
+              <div class="aves-registradas-item">
+                <span class="label">Machos Iniciales:</span>
+                <span class="value">{{ informacionLote()!.machosIniciales || 0 }}</span>
+              </div>
+              <div class="aves-registradas-item">
+                <span class="label">Total Inicial:</span>
+                <span class="value highlight">{{ (informacionLote()!.hembrasIniciales || 0) + (informacionLote()!.machosIniciales || 0) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Disponibilidad Actual de Aves (calculada desde registros diarios) -->
+          <div *ngIf="informacionLote() && !loadingInfo()" class="disponibilidad-card">
+            <h4>Disponibilidad Actual de Aves</h4>
+            <p class="disponibilidad-subtitle">Calculado desde registros diarios de {{ informacionLote()!.tipoLote }}</p>
+            <div class="disponibilidad-grid">
+              <div class="disponibilidad-item">
+                <span class="label">Total Aves Disponibles:</span>
+                <span class="value highlight">{{ informacionLote()!.totalAves || 0 }}</span>
+              </div>
+              <div class="disponibilidad-item">
+                <span class="label">Hembras Disponibles:</span>
+                <span class="value">{{ informacionLote()!.cantidadHembras || 0 }}</span>
+              </div>
+              <div class="disponibilidad-item">
+                <span class="label">Machos Disponibles:</span>
+                <span class="value">{{ informacionLote()!.cantidadMachos || 0 }}</span>
+              </div>
+              <div class="disponibilidad-item">
+                <span class="label">Mixtas Disponibles:</span>
+                <span class="value">{{ informacionLote()!.cantidadMixtas || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Datos del Movimiento</h3>
+
+          <div class="form-group">
+            <label for="fechaMovimiento">Fecha de Movimiento <span class="required">*</span></label>
+            <input 
+              type="date" 
+              id="fechaMovimiento" 
+              formControlName="fechaMovimiento" 
+              class="form-control"
+              [readonly]="isReadOnly()">
+          </div>
+
+          <div class="form-group">
+            <label for="tipoMovimiento">Tipo de Movimiento <span class="required">*</span></label>
+            <select 
+              id="tipoMovimiento" 
+              formControlName="tipoMovimiento" 
+              class="form-control"
+              [disabled]="isReadOnly()">
+              <option value="">Selecciona un tipo</option>
+              <option *ngFor="let tipo of tiposMovimiento()" [value]="tipo">
+                {{ tipo }}
+              </option>
+            </select>
+            <div *ngIf="formMovimiento.get('tipoMovimiento')?.invalid && formMovimiento.get('tipoMovimiento')?.touched" class="error-message">
+              El tipo de movimiento es requerido
+            </div>
+          </div>
+
+          <!-- Campos para Traslado -->
+          <div *ngIf="esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)">
+            <div class="form-group">
+              <label for="tipoDestino">Tipo de Destino <span class="required">*</span></label>
+              <select 
+                id="tipoDestino" 
+                formControlName="tipoDestino" 
+                class="form-control"
+                [disabled]="isReadOnly()">
+                <option value="">Selecciona tipo</option>
+                <option value="Granja">Granja</option>
+                <option value="Lote">Lote</option>
+                <option value="Planta">Planta</option>
+              </select>
+              <div *ngIf="formMovimiento.get('tipoDestino')?.invalid && formMovimiento.get('tipoDestino')?.touched" class="error-message">
+                El tipo de destino es requerido para traslados
+              </div>
+            </div>
+
+            <!-- Mostrar select de Granja si el tipo de destino es "Granja" -->
+            <div class="form-group" *ngIf="esTipoGranja(formMovimiento.get('tipoDestino')?.value)">
+              <label for="granjaDestinoId">Granja Destino <span class="required">*</span></label>
+              <select 
+                id="granjaDestinoId" 
+                formControlName="granjaDestinoId" 
+                class="form-control"
+                [disabled]="isReadOnly()">
+                <option value="">Selecciona una granja</option>
+                <option *ngFor="let granja of granjas()" [value]="granja.id">
+                  {{ granja.name }}
+                </option>
+              </select>
+              <div *ngIf="formMovimiento.get('granjaDestinoId')?.invalid && formMovimiento.get('granjaDestinoId')?.touched" class="error-message">
+                La granja destino es requerida
+              </div>
+
+              <!-- Filtros para seleccionar lote destino (solo cuando hay granja seleccionada) -->
+              <div *ngIf="formMovimiento.get('granjaDestinoId')?.value" class="lote-destino-filters" style="margin-top: 1rem; padding: 1rem; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+                <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: #333;">Lote Destino (Opcional)</label>
+                <app-filtro-select
+                  [selectedGranjaId]="formMovimiento.get('granjaDestinoId')?.value"
+                  [selectedNucleoId]="selectedNucleoDestinoId"
+                  [selectedGalponId]="selectedGalponDestinoId"
+                  [selectedLoteId]="selectedLoteDestinoId"
+                  (granjaChange)="onGranjaDestinoChange($event)"
+                  (nucleoChange)="onNucleoDestinoChange($event)"
+                  (galponChange)="onGalponDestinoChange($event)"
+                  (loteChange)="onLoteDestinoChange($event)">
+                </app-filtro-select>
+              </div>
+            </div>
+
+            <!-- Mostrar filtros para seleccionar lote destino si el tipo de destino es "Lote" -->
+            <div class="form-group" *ngIf="formMovimiento.get('tipoDestino')?.value === 'Lote'">
+              <label>Lote Destino <span class="required">*</span></label>
+              <app-filtro-select
+                [selectedGranjaId]="selectedGranjaDestinoId"
+                [selectedNucleoId]="selectedNucleoDestinoId"
+                [selectedGalponId]="selectedGalponDestinoId"
+                [selectedLoteId]="selectedLoteDestinoId"
+                (granjaChange)="onGranjaDestinoChange($event)"
+                (nucleoChange)="onNucleoDestinoChange($event)"
+                (galponChange)="onGalponDestinoChange($event)"
+                (loteChange)="onLoteDestinoChange($event)">
+              </app-filtro-select>
+              <div *ngIf="formMovimiento.get('loteDestinoId')?.invalid && formMovimiento.get('loteDestinoId')?.touched" class="error-message">
+                El lote destino es requerido
+              </div>
+            </div>
+
+            <!-- Mostrar select de Planta si el tipo de destino es "Planta" -->
+            <div class="form-group" *ngIf="esTipoPlanta(formMovimiento.get('tipoDestino')?.value)">
+              <label for="plantaDestino">Planta Destino <span class="required">*</span></label>
+              <select 
+                id="plantaDestino" 
+                formControlName="plantaDestino" 
+                class="form-control"
+                [disabled]="isReadOnly()">
+                <option value="">Selecciona una planta</option>
+                <option *ngFor="let planta of plantasDestino()" [value]="planta">
+                  {{ planta }}
+                </option>
+              </select>
+              <div *ngIf="formMovimiento.get('plantaDestino')?.invalid && formMovimiento.get('plantaDestino')?.touched" class="error-message">
+                La planta destino es requerida
+              </div>
+            </div>
+          </div>
+
+          <!-- Campos para Venta -->
+          <div *ngIf="esTipoVenta(formMovimiento.get('tipoMovimiento')?.value)">
+            <div class="form-group">
+              <label for="motivoMovimiento">Motivo de Venta <span class="required">*</span></label>
+              <select 
+                id="motivoMovimiento" 
+                formControlName="motivoMovimiento" 
+                class="form-control"
+                [disabled]="isReadOnly()">
+                <option value="">Selecciona un motivo</option>
+                <option *ngFor="let motivo of motivosMovimiento()" [value]="motivo">
+                  {{ motivo }}
+                </option>
+              </select>
+              <div *ngIf="formMovimiento.get('motivoMovimiento')?.invalid && formMovimiento.get('motivoMovimiento')?.touched" class="error-message">
+                El motivo de venta es requerido
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="descripcion">Descripción <span class="required">*</span></label>
+              <textarea 
+                id="descripcion" 
+                formControlName="descripcion" 
+                class="form-control" 
+                rows="3" 
+                placeholder="Describe los detalles de la venta"
+                [readonly]="isReadOnly()"></textarea>
+              <div *ngIf="formMovimiento.get('descripcion')?.invalid && formMovimiento.get('descripcion')?.touched" class="error-message">
+                La descripción es requerida para ventas
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>Cantidades de Aves</h4>
+            <p *ngIf="informacionLote()?.tipoLote === 'Produccion'" class="info-message" style="margin-bottom: 1rem; padding: 0.75rem; background: #fff3cd; border-left: 4px solid #ffc107; color: #856404;">
+              <strong>Nota:</strong> En Producción solo se puede mover hembras O machos, no ambos ni mixtas.
+            </p>
+            
+            <!-- Para Producción: Solo hembras O machos -->
+            <div *ngIf="informacionLote()?.tipoLote === 'Produccion'" class="aves-cantidades-grid">
+              <div class="form-group-ave">
+                <label for="cantidadHembras">
+                  Hembras
+                  <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadHembras || 0 }})</span>
+                </label>
+                <input
+                  type="number"
+                  id="cantidadHembras"
+                  formControlName="cantidadHembras"
+                  class="form-control"
+                  [max]="informacionLote()?.cantidadHembras || 0"
+                  min="0"
+                  [readonly]="isReadOnly()"
+                  (input)="onCantidadProduccionChange('hembras')">
+                <div *ngIf="formMovimiento.get('cantidadHembras')?.invalid && formMovimiento.get('cantidadHembras')?.touched" class="error-message">
+                  Cantidad inválida
+                </div>
+              </div>
+
+              <div class="form-group-ave">
+                <label for="cantidadMachos">
+                  Machos
+                  <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadMachos || 0 }})</span>
+                </label>
+                <input
+                  type="number"
+                  id="cantidadMachos"
+                  formControlName="cantidadMachos"
+                  class="form-control"
+                  [max]="informacionLote()?.cantidadMachos || 0"
+                  min="0"
+                  [readonly]="isReadOnly()"
+                  (input)="onCantidadProduccionChange('machos')">
+                <div *ngIf="formMovimiento.get('cantidadMachos')?.invalid && formMovimiento.get('cantidadMachos')?.touched" class="error-message">
+                  Cantidad inválida
+                </div>
+              </div>
+            </div>
+
+            <!-- Para Levante: Hembras, machos y mixtas -->
+            <div *ngIf="informacionLote()?.tipoLote === 'Levante'" class="aves-cantidades-grid">
+              <div class="form-group-ave">
+                <label for="cantidadHembras">
+                  Hembras
+                  <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadHembras || 0 }})</span>
+                </label>
+                <input
+                  type="number"
+                  id="cantidadHembras"
+                  formControlName="cantidadHembras"
+                  class="form-control"
+                  [max]="informacionLote()?.cantidadHembras || 0"
+                  min="0"
+                  [readonly]="isReadOnly()">
+                <div *ngIf="formMovimiento.get('cantidadHembras')?.invalid && formMovimiento.get('cantidadHembras')?.touched" class="error-message">
+                  Cantidad inválida
+                </div>
+              </div>
+
+              <div class="form-group-ave">
+                <label for="cantidadMachos">
+                  Machos
+                  <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadMachos || 0 }})</span>
+                </label>
+                <input
+                  type="number"
+                  id="cantidadMachos"
+                  formControlName="cantidadMachos"
+                  class="form-control"
+                  [max]="informacionLote()?.cantidadMachos || 0"
+                  min="0"
+                  [readonly]="isReadOnly()">
+                <div *ngIf="formMovimiento.get('cantidadMachos')?.invalid && formMovimiento.get('cantidadMachos')?.touched" class="error-message">
+                  Cantidad inválida
+                </div>
+              </div>
+
+              <div class="form-group-ave">
+                <label for="cantidadMixtas">
+                  Mixtas
+                  <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadMixtas || 0 }})</span>
+                </label>
+                <input
+                  type="number"
+                  id="cantidadMixtas"
+                  formControlName="cantidadMixtas"
+                  class="form-control"
+                  [max]="informacionLote()?.cantidadMixtas || 0"
+                  min="0"
+                  [readonly]="isReadOnly()">
+                <div *ngIf="formMovimiento.get('cantidadMixtas')?.invalid && formMovimiento.get('cantidadMixtas')?.touched" class="error-message">
+                  Cantidad inválida
+                </div>
+              </div>
+            </div>
+
+            <!-- Mensajes de error de validación -->
+            <div *ngIf="formMovimiento.hasError('sinCantidad') && formMovimiento.touched" class="error-message">
+              Debe ingresar al menos una cantidad de aves
+            </div>
+            <div *ngIf="formMovimiento.hasError('excedeHembras') && formMovimiento.touched" class="error-message">
+              La cantidad de hembras excede la disponibilidad
+            </div>
+            <div *ngIf="formMovimiento.hasError('excedeMachos') && formMovimiento.touched" class="error-message">
+              La cantidad de machos excede la disponibilidad
+            </div>
+            <div *ngIf="formMovimiento.hasError('excedeMixtas') && formMovimiento.touched" class="error-message">
+              La cantidad de mixtas excede la disponibilidad
+            </div>
+            <div *ngIf="formMovimiento.hasError('produccionNoMixto') && formMovimiento.touched" class="error-message">
+              En Producción no se pueden mover hembras y machos al mismo tiempo. Debe seleccionar solo uno.
+            </div>
+            <div *ngIf="formMovimiento.hasError('produccionNoMixtas') && formMovimiento.touched" class="error-message">
+              En Producción no se pueden mover aves mixtas.
+            </div>
+          </div>
+
+          <!-- Motivo del Movimiento (solo para traslados, opcional) -->
+          <div class="form-group" *ngIf="esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)">
+            <label for="motivoMovimiento">Motivo del Movimiento</label>
+            <select 
+              id="motivoMovimiento" 
+              formControlName="motivoMovimiento" 
+              class="form-control"
+              [disabled]="isReadOnly()">
+              <option value="">Selecciona un motivo (opcional)</option>
+              <option *ngFor="let motivo of motivosMovimiento()" [value]="motivo">
+                {{ motivo }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="observaciones">Observaciones</label>
+            <textarea 
+              id="observaciones" 
+              formControlName="observaciones" 
+              class="form-control" 
+              rows="3"
+              placeholder="Observaciones adicionales sobre el movimiento"
+              [readonly]="isReadOnly()">
+            </textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <footer class="ux-modal__footer">
+      <div class="ux-modal__footer-actions">
+        <button 
+          type="button" 
+          class="btn btn--secondary" 
+          (click)="closeModal()">
+          Cancelar
+        </button>
+        <button 
+          *ngIf="!isReadOnly()" 
+          type="button" 
+          class="btn btn--primary" 
+          (click)="onSubmitMovimiento()"
+          [disabled]="formMovimiento.invalid || loading()">
+          <span *ngIf="loading()">Guardando...</span>
+          <span *ngIf="!loading()">{{ saveButtonText() }}</span>
+        </button>
+        <button 
+          *ngIf="isReadOnly() && editingMovimiento?.estado === 'Pendiente'" 
+          type="button" 
+          class="btn btn--primary" 
+          (click)="isEditMode.set(true); formMovimiento.enable()">
+          Editar
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- Modal de Éxito -->
+<div *ngIf="showSuccessModal()" class="success-modal-backdrop" (click)="closeSuccessModal()">
+  <div class="success-modal" (click)="$event.stopPropagation()">
+    <div class="success-modal__icon">
+      <span class="success-icon">✓</span>
+    </div>
+    <h3 class="success-modal__title">¡Operación Exitosa!</h3>
+    <p class="success-modal__message">{{ successMessage() }}</p>
+    <button type="button" class="btn btn--primary" (click)="closeSuccessModal()">
+      Aceptar
+    </button>
+  </div>
+</div>
+
+<!-- Modal de Error -->
+<div *ngIf="showErrorModal()" class="error-modal-backdrop" (click)="closeErrorModal()">
+  <div class="error-modal" (click)="$event.stopPropagation()">
+    <div class="error-modal__icon">
+      <span class="error-icon">⚠</span>
+    </div>
+    <h3 class="error-modal__title">Error al Guardar</h3>
+    <p class="error-modal__message">{{ errorMessage() }}</p>
+    <button type="button" class="btn btn--primary" (click)="closeErrorModal()">
+      Cerrar
+    </button>
+  </div>
+</div>

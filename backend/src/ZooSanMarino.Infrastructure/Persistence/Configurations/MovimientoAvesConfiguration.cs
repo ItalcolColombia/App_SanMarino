@@ -88,6 +88,14 @@ public class MovimientoAvesConfiguration : IEntityTypeConfiguration<MovimientoAv
             .HasColumnName("motivo_movimiento")
             .HasMaxLength(500);
 
+        builder.Property(x => x.PlantaDestino)
+            .HasColumnName("planta_destino")
+            .HasMaxLength(200);
+
+        builder.Property(x => x.Descripcion)
+            .HasColumnName("descripcion")
+            .HasMaxLength(1000);
+
         builder.Property(x => x.Observaciones)
             .HasColumnName("observaciones")
             .HasMaxLength(1000);

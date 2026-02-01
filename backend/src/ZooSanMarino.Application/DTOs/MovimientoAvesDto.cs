@@ -25,6 +25,8 @@ public record MovimientoAvesDto(
     // Estado y información
     string Estado,
     string? MotivoMovimiento,
+    string? Descripcion,
+    string? PlantaDestino,
     string? Observaciones,
     
     // Usuario
@@ -72,6 +74,7 @@ public sealed class CreateMovimientoAvesDto
     public int? GranjaDestinoId { get; set; }
     public string? NucleoDestinoId { get; set; }
     public string? GalponDestinoId { get; set; }
+    public string? PlantaDestino { get; set; }  // Para traslados a plantas
     
     // Cantidades a mover
     public int CantidadHembras { get; set; }
@@ -80,10 +83,35 @@ public sealed class CreateMovimientoAvesDto
     
     // Información adicional
     public string? MotivoMovimiento { get; set; }
+    public string? Descripcion { get; set; }  // Para ventas
     public string? Observaciones { get; set; }
     
     // Se auto-completa con el usuario actual
     public int UsuarioMovimientoId { get; set; }
+}
+
+/// <summary>
+/// DTO para actualizar un movimiento de aves
+/// </summary>
+public sealed class ActualizarMovimientoAvesDto
+{
+    public DateTime? FechaMovimiento { get; init; }
+    public string? TipoMovimiento { get; init; }
+    public int? LoteOrigenId { get; init; }
+    public int? GranjaOrigenId { get; init; }
+    public string? NucleoOrigenId { get; init; }
+    public string? GalponOrigenId { get; init; }
+    public int? LoteDestinoId { get; init; }
+    public int? GranjaDestinoId { get; init; }
+    public string? NucleoDestinoId { get; init; }
+    public string? GalponDestinoId { get; init; }
+    public string? PlantaDestino { get; init; }  // Para traslados a plantas
+    public int? CantidadHembras { get; init; }
+    public int? CantidadMachos { get; init; }
+    public int? CantidadMixtas { get; init; }
+    public string? MotivoMovimiento { get; init; }
+    public string? Descripcion { get; init; }  // Para ventas
+    public string? Observaciones { get; init; }
 }
 
 /// <summary>
