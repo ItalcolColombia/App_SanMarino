@@ -31,3 +31,13 @@ public record UpdateMenuDto(
     bool IsActive,
     int[] PermissionIds
 );
+
+// Respuesta del endpoint de menú con información del país activo
+public class MenuWithCountryDto
+{
+    public IEnumerable<MenuItemDto> Menu { get; set; } = Array.Empty<MenuItemDto>();
+    public int? PaisId { get; set; }
+    public string? PaisNombre { get; set; }
+    public int? CompanyId { get; set; }
+    public string? CompanyName { get; set; }
+}

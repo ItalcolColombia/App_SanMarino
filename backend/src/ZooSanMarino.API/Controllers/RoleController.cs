@@ -3,8 +3,10 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -14,11 +16,18 @@ namespace ZooSanMarino.API.Controllers;
 public class RolesController : ControllerBase
 {
     // NOTA: Este servicio orquestador unifica lo de roles, permisos y menús.
-    // Puedes implementarlo como un “façade” que internamente use tus servicios actuales
+    // Puedes implementarlo como un "façade" que internamente use tus servicios actuales
     // o como un único servicio concreto que reemplace a los existentes.
     private readonly IRoleCompositeService _svc;
+    private readonly ICurrentUser _currentUser;
+    private readonly ZooSanMarinoContext _ctx;
 
-    public RolesController(IRoleCompositeService svc) => _svc = svc;
+    public RolesController(IRoleCompositeService svc, ICurrentUser currentUser, ZooSanMarinoContext ctx)
+    {
+        _svc = svc;
+        _currentUser = currentUser;
+        _ctx = ctx;
+    }
 
     // ======== ROLES ========
 
@@ -138,7 +147,7 @@ public class RolesController : ControllerBase
 
     [HttpGet("menus/me")]
     [Authorize]
-    [ProducesResponseType(typeof(IEnumerable<MenuItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MenuWithCountryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MenusForCurrentUser([FromQuery] int? companyId = null)
     {
@@ -149,7 +158,35 @@ public class RolesController : ControllerBase
         if (!Guid.TryParse(idStr, out var userId))
             return Unauthorized(new { message = "No se pudo determinar el GUID del usuario." });
 
-        return Ok(await _svc.Menus_GetForUserAsync(userId, companyId));
+        var menu = await _svc.Menus_GetForUserAsync(userId, companyId);
+        
+        // Obtener información del país activo
+        var paisId = _currentUser.PaisId;
+        string? paisNombre = null;
+        if (paisId.HasValue)
+        {
+            var pais = await _ctx.Paises
+                .AsNoTracking()
+                .Where(p => p.PaisId == paisId.Value)
+                .Select(p => p.PaisNombre)
+                .FirstOrDefaultAsync();
+            paisNombre = pais;
+        }
+
+        // Obtener información de la empresa activa
+        var activeCompanyId = _currentUser.CompanyId;
+        string? companyName = _currentUser.ActiveCompanyName;
+
+        var response = new MenuWithCountryDto
+        {
+            Menu = menu,
+            PaisId = paisId,
+            PaisNombre = paisNombre,
+            CompanyId = activeCompanyId > 0 ? activeCompanyId : null,
+            CompanyName = companyName
+        };
+
+        return Ok(response);
     }
 
     [HttpGet("menus/user/{userId:guid}")]

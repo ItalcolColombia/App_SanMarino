@@ -278,21 +278,55 @@ public class AuthService : IAuthService
     );
 
     // ===== Respuesta enriquecida =====
-    var companyPaisesList = userCompanies.Select(uc => new CompanyPaisDto
+    // Obtener IDs de empresas del usuario
+    var userCompanyIds = userCompanies.Select(uc => uc.CompanyId).ToList();
+    
+    // Consultar países asociados a cada empresa del usuario desde CompanyPaises
+    var companyPaisesFromDb = await _ctx.CompanyPaises
+        .Include(cp => cp.Company)
+        .Include(cp => cp.Pais)
+        .Where(cp => userCompanyIds.Contains(cp.CompanyId))
+        .ToListAsync();
+    
+    // Crear diccionario para saber si una empresa es default
+    var defaultCompanies = userCompanies
+        .Where(uc => uc.IsDefault)
+        .Select(uc => uc.CompanyId)
+        .ToHashSet();
+    
+    // Crear lista de CompanyPaisDto con información completa de país
+    var companyPaisesList = companyPaisesFromDb.Select(cp => new CompanyPaisDto
     {
-        CompanyId = uc.CompanyId,
-        CompanyName = uc.Company?.Name ?? string.Empty,
-        PaisId = 0,
-        PaisNombre = string.Empty,
-        IsDefault = uc.IsDefault
+        CompanyId = cp.CompanyId,
+        CompanyName = cp.Company?.Name ?? string.Empty,
+        PaisId = cp.PaisId,
+        PaisNombre = cp.Pais?.PaisNombre ?? string.Empty,
+        IsDefault = defaultCompanies.Contains(cp.CompanyId)
     }).ToList();
+    
+    // Si una empresa no tiene países asociados, agregarla sin país (para compatibilidad)
+    var companiesWithPaises = companyPaisesList.Select(cp => cp.CompanyId).Distinct().ToHashSet();
+    foreach (var uc in userCompanies)
+    {
+        if (!companiesWithPaises.Contains(uc.CompanyId))
+        {
+            companyPaisesList.Add(new CompanyPaisDto
+            {
+                CompanyId = uc.CompanyId,
+                CompanyName = uc.Company?.Name ?? string.Empty,
+                PaisId = 0,
+                PaisNombre = string.Empty,
+                IsDefault = uc.IsDefault
+            });
+        }
+    }
 
-    // Log para verificación de CompanyIds
-    var companyIds = companyPaisesList.Select(cp => cp.CompanyId).ToList();
+    // Log para verificación de CompanyIds y países
+    var companyIds = companyPaisesList.Select(cp => cp.CompanyId).Distinct().ToList();
     Console.WriteLine($"=== AuthService.GenerateResponseAsync - Usuario {user.Id} ===");
     Console.WriteLine($"Empresas asignadas: {userCompanies.Count}");
     Console.WriteLine($"CompanyIds: {string.Join(", ", companyIds)}");
-    Console.WriteLine($"CompanyPaises: {string.Join(", ", companyPaisesList.Select(cp => $"ID:{cp.CompanyId}, Name:{cp.CompanyName}"))}");
+    Console.WriteLine($"CompanyPaises: {string.Join(", ", companyPaisesList.Select(cp => $"CompanyID:{cp.CompanyId}, CompanyName:{cp.CompanyName}, PaisID:{cp.PaisId}, PaisNombre:{cp.PaisNombre}"))}");
 
     return new AuthResponseDto
     {

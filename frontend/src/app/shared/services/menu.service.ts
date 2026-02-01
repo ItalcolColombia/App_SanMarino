@@ -20,6 +20,14 @@ export interface ApiMenuItem {
   children: ApiMenuItem[];
 }
 
+export interface MenuWithCountryResponse {
+  menu: ApiMenuItem[];
+  paisId?: number | null;
+  paisNombre?: string | null;
+  companyId?: number | null;
+  companyName?: string | null;
+}
+
 export interface UiMenuItem {
   id: number;
   label: string;
@@ -101,14 +109,50 @@ preloadMyMenu(companyId?: number) {
   let params = new HttpParams();
   if (companyId != null) params = params.set('companyId', String(companyId));
 
-  return this.http.get<ApiMenuItem[]>(url, { params }).pipe(
+  return this.http.get<MenuWithCountryResponse>(url, { params }).pipe(
     // 1) guarda en storage a partir del arreglo crudo que devuelve la API
-    tap((apiArr: ApiMenuItem[]) => {
-      const rawToStore: SessionMenuItem[] = (apiArr ?? []).map(apiToSession);
+    tap((response: MenuWithCountryResponse) => {
+      const apiArr = response.menu ?? [];
+      const rawToStore: SessionMenuItem[] = apiArr.map(apiToSession);
       this.storage.updateMenu(rawToStore);
+      
+      // Actualizar información del país en la sesión si está disponible
+      if (response.paisId && response.paisNombre) {
+        const session = this.storage.get();
+        if (session) {
+          console.log('🌍 Actualizando información del país en la sesión:', {
+            paisId: response.paisId,
+            paisNombre: response.paisNombre,
+            companyId: response.companyId,
+            companyName: response.companyName
+          });
+          const updatedSession = {
+            ...session,
+            activePaisId: response.paisId,
+            activePaisNombre: response.paisNombre
+          };
+          const persistedInLocal = !!localStorage.getItem('auth_session');
+          this.storage.save(updatedSession, persistedInLocal);
+          console.log('✅ País guardado en storage:', {
+            activePaisId: updatedSession.activePaisId,
+            activePaisNombre: updatedSession.activePaisNombre
+          });
+        } else {
+          console.warn('⚠️ No hay sesión disponible para actualizar el país');
+        }
+      } else {
+        console.warn('⚠️ No se recibió información del país en la respuesta:', {
+          hasPaisId: !!response.paisId,
+          hasPaisNombre: !!response.paisNombre,
+          response: response
+        });
+      }
     }),
     // 2) transforma a UI para pintar en el sidebar
-    map((apiArr: ApiMenuItem[]) => (apiArr ?? []).map(mapApiToUi)),
+    map((response: MenuWithCountryResponse) => {
+      const apiArr = response.menu ?? [];
+      return apiArr.map(mapApiToUi);
+    }),
     // 3) actualiza el subject que consumen los componentes
     tap((ui) => this.subject.next(ui))
   );

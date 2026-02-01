@@ -20,7 +20,9 @@ export class HttpCompanyHelperService {
   getHeadersWithActiveCompany(additionalHeaders: { [key: string]: string | string[] } = {}): HttpHeaders {
     const session = this.storage.get();
     const activeCompany = session?.activeCompany || '';
+    const activeCompanyId = session?.activeCompanyId;
     const activePaisId = session?.activePaisId;
+    const activePaisNombre = session?.activePaisNombre;
 
     // Headers base con empresa activa y país
     const baseHeaders: { [key: string]: string | string[] } = {
@@ -30,8 +32,19 @@ export class HttpCompanyHelperService {
       ...additionalHeaders
     };
 
+    // Agregar ID de empresa activa si está disponible
+    if (activeCompanyId) {
+      baseHeaders['X-Active-Company-Id'] = activeCompanyId.toString();
+    }
+
+    // Agregar ID de país activo si está disponible
     if (activePaisId) {
       baseHeaders['X-Active-Pais'] = activePaisId.toString();
+    }
+
+    // Agregar nombre del país activo si está disponible
+    if (activePaisNombre) {
+      baseHeaders['X-Active-Pais-Nombre'] = activePaisNombre;
     }
 
     return new HttpHeaders(baseHeaders);
@@ -46,7 +59,9 @@ export class HttpCompanyHelperService {
     const session = this.storage.get();
     const token = session?.accessToken;
     const activeCompany = session?.activeCompany || '';
+    const activeCompanyId = session?.activeCompanyId;
     const activePaisId = session?.activePaisId;
+    const activePaisNombre = session?.activePaisNombre;
 
     if (!token) {
       console.warn('HttpCompanyHelper: No hay token disponible, usando headers sin autenticación');
@@ -61,8 +76,19 @@ export class HttpCompanyHelperService {
       ...additionalHeaders
     };
 
+    // Agregar ID de empresa activa si está disponible
+    if (activeCompanyId) {
+      authHeaders['X-Active-Company-Id'] = activeCompanyId.toString();
+    }
+
+    // Agregar ID de país activo si está disponible
     if (activePaisId) {
       authHeaders['X-Active-Pais'] = activePaisId.toString();
+    }
+
+    // Agregar nombre del país activo si está disponible
+    if (activePaisNombre) {
+      authHeaders['X-Active-Pais-Nombre'] = activePaisNombre;
     }
 
     return new HttpHeaders(authHeaders);
@@ -70,19 +96,32 @@ export class HttpCompanyHelperService {
 
   /**
    * Obtiene solo el header de empresa activa y país
-   * @returns Headers X-Active-Company y X-Active-Pais
+   * @returns Headers X-Active-Company, X-Active-Company-Id, X-Active-Pais y X-Active-Pais-Nombre
    */
   getActiveCompanyHeader(): { [key: string]: string } {
     const session = this.storage.get();
     const activeCompany = session?.activeCompany || '';
+    const activeCompanyId = session?.activeCompanyId;
     const activePaisId = session?.activePaisId;
+    const activePaisNombre = session?.activePaisNombre;
 
     const headers: { [key: string]: string } = {
       'X-Active-Company': activeCompany
     };
 
+    // Agregar ID de empresa activa si está disponible
+    if (activeCompanyId) {
+      headers['X-Active-Company-Id'] = activeCompanyId.toString();
+    }
+
+    // Agregar ID de país activo si está disponible
     if (activePaisId) {
       headers['X-Active-Pais'] = activePaisId.toString();
+    }
+
+    // Agregar nombre del país activo si está disponible
+    if (activePaisNombre) {
+      headers['X-Active-Pais-Nombre'] = activePaisNombre;
     }
 
     return headers;

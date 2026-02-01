@@ -81,9 +81,10 @@ export class AuthService {
         // Determinar empresa y país activos por defecto
         // Prioridad: 1) isDefault=true, 2) primera disponible
         const defaultCompanyPais = companyPaises.find((cp: any) => cp.isDefault) || companyPaises[0];
-        const activeCompanyId = defaultCompanyPais?.companyId;
-        const activePaisId = defaultCompanyPais?.paisId;
-        const activeCompany = defaultCompanyPais?.companyName || (companies[0] ?? undefined);
+        const activeCompanyId = defaultCompanyPais?.companyId || defaultCompanyPais?.CompanyId;
+        const activePaisId = defaultCompanyPais?.paisId || defaultCompanyPais?.PaisId;
+        const activeCompany = defaultCompanyPais?.companyName || defaultCompanyPais?.CompanyName || (companies[0] ?? undefined);
+        const activePaisNombre = defaultCompanyPais?.paisNombre || defaultCompanyPais?.PaisNombre;
 
         // Extraer IDs de empresas y determinar si tiene múltiples empresas
         // Asegurar que se extraen correctamente tanto en camelCase como PascalCase
@@ -99,6 +100,8 @@ export class AuthService {
           companyPaises: companyPaises.map((cp: any) => ({
             companyId: cp.companyId || cp.CompanyId,
             companyName: cp.companyName || cp.CompanyName,
+            paisId: cp.paisId || cp.PaisId,
+            paisNombre: cp.paisNombre || cp.PaisNombre,
             isDefault: cp.isDefault || cp.IsDefault
           }))
         });
@@ -151,6 +154,7 @@ export class AuthService {
           companyPaises: companyPaises.length > 0 ? companyPaises : undefined,
           activeCompanyId,
           activePaisId,
+          activePaisNombre,
           companyIds: companyIds.length > 0 ? companyIds : undefined,
           menu: menu,
           menusByRole: menusByRole

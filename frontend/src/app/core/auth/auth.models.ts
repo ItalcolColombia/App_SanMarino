@@ -84,6 +84,7 @@ export interface AuthSession {
   companyPaises?: CompanyPais[];  // todas las combinaciones empresa-país disponibles
   activeCompanyId?: number;        // ID de la empresa activa
   activePaisId?: number;           // ID del país activo
+  activePaisNombre?: string;       // Nombre del país activo
   companyIds?: number[];            // IDs de todas las empresas del usuario
 
   // 👇 NUEVO

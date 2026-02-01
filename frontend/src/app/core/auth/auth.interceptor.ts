@@ -44,13 +44,24 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // Agregar header de empresa activa (siempre, incluso si es null/undefined)
+      // Agregar header de empresa activa (nombre) - siempre, incluso si es null/undefined
       // Esto permite que el backend sepa que el usuario está autenticado pero no tiene empresa activa
       headers['X-Active-Company'] = session?.activeCompany || '';
 
-      // Agregar header de país activo
+      // Agregar header de ID de empresa activa
+      if (session?.activeCompanyId) {
+        headers['X-Active-Company-Id'] = session.activeCompanyId.toString();
+      }
+
+      // Agregar header de ID de país activo (siempre, incluso si es null/undefined)
+      // Esto permite que el backend sepa el país del usuario que realizó login
       if (session?.activePaisId) {
         headers['X-Active-Pais'] = session.activePaisId.toString();
+      }
+
+      // Agregar header de nombre del país activo
+      if (session?.activePaisNombre) {
+        headers['X-Active-Pais-Nombre'] = session.activePaisNombre;
       }
 
       const authReq = req.clone({
