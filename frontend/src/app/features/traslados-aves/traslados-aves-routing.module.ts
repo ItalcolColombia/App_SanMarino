@@ -40,8 +40,8 @@ const routes: Routes = [
   {
     path: 'nuevo',
     loadComponent: () => import('./pages/traslado-aves-huevos/traslado-aves-huevos.component')
-      .then(m => m.TrasladoAvesHuevosComponent),
-    title: 'Nuevo Traslado'
+      .then(m => m.TrasladoAvesComponent),
+    title: 'Nuevo Traslado de Aves'
   },
   {
     path: 'registros',

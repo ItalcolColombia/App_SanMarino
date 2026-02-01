@@ -280,10 +280,40 @@ export const appConfig: ApplicationConfig = {
           {
             path: 'nuevo',
             loadComponent: () => import('./features/traslados-aves/pages/traslado-aves-huevos/traslado-aves-huevos.component')
-              .then(m => m.TrasladoAvesHuevosComponent),
-            title: 'Nuevo Traslado'
+              .then(m => m.TrasladoAvesComponent),
+            title: 'Nuevo Traslado de Aves'
           }
         ]
+      },
+      {
+        path: 'traslados-huevos',
+        canActivate: [authGuard],
+        children: [
+          {
+            path: '',
+            redirectTo: 'lista',
+            pathMatch: 'full'
+          },
+          {
+            path: 'lista',
+            loadComponent: () => import('./features/traslados-huevos/pages/traslados-huevos-list/traslados-huevos-list.component')
+              .then(m => m.TrasladosHuevosListComponent),
+            title: 'Traslados de Huevos'
+          },
+          {
+            path: 'nuevo',
+            loadComponent: () => import('./features/traslados-huevos/pages/traslado-huevos-form/traslado-huevos-form.component')
+              .then(m => m.TrasladoHuevosFormComponent),
+            title: 'Nuevo Traslado de Huevos'
+          }
+        ]
+      },
+      {
+        path: 'movimientos-aves',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/movimientos-aves/movimientos-aves-routing.module')
+            .then(m => m.MovimientosAvesRoutingModule)
       },
 
       { path: '**', redirectTo: 'login' }
