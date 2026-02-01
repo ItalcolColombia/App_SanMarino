@@ -161,12 +161,11 @@ public class TrasladosController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TrasladoHuevosDto>> GetTrasladoHuevos(int id)
     {
-        var traslados = await _trasladoHuevosService.ObtenerTrasladosPorLoteAsync(id.ToString());
-        var traslado = traslados.FirstOrDefault(t => t.Id == id);
+        var traslado = await _trasladoHuevosService.ObtenerTrasladoPorIdAsync(id);
         
         if (traslado == null)
         {
-            return NotFound();
+            return NotFound(new { message = $"Traslado {id} no encontrado" });
         }
 
         return Ok(traslado);
@@ -183,5 +182,83 @@ public class TrasladosController : ControllerBase
         return Ok(traslados);
     }
 
+    /// <summary>
+    /// Cancela un traslado de huevos pendiente
+    /// </summary>
+    [HttpPost("huevos/{id}/cancelar")]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<bool>> CancelarTrasladoHuevos(int id, [FromBody] CancelarTrasladoRequest request)
+    {
+        try
+        {
+            var resultado = await _trasladoHuevosService.CancelarTrasladoAsync(id, request.Motivo ?? "Cancelado por usuario");
+            if (!resultado)
+            {
+                return BadRequest(new { message = "No se pudo cancelar el traslado. Verifique que el traslado esté en estado 'Pendiente'" });
+            }
+            return Ok(resultado);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Procesa un traslado de huevos pendiente
+    /// </summary>
+    [HttpPost("huevos/{id}/procesar")]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<bool>> ProcesarTrasladoHuevos(int id)
+    {
+        try
+        {
+            var resultado = await _trasladoHuevosService.ProcesarTrasladoAsync(id);
+            if (!resultado)
+            {
+                return BadRequest(new { message = "No se pudo procesar el traslado. Verifique que el traslado esté en estado 'Pendiente'" });
+            }
+            return Ok(resultado);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza un traslado de huevos existente (solo si está en estado "Pendiente")
+    /// </summary>
+    [HttpPut("huevos/{id}")]
+    [ProducesResponseType(typeof(TrasladoHuevosDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TrasladoHuevosDto>> ActualizarTrasladoHuevos(int id, [FromBody] ActualizarTrasladoHuevosDto dto)
+    {
+        try
+        {
+            var traslado = await _trasladoHuevosService.ActualizarTrasladoHuevosAsync(id, dto, _currentUser.UserId);
+            return Ok(traslado);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error interno del servidor", details = ex.Message });
+        }
+    }
+
+}
+
+/// <summary>
+/// DTO para cancelar traslado
+/// </summary>
+public class CancelarTrasladoRequest
+{
+    public string? Motivo { get; set; }
 }
 

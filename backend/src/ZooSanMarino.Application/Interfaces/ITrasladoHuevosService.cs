@@ -27,6 +27,16 @@ public interface ITrasladoHuevosService
     /// Obtiene todos los traslados de un lote
     /// </summary>
     Task<IEnumerable<TrasladoHuevosDto>> ObtenerTrasladosPorLoteAsync(string loteId);
+    
+    /// <summary>
+    /// Actualiza un traslado de huevos existente (solo si está en estado "Pendiente")
+    /// </summary>
+    Task<TrasladoHuevosDto> ActualizarTrasladoHuevosAsync(int trasladoId, ActualizarTrasladoHuevosDto dto, int usuarioId);
+    
+    /// <summary>
+    /// Obtiene un traslado de huevos por ID
+    /// </summary>
+    Task<TrasladoHuevosDto?> ObtenerTrasladoPorIdAsync(int trasladoId);
 }
 
 

@@ -1,0 +1,285 @@
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>Traslados de Huevos</h1>
+
+        <div class="ux-header__meta">
+          <ng-template #noGranjaChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Selecciona una granja
+            </span>
+          </ng-template>
+
+          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">
+            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedGalponId">
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+
+          <span class="chip chip--info" *ngIf="selectedLoteId">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote: {{ selectedLoteNombre }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
+            {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId">
+            {{ filteredTraslados.length || 0 }} de {{ traslados.length || 0 }} registro(s)
+          </span>
+        </div>
+      </div>
+
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          (click)="create()"
+          class="btn btn--primary"
+          [disabled]="!selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
+          Nuevo registro
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros de selección -->
+    <app-filtro-select
+      [selectedGranjaId]="selectedGranjaId"
+      [selectedNucleoId]="selectedNucleoId"
+      [selectedGalponId]="selectedGalponId"
+      [selectedLoteId]="selectedLoteId"
+      (granjaChange)="onGranjaChange($event)"
+      (nucleoChange)="onNucleoChange($event)"
+      (galponChange)="onGalponChange($event)"
+      (loteChange)="onLoteChange($event)">
+    </app-filtro-select>
+
+    <!-- Mensaje de error -->
+    <div *ngIf="error" class="alert alert-error">
+      {{ error }}
+    </div>
+
+    <!-- Tabla de traslados -->
+    <section class="ux-card" *ngIf="selectedLoteId">
+      <div class="ux-card__header">
+        <h2>Registros de Traslados de Huevos</h2>
+      </div>
+
+      <!-- Filtros de tabla -->
+      <div class="ux-card__filters">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="filtroBusqueda">Buscar</label>
+            <input 
+              type="text" 
+              id="filtroBusqueda"
+              [(ngModel)]="filtroBusqueda"
+              (ngModelChange)="onFiltroChange()"
+              placeholder="Buscar por número, tipo, destino..."
+              class="filter-input">
+          </div>
+
+          <div class="filter-group">
+            <label for="filtroTipoOperacion">Tipo</label>
+            <select 
+              id="filtroTipoOperacion"
+              [(ngModel)]="filtroTipoOperacion"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-select">
+              <option value="">Todos</option>
+              <option value="Traslado">Traslado</option>
+              <option value="Venta">Venta</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="filtroEstado">Estado</label>
+            <select 
+              id="filtroEstado"
+              [(ngModel)]="filtroEstado"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-select">
+              <option value="">Todos</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Completado">Completado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <button 
+              type="button" 
+              class="btn btn--outline"
+              (click)="limpiarFiltros()"
+              [disabled]="!filtroBusqueda && !filtroTipoOperacion && !filtroEstado">
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ux-card__body">
+        <!-- Estado de carga -->
+        <div *ngIf="loading" class="loading-state">
+          <p>Cargando traslados...</p>
+        </div>
+
+        <!-- Tabla -->
+        <div *ngIf="!loading" class="table-container">
+          <div class="ux-scroll">
+            <table class="ux-table">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Destino</th>
+                  <th>Total Huevos</th>
+                  <th>Limpio</th>
+                  <th>Tratado</th>
+                  <th>Sucio</th>
+                  <th>Deforme</th>
+                  <th>Blanco</th>
+                  <th>Doble Yema</th>
+                  <th>Piso</th>
+                  <th>Pequeño</th>
+                  <th>Roto</th>
+                  <th>Desecho</th>
+                  <th>Otro</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="traslados.length === 0">
+                  <td colspan="18" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🥚</div>
+                    <p>No hay registros de traslados para este lote.</p>
+                    <button type="button" class="btn btn--outline" (click)="create()">
+                      Crear el primero
+                    </button>
+                  </td>
+                </tr>
+
+                <tr *ngIf="traslados.length > 0 && filteredTraslados.length === 0">
+                  <td colspan="18" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🔍</div>
+                    <p>No se encontraron registros con los filtros aplicados.</p>
+                    <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+                      Limpiar filtros
+                    </button>
+                  </td>
+                </tr>
+
+                <tr *ngFor="let traslado of filteredTraslados" class="ux-row">
+                  <td>
+                    <strong>{{ traslado.numeroTraslado }}</strong>
+                  </td>
+                  <td>{{ traslado.fechaTraslado | date:'dd/MM/yyyy' }}</td>
+                  <td>
+                    <span class="badge" [class.badge--info]="traslado.tipoOperacion === 'Traslado'"
+                          [class.badge--warning]="traslado.tipoOperacion === 'Venta'">
+                      {{ traslado.tipoOperacion }}
+                    </span>
+                  </td>
+                  <td>
+                    <div *ngIf="traslado.tipoOperacion === 'Traslado'">
+                      <div>{{ traslado.granjaDestinoNombre || 'N/A' }}</div>
+                      <small class="text-muted" *ngIf="traslado.loteDestinoId">
+                        Lote: {{ traslado.loteDestinoId }}
+                      </small>
+                    </div>
+                    <div *ngIf="traslado.tipoOperacion === 'Venta'">
+                      <small>{{ traslado.motivo || 'Venta' }}</small>
+                    </div>
+                  </td>
+                  <td class="number-cell">
+                    <strong>{{ formatearNumero(getTotalHuevos(traslado)) }}</strong>
+                  </td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadLimpio) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadTratado) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadSucio) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadDeforme) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadBlanco) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadDobleYema) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadPiso) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadPequeno) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadRoto) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadDesecho) }}</td>
+                  <td class="number-cell">{{ formatearNumero(traslado.cantidadOtro) }}</td>
+                  <td>
+                    <span class="badge" 
+                          [class.badge--success]="traslado.estado === 'Completado'"
+                          [class.badge--warning]="traslado.estado === 'Pendiente'"
+                          [class.badge--danger]="traslado.estado === 'Cancelado'">
+                      {{ traslado.estado }}
+                    </span>
+                  </td>
+                  <td class="text-right">
+                    <div class="btn-group">
+                      <button 
+                        type="button" 
+                        (click)="viewDetail(traslado)" 
+                        class="action-btn action-btn--view" 
+                        title="Ver detalle">
+                        <span class="action-icon">👁</span>
+                        <span class="action-label">Ver</span>
+                      </button>
+                      <button 
+                        type="button" 
+                        (click)="editTraslado(traslado)" 
+                        class="action-btn action-btn--edit" 
+                        title="Editar"
+                        [disabled]="traslado.estado === 'Completado'">
+                        <span class="action-icon">✎</span>
+                        <span class="action-label">Editar</span>
+                      </button>
+                      <button 
+                        type="button" 
+                        (click)="deleteTraslado(traslado)" 
+                        class="action-btn action-btn--delete" 
+                        title="Eliminar"
+                        [disabled]="traslado.estado === 'Completado'">
+                        <span class="action-icon">🗑</span>
+                        <span class="action-label">Eliminar</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mensaje cuando no hay lote seleccionado -->
+    <section class="ux-card" *ngIf="!selectedLoteId">
+      <div class="empty-state">
+        <div class="empty-illustration" aria-hidden="true">🔍</div>
+        <p>Selecciona un lote para ver sus traslados de huevos</p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal para crear/editar traslado -->
+<app-modal-traslado-huevos
+  [isOpen]="modalOpen"
+  [loteId]="selectedLoteId"
+  [editingTraslado]="editingTraslado"
+  (close)="closeModal()"
+  (save)="onTrasladoSaved()">
+</app-modal-traslado-huevos>
