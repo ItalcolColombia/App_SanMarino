@@ -37,6 +37,18 @@ export interface CrearMovimientoAvesDto {
   descripcion?: string;
   plantaDestino?: string;
   observaciones?: string;
+  // Campos específicos para despacho (Ecuador)
+  edadAves?: number;
+  raza?: string;
+  placa?: string;
+  horaSalida?: string; // Formato "HH:mm"
+  guiaAgrocalidad?: string;
+  sellos?: string;
+  ayuno?: string;
+  conductor?: string;
+  totalPollosGalpon?: number;
+  pesoBruto?: number;
+  pesoTara?: number;
 }
 
 export interface ActualizarMovimientoAvesDto {
@@ -57,6 +69,18 @@ export interface ActualizarMovimientoAvesDto {
   descripcion?: string;
   plantaDestino?: string;
   observaciones?: string;
+  // Campos específicos para despacho (Ecuador)
+  edadAves?: number;
+  raza?: string;
+  placa?: string;
+  horaSalida?: string; // Formato "HH:mm"
+  guiaAgrocalidad?: string;
+  sellos?: string;
+  ayuno?: string;
+  conductor?: string;
+  totalPollosGalpon?: number;
+  pesoBruto?: number;
+  pesoTara?: number;
 }
 
 export interface MovimientoAvesDto {
@@ -78,6 +102,20 @@ export interface MovimientoAvesDto {
   fechaProcesamiento?: Date;
   fechaCancelacion?: Date;
   createdAt: Date;
+  // Campos específicos para despacho (Ecuador)
+  edadAves?: number;
+  raza?: string;
+  placa?: string;
+  horaSalida?: string; // Formato "HH:mm"
+  guiaAgrocalidad?: string;
+  sellos?: string;
+  ayuno?: string;
+  conductor?: string;
+  totalPollosGalpon?: number;
+  pesoBruto?: number;
+  pesoTara?: number;
+  pesoNeto?: number;
+  promedioPesoAve?: number;
 }
 
 export interface InformacionLoteDto {
@@ -100,7 +138,10 @@ export interface InformacionLoteDto {
   cantidadMixtas: number;
   totalAves: number;
   fechaEncasetamiento?: Date;
+  fechaInicioProduccion?: Date; // Fecha de semana 26 para producción
   diasDesdeEncasetamiento?: number;
+  raza?: string;
+  anoTablaGenetica?: number;
 }
 
 @Injectable({
@@ -118,6 +159,12 @@ export class MovimientosAvesService {
   // Obtener información de un lote
   getInformacionLote(loteId: number): Observable<InformacionLoteDto> {
     return this.http.get<InformacionLoteDto>(`${this.movimientosUrl}/lote/${loteId}/informacion`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Obtener último número de despacho
+  getUltimoNumeroDespacho(): Observable<{ ultimoId: number; siguienteNumero: number }> {
+    return this.http.get<{ ultimoId: number; siguienteNumero: number }>(`${this.movimientosUrl}/ultimo-numero-despacho`)
       .pipe(catchError(this.handleError));
   }
 
