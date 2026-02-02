@@ -123,6 +123,49 @@ public class MovimientoAvesConfiguration : IEntityTypeConfiguration<MovimientoAv
             .HasColumnName("fecha_cancelacion")
             .HasColumnType("timestamp with time zone");
 
+        // Campos específicos para despacho (Ecuador)
+        builder.Property(x => x.EdadAves)
+            .HasColumnName("edad_aves");
+
+        builder.Property(x => x.Raza)
+            .HasColumnName("raza")
+            .HasMaxLength(100);
+
+        builder.Property(x => x.Placa)
+            .HasColumnName("placa")
+            .HasMaxLength(20);
+
+        builder.Property(x => x.HoraSalida)
+            .HasColumnName("hora_salida")
+            .HasColumnType("time");
+
+        builder.Property(x => x.GuiaAgrocalidad)
+            .HasColumnName("guia_agrocalidad")
+            .HasMaxLength(100);
+
+        builder.Property(x => x.Sellos)
+            .HasColumnName("sellos")
+            .HasMaxLength(500);
+
+        builder.Property(x => x.Ayuno)
+            .HasColumnName("ayuno")
+            .HasMaxLength(50);
+
+        builder.Property(x => x.Conductor)
+            .HasColumnName("conductor")
+            .HasMaxLength(200);
+
+        builder.Property(x => x.TotalPollosGalpon)
+            .HasColumnName("total_pollos_galpon");
+
+        builder.Property(x => x.PesoBruto)
+            .HasColumnName("peso_bruto")
+            .HasColumnType("double precision");
+
+        builder.Property(x => x.PesoTara)
+            .HasColumnName("peso_tara")
+            .HasColumnType("double precision");
+
         // Propiedades de auditoría
         builder.Property(x => x.CompanyId)
             .HasColumnName("company_id")

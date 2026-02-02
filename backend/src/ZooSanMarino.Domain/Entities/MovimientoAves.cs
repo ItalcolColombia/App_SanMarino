@@ -47,8 +47,30 @@ public class MovimientoAves : AuditableEntity
     public DateTime? FechaProcesamiento { get; set; }
     public DateTime? FechaCancelacion { get; set; }
     
+    // Campos específicos para despacho (Ecuador)
+    public int? EdadAves { get; set; } // Edad de las aves en días
+    public string? Raza { get; set; } // Raza de las aves
+    public string? Placa { get; set; } // Placa del vehículo
+    public TimeOnly? HoraSalida { get; set; } // Hora de salida
+    public string? GuiaAgrocalidad { get; set; } // Guía Agrocalidad
+    public string? Sellos { get; set; } // Información de sellos
+    public string? Ayuno { get; set; } // Información sobre ayuno (horas o indicador)
+    public string? Conductor { get; set; } // Nombre del conductor
+    public int? TotalPollosGalpon { get; set; } // Total de pollos por galpón
+    public double? PesoBruto { get; set; } // Peso bruto en kg
+    public double? PesoTara { get; set; } // Peso tara en kg
+    
     // Propiedades calculadas
     public int TotalAves => CantidadHembras + CantidadMachos + CantidadMixtas;
+    
+    // Propiedades calculadas de peso (no se guardan en BD)
+    public double? PesoNeto => PesoBruto.HasValue && PesoTara.HasValue 
+        ? PesoBruto.Value - PesoTara.Value 
+        : null;
+    
+    public double? PromedioPesoAve => PesoNeto.HasValue && TotalAves > 0 
+        ? PesoNeto.Value / TotalAves 
+        : null;
     
     // Navegación
     public InventarioAves? InventarioOrigen { get; set; }
