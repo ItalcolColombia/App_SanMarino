@@ -7,11 +7,13 @@ import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 
 @Component({
   selector: 'app-modal-movimiento-aves',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FiltroSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule, FiltroSelectComponent, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-aves.component.html',
   styleUrls: ['./modal-movimiento-aves.component.scss']
 })
@@ -83,11 +85,27 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   // Tipo de destino: 'Granja', 'Lote' o 'Planta'
   tipoDestino: 'Granja' | 'Lote' | 'Planta' = 'Granja';
 
+  // Modal de confirmación
+  showConfirmationModal = signal<boolean>(false);
+  confirmationModalData = signal<ConfirmationModalData>({
+    title: 'Confirmar',
+    message: '¿Estás seguro?',
+    type: 'info',
+    confirmText: 'Confirmar',
+    cancelText: 'Cancelar',
+    showCancel: true
+  });
+  isConfirmingSave = signal<boolean>(false);
+
+  // Tab activo
+  activeTab: 'general' | 'cantidades' | 'despacho' = 'general';
+
   constructor(
     private fb: FormBuilder,
     private movimientosService: MovimientosAvesService,
     private farmService: FarmService,
-    private masterListService: MasterListService
+    private masterListService: MasterListService,
+    private countryFilterService: CountryFilterService
   ) {
     this.initForm();
   }
@@ -154,7 +172,21 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       cantidadMixtas: [0, [Validators.required, Validators.min(0)]],
       motivoMovimiento: [null],
       descripcion: [null],
-      observaciones: [null]
+      observaciones: [null],
+      // Campos específicos para despacho (Ecuador)
+      numeroDespacho: [{ value: null, disabled: true }], // Solo lectura, generado automáticamente
+      edadAves: [null],
+      raza: [{ value: null, disabled: true }], // Solo lectura, cargado desde lote
+      anoTablaGenetica: [{ value: null, disabled: true }], // Solo lectura, cargado desde lote
+      placa: [null],
+      horaSalida: [null],
+      guiaAgrocalidad: [null],
+      sellos: [null],
+      ayuno: [null],
+      conductor: [null],
+      totalPollosGalpon: [null],
+      pesoBruto: [null],
+      pesoTara: [null]
     }, { validators: this.validarMovimiento.bind(this) });
 
     // Cuando cambia el tipo de movimiento, actualizar validadores
@@ -287,14 +319,70 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     // Este endpoint calcula las aves actuales desde los registros diarios
     this.movimientosService.getInformacionLote(loteId).subscribe({
       next: (info) => {
+        console.log('Información del lote cargada:', info);
         this.informacionLote.set(info);
         this.loadingInfo.set(false);
+        
+        // Cargar raza y año genético desde el lote
+        if (info.raza) {
+          const razaControl = this.formMovimiento.get('raza');
+          if (razaControl) {
+            razaControl.enable({ emitEvent: false });
+            razaControl.setValue(info.raza, { emitEvent: false });
+            razaControl.disable({ emitEvent: false });
+          }
+        }
+        
+        if (info.anoTablaGenetica) {
+          const anoTablaGeneticaControl = this.formMovimiento.get('anoTablaGenetica');
+          if (anoTablaGeneticaControl) {
+            anoTablaGeneticaControl.enable({ emitEvent: false });
+            anoTablaGeneticaControl.setValue(info.anoTablaGenetica, { emitEvent: false });
+            anoTablaGeneticaControl.disable({ emitEvent: false });
+          }
+        }
+        
+        // Auto-completar edad si está disponible
+        const edadCalculada = this.calcularEdadDesdeLote();
+        if (edadCalculada !== null) {
+          this.formMovimiento.patchValue({ edadAves: edadCalculada }, { emitEvent: false });
+        }
+        
+        // Cargar último número de despacho si es Ecuador
+        if (this.isEcuador()) {
+          this.cargarUltimoNumeroDespacho();
+        }
       },
       error: (error) => {
         console.error('Error cargando información del lote:', error);
         this.error.set('Error al cargar información del lote');
         this.informacionLote.set(null);
         this.loadingInfo.set(false);
+      }
+    });
+  }
+
+  private cargarUltimoNumeroDespacho(): void {
+    this.movimientosService.getUltimoNumeroDespacho().subscribe({
+      next: (response) => {
+        console.log('Respuesta último número de despacho:', response);
+        const siguienteNumero = response.siguienteNumero || response.ultimoId || 1;
+        const numeroDespachoControl = this.formMovimiento.get('numeroDespacho');
+        if (numeroDespachoControl) {
+          numeroDespachoControl.enable({ emitEvent: false });
+          numeroDespachoControl.setValue(siguienteNumero, { emitEvent: false });
+          numeroDespachoControl.disable({ emitEvent: false });
+        }
+      },
+      error: (error) => {
+        console.warn('No se pudo cargar el último número de despacho:', error);
+        // Si falla, usar 1 como valor por defecto
+        const numeroDespachoControl = this.formMovimiento.get('numeroDespacho');
+        if (numeroDespachoControl) {
+          numeroDespachoControl.enable({ emitEvent: false });
+          numeroDespachoControl.setValue(1, { emitEvent: false });
+          numeroDespachoControl.disable({ emitEvent: false });
+        }
       }
     });
   }
@@ -322,6 +410,15 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       this.formMovimiento.enable();
     }
 
+    // Habilitar temporalmente los campos disabled para poder establecer los valores
+    const razaControl = this.formMovimiento.get('raza');
+    const anoTablaGeneticaControl = this.formMovimiento.get('anoTablaGenetica');
+    const numeroDespachoControl = this.formMovimiento.get('numeroDespacho');
+    
+    if (razaControl) razaControl.enable({ emitEvent: false });
+    if (anoTablaGeneticaControl) anoTablaGeneticaControl.enable({ emitEvent: false });
+    if (numeroDespachoControl) numeroDespachoControl.enable({ emitEvent: false });
+    
     this.formMovimiento.patchValue({
       fechaMovimiento: fecha,
       tipoMovimiento: m.tipoMovimiento,
@@ -334,8 +431,26 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       cantidadMixtas: m.cantidadMixtas,
       motivoMovimiento: m.motivoMovimiento,
       descripcion: (m as any).descripcion || null,
-      observaciones: m.observaciones
+      observaciones: m.observaciones,
+      // Campos específicos para despacho (Ecuador)
+      edadAves: m.edadAves || null,
+      raza: m.raza || null,
+      anoTablaGenetica: (m as any).anoTablaGenetica || null,
+      placa: m.placa || null,
+      horaSalida: m.horaSalida || null,
+      guiaAgrocalidad: m.guiaAgrocalidad || null,
+      sellos: m.sellos || null,
+      ayuno: m.ayuno || null,
+      conductor: m.conductor || null,
+      totalPollosGalpon: m.totalPollosGalpon || null,
+      pesoBruto: m.pesoBruto || null,
+      pesoTara: m.pesoTara || null
     }, { emitEvent: false });
+    
+    // Volver a deshabilitar los campos readonly
+    if (razaControl) razaControl.disable({ emitEvent: false });
+    if (anoTablaGeneticaControl) anoTablaGeneticaControl.disable({ emitEvent: false });
+    if (numeroDespachoControl) numeroDespachoControl.disable({ emitEvent: false });
 
     this.tipoDestino = tipoDestino;
 
@@ -350,6 +465,16 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
 
   private resetForm(): void {
     const hoy = new Date().toISOString().split('T')[0];
+    
+    // Habilitar temporalmente los campos disabled para poder resetearlos
+    const razaControl = this.formMovimiento.get('raza');
+    const anoTablaGeneticaControl = this.formMovimiento.get('anoTablaGenetica');
+    const numeroDespachoControl = this.formMovimiento.get('numeroDespacho');
+    
+    if (razaControl) razaControl.enable({ emitEvent: false });
+    if (anoTablaGeneticaControl) anoTablaGeneticaControl.enable({ emitEvent: false });
+    if (numeroDespachoControl) numeroDespachoControl.enable({ emitEvent: false });
+    
     this.formMovimiento.reset({
       fechaMovimiento: hoy,
       tipoMovimiento: null,
@@ -362,8 +487,28 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       cantidadMixtas: 0,
       motivoMovimiento: null,
       descripcion: null,
-      observaciones: null
+      observaciones: null,
+      // Campos específicos para despacho (Ecuador)
+      numeroDespacho: null,
+      edadAves: null,
+      raza: null,
+      anoTablaGenetica: null,
+      placa: null,
+      horaSalida: null,
+      guiaAgrocalidad: null,
+      sellos: null,
+      ayuno: null,
+      conductor: null,
+      totalPollosGalpon: null,
+      pesoBruto: null,
+      pesoTara: null
     });
+    
+    // Volver a deshabilitar los campos readonly
+    if (razaControl) razaControl.disable({ emitEvent: false });
+    if (anoTablaGeneticaControl) anoTablaGeneticaControl.disable({ emitEvent: false });
+    if (numeroDespachoControl) numeroDespachoControl.disable({ emitEvent: false });
+    
     this.error.set(null);
     this.success.set(null);
     this.informacionLote.set(null);
@@ -461,57 +606,123 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   }
 
   private cargarMotivosMovimiento(): void {
-    // Usar la misma clave que traslados de huevos o crear una nueva específica para movimientos de aves
-    this.masterListService.getByKey('movimiento_aves_motivo').subscribe({
+    // Usar directamente la clave que sabemos que existe (traslado_de_huevos_venta_motivo)
+    // Si en el futuro se crea una específica para movimientos de aves, se puede cambiar
+    this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
       next: (masterList) => {
         if (masterList && masterList.options) {
           this.motivosMovimiento.set(masterList.options);
         } else {
-          // Fallback: intentar con la clave de traslados de huevos si no existe la específica
-          this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
-            next: (fallbackList) => {
-              if (fallbackList && fallbackList.options) {
-                this.motivosMovimiento.set(fallbackList.options);
-              } else {
-                this.motivosMovimiento.set([]);
-              }
-            },
-            error: () => {
-              this.motivosMovimiento.set([]);
-            }
-          });
+          this.motivosMovimiento.set([]);
         }
       },
       error: (error) => {
-        console.error('Error cargando motivos de movimiento desde lista maestra:', error);
-        // Fallback: intentar con la clave de traslados de huevos
-        this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
-          next: (fallbackList) => {
-            if (fallbackList && fallbackList.options) {
-              this.motivosMovimiento.set(fallbackList.options);
-            } else {
-              this.motivosMovimiento.set([]);
-            }
-          },
-          error: () => {
-            this.motivosMovimiento.set([]);
-          }
-        });
+        console.warn('No se pudo cargar motivos de movimiento desde lista maestra. Continuando sin motivos.', error);
+        this.motivosMovimiento.set([]);
       }
     });
   }
 
   onSubmitMovimiento(): void {
+    console.log('=== onSubmitMovimiento llamado ===');
+    console.log('Form válido:', this.formMovimiento.valid);
+    console.log('Form errors:', this.formMovimiento.errors);
+    console.log('Form value:', this.formMovimiento.value);
+    
     if (this.formMovimiento.invalid) {
+      console.error('❌ Formulario inválido');
       this.formMovimiento.markAllAsTouched();
+      this.showErrorMessage('Por favor, complete todos los campos requeridos correctamente.');
       return;
     }
 
+    // Mostrar modal de confirmación antes de guardar
+    const isEdit = this.editingMovimiento && this.isEditMode();
+    console.log('Mostrando modal de confirmación. isEdit:', isEdit);
+    this.confirmationModalData.set({
+      title: isEdit ? 'Confirmar Actualización' : 'Confirmar Creación',
+      message: isEdit 
+        ? `¿Estás seguro de que deseas actualizar el movimiento ${this.editingMovimiento?.numeroMovimiento}?`
+        : '¿Estás seguro de que deseas crear este movimiento de aves?',
+      type: 'info',
+      confirmText: isEdit ? 'Actualizar' : 'Crear',
+      cancelText: 'Cancelar',
+      showCancel: true
+    });
+    this.isConfirmingSave.set(true);
+    this.showConfirmationModal.set(true);
+    console.log('Modal de confirmación abierto. showConfirmationModal:', this.showConfirmationModal());
+  }
+
+  onConfirmSave(): void {
+    console.log('=== onConfirmSave llamado ===');
+    console.log('isConfirmingSave:', this.isConfirmingSave());
+    console.log('showConfirmationModal:', this.showConfirmationModal());
+    console.trace('Stack trace de onConfirmSave');
+    
+    const wasConfirming = this.isConfirmingSave();
+    
+    // Cerrar el modal de confirmación primero
+    this.showConfirmationModal.set(false);
+    this.isConfirmingSave.set(false);
+    
+    console.log('Modal cerrado. wasConfirming:', wasConfirming);
+    
+    if (!wasConfirming) {
+      console.log('ℹ️ No es confirmación de guardado, cerrando modal');
+      this.onConfirmationModalClose();
+      return;
+    }
+    
+    // Ejecutar el guardado inmediatamente
+    console.log('✅ Ejecutando guardado...');
+    console.log('Llamando a executeSave()...');
+    try {
+      this.executeSave();
+      console.log('executeSave() llamado exitosamente');
+    } catch (error) {
+      console.error('❌ Error al ejecutar executeSave():', error);
+      this.loading.set(false);
+      this.showErrorMessage('Error al procesar el guardado. Por favor, intenta nuevamente.');
+    }
+  }
+
+  onCancelSave(): void {
+    console.log('=== onCancelSave llamado ===');
+    this.showConfirmationModal.set(false);
+    this.isConfirmingSave.set(false);
+  }
+
+  onConfirmationModalClose(): void {
+    this.showConfirmationModal.set(false);
+    this.isConfirmingSave.set(false);
+  }
+
+  private executeSave(): void {
+    console.log('=== executeSave llamado ===');
+    console.log('loteId:', this.loteId);
+    console.log('informacionLote:', this.informacionLote());
+    
+    // Validaciones
+    if (!this.editingMovimiento && !this.loteId) {
+      console.error('❌ Error: No se puede crear un movimiento sin loteId');
+      this.showErrorMessage('Error: No se ha seleccionado un lote. Por favor, selecciona un lote antes de crear el movimiento.');
+      return;
+    }
+    
+    if (this.formMovimiento.invalid) {
+      console.error('❌ Error: El formulario es inválido');
+      this.formMovimiento.markAllAsTouched();
+      this.showErrorMessage('Por favor, complete todos los campos requeridos correctamente.');
+      return;
+    }
+    
     this.loading.set(true);
     this.error.set(null);
     this.success.set(null);
 
-    const formValue = this.formMovimiento.value;
+    const formValue = this.formMovimiento.getRawValue(); // Usar getRawValue() para obtener valores de campos disabled
+    console.log('Form value (getRawValue):', formValue);
     const fechaMovimiento = typeof formValue.fechaMovimiento === 'string'
       ? new Date(formValue.fechaMovimiento)
       : (formValue.fechaMovimiento instanceof Date ? formValue.fechaMovimiento : new Date());
@@ -529,24 +740,35 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
         cantidadMixtas: formValue.cantidadMixtas,
         motivoMovimiento: formValue.motivoMovimiento,
         descripcion: this.esTipoVenta(formValue.tipoMovimiento) ? formValue.descripcion : null,
-        observaciones: formValue.observaciones
+        observaciones: formValue.observaciones,
+        // Campos específicos para despacho (Ecuador)
+        edadAves: formValue.edadAves || undefined,
+        raza: formValue.raza || undefined,
+        placa: formValue.placa || undefined,
+        horaSalida: formValue.horaSalida || undefined,
+        guiaAgrocalidad: formValue.guiaAgrocalidad || undefined,
+        sellos: formValue.sellos || undefined,
+        ayuno: formValue.ayuno || undefined,
+        conductor: formValue.conductor || undefined,
+        totalPollosGalpon: formValue.totalPollosGalpon || undefined,
+        pesoBruto: formValue.pesoBruto || undefined,
+        pesoTara: formValue.pesoTara || undefined
       };
 
       this.movimientosService.actualizarMovimientoAves(this.editingMovimiento.id, dto).subscribe({
         next: (movimiento) => {
+          console.log('✅ Movimiento actualizado exitosamente:', movimiento);
           this.loading.set(false);
-          this.successMessage.set('Movimiento actualizado exitosamente');
-          this.showSuccessModal.set(true);
-          this.success.set('Movimiento actualizado exitosamente');
+          this.showSuccessMessage(`Movimiento ${movimiento.numeroMovimiento} actualizado exitosamente`);
           this.save.emit(movimiento);
         },
         error: (error) => {
-          console.error('Error actualizando movimiento:', error);
+          console.error('❌ Error actualizando movimiento:', error);
+          console.error('Error status:', error.status);
+          console.error('Error error:', error.error);
           this.loading.set(false);
-          this.errorMessage.set(`No se pudo actualizar el movimiento. ${error.message || 'Error desconocido'}`);
-          this.showErrorModal.set(true);
-          this.error.set(null);
-          this.success.set(null);
+          const errorMessage = error.error?.message || error.error?.error || error.message || 'Error desconocido';
+          this.showErrorMessage(`No se pudo actualizar el movimiento. ${errorMessage}`);
         }
       });
     } else {
@@ -563,27 +785,64 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
         cantidadMixtas: formValue.cantidadMixtas,
         motivoMovimiento: formValue.motivoMovimiento,
         descripcion: this.esTipoVenta(formValue.tipoMovimiento) ? formValue.descripcion : undefined,
-        observaciones: formValue.observaciones
+        observaciones: formValue.observaciones,
+        // Campos específicos para despacho (Ecuador)
+        edadAves: formValue.edadAves || undefined,
+        raza: formValue.raza || undefined,
+        placa: formValue.placa || undefined,
+        horaSalida: formValue.horaSalida || undefined,
+        guiaAgrocalidad: formValue.guiaAgrocalidad || undefined,
+        sellos: formValue.sellos || undefined,
+        ayuno: formValue.ayuno || undefined,
+        conductor: formValue.conductor || undefined,
+        totalPollosGalpon: formValue.totalPollosGalpon || undefined,
+        pesoBruto: formValue.pesoBruto || undefined,
+        pesoTara: formValue.pesoTara || undefined,
+        plantaDestino: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Planta' ? formValue.plantaDestino : undefined
       };
 
+      // Validar DTO antes de enviar
+      if (!dto.tipoMovimiento) {
+        console.error('❌ Error: tipoMovimiento es requerido');
+        this.loading.set(false);
+        this.showErrorMessage('Error: El tipo de movimiento es requerido.');
+        return;
+      }
+      
+      if (!dto.loteOrigenId) {
+        console.error('❌ Error: loteOrigenId es requerido');
+        this.loading.set(false);
+        this.showErrorMessage('Error: El lote de origen es requerido.');
+        return;
+      }
+      
+      if (dto.cantidadHembras === 0 && dto.cantidadMachos === 0 && dto.cantidadMixtas === 0) {
+        console.error('❌ Error: Debe especificar al menos una cantidad de aves');
+        this.loading.set(false);
+        this.showErrorMessage('Error: Debe especificar al menos una cantidad de aves (hembras, machos o mixtas).');
+        return;
+      }
+      
+      console.log('✅ Validaciones del DTO pasadas, enviando al servicio...');
+      console.log('DTO completo a enviar:', JSON.stringify(dto, null, 2));
+      console.log('URL del servicio:', 'POST /api/MovimientoAves');
+      
       this.movimientosService.crearMovimientoAves(dto).subscribe({
         next: (movimiento) => {
+          console.log('✅ Movimiento creado exitosamente:', movimiento);
           this.loading.set(false);
           const tipoMovimiento = formValue.tipoMovimiento?.toLowerCase().includes('venta') ? 'Venta' : 'Traslado';
-          this.successMessage.set(`${tipoMovimiento} creado exitosamente. Número: ${movimiento.numeroMovimiento}`);
-          this.showSuccessModal.set(true);
-          this.success.set(`${tipoMovimiento} creado exitosamente`);
+          this.showSuccessMessage(`${tipoMovimiento} creado exitosamente. Número: ${movimiento.numeroMovimiento}`);
           this.save.emit(movimiento);
         },
         error: (error) => {
-          console.error('Error creando movimiento:', error);
+          console.error('❌ Error creando movimiento:', error);
+          console.error('Error status:', error.status);
+          console.error('Error error:', error.error);
           this.loading.set(false);
           const tipoMovimiento = formValue.tipoMovimiento?.toLowerCase().includes('venta') ? 'venta' : 'traslado';
-          this.errorMessage.set(`No se pudo crear el ${tipoMovimiento}. ${error.message || 'Error desconocido'}`);
-          this.showErrorModal.set(true);
-          this.error.set(null);
-          this.success.set(null);
-          // NO cerrar el modal en caso de error
+          const errorMessage = error.error?.message || error.error?.error || error.message || 'Error desconocido';
+          this.showErrorMessage(`No se pudo crear el ${tipoMovimiento}. ${errorMessage}`);
         }
       });
     }
@@ -681,5 +940,95 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
         this.formMovimiento.patchValue({ cantidadHembras: 0, cantidadMixtas: 0 }, { emitEvent: false });
       }
     }
+  }
+
+  // Métodos para el modal de confirmación (éxito/error)
+  showSuccessMessage(message: string): void {
+    this.confirmationModalData.set({
+      title: 'Éxito',
+      message: message,
+      type: 'success',
+      confirmText: 'Aceptar',
+      showCancel: false
+    });
+    this.isConfirmingSave.set(false);
+    this.showConfirmationModal.set(true);
+  }
+
+  showErrorMessage(message: string): void {
+    this.confirmationModalData.set({
+      title: 'Error',
+      message: message,
+      type: 'error',
+      confirmText: 'Aceptar',
+      showCancel: false
+    });
+    this.isConfirmingSave.set(false);
+    this.showConfirmationModal.set(true);
+  }
+
+  // Métodos helper
+  isEcuador(): boolean {
+    return this.countryFilterService.isEcuador();
+  }
+
+  onTabChange(tab: 'general' | 'cantidades' | 'despacho'): void {
+    this.activeTab = tab;
+  }
+
+  // Métodos para cálculos y formateo
+  autoCompletarEdad(): void {
+    const edadCalculada = this.calcularEdadDesdeLote();
+    if (edadCalculada !== null) {
+      this.formMovimiento.patchValue({ edadAves: edadCalculada });
+    }
+  }
+
+  calcularEdadDesdeLote(): number | null {
+    const info = this.informacionLote();
+    if (!info) return null;
+
+    let fechaReferencia: Date | null = null;
+
+    if (info.tipoLote === 'Produccion' && info.fechaInicioProduccion) {
+      fechaReferencia = new Date(info.fechaInicioProduccion);
+    } else if (info.fechaEncasetamiento) {
+      fechaReferencia = new Date(info.fechaEncasetamiento);
+    }
+
+    if (!fechaReferencia) return null;
+
+    const hoy = new Date();
+    const diffTime = hoy.getTime() - fechaReferencia.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays : null;
+  }
+
+  calcularPesoNeto(): number | null {
+    const pesoBruto = this.formMovimiento.get('pesoBruto')?.value;
+    const pesoTara = this.formMovimiento.get('pesoTara')?.value;
+    
+    if (pesoBruto != null && pesoTara != null) {
+      return pesoBruto - pesoTara;
+    }
+    return null;
+  }
+
+  calcularPromedioPesoAve(): number | null {
+    const pesoNeto = this.calcularPesoNeto();
+    const cantidadHembras = this.formMovimiento.get('cantidadHembras')?.value || 0;
+    const cantidadMachos = this.formMovimiento.get('cantidadMachos')?.value || 0;
+    const cantidadMixtas = this.formMovimiento.get('cantidadMixtas')?.value || 0;
+    const totalAves = cantidadHembras + cantidadMachos + cantidadMixtas;
+
+    if (pesoNeto != null && totalAves > 0) {
+      return pesoNeto / totalAves;
+    }
+    return null;
+  }
+
+  formatearNumero(num: number | null | undefined): string {
+    if (num == null || isNaN(num)) return '0.00';
+    return num.toFixed(2);
   }
 }

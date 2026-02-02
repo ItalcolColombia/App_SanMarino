@@ -832,6 +832,125 @@ textarea[readonly] {
 }
 
 /* ==========================================================================
+   🧭 Tabs del modal
+   ========================================================================== */
+.ux-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--warm-200);
+  position: relative;
+}
+
+.ux-tabs input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.ux-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--warm-500);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  outline: none;
+  position: relative;
+  margin-bottom: -2px;
+}
+
+.tab-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.ux-tab:hover {
+  color: var(--brand-red);
+  background: var(--warm-50);
+  border-bottom-color: var(--warm-300);
+}
+
+.ux-tab:focus-visible {
+  box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.15);
+  border-radius: 0.5rem;
+}
+
+.ux-tab-panels {
+  background: var(--white);
+  border: 1px solid var(--warm-200);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.ux-tab-panel {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Estilos para tabs activos */
+.ux-tab.active {
+  color: var(--brand-red);
+  border-bottom-color: var(--brand-red);
+  background: var(--white);
+  font-weight: 700;
+}
+
+/* Estado visual del tab ACTIVO */
+#tab-general:checked + label.ux-tab,
+#tab-cantidades:checked + label.ux-tab,
+#tab-despacho:checked + label.ux-tab {
+  color: var(--brand-red);
+  border-bottom-color: var(--brand-red);
+  background: var(--white);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   📐 Grid para campos de despacho
+   ========================================================================== */
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form-field--full {
+  grid-column: 1 / -1;
+}
+
+.ux-hint {
+  font-size: 0.8rem;
+  color: var(--warm-500);
+  margin-top: 0.25rem;
+  display: block;
+}
+
+/* ==========================================================================
    📱 Responsive Modal
    ========================================================================== */
 @media (max-width: 1200px) {
