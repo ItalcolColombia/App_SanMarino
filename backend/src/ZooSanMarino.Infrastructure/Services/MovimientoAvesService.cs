@@ -59,6 +59,18 @@ public class MovimientoAvesService : IMovimientoAvesService
             MotivoMovimiento = dto.MotivoMovimiento,
             Descripcion = dto.Descripcion,
             Observaciones = dto.Observaciones,
+            // Campos específicos para despacho (Ecuador)
+            EdadAves = dto.EdadAves,
+            Raza = dto.Raza,
+            Placa = dto.Placa,
+            HoraSalida = dto.HoraSalida,
+            GuiaAgrocalidad = dto.GuiaAgrocalidad,
+            Sellos = dto.Sellos,
+            Ayuno = dto.Ayuno,
+            Conductor = dto.Conductor,
+            TotalPollosGalpon = dto.TotalPollosGalpon,
+            PesoBruto = dto.PesoBruto,
+            PesoTara = dto.PesoTara,
             Estado = "Pendiente",
             UsuarioMovimientoId = dto.UsuarioMovimientoId > 0 ? dto.UsuarioMovimientoId : _currentUser.UserId,
             CompanyId = _currentUser.CompanyId,
@@ -996,7 +1008,21 @@ public class MovimientoAvesService : IMovimientoAvesService
             // Fechas
             m.FechaProcesamiento,
             m.FechaCancelacion,
-            m.CreatedAt
+            m.CreatedAt,
+            // Campos específicos para despacho (Ecuador)
+            m.EdadAves,
+            m.Raza,
+            m.Placa,
+            m.HoraSalida,
+            m.GuiaAgrocalidad,
+            m.Sellos,
+            m.Ayuno,
+            m.Conductor,
+            m.TotalPollosGalpon,
+            m.PesoBruto,
+            m.PesoTara,
+            m.PesoNeto,
+            m.PromedioPesoAve
         );
 
     // =====================================================
@@ -1426,6 +1452,30 @@ public class MovimientoAvesService : IMovimientoAvesService
         movimiento.PlantaDestino = dto.PlantaDestino ?? movimiento.PlantaDestino;
         movimiento.Descripcion = dto.Descripcion ?? movimiento.Descripcion;
         movimiento.Observaciones = dto.Observaciones ?? movimiento.Observaciones;
+        
+        // Campos específicos para despacho (Ecuador)
+        if (dto.EdadAves.HasValue)
+            movimiento.EdadAves = dto.EdadAves;
+        if (dto.Raza != null)
+            movimiento.Raza = dto.Raza;
+        if (dto.Placa != null)
+            movimiento.Placa = dto.Placa;
+        if (dto.HoraSalida.HasValue)
+            movimiento.HoraSalida = dto.HoraSalida;
+        if (dto.GuiaAgrocalidad != null)
+            movimiento.GuiaAgrocalidad = dto.GuiaAgrocalidad;
+        if (dto.Sellos != null)
+            movimiento.Sellos = dto.Sellos;
+        if (dto.Ayuno != null)
+            movimiento.Ayuno = dto.Ayuno;
+        if (dto.Conductor != null)
+            movimiento.Conductor = dto.Conductor;
+        if (dto.TotalPollosGalpon.HasValue)
+            movimiento.TotalPollosGalpon = dto.TotalPollosGalpon;
+        if (dto.PesoBruto.HasValue)
+            movimiento.PesoBruto = dto.PesoBruto;
+        if (dto.PesoTara.HasValue)
+            movimiento.PesoTara = dto.PesoTara;
 
         movimiento.UpdatedByUserId = usuarioId;
         movimiento.UpdatedAt = DateTime.UtcNow;

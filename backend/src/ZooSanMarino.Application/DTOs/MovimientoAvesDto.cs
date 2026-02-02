@@ -36,7 +36,22 @@ public record MovimientoAvesDto(
     // Fechas
     DateTime? FechaProcesamiento,
     DateTime? FechaCancelacion,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    
+    // Campos específicos para despacho (Ecuador)
+    int? EdadAves,
+    string? Raza,
+    string? Placa,
+    TimeOnly? HoraSalida,
+    string? GuiaAgrocalidad,
+    string? Sellos,
+    string? Ayuno,
+    string? Conductor,
+    int? TotalPollosGalpon,
+    double? PesoBruto,
+    double? PesoTara,
+    double? PesoNeto,
+    double? PromedioPesoAve
 );
 
 /// <summary>
@@ -86,6 +101,19 @@ public sealed class CreateMovimientoAvesDto
     public string? Descripcion { get; set; }  // Para ventas
     public string? Observaciones { get; set; }
     
+    // Campos específicos para despacho (Ecuador)
+    public int? EdadAves { get; set; } // Edad de las aves en días
+    public string? Raza { get; set; } // Raza de las aves
+    public string? Placa { get; set; } // Placa del vehículo
+    public TimeOnly? HoraSalida { get; set; } // Hora de salida
+    public string? GuiaAgrocalidad { get; set; } // Guía Agrocalidad
+    public string? Sellos { get; set; } // Información de sellos
+    public string? Ayuno { get; set; } // Información sobre ayuno (horas o indicador)
+    public string? Conductor { get; set; } // Nombre del conductor
+    public int? TotalPollosGalpon { get; set; } // Total de pollos por galpón
+    public double? PesoBruto { get; set; } // Peso bruto en kg
+    public double? PesoTara { get; set; } // Peso tara en kg
+    
     // Se auto-completa con el usuario actual
     public int UsuarioMovimientoId { get; set; }
 }
@@ -112,6 +140,19 @@ public sealed class ActualizarMovimientoAvesDto
     public string? MotivoMovimiento { get; init; }
     public string? Descripcion { get; init; }  // Para ventas
     public string? Observaciones { get; init; }
+    
+    // Campos específicos para despacho (Ecuador)
+    public int? EdadAves { get; init; }
+    public string? Raza { get; init; }
+    public string? Placa { get; init; }
+    public TimeOnly? HoraSalida { get; init; }
+    public string? GuiaAgrocalidad { get; init; }
+    public string? Sellos { get; init; }
+    public string? Ayuno { get; init; }
+    public string? Conductor { get; init; }
+    public int? TotalPollosGalpon { get; init; }
+    public double? PesoBruto { get; init; }
+    public double? PesoTara { get; init; }
 }
 
 /// <summary>
