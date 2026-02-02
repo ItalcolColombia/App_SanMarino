@@ -71,7 +71,7 @@ public class ProduccionService : IProduccionService
             LoteId = request.LoteId.ToString(),
             FechaInicio = request.FechaInicio,
             AvesInicialesH = request.AvesInicialesH,
-            AvesInicialesM = request.AvesInicialesM,
+            AvesInicialesM = request.AvesInicialesM >= 0 ? request.AvesInicialesM : 0, // Asegurar que siempre tenga un valor válido
             HuevosIniciales = request.HuevosIniciales,
             TipoNido = request.TipoNido,
             GranjaId = lote.GranjaId,
@@ -214,6 +214,11 @@ public class ProduccionService : IProduccionService
             Uniformidad = request.Uniformidad,
             CoeficienteVariacion = request.CoeficienteVariacion,
             ObservacionesPesaje = request.ObservacionesPesaje,
+            // Campos de agua (solo para Ecuador y Panamá)
+            ConsumoAguaDiario = request.ConsumoAguaDiario.HasValue ? (decimal?)request.ConsumoAguaDiario.Value : null,
+            ConsumoAguaPh = request.ConsumoAguaPh.HasValue ? (decimal?)request.ConsumoAguaPh.Value : null,
+            ConsumoAguaOrp = request.ConsumoAguaOrp.HasValue ? (decimal?)request.ConsumoAguaOrp.Value : null,
+            ConsumoAguaTemperatura = request.ConsumoAguaTemperatura.HasValue ? (decimal?)request.ConsumoAguaTemperatura.Value : null,
             Metadata = metadata
         };
 
@@ -298,7 +303,12 @@ public class ProduccionService : IProduccionService
             s.PesoM,
             s.Uniformidad,
             s.CoeficienteVariacion,
-            s.ObservacionesPesaje
+            s.ObservacionesPesaje,
+            // Campos de agua (solo para Ecuador y Panamá)
+            s.ConsumoAguaDiario,
+            s.ConsumoAguaPh,
+            s.ConsumoAguaOrp,
+            s.ConsumoAguaTemperatura
         )).ToList();
 
         return new ListaSeguimientoResponse(items, total);
@@ -359,7 +369,12 @@ public class ProduccionService : IProduccionService
             seguimiento.PesoM,
             seguimiento.Uniformidad,
             seguimiento.CoeficienteVariacion,
-            seguimiento.ObservacionesPesaje
+            seguimiento.ObservacionesPesaje,
+            // Campos de agua (solo para Ecuador y Panamá)
+            seguimiento.ConsumoAguaDiario,
+            seguimiento.ConsumoAguaPh,
+            seguimiento.ConsumoAguaOrp,
+            seguimiento.ConsumoAguaTemperatura
         );
     }
 

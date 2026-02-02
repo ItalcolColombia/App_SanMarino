@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -80,7 +80,10 @@ export class LoteProduccionListComponent implements OnInit {
   // ================== UI ==================
   loading = false;
   modalRegistroInicialOpen = false;
+  @ViewChild(ModalRegistroInicialComponent) modalRegistroInicial?: ModalRegistroInicialComponent;
+  
   modalSeguimientoDiarioOpen = false;
+  @ViewChild(ModalSeguimientoDiarioComponent) modalSeguimientoDiario?: ModalSeguimientoDiarioComponent;
   analisisOpen = false;
   liquidacionOpen = false;
   modalDetalleSeguimientoOpen = false;
@@ -404,15 +407,37 @@ export class LoteProduccionListComponent implements OnInit {
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: (produccionLoteId: number) => {
-          this.modalRegistroInicialOpen = false;
-          this.currentProduccionLoteId = produccionLoteId;
-
-          // Abrir modal de seguimiento diario automáticamente
-          this.editingSeguimiento = null;
-          this.modalSeguimientoDiarioOpen = true;
+          // Mostrar mensaje de éxito en el modal
+          if (this.modalRegistroInicial) {
+            this.modalRegistroInicial.showSuccessMessage(produccionLoteId);
+          }
         },
-        error: () => { /* TODO: toast de error */ }
+        error: (err) => {
+          // Mostrar mensaje de error en el modal
+          const errorMessage = err?.error?.message || err?.error?.detail || err?.message || 'Error desconocido al crear el registro inicial.';
+          if (this.modalRegistroInicial) {
+            this.modalRegistroInicial.showErrorMessage(errorMessage);
+          }
+          console.error('Error al crear registro inicial:', err);
+        }
       });
+  }
+
+  onRegistroInicialSuccess(produccionLoteId: number): void {
+    this.modalRegistroInicialOpen = false;
+    this.currentProduccionLoteId = produccionLoteId;
+    this.loadSeguimientos();
+
+    // Abrir modal de seguimiento diario automáticamente después de un breve delay
+    setTimeout(() => {
+      this.editingSeguimiento = null;
+      this.modalSeguimientoDiarioOpen = true;
+    }, 500);
+  }
+
+  onRegistroInicialError(errorMessage: string): void {
+    // El error ya se muestra en el modal, solo logueamos
+    console.error('Error en registro inicial:', errorMessage);
   }
 
   cancelSeguimientoDiario(): void {
@@ -422,15 +447,27 @@ export class LoteProduccionListComponent implements OnInit {
 
   onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
     this.loading = true;
+    const isUpdate = !!this.editingSeguimiento;
+    
+    // Por ahora solo tenemos crear, pero podemos agregar actualizar más adelante
     this.produccionSvc.crearSeguimiento(request)
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: () => {
-          this.modalSeguimientoDiarioOpen = false;
-          this.editingSeguimiento = null;
+          // Mostrar mensaje de éxito en el modal
+          if (this.modalSeguimientoDiario) {
+            this.modalSeguimientoDiario.showSuccessMessage(isUpdate);
+          }
           this.loadSeguimientos();
         },
-        error: () => { /* TODO: toast de error */ }
+        error: (err) => {
+          // Mostrar mensaje de error en el modal
+          const errorMessage = err?.error?.message || err?.error?.detail || err?.message || 'Error desconocido al guardar el seguimiento diario.';
+          if (this.modalSeguimientoDiario) {
+            this.modalSeguimientoDiario.showErrorMessage(errorMessage);
+          }
+          console.error('Error al guardar seguimiento diario:', err);
+        }
       });
   }
 

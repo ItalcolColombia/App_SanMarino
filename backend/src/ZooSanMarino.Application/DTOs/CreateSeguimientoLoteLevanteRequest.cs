@@ -4,8 +4,20 @@ using System.Text.Json;
 namespace ZooSanMarino.Application.DTOs;
 
 /// <summary>
+/// Representa un ítem individual en el seguimiento (alimento, vacuna, medicamento, etc.)
+/// </summary>
+public class ItemSeguimientoDto
+{
+    public string TipoItem { get; set; } = string.Empty; // "alimento", "vacuna", "medicamento", etc.
+    public int CatalogItemId { get; set; } // ID del ítem del inventario
+    public double Cantidad { get; set; } // Cantidad utilizada
+    public string Unidad { get; set; } = "kg"; // "kg", "g", "unidades", etc.
+}
+
+/// <summary>
 /// Request DTO para crear/actualizar seguimiento de lote levante.
 /// Permite enviar consumo en kg o gramos, el backend hace la conversión.
+/// Ahora soporta múltiples ítems por género (hembras/machos).
 /// </summary>
 public class CreateSeguimientoLoteLevanteRequest
 {
@@ -32,8 +44,17 @@ public class CreateSeguimientoLoteLevanteRequest
     public int? TipoAlimentoMachos { get; set; }
     
     // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
+    // DEPRECATED: Usar ItemsHembras e ItemsMachos en su lugar
     public string? TipoItemHembras { get; set; }
     public string? TipoItemMachos { get; set; }
+    
+    // NUEVO: Arrays de ítems para permitir múltiples ítems por género
+    public List<ItemSeguimientoDto>? ItemsHembras { get; set; }
+    public List<ItemSeguimientoDto>? ItemsMachos { get; set; }
+    
+    // Cantidad de unidades (para tipos de ítem que no sean alimento) - DEPRECATED
+    public double? CantidadUnidadesHembras { get; set; }
+    public double? CantidadUnidadesMachos { get; set; }
     
     public string? Observaciones { get; set; }
     public double? KcalAlH { get; set; }
@@ -51,12 +72,20 @@ public class CreateSeguimientoLoteLevanteRequest
     
     /// <summary>
     /// Convierte este request a SeguimientoLoteLevanteDto, haciendo la conversión de unidades si es necesario.
+    /// Separa los alimentos (que van a campos tradicionales) de otros ítems (que van a ItemsAdicionales).
     /// </summary>
     public SeguimientoLoteLevanteDto ToDto(int? id = null)
     {
-        // Convertir consumo a kg si viene en gramos
-        double consumoKgHembras = 0;
-        if (ConsumoHembras.HasValue && ConsumoHembras.Value > 0)
+        // Separar alimentos de otros ítems
+        var (alimentosHembras, otrosItemsHembras) = SepararAlimentosYOtrosItems(ItemsHembras);
+        var (alimentosMachos, otrosItemsMachos) = SepararAlimentosYOtrosItems(ItemsMachos);
+        
+        // Calcular consumo total de alimentos desde los arrays de ítems
+        double consumoKgHembras = CalcularConsumoTotalAlimentos(alimentosHembras);
+        double? consumoKgMachos = CalcularConsumoTotalAlimentos(alimentosMachos);
+        
+        // Si no hay ítems pero hay consumo directo (compatibilidad hacia atrás)
+        if (consumoKgHembras == 0 && ConsumoHembras.HasValue && ConsumoHembras.Value > 0)
         {
             var unidadH = (UnidadConsumoHembras ?? "kg").ToLower().Trim();
             if (unidadH == "g" || unidadH == "gramos" || unidadH == "gramo")
@@ -69,8 +98,7 @@ public class CreateSeguimientoLoteLevanteRequest
             }
         }
         
-        double? consumoKgMachos = null;
-        if (ConsumoMachos.HasValue && ConsumoMachos.Value > 0)
+        if (!consumoKgMachos.HasValue && ConsumoMachos.HasValue && ConsumoMachos.Value > 0)
         {
             var unidadM = (UnidadConsumoMachos ?? "kg").ToLower().Trim();
             if (unidadM == "g" || unidadM == "gramos" || unidadM == "gramo")
@@ -83,6 +111,16 @@ public class CreateSeguimientoLoteLevanteRequest
             }
         }
         
+        // Construir TipoAlimento concatenando nombres de alimentos
+        string tipoAlimentoStr = TipoAlimento ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(tipoAlimentoStr))
+        {
+            tipoAlimentoStr = ConstruirTipoAlimentoString(alimentosHembras, alimentosMachos);
+        }
+        
+        // Construir ItemsAdicionales JSONB solo con ítems que NO son alimentos
+        JsonDocument? itemsAdicionales = BuildItemsAdicionales(otrosItemsHembras, otrosItemsMachos);
+        
         return new SeguimientoLoteLevanteDto(
             Id: id ?? 0,
             LoteId: LoteId,
@@ -94,7 +132,7 @@ public class CreateSeguimientoLoteLevanteRequest
             ErrorSexajeHembras: ErrorSexajeHembras,
             ErrorSexajeMachos: ErrorSexajeMachos,
             ConsumoKgHembras: consumoKgHembras,
-            TipoAlimento: TipoAlimento,
+            TipoAlimento: tipoAlimentoStr,
             Observaciones: Observaciones,
             KcalAlH: KcalAlH,
             ProtAlH: ProtAlH,
@@ -109,35 +147,169 @@ public class CreateSeguimientoLoteLevanteRequest
             CvH: CvH,
             CvM: CvM,
             // Metadata JSONB con consumo original, tipo de ítem y otros campos adicionales
-            Metadata: BuildMetadata(ConsumoHembras, UnidadConsumoHembras, ConsumoMachos, UnidadConsumoMachos, 
-                                   TipoItemHembras, TipoItemMachos, TipoAlimentoHembras, TipoAlimentoMachos)
+            Metadata: BuildMetadata(ItemsHembras, ItemsMachos, ConsumoHembras, UnidadConsumoHembras, 
+                                   ConsumoMachos, UnidadConsumoMachos, TipoItemHembras, TipoItemMachos, 
+                                   TipoAlimentoHembras, TipoAlimentoMachos, CantidadUnidadesHembras, CantidadUnidadesMachos),
+            // Items adicionales JSONB solo para ítems que NO son alimentos
+            ItemsAdicionales: itemsAdicionales
         );
     }
     
     /// <summary>
-    /// Construye el objeto Metadata JSONB con los campos adicionales.
+    /// Separa los ítems en dos listas: alimentos y otros ítems.
     /// </summary>
-    private static JsonDocument? BuildMetadata(double? consumoHembras, string? unidadHembras, 
-                                               double? consumoMachos, string? unidadMachos,
-                                               string? tipoItemHembras, string? tipoItemMachos,
-                                               int? tipoAlimentoHembras, int? tipoAlimentoMachos)
+    private static (List<ItemSeguimientoDto> alimentos, List<ItemSeguimientoDto> otrosItems) SepararAlimentosYOtrosItems(List<ItemSeguimientoDto>? items)
+    {
+        if (items == null || items.Count == 0)
+        {
+            return (new List<ItemSeguimientoDto>(), new List<ItemSeguimientoDto>());
+        }
+        
+        var alimentos = new List<ItemSeguimientoDto>();
+        var otrosItems = new List<ItemSeguimientoDto>();
+        
+        foreach (var item in items)
+        {
+            if (item.TipoItem?.ToLower().Trim() == "alimento")
+            {
+                alimentos.Add(item);
+            }
+            else
+            {
+                otrosItems.Add(item);
+            }
+        }
+        
+        return (alimentos, otrosItems);
+    }
+    
+    /// <summary>
+    /// Construye el JSONB de ItemsAdicionales solo con ítems que NO son alimentos.
+    /// </summary>
+    private static JsonDocument? BuildItemsAdicionales(List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    {
+        var itemsAdicionales = new Dictionary<string, object?>();
+        
+        if (itemsHembras != null && itemsHembras.Count > 0)
+        {
+            itemsAdicionales["itemsHembras"] = itemsHembras.Select(i => new
+            {
+                tipoItem = i.TipoItem,
+                catalogItemId = i.CatalogItemId,
+                cantidad = i.Cantidad,
+                unidad = i.Unidad
+            }).ToList();
+        }
+        
+        if (itemsMachos != null && itemsMachos.Count > 0)
+        {
+            itemsAdicionales["itemsMachos"] = itemsMachos.Select(i => new
+            {
+                tipoItem = i.TipoItem,
+                catalogItemId = i.CatalogItemId,
+                cantidad = i.Cantidad,
+                unidad = i.Unidad
+            }).ToList();
+        }
+        
+        if (itemsAdicionales.Count == 0) return null;
+        
+        return JsonDocument.Parse(JsonSerializer.Serialize(itemsAdicionales));
+    }
+    
+    /// <summary>
+    /// Calcula el consumo total de alimentos (en kg) desde un array de ítems.
+    /// Solo suma los ítems de tipo "alimento".
+    /// </summary>
+    private static double CalcularConsumoTotalAlimentos(List<ItemSeguimientoDto>? items)
+    {
+        if (items == null || items.Count == 0) return 0;
+        
+        double total = 0;
+        foreach (var item in items)
+        {
+            if (item.TipoItem?.ToLower().Trim() == "alimento")
+            {
+                var unidad = item.Unidad?.ToLower().Trim() ?? "kg";
+                double cantidadKg = item.Cantidad;
+                
+                if (unidad == "g" || unidad == "gramos" || unidad == "gramo")
+                {
+                    cantidadKg = item.Cantidad / 1000.0; // Convertir gramos a kg
+                }
+                
+                total += cantidadKg;
+            }
+        }
+        
+        return total;
+    }
+    
+    /// <summary>
+    /// Construye el string de TipoAlimento concatenando los nombres de los alimentos.
+    /// </summary>
+    private static string ConstruirTipoAlimentoString(List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    {
+        var nombres = new List<string>();
+        
+        if (itemsHembras != null)
+        {
+            foreach (var item in itemsHembras)
+            {
+                if (item.TipoItem?.ToLower().Trim() == "alimento")
+                {
+                    nombres.Add($"H:{item.CatalogItemId}");
+                }
+            }
+        }
+        
+        if (itemsMachos != null)
+        {
+            foreach (var item in itemsMachos)
+            {
+                if (item.TipoItem?.ToLower().Trim() == "alimento")
+                {
+                    nombres.Add($"M:{item.CatalogItemId}");
+                }
+            }
+        }
+        
+        return nombres.Count > 0 ? string.Join(" / ", nombres) : string.Empty;
+    }
+    
+    /// <summary>
+    /// Construye el objeto Metadata JSONB con los campos adicionales.
+    /// NOTA: Los arrays de ítems NO se guardan aquí, van a ItemsAdicionales (para ítems no-alimento)
+    /// o se procesan como alimentos (para ítems de tipo "alimento").
+    /// </summary>
+    private static JsonDocument? BuildMetadata(
+        List<ItemSeguimientoDto>? itemsHembras,
+        List<ItemSeguimientoDto>? itemsMachos,
+        double? consumoHembras, string? unidadHembras, 
+        double? consumoMachos, string? unidadMachos,
+        string? tipoItemHembras, string? tipoItemMachos,
+        int? tipoAlimentoHembras, int? tipoAlimentoMachos,
+        double? cantidadUnidadesHembras, double? cantidadUnidadesMachos)
     {
         var metadata = new Dictionary<string, object?>();
         
-        // Consumo original con unidad
-        if (consumoHembras.HasValue)
+        // NOTA: Los arrays de ítems NO se guardan en metadata, van a ItemsAdicionales
+        // (para ítems no-alimento) o se procesan como alimentos (para ítems de tipo "alimento")
+        
+        // COMPATIBILIDAD HACIA ATRÁS: Mantener campos antiguos si no hay arrays
+        if ((itemsHembras == null || itemsHembras.Count == 0) && consumoHembras.HasValue)
         {
             metadata["consumoOriginalHembras"] = consumoHembras.Value;
             metadata["unidadConsumoOriginalHembras"] = unidadHembras ?? "kg";
         }
         
-        if (consumoMachos.HasValue)
+        if ((itemsMachos == null || itemsMachos.Count == 0) && consumoMachos.HasValue)
         {
             metadata["consumoOriginalMachos"] = consumoMachos.Value;
             metadata["unidadConsumoOriginalMachos"] = unidadMachos ?? "kg";
         }
         
-        // Tipo de ítem (alimento, medicamento, etc.)
+        // Tipo de ítem (compatibilidad hacia atrás)
         if (!string.IsNullOrWhiteSpace(tipoItemHembras))
         {
             metadata["tipoItemHembras"] = tipoItemHembras;
@@ -148,7 +320,7 @@ public class CreateSeguimientoLoteLevanteRequest
             metadata["tipoItemMachos"] = tipoItemMachos;
         }
         
-        // IDs de alimentos seleccionados
+        // IDs de alimentos seleccionados (compatibilidad hacia atrás)
         if (tipoAlimentoHembras.HasValue)
         {
             metadata["tipoAlimentoHembras"] = tipoAlimentoHembras.Value;
@@ -157,6 +329,17 @@ public class CreateSeguimientoLoteLevanteRequest
         if (tipoAlimentoMachos.HasValue)
         {
             metadata["tipoAlimentoMachos"] = tipoAlimentoMachos.Value;
+        }
+        
+        // Cantidad de unidades (compatibilidad hacia atrás)
+        if (cantidadUnidadesHembras.HasValue)
+        {
+            metadata["cantidadUnidadesHembras"] = cantidadUnidadesHembras.Value;
+        }
+        
+        if (cantidadUnidadesMachos.HasValue)
+        {
+            metadata["cantidadUnidadesMachos"] = cantidadUnidadesMachos.Value;
         }
         
         if (metadata.Count == 0) return null;

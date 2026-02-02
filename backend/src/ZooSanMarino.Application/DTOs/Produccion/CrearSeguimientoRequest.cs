@@ -45,7 +45,12 @@ public record CrearSeguimientoRequest(
     [Range(0, 100)] decimal? Uniformidad, // Uniformidad del lote (%)
     [Range(0, 100)] decimal? CoeficienteVariacion, // Coeficiente de variación (CV)
     string? ObservacionesPesaje, // Observaciones específicas del pesaje
-    [Range(0, int.MaxValue)] int SelM = 0 // Selección machos (retiradas) - default para compatibilidad
+    // Campos de agua (solo para Ecuador y Panamá)
+    [Range(0, double.MaxValue)] double? ConsumoAguaDiario, // Consumo diario de agua en litros
+    [Range(0, 14)] double? ConsumoAguaPh, // Nivel de PH del agua (0-14)
+    [Range(0, double.MaxValue)] double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    [Range(0, double.MaxValue)] double? ConsumoAguaTemperatura, // Temperatura del agua en °C
+    [Range(0, int.MaxValue)] int SelM = 0 // Selección machos (retiradas) - default para compatibilidad (debe ir al final)
 );
 
 

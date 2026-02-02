@@ -14,7 +14,10 @@ public record SeguimientoLoteLevanteDto(
     double? ConsumoKgMachos, double? PesoPromH, double? PesoPromM,
     double? UniformidadH, double? UniformidadM, double? CvH, double? CvM,
     // Metadata JSONB para campos adicionales/extras (consumo original con unidad, etc.)
-    JsonDocument? Metadata
+    JsonDocument? Metadata,
+    // Items adicionales JSONB para otros tipos de ítems (vacunas, medicamentos, etc.)
+    // que NO son alimentos. Los alimentos se mantienen en campos tradicionales.
+    JsonDocument? ItemsAdicionales
     // gestiones de administrativo  
     // int? IdAdministrativo, string? NombreAdministrativo, string? ApellidoAdministrativo, string? DireccionAdministrativo, string? TelefonoAdministrativo, string? EmailAdministrativo, string? FechaNacimientoAdministrativo, string? GeneroAdministrativo, string? EstadoAdministrativo, string? CodigoAdministrativo, string? TipoAdministrativo, string? RolAdministrativo, string? ClaveAdministrativo, string? ClaveAdministrativoConfirmada, string? ClaveAdministrativoConfirmadaConfirmada, string? ClaveAdministrativoConfirmadaConfirmadaConfirmada, string? ClaveAdministrativoConfirmada
     

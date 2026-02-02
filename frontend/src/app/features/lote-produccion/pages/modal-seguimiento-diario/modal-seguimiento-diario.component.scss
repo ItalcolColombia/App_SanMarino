@@ -317,13 +317,15 @@
 :host #tab-machos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-machos { display: block; }
 :host #tab-huevos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-huevos { display: block; }
 :host #tab-pesaje:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-pesaje { display: block; }
+:host #tab-agua:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-agua { display: block; }
 
 /* Estado visual del tab ACTIVO */
 :host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"],
 :host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"],
 :host #tab-machos:checked ~ .ux-tabs-wrapper label[for="tab-machos"],
 :host #tab-huevos:checked ~ .ux-tabs-wrapper label[for="tab-huevos"],
-:host #tab-pesaje:checked ~ .ux-tabs-wrapper label[for="tab-pesaje"] {
+:host #tab-pesaje:checked ~ .ux-tabs-wrapper label[for="tab-pesaje"],
+:host #tab-agua:checked ~ .ux-tabs-wrapper label[for="tab-agua"] {
   background: var(--white);
   color: var(--brand-red);
   transform: translateY(-1px);

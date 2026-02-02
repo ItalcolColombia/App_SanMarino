@@ -46,7 +46,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             x.UniformidadH, x.UniformidadM,
             x.CvH, x.CvM,
             // Metadata JSONB para campos adicionales
-            x.Metadata
+            x.Metadata,
+            // Items adicionales JSONB para otros tipos de ítems (no alimentos)
+            x.ItemsAdicionales
         );
 
     // ===========================
@@ -140,6 +142,8 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             
             // Metadata JSONB para campos adicionales/extras
             Metadata = dto.Metadata,
+            // Items adicionales JSONB para otros tipos de ítems (no alimentos)
+            ItemsAdicionales = dto.ItemsAdicionales,
 
             PesoPromH = dto.PesoPromH,
             PesoPromM = dto.PesoPromM,
@@ -263,6 +267,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         
         // Metadata JSONB para campos adicionales/extras
         ent.Metadata = dto.Metadata;
+        ent.ItemsAdicionales = dto.ItemsAdicionales;
 
         ent.PesoPromH = dto.PesoPromH;
         ent.PesoPromM = dto.PesoPromM;
@@ -319,7 +324,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             ent.UniformidadH, ent.UniformidadM,
             ent.CvH, ent.CvM,
             // Metadata JSONB para campos adicionales
-            ent.Metadata
+            ent.Metadata,
+            // Items adicionales JSONB para otros tipos de ítems (no alimentos)
+            ent.ItemsAdicionales
         );
     }
 

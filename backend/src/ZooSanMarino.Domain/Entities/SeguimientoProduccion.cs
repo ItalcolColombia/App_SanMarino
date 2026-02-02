@@ -50,6 +50,12 @@ public class SeguimientoProduccion
     // Metadata JSONB para campos adicionales (consumo original, tipo de ítem, etc.)
     public System.Text.Json.JsonDocument? Metadata { get; set; }
     
+    // Campos de agua (solo para Ecuador y Panamá)
+    public decimal? ConsumoAguaDiario { get; set; } // Consumo diario de agua en litros
+    public decimal? ConsumoAguaPh { get; set; } // Nivel de PH del agua
+    public decimal? ConsumoAguaOrp { get; set; } // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    public decimal? ConsumoAguaTemperatura { get; set; } // Temperatura del agua en °C
+    
     // NOTA: No hay relación de navegación con Lote porque:
     // - LoteId aquí es string (text en BD)
     // - Lote.LoteId es int?

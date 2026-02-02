@@ -39,6 +39,10 @@ public class SeguimientoLoteLevante
     
     // Metadata JSONB para campos adicionales/extras (consumo original con unidad, etc.)
     public JsonDocument? Metadata { get; set; }
+    
+    // Items adicionales JSONB para almacenar otros tipos de ítems (vacunas, medicamentos, etc.)
+    // que NO son alimentos. Los alimentos se mantienen en los campos tradicionales.
+    public JsonDocument? ItemsAdicionales { get; set; }
 
     public Lote Lote { get; set; } = null!;
 }

@@ -24,17 +24,14 @@ public class ProduccionLoteConfiguration : IEntityTypeConfiguration<ProduccionLo
 
         builder.Property(x => x.AvesInicialesH)
             .IsRequired()
-            .HasDefaultValue(0)
             .HasColumnName("hembras_iniciales");
 
         builder.Property(x => x.AvesInicialesM)
             .IsRequired()
-            .HasDefaultValue(0)
             .HasColumnName("machos_iniciales");
 
         builder.Property(x => x.HuevosIniciales)
             .IsRequired()
-            .HasDefaultValue(0)
             .HasColumnName("huevos_iniciales");
 
         builder.Property(x => x.TipoNido)

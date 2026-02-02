@@ -107,7 +107,9 @@
   [nucleosDisponibles]="modalNucleosDisponibles"
   [loading]="loading"
   (close)="cancelRegistroInicial()"
-  (save)="onSaveRegistroInicial($event)">
+  (save)="onSaveRegistroInicial($event)"
+  (saveSuccess)="onRegistroInicialSuccess($event)"
+  (saveError)="onRegistroInicialError($event)">
 </app-modal-registro-inicial>
 
 <!-- Modal de seguimiento diario -->

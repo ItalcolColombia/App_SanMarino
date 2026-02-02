@@ -76,6 +76,11 @@ export interface CrearSeguimientoRequest {
   uniformidad?: number; // Uniformidad del lote (%)
   coeficienteVariacion?: number; // Coeficiente de variación (CV)
   observacionesPesaje?: string; // Observaciones específicas del pesaje
+  // Campos de agua (solo para Ecuador y Panamá)
+  consumoAguaDiario?: number; // Consumo diario de agua en litros
+  consumoAguaPh?: number; // Nivel de PH del agua
+  consumoAguaOrp?: number; // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+  consumoAguaTemperatura?: number; // Temperatura del agua en °C
 }
 
 export interface SeguimientoItemDto {
@@ -98,6 +103,11 @@ export interface SeguimientoItemDto {
   createdAt: string;
   updatedAt?: string;
   metadata?: any | null; // Metadata JSONB con consumo original, tipo de ítem, etc.
+  // Campos de agua (solo para Ecuador y Panamá)
+  consumoAguaDiario?: number | null; // Consumo diario de agua en litros
+  consumoAguaPh?: number | null; // Nivel de PH del agua
+  consumoAguaOrp?: number | null; // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+  consumoAguaTemperatura?: number | null; // Temperatura del agua en °C
   // Campos de Clasificadora de Huevos
   huevoLimpio?: number;
   huevoTratado?: number;

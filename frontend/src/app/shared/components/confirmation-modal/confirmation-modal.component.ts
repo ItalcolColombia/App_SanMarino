@@ -14,6 +14,7 @@ export interface ConfirmationModalData {
   confirmText?: string;
   cancelText?: string;
   type?: 'success' | 'warning' | 'info' | 'error';
+  showCancel?: boolean; // Si es false, solo muestra el botón de confirmar
 }
 
 @Component({
@@ -30,7 +31,8 @@ export class ConfirmationModalComponent {
     message: '¿Estás seguro?',
     confirmText: 'Confirmar',
     cancelText: 'Cancelar',
-    type: 'info'
+    type: 'info',
+    showCancel: true
   };
 
   @Output() confirmed = new EventEmitter<void>();

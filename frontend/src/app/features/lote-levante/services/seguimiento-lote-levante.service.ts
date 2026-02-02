@@ -29,6 +29,16 @@ export interface SeguimientoLoteLevanteDto {
 
   // Metadata JSONB para campos adicionales/extras
   metadata?: any | null; // JSON object con consumo original y otros campos adicionales
+  
+  // Items adicionales JSONB para otros tipos de ítems (vacunas, medicamentos, etc.)
+  // que NO son alimentos. Los alimentos se mantienen en campos tradicionales.
+  itemsAdicionales?: any | null; // JSON object con itemsHembras e itemsMachos (solo no-alimentos)
+
+  // Campos de agua (solo para Ecuador y Panamá)
+  consumoAguaDiario?: number | null;
+  consumoAguaPh?: number | null;
+  consumoAguaOrp?: number | null;
+  consumoAguaTemperatura?: number | null;
 
   observaciones?: string;
   kcalAlH?: number | null;
@@ -38,6 +48,14 @@ export interface SeguimientoLoteLevanteDto {
   ciclo: string;                  // "Normal" | "Reforzado"
   tipoAlimentoHembras?: number | null; // (calculo interno, no se envía en create/update)
   tipoAlimentoMachos?: number | null;  // (calculo interno, no se envía en create/update)
+}
+
+// Representa un ítem individual en el seguimiento
+export interface ItemSeguimientoDto {
+  tipoItem: string; // "alimento", "vacuna", "medicamento", etc.
+  catalogItemId: number; // ID del ítem del inventario
+  cantidad: number; // Cantidad utilizada
+  unidad: string; // "kg", "g", "unidades", etc.
 }
 
 export interface CreateSeguimientoLoteLevanteDto {
@@ -53,7 +71,20 @@ export interface CreateSeguimientoLoteLevanteDto {
 
   tipoAlimento: string;
   
-  // Consumo con unidad - el backend hace la conversión
+  // NUEVO: Arrays de ítems para permitir múltiples ítems por género
+  // NOTA: Los alimentos se procesan y van a campos tradicionales,
+  // los otros ítems van a itemsAdicionales JSONB
+  itemsHembras?: ItemSeguimientoDto[] | null;
+  itemsMachos?: ItemSeguimientoDto[] | null;
+  
+  // Items adicionales JSONB (solo para ítems que NO son alimentos)
+  // Se calcula automáticamente desde itemsHembras/itemsMachos filtrando los no-alimentos
+  itemsAdicionales?: {
+    itemsHembras?: ItemSeguimientoDto[];
+    itemsMachos?: ItemSeguimientoDto[];
+  } | null;
+  
+  // DEPRECATED: Mantener para compatibilidad hacia atrás
   consumoHembras?: number | null;
   unidadConsumoHembras?: string; // "kg" o "g" - default "kg"
   consumoMachos?: number | null;
@@ -78,9 +109,17 @@ export interface CreateSeguimientoLoteLevanteDto {
   ciclo: string;
   tipoAlimentoHembras?: number | null;
   tipoAlimentoMachos?: number | null;
-  // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
+  // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata (DEPRECATED)
   tipoItemHembras?: string | null;
   tipoItemMachos?: string | null;
+  // Cantidad de unidades (para tipos de ítem que no sean alimento) (DEPRECATED)
+  cantidadUnidadesHembras?: number | null;
+  cantidadUnidadesMachos?: number | null;
+  // Campos de agua (solo para Ecuador y Panamá)
+  consumoAguaDiario?: number | null;
+  consumoAguaPh?: number | null;
+  consumoAguaOrp?: number | null;
+  consumoAguaTemperatura?: number | null;
 }
 
 export interface UpdateSeguimientoLoteLevanteDto extends CreateSeguimientoLoteLevanteDto {

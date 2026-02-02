@@ -23,6 +23,12 @@ public class SeguimientoLoteLevanteConfiguration : IEntityTypeConfiguration<Segu
         builder.Property(x => x.Metadata)
                .HasColumnName("metadata")
                .HasColumnType("jsonb");
+        
+        // Items adicionales JSONB para otros tipos de ítems (vacunas, medicamentos, etc.)
+        // que NO son alimentos. Los alimentos se mantienen en campos tradicionales.
+        builder.Property(x => x.ItemsAdicionales)
+               .HasColumnName("items_adicionales")
+               .HasColumnType("jsonb");
 
         // Pesos promedio (kg)
         builder.Property(x => x.PesoPromH).HasPrecision(8, 2);

@@ -1,21 +1,25 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
+import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
+import { SeguimientoLoteLevanteDto, CreateSeguimientoLoteLevanteDto, UpdateSeguimientoLoteLevanteDto, ItemSeguimientoDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 
 @Component({
   selector: 'app-modal-create-edit',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-create-edit.component.html',
   styleUrls: ['./modal-create-edit.component.scss']
 })
-export class ModalCreateEditComponent implements OnInit, OnChanges {
+export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   @Input() isOpen: boolean = false;
   @Input() editing: SeguimientoLoteLevanteDto | null = null;
   @Input() lotes: LoteDto[] = [];
@@ -36,6 +40,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
   private alimentosById = new Map<number, CatalogItemDto>();
   private alimentosByName = new Map<string, CatalogItemDto>();
   private granjaIdActual: number | null = null;
+  private cargandoInventarioGranja = false; // Flag para prevenir cargas múltiples
+  
+  // Mapa para guardar información de inventario (cantidad disponible) por catalogItemId
+  private inventarioPorItem = new Map<number, { quantity: number; unit: string }>();
 
   // Tipos de ítem
   tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
@@ -52,15 +60,36 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
   mensajeInventarioHembras: string = '';
   mensajeInventarioMachos: string = '';
 
+  // Propiedad para verificar si es Ecuador o Panamá
+  isEcuadorOrPanama = false;
+  private sessionSubscription?: Subscription;
+
   constructor(
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
-    private inventarioSvc: InventarioService
+    private inventarioSvc: InventarioService,
+    private countryFilter: CountryFilterService,
+    private storage: TokenStorageService
   ) { }
 
   ngOnInit(): void {
     this.initializeForm();
     // No cargar catálogo automáticamente, se cargará cuando se seleccione un tipo de ítem
+    // Verificar si es Ecuador o Panamá
+    this.updateEcuadorOrPanamaStatus();
+    
+    // Suscribirse a cambios en la sesión
+    this.sessionSubscription = this.storage.session$.subscribe(() => {
+      this.updateEcuadorOrPanamaStatus();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.sessionSubscription?.unsubscribe();
+  }
+
+  private updateEcuadorOrPanamaStatus(): void {
+    this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
   ngOnChanges(): void {
@@ -83,17 +112,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       errorSexajeHembras: [0, [Validators.required, Validators.min(0)]],
       errorSexajeMachos: [0, [Validators.required, Validators.min(0)]],
       tipoAlimento: [''],
-      // Nuevos campos para tipo de ítem
-      tipoItemHembras: [null],
-      tipoItemMachos: [null],
-      // Alimentos (ahora filtrados por tipo)
-      tipoAlimentoHembras: [null],
-      tipoAlimentoMachos: [null],
-      // Consumo con unidad de medida - el backend hace la conversión
-      consumoHembras: [0, [Validators.required, Validators.min(0)]],
-      unidadConsumoHembras: ['kg', Validators.required], // 'kg' o 'g'
-      consumoMachos: [null, [Validators.min(0)]],
-      unidadConsumoMachos: ['kg'], // 'kg' o 'g'
+      // FormArrays para múltiples ítems (alimentos y otros)
+      itemsHembras: this.fb.array([]),
+      itemsMachos: this.fb.array([]),
       observaciones: [''],
       pesoPromH: [null, [Validators.min(0)]],
       pesoPromM: [null, [Validators.min(0)]],
@@ -102,47 +123,14 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       cvH: [null, [Validators.min(0)]],
       cvM: [null, [Validators.min(0)]],
       ciclo: ['Normal'],
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: [null, [Validators.min(0)]],
+      consumoAguaPh: [null, [Validators.min(0)]],
+      consumoAguaOrp: [null, [Validators.min(0)]],
+      consumoAguaTemperatura: [null, [Validators.min(0)]],
     });
 
-    // Suscribirse a cambios en tipoItem para filtrar productos
-    this.form.get('tipoItemHembras')?.valueChanges.subscribe(tipo => {
-      this.filtrarAlimentosPorTipo('hembras', tipo);
-      this.form.patchValue({ tipoAlimentoHembras: null }, { emitEvent: false });
-      this.inventarioDisponibleHembras = null;
-      this.mensajeInventarioHembras = '';
-    });
-
-    this.form.get('tipoItemMachos')?.valueChanges.subscribe(tipo => {
-      this.filtrarAlimentosPorTipo('machos', tipo);
-      this.form.patchValue({ tipoAlimentoMachos: null }, { emitEvent: false });
-      this.inventarioDisponibleMachos = null;
-      this.mensajeInventarioMachos = '';
-    });
-
-    // Suscribirse a cambios en alimento seleccionado para consultar inventario
-    this.form.get('tipoAlimentoHembras')?.valueChanges.pipe(
-      debounceTime(300),
-      distinctUntilChanged()
-    ).subscribe(alimentoId => {
-      if (alimentoId) {
-        this.consultarInventario('hembras', alimentoId);
-      } else {
-        this.inventarioDisponibleHembras = null;
-        this.mensajeInventarioHembras = '';
-      }
-    });
-
-    this.form.get('tipoAlimentoMachos')?.valueChanges.pipe(
-      debounceTime(300),
-      distinctUntilChanged()
-    ).subscribe(alimentoId => {
-      if (alimentoId) {
-        this.consultarInventario('machos', alimentoId);
-      } else {
-        this.inventarioDisponibleMachos = null;
-        this.mensajeInventarioMachos = '';
-      }
-    });
+    // Ya no necesitamos suscripciones individuales, los ítems se manejan en el FormArray
 
     // Suscribirse a cambios en loteId para obtener granjaId y cargar inventario
     this.form.get('loteId')?.valueChanges.subscribe(loteId => {
@@ -183,6 +171,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
         this.alimentosById.clear();
         this.alimentosByCode.clear();
         this.alimentosByName.clear();
+        this.inventarioPorItem.clear();
       }
     });
 
@@ -191,6 +180,14 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
   }
 
   private resetForm(): void {
+    // Limpiar FormArrays
+    while (this.itemsHembrasArray.length !== 0) {
+      this.itemsHembrasArray.removeAt(0);
+    }
+    while (this.itemsMachosArray.length !== 0) {
+      this.itemsMachosArray.removeAt(0);
+    }
+
     this.form.reset({
       fechaRegistro: this.todayYMD(),
       loteId: this.selectedLoteId,
@@ -201,14 +198,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       errorSexajeHembras: 0,
       errorSexajeMachos: 0,
       tipoAlimento: '',
-      tipoItemHembras: null,
-      tipoItemMachos: null,
-      tipoAlimentoHembras: null,
-      tipoAlimentoMachos: null,
-      consumoHembras: 0,
-      unidadConsumoHembras: 'kg',
-      consumoMachos: null,
-      unidadConsumoMachos: 'kg',
       observaciones: '',
       ciclo: 'Normal',
       pesoPromH: null,
@@ -217,6 +206,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       uniformidadM: null,
       cvH: null,
       cvM: null,
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: null,
+      consumoAguaPh: null,
+      consumoAguaOrp: null,
+      consumoAguaTemperatura: null,
     });
     this.inventarioDisponibleHembras = null;
     this.inventarioDisponibleMachos = null;
@@ -242,6 +236,91 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
     }
   }
 
+  // ================== MÉTODOS PARA MANEJAR FORMARRAY DE ÍTEMS ==================
+  
+  get itemsHembrasArray(): FormArray {
+    return this.form.get('itemsHembras') as FormArray;
+  }
+
+  get itemsMachosArray(): FormArray {
+    return this.form.get('itemsMachos') as FormArray;
+  }
+
+  agregarItemHembras(): void {
+    const itemForm = this.fb.group({
+      tipoItem: [null, Validators.required],
+      catalogItemId: [null, Validators.required],
+      cantidad: [0, [Validators.required, Validators.min(0)]],
+      unidad: ['kg', Validators.required]
+    });
+    
+    // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') {
+        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      } else if (tipo) {
+        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      }
+    });
+    
+    this.itemsHembrasArray.push(itemForm);
+  }
+
+  eliminarItemHembras(index: number): void {
+    this.itemsHembrasArray.removeAt(index);
+  }
+
+  agregarItemMachos(): void {
+    const itemForm = this.fb.group({
+      tipoItem: [null, Validators.required],
+      catalogItemId: [null, Validators.required],
+      cantidad: [0, [Validators.required, Validators.min(0)]],
+      unidad: ['kg', Validators.required]
+    });
+    
+    // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') {
+        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      } else if (tipo) {
+        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      }
+    });
+    
+    this.itemsMachosArray.push(itemForm);
+  }
+
+  eliminarItemMachos(index: number): void {
+    this.itemsMachosArray.removeAt(index);
+  }
+
+  // Obtener alimentos filtrados para un ítem específico
+  getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
+    if (!tipoItem || !this.granjaIdActual) {
+      return this.alimentosCatalog; // Si no hay tipo, mostrar todos
+    }
+    return this.alimentosCatalog.filter(a => {
+      const metadata = a.metadata;
+      const itemType = metadata?.type_item;
+      return metadata && itemType === tipoItem;
+    });
+  }
+  
+  // Obtener cantidad disponible en inventario para un ítem
+  getCantidadDisponible(catalogItemId: number | null | undefined): { quantity: number; unit: string } | null {
+    if (!catalogItemId) return null;
+    return this.inventarioPorItem.get(catalogItemId) || null;
+  }
+  
+  // Obtener texto completo del ítem con cantidad disponible para mostrar en el dropdown
+  getItemDisplayText(item: CatalogItemDto): string {
+    const cantidad = this.getCantidadDisponible(item.id);
+    if (cantidad) {
+      return `${item.codigo} — ${item.nombre} (Disponible: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
+    }
+    return `${item.codigo} — ${item.nombre}`;
+  }
+
   // Ya no necesitamos actualizar consumoKg aquí, el backend lo hace
   // Mantenemos el método por compatibilidad pero no hace nada
   private actualizarConsumoKg(tipo: 'hembras' | 'machos'): void {
@@ -252,18 +331,96 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
   private populateForm(): void {
     if (!this.editing) return;
     
-    // Leer consumo original y tipo de alimento desde Metadata JSONB
+    // Leer consumo original desde Metadata JSONB (compatibilidad hacia atrás)
     const metadata: any = this.editing.metadata || {};
     const consumoHembras = metadata?.consumoOriginalHembras ?? this.editing.consumoKgHembras ?? 0;
     const unidadConsumoHembras = metadata?.unidadConsumoOriginalHembras ?? 'kg';
     const consumoMachos = metadata?.consumoOriginalMachos ?? this.editing.consumoKgMachos ?? null;
     const unidadConsumoMachos = metadata?.unidadConsumoOriginalMachos ?? 'kg';
     
-    // Leer tipo de ítem y IDs de alimentos desde Metadata
+    // Leer tipo de ítem y IDs de alimentos desde Metadata (compatibilidad hacia atrás)
     const tipoItemHembras = metadata?.tipoItemHembras || null;
     const tipoItemMachos = metadata?.tipoItemMachos || null;
     const tipoAlimentoHembras = metadata?.tipoAlimentoHembras ?? this.editing.tipoAlimentoHembras ?? null;
     const tipoAlimentoMachos = metadata?.tipoAlimentoMachos ?? this.editing.tipoAlimentoMachos ?? null;
+    
+    // Cargar ítems en FormArrays
+    // Primero, agregar alimentos si existen (compatibilidad hacia atrás)
+    if (tipoAlimentoHembras && tipoItemHembras === 'alimento' && consumoHembras > 0) {
+      this.itemsHembrasArray.push(this.fb.group({
+        tipoItem: ['alimento', Validators.required],
+        catalogItemId: [tipoAlimentoHembras, Validators.required],
+        cantidad: [consumoHembras, [Validators.required, Validators.min(0)]],
+        unidad: [unidadConsumoHembras, Validators.required]
+      }));
+    }
+    
+    if (tipoAlimentoMachos && tipoItemMachos === 'alimento' && consumoMachos && consumoMachos > 0) {
+      this.itemsMachosArray.push(this.fb.group({
+        tipoItem: ['alimento', Validators.required],
+        catalogItemId: [tipoAlimentoMachos, Validators.required],
+        cantidad: [consumoMachos, [Validators.required, Validators.min(0)]],
+        unidad: [unidadConsumoMachos, Validators.required]
+      }));
+    }
+    
+    // Leer items adicionales (ítems que NO son alimentos)
+    const itemsAdicionales: any = this.editing.itemsAdicionales || null;
+    
+    if (itemsAdicionales) {
+      // Cargar items adicionales de hembras
+      if (itemsAdicionales.itemsHembras && Array.isArray(itemsAdicionales.itemsHembras)) {
+        itemsAdicionales.itemsHembras.forEach((item: ItemSeguimientoDto) => {
+          this.itemsHembrasArray.push(this.fb.group({
+            tipoItem: [item.tipoItem, Validators.required],
+            catalogItemId: [item.catalogItemId, Validators.required],
+            cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
+            unidad: [item.unidad || 'unidades', Validators.required]
+          }));
+        });
+      }
+      
+      // Cargar items adicionales de machos
+      if (itemsAdicionales.itemsMachos && Array.isArray(itemsAdicionales.itemsMachos)) {
+        itemsAdicionales.itemsMachos.forEach((item: ItemSeguimientoDto) => {
+          this.itemsMachosArray.push(this.fb.group({
+            tipoItem: [item.tipoItem, Validators.required],
+            catalogItemId: [item.catalogItemId, Validators.required],
+            cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
+            unidad: [item.unidad || 'unidades', Validators.required]
+          }));
+        });
+      }
+    }
+    
+    // También cargar desde metadata si hay items guardados ahí (compatibilidad)
+    if (metadata?.itemsHembras && Array.isArray(metadata.itemsHembras)) {
+      metadata.itemsHembras.forEach((item: any) => {
+        // Solo agregar si no es alimento (los alimentos ya se agregaron arriba)
+        if (item.tipoItem !== 'alimento') {
+          this.itemsHembrasArray.push(this.fb.group({
+            tipoItem: [item.tipoItem, Validators.required],
+            catalogItemId: [item.catalogItemId, Validators.required],
+            cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
+            unidad: [item.unidad || 'unidades', Validators.required]
+          }));
+        }
+      });
+    }
+    
+    if (metadata?.itemsMachos && Array.isArray(metadata.itemsMachos)) {
+      metadata.itemsMachos.forEach((item: any) => {
+        // Solo agregar si no es alimento (los alimentos ya se agregaron arriba)
+        if (item.tipoItem !== 'alimento') {
+          this.itemsMachosArray.push(this.fb.group({
+            tipoItem: [item.tipoItem, Validators.required],
+            catalogItemId: [item.catalogItemId, Validators.required],
+            cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
+            unidad: [item.unidad || 'unidades', Validators.required]
+          }));
+        }
+      });
+    }
     
     this.form.patchValue({
       fechaRegistro: this.toYMD(this.editing.fechaRegistro),
@@ -275,14 +432,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       errorSexajeHembras: this.editing.errorSexajeHembras,
       errorSexajeMachos: this.editing.errorSexajeMachos,
       tipoAlimento: this.editing.tipoAlimento ?? '',
-      tipoItemHembras: tipoItemHembras, // Leer desde Metadata
-      tipoItemMachos: tipoItemMachos, // Leer desde Metadata
-      tipoAlimentoHembras: tipoAlimentoHembras, // Leer desde Metadata
-      tipoAlimentoMachos: tipoAlimentoMachos, // Leer desde Metadata
-      consumoHembras: consumoHembras,
-      unidadConsumoHembras: unidadConsumoHembras, // Usar la unidad original guardada
-      consumoMachos: consumoMachos,
-      unidadConsumoMachos: unidadConsumoMachos, // Usar la unidad original guardada
       observaciones: this.editing.observaciones || '',
       ciclo: this.editing.ciclo || 'Normal',
       pesoPromH: this.editing.pesoPromH ?? null,
@@ -291,6 +440,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       uniformidadM: this.editing.uniformidadM ?? null,
       cvH: this.editing.cvH ?? null,
       cvM: this.editing.cvM ?? null,
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: (this.editing as any).consumoAguaDiario ?? null,
+      consumoAguaPh: (this.editing as any).consumoAguaPh ?? null,
+      consumoAguaOrp: (this.editing as any).consumoAguaOrp ?? null,
+      consumoAguaTemperatura: (this.editing as any).consumoAguaTemperatura ?? null,
     });
 
     // Si hay alimento seleccionado, necesitamos cargar el catálogo primero para obtener el tipo de ítem
@@ -411,6 +565,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
 
   // ================== CARGA DE INVENTARIO DE LA GRANJA ==================
   private cargarInventarioGranja(granjaId: number): void {
+    // Prevenir cargas múltiples simultáneas
+    if (this.cargandoInventarioGranja) {
+      return;
+    }
+    
+    this.cargandoInventarioGranja = true;
+    
     // Cargar inventario de la granja (solo productos que tienen stock)
     this.inventarioSvc.getInventory(granjaId).subscribe({
       next: (inventario) => {
@@ -443,6 +604,17 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
               }
             });
             
+            // Guardar información de inventario por ítem
+            this.inventarioPorItem.clear();
+            inventario.forEach(item => {
+              if (item.active && item.quantity > 0) {
+                this.inventarioPorItem.set(item.catalogItemId, {
+                  quantity: item.quantity,
+                  unit: item.unit || 'kg'
+                });
+              }
+            });
+            
             // Convertir inventario a formato CatalogItemDto
             this.alimentosCatalog = inventario
               .filter(item => item.active && item.quantity > 0)
@@ -461,8 +633,20 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
               );
             
             this.actualizarMapasYFiltros();
+            this.cargandoInventarioGranja = false;
           });
         } else {
+          // Guardar información de inventario por ítem
+          this.inventarioPorItem.clear();
+          inventario.forEach(item => {
+            if (item.active && item.quantity > 0) {
+              this.inventarioPorItem.set(item.catalogItemId, {
+                quantity: item.quantity,
+                unit: item.unit || 'kg'
+              });
+            }
+          });
+          
           // Todos los items tienen catalogItemMetadata, procesar directamente
           this.alimentosCatalog = inventario
             .filter(item => item.active && item.quantity > 0)
@@ -478,6 +662,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
             );
           
           this.actualizarMapasYFiltros();
+          this.cargandoInventarioGranja = false;
         }
       },
       error: (err) => {
@@ -485,6 +670,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
         this.alimentosCatalog = [];
         this.alimentosFiltradosHembras = [];
         this.alimentosFiltradosMachos = [];
+        this.cargandoInventarioGranja = false;
       }
     });
   }
@@ -508,10 +694,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       this.establecerTipoItemYAlimentoAlEditar();
     } else {
       // Si no estamos editando, actualizar los filtros si hay tipos seleccionados
-      const tipoItemH = this.form.get('tipoItemHembras')?.value;
-      const tipoItemM = this.form.get('tipoItemMachos')?.value;
-      if (tipoItemH) this.filtrarAlimentosPorTipo('hembras', tipoItemH);
-      if (tipoItemM) this.filtrarAlimentosPorTipo('machos', tipoItemM);
+      // Solo actualizar si no estamos cargando para prevenir ciclos infinitos
+      if (!this.cargandoInventarioGranja) {
+        const tipoItemH = this.form.get('tipoItemHembras')?.value;
+        const tipoItemM = this.form.get('tipoItemMachos')?.value;
+        if (tipoItemH) this.filtrarAlimentosPorTipo('hembras', tipoItemH);
+        if (tipoItemM) this.filtrarAlimentosPorTipo('machos', tipoItemM);
+      }
     }
   }
 
@@ -566,14 +755,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
   // ================== FILTRADO POR TIPO ==================
   filtrarAlimentosPorTipo(tipoGenero: 'hembras' | 'machos', tipoItem: CatalogItemType | null): void {
     // Si no hay catálogo cargado y hay granja seleccionada, cargar inventario
-    if (this.alimentosCatalog.length === 0 && this.granjaIdActual) {
+    // Pero solo si no estamos ya cargando para prevenir peticiones infinitas
+    if (this.alimentosCatalog.length === 0 && this.granjaIdActual && !this.cargandoInventarioGranja) {
       this.cargarInventarioGranja(this.granjaIdActual);
       // Salir temprano, el filtrado se hará cuando termine de cargar
       return;
     }
     
-    // Si no hay granja seleccionada, no podemos cargar inventario
-    if (!this.granjaIdActual) {
+    // Si no hay granja seleccionada o estamos cargando, no podemos filtrar
+    if (!this.granjaIdActual || this.cargandoInventarioGranja) {
       if (tipoGenero === 'hembras') {
         this.alimentosFiltradosHembras = [];
       } else {
@@ -767,60 +957,73 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Obtener consumo y unidad
-    const consumoH = Number(raw.consumoHembras) || 0;
-    const unidadH = raw.unidadConsumoHembras || 'kg';
-    const consumoM = Number(raw.consumoMachos) || 0;
-    const unidadM = raw.unidadConsumoMachos || 'kg';
-    const alimentoHId = raw.tipoAlimentoHembras;
-    const alimentoMId = raw.tipoAlimentoMachos;
-
-    // Convertir a gramos para validar inventario (el inventario se muestra en gramos)
-    const consumoGramosH = (unidadH === 'g' || unidadH === 'gramos') ? consumoH : consumoH * 1000;
-    const consumoGramosM = (unidadM === 'g' || unidadM === 'gramos') ? consumoM : consumoM * 1000;
+    // Construir arrays de ítems desde FormArrays
+    const itemsHembras: ItemSeguimientoDto[] = [];
+    const itemsMachos: ItemSeguimientoDto[] = [];
     
-    // Calcular consumo en kg para la reducción de inventario
-    const consumoKgH = (unidadH === 'g' || unidadH === 'gramos') ? consumoH / 1000 : consumoH;
-    const consumoKgM = (unidadM === 'g' || unidadM === 'gramos') ? (consumoM > 0 ? consumoM / 1000 : 0) : (consumoM > 0 ? consumoM : 0);
-
-    // Validar inventario disponible
-    if (alimentoHId && consumoH > 0) {
-      if (this.inventarioDisponibleHembras === null || this.inventarioDisponibleHembras < consumoGramosH) {
-        alert('No hay suficiente alimento disponible para hembras. Verifique el inventario.');
-        return;
+    // Procesar ítems de hembras
+    this.itemsHembrasArray.controls.forEach(control => {
+      const itemValue = control.value;
+      if (itemValue.tipoItem && itemValue.catalogItemId && itemValue.cantidad > 0) {
+        itemsHembras.push({
+          tipoItem: itemValue.tipoItem,
+          catalogItemId: Number(itemValue.catalogItemId),
+          cantidad: Number(itemValue.cantidad),
+          unidad: itemValue.unidad || 'kg'
+        });
       }
-    }
-
-    if (alimentoMId && consumoM > 0) {
-      if (this.inventarioDisponibleMachos === null || this.inventarioDisponibleMachos < consumoGramosM) {
-        alert('No hay suficiente alimento disponible para machos. Verifique el inventario.');
-        return;
+    });
+    
+    // Procesar ítems de machos
+    this.itemsMachosArray.controls.forEach(control => {
+      const itemValue = control.value;
+      if (itemValue.tipoItem && itemValue.catalogItemId && itemValue.cantidad > 0) {
+        itemsMachos.push({
+          tipoItem: itemValue.tipoItem,
+          catalogItemId: Number(itemValue.catalogItemId),
+          cantidad: Number(itemValue.cantidad),
+          unidad: itemValue.unidad || 'kg'
+        });
       }
-    }
-
-    // Obtener nombres de alimentos desde los IDs
-    let nombreAlimentoH = '';
-    let nombreAlimentoM = '';
+    });
     
-    if (alimentoHId) {
-      const alimentoH = this.alimentosById.get(Number(alimentoHId));
-      nombreAlimentoH = alimentoH?.nombre || '';
-    }
+    // Validar inventario para alimentos (validación básica, la validación completa se hace en el backend)
+    const alimentosHembrasParaValidar = itemsHembras.filter(item => item.tipoItem === 'alimento');
+    const alimentosMachosParaValidar = itemsMachos.filter(item => item.tipoItem === 'alimento');
     
-    if (alimentoMId) {
-      const alimentoM = this.alimentosById.get(Number(alimentoMId));
-      nombreAlimentoM = alimentoM?.nombre || '';
-    }
+    // Nota: La validación completa de inventario se hace en el backend
+    // Aquí solo hacemos una validación básica si es necesario
     
-    // Construir string de tipoAlimento (concatenar si hay ambos)
-    let tipoAlimentoStr = raw.tipoAlimento || '';
-    if (nombreAlimentoH && nombreAlimentoM) {
-      tipoAlimentoStr = `${nombreAlimentoH} / ${nombreAlimentoM}`;
-    } else if (nombreAlimentoH) {
-      tipoAlimentoStr = nombreAlimentoH;
-    } else if (nombreAlimentoM) {
-      tipoAlimentoStr = nombreAlimentoM;
-    }
+    // Separar alimentos de otros ítems para itemsAdicionales
+    const otrosItemsHembras = itemsHembras.filter(item => item.tipoItem !== 'alimento');
+    const otrosItemsMachos = itemsMachos.filter(item => item.tipoItem !== 'alimento');
+    
+    const itemsAdicionales: { itemsHembras?: ItemSeguimientoDto[], itemsMachos?: ItemSeguimientoDto[] } | null = 
+      (otrosItemsHembras.length > 0 || otrosItemsMachos.length > 0) ? {
+        ...(otrosItemsHembras.length > 0 ? { itemsHembras: otrosItemsHembras } : {}),
+        ...(otrosItemsMachos.length > 0 ? { itemsMachos: otrosItemsMachos } : {})
+      } : null;
+    
+    // Construir string de tipoAlimento desde los alimentos
+    const alimentosHembras = itemsHembras.filter(item => item.tipoItem === 'alimento');
+    const alimentosMachos = itemsMachos.filter(item => item.tipoItem === 'alimento');
+    const nombresAlimentos: string[] = [];
+    
+    alimentosHembras.forEach(item => {
+      const alimento = this.alimentosById.get(item.catalogItemId);
+      if (alimento?.nombre) {
+        nombresAlimentos.push(`H: ${alimento.nombre}`);
+      }
+    });
+    
+    alimentosMachos.forEach(item => {
+      const alimento = this.alimentosById.get(item.catalogItemId);
+      if (alimento?.nombre) {
+        nombresAlimentos.push(`M: ${alimento.nombre}`);
+      }
+    });
+    
+    const tipoAlimentoStr = nombresAlimentos.length > 0 ? nombresAlimentos.join(' / ') : raw.tipoAlimento || '';
     
     const ymd = this.toYMD(raw.fechaRegistro)!;
 
@@ -835,11 +1038,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       errorSexajeHembras: Number(raw.errorSexajeHembras) || 0,
       errorSexajeMachos: Number(raw.errorSexajeMachos) || 0,
       tipoAlimento: tipoAlimentoStr || '',
-      // Enviar consumo con unidad - el backend hace la conversión
-      consumoHembras: consumoH,
-      unidadConsumoHembras: unidadH,
-      consumoMachos: consumoM > 0 ? consumoM : null,
-      unidadConsumoMachos: unidadM,
+      // Arrays de ítems (el backend separa alimentos de otros ítems)
+      itemsHembras: itemsHembras.length > 0 ? itemsHembras : null,
+      itemsMachos: itemsMachos.length > 0 ? itemsMachos : null,
+      // Items adicionales JSONB (solo ítems que NO son alimentos)
+      itemsAdicionales: itemsAdicionales,
       pesoPromH: this.toNumOrNull(raw.pesoPromH),
       pesoPromM: this.toNumOrNull(raw.pesoPromM),
       uniformidadH: this.toNumOrNull(raw.uniformidadH),
@@ -852,11 +1055,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       kcalAveH: null,
       protAveH: null,
       ciclo: raw.ciclo,
-      // Tipo de ítem y IDs de alimentos (se guardan en Metadata)
-      tipoItemHembras: raw.tipoItemHembras || null,
-      tipoItemMachos: raw.tipoItemMachos || null,
-      tipoAlimentoHembras: alimentoHId ? Number(alimentoHId) : null,
-      tipoAlimentoMachos: alimentoMId ? Number(alimentoMId) : null,
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: this.toNumOrNull(raw.consumoAguaDiario),
+      consumoAguaPh: this.toNumOrNull(raw.consumoAguaPh),
+      consumoAguaOrp: this.toNumOrNull(raw.consumoAguaOrp),
+      consumoAguaTemperatura: this.toNumOrNull(raw.consumoAguaTemperatura),
     };
 
     const isEdit = !!this.editing;
@@ -864,56 +1067,76 @@ export class ModalCreateEditComponent implements OnInit, OnChanges {
       ? { ...baseDto, id: this.editing!.id } as UpdateSeguimientoLoteLevanteDto
       : baseDto as CreateSeguimientoLoteLevanteDto;
 
-    // Hacer resta al inventario antes de guardar
+    // Hacer resta al inventario antes de guardar (solo para alimentos)
     const restas: Promise<void>[] = [];
 
-    if (alimentoHId && consumoKgH > 0) {
-      // IMPORTANTE: El backend NO hace conversión de unidades, resta directamente
-      // El consumoKgH ya está en kg (convertido si era gramos)
-      const unidadInventario = this.inventarioUnidadHembras || 'kg';
+    // Procesar alimentos de hembras
+    alimentosHembras.forEach(item => {
+      const cantidad = item.cantidad;
+      const unidad = item.unidad || 'kg';
+      let cantidadKg = cantidad;
       
-      console.log(`Reduciendo inventario hembras: ${consumoKgH} kg (inventario en ${unidadInventario})`);
+      // Convertir a kg si viene en gramos
+      if (unidad === 'g' || unidad === 'gramos') {
+        cantidadKg = cantidad / 1000;
+      }
       
-      restas.push(
-        this.inventarioSvc.postExit(lote.granjaId, {
-          catalogItemId: Number(alimentoHId),
-          quantity: consumoKgH, // Ya está en kg
-          unit: unidadInventario, // Usar la unidad EXACTA del inventario
-          reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
-          reason: 'Consumo diario',
-          destination: 'Consumo'
-        }).toPromise().then(() => {
-          console.log(`Inventario hembras reducido correctamente: ${consumoKgH} ${unidadInventario}`);
-        }).catch(err => {
-          console.error('Error al restar inventario hembras:', err);
-          throw new Error('Error al registrar consumo en inventario (hembras)');
-        })
-      );
-    }
+      if (cantidadKg > 0) {
+        // Consultar inventario para obtener la unidad exacta
+        this.consultarInventario('hembras', item.catalogItemId);
+        const unidadInventario = this.inventarioUnidadHembras || 'kg';
+        
+        restas.push(
+          this.inventarioSvc.postExit(lote.granjaId, {
+            catalogItemId: item.catalogItemId,
+            quantity: cantidadKg,
+            unit: unidadInventario,
+            reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
+            reason: 'Consumo diario',
+            destination: 'Consumo'
+          }).toPromise().then(() => {
+            console.log(`Inventario hembras reducido: ${cantidadKg} ${unidadInventario}`);
+          }).catch(err => {
+            console.error('Error al restar inventario hembras:', err);
+            throw new Error('Error al registrar consumo en inventario (hembras)');
+          })
+        );
+      }
+    });
 
-    if (alimentoMId && consumoKgM > 0) {
-      // IMPORTANTE: El backend NO hace conversión de unidades, resta directamente
-      // El consumoKgM ya está en kg (convertido si era gramos)
-      const unidadInventario = this.inventarioUnidadMachos || 'kg';
+    // Procesar alimentos de machos
+    alimentosMachos.forEach(item => {
+      const cantidad = item.cantidad;
+      const unidad = item.unidad || 'kg';
+      let cantidadKg = cantidad;
       
-      console.log(`Reduciendo inventario machos: ${consumoKgM} kg (inventario en ${unidadInventario})`);
+      // Convertir a kg si viene en gramos
+      if (unidad === 'g' || unidad === 'gramos') {
+        cantidadKg = cantidad / 1000;
+      }
       
-      restas.push(
-        this.inventarioSvc.postExit(lote.granjaId, {
-          catalogItemId: Number(alimentoMId),
-          quantity: consumoKgM, // Ya está en kg
-          unit: unidadInventario, // Usar la unidad EXACTA del inventario
-          reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
-          reason: 'Consumo diario',
-          destination: 'Consumo'
-        }).toPromise().then(() => {
-          console.log(`Inventario machos reducido correctamente: ${consumoKgM} ${unidadInventario}`);
-        }).catch(err => {
-          console.error('Error al restar inventario machos:', err);
-          throw new Error('Error al registrar consumo en inventario (machos)');
-        })
-      );
-    }
+      if (cantidadKg > 0) {
+        // Consultar inventario para obtener la unidad exacta
+        this.consultarInventario('machos', item.catalogItemId);
+        const unidadInventario = this.inventarioUnidadMachos || 'kg';
+        
+        restas.push(
+          this.inventarioSvc.postExit(lote.granjaId, {
+            catalogItemId: item.catalogItemId,
+            quantity: cantidadKg,
+            unit: unidadInventario,
+            reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
+            reason: 'Consumo diario',
+            destination: 'Consumo'
+          }).toPromise().then(() => {
+            console.log(`Inventario machos reducido: ${cantidadKg} ${unidadInventario}`);
+          }).catch(err => {
+            console.error('Error al restar inventario machos:', err);
+            throw new Error('Error al registrar consumo en inventario (machos)');
+          })
+        );
+      }
+    });
 
     // Esperar a que se completen las restas antes de emitir el save
     if (restas.length > 0) {

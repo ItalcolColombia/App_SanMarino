@@ -13,6 +13,7 @@
       <input type="radio" name="regTab" id="tab-machos" class="ux-tab-input" />
       <input type="radio" name="regTab" id="tab-huevos" class="ux-tab-input" />
       <input type="radio" name="regTab" id="tab-pesaje" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-agua" class="ux-tab-input" [hidden]="!isEcuadorOrPanama" />
 
       <!-- TABS NAVEGACIÓN - ARRIBA -->
       <div class="ux-tabs-wrapper">
@@ -40,6 +41,12 @@
           <label class="ux-tab" id="lab-pesaje" for="tab-pesaje" role="tab" tabindex="0" aria-controls="panel-pesaje" aria-selected="false">
             <span class="tab-icon">⚖️</span>
             <span class="tab-label">Pesaje Semanal</span>
+          </label>
+
+          <!-- Tab Agua (solo para Ecuador y Panamá) -->
+          <label class="ux-tab" id="lab-agua" for="tab-agua" role="tab" tabindex="0" aria-controls="panel-agua" aria-selected="false" [hidden]="!isEcuadorOrPanama">
+            <span class="tab-icon">💧</span>
+            <span class="tab-label">Agua</span>
           </label>
         </div>
       </div>
@@ -538,6 +545,76 @@
               </div>
             </div>
           </section>
+
+          <!-- AGUA (solo para Ecuador y Panamá) -->
+          <section id="panel-agua" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-agua" [hidden]="!isEcuadorOrPanama">
+            <div class="tab-panel-header">
+              <h3>💧 Control de Agua</h3>
+              <p class="tab-description">Registro de consumo y calidad del agua (solo para Ecuador y Panamá)</p>
+            </div>
+            <div class="grid grid-4">
+              <div class="form-field">
+                <label for="f-consumo-agua-diario">
+                  <span class="label-icon">💧</span>
+                  Consumo Agua Diario (litros)
+                </label>
+                <input 
+                  id="f-consumo-agua-diario" 
+                  type="number" 
+                  step="0.1" 
+                  min="0" 
+                  formControlName="consumoAguaDiario" 
+                  placeholder="Ej: 1500.0" />
+                <small class="ux-hint">Consumo diario de agua en litros</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-agua-ph">
+                  <span class="label-icon">🧪</span>
+                  PH del Agua
+                </label>
+                <input 
+                  id="f-consumo-agua-ph" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  max="14" 
+                  formControlName="consumoAguaPh" 
+                  placeholder="Ej: 7.0" />
+                <small class="ux-hint">Nivel de PH del agua (0-14)</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-agua-orp">
+                  <span class="label-icon">⚡</span>
+                  ORP (mV)
+                </label>
+                <input 
+                  id="f-consumo-agua-orp" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  formControlName="consumoAguaOrp" 
+                  placeholder="Ej: 650.00" />
+                <small class="ux-hint">Potencial de Oxidación-Reducción en milivoltios</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-agua-temperatura">
+                  <span class="label-icon">🌡️</span>
+                  Temperatura del Agua (°C)
+                </label>
+                <input 
+                  id="f-consumo-agua-temperatura" 
+                  type="number" 
+                  step="0.1" 
+                  min="0" 
+                  formControlName="consumoAguaTemperatura" 
+                  placeholder="Ej: 25.5" />
+                <small class="ux-hint">Temperatura del agua en grados Celsius</small>
+              </div>
+            </div>
+          </section>
       </div>
 
       <footer class="ux-modal__footer">
@@ -553,6 +630,13 @@
     </div>
   </div>
 </div>
+
+<!-- Modal de Confirmación/Error -->
+<app-confirmation-modal
+  [isOpen]="showMessageModal"
+  [data]="messageModalData"
+  (closed)="onMessageModalClose()">
+</app-confirmation-modal>
 
 
 

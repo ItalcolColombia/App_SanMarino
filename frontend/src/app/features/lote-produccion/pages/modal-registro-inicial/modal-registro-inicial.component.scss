@@ -129,26 +129,73 @@
 @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 :host .ux-modal__dialog {
-  width: min(700px, 95vw); background: var(--bg-card);
+  width: min(800px, 95vw); background: var(--bg-card);
   border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
   border: 1px solid var(--border); position: relative; overflow: hidden;
   transform: translateY(6px); animation: dialogUp .18s ease-out forwards;
+  max-height: min(90vh, 900px);
+  display: flex;
+  flex-direction: column;
 }
 @keyframes dialogUp { to { transform: translateY(0); } }
 
 :host .ux-modal__header {
-  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 1.5rem 1.5rem 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #fff 0%, #fafafa 100%);
 }
-:host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
+
+:host .header-content {
+  display: flex; align-items: flex-start; gap: 1rem; flex: 1;
+}
+
+:host .header-icon {
+  font-size: 2rem; line-height: 1; flex-shrink: 0;
+}
+
+:host .ux-modal__header h2 {
+  margin: 0 0 .25rem 0; font-size: var(--fs-xl); font-weight: 800; color: var(--brand-red);
+  line-height: 1.2;
+}
+
+:host .header-subtitle {
+  margin: 0; font-size: var(--fs-sm); color: var(--warm-500);
+  font-weight: 500;
+}
 :host .ux-modal__footer {
-  display: flex; justify-content: flex-end; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: .75rem; padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--warm-50);
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
    📝 Formulario
    ========================================================================== */
-:host .ux-form { padding: 1.25rem; }
+:host .ux-form {
+  padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(90vh - 200px);
+}
+
+:host .ux-form::-webkit-scrollbar {
+  width: 8px;
+}
+
+:host .ux-form::-webkit-scrollbar-track {
+  background: var(--warm-100);
+  border-radius: 4px;
+}
+
+:host .ux-form::-webkit-scrollbar-thumb {
+  background: var(--warm-300);
+  border-radius: 4px;
+}
+
+:host .ux-form::-webkit-scrollbar-thumb:hover {
+  background: var(--warm-400);
+}
 
 :host .form-field { display: flex; flex-direction: column; gap: .35rem; }
 :host .form-field--full { grid-column: 1 / -1; }
@@ -181,15 +228,47 @@
 :host .ux-input--readonly { background: var(--warm-50); color: var(--text-sub); }
 
 /* ==========================================================================
+   📋 Información del Lote
+   ========================================================================== */
+:host .modal-lote-info {
+  display: flex; gap: 1rem; padding: 1rem 1.5rem;
+  background: var(--warm-50); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+:host .info-card {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .75rem 1rem; background: var(--white);
+  border: 1px solid var(--warm-200); border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  flex: 1; min-width: 200px;
+}
+
+:host .info-icon {
+  font-size: 1.5rem; line-height: 1; flex-shrink: 0;
+}
+
+:host .info-content {
+  display: flex; flex-direction: column; gap: .25rem;
+}
+
+:host .info-label {
+  font-size: var(--fs-xs); font-weight: 600; color: var(--warm-500);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+
+:host .info-value {
+  font-size: var(--fs-md); font-weight: 700; color: var(--text);
+}
+
+/* ==========================================================================
    🧭 Tabs del modal (CSS-only, accesible)
    ========================================================================== */
 :host .ux-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, max-content) 1fr;
-  align-items: end;
-  gap: .35rem;
-  border-bottom: 1px solid var(--warm-200);
-  margin-bottom: 1rem;
+  display: flex;
+  gap: .5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--warm-200);
   position: relative;
 }
 
@@ -204,40 +283,68 @@
 :host .ux-tab {
   display: inline-flex;
   align-items: center;
-  padding: .55rem .8rem;
-  border: 1px solid var(--warm-200);
-  border-bottom: none;
-  border-top-left-radius: .6rem;
-  border-top-right-radius: .6rem;
-  background: var(--warm-100);
-  color: var(--warm-600);
-  font-weight: 700;
+  gap: .5rem;
+  padding: .75rem 1.25rem;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--warm-500);
+  font-weight: 600;
+  font-size: var(--fs-sm);
   cursor: pointer;
   user-select: none;
-  transition: background .15s, color .15s, transform .12s;
+  transition: all .2s ease;
   outline: none;
+  position: relative;
+  margin-bottom: -2px;
 }
-:host .ux-tab:hover { background: var(--white); color: var(--brand-red); }
-:host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
+
+:host .tab-icon {
+  font-size: 1.1rem; line-height: 1;
+}
+
+:host .ux-tab:hover {
+  color: var(--brand-red);
+  background: var(--warm-50);
+  border-bottom-color: var(--warm-300);
+}
+
+:host .ux-tab:focus-visible {
+  box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+  border-radius: var(--radius-sm);
+}
 
 :host .ux-tab-panels {
-  grid-column: 1 / -1;
   background: var(--white);
   border: 1px solid var(--warm-200);
-  border-radius: .6rem;
-  box-shadow: var(--shadow-lg);
-  padding: 1rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  padding: 1.5rem;
+  margin-top: 1rem;
 }
 
-:host .ux-tab-panel { display: none; }
-
-/* Mostrar el panel correspondiente */
-:host #tab-general:checked ~ .ux-tab-panels #panel-general { display: block; }
-:host #tab-aves:checked ~ .ux-tab-panels #panel-aves { display: block; }
+/* Estilos para tabs activos */
+:host .ux-tab.active {
+  color: var(--brand-red);
+  border-bottom-color: var(--brand-red);
+  background: var(--white);
+  font-weight: 700;
+}
 
 /* Estado visual del tab ACTIVO */
-:host #tab-general:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-aves:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-general:checked + label.ux-tab {
+  color: var(--brand-red);
+  border-bottom-color: var(--brand-red);
+  background: var(--white);
+  font-weight: 700;
+}
+
+:host #tab-aves:checked + label.ux-tab {
+  color: var(--brand-red);
+  border-bottom-color: var(--brand-red);
+  background: var(--white);
+  font-weight: 700;
+}
 
 /* ==========================================================================
    📊 Resumen Card

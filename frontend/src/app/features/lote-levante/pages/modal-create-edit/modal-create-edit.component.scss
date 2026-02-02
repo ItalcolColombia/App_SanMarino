@@ -129,26 +129,74 @@
 @keyframes modalFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 :host .ux-modal__dialog {
-  width: min(900px, 95vw); background: var(--bg-card);
-  border-radius: var(--radius-xl); box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border); position: relative; overflow: hidden;
-  transform: translateY(6px); animation: dialogUp .18s ease-out forwards;
+  width: min(900px, 95vw); 
+  max-height: min(90vh, 900px);
+  background: var(--bg-card);
+  border-radius: var(--radius-xl); 
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border); 
+  position: relative; 
+  overflow: hidden;
+  transform: translateY(6px); 
+  animation: dialogUp .18s ease-out forwards;
+  display: flex;
+  flex-direction: column;
 }
 @keyframes dialogUp { to { transform: translateY(0); } }
 
 :host .ux-modal__header {
-  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: .5rem;
+  padding: 1rem 1.25rem; 
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-card);
 }
 :host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
 :host .ux-modal__footer {
-  display: flex; justify-content: flex-end; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border);
+  display: flex; 
+  justify-content: flex-end; 
+  gap: .5rem; 
+  padding: 1rem 1.25rem; 
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-card);
 }
 
 /* ==========================================================================
    📝 Formulario
    ========================================================================== */
-:host .ux-form { padding: 1.25rem; }
+:host .ux-form { 
+  padding: 1.25rem; 
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  /* Personalización de scrollbar para mejor UX */
+  scrollbar-width: thin;
+  scrollbar-color: var(--warm-300) var(--warm-50);
+}
+
+/* Scrollbar personalizado para WebKit (Chrome, Safari, Edge) */
+:host .ux-form::-webkit-scrollbar {
+  width: 8px;
+}
+
+:host .ux-form::-webkit-scrollbar-track {
+  background: var(--warm-50);
+  border-radius: 4px;
+}
+
+:host .ux-form::-webkit-scrollbar-thumb {
+  background: var(--warm-300);
+  border-radius: 4px;
+}
+
+:host .ux-form::-webkit-scrollbar-thumb:hover {
+  background: var(--warm-400);
+}
 
 :host .form-field { display: flex; flex-direction: column; gap: .35rem; }
 :host .form-field--full { grid-column: 1 / -1; }
@@ -183,17 +231,25 @@
 /* ==========================================================================
    🧭 Tabs del modal (CSS-only, accesible)
    ========================================================================== */
+/* Contenedor de tabs (wrapper) */
+:host .ux-tabs-wrapper {
+  margin-bottom: 1rem;
+  flex-shrink: 0;
+  background: var(--bg-card);
+  padding: 0 1.25rem;
+  padding-top: 0.5rem;
+}
+
 :host .ux-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, max-content) 1fr;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: end;
   gap: .35rem;
   border-bottom: 1px solid var(--warm-200);
-  margin-bottom: 1rem;
   position: relative;
 }
 
-:host .ux-tabs input[type="radio"] {
+:host .ux-tab-input {
   position: absolute;
   opacity: 0;
   width: 0;
@@ -221,25 +277,51 @@
 :host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
 
 :host .ux-tab-panels {
-  grid-column: 1 / -1;
   background: var(--white);
   border: 1px solid var(--warm-200);
   border-radius: .6rem;
   box-shadow: var(--shadow-lg);
   padding: 1rem;
+  width: 100%;
+  max-height: calc(90vh - 280px); /* Altura máxima considerando header, tabs y footer */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Personalización de scrollbar para tab panels */
+  scrollbar-width: thin;
+  scrollbar-color: var(--warm-300) var(--warm-50);
+}
+
+:host .ux-tab-panels::-webkit-scrollbar {
+  width: 8px;
+}
+
+:host .ux-tab-panels::-webkit-scrollbar-track {
+  background: var(--warm-50);
+  border-radius: 4px;
+}
+
+:host .ux-tab-panels::-webkit-scrollbar-thumb {
+  background: var(--warm-300);
+  border-radius: 4px;
+}
+
+:host .ux-tab-panels::-webkit-scrollbar-thumb:hover {
+  background: var(--warm-400);
 }
 
 :host .ux-tab-panel { display: none; }
 
 /* Mostrar el panel correspondiente */
-:host #tab-general:checked ~ .ux-tab-panels #panel-general { display: block; }
-:host #tab-hembras:checked ~ .ux-tab-panels #panel-hembras { display: block; }
-:host #tab-machos:checked  ~ .ux-tab-panels #panel-machos  { display: block; }
+:host #tab-general:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-general { display: block; }
+:host #tab-hembras:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-hembras { display: block; }
+:host #tab-machos:checked  ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-machos  { display: block; }
+:host #tab-agua:checked    ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-agua    { display: block; }
 
 /* Estado visual del tab ACTIVO */
-:host #tab-general:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-hembras:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-machos:checked  + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-machos:checked  ~ .ux-tabs-wrapper label[for="tab-machos"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-agua:checked    ~ .ux-tabs-wrapper label[for="tab-agua"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
 
 /* ==========================================================================
    ⬇️ Selects / Inputs
@@ -325,15 +407,96 @@
   .grid-4, .grid-3, .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
   :host .ux-form { padding: 1rem; }
   :host .data-group { padding: var(--space-3); }
+  :host .ux-modal__dialog { 
+    max-height: 95vh;
+    width: 95vw;
+  }
+  :host .ux-tab-panels {
+    max-height: calc(95vh - 280px);
+  }
 }
 @media (max-width: 680px)  {
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
-  :host .ux-modal__dialog { width: 95vw; }
+  :host .ux-modal__dialog { 
+    width: 95vw; 
+    max-height: 95vh;
+    margin: 0.5rem;
+  }
+  :host .ux-modal__header {
+    padding: 0.75rem 1rem;
+  }
+  :host .ux-tabs-wrapper {
+    padding: 0 1rem;
+    padding-top: 0.5rem;
+  }
+  :host .ux-modal__footer {
+    padding: 0.75rem 1rem;
+  }
+  :host .ux-form { 
+    padding: 0.75rem; 
+  }
+  :host .ux-tab-panels {
+    max-height: calc(95vh - 240px);
+    padding: 0.75rem;
+  }
   :host .data-group-title { font-size: var(--fs-sm); }
+  :host .data-group { padding: var(--space-3); }
 }
 @media (max-width: 480px) { 
-  :host .ux-modal__header h2 { font-size: 1.1rem; }
-  :host .ux-tabs { grid-template-columns: 1fr; }
-  :host .ux-tab { justify-content: center; }
-  :host .data-group { padding: var(--space-2); }
+  :host .ux-modal {
+    padding: 0.5rem;
+  }
+  :host .ux-modal__dialog { 
+    width: 100%;
+    max-height: 98vh;
+    border-radius: var(--radius-md);
+  }
+  :host .ux-modal__header { 
+    padding: 0.75rem;
+  }
+  :host .ux-modal__header h2 { 
+    font-size: 1rem; 
+  }
+  :host .ux-tabs-wrapper {
+    padding: 0 0.75rem;
+    padding-top: 0.5rem;
+  }
+  :host .ux-modal__footer { 
+    padding: 0.75rem;
+    flex-wrap: wrap;
+  }
+  :host .ux-form { 
+    padding: 0.5rem; 
+  }
+  :host .ux-tab-panels {
+    max-height: calc(98vh - 220px);
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+  }
+  :host .ux-tabs { 
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.25rem;
+  }
+  :host .ux-tab { 
+    justify-content: center;
+    min-width: max-content;
+    flex-shrink: 0;
+    padding: 0.45rem 0.65rem;
+    font-size: var(--fs-sm);
+  }
+  :host .data-group { 
+    padding: var(--space-2); 
+    margin-bottom: var(--space-4);
+  }
+  :host .data-group-title {
+    font-size: var(--fs-xs);
+    margin-bottom: var(--space-2);
+  }
+  :host .btn {
+    padding: 0.45rem 0.75rem;
+    font-size: var(--fs-sm);
+  }
 }

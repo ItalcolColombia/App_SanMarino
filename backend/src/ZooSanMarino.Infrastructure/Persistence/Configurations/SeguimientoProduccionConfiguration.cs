@@ -164,6 +164,27 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .HasColumnType("jsonb")
             .IsRequired(false);
 
+        // Campos de agua (solo para Ecuador y Panamá)
+        builder.Property(x => x.ConsumoAguaDiario)
+            .HasColumnName("consumo_agua_diario")
+            .HasColumnType("double precision")
+            .IsRequired(false);
+        
+        builder.Property(x => x.ConsumoAguaPh)
+            .HasColumnName("consumo_agua_ph")
+            .HasColumnType("double precision")
+            .IsRequired(false);
+        
+        builder.Property(x => x.ConsumoAguaOrp)
+            .HasColumnName("consumo_agua_orp")
+            .HasColumnType("double precision")
+            .IsRequired(false);
+        
+        builder.Property(x => x.ConsumoAguaTemperatura)
+            .HasColumnName("consumo_agua_temperatura")
+            .HasColumnType("double precision")
+            .IsRequired(false);
+
         // NOTA: No hay relación de navegación con Lote porque:
         // - lote_id en produccion_diaria es text
         // - Lote.LoteId es int?

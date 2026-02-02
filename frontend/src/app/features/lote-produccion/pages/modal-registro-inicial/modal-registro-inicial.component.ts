@@ -2,11 +2,12 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { CrearProduccionLoteRequest } from '../../services/produccion.service';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 @Component({
   selector: 'app-modal-registro-inicial',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ConfirmationModalComponent],
   templateUrl: './modal-registro-inicial.component.html',
   styleUrls: ['./modal-registro-inicial.component.scss']
 })
@@ -20,9 +21,24 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<CrearProduccionLoteRequest>();
+  @Output() saveSuccess = new EventEmitter<number>(); // Emite el ID del lote de producción creado
+  @Output() saveError = new EventEmitter<string>(); // Emite el mensaje de error
 
   // Formulario
   form!: FormGroup;
+
+  // Control de tabs
+  activeTab: 'general' | 'aves' = 'general';
+
+  // Modal de mensaje
+  showMessageModal = false;
+  messageModalData: ConfirmationModalData = {
+    title: '',
+    message: '',
+    type: 'info',
+    confirmText: 'Aceptar',
+    showCancel: false
+  };
 
   constructor(private fb: FormBuilder) { }
 
@@ -33,7 +49,12 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   ngOnChanges(): void {
     if (this.isOpen && this.loteId) {
       this.resetForm();
+      this.activeTab = 'general';
     }
+  }
+
+  onTabChange(tab: 'general' | 'aves'): void {
+    this.activeTab = tab;
   }
 
   // ================== FORMULARIO ==================
@@ -65,12 +86,21 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
 
   // ================== EVENTOS ==================
   onClose(): void {
-    this.close.emit();
+    if (!this.loading) {
+      this.close.emit();
+    }
+  }
+
+  onOverlayClick(event: Event): void {
+    if (event.target === event.currentTarget && !this.loading) {
+      this.onClose();
+    }
   }
 
   onSave(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.showErrorMessage('Por favor, complete todos los campos requeridos correctamente.');
       return;
     }
 
@@ -89,6 +119,40 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
     };
 
     this.save.emit(request);
+  }
+
+  // Métodos públicos para mostrar mensajes (llamados desde el componente padre)
+  showSuccessMessage(produccionLoteId: number): void {
+    this.messageModalData = {
+      title: '✅ Registro Inicial Creado',
+      message: `El registro inicial de producción se ha creado exitosamente. El lote de producción #${produccionLoteId} está listo para comenzar el seguimiento diario.`,
+      type: 'success',
+      confirmText: 'Continuar',
+      showCancel: false
+    };
+    this.showMessageModal = true;
+    this.saveSuccess.emit(produccionLoteId);
+  }
+
+  showErrorMessage(message: string): void {
+    const errorMsg = message || 'Ocurrió un error al intentar guardar el registro inicial. Por favor, intente nuevamente.';
+    this.messageModalData = {
+      title: '❌ Error al Guardar',
+      message: errorMsg,
+      type: 'error',
+      confirmText: 'Entendido',
+      showCancel: false
+    };
+    this.showMessageModal = true;
+    this.saveError.emit(errorMsg);
+  }
+
+  onMessageModalClose(): void {
+    this.showMessageModal = false;
+    // Si el mensaje era de éxito, cerrar el modal de registro inicial
+    if (this.messageModalData.type === 'success') {
+      this.close.emit();
+    }
   }
 
   // ================== HELPERS ==================

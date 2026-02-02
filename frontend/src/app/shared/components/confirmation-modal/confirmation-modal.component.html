@@ -30,7 +30,8 @@
 
     <!-- Modal Footer -->
     <div class="modal-footer">
-      <button type="button" 
+      <button *ngIf="data.showCancel !== false" 
+              type="button" 
               class="btn btn-secondary" 
               (click)="onCancel()">
         <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>

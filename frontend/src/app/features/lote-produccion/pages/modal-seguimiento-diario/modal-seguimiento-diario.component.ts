@@ -6,6 +6,9 @@ import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../..
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 // Interfaz extendida localmente para incluir tipoItem y unidad
 interface CatalogItemExtended extends CatalogItemDto {
@@ -16,7 +19,7 @@ interface CatalogItemExtended extends CatalogItemDto {
 @Component({
   selector: 'app-modal-seguimiento-diario',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ConfirmationModalComponent],
   templateUrl: './modal-seguimiento-diario.component.html',
   styleUrls: ['./modal-seguimiento-diario.component.scss']
 })
@@ -30,6 +33,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<CrearSeguimientoRequest>();
+  @Output() saveSuccess = new EventEmitter<void>();
+  @Output() saveError = new EventEmitter<string>();
 
   // Formulario
   form!: FormGroup;
@@ -56,15 +61,35 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   cargandoInventarioMachos = false;
   mensajeInventarioHembras: string = '';
   mensajeInventarioMachos: string = '';
+  
+  // Flag para mostrar tab de agua (solo Ecuador y Panamá)
+  isEcuadorOrPanama: boolean = false;
+
+  // Modal de mensaje
+  showMessageModal = false;
+  messageModalData: ConfirmationModalData = {
+    title: '',
+    message: '',
+    type: 'info',
+    confirmText: 'Aceptar',
+    showCancel: false
+  };
 
   constructor(
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
-    private inventarioSvc: InventarioService
+    private inventarioSvc: InventarioService,
+    private countryFilter: CountryFilterService,
+    private storage: TokenStorageService
   ) { }
 
   ngOnInit(): void {
     this.initializeForm();
+    this.checkCountry();
+  }
+  
+  private checkCountry(): void {
+    this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
   ngOnChanges(): void {
@@ -131,7 +156,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoM: [null, [Validators.min(0)]],
       uniformidad: [null, [Validators.min(0), Validators.max(100)]],
       coeficienteVariacion: [null, [Validators.min(0), Validators.max(100)]],
-      observacionesPesaje: ['']
+      observacionesPesaje: [''],
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: [null, [Validators.min(0)]],
+      consumoAguaPh: [null, [Validators.min(0)]],
+      consumoAguaOrp: [null, [Validators.min(0)]],
+      consumoAguaTemperatura: [null, [Validators.min(0)]]
     });
 
     // Calcular etapa automáticamente cuando cambia la fecha
@@ -213,7 +243,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoM: null,
       uniformidad: null,
       coeficienteVariacion: null,
-      observacionesPesaje: ''
+      observacionesPesaje: '',
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: null,
+      consumoAguaPh: null,
+      consumoAguaOrp: null,
+      consumoAguaTemperatura: null
     });
   }
 
@@ -281,7 +316,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoM: (this.editingSeguimiento as any).pesoM || null,
       uniformidad: (this.editingSeguimiento as any).uniformidad || null,
       coeficienteVariacion: (this.editingSeguimiento as any).coeficienteVariacion || null,
-      observacionesPesaje: (this.editingSeguimiento as any).observacionesPesaje || ''
+      observacionesPesaje: (this.editingSeguimiento as any).observacionesPesaje || '',
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: (this.editingSeguimiento as any).consumoAguaDiario ?? null,
+      consumoAguaPh: (this.editingSeguimiento as any).consumoAguaPh ?? null,
+      consumoAguaOrp: (this.editingSeguimiento as any).consumoAguaOrp ?? null,
+      consumoAguaTemperatura: (this.editingSeguimiento as any).consumoAguaTemperatura ?? null
     });
 
     // Cargar inventario y alimentos si hay tipo de ítem seleccionado
@@ -306,18 +346,56 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
   // ================== EVENTOS ==================
   onClose(): void {
-    this.close.emit();
+    if (!this.loading) {
+      this.close.emit();
+    }
+  }
+
+  // Métodos públicos para mostrar mensajes (llamados desde el componente padre)
+  showSuccessMessage(isUpdate: boolean = false): void {
+    const action = isUpdate ? 'actualizado' : 'creado';
+    this.messageModalData = {
+      title: `✅ Seguimiento ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+      message: `El seguimiento diario se ha ${action} exitosamente.`,
+      type: 'success',
+      confirmText: 'Aceptar',
+      showCancel: false
+    };
+    this.showMessageModal = true;
+    this.saveSuccess.emit();
+  }
+
+  showErrorMessage(message: string): void {
+    const errorMsg = message || 'Ocurrió un error al intentar guardar el seguimiento diario. Por favor, intente nuevamente.';
+    this.messageModalData = {
+      title: '❌ Error al Guardar',
+      message: errorMsg,
+      type: 'error',
+      confirmText: 'Entendido',
+      showCancel: false
+    };
+    this.showMessageModal = true;
+    this.saveError.emit(errorMsg);
+  }
+
+  onMessageModalClose(): void {
+    this.showMessageModal = false;
+    // Si el mensaje era de éxito, cerrar el modal de seguimiento diario
+    if (this.messageModalData.type === 'success') {
+      this.close.emit();
+    }
   }
 
   onSave(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.showErrorMessage('Por favor, complete todos los campos requeridos correctamente.');
       return;
     }
 
     // Validación adicional: produccionLoteId es requerido
     if (!this.produccionLoteId) {
-      console.error('ProduccionLoteId no está definido');
+      this.showErrorMessage('Error: No se pudo identificar el lote de producción. Por favor, intente nuevamente.');
       return;
     }
 
@@ -325,7 +403,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     const ymd = this.toYMD(raw.fechaRegistro);
 
     if (!ymd) {
-      console.error('Fecha de registro inválida');
+      this.showErrorMessage('La fecha de registro es inválida. Por favor, seleccione una fecha válida.');
       return;
     }
 
@@ -366,7 +444,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoM: raw.pesoM ? Number(raw.pesoM) : undefined,
       uniformidad: raw.uniformidad ? Number(raw.uniformidad) : undefined,
       coeficienteVariacion: raw.coeficienteVariacion ? Number(raw.coeficienteVariacion) : undefined,
-      observacionesPesaje: raw.observacionesPesaje?.trim() || undefined
+      observacionesPesaje: raw.observacionesPesaje?.trim() || undefined,
+      // Campos de agua (solo para Ecuador y Panamá)
+      consumoAguaDiario: raw.consumoAguaDiario ? Number(raw.consumoAguaDiario) : undefined,
+      consumoAguaPh: raw.consumoAguaPh ? Number(raw.consumoAguaPh) : undefined,
+      consumoAguaOrp: raw.consumoAguaOrp ? Number(raw.consumoAguaOrp) : undefined,
+      consumoAguaTemperatura: raw.consumoAguaTemperatura ? Number(raw.consumoAguaTemperatura) : undefined
     };
 
     this.save.emit(request);

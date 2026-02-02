@@ -37,7 +37,12 @@ public record SeguimientoItemDto(
     decimal? PesoM,
     decimal? Uniformidad,
     decimal? CoeficienteVariacion,
-    string? ObservacionesPesaje
+    string? ObservacionesPesaje,
+    // Campos de agua (solo para Ecuador y Panamá)
+    decimal? ConsumoAguaDiario, // Consumo diario de agua en litros
+    decimal? ConsumoAguaPh, // Nivel de PH del agua
+    decimal? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    decimal? ConsumoAguaTemperatura // Temperatura del agua en °C
 );
 
 

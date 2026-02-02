@@ -1,33 +1,56 @@
 <!-- Modal de Registro Inicial de Producción -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="registro-inicial-modal-title">
-  <div class="ux-modal__dialog">
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="registro-inicial-modal-title" (click)="onOverlayClick($event)">
+  <div class="ux-modal__dialog" (click)="$event.stopPropagation()">
     <header class="ux-modal__header">
-      <h2 id="registro-inicial-modal-title">Registro Inicial de Producción</h2>
+      <div class="header-content">
+        <div class="header-icon">📋</div>
+        <div>
+          <h2 id="registro-inicial-modal-title">Registro Inicial de Producción</h2>
+          <p class="header-subtitle">Complete la información para iniciar el seguimiento del lote</p>
+        </div>
+      </div>
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
     <!-- Información del lote -->
     <div class="modal-lote-info">
       <div class="info-card">
-        <strong>Lote:</strong> {{ loteNombre || '—' }}
+        <div class="info-icon">🏷️</div>
+        <div class="info-content">
+          <span class="info-label">Lote</span>
+          <span class="info-value">{{ loteNombre || '—' }}</span>
+        </div>
       </div>
       <div class="info-card" *ngIf="nucleoAsignado">
-        <strong>Núcleo Actual:</strong> {{ nucleoAsignado }}
+        <div class="info-icon">📍</div>
+        <div class="info-content">
+          <span class="info-label">Núcleo Actual</span>
+          <span class="info-value">{{ nucleoAsignado }}</span>
+        </div>
       </div>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <!-- Tabs en la parte superior -->
       <div class="ux-tabs" role="tablist" aria-label="Secciones del registro inicial">
-        <input type="radio" name="regTab" id="tab-general" checked />
-        <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">General</label>
+        <input type="radio" name="regTab" id="tab-general" [checked]="activeTab === 'general'" (change)="onTabChange('general')" />
+        <label class="ux-tab" [class.active]="activeTab === 'general'" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" [attr.aria-selected]="activeTab === 'general'">
+          <span class="tab-icon">⚙️</span>
+          <span>General</span>
+        </label>
 
-        <input type="radio" name="regTab" id="tab-aves" />
-        <label class="ux-tab" id="lab-aves" for="tab-aves" role="tab" tabindex="0" aria-controls="panel-aves" aria-selected="false">Aves Iniciales</label>
+        <input type="radio" name="regTab" id="tab-aves" [checked]="activeTab === 'aves'" (change)="onTabChange('aves')" />
+        <label class="ux-tab" [class.active]="activeTab === 'aves'" id="lab-aves" for="tab-aves" role="tab" tabindex="0" aria-controls="panel-aves" [attr.aria-selected]="activeTab === 'aves'">
+          <span class="tab-icon">🐔</span>
+          <span>Aves Iniciales</span>
+        </label>
+      </div>
 
-        <div class="ux-tab-panels">
-          <!-- GENERAL -->
-          <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
-            <div class="grid grid-2">
+      <!-- Contenido de los tabs debajo -->
+      <div class="ux-tab-panels">
+        <!-- GENERAL -->
+        <section id="panel-general" class="ux-tab-panel" *ngIf="activeTab === 'general'" role="tabpanel" aria-labelledby="lab-general">
+          <div class="grid grid-2">
               <div class="form-field">
                 <label for="f-fecha-inicio">Fecha de Inicio</label>
                 <input id="f-fecha-inicio" type="date" formControlName="fechaInicio" />
@@ -65,12 +88,12 @@
                 <input id="f-nucleo-p" type="text" formControlName="nucleoP" placeholder="Ingrese el núcleo de producción (semana 26)" />
                 <small class="ux-hint">Núcleo de producción correspondiente al cierre de semana 25 (semana 26)</small>
               </div>
-            </div>
-          </section>
+          </div>
+        </section>
 
-          <!-- AVES INICIALES -->
-          <section id="panel-aves" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-aves">
-            <div class="grid grid-2">
+        <!-- AVES INICIALES -->
+        <section id="panel-aves" class="ux-tab-panel" *ngIf="activeTab === 'aves'" role="tabpanel" aria-labelledby="lab-aves">
+          <div class="grid grid-2">
               <div class="form-field">
                 <label for="f-aves-h">Aves Iniciales Hembras</label>
                 <input id="f-aves-h" type="number" min="0" formControlName="avesInicialesH" placeholder="0" />
@@ -98,9 +121,8 @@
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
 
       <footer class="ux-modal__footer">
@@ -112,10 +134,18 @@
     </form>
 
     <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
-      <div class="spinner"></div> Guardando…
+      <div class="spinner"></div>
+      <span>Guardando registro inicial…</span>
     </div>
   </div>
 </div>
+
+<!-- Modal de Confirmación/Error -->
+<app-confirmation-modal
+  [isOpen]="showMessageModal"
+  [data]="messageModalData"
+  (closed)="onMessageModalClose()">
+</app-confirmation-modal>
 
 
 
