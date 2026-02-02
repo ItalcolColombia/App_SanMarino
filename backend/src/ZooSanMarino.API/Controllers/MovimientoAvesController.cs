@@ -198,6 +198,35 @@ public class MovimientoAvesController : ControllerBase
     }
 
     /// <summary>
+    /// Obtiene el último número de despacho generado (para Ecuador)
+    /// </summary>
+    [HttpGet("ultimo-numero-despacho")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetUltimoNumeroDespacho()
+    {
+        try
+        {
+            // Obtener el último movimiento de tipo despacho (o el último movimiento en general)
+            var ultimoMovimiento = await _context.MovimientoAves
+                .AsNoTracking()
+                .Where(m => m.CompanyId == _currentUser.CompanyId && 
+                           m.DeletedAt == null)
+                .OrderByDescending(m => m.Id)
+                .FirstOrDefaultAsync();
+
+            var ultimoId = ultimoMovimiento?.Id ?? 0;
+            var siguienteNumero = ultimoId + 1;
+
+            return Ok(new { ultimoId = ultimoId, siguienteNumero = siguienteNumero });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener último número de despacho");
+            return StatusCode(500, new { error = "Error interno del servidor", details = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Obtiene información del lote para movimientos (etapa, aves disponibles, etc.)
     /// Calcula las aves actuales desde los registros diarios de seguimiento (Producción o Levante)
     /// </summary>
@@ -342,6 +371,45 @@ public class MovimientoAvesController : ControllerBase
 
             var totalAvesActuales = hembrasActuales + machosActuales + mixtasActuales;
 
+            // Obtener fecha de inicio de producción (semana 26) si existe
+            DateTime? fechaInicioProduccion = null;
+            if (tipoLote == "Produccion")
+            {
+                var produccionLote = await _context.ProduccionLotes
+                    .AsNoTracking()
+                    .Where(p => p.LoteId == loteId.ToString())
+                    .FirstOrDefaultAsync();
+                fechaInicioProduccion = produccionLote?.FechaInicio;
+            }
+
+            // Obtener raza y año genético: si el lote tiene LotePadreId, obtener del lote padre
+            // (esto es común cuando se crea un lote de producción desde un lote de levante)
+            string? raza = lote.Raza;
+            int? anoTablaGenetica = lote.AnoTablaGenetica;
+            
+            if (lote.LotePadreId.HasValue && (string.IsNullOrEmpty(raza) || !anoTablaGenetica.HasValue))
+            {
+                var lotePadre = await _context.Lotes
+                    .AsNoTracking()
+                    .Where(l => l.LoteId == lote.LotePadreId.Value && 
+                               l.CompanyId == _currentUser.CompanyId && 
+                               l.DeletedAt == null)
+                    .FirstOrDefaultAsync();
+                
+                if (lotePadre != null)
+                {
+                    // Usar raza y año genético del lote padre si no están en el lote actual
+                    if (string.IsNullOrEmpty(raza) && !string.IsNullOrEmpty(lotePadre.Raza))
+                    {
+                        raza = lotePadre.Raza;
+                    }
+                    if (!anoTablaGenetica.HasValue && lotePadre.AnoTablaGenetica.HasValue)
+                    {
+                        anoTablaGenetica = lotePadre.AnoTablaGenetica;
+                    }
+                }
+            }
+
             var informacion = new
             {
                 loteId = lote.LoteId,
@@ -363,7 +431,11 @@ public class MovimientoAvesController : ControllerBase
                 cantidadMixtas = mixtasActuales,
                 totalAves = totalAvesActuales,
                 fechaEncasetamiento = lote.FechaEncaset,
-                diasDesdeEncasetamiento = diasDesdeEncaset
+                fechaInicioProduccion = fechaInicioProduccion, // Fecha de semana 26 para producción
+                diasDesdeEncasetamiento = diasDesdeEncaset,
+                // Información genética del lote (o del lote padre si existe)
+                raza = raza,
+                anoTablaGenetica = anoTablaGenetica
             };
 
             return Ok(informacion);
