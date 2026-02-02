@@ -7,7 +7,8 @@
        [ngClass]="getModalClass()"
        role="dialog"
        aria-modal="true"
-       [attr.aria-labelledby]="isOpen ? 'modal-title' : null">
+       [attr.aria-labelledby]="isOpen ? 'modal-title' : null"
+       (click)="$event.stopPropagation()">
     
     <!-- Modal Header -->
     <div class="modal-header">
@@ -33,13 +34,13 @@
       <button *ngIf="data.showCancel !== false" 
               type="button" 
               class="btn btn-secondary" 
-              (click)="onCancel()">
+              (click)="onCancel(); $event.stopPropagation()">
         <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
         {{ data.cancelText || 'Cancelar' }}
       </button>
       <button type="button" 
               class="btn btn-primary" 
-              (click)="onConfirm()">
+              (click)="onConfirm($event); $event.stopPropagation()">
         <fa-icon [icon]="faCheck" aria-hidden="true"></fa-icon>
         {{ data.confirmText || 'Confirmar' }}
       </button>

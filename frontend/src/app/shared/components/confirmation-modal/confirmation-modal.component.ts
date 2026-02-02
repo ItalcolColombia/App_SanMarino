@@ -65,9 +65,38 @@ export class ConfirmationModalComponent {
     return `modal modal--${this.data.type || 'info'}`;
   }
 
-  onConfirm(): void {
-    this.confirmed.emit();
-    this.close();
+  onConfirm(event?: Event): void {
+    console.log('=== ConfirmationModal: onConfirm INICIADO ===');
+    console.log('Event recibido:', event);
+    
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      console.log('Event preventDefault y stopPropagation ejecutados');
+    }
+    
+    console.log('=== ConfirmationModal: onConfirm llamado ===');
+    console.log('ConfirmationModal: isOpen antes:', this.isOpen);
+    console.log('ConfirmationModal: data:', this.data);
+    console.log('ConfirmationModal: confirmed EventEmitter:', this.confirmed);
+    console.log('ConfirmationModal: Emitiendo evento confirmed...');
+    
+    // NO cerrar el modal aquí, dejar que el componente padre lo maneje
+    // Esto permite que el evento se procese correctamente antes de cerrar
+    try {
+      console.log('Intentando emitir evento confirmed...');
+      this.confirmed.emit();
+      console.log('✅ ConfirmationModal: Evento confirmed emitido exitosamente');
+      console.log('Número de suscriptores:', this.confirmed.observers?.length || 0);
+      // El componente padre cerrará el modal después de procesar el evento
+    } catch (error) {
+      console.error('❌ ConfirmationModal: Error al emitir evento:', error);
+      console.error('Stack trace:', error);
+      // Si hay error, cerrar el modal
+      this.close();
+    }
+    
+    console.log('=== ConfirmationModal: onConfirm FINALIZADO ===');
   }
 
   onCancel(): void {
