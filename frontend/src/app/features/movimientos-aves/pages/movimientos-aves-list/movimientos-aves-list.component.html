@@ -273,3 +273,12 @@
   (close)="closeModal()"
   (save)="onMovimientoSaved()">
 </app-modal-movimiento-aves>
+
+<!-- Modal de Confirmación (para eliminar, éxito y errores) -->
+<app-confirmation-modal
+  [isOpen]="showConfirmationModal"
+  [data]="confirmationModalData"
+  (confirmed)="onConfirmDelete()"
+  (cancelled)="onCancelDelete()"
+  (closed)="onConfirmationModalClose()">
+</app-confirmation-modal>

@@ -13,11 +13,12 @@ import { NucleoService, NucleoDto } from '../../../lote-produccion/services/nucl
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { ProduccionService } from '../../../lote-produccion/services/produccion.service';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 @Component({
   selector: 'app-movimientos-aves-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, FiltroSelectComponent, ModalMovimientoAvesComponent],
+  imports: [CommonModule, FormsModule, SidebarComponent, FiltroSelectComponent, ModalMovimientoAvesComponent, ConfirmationModalComponent],
   templateUrl: './movimientos-aves-list.component.html',
   styleUrls: ['./movimientos-aves-list.component.scss']
 })
@@ -53,6 +54,18 @@ export class MovimientosAvesListComponent implements OnInit {
   error: string | null = null;
   modalOpen = false;
   editingMovimiento: MovimientoAvesDto | null = null;
+  
+  // Modal de confirmación
+  showConfirmationModal = false;
+  confirmationModalData: ConfirmationModalData = {
+    title: 'Confirmar',
+    message: '¿Estás seguro?',
+    type: 'info',
+    confirmText: 'Confirmar',
+    cancelText: 'Cancelar',
+    showCancel: true
+  };
+  movimientoToDelete: MovimientoAvesDto | null = null;
 
   private galponNameById = new Map<string, string>();
 
@@ -416,26 +429,75 @@ export class MovimientosAvesListComponent implements OnInit {
   }
 
   deleteMovimiento(movimiento: MovimientoAvesDto): void {
-    if (!confirm(`¿Estás seguro de que deseas cancelar el movimiento ${movimiento.numeroMovimiento}?`)) {
+    if (movimiento.estado === 'Cancelado') {
+      this.showErrorMessage('No se puede cancelar un movimiento que ya está cancelado');
       return;
     }
 
-    if (movimiento.estado === 'Pendiente' || movimiento.estado === 'Completado') {
-      this.loading = true;
-      this.movimientosService.cancelarMovimientoAves(movimiento.id, 'Cancelado por usuario').subscribe({
-        next: () => {
-          this.loading = false;
-          this.loadMovimientos();
-        },
-        error: (err) => {
-          this.loading = false;
-          this.error = 'Error al cancelar el movimiento: ' + (err.message || 'Error desconocido');
-          setTimeout(() => this.error = null, 5000);
-        }
-      });
-    } else {
-      alert('No se puede cancelar un movimiento que ya está cancelado');
-    }
+    this.movimientoToDelete = movimiento;
+    this.confirmationModalData = {
+      title: 'Confirmar Cancelación',
+      message: `¿Estás seguro de que deseas cancelar el movimiento ${movimiento.numeroMovimiento}? Esta acción no se puede deshacer.`,
+      type: 'warning',
+      confirmText: 'Sí, Cancelar',
+      cancelText: 'No',
+      showCancel: true
+    };
+    this.showConfirmationModal = true;
+  }
+
+  onConfirmDelete(): void {
+    if (!this.movimientoToDelete) return;
+
+    const movimiento = this.movimientoToDelete;
+    this.showConfirmationModal = false;
+    this.loading = true;
+
+    this.movimientosService.cancelarMovimientoAves(movimiento.id, 'Cancelado por usuario').subscribe({
+      next: () => {
+        this.loading = false;
+        this.showSuccessMessage(`Movimiento ${movimiento.numeroMovimiento} cancelado exitosamente`);
+        this.loadMovimientos();
+        this.movimientoToDelete = null;
+      },
+      error: (err) => {
+        this.loading = false;
+        this.showErrorMessage('Error al cancelar el movimiento: ' + (err.message || 'Error desconocido'));
+        this.movimientoToDelete = null;
+      }
+    });
+  }
+
+  onCancelDelete(): void {
+    this.showConfirmationModal = false;
+    this.movimientoToDelete = null;
+  }
+
+  showSuccessMessage(message: string): void {
+    this.confirmationModalData = {
+      title: '¡Operación Exitosa!',
+      message: message,
+      type: 'success',
+      confirmText: 'Aceptar',
+      showCancel: false
+    };
+    this.showConfirmationModal = true;
+  }
+
+  showErrorMessage(message: string): void {
+    this.confirmationModalData = {
+      title: 'Error',
+      message: message,
+      type: 'error',
+      confirmText: 'Cerrar',
+      showCancel: false
+    };
+    this.showConfirmationModal = true;
+  }
+
+  onConfirmationModalClose(): void {
+    this.showConfirmationModal = false;
+    this.movimientoToDelete = null;
   }
 
   // ================== HELPERS ==================
