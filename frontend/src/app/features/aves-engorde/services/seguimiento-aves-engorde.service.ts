@@ -1,0 +1,77 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { environment } from '../../../../environments/environment';
+
+// Reutilizamos los mismos DTOs que Levante (misma estructura de datos)
+import type {
+  SeguimientoLoteLevanteDto,
+  CreateSeguimientoLoteLevanteDto,
+  UpdateSeguimientoLoteLevanteDto,
+  ResultadoLevanteResponse
+} from '../../lote-levante/services/seguimiento-lote-levante.service';
+
+export type {
+  SeguimientoLoteLevanteDto,
+  CreateSeguimientoLoteLevanteDto,
+  UpdateSeguimientoLoteLevanteDto,
+  ResultadoLevanteResponse
+};
+
+@Injectable({ providedIn: 'root' })
+export class SeguimientoAvesEngordeService {
+  private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
+
+  constructor(private http: HttpClient) {}
+
+  getById(id: number): Observable<SeguimientoLoteLevanteDto> {
+    return this.http.get<SeguimientoLoteLevanteDto>(`${this.baseUrl}/${id}`);
+  }
+
+  getByLoteId(loteId: number): Observable<SeguimientoLoteLevanteDto[]> {
+    return this.http.get<SeguimientoLoteLevanteDto[]>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}`
+    );
+  }
+
+  filter(params: { loteId?: string; desde?: string | Date; hasta?: string | Date }): Observable<SeguimientoLoteLevanteDto[]> {
+    let hp = new HttpParams();
+    if (params.loteId) hp = hp.set('loteId', params.loteId);
+    if (params.desde) hp = hp.set('desde', this.toIso(params.desde));
+    if (params.hasta) hp = hp.set('hasta', this.toIso(params.hasta));
+    return this.http.get<SeguimientoLoteLevanteDto[]>(`${this.baseUrl}/filtro`, { params: hp });
+  }
+
+  create(dto: CreateSeguimientoLoteLevanteDto): Observable<SeguimientoLoteLevanteDto> {
+    const body = { ...dto, tipoSeguimiento: 'engorde' as const };
+    return this.http.post<SeguimientoLoteLevanteDto>(this.baseUrl, body);
+  }
+
+  update(dto: UpdateSeguimientoLoteLevanteDto): Observable<SeguimientoLoteLevanteDto> {
+    const body = { ...dto, tipoSeguimiento: 'engorde' as const };
+    return this.http.put<SeguimientoLoteLevanteDto>(`${this.baseUrl}/${dto.id}`, body);
+  }
+
+  delete(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  private toIso(d: string | Date): string {
+    const dd = typeof d === 'string' ? new Date(d) : d;
+    return dd.toISOString();
+  }
+
+  getResultado(params: {
+    loteId: number;
+    desde?: string | Date;
+    hasta?: string | Date;
+    recalcular?: boolean;
+  }): Observable<ResultadoLevanteResponse> {
+    const { loteId } = params;
+    let hp = new HttpParams().set('recalcular', String(params.recalcular ?? true));
+    if (params.desde) hp = hp.set('desde', this.toIso(params.desde));
+    if (params.hasta) hp = hp.set('hasta', this.toIso(params.hasta));
+    const url = `${this.baseUrl}/por-lote/${encodeURIComponent(loteId)}/resultado`;
+    return this.http.get<ResultadoLevanteResponse>(url, { params: hp });
+  }
+}
