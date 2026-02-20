@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Application.DTOs;                     // CreateLoteDto, UpdateLoteDto, LoteDto
 using CommonDtos = ZooSanMarino.Application.DTOs.Common; // PagedResult<T>
@@ -14,16 +15,24 @@ namespace ZooSanMarino.API.Controllers;
 public class LoteController : ControllerBase
 {
     private readonly ILoteService _svc;
-    public LoteController(ILoteService svc) => _svc = svc;
+    private readonly ILoteFormDataService _formDataSvc;
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public LoteController(ILoteService svc, ILoteFormDataService formDataSvc, IServiceScopeFactory scopeFactory)
+    {
+        _svc = svc;
+        _formDataSvc = formDataSvc;
+        _scopeFactory = scopeFactory;
+    }
 
     // ===========================
     // LISTADO SIMPLE CON INFORMACIÓN COMPLETA DE RELACIONES
     // ===========================
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LoteDtos.LoteDetailDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<LoteDtos.LoteDetailDto>>> GetAll([FromQuery] string? fase = null)
     {
-        var items = await _svc.GetAllAsync();
+        var items = await _svc.GetAllAsync(fase);
         return Ok(items);
     }
 
@@ -36,6 +45,20 @@ public class LoteController : ControllerBase
     {
         var res = await _svc.SearchAsync(req);
         return Ok(res);
+    }
+
+    /// <summary>
+    /// Datos para el modal de crear/editar lote (granjas, núcleos, galpones, técnicos, compañías, razas) en una sola llamada.
+    /// Usa un scope nuevo para evitar concurrencia con el DbContext del request/middleware.
+    /// </summary>
+    [HttpGet("form-data")]
+    [ProducesResponseType(typeof(LoteDtos.LoteFormDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoteDtos.LoteFormDataDto>> GetFormData(CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var formDataSvc = scope.ServiceProvider.GetRequiredService<ILoteFormDataService>();
+        var data = await formDataSvc.GetFormDataAsync(ct);
+        return Ok(data);
     }
 
     // ===========================

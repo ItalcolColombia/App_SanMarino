@@ -19,6 +19,11 @@ public class ProduccionLote : AuditableEntity
     public string? NucleoP { get; set; } // Núcleo de Producción
     public string? GalponId { get; set; }
     public string Ciclo { get; set; } = "normal";
+
+    // Cierre de etapa (cuando se da por terminada la producción)
+    public DateTime? FechaFin { get; set; }
+    public int? AvesFinHembras { get; set; }
+    public int? AvesFinMachos { get; set; }
     
     // Navegaciones
     // public Lote Lote { get; set; } = null!; // Comentado porque lote_id es VARCHAR

@@ -64,6 +64,10 @@ public class ProduccionLoteConfiguration : IEntityTypeConfiguration<ProduccionLo
             .HasDefaultValue("normal")
             .HasColumnName("ciclo");
 
+        builder.Property(x => x.FechaFin).HasColumnName("fecha_fin");
+        builder.Property(x => x.AvesFinHembras).HasColumnName("aves_fin_hembras");
+        builder.Property(x => x.AvesFinMachos).HasColumnName("aves_fin_machos");
+
         // Relación con Lote - Comentado porque lote_id es VARCHAR
         // builder.HasOne(x => x.Lote)
         //     .WithMany()

@@ -726,11 +726,11 @@ public class MovimientoAvesService : IMovimientoAvesService
         if (semanaActual < 26)
             return;
 
-        var loteIdStr = movimiento.LoteOrigenId.Value.ToString();
+        var loteIdInt = movimiento.LoteOrigenId.Value;
 
         // Buscar registro existente para esa fecha
         var registroExistente = await _context.SeguimientoProduccion
-            .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+            .Where(s => s.LoteId == loteIdInt && s.Fecha.Date == fechaMovimiento)
             .FirstOrDefaultAsync();
 
         if (registroExistente != null)
@@ -761,7 +761,7 @@ public class MovimientoAvesService : IMovimientoAvesService
             // Si no existe registro para esa fecha, crear uno con valores negativos para descontar
             var registroDescuento = new SeguimientoProduccion
             {
-                LoteId = loteIdStr,
+                LoteId = loteIdInt,
                 Fecha = fechaMovimiento,
                 // Valores negativos para descontar aves trasladadas
                 SelH = -movimiento.CantidadHembras, // Hembras trasladadas
@@ -1604,7 +1604,7 @@ public class MovimientoAvesService : IMovimientoAvesService
         else
         {
             var registroProduccion = await _context.SeguimientoProduccion
-                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .Where(s => s.LoteId == movimiento.LoteOrigenId!.Value && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
             if (registroProduccion != null)
@@ -1693,9 +1693,9 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Si es Producción (semana >= 26)
         else
         {
-            var loteIdStr = movimiento.LoteDestinoId.Value.ToString();
+            var loteIdDestino = movimiento.LoteDestinoId.Value;
             var registroExistente = await _context.SeguimientoProduccion
-                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .Where(s => s.LoteId == loteIdDestino && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
             if (registroExistente != null)
@@ -1716,7 +1716,7 @@ public class MovimientoAvesService : IMovimientoAvesService
                 // Crear nuevo registro de entrada
                 var registroEntrada = new SeguimientoProduccion
                 {
-                    LoteId = loteIdStr,
+                    LoteId = loteIdDestino,
                     Fecha = fechaMovimiento,
                     SelH = movimiento.CantidadHembras, // Entrada de hembras
                     MortalidadM = movimiento.CantidadMachos, // Entrada de machos
@@ -1800,9 +1800,9 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Si es Producción (semana >= 26)
         else
         {
-            var loteIdStr = movimiento.LoteOrigenId.Value.ToString();
+            var loteIdInt = movimiento.LoteOrigenId.Value;
             var registroExistente = await _context.SeguimientoProduccion
-                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .Where(s => s.LoteId == loteIdInt && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
             if (registroExistente != null)
@@ -1882,9 +1882,9 @@ public class MovimientoAvesService : IMovimientoAvesService
         // Si es Producción (semana >= 26)
         else
         {
-            var loteIdStr = movimiento.LoteDestinoId.Value.ToString();
+            var loteIdDestino = movimiento.LoteDestinoId.Value;
             var registroExistente = await _context.SeguimientoProduccion
-                .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaMovimiento)
+                .Where(s => s.LoteId == loteIdDestino && s.Fecha.Date == fechaMovimiento)
                 .FirstOrDefaultAsync();
 
             if (registroExistente != null)

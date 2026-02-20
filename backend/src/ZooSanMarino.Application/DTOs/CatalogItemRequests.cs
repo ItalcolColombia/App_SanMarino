@@ -6,6 +6,7 @@ public class CatalogItemCreateRequest
 {
     public string Codigo { get; set; } = null!;
     public string Nombre { get; set; } = null!;
+    public string ItemType { get; set; } = "alimento"; // Tipo de item: alimento, vacuna, medicamento, etc.
     public JsonDocument? Metadata { get; set; }  // si viene null, guardamos {}
     public bool Activo { get; set; } = true;
 }
@@ -13,6 +14,7 @@ public class CatalogItemCreateRequest
 public class CatalogItemUpdateRequest
 {
     public string Nombre { get; set; } = null!;
+    public string? ItemType { get; set; } // Opcional, si no se envía se mantiene el actual
     public JsonDocument? Metadata { get; set; }  // si viene null, conservamos la actual
     public bool Activo { get; set; } = true;
 }

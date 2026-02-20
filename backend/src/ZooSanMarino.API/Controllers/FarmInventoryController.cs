@@ -27,9 +27,9 @@ public class FarmInventoryController : ControllerBase
     [HttpGet]
     [HttpGet("/farms/{farmId:int}/inventory")]
     [ProducesResponseType(typeof(IEnumerable<FarmInventoryDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(int farmId, [FromQuery] string? q = null, CancellationToken ct = default)
+    public async Task<IActionResult> GetAll(int farmId, [FromQuery] string? q = null, [FromQuery] string? itemType = null, CancellationToken ct = default)
     {
-        var items = await _service.GetByFarmAsync(farmId, q, ct);
+        var items = await _service.GetByFarmAsync(farmId, q, itemType, ct);
         return Ok(items);
     }
 

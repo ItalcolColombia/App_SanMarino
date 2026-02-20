@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/LoteSeguimientoDto.cs
+using System.Text.Json;
+
 namespace ZooSanMarino.Application.DTOs;
 
 public record LoteSeguimientoDto(
@@ -16,7 +18,24 @@ public record LoteSeguimientoDto(
     int?     ErrorH,
     string?  TipoAlimento,
     decimal? ConsumoAlimento,
-    string?  Observaciones
+    decimal? ConsumoKgMachos,
+    string?  Observaciones,
+    string?  Ciclo,
+    // Campos de peso y uniformidad
+    double?  PesoPromH,
+    double?  PesoPromM,
+    double?  UniformidadH,
+    double?  UniformidadM,
+    double?  CvH,
+    double?  CvM,
+    // Campos de agua
+    double?  ConsumoAguaDiario,
+    double?  ConsumoAguaPh,
+    double?  ConsumoAguaOrp,
+    double?  ConsumoAguaTemperatura,
+    // Metadata e items adicionales
+    JsonDocument? Metadata,
+    JsonDocument? ItemsAdicionales
 );
 
 public record CreateLoteSeguimientoDto(
@@ -33,7 +52,24 @@ public record CreateLoteSeguimientoDto(
     int?     ErrorH,
     string?  TipoAlimento,
     decimal? ConsumoAlimento,
-    string?  Observaciones
+    decimal? ConsumoKgMachos,
+    string?  Observaciones,
+    string?  Ciclo,
+    // Campos de peso y uniformidad
+    double?  PesoPromH,
+    double?  PesoPromM,
+    double?  UniformidadH,
+    double?  UniformidadM,
+    double?  CvH,
+    double?  CvM,
+    // Campos de agua
+    double?  ConsumoAguaDiario,
+    double?  ConsumoAguaPh,
+    double?  ConsumoAguaOrp,
+    double?  ConsumoAguaTemperatura,
+    // Metadata e items adicionales
+    JsonDocument? Metadata,
+    JsonDocument? ItemsAdicionales
 );
 
 public record UpdateLoteSeguimientoDto(
@@ -51,5 +87,22 @@ public record UpdateLoteSeguimientoDto(
     int?     ErrorH,
     string?  TipoAlimento,
     decimal? ConsumoAlimento,
-    string?  Observaciones
+    decimal? ConsumoKgMachos,
+    string?  Observaciones,
+    string?  Ciclo,
+    // Campos de peso y uniformidad
+    double?  PesoPromH,
+    double?  PesoPromM,
+    double?  UniformidadH,
+    double?  UniformidadM,
+    double?  CvH,
+    double?  CvM,
+    // Campos de agua
+    double?  ConsumoAguaDiario,
+    double?  ConsumoAguaPh,
+    double?  ConsumoAguaOrp,
+    double?  ConsumoAguaTemperatura,
+    // Metadata e items adicionales
+    JsonDocument? Metadata,
+    JsonDocument? ItemsAdicionales
 );

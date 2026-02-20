@@ -15,7 +15,13 @@ namespace ZooSanMarino.Infrastructure.Services;
 public class RoleCompositeService : IRoleCompositeService
 {
     private readonly ZooSanMarinoContext _ctx;
-    public RoleCompositeService(ZooSanMarinoContext ctx) => _ctx = ctx;
+    private readonly ICurrentUser _currentUser;
+
+    public RoleCompositeService(ZooSanMarinoContext ctx, ICurrentUser currentUser)
+    {
+        _ctx = ctx;
+        _currentUser = currentUser;
+    }
 
     // =========================
     // Utilidades internas
@@ -132,13 +138,10 @@ public class RoleCompositeService : IRoleCompositeService
 
     public async Task<IEnumerable<RoleDto>> Roles_GetAllAsync(string? q, int page, int pageSize)
     {
-        // Sanitiza paginación
         page = page <= 0 ? 1 : page;
         pageSize = pageSize <= 0 || pageSize > 200 ? 50 : pageSize;
-
         var term = (q ?? string.Empty).Trim().ToLowerInvariant();
 
-        // Lectura sin tracking y split query para evitar cartesianas en Includes
         var query = _ctx.Roles
             .AsNoTracking()
             .AsSplitQuery()
@@ -147,6 +150,14 @@ public class RoleCompositeService : IRoleCompositeService
             .Include(r => r.RoleCompanies)
             .Include(r => r.RoleMenus)
             .AsQueryable();
+
+        // Si el usuario no es admin/administrador, solo roles de la empresa activa (X-Active-Company-Id)
+        var isAdmin = await IsCurrentUserAdminOrAdministratorAsync();
+        if (!isAdmin && _currentUser.CompanyId > 0)
+        {
+            var companyId = _currentUser.CompanyId;
+            query = query.Where(r => r.RoleCompanies.Any(rc => rc.CompanyId == companyId));
+        }
 
         if (!string.IsNullOrEmpty(term))
             query = query.Where(r => EF.Functions.ILike(r.Name, $"%{term}%"));
@@ -165,6 +176,24 @@ public class RoleCompositeService : IRoleCompositeService
             .ToListAsync();
 
         return list;
+    }
+
+    private async Task<bool> IsCurrentUserAdminOrAdministratorAsync()
+    {
+        var userGuid = _currentUser.UserGuid;
+        if (!userGuid.HasValue) return false;
+
+        var roleNames = await _ctx.UserRoles
+            .AsNoTracking()
+            .Include(ur => ur.Role)
+            .Where(ur => ur.UserId == userGuid.Value)
+            .Select(ur => ur.Role.Name)
+            .ToListAsync();
+
+        return roleNames.Any(name =>
+            !string.IsNullOrWhiteSpace(name) &&
+            (string.Equals(name, "admin", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(name, "administrador", StringComparison.OrdinalIgnoreCase)));
     }
 
     public async Task<RoleDto?> Roles_GetByIdAsync(int id)

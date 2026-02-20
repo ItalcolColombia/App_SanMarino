@@ -13,14 +13,23 @@ public class LoteSeguimientoController : ControllerBase
     public LoteSeguimientoController(ILoteSeguimientoService svc) => _svc = svc;
 
     // ===========================
-    // LISTADO
+    // LISTADO (opcional: filtrar por loteId + reproductoraId + rango de fechas)
     // ===========================
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LoteSeguimientoDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<LoteSeguimientoDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<LoteSeguimientoDto>>> GetAll(
+        [FromQuery] string? loteId = null,
+        [FromQuery] string? reproductoraId = null,
+        [FromQuery] DateTime? desde = null,
+        [FromQuery] DateTime? hasta = null)
     {
-        var items = await _svc.GetAllAsync();
-        return Ok(items);
+        if (!string.IsNullOrWhiteSpace(loteId) && !string.IsNullOrWhiteSpace(reproductoraId))
+        {
+            var items = await _svc.GetByLoteYReproAsync(loteId.Trim(), reproductoraId.Trim(), desde, hasta);
+            return Ok(items);
+        }
+        var all = await _svc.GetAllAsync();
+        return Ok(all);
     }
 
     // ===========================
@@ -44,10 +53,29 @@ public class LoteSeguimientoController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<LoteSeguimientoDto>> Create([FromBody] CreateLoteSeguimientoDto dto)
     {
-        if (dto is null) return BadRequest("Body requerido.");
+        if (dto is null) return BadRequest(new { message = "El cuerpo de la petición es requerido." });
 
-        var created = await _svc.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        try
+        {
+            var created = await _svc.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            var details = ex.InnerException?.Message ?? ex.Message;
+            Console.WriteLine($"ERROR en Create LoteSeguimiento: {ex.Message}");
+            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+                Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+            return StatusCode(500, new {
+                message = "Error al crear el seguimiento diario. Por favor, intente nuevamente.",
+                details = details
+            });
+        }
     }
 
     // ===========================
@@ -59,12 +87,29 @@ public class LoteSeguimientoController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoteSeguimientoDto>> Update(int id, [FromBody] UpdateLoteSeguimientoDto dto)
     {
-        if (dto is null) return BadRequest("Body requerido.");
-        if (dto.Id != id) return BadRequest("El id de la ruta no coincide con el del cuerpo.");
+        if (dto is null) return BadRequest(new { message = "El cuerpo de la petición es requerido." });
+        if (dto.Id != id) return BadRequest(new { message = "El id de la ruta no coincide con el del cuerpo." });
 
-        var updated = await _svc.UpdateAsync(dto);
-        if (updated is null) return NotFound();
-        return Ok(updated);
+        try
+        {
+            var updated = await _svc.UpdateAsync(dto);
+            if (updated is null) return NotFound(new { message = "El seguimiento no fue encontrado." });
+            return Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            var details = ex.InnerException?.Message ?? ex.Message;
+            Console.WriteLine($"ERROR en Update LoteSeguimiento: {ex.Message}");
+            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+            return StatusCode(500, new {
+                message = "Error al actualizar el seguimiento diario. Por favor, intente nuevamente.",
+                details = details
+            });
+        }
     }
 
     // ===========================

@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/FarmInventoryService.cs
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using System.Text;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -19,16 +20,74 @@ public class FarmInventoryService : IFarmInventoryService
         _current = current;
     }
 
-    public async Task<List<FarmInventoryDto>> GetByFarmAsync(int farmId, string? q, CancellationToken ct = default)
+    /// <summary>
+    /// Helper para incluir ItemType en CatalogItemMetadata
+    /// </summary>
+    private JsonDocument MergeItemTypeIntoMetadata(JsonDocument? metadata, string itemType)
     {
-        // Validar granja
-        var farmExists = await _db.Set<Farm>().AnyAsync(f => f.Id == farmId, ct);
-        if (!farmExists) return new List<FarmInventoryDto>();
+        if (metadata != null && metadata.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            using var stream = new System.IO.MemoryStream();
+            using (var writer = new Utf8JsonWriter(stream))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in metadata.RootElement.EnumerateObject())
+                {
+                    prop.WriteTo(writer);
+                }
+                writer.WriteString("itemType", itemType);
+                writer.WriteEndObject();
+            }
+            return JsonDocument.Parse(Encoding.UTF8.GetString(stream.ToArray()));
+        }
+        else
+        {
+            return JsonDocument.Parse($"{{\"itemType\":\"{itemType}\"}}");
+        }
+    }
+
+    public async Task<List<FarmInventoryDto>> GetByFarmAsync(int farmId, string? q, string? itemType = null, CancellationToken ct = default)
+    {
+        // Validar granja y que pertenezca a la empresa del usuario
+        var farm = await _db.Set<Farm>()
+            .FirstOrDefaultAsync(f => f.Id == farmId, ct);
+        
+        if (farm == null) return new List<FarmInventoryDto>();
+
+        // Filtrar por empresa del usuario actual (si está disponible)
+        if (_current != null && _current.CompanyId > 0)
+        {
+            if (farm.CompanyId != _current.CompanyId)
+            {
+                // La granja no pertenece a la empresa del usuario
+                return new List<FarmInventoryDto>();
+            }
+        }
 
         // 👇 Declarar como IQueryable para evitar el conflicto con Include/Where
         IQueryable<FarmProductInventory> query = _db.FarmProductInventory
             .AsNoTracking()
             .Where(x => x.FarmId == farmId);
+
+        // Filtrar por empresa y país del usuario actual (si está disponible)
+        if (_current != null && _current.CompanyId > 0)
+        {
+            query = query.Where(x => x.CompanyId == _current.CompanyId);
+            
+            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
+            {
+                query = query.Where(x => x.PaisId == _current.PaisId.Value);
+            }
+        }
+
+        // Incluir CatalogItem para poder filtrar por itemType
+        query = query.Include(x => x.CatalogItem);
+
+        // Filtrar por tipo de item del catálogo si se proporciona
+        if (!string.IsNullOrWhiteSpace(itemType))
+        {
+            query = query.Where(x => x.CatalogItem.ItemType == itemType);
+        }
 
         if (!string.IsNullOrWhiteSpace(q))
         {
@@ -37,42 +96,74 @@ public class FarmInventoryService : IFarmInventoryService
                 EF.Functions.ILike(x.CatalogItem.Codigo, $"%{q}%"));
         }
 
-        // NOTA: No es necesario Include si proyectamos propiedades del nav en Select;
-        // EF genera el JOIN automático. Si igual quisieras Include: query = query.Include(x => x.CatalogItem);
-
         var items = await query
             .OrderBy(x => x.CatalogItem.Codigo)
-            .Select(x => new FarmInventoryDto
+            .Select(x => new
             {
-                Id = x.Id,
-                FarmId = x.FarmId,
-                CatalogItemId = x.CatalogItemId,
-                Codigo = x.CatalogItem.Codigo,
-                Nombre = x.CatalogItem.Nombre,
-                Quantity = x.Quantity,
-                Unit = x.Unit,
-                Location = x.Location,
-                LotNumber = x.LotNumber,
-                ExpirationDate = x.ExpirationDate,
-                UnitCost = x.UnitCost,
-                Metadata = x.Metadata,
-                CatalogItemMetadata = x.CatalogItem.Metadata,
-                Active = x.Active,
-                ResponsibleUserId = x.ResponsibleUserId,
-                CreatedAt = x.CreatedAt,
-                UpdatedAt = x.UpdatedAt
+                Inventory = x,
+                CatalogItemType = x.CatalogItem.ItemType
             })
             .ToListAsync(ct);
 
-        return items;
+        // Construir el DTO incluyendo ItemType en CatalogItemMetadata
+        var result = items.Select(x => new FarmInventoryDto
+        {
+            Id = x.Inventory.Id,
+            FarmId = x.Inventory.FarmId,
+            CatalogItemId = x.Inventory.CatalogItemId,
+            Codigo = x.Inventory.CatalogItem.Codigo,
+            Nombre = x.Inventory.CatalogItem.Nombre,
+            Quantity = x.Inventory.Quantity,
+            Unit = x.Inventory.Unit,
+            Location = x.Inventory.Location,
+            LotNumber = x.Inventory.LotNumber,
+            ExpirationDate = x.Inventory.ExpirationDate,
+            UnitCost = x.Inventory.UnitCost,
+            Metadata = x.Inventory.Metadata,
+            CatalogItemMetadata = MergeItemTypeIntoMetadata(x.Inventory.CatalogItem.Metadata, x.CatalogItemType),
+            Active = x.Inventory.Active,
+            ResponsibleUserId = x.Inventory.ResponsibleUserId,
+            CreatedAt = x.Inventory.CreatedAt,
+            UpdatedAt = x.Inventory.UpdatedAt
+        }).ToList();
+
+        return result;
     }
 
     public async Task<FarmInventoryDto?> GetByIdAsync(int farmId, int id, CancellationToken ct = default)
     {
-        var x = await _db.FarmProductInventory
+        // Validar que la granja pertenezca a la empresa del usuario
+        var farm = await _db.Set<Farm>()
+            .FirstOrDefaultAsync(f => f.Id == farmId, ct);
+        
+        if (farm == null) return null;
+
+        // Filtrar por empresa del usuario actual
+        if (_current != null && _current.CompanyId > 0)
+        {
+            if (farm.CompanyId != _current.CompanyId)
+            {
+                return null;
+            }
+        }
+
+        var query = _db.FarmProductInventory
             .AsNoTracking()
             .Include(p => p.CatalogItem)
-            .FirstOrDefaultAsync(p => p.Id == id && p.FarmId == farmId, ct);
+            .Where(p => p.Id == id && p.FarmId == farmId);
+
+        // Filtrar por empresa y país del usuario actual
+        if (_current != null && _current.CompanyId > 0)
+        {
+            query = query.Where(x => x.CompanyId == _current.CompanyId);
+            
+            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
+            {
+                query = query.Where(x => x.PaisId == _current.PaisId.Value);
+            }
+        }
+
+        var x = await query.FirstOrDefaultAsync(ct);
 
         if (x == null) return null;
 
@@ -90,7 +181,7 @@ public class FarmInventoryService : IFarmInventoryService
             ExpirationDate = x.ExpirationDate,
             UnitCost = x.UnitCost,
             Metadata = x.Metadata,
-            CatalogItemMetadata = x.CatalogItem.Metadata,
+            CatalogItemMetadata = MergeItemTypeIntoMetadata(x.CatalogItem.Metadata, x.CatalogItem.ItemType),
             Active = x.Active,
             ResponsibleUserId = x.ResponsibleUserId,
             CreatedAt = x.CreatedAt,
@@ -121,7 +212,7 @@ public class FarmInventoryService : IFarmInventoryService
             ExpirationDate = x.ExpirationDate,
             UnitCost = x.UnitCost,
             Metadata = x.Metadata,
-            CatalogItemMetadata = x.CatalogItem.Metadata,
+            CatalogItemMetadata = MergeItemTypeIntoMetadata(x.CatalogItem.Metadata, x.CatalogItem.ItemType),
             Active = x.Active,
             ResponsibleUserId = x.ResponsibleUserId,
             CreatedAt = x.CreatedAt,
@@ -131,9 +222,18 @@ public class FarmInventoryService : IFarmInventoryService
 
     public async Task<FarmInventoryDto> CreateOrReplaceAsync(int farmId, FarmInventoryCreateRequest req, CancellationToken ct = default)
     {
-        // 1) Validar granja
+        // 1) Validar granja y que pertenezca a la empresa del usuario
         var farm = await _db.Set<Farm>().FirstOrDefaultAsync(f => f.Id == farmId, ct)
                    ?? throw new InvalidOperationException("La granja no existe.");
+
+        // Validar que la granja pertenezca a la empresa del usuario
+        if (_current != null && _current.CompanyId > 0)
+        {
+            if (farm.CompanyId != _current.CompanyId)
+            {
+                throw new UnauthorizedAccessException("La granja no pertenece a su empresa.");
+            }
+        }
 
         // 2) Resolver item
         int catalogItemId;
@@ -167,10 +267,19 @@ public class FarmInventoryService : IFarmInventoryService
 
         if (existing is null)
         {
+            // Obtener CompanyId y PaisId de la granja
+            var companyId = farm.CompanyId;
+            var paisId = await _db.Set<Departamento>()
+                .Where(d => d.DepartamentoId == farm.DepartamentoId)
+                .Select(d => d.PaisId)
+                .FirstOrDefaultAsync(ct);
+
             var e = new FarmProductInventory
             {
                 FarmId = farm.Id,
                 CatalogItemId = catalogItemId,
+                CompanyId = companyId,
+                PaisId = paisId > 0 ? paisId : (_current?.PaisId ?? 0),
                 Quantity = req.Quantity,
                 Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
                 Location = req.Location?.Trim(),

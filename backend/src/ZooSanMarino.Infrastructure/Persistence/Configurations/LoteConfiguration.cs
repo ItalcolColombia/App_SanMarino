@@ -44,12 +44,29 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
         b.Property(x => x.EdadInicial).HasColumnName("edad_inicial");
         b.Property(x => x.EstadoTraslado).HasColumnName("estado_traslado").HasMaxLength(50);
         b.Property(x => x.LotePadreId).HasColumnName("lote_padre_id");
+        b.Property(x => x.Fase).HasColumnName("fase").HasMaxLength(20).IsRequired().HasDefaultValue("Levante");
+        b.Property(x => x.FechaInicioProduccion).HasColumnName("fecha_inicio_produccion");
+        b.Property(x => x.HembrasInicialesProd).HasColumnName("hembras_iniciales_prod");
+        b.Property(x => x.MachosInicialesProd).HasColumnName("machos_iniciales_prod");
+        b.Property(x => x.HuevosIniciales).HasColumnName("huevos_iniciales");
+        b.Property(x => x.TipoNido).HasColumnName("tipo_nido").HasMaxLength(50);
+        b.Property(x => x.NucleoP).HasColumnName("nucleo_p").HasMaxLength(100);
+        b.Property(x => x.CicloProduccion).HasColumnName("ciclo_produccion").HasMaxLength(50);
+        b.Property(x => x.FechaFinProduccion).HasColumnName("fecha_fin_produccion");
+        b.Property(x => x.AvesFinHembrasProd).HasColumnName("aves_fin_hembras_prod");
+        b.Property(x => x.AvesFinMachosProd).HasColumnName("aves_fin_machos_prod");
+
+        b.Property(x => x.PaisId).HasColumnName("pais_id");
+        b.Property(x => x.PaisNombre).HasColumnName("pais_nombre").HasMaxLength(120);
+        b.Property(x => x.EmpresaNombre).HasColumnName("empresa_nombre").HasMaxLength(200);
 
         // Relaciones
-        b.HasMany(x => x.Reproductoras)
-         .WithOne(x => x.Lote)
-         .HasForeignKey(x => x.LoteId)
-         .OnDelete(DeleteBehavior.Restrict);
+        // Nota: La relación con LoteReproductora está comentada debido al desajuste de tipos:
+        // - lotes.lote_id es INTEGER
+        // - lote_reproductoras.lote_id es CHARACTER VARYING(64)
+        // La validación de integridad referencial se maneja manualmente en el servicio.
+        // Ignoramos la propiedad de navegación Reproductoras para evitar que EF Core intente crear la relación:
+        // b.Ignore(x => x.Reproductoras); // Comentado porque la propiedad ya está comentada en la entidad
 
         b.HasIndex(x => x.GranjaId).HasDatabaseName("ix_lote_granja");
         b.HasIndex(x => x.NucleoId).HasDatabaseName("ix_lote_nucleo");

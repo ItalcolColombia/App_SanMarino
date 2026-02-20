@@ -108,7 +108,9 @@ public record IndicadoresProduccionResponse(
     int TotalSemanas,
     int SemanaInicial,
     int SemanaFinal,
-    bool TieneDatosGuiaGenetica
+    bool TieneDatosGuiaGenetica,
+    /// <summary>Mensaje cuando el lote tiene Raza/Año pero no hay datos de guía cargados (ej. indicar cargar guía para esa compañía/raza/año).</summary>
+    string? MensajeGuiaGenetica = null
 );
 
 

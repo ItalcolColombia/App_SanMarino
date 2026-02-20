@@ -23,6 +23,12 @@ public class CatalogItemConfiguration : IEntityTypeConfiguration<CatalogItem>
          .HasMaxLength(200)
          .IsRequired();
 
+        e.Property(x => x.ItemType)
+         .HasColumnName("item_type")
+         .HasMaxLength(50)
+         .HasDefaultValue("alimento")
+         .IsRequired();
+
         e.Property(x => x.Metadata)
          .HasColumnName("metadata")
          .HasColumnType("jsonb")
@@ -31,6 +37,14 @@ public class CatalogItemConfiguration : IEntityTypeConfiguration<CatalogItem>
         e.Property(x => x.Activo)
          .HasColumnName("activo")
          .HasDefaultValue(true)
+         .IsRequired();
+
+        e.Property(x => x.CompanyId)
+         .HasColumnName("company_id")
+         .IsRequired();
+
+        e.Property(x => x.PaisId)
+         .HasColumnName("pais_id")
          .IsRequired();
 
         e.Property(x => x.CreatedAt)
@@ -45,8 +59,18 @@ public class CatalogItemConfiguration : IEntityTypeConfiguration<CatalogItem>
          .HasDefaultValueSql("now()")
          .ValueGeneratedOnAddOrUpdate();
 
-        e.HasIndex(x => x.Codigo).HasDatabaseName("ux_catalogo_items_codigo").IsUnique();
+        // Índice único compuesto: código debe ser único por empresa y país
+        e.HasIndex(x => new { x.CompanyId, x.PaisId, x.Codigo })
+         .HasDatabaseName("ux_catalogo_items_codigo_company_pais")
+         .IsUnique();
         e.HasIndex(x => x.Activo).HasDatabaseName("ix_catalogo_items_activo");
         e.HasIndex(x => x.Nombre).HasDatabaseName("ix_catalogo_items_nombre");
+        e.HasIndex(x => x.ItemType).HasDatabaseName("ix_catalogo_items_item_type");
+        e.HasIndex(x => x.CompanyId).HasDatabaseName("ix_catalogo_items_company_id");
+        e.HasIndex(x => x.PaisId).HasDatabaseName("ix_catalogo_items_pais_id");
+        e.HasIndex(x => new { x.CompanyId, x.PaisId }).HasDatabaseName("ix_catalogo_items_company_pais");
+        e.HasIndex(x => new { x.CompanyId, x.Activo }).HasDatabaseName("ix_catalogo_items_company_activo");
+        e.HasIndex(x => new { x.CompanyId, x.ItemType }).HasDatabaseName("ix_catalogo_items_company_type");
+        e.HasIndex(x => new { x.CompanyId, x.ItemType, x.Activo }).HasDatabaseName("ix_catalogo_items_company_type_activo");
     }
 }

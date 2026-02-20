@@ -43,6 +43,13 @@ public class SeguimientoLoteLevante
     // Items adicionales JSONB para almacenar otros tipos de ítems (vacunas, medicamentos, etc.)
     // que NO son alimentos. Los alimentos se mantienen en los campos tradicionales.
     public JsonDocument? ItemsAdicionales { get; set; }
+    
+    // Campos de agua (solo para Ecuador y Panamá)
+    // NOTA: Usar double? para coincidir con double precision en PostgreSQL
+    public double? ConsumoAguaDiario { get; set; } // Consumo diario de agua en litros
+    public double? ConsumoAguaPh { get; set; } // Nivel de PH del agua
+    public double? ConsumoAguaOrp { get; set; } // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    public double? ConsumoAguaTemperatura { get; set; } // Temperatura del agua en °C
 
     public Lote Lote { get; set; } = null!;
 }

@@ -7,7 +7,10 @@ namespace ZooSanMarino.Application.Interfaces;
 public interface ILoteService
 {
     // Compat existentes - ACTUALIZADO para devolver información completa de relaciones
-    Task<IEnumerable<LoteDetailDto>> GetAllAsync();
+    /// <param name="fase">Opcional: "levante" | "produccion" | null (todos, excluyendo lotes hijo de producción).</param>
+    Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null);
+    /// <summary>Lotes en fase Levante (semanas &lt; 26), para filtros del módulo Seguimiento Diario de Levante.</summary>
+    Task<IEnumerable<LoteDetailDto>> GetLotesLevanteAsync();
     Task<bool> DeleteAsync(int loteId);
 
     // Nuevos / detallados

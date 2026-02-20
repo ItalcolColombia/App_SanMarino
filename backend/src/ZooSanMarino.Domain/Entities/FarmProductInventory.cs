@@ -10,6 +10,10 @@ public class FarmProductInventory
     // Claves
     public int FarmId { get; set; }
     public int CatalogItemId { get; set; }
+    
+    // Empresa y País
+    public int CompanyId { get; set; }
+    public int PaisId { get; set; }
 
     // Datos de inventario
     public decimal Quantity { get; set; }        // numeric(18,3)
@@ -32,4 +36,6 @@ public class FarmProductInventory
     // Navs
     public Farm Farm { get; set; } = null!;
     public CatalogItem CatalogItem { get; set; } = null!;
+    public Company Company { get; set; } = null!;
+    public Pais Pais { get; set; } = null!;
 }

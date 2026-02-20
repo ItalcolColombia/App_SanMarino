@@ -1,4 +1,5 @@
 // src/ZooSanMarino.API/Controllers/ProduccionController.cs
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
@@ -14,22 +15,29 @@ public class ProduccionController : ControllerBase
     private readonly IProduccionService _produccionService;
     private readonly ILiquidacionTecnicaProduccionService _liquidacionProduccionService;
     private readonly IIndicadoresProduccionService _indicadoresProduccionService;
+    private readonly ILogger<ProduccionController> _logger;
+    private readonly IWebHostEnvironment _env;
 
     public ProduccionController(
         IProduccionService produccionService,
         ILiquidacionTecnicaProduccionService liquidacionProduccionService,
-        IIndicadoresProduccionService indicadoresProduccionService)
+        IIndicadoresProduccionService indicadoresProduccionService,
+        ILogger<ProduccionController> logger,
+        IWebHostEnvironment env)
     {
         _produccionService = produccionService;
         _liquidacionProduccionService = liquidacionProduccionService;
         _indicadoresProduccionService = indicadoresProduccionService;
+        _logger = logger;
+        _env = env;
     }
 
     /// <summary>
-    /// Verifica si existe un registro inicial de producción para un lote
+    /// Verifica si existe un registro inicial de producción para un lote (tabla unificada lotes).
+    /// Considera: lote hijo en fase Producción o mismo lote con campos de producción llenos.
     /// </summary>
-    /// <param name="loteId">ID del lote</param>
-    /// <returns>Información sobre la existencia del registro inicial</returns>
+    /// <param name="loteId">ID del lote (padre o mismo lote)</param>
+    /// <returns>Exists y ProduccionLoteId (LoteId del registro en producción para usar en seguimientos)</returns>
     [HttpGet("lotes/{loteId}/exists")]
     public async Task<ActionResult<ExisteProduccionLoteResponse>> ExisteProduccionLote(int loteId)
     {
@@ -47,10 +55,11 @@ public class ProduccionController : ControllerBase
     }
 
     /// <summary>
-    /// Crea un nuevo registro inicial de producción para un lote
+    /// Crea un nuevo registro inicial de producción para un lote (tabla unificada lotes).
+    /// Inserta un nuevo registro en lotes con Fase = Produccion, LotePadreId = request.LoteId y campos de producción.
     /// </summary>
     /// <param name="request">Datos del registro inicial</param>
-    /// <returns>ID del registro creado</returns>
+    /// <returns>LoteId del registro creado (lote hijo en fase Producción)</returns>
     [HttpPost("lotes")]
     public async Task<ActionResult<int>> CrearProduccionLote([FromBody] CrearProduccionLoteRequest request)
     {
@@ -109,7 +118,7 @@ public class ProduccionController : ControllerBase
         try
         {
             var id = await _produccionService.CrearSeguimientoAsync(request);
-            return CreatedAtAction(nameof(ListarSeguimiento), new { loteId = request.ProduccionLoteId }, id);
+return CreatedAtAction(nameof(ListarSeguimiento), new { loteId = request.ProduccionLoteId }, id);
         }
         catch (ArgumentException ex)
         {
@@ -128,11 +137,39 @@ public class ProduccionController : ControllerBase
             {
                 Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
             }
-            return StatusCode(500, new { 
-                message = $"Error: {ex.Message}", 
+            return StatusCode(500, new {
+                message = $"Error: {ex.Message}",
                 details = ex.InnerException?.Message,
-                stackTrace = ex.StackTrace 
+                stackTrace = ex.StackTrace
             });
+        }
+    }
+
+    /// <summary>
+    /// Actualiza un seguimiento diario de producción existente.
+    /// </summary>
+    /// <param name="id">ID del seguimiento a actualizar</param>
+    /// <param name="request">Datos actualizados del seguimiento</param>
+    [HttpPut("seguimiento/{id}")]
+    public async Task<IActionResult> ActualizarSeguimiento(int id, [FromBody] CrearSeguimientoRequest request)
+    {
+        try
+        {
+            await _produccionService.ActualizarSeguimientoAsync(id, request);
+            return NoContent();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR en ActualizarSeguimiento: {ex.Message}");
+            return StatusCode(500, new { message = ex.Message, details = ex.InnerException?.Message });
         }
     }
 
@@ -325,11 +362,38 @@ public class ProduccionController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { message = ex.Message, code = "VALIDATION" });
         }
-        catch (Exception)
+        catch (InvalidOperationException ex)
         {
-            return StatusCode(500, new { message = "Error interno del servidor" });
+            _logger.LogWarning(ex, "Indicadores semanales: operación no válida. LoteId: {LoteId}", request?.LoteId);
+            return BadRequest(new { message = ex.Message, code = "INVALID_OPERATION" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener indicadores semanales. LoteId: {LoteId}", request?.LoteId);
+            var detail = new
+            {
+                message = "Error interno del servidor al calcular indicadores semanales.",
+                detail = ex.Message,
+                exceptionType = ex.GetType().FullName,
+                step = "ObtenerIndicadoresSemanalesAsync",
+                loteId = request?.LoteId
+            };
+            if (_env.IsDevelopment())
+            {
+                return StatusCode(500, new
+                {
+                    detail.message,
+                    detail.detail,
+                    detail.exceptionType,
+                    detail.step,
+                    detail.loteId,
+                    stackTrace = ex.StackTrace,
+                    innerMessage = ex.InnerException?.Message
+                });
+            }
+            return StatusCode(500, detail);
         }
     }
 
@@ -350,9 +414,21 @@ public class ProduccionController : ControllerBase
 
             return Ok(indicador);
         }
-        catch (Exception)
+        catch (ArgumentException ex)
         {
-            return StatusCode(500, new { message = "Error interno del servidor" });
+            return BadRequest(new { message = ex.Message, code = "VALIDATION" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener indicador semana. LoteId: {LoteId}, Semana: {Semana}", loteId, semana);
+            return StatusCode(500, new
+            {
+                message = "Error interno del servidor al obtener indicador de la semana.",
+                detail = ex.Message,
+                exceptionType = ex.GetType().FullName,
+                loteId,
+                semana
+            });
         }
     }
 }

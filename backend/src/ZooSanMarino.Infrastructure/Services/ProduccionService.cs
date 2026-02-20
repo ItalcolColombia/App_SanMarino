@@ -1,5 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/ProduccionService.cs
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -13,30 +15,50 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public class ProduccionService : IProduccionService
 {
+    private const string TipoProduccion = "produccion";
+
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
+    private readonly ISeguimientoDiarioService _seguimientoDiarioService;
+    private readonly ILoteService _loteService;
 
-    public ProduccionService(ZooSanMarinoContext context, ICurrentUser currentUser)
+    public ProduccionService(
+        ZooSanMarinoContext context,
+        ICurrentUser currentUser,
+        ISeguimientoDiarioService seguimientoDiarioService,
+        ILoteService loteService)
     {
         _context = context;
         _currentUser = currentUser;
+        _seguimientoDiarioService = seguimientoDiarioService;
+        _loteService = loteService;
     }
 
+    /// <summary>
+    /// True solo si el lote tiene registro inicial de producción con datos llenos (tabla unificada lotes).
+    /// No basta con Fase = Produccion; debe tener campos de producción llenos (HembrasInicialesProd o FechaInicioProduccion).
+    /// 1) Lote hijo con LotePadreId = loteId, Fase = Produccion y datos llenos, o
+    /// 2) El mismo lote con Fase = Produccion y datos llenos.
+    /// </summary>
     public async Task<bool> ExisteProduccionLoteAsync(int loteId)
     {
         try
         {
-            var loteIdStr = loteId.ToString();
-            var exists = await _context.ProduccionLotes
-                .AsNoTracking()
-                .AnyAsync(p => p.LoteId == loteIdStr && p.DeletedAt == null);
-            
-            return exists;
+            var companyId = _currentUser.CompanyId;
+            // Caso 1: lote hijo en fase Producción con datos de registro inicial
+            var tieneHijoProd = await _context.Lotes.AsNoTracking()
+                .AnyAsync(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null && l.CompanyId == companyId
+                    && (l.HembrasInicialesProd != null || l.FechaInicioProduccion != null));
+            if (tieneHijoProd) return true;
+            // Caso 2: mismo lote en producción con datos de registro inicial
+            var mismoLoteEnProd = await _context.Lotes.AsNoTracking()
+                .AnyAsync(l => l.LoteId == loteId && l.Fase == "Produccion" && l.DeletedAt == null && l.CompanyId == companyId
+                    && (l.HembrasInicialesProd != null || l.FechaInicioProduccion != null));
+            return mismoLoteEnProd;
         }
         catch (Exception ex)
         {
-            // Log the exception if needed
-            Console.WriteLine($"Error checking ProduccionLote existence: {ex.Message}");
+            Console.WriteLine($"Error checking production lote existence: {ex.Message}");
             return false;
         }
     }
@@ -66,69 +88,118 @@ public class ProduccionService : IProduccionService
             throw new ArgumentException("La fecha de inicio no puede ser en el futuro.");
         }
 
-        var produccionLote = new ProduccionLote
+        // Cerrar etapa Levante: registrar con cuántas aves termina (saldos actuales)
+        var resumenLevante = await _loteService.GetMortalidadResumenAsync(request.LoteId);
+        var etapaLevante = await _context.LoteEtapaLevante
+            .FirstOrDefaultAsync(el => el.LoteId == request.LoteId);
+        if (etapaLevante != null)
         {
-            LoteId = request.LoteId.ToString(),
-            FechaInicio = request.FechaInicio,
-            AvesInicialesH = request.AvesInicialesH,
-            AvesInicialesM = request.AvesInicialesM >= 0 ? request.AvesInicialesM : 0, // Asegurar que siempre tenga un valor válido
-            HuevosIniciales = request.HuevosIniciales,
-            TipoNido = request.TipoNido,
+            etapaLevante.FechaFin = request.FechaInicio.ToUniversalTime();
+            etapaLevante.AvesFinHembras = resumenLevante?.SaldoHembras ?? request.AvesInicialesH;
+            etapaLevante.AvesFinMachos = resumenLevante?.SaldoMachos ?? request.AvesInicialesM;
+            etapaLevante.UpdatedAt = DateTime.UtcNow;
+        }
+
+        // Crear lote hijo en fase Producción (Opción B: unificado en lotes).
+        // Copiar Raza y AnoTablaGenetica del padre para que indicadores y guía genética tengan datos.
+        var loteProd = new Lote
+        {
+            LoteNombre = (lote.LoteNombre ?? "").Trim() + " - Prod",
             GranjaId = lote.GranjaId,
             NucleoId = lote.NucleoId ?? "",
-            NucleoP = request.NucleoP,
             GalponId = lote.GalponId,
-            Ciclo = request.Ciclo
+            Fase = "Produccion",
+            LotePadreId = request.LoteId,
+            FechaInicioProduccion = request.FechaInicio,
+            HembrasInicialesProd = request.AvesInicialesH,
+            MachosInicialesProd = request.AvesInicialesM >= 0 ? request.AvesInicialesM : 0,
+            HuevosIniciales = request.HuevosIniciales,
+            TipoNido = request.TipoNido,
+            NucleoP = request.NucleoP,
+            CicloProduccion = request.Ciclo,
+            CompanyId = lote.CompanyId,
+            Raza = lote.Raza,
+            AnoTablaGenetica = lote.AnoTablaGenetica,
+            CreatedByUserId = _currentUser.UserId,
+            CreatedAt = DateTime.UtcNow
         };
 
-        _context.ProduccionLotes.Add(produccionLote);
+        _context.Lotes.Add(loteProd);
         await _context.SaveChangesAsync();
 
-        return produccionLote.Id;
+        return loteProd.LoteId.GetValueOrDefault();
     }
 
+    /// <summary>
+    /// Obtiene el lote en fase Producción para el lote dado (tabla unificada lotes).
+    /// 1) Si existe hijo con Fase = Produccion, devuelve el hijo (Id = LoteId del hijo).
+    /// 2) Si el mismo lote tiene Fase = Produccion y campos de producción llenos, devuelve ese lote (Id = loteId).
+    /// </summary>
     public async Task<ProduccionLoteDetalleDto?> ObtenerProduccionLoteAsync(int loteId)
     {
-        var loteIdStr = loteId.ToString();
-        var produccionLote = await _context.ProduccionLotes
+        var companyId = _currentUser.CompanyId;
+
+        // 1) Buscar lote hijo en fase Producción con datos de registro inicial
+        var hijo = await _context.Lotes
             .AsNoTracking()
-            .Where(p => p.LoteId == loteIdStr)
-            .Select(p => new ProduccionLoteDetalleDto(
-                p.Id,
-                int.Parse(p.LoteId),
-                p.FechaInicio,
-                p.AvesInicialesH,
-                p.AvesInicialesM,
-                p.HuevosIniciales,
-                p.TipoNido,
-                p.Ciclo,
-                p.CreatedAt,
-                p.UpdatedAt
+            .Where(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null && l.CompanyId == companyId
+                && (l.HembrasInicialesProd != null || l.FechaInicioProduccion != null))
+            .OrderBy(l => l.LoteId)
+            .Select(l => new ProduccionLoteDetalleDto(
+                l.LoteId ?? 0,
+                loteId,
+                l.FechaInicioProduccion ?? DateTime.MinValue,
+                l.HembrasInicialesProd ?? 0,
+                l.MachosInicialesProd ?? 0,
+                l.HuevosIniciales ?? 0,
+                l.TipoNido ?? "Manual",
+                l.CicloProduccion ?? "normal",
+                l.CreatedAt,
+                l.UpdatedAt
             ))
             .FirstOrDefaultAsync();
 
-        return produccionLote;
+        if (hijo != null) return hijo;
+
+        // 2) Mismo lote en producción (creado directo, sin hijo)
+        var mismo = await _context.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.CompanyId == companyId && l.DeletedAt == null
+                && l.Fase == "Produccion"
+                && (l.HembrasInicialesProd != null || l.FechaInicioProduccion != null))
+            .Select(l => new ProduccionLoteDetalleDto(
+                l.LoteId ?? 0,
+                loteId,
+                l.FechaInicioProduccion ?? DateTime.MinValue,
+                l.HembrasInicialesProd ?? 0,
+                l.MachosInicialesProd ?? 0,
+                l.HuevosIniciales ?? 0,
+                l.TipoNido ?? "Manual",
+                l.CicloProduccion ?? "normal",
+                l.CreatedAt,
+                l.UpdatedAt
+            ))
+            .FirstOrDefaultAsync();
+
+        return mismo;
     }
 
     public async Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request)
     {
-        // Validar que el ProduccionLote existe y obtener el LoteId
-        var produccionLote = await _context.ProduccionLotes
+        // Validar que el lote en producción existe (lote hijo con Fase = Produccion)
+        var loteProd = await _context.Lotes
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == request.ProduccionLoteId);
+            .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
 
-        if (produccionLote == null)
-        {
-            throw new ArgumentException("El registro de producción especificado no existe.");
-        }
+        if (loteProd == null)
+            throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
 
-        // Usar LoteId directamente (es string en la BD)
-        var loteId = produccionLote.LoteId;
+        var loteId = loteProd.LoteId?.ToString() ?? request.ProduccionLoteId.ToString();
 
-        // Validar que no existe ya un seguimiento para esta fecha y lote
-        var existeSeguimiento = await _context.SeguimientoProduccion
+        // Validar que no existe ya un seguimiento para esta fecha y lote (tabla unificada seguimiento_diario)
+        var existeSeguimiento = await _context.SeguimientoDiario
             .AsNoTracking()
-            .AnyAsync(s => s.LoteId == loteId && 
+            .AnyAsync(s => s.TipoSeguimiento == TipoProduccion && s.LoteId == loteId &&
                           s.Fecha.Date == request.FechaRegistro.Date);
 
         if (existeSeguimiento)
@@ -142,263 +213,349 @@ public class ProduccionService : IProduccionService
             throw new ArgumentException("La fecha de registro no puede ser en el futuro.");
         }
 
-        // Convertir consumo a kg si viene en gramos
-        decimal consumoKgH = 0;
-        if (request.ConsumoH.HasValue && request.ConsumoH.Value > 0)
+        decimal consumoKgH;
+        decimal consumoKgM;
+        JsonDocument? metadata;
+        JsonDocument? itemsAdicionales = null;
+        var tipoAlimento = request.TipoAlimento ?? string.Empty;
+
+        var useItems = (request.ItemsHembras != null && request.ItemsHembras.Count > 0) ||
+                       (request.ItemsMachos != null && request.ItemsMachos.Count > 0);
+
+        if (useItems)
         {
-            var unidadH = (request.UnidadConsumoH ?? "kg").ToLower().Trim();
-            if (unidadH == "g" || unidadH == "gramos" || unidadH == "gramo")
-            {
-                consumoKgH = (decimal)(request.ConsumoH.Value / 1000.0); // Convertir gramos a kg
-            }
-            else
-            {
-                consumoKgH = (decimal)request.ConsumoH.Value; // Ya está en kg
-            }
+            var (alimentosHembras, otrosHembras) = SepararAlimentosYOtrosItems(request.ItemsHembras);
+            var (alimentosMachos, otrosMachos) = SepararAlimentosYOtrosItems(request.ItemsMachos);
+            consumoKgH = (decimal)CalcularConsumoTotalAlimentos(alimentosHembras);
+            consumoKgM = (decimal)CalcularConsumoTotalAlimentos(alimentosMachos);
+            if (string.IsNullOrWhiteSpace(tipoAlimento))
+                tipoAlimento = ConstruirTipoAlimentoString(request.ItemsHembras, request.ItemsMachos);
+            metadata = BuildMetadataFromItems(request.ItemsHembras, request.ItemsMachos,
+                request.ConsumoH, request.UnidadConsumoH, request.ConsumoM, request.UnidadConsumoM,
+                request.TipoItemHembras, request.TipoItemMachos,
+                request.TipoAlimentoHembras, request.TipoAlimentoMachos);
+            itemsAdicionales = BuildItemsAdicionales(otrosHembras, otrosMachos);
         }
-        
-        decimal consumoKgM = 0;
-        if (request.ConsumoM.HasValue && request.ConsumoM.Value > 0)
+        else
         {
-            var unidadM = (request.UnidadConsumoM ?? "kg").ToLower().Trim();
-            if (unidadM == "g" || unidadM == "gramos" || unidadM == "gramo")
+            consumoKgH = 0;
+            if (request.ConsumoH.HasValue && request.ConsumoH.Value > 0)
             {
-                consumoKgM = (decimal)(request.ConsumoM.Value / 1000.0); // Convertir gramos a kg
+                var unidadH = (request.UnidadConsumoH ?? "kg").ToLower().Trim();
+                consumoKgH = unidadH == "g" || unidadH == "gramos" || unidadH == "gramo"
+                    ? (decimal)(request.ConsumoH.Value / 1000.0)
+                    : (decimal)request.ConsumoH.Value;
             }
-            else
+            consumoKgM = 0;
+            if (request.ConsumoM.HasValue && request.ConsumoM.Value > 0)
             {
-                consumoKgM = (decimal)request.ConsumoM.Value; // Ya está en kg
+                var unidadM = (request.UnidadConsumoM ?? "kg").ToLower().Trim();
+                consumoKgM = unidadM == "g" || unidadM == "gramos" || unidadM == "gramo"
+                    ? (decimal)(request.ConsumoM.Value / 1000.0)
+                    : (decimal)request.ConsumoM.Value;
             }
+            metadata = BuildMetadata(
+                request.ConsumoH, request.UnidadConsumoH,
+                request.ConsumoM, request.UnidadConsumoM,
+                request.TipoItemHembras, request.TipoItemMachos,
+                request.TipoAlimentoHembras, request.TipoAlimentoMachos
+            );
         }
-        
-        // Construir metadata JSONB
-        var metadata = BuildMetadata(
-            request.ConsumoH, request.UnidadConsumoH, 
-            request.ConsumoM, request.UnidadConsumoM,
-            request.TipoItemHembras, request.TipoItemMachos,
-            request.TipoAlimentoHembras, request.TipoAlimentoMachos
+
+        var createdByUserId = request.CreatedByUserId
+            ?? _currentUser.UserGuid?.ToString()
+            ?? _currentUser.UserId.ToString();
+
+        var dto = new CreateSeguimientoDiarioDto(
+            TipoSeguimiento: TipoProduccion,
+            LoteId: loteId,
+            ReproductoraId: null,
+            Fecha: request.FechaRegistro,
+            MortalidadHembras: request.MortalidadH,
+            MortalidadMachos: request.MortalidadM,
+            SelH: request.SelH,
+            SelM: request.SelM,
+            ErrorSexajeHembras: request.ErrorSexajeHembras,
+            ErrorSexajeMachos: request.ErrorSexajeMachos,
+            ConsumoKgHembras: consumoKgH,
+            ConsumoKgMachos: consumoKgM,
+            TipoAlimento: tipoAlimento,
+            Observaciones: request.Observaciones,
+            Ciclo: request.Ciclo,
+            PesoPromHembras: request.PesoH.HasValue ? (double)request.PesoH.Value : null,
+            PesoPromMachos: request.PesoM.HasValue ? (double)request.PesoM.Value : null,
+            UniformidadHembras: request.UniformidadHembras ?? (request.Uniformidad.HasValue ? (double)request.Uniformidad.Value : null),
+            UniformidadMachos: request.UniformidadMachos ?? (request.Uniformidad.HasValue ? (double)request.Uniformidad.Value : null),
+            CvHembras: request.CvHembras ?? (request.CoeficienteVariacion.HasValue ? (double)request.CoeficienteVariacion.Value : null),
+            CvMachos: request.CvMachos ?? (request.CoeficienteVariacion.HasValue ? (double)request.CoeficienteVariacion.Value : null),
+            ConsumoAguaDiario: request.ConsumoAguaDiario,
+            ConsumoAguaPh: request.ConsumoAguaPh,
+            ConsumoAguaOrp: request.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: request.ConsumoAguaTemperatura,
+            Metadata: metadata,
+            ItemsAdicionales: itemsAdicionales,
+            PesoInicial: null,
+            PesoFinal: null,
+            KcalAlH: null,
+            ProtAlH: null,
+            KcalAveH: null,
+            ProtAveH: null,
+            HuevoTot: request.HuevosTotales,
+            HuevoInc: request.HuevosIncubables,
+            HuevoLimpio: request.HuevoLimpio,
+            HuevoTratado: request.HuevoTratado,
+            HuevoSucio: request.HuevoSucio,
+            HuevoDeforme: request.HuevoDeforme,
+            HuevoBlanco: request.HuevoBlanco,
+            HuevoDobleYema: request.HuevoDobleYema,
+            HuevoPiso: request.HuevoPiso,
+            HuevoPequeno: request.HuevoPequeno,
+            HuevoRoto: request.HuevoRoto,
+            HuevoDesecho: request.HuevoDesecho,
+            HuevoOtro: request.HuevoOtro,
+            PesoHuevo: (double)request.PesoHuevo,
+            Etapa: request.Etapa,
+            PesoH: request.PesoH,
+            PesoM: request.PesoM,
+            Uniformidad: request.Uniformidad,
+            CoeficienteVariacion: request.CoeficienteVariacion,
+            ObservacionesPesaje: request.ObservacionesPesaje,
+            CreatedByUserId: createdByUserId
         );
 
-        // Crear seguimiento usando SeguimientoProduccion (tabla produccion_diaria)
-        var seguimiento = new Domain.Entities.SeguimientoProduccion
+        var created = await _seguimientoDiarioService.CreateAsync(dto);
+        return (int)created.Id;
+    }
+
+    public async Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request)
+    {
+        var loteProd = await _context.Lotes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+
+        if (loteProd == null)
+            throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
+
+        var loteId = loteProd.LoteId?.ToString() ?? request.ProduccionLoteId.ToString();
+
+        if (request.FechaRegistro.Date > DateTime.Today)
+            throw new ArgumentException("La fecha de registro no puede ser en el futuro.");
+
+        decimal consumoKgH;
+        decimal consumoKgM;
+        JsonDocument? metadata;
+        JsonDocument? itemsAdicionales = null;
+        var tipoAlimento = request.TipoAlimento ?? string.Empty;
+
+        var useItems = (request.ItemsHembras != null && request.ItemsHembras.Count > 0) ||
+                       (request.ItemsMachos != null && request.ItemsMachos.Count > 0);
+
+        if (useItems)
         {
-            LoteId = loteId,
-            Fecha = request.FechaRegistro,
-            MortalidadH = request.MortalidadH,
-            MortalidadM = request.MortalidadM,
-            SelH = request.SelH,
-            SelM = request.SelM,
-            ConsKgH = consumoKgH,
-            ConsKgM = consumoKgM,
-            HuevoTot = request.HuevosTotales,
-            HuevoInc = request.HuevosIncubables,
-            // Campos de Clasificadora de Huevos
-            HuevoLimpio = request.HuevoLimpio,
-            HuevoTratado = request.HuevoTratado,
-            HuevoSucio = request.HuevoSucio,
-            HuevoDeforme = request.HuevoDeforme,
-            HuevoBlanco = request.HuevoBlanco,
-            HuevoDobleYema = request.HuevoDobleYema,
-            HuevoPiso = request.HuevoPiso,
-            HuevoPequeno = request.HuevoPequeno,
-            HuevoRoto = request.HuevoRoto,
-            HuevoDesecho = request.HuevoDesecho,
-            HuevoOtro = request.HuevoOtro,
-            TipoAlimento = request.TipoAlimento,
-            PesoHuevo = request.PesoHuevo,
-            Etapa = request.Etapa,
-            Observaciones = request.Observaciones,
-            // Campos de Pesaje Semanal
-            PesoH = request.PesoH,
-            PesoM = request.PesoM,
-            Uniformidad = request.Uniformidad,
-            CoeficienteVariacion = request.CoeficienteVariacion,
-            ObservacionesPesaje = request.ObservacionesPesaje,
-            // Campos de agua (solo para Ecuador y Panamá)
-            ConsumoAguaDiario = request.ConsumoAguaDiario.HasValue ? (decimal?)request.ConsumoAguaDiario.Value : null,
-            ConsumoAguaPh = request.ConsumoAguaPh.HasValue ? (decimal?)request.ConsumoAguaPh.Value : null,
-            ConsumoAguaOrp = request.ConsumoAguaOrp.HasValue ? (decimal?)request.ConsumoAguaOrp.Value : null,
-            ConsumoAguaTemperatura = request.ConsumoAguaTemperatura.HasValue ? (decimal?)request.ConsumoAguaTemperatura.Value : null,
-            Metadata = metadata
-        };
+            var (alimentosHembras, otrosHembras) = SepararAlimentosYOtrosItems(request.ItemsHembras);
+            var (alimentosMachos, otrosMachos) = SepararAlimentosYOtrosItems(request.ItemsMachos);
+            consumoKgH = (decimal)CalcularConsumoTotalAlimentos(alimentosHembras);
+            consumoKgM = (decimal)CalcularConsumoTotalAlimentos(alimentosMachos);
+            if (string.IsNullOrWhiteSpace(tipoAlimento))
+                tipoAlimento = ConstruirTipoAlimentoString(request.ItemsHembras, request.ItemsMachos);
+            metadata = BuildMetadataFromItems(request.ItemsHembras, request.ItemsMachos,
+                request.ConsumoH, request.UnidadConsumoH, request.ConsumoM, request.UnidadConsumoM,
+                request.TipoItemHembras, request.TipoItemMachos,
+                request.TipoAlimentoHembras, request.TipoAlimentoMachos);
+            itemsAdicionales = BuildItemsAdicionales(otrosHembras, otrosMachos);
+        }
+        else
+        {
+            consumoKgH = 0;
+            if (request.ConsumoH.HasValue && request.ConsumoH.Value > 0)
+            {
+                var unidadH = (request.UnidadConsumoH ?? "kg").ToLowerInvariant().Trim();
+                consumoKgH = unidadH == "g" || unidadH == "gramos" || unidadH == "gramo"
+                    ? (decimal)(request.ConsumoH.Value / 1000.0)
+                    : (decimal)request.ConsumoH.Value;
+            }
+            consumoKgM = 0;
+            if (request.ConsumoM.HasValue && request.ConsumoM.Value > 0)
+            {
+                var unidadM = (request.UnidadConsumoM ?? "kg").ToLowerInvariant().Trim();
+                consumoKgM = unidadM == "g" || unidadM == "gramos" || unidadM == "gramo"
+                    ? (decimal)(request.ConsumoM.Value / 1000.0)
+                    : (decimal)request.ConsumoM.Value;
+            }
+            metadata = BuildMetadata(
+                request.ConsumoH, request.UnidadConsumoH,
+                request.ConsumoM, request.UnidadConsumoM,
+                request.TipoItemHembras, request.TipoItemMachos,
+                request.TipoAlimentoHembras, request.TipoAlimentoMachos
+            );
+        }
 
-        _context.SeguimientoProduccion.Add(seguimiento);
-        await _context.SaveChangesAsync();
+        var updateDto = new UpdateSeguimientoDiarioDto(
+            Id: id,
+            TipoSeguimiento: TipoProduccion,
+            LoteId: loteId,
+            ReproductoraId: null,
+            Fecha: request.FechaRegistro,
+            MortalidadHembras: request.MortalidadH,
+            MortalidadMachos: request.MortalidadM,
+            SelH: request.SelH,
+            SelM: request.SelM,
+            ErrorSexajeHembras: request.ErrorSexajeHembras,
+            ErrorSexajeMachos: request.ErrorSexajeMachos,
+            ConsumoKgHembras: consumoKgH,
+            ConsumoKgMachos: consumoKgM,
+            TipoAlimento: tipoAlimento,
+            Observaciones: request.Observaciones,
+            Ciclo: request.Ciclo,
+            PesoPromHembras: request.PesoH.HasValue ? (double)request.PesoH.Value : null,
+            PesoPromMachos: request.PesoM.HasValue ? (double)request.PesoM.Value : null,
+            UniformidadHembras: request.UniformidadHembras ?? (request.Uniformidad.HasValue ? (double)request.Uniformidad.Value : null),
+            UniformidadMachos: request.UniformidadMachos ?? (request.Uniformidad.HasValue ? (double)request.Uniformidad.Value : null),
+            CvHembras: request.CvHembras ?? (request.CoeficienteVariacion.HasValue ? (double)request.CoeficienteVariacion.Value : null),
+            CvMachos: request.CvMachos ?? (request.CoeficienteVariacion.HasValue ? (double)request.CoeficienteVariacion.Value : null),
+            ConsumoAguaDiario: request.ConsumoAguaDiario,
+            ConsumoAguaPh: request.ConsumoAguaPh,
+            ConsumoAguaOrp: request.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: request.ConsumoAguaTemperatura,
+            Metadata: metadata,
+            ItemsAdicionales: itemsAdicionales,
+            PesoInicial: null,
+            PesoFinal: null,
+            KcalAlH: null,
+            ProtAlH: null,
+            KcalAveH: null,
+            ProtAveH: null,
+            HuevoTot: request.HuevosTotales,
+            HuevoInc: request.HuevosIncubables,
+            HuevoLimpio: request.HuevoLimpio,
+            HuevoTratado: request.HuevoTratado,
+            HuevoSucio: request.HuevoSucio,
+            HuevoDeforme: request.HuevoDeforme,
+            HuevoBlanco: request.HuevoBlanco,
+            HuevoDobleYema: request.HuevoDobleYema,
+            HuevoPiso: request.HuevoPiso,
+            HuevoPequeno: request.HuevoPequeno,
+            HuevoRoto: request.HuevoRoto,
+            HuevoDesecho: request.HuevoDesecho,
+            HuevoOtro: request.HuevoOtro,
+            PesoHuevo: (double)request.PesoHuevo,
+            Etapa: request.Etapa,
+            PesoH: request.PesoH,
+            PesoM: request.PesoM,
+            Uniformidad: request.Uniformidad,
+            CoeficienteVariacion: request.CoeficienteVariacion,
+            ObservacionesPesaje: request.ObservacionesPesaje
+        );
 
-        return seguimiento.Id;
+        var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
+        if (updated == null)
+            throw new InvalidOperationException("No se encontró el registro o no tiene permisos para actualizarlo.");
     }
 
     public async Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int loteId, DateTime? desde, DateTime? hasta, int page, int size)
     {
-        // Convertir int loteId a string (la BD usa text)
-        var loteIdStr = loteId.ToString();
-        
-        // Obtener el ProduccionLoteId para este lote (para el DTO)
-        var produccionLoteId = await _context.ProduccionLotes
-            .AsNoTracking()
-            .Where(p => p.LoteId == loteIdStr)
-            .Select(p => p.Id)
+        var companyId = _currentUser.CompanyId;
+        // loteId del request suele ser el padre (filtro); buscar lote en producción (hijo o mismo) para listar seguimientos
+        Lote? loteProd = await _context.Lotes.AsNoTracking()
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LotePadreId == loteId)
+            .OrderBy(l => l.LoteId)
             .FirstOrDefaultAsync();
+        if (loteProd == null)
+            loteProd = await _context.Lotes.AsNoTracking()
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LoteId == loteId)
+                .FirstOrDefaultAsync();
+        var loteIdStr = loteProd?.LoteId?.ToString() ?? loteId.ToString();
+        var produccionLoteId = loteProd?.LoteId ?? loteId;
 
-        // Consultar SeguimientoProduccion usando LoteId directamente
-        var query = _context.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => s.LoteId == loteIdStr);
-
-        // Aplicar filtros de fecha
-        if (desde.HasValue)
+        var filter = new SeguimientoDiarioFilterRequest
         {
-            query = query.Where(s => s.Fecha >= desde.Value);
-        }
+            TipoSeguimiento = TipoProduccion,
+            LoteId = loteIdStr,
+            FechaDesde = desde,
+            FechaHasta = hasta,
+            Page = page,
+            PageSize = size,
+            OrderBy = "Fecha",
+            OrderAsc = false
+        };
 
-        if (hasta.HasValue)
-        {
-            query = query.Where(s => s.Fecha <= hasta.Value);
-        }
+        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
+        var items = paged.Items.Select(u => MapToSeguimientoItemDto(u, produccionLoteId)).ToList();
+        return new ListaSeguimientoResponse(items, (int)paged.Total);
+    }
 
-        // Contar total
-        var total = await query.CountAsync();
-
-        // Obtener registros con paginación y mapear a DTO
-        var seguimientos = await query
-            .OrderByDescending(s => s.Fecha)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .ToListAsync();
-
-        // Mapear a SeguimientoItemDto
-        var items = seguimientos.Select(s => new SeguimientoItemDto(
-            s.Id,
-            produccionLoteId, // ProduccionLoteId para el DTO
-            s.Fecha, // FechaRegistro
-            s.MortalidadH,
-            s.MortalidadM,
-            s.SelH,
-            s.SelM,
-            s.ConsKgH,
-            s.ConsKgM,
-            s.ConsKgH + s.ConsKgM, // ConsumoKg = suma de consumos (para compatibilidad)
-            s.HuevoTot, // HuevosTotales
-            s.HuevoInc, // HuevosIncubables
-            s.TipoAlimento,
-            s.PesoHuevo,
-            s.Etapa,
-            s.Observaciones,
-            DateTime.MinValue, // CreatedAt (SeguimientoProduccion no tiene este campo)
-            null, // UpdatedAt
-            // Campos de Clasificadora de Huevos
-            s.HuevoLimpio,
-            s.HuevoTratado,
-            s.HuevoSucio,
-            s.HuevoDeforme,
-            s.HuevoBlanco,
-            s.HuevoDobleYema,
-            s.HuevoPiso,
-            s.HuevoPequeno,
-            s.HuevoRoto,
-            s.HuevoDesecho,
-            s.HuevoOtro,
-            // Campos de Pesaje Semanal
-            s.PesoH,
-            s.PesoM,
-            s.Uniformidad,
-            s.CoeficienteVariacion,
-            s.ObservacionesPesaje,
-            // Campos de agua (solo para Ecuador y Panamá)
-            s.ConsumoAguaDiario,
-            s.ConsumoAguaPh,
-            s.ConsumoAguaOrp,
-            s.ConsumoAguaTemperatura
-        )).ToList();
-
-        return new ListaSeguimientoResponse(items, total);
+    private static SeguimientoItemDto MapToSeguimientoItemDto(SeguimientoDiarioDto u, int produccionLoteId)
+    {
+        var consKgH = (decimal)(u.ConsumoKgHembras ?? 0);
+        var consKgM = (decimal)(u.ConsumoKgMachos ?? 0);
+        return new SeguimientoItemDto(
+            (int)u.Id,
+            produccionLoteId,
+            u.Fecha,
+            u.MortalidadHembras ?? 0,
+            u.MortalidadMachos ?? 0,
+            u.SelH ?? 0,
+            u.SelM ?? 0,
+            consKgH,
+            consKgM,
+            consKgH + consKgM,
+            u.HuevoTot ?? 0,
+            u.HuevoInc ?? 0,
+            u.TipoAlimento ?? "",
+            (decimal)(u.PesoHuevo ?? 0),
+            u.Etapa ?? 0,
+            u.Observaciones,
+            u.CreatedAt,
+            u.UpdatedAt,
+            u.HuevoLimpio ?? 0,
+            u.HuevoTratado ?? 0,
+            u.HuevoSucio ?? 0,
+            u.HuevoDeforme ?? 0,
+            u.HuevoBlanco ?? 0,
+            u.HuevoDobleYema ?? 0,
+            u.HuevoPiso ?? 0,
+            u.HuevoPequeno ?? 0,
+            u.HuevoRoto ?? 0,
+            u.HuevoDesecho ?? 0,
+            u.HuevoOtro ?? 0,
+            u.PesoH,
+            u.PesoM,
+            u.Uniformidad,
+            u.CoeficienteVariacion,
+            u.ObservacionesPesaje,
+            u.ConsumoAguaDiario,
+            u.ConsumoAguaPh,
+            u.ConsumoAguaOrp,
+            u.ConsumoAguaTemperatura
+        );
     }
 
     public async Task<SeguimientoItemDto?> ObtenerSeguimientoPorIdAsync(int seguimientoId)
     {
-        var seguimiento = await _context.SeguimientoProduccion
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == seguimientoId);
-
-        if (seguimiento == null)
-        {
+        var u = await _seguimientoDiarioService.GetByIdAsync((long)seguimientoId);
+        if (u == null || u.TipoSeguimiento != TipoProduccion)
             return null;
-        }
-
-        // Obtener el ProduccionLoteId
-        var produccionLoteId = await _context.ProduccionLotes
-            .AsNoTracking()
-            .Where(p => p.LoteId == seguimiento.LoteId)
-            .Select(p => p.Id)
-            .FirstOrDefaultAsync();
-
-        // Mapear a SeguimientoItemDto
-        return new SeguimientoItemDto(
-            seguimiento.Id,
-            produccionLoteId,
-            seguimiento.Fecha,
-            seguimiento.MortalidadH,
-            seguimiento.MortalidadM,
-            seguimiento.SelH,
-            seguimiento.SelM,
-            seguimiento.ConsKgH,
-            seguimiento.ConsKgM,
-            seguimiento.ConsKgH + seguimiento.ConsKgM,
-            seguimiento.HuevoTot,
-            seguimiento.HuevoInc,
-            seguimiento.TipoAlimento,
-            seguimiento.PesoHuevo,
-            seguimiento.Etapa,
-            seguimiento.Observaciones,
-            DateTime.MinValue,
-            null,
-            // Campos de Clasificadora de Huevos
-            seguimiento.HuevoLimpio,
-            seguimiento.HuevoTratado,
-            seguimiento.HuevoSucio,
-            seguimiento.HuevoDeforme,
-            seguimiento.HuevoBlanco,
-            seguimiento.HuevoDobleYema,
-            seguimiento.HuevoPiso,
-            seguimiento.HuevoPequeno,
-            seguimiento.HuevoRoto,
-            seguimiento.HuevoDesecho,
-            seguimiento.HuevoOtro,
-            // Campos de Pesaje Semanal
-            seguimiento.PesoH,
-            seguimiento.PesoM,
-            seguimiento.Uniformidad,
-            seguimiento.CoeficienteVariacion,
-            seguimiento.ObservacionesPesaje,
-            // Campos de agua (solo para Ecuador y Panamá)
-            seguimiento.ConsumoAguaDiario,
-            seguimiento.ConsumoAguaPh,
-            seguimiento.ConsumoAguaOrp,
-            seguimiento.ConsumoAguaTemperatura
-        );
+        // LoteId en seguimiento_diario (producción) es el id del lote en fase Producción (hijo)
+        var loteProdId = int.TryParse(u.LoteId, out var id) ? id : 0;
+        return MapToSeguimientoItemDto(u, loteProdId);
     }
 
     /// <summary>
-    /// Elimina un seguimiento diario de producción
+    /// Elimina un seguimiento diario de producción (tabla unificada seguimiento_diario).
     /// </summary>
     public async Task<bool> EliminarSeguimientoAsync(int seguimientoId)
     {
-        var seguimiento = await _context.SeguimientoProduccion.FindAsync(seguimientoId);
-        if (seguimiento == null) return false;
+        var u = await _seguimientoDiarioService.GetByIdAsync((long)seguimientoId);
+        if (u == null || u.TipoSeguimiento != TipoProduccion) return false;
 
-        // Validar que el lote pertenece a la compañía del usuario actual
-        var loteIdStr = seguimiento.LoteId;
         var lote = await _context.Lotes
             .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.LoteId.ToString() == loteIdStr && 
-                                      l.CompanyId == _currentUser.CompanyId && 
+            .FirstOrDefaultAsync(l => l.LoteId.ToString() == u.LoteId &&
+                                      l.CompanyId == _currentUser.CompanyId &&
                                       l.DeletedAt == null);
-        
         if (lote == null) return false;
 
-        _context.SeguimientoProduccion.Remove(seguimiento);
-        await _context.SaveChangesAsync();
-        return true;
+        return await _seguimientoDiarioService.DeleteAsync((long)seguimientoId);
     }
 
     /// <summary>
@@ -460,13 +617,16 @@ public class ProduccionService : IProduccionService
             l.EdadInicial,
             l.LoteErp,
             l.EstadoTraslado,
-            l.LotePadreId,  // ← NUEVO: ID del lote padre
+            l.LotePadreId,
+            l.PaisId,
+            l.PaisNombre,
+            l.EmpresaNombre,
             l.CompanyId,
             l.CreatedByUserId,
             l.CreatedAt,
             l.UpdatedByUserId,
             l.UpdatedAt,
-            // Cargar relaciones
+            // Relaciones
             l.Farm != null ? new FarmLiteDto(
                 l.Farm.Id,
                 l.Farm.Name,
@@ -536,6 +696,85 @@ public class ProduccionService : IProduccionService
         
         if (metadata.Count == 0) return null;
         
-        return System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(metadata));
+        return JsonDocument.Parse(JsonSerializer.Serialize(metadata));
+    }
+
+    private static (List<ItemSeguimientoDto> alimentos, List<ItemSeguimientoDto> otrosItems) SepararAlimentosYOtrosItems(List<ItemSeguimientoDto>? items)
+    {
+        if (items == null || items.Count == 0)
+            return (new List<ItemSeguimientoDto>(), new List<ItemSeguimientoDto>());
+        var alimentos = new List<ItemSeguimientoDto>();
+        var otros = new List<ItemSeguimientoDto>();
+        foreach (var item in items)
+        {
+            if (string.Equals(item.TipoItem?.Trim(), "alimento", StringComparison.OrdinalIgnoreCase))
+                alimentos.Add(item);
+            else
+                otros.Add(item);
+        }
+        return (alimentos, otros);
+    }
+
+    private static double CalcularConsumoTotalAlimentos(List<ItemSeguimientoDto>? items)
+    {
+        if (items == null || items.Count == 0) return 0;
+        double total = 0;
+        foreach (var item in items)
+        {
+            if (!string.Equals(item.TipoItem?.Trim(), "alimento", StringComparison.OrdinalIgnoreCase)) continue;
+            var unidad = item.Unidad?.ToLower().Trim() ?? "kg";
+            var cantidadKg = item.Cantidad;
+            if (unidad == "g" || unidad == "gramos" || unidad == "gramo")
+                cantidadKg = item.Cantidad / 1000.0;
+            total += cantidadKg;
+        }
+        return total;
+    }
+
+    private static JsonDocument? BuildItemsAdicionales(List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    {
+        var dict = new Dictionary<string, object?>();
+        if (itemsHembras != null && itemsHembras.Count > 0)
+            dict["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+        if (itemsMachos != null && itemsMachos.Count > 0)
+            dict["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+        if (dict.Count == 0) return null;
+        return JsonDocument.Parse(JsonSerializer.Serialize(dict));
+    }
+
+    private static string ConstruirTipoAlimentoString(List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    {
+        var parts = new List<string>();
+        if (itemsHembras != null)
+            foreach (var i in itemsHembras)
+                if (string.Equals(i.TipoItem?.Trim(), "alimento", StringComparison.OrdinalIgnoreCase))
+                    parts.Add($"H:{i.CatalogItemId}");
+        if (itemsMachos != null)
+            foreach (var i in itemsMachos)
+                if (string.Equals(i.TipoItem?.Trim(), "alimento", StringComparison.OrdinalIgnoreCase))
+                    parts.Add($"M:{i.CatalogItemId}");
+        return parts.Count > 0 ? string.Join(" / ", parts) : string.Empty;
+    }
+
+    private static JsonDocument? BuildMetadataFromItems(
+        List<ItemSeguimientoDto>? itemsHembras,
+        List<ItemSeguimientoDto>? itemsMachos,
+        double? consumoH, string? unidadH, double? consumoM, string? unidadM,
+        string? tipoItemHembras, string? tipoItemMachos,
+        int? tipoAlimentoHembras, int? tipoAlimentoMachos)
+    {
+        var metadata = new Dictionary<string, object?>();
+        if (itemsHembras != null && itemsHembras.Count > 0)
+            metadata["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+        if (itemsMachos != null && itemsMachos.Count > 0)
+            metadata["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+        if ((itemsHembras == null || itemsHembras.Count == 0) && consumoH.HasValue) { metadata["consumoOriginalHembras"] = consumoH.Value; metadata["unidadConsumoOriginalHembras"] = unidadH ?? "kg"; }
+        if ((itemsMachos == null || itemsMachos.Count == 0) && consumoM.HasValue) { metadata["consumoOriginalMachos"] = consumoM.Value; metadata["unidadConsumoOriginalMachos"] = unidadM ?? "kg"; }
+        if (!string.IsNullOrWhiteSpace(tipoItemHembras)) metadata["tipoItemHembras"] = tipoItemHembras;
+        if (!string.IsNullOrWhiteSpace(tipoItemMachos)) metadata["tipoItemMachos"] = tipoItemMachos;
+        if (tipoAlimentoHembras.HasValue) metadata["tipoAlimentoHembras"] = tipoAlimentoHembras.Value;
+        if (tipoAlimentoMachos.HasValue) metadata["tipoAlimentoMachos"] = tipoAlimentoMachos.Value;
+        if (metadata.Count == 0) return null;
+        return JsonDocument.Parse(JsonSerializer.Serialize(metadata));
     }
 }

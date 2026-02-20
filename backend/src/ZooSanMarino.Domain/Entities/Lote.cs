@@ -37,7 +37,29 @@ public class Lote : AuditableEntity
     public int?      EdadInicial        { get; set; }
     public string?   LoteErp            { get; set; } // ← NUEVO: Código ERP del lote
     public string?   EstadoTraslado     { get; set; } // ← Estados: null/"normal", "trasladado", "en_transferencia"
-    public int?      LotePadreId         { get; set; } // ← NUEVO: ID del lote padre (para consolidación)
+    public int?      LotePadreId         { get; set; } // ← ID del lote padre (Levante); los de Producción son hijos
+
+    /// <summary>Fase del lote: Levante (inicial) o Produccion (lote hijo al pasar a producción).</summary>
+    public string Fase { get; set; } = "Levante";
+
+    // Campos de etapa Producción (solo cuando Fase == "Produccion"; en hijos o mismo registro si se unifica)
+    public DateTime? FechaInicioProduccion { get; set; }
+    public int?      HembrasInicialesProd   { get; set; }
+    public int?      MachosInicialesProd   { get; set; }
+    public int?      HuevosIniciales       { get; set; }
+    public string?   TipoNido              { get; set; }
+    public string?   NucleoP               { get; set; }
+    public string?   CicloProduccion       { get; set; }
+    public DateTime? FechaFinProduccion    { get; set; }
+    public int?      AvesFinHembrasProd    { get; set; }
+    public int?      AvesFinMachosProd     { get; set; }
+
+    /// <summary>ID del país en sesión al crear el lote (desde storage/header).</summary>
+    public int? PaisId { get; set; }
+    /// <summary>Nombre del país en sesión al crear el lote.</summary>
+    public string? PaisNombre { get; set; }
+    /// <summary>Nombre de la empresa en sesión al crear el lote.</summary>
+    public string? EmpresaNombre { get; set; }
 
     public Farm    Farm   { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }
@@ -47,5 +69,10 @@ public class Lote : AuditableEntity
     public Lote? LotePadre { get; set; }
     public List<Lote> LotesHijos { get; set; } = new();
 
-    public List<LoteReproductora> Reproductoras { get; set; } = new();
+    /// <summary>Seguimientos diarios de producción (solo cuando Fase == "Produccion").</summary>
+    public List<ProduccionSeguimiento> ProduccionSeguimientos { get; set; } = new();
+
+    // Nota: La relación con LoteReproductora está comentada debido al desajuste de tipos
+    // (lote_id es string en lote_reproductoras pero integer en lotes)
+    // public List<LoteReproductora> Reproductoras { get; set; } = new(); // Comentado temporalmente
 }

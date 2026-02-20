@@ -20,17 +20,20 @@ namespace ZooSanMarino.Infrastructure.Services
         private readonly AppInterfaces.ICurrentUser _current;
         private readonly AppInterfaces.ICompanyResolver _companyResolver;
         private readonly AppInterfaces.IUserPermissionService _userPermissionService;
+        private readonly AppInterfaces.IUserFarmService _userFarmService;
 
         public NucleoService(
             ZooSanMarinoContext ctx, 
             AppInterfaces.ICurrentUser current,
             AppInterfaces.ICompanyResolver companyResolver,
-            AppInterfaces.IUserPermissionService userPermissionService)
+            AppInterfaces.IUserPermissionService userPermissionService,
+            AppInterfaces.IUserFarmService userFarmService)
         {
             _ctx = ctx;
             _current = current;
             _companyResolver = companyResolver;
             _userPermissionService = userPermissionService;
+            _userFarmService = userFarmService;
         }
 
         /// <summary>
@@ -98,6 +101,20 @@ namespace ZooSanMarino.Infrastructure.Services
             return userEmail?.ToLower() == "moiesbbuga@gmail.com";
         }
 
+        /// <summary>
+        /// Obtiene los IDs de granjas a los que el usuario actual tiene acceso (UserFarms + granjas de sus empresas).
+        /// Si no hay UserGuid, devuelve null (no filtrar por granja).
+        /// </summary>
+        private async Task<List<int>?> GetAllowedFarmIdsForCurrentUserAsync()
+        {
+            var userIdGuid = _current.UserGuid;
+            if (!userIdGuid.HasValue) return null;
+
+            var accessible = await _userFarmService.GetUserAccessibleFarmsAsync(userIdGuid.Value);
+            var ids = accessible.Select(x => x.FarmId).Distinct().ToList();
+            return ids;
+        }
+
         // ===========================
         // BÚSQUEDA AVANZADA
         // ===========================
@@ -119,10 +136,16 @@ namespace ZooSanMarino.Infrastructure.Services
             }
             else
             {
-                // Si NO es admin, filtrar solo por los núcleos de su empresa
+                // Si NO es admin, filtrar por empresa y por granjas a las que el usuario tiene permiso
                 var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
                 Console.WriteLine($"=== NucleoService.SearchAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
                 q = q.Where(n => n.CompanyId == effectiveCompanyId);
+
+                var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+                if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                    q = q.Where(n => allowedFarmIds.Contains(n.GranjaId));
+                else
+                    q = q.Where(n => n.GranjaId == -1);
             }
 
             if (req.SoloActivos) q = q.Where(n => n.DeletedAt == null);
@@ -189,14 +212,32 @@ namespace ZooSanMarino.Infrastructure.Services
             }
             else
             {
-                // Si NO es admin, filtrar solo por los núcleos de su empresa
+                // Si NO es admin, filtrar por empresa y por granjas a las que el usuario tiene permiso
                 var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
                 Console.WriteLine($"=== NucleoService.GetAllAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
                 q = q.Where(n => n.CompanyId == effectiveCompanyId);
+
+                var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+                if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                {
+                    q = q.Where(n => allowedFarmIds.Contains(n.GranjaId));
+                }
+                else
+                {
+                    // Usuario sin granjas asignadas ni por empresa: no mostrar núcleos
+                    q = q.Where(n => n.GranjaId == -1);
+                }
             }
 
             return await q
-                .Select(n => new NucleoDto(n.NucleoId, n.GranjaId, n.NucleoNombre))
+                .Select(n => new NucleoDto(
+                    n.NucleoId,
+                    n.GranjaId,
+                    n.NucleoNombre,
+                    _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
+                    _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
+                    n.CompanyId
+                ))
                 .ToListAsync();
         }
 
@@ -206,7 +247,14 @@ namespace ZooSanMarino.Infrastructure.Services
                             n.DeletedAt == null &&
                             n.NucleoId == nucleoId &&
                             n.GranjaId == granjaId)
-                .Select(n => new NucleoDto(n.NucleoId, n.GranjaId, n.NucleoNombre))
+                .Select(n => new NucleoDto(
+                    n.NucleoId,
+                    n.GranjaId,
+                    n.NucleoNombre,
+                    _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
+                    _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
+                    n.CompanyId
+                ))
                 .SingleOrDefaultAsync();
 
         public async Task<IEnumerable<NucleoDto>> GetByGranjaAsync(int granjaId)
@@ -223,13 +271,24 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (!isAdmin)
             {
-                // Si NO es admin, filtrar solo por los núcleos de su empresa
                 var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
                 q = q.Where(n => n.CompanyId == effectiveCompanyId);
+                var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+                if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                    q = q.Where(n => allowedFarmIds.Contains(n.GranjaId));
+                else
+                    q = q.Where(n => n.GranjaId == -1);
             }
 
             return await q
-                .Select(n => new NucleoDto(n.NucleoId, n.GranjaId, n.NucleoNombre))
+                .Select(n => new NucleoDto(
+                    n.NucleoId,
+                    n.GranjaId,
+                    n.NucleoNombre,
+                    _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
+                    _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
+                    n.CompanyId
+                ))
                 .ToListAsync();
         }
 
@@ -257,7 +316,9 @@ namespace ZooSanMarino.Infrastructure.Services
             _ctx.Nucleos.Add(ent);
             await _ctx.SaveChangesAsync();
 
-            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre);
+            var granjaNombre = await _ctx.Farms.AsNoTracking().Where(f => f.Id == ent.GranjaId).Select(f => f.Name).FirstOrDefaultAsync();
+            var companyNombre = await _ctx.Companies.AsNoTracking().Where(c => c.Id == ent.CompanyId).Select(c => c.Name).FirstOrDefaultAsync();
+            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre, granjaNombre, companyNombre, ent.CompanyId);
         }
 
         public async Task<NucleoDto?> UpdateAsync(UpdateNucleoDto dto)
@@ -274,7 +335,9 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.UpdatedAt       = DateTime.UtcNow;
 
             await _ctx.SaveChangesAsync();
-            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre);
+            var granjaNombre = await _ctx.Farms.AsNoTracking().Where(f => f.Id == ent.GranjaId).Select(f => f.Name).FirstOrDefaultAsync();
+            var companyNombre = await _ctx.Companies.AsNoTracking().Where(c => c.Id == ent.CompanyId).Select(c => c.Name).FirstOrDefaultAsync();
+            return new NucleoDto(ent.NucleoId, ent.GranjaId, ent.NucleoNombre, granjaNombre, companyNombre, ent.CompanyId);
         }
 
         public async Task<bool> DeleteAsync(string nucleoId, int granjaId)

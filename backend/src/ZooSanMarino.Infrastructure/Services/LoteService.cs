@@ -43,15 +43,37 @@ namespace ZooSanMarino.Infrastructure.Services
 
         // ======================================================
         // LISTADO SIMPLE CON INFORMACIÓN COMPLETA DE RELACIONES
+        // Excluye siempre los lotes "hijo de producción" (Fase == Produccion y LotePadreId != null)
+        // para no duplicar en pantalla el lote padre y el registro creado para seguimiento diario.
         // ======================================================
-        public async Task<IEnumerable<LoteDetailDto>> GetAllAsync()
+        public async Task<IEnumerable<LoteDetailDto>> GetAllAsync(string? fase = null)
         {
             var companyId = await GetEffectiveCompanyIdAsync();
             var q = _ctx.Lotes
                 .AsNoTracking()
-                .Where(l => l.CompanyId == companyId && l.DeletedAt == null)
-                .OrderBy(l => l.LoteId);
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null);
 
+            // No mostrar lotes hijo de producción (el " - Prod" creado para registro diario)
+            q = q.Where(l => !(l.Fase == "Produccion" && l.LotePadreId != null));
+
+            var faseNorm = fase?.Trim().ToLowerInvariant();
+            if (faseNorm == "levante")
+                q = q.Where(l => l.Fase == "Levante");
+            else if (faseNorm == "produccion")
+                q = q.Where(l => l.Fase == "Produccion" && l.LotePadreId == null);
+
+            q = q.OrderBy(l => l.LoteId);
+            return await ProjectToDetail(q).ToListAsync();
+        }
+
+        /// <summary>Lotes en fase Levante (Fase == "Levante") para el módulo Seguimiento Diario de Levante. No mezcla con Producción.</summary>
+        public async Task<IEnumerable<LoteDetailDto>> GetLotesLevanteAsync()
+        {
+            var companyId = await GetEffectiveCompanyIdAsync();
+            var q = _ctx.Lotes
+                .AsNoTracking()
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Levante")
+                .OrderBy(l => l.LoteId);
             return await ProjectToDetail(q).ToListAsync();
         }
 
@@ -193,22 +215,35 @@ namespace ZooSanMarino.Infrastructure.Services
                     throw new InvalidOperationException("Núcleo no existe en la granja (o no pertenece a la compañía).");
             }
 
+            // Opción B: Fase según semanas desde encaset: >= 26 → Producción, < 26 → Levante
+            var fechaEncasetUtc = dto.FechaEncaset?.ToUniversalTime();
+            var semanasDesdeEncaset = CalcularSemanasDesdeEncaset(fechaEncasetUtc, DateTime.UtcNow);
+            var fase = semanasDesdeEncaset >= 26 ? "Produccion" : "Levante";
+
+            // Sesión: usuario, empresa y país (desde storage/headers)
+            var paisNombre = (string?)null;
+            if (_current.PaisId.HasValue)
+            {
+                var pais = await _ctx.Paises.AsNoTracking()
+                    .Where(p => p.PaisId == _current.PaisId.Value)
+                    .Select(p => new { p.PaisNombre })
+                    .FirstOrDefaultAsync();
+                paisNombre = pais?.PaisNombre;
+            }
+
             var ent = new Lote
             {
-                // LoteId será generado automáticamente por la base de datos
                 LoteNombre = (dto.LoteNombre ?? string.Empty).Trim(),
                 GranjaId = dto.GranjaId,
                 NucleoId = nucleoId,
                 GalponId = galponId,
 
                 Regional = dto.Regional,
-                // Fechas en UTC para consistencia
-                FechaEncaset = dto.FechaEncaset?.ToUniversalTime(),
+                FechaEncaset = fechaEncasetUtc,
 
                 HembrasL = dto.HembrasL,
                 MachosL = dto.MachosL,
 
-                // ← tipos decimales: asignación directa
                 PesoInicialH = dto.PesoInicialH,
                 PesoInicialM = dto.PesoInicialM,
                 UnifH = dto.UnifH,
@@ -222,19 +257,25 @@ namespace ZooSanMarino.Infrastructure.Services
                 Linea = dto.Linea,
                 TipoLinea = dto.TipoLinea,
                 CodigoGuiaGenetica = dto.CodigoGuiaGenetica,
-                LineaGeneticaId = dto.LineaGeneticaId,  // ← NUEVO: ID de la línea genética
+                LineaGeneticaId = dto.LineaGeneticaId,
                 Tecnico = dto.Tecnico,
 
                 Mixtas = dto.Mixtas,
                 PesoMixto = dto.PesoMixto,
                 AvesEncasetadas = dto.AvesEncasetadas,
                 EdadInicial = dto.EdadInicial,
-                LoteErp = dto.LoteErp,  // ← NUEVO: Código ERP del lote
-                LotePadreId = dto.LotePadreId,  // ← NUEVO: ID del lote padre
+                LoteErp = dto.LoteErp,
+                LotePadreId = dto.LotePadreId,
+
+                Fase = fase,
 
                 CompanyId = companyId,
                 CreatedByUserId = _current.UserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+
+                PaisId = _current.PaisId,
+                PaisNombre = paisNombre,
+                EmpresaNombre = _current.ActiveCompanyName
             };
 
             // Validar que el lote padre existe y pertenece a la misma compañía
@@ -258,7 +299,23 @@ namespace ZooSanMarino.Infrastructure.Services
             _ctx.Lotes.Add(ent);
             await _ctx.SaveChangesAsync();
 
-            var result = await GetByIdAsync(ent.LoteId ?? 0);
+            // Historial etapa Levante: aves con que inicia el lote (sin descontar nada)
+            var loteIdValue = ent.LoteId ?? 0;
+            if (loteIdValue > 0)
+            {
+                var etapaLevante = new LoteEtapaLevante
+                {
+                    LoteId = loteIdValue,
+                    AvesInicioHembras = ent.HembrasL ?? 0,
+                    AvesInicioMachos = ent.MachosL ?? 0,
+                    FechaInicio = ent.FechaEncaset ?? DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _ctx.LoteEtapaLevante.Add(etapaLevante);
+                await _ctx.SaveChangesAsync();
+            }
+
+            var result = await GetByIdAsync(loteIdValue);
             return result ?? throw new InvalidOperationException("No fue posible leer el lote recién creado.");
         }
 
@@ -398,6 +455,21 @@ namespace ZooSanMarino.Infrastructure.Services
                 }
             }
 
+            // Actualizar datos de sesión (igual que al crear): empresa, país, usuario que actualiza
+            ent.CompanyId = companyId;
+            ent.PaisId = _current.PaisId;
+            ent.EmpresaNombre = _current.ActiveCompanyName;
+            if (_current.PaisId.HasValue)
+            {
+                var pais = await _ctx.Paises.AsNoTracking()
+                    .Where(p => p.PaisId == _current.PaisId.Value)
+                    .Select(p => new { p.PaisNombre })
+                    .FirstOrDefaultAsync();
+                ent.PaisNombre = pais?.PaisNombre;
+            }
+            else
+                ent.PaisNombre = null;
+
             ent.UpdatedByUserId = _current.UserId;
             ent.UpdatedAt = DateTime.UtcNow;
 
@@ -446,6 +518,15 @@ namespace ZooSanMarino.Infrastructure.Services
             if (!exists) throw new InvalidOperationException("Granja no existe o no pertenece a la compañía.");
         }
 
+        /// <summary>Calcula la semana de edad desde fecha encaset hasta la fecha de referencia. Semana 1 = días 0-6, 2 = 7-13, etc. >= 26 → Producción.</summary>
+        private static int CalcularSemanasDesdeEncaset(DateTime? fechaEncaset, DateTime fechaReferencia)
+        {
+            if (!fechaEncaset.HasValue) return 0;
+            var dias = (fechaReferencia.Date - fechaEncaset.Value.Date).Days;
+            if (dias < 0) return 0;
+            return Math.Max(0, (dias / 7) + 1);
+        }
+
         // Proyección consistente a LoteDetailDto con Lite DTOs
         private static IQueryable<LoteDetailDto> ProjectToDetail(IQueryable<Lote> q)
         {
@@ -482,7 +563,10 @@ namespace ZooSanMarino.Infrastructure.Services
                     l.EdadInicial,
                     l.LoteErp,  // ← NUEVO: Código ERP del lote
                     l.EstadoTraslado,  // ← Estado de traslado
-                    l.LotePadreId,  // ← NUEVO: ID del lote padre
+                    l.LotePadreId,
+                    l.PaisId,
+                    l.PaisNombre,
+                    l.EmpresaNombre,
                     l.CompanyId,
                     l.CreatedByUserId,
                     l.CreatedAt,
@@ -548,40 +632,66 @@ namespace ZooSanMarino.Infrastructure.Services
 
             if (lote is null) return null;
 
-            // 2) Sumas de mortalidad (una sola consulta agrupada)
-            var mort = await _ctx.SeguimientoLoteLevante
+            var loteIdStr = loteId.ToString();
+
+            // 2) Sumas de mortalidad desde tabla unificada seguimiento_diario (tipo levante)
+            var mort = await _ctx.SeguimientoDiario
                 .AsNoTracking()
-                .Where(s => s.LoteId == loteId)
+                .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteIdStr)
                 .GroupBy(_ => 1)
                 .Select(g => new
                 {
-                    H = (int?)g.Sum(x => x.MortalidadHembras) ?? 0,
-                    M = (int?)g.Sum(x => x.MortalidadMachos) ?? 0
+                    H = (int?)g.Sum(x => x.MortalidadHembras ?? 0) ?? 0,
+                    M = (int?)g.Sum(x => x.MortalidadMachos ?? 0) ?? 0,
+                    SelH = (int?)g.Sum(x => x.SelH ?? 0) ?? 0,
+                    SelM = (int?)g.Sum(x => x.SelM ?? 0) ?? 0,
+                    ErrH = (int?)g.Sum(x => x.ErrorSexajeHembras ?? 0) ?? 0,
+                    ErrM = (int?)g.Sum(x => x.ErrorSexajeMachos ?? 0) ?? 0
                 })
                 .SingleOrDefaultAsync();
 
             int mortH = mort?.H ?? 0;
             int mortM = mort?.M ?? 0;
+            int selH = mort?.SelH ?? 0;
+            int selM = mort?.SelM ?? 0;
+            int errH = mort?.ErrH ?? 0;
+            int errM = mort?.ErrM ?? 0;
 
-            // 3) Bases y mortandad en caja (si tu entidad las trae)
-            int baseH = lote.HembrasL ?? 0;
-            int baseM = lote.MachosL ?? 0;
+            // 3) Bases desde historial (lote_etapa_levante) si existe; si no, desde lote
+            int baseH;
+            int baseM;
+            var etapaLevante = await _ctx.LoteEtapaLevante.AsNoTracking()
+                .FirstOrDefaultAsync(el => el.LoteId == loteId);
+            if (etapaLevante != null)
+            {
+                baseH = etapaLevante.AvesInicioHembras;
+                baseM = etapaLevante.AvesInicioMachos;
+            }
+            else
+            {
+                baseH = lote.HembrasL ?? 0;
+                baseM = lote.MachosL ?? 0;
+            }
             int mortCajaH = lote.MortCajaH ?? 0;
             int mortCajaM = lote.MortCajaM ?? 0;
 
-            // 4) Saldos solicitados (solo restando mortalidad)
-            int saldoH = Math.Max(0, baseH - mortCajaH - mortH);
-            int saldoM = Math.Max(0, baseM - mortCajaM - mortM);
+            // 4) Saldos: base - mort caja - mortalidad - sel - error sexaje
+            int saldoH = Math.Max(0, baseH - mortCajaH - mortH - selH - errH);
+            int saldoM = Math.Max(0, baseM - mortCajaM - mortM - selM - errM);
 
             return new LoteMortalidadResumenDto
             {
                 LoteId = loteId.ToString(),
-                MortalidadAcumHembras = mortH,
-                MortalidadAcumMachos = mortM,
                 HembrasIniciales = baseH,
                 MachosIniciales = baseM,
                 MortCajaHembras = mortCajaH,
                 MortCajaMachos = mortCajaM,
+                MortalidadAcumHembras = mortH,
+                MortalidadAcumMachos = mortM,
+                SelAcumHembras = selH,
+                SelAcumMachos = selM,
+                ErrorSexajeAcumHembras = errH,
+                ErrorSexajeAcumMachos = errM,
                 SaldoHembras = saldoH,
                 SaldoMachos = saldoM
             };

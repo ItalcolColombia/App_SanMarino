@@ -49,6 +49,21 @@ public class SeguimientoLoteLevanteConfiguration : IEntityTypeConfiguration<Segu
         builder.Property(x => x.ProtAveH).HasPrecision(12, 3);
 
         builder.Property(x => x.Ciclo).HasMaxLength(50).HasDefaultValue("Normal");
+        
+        // Campos de agua (solo para Ecuador y Panamá)
+        // NOTA: La tabla usa double precision, no decimal, así que no usamos HasPrecision
+        builder.Property(x => x.ConsumoAguaDiario)
+               .HasColumnName("consumo_agua_diario")
+               .HasColumnType("double precision");
+        builder.Property(x => x.ConsumoAguaPh)
+               .HasColumnName("consumo_agua_ph")
+               .HasColumnType("double precision");
+        builder.Property(x => x.ConsumoAguaOrp)
+               .HasColumnName("consumo_agua_orp")
+               .HasColumnType("double precision");
+        builder.Property(x => x.ConsumoAguaTemperatura)
+               .HasColumnName("consumo_agua_temperatura")
+               .HasColumnType("double precision");
 
         builder.HasOne(x => x.Lote)
                .WithMany()

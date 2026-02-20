@@ -1,0 +1,137 @@
+// src/ZooSanMarino.API/Controllers/MovimientoPolloEngordeController.cs
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Interfaces;
+
+namespace ZooSanMarino.API.Controllers;
+
+[Authorize]
+[ApiController]
+[Route("api/[controller]")]
+[Tags("Movimiento de Pollo Engorde")]
+public class MovimientoPolloEngordeController : ControllerBase
+{
+    private readonly IMovimientoPolloEngordeService _service;
+
+    public MovimientoPolloEngordeController(IMovimientoPolloEngordeService service)
+    {
+        _service = service;
+    }
+
+    [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<MovimientoPolloEngordeDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll()
+    {
+        var items = await _service.GetAllAsync();
+        return Ok(items);
+    }
+
+    [HttpPost("search")]
+    [ProducesResponseType(typeof(ZooSanMarino.Application.DTOs.Common.PagedResult<MovimientoPolloEngordeDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Search([FromBody] MovimientoPolloEngordeSearchRequest request)
+    {
+        var result = await _service.SearchAsync(request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Resumen de aves del lote para reportes: aves con que inició, cuántas salieron (completados), cuántas vendidas, aves actuales.
+    /// Debe estar antes de {id} para que la ruta literal coincida.
+    /// </summary>
+    [HttpGet("resumen-aves-lote")]
+    [ProducesResponseType(typeof(ResumenAvesLoteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResumenAvesLote([FromQuery] string tipoLote, [FromQuery] int loteId)
+    {
+        var resumen = await _service.GetResumenAvesLoteAsync(tipoLote, loteId);
+        if (resumen == null) return NotFound();
+        return Ok(resumen);
+    }
+
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(MovimientoPolloEngordeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var item = await _service.GetByIdAsync(id);
+        if (item == null) return NotFound();
+        return Ok(item);
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(MovimientoPolloEngordeDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Create([FromBody] CreateMovimientoPolloEngordeDto dto)
+    {
+        try
+        {
+            var created = await _service.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(typeof(MovimientoPolloEngordeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateMovimientoPolloEngordeDto dto)
+    {
+        try
+        {
+            var updated = await _service.UpdateAsync(id, dto);
+            if (updated == null) return NotFound();
+            return Ok(updated);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{id:int}/cancelar")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Cancelar(int id, [FromBody] CancelarMovimientoPolloEngordeRequest request)
+    {
+        try
+        {
+            var ok = await _service.CancelAsync(id, request.Motivo ?? "");
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Completa el movimiento: descuenta aves del lote origen y suma al destino (si existe). El movimiento pasa a estado Completado.
+    /// </summary>
+    [HttpPost("{id:int}/completar")]
+    [ProducesResponseType(typeof(MovimientoPolloEngordeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Completar(int id)
+    {
+        try
+        {
+            var result = await _service.CompleteAsync(id);
+            if (result == null) return NotFound();
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+}
+
+public record CancelarMovimientoPolloEngordeRequest(string? Motivo);

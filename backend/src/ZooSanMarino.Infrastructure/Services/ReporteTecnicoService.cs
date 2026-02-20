@@ -413,6 +413,72 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
     #region Métodos Privados
 
+    /// <summary>Registro de seguimiento levante leído desde la tabla unificada seguimiento_diario (TipoSeguimiento = levante).</summary>
+    private sealed class SegLevanteParaReporte
+    {
+        public int Id { get; set; }
+        public int LoteId { get; set; }
+        public DateTime FechaRegistro { get; set; }
+        public int MortalidadHembras { get; set; }
+        public int MortalidadMachos { get; set; }
+        public int SelH { get; set; }
+        public int SelM { get; set; }
+        public int ErrorSexajeHembras { get; set; }
+        public int ErrorSexajeMachos { get; set; }
+        public double ConsumoKgHembras { get; set; }
+        public double? ConsumoKgMachos { get; set; }
+        public double? PesoPromH { get; set; }
+        public double? PesoPromM { get; set; }
+        public double? UniformidadH { get; set; }
+        public double? UniformidadM { get; set; }
+        public double? CvH { get; set; }
+        public double? CvM { get; set; }
+        public double? KcalAlH { get; set; }
+        public double? ProtAlH { get; set; }
+        public double? KcalAveH { get; set; }
+        public double? ProtAveH { get; set; }
+        public string? Observaciones { get; set; }
+    }
+
+    private const string TipoLevante = "levante";
+
+    /// <summary>Obtiene todos los seguimientos de levante del lote desde la tabla unificada seguimiento_diario (fase levante).</summary>
+    private async Task<List<SegLevanteParaReporte>> ObtenerSeguimientosLevanteUnificadoAsync(int loteId, CancellationToken ct)
+    {
+        var loteIdStr = loteId.ToString();
+        var list = await _ctx.SeguimientoDiario
+            .AsNoTracking()
+            .Where(s => s.TipoSeguimiento == TipoLevante && s.LoteId == loteIdStr)
+            .OrderBy(s => s.Fecha)
+            .Select(s => new SegLevanteParaReporte
+            {
+                Id = (int)s.Id,
+                LoteId = loteId,
+                FechaRegistro = s.Fecha,
+                MortalidadHembras = s.MortalidadHembras ?? 0,
+                MortalidadMachos = s.MortalidadMachos ?? 0,
+                SelH = s.SelH ?? 0,
+                SelM = s.SelM ?? 0,
+                ErrorSexajeHembras = s.ErrorSexajeHembras ?? 0,
+                ErrorSexajeMachos = s.ErrorSexajeMachos ?? 0,
+                ConsumoKgHembras = (double)(s.ConsumoKgHembras ?? 0),
+                ConsumoKgMachos = s.ConsumoKgMachos.HasValue ? (double)s.ConsumoKgMachos.Value : null,
+                PesoPromH = s.PesoPromHembras,
+                PesoPromM = s.PesoPromMachos,
+                UniformidadH = s.UniformidadHembras,
+                UniformidadM = s.UniformidadMachos,
+                CvH = s.CvHembras,
+                CvM = s.CvMachos,
+                KcalAlH = s.KcalAlH,
+                ProtAlH = s.ProtAlH,
+                KcalAveH = s.KcalAveH,
+                ProtAveH = s.ProtAveH,
+                Observaciones = s.Observaciones
+            })
+            .ToListAsync(ct);
+        return list;
+    }
+
     private async Task<bool> EsLoteEnLevanteAsync(int loteId, CancellationToken ct)
     {
         // Obtener información del lote para calcular la edad
@@ -422,10 +488,10 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
         if (lote == null || !lote.FechaEncaset.HasValue)
         {
-            // Si no hay fecha de encaset, verificar por registros
-            var tieneRegistros = await _ctx.SeguimientoLoteLevante
+            // Si no hay fecha de encaset, verificar por registros en tabla unificada (fase levante)
+            var tieneRegistros = await _ctx.SeguimientoDiario
                 .AsNoTracking()
-                .AnyAsync(s => s.LoteId == loteId, ct);
+                .AnyAsync(s => s.TipoSeguimiento == TipoLevante && s.LoteId == loteId.ToString(), ct);
             return tieneRegistros;
         }
 
@@ -443,7 +509,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
         // Está en producción por edad, pero verificar si tiene registros en producción
         var tieneProduccion = await _ctx.SeguimientoProduccion
             .AsNoTracking()
-            .AnyAsync(s => s.LoteId == loteId.ToString(), ct);
+            .AnyAsync(s => s.LoteId == loteId, ct);
         
         // Si tiene registros en producción, definitivamente está en producción
         if (tieneProduccion)
@@ -461,14 +527,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
         CancellationToken ct)
     {
         // IMPORTANTE: Para calcular correctamente aves actuales y acumulados,
-        // necesitamos TODOS los registros desde el inicio, no solo los filtrados
-        var queryTodos = _ctx.SeguimientoLoteLevante
-            .AsNoTracking()
-            .Where(s => s.LoteId == loteId)
-            .OrderBy(s => s.FechaRegistro);
-
-        // Obtener todos los registros para cálculos acumulados
-        var todosSeguimientos = await queryTodos.ToListAsync(ct);
+        // necesitamos TODOS los registros desde el inicio (tabla unificada seguimiento_diario, fase levante)
+        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
 
         // Filtrar por edad/semana: solo semanas 1-25 (levante)
         // Calcular edad para cada registro y filtrar
@@ -683,9 +743,15 @@ public class ReporteTecnicoService : IReporteTecnicoService
         DateTime? fechaFin,
         CancellationToken ct)
     {
+        var loteIdInt = int.TryParse(loteId, out var id) ? id : 0;
+        var lote = await _ctx.Lotes.AsNoTracking().FirstOrDefaultAsync(l => l.LoteId == loteIdInt, ct);
+        var loteProd = lote != null && lote.Fase != "Produccion"
+            ? await _ctx.Lotes.AsNoTracking().FirstOrDefaultAsync(l => l.LotePadreId == loteIdInt && l.Fase == "Produccion" && l.DeletedAt == null, ct)
+            : lote;
+        var loteIdSeguimiento = (loteProd ?? lote)?.LoteId ?? loteIdInt;
         var query = _ctx.SeguimientoProduccion
             .AsNoTracking()
-            .Where(s => s.LoteId == loteId);
+            .Where(s => s.LoteId == loteIdSeguimiento);
 
         if (fechaInicio.HasValue)
             query = query.Where(s => s.Fecha >= fechaInicio.Value);
@@ -700,21 +766,11 @@ public class ReporteTecnicoService : IReporteTecnicoService
         if (!fechaEncaset.HasValue)
             return new List<ReporteTecnicoDiarioDto>();
 
-        // Obtener lote para información inicial
-        var loteIdInt = int.TryParse(loteId, out var id) ? id : 0;
-        var lote = await _ctx.Lotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.LoteId == loteIdInt, ct);
-
         if (lote == null)
             return new List<ReporteTecnicoDiarioDto>();
 
-        var produccionLote = await _ctx.ProduccionLotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.LoteId == loteId, ct);
-
-        var avesIniciales = produccionLote != null 
-            ? produccionLote.AvesInicialesH + produccionLote.AvesInicialesM
+        var avesIniciales = loteProd != null
+            ? (loteProd.HembrasInicialesProd ?? 0) + (loteProd.MachosInicialesProd ?? 0)
             : (lote.HembrasL ?? 0) + (lote.MachosL ?? 0);
 
         var datosDiarios = new List<ReporteTecnicoDiarioDto>();
@@ -1166,12 +1222,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
         var sublote = ExtraerSublote(lote.LoteNombre);
         infoLote.Sublote = sublote;
 
-        // Obtener todos los registros de seguimiento de levante (solo semanas 1-25)
-        var todosSeguimientos = await _ctx.SeguimientoLoteLevante
-            .AsNoTracking()
-            .Where(s => s.LoteId == loteId)
-            .OrderBy(s => s.FechaRegistro)
-            .ToListAsync(ct);
+        // Obtener todos los registros de seguimiento de levante desde tabla unificada (fase levante)
+        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
 
         // Filtrar solo semanas de levante (1-25)
         var seguimientos = todosSeguimientos.Where(seg =>
@@ -1601,13 +1653,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var machosIniciales = lote.MachosL ?? 0;
             var granjaId = lote.GranjaId;
         
-        // Obtener todos los registros de seguimiento (para cálculos acumulados correctos)
-        var queryTodos = _ctx.SeguimientoLoteLevante
-            .AsNoTracking()
-            .Where(s => s.LoteId == loteId)
-            .OrderBy(s => s.FechaRegistro);
-        
-        var todosSeguimientos = await queryTodos.ToListAsync(ct);
+        // Obtener todos los registros de seguimiento desde tabla unificada (fase levante)
+        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
         
         // Filtrar solo semanas de levante (1-25)
         todosSeguimientos = todosSeguimientos.Where(seg =>
@@ -1866,13 +1913,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
             var hembrasIniciales = lote.HembrasL ?? 0;
             var granjaId = lote.GranjaId;
         
-        // Obtener todos los registros de seguimiento (para cálculos acumulados correctos)
-        var queryTodos = _ctx.SeguimientoLoteLevante
-            .AsNoTracking()
-            .Where(s => s.LoteId == loteId)
-            .OrderBy(s => s.FechaRegistro);
-        
-        var todosSeguimientos = await queryTodos.ToListAsync(ct);
+        // Obtener todos los registros de seguimiento desde tabla unificada (fase levante)
+        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
         
         // Filtrar solo semanas de levante (1-25)
         todosSeguimientos = todosSeguimientos.Where(seg =>

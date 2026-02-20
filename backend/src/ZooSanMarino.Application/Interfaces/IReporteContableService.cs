@@ -19,5 +19,12 @@ public interface IReporteContableService
     Task<List<int>> ObtenerSemanasContablesAsync(
         int lotePadreId,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Obtiene el reporte de movimientos de huevos para un lote padre
+    /// </summary>
+    Task<ReporteMovimientosHuevosDto> ObtenerReporteMovimientosHuevosAsync(
+        ObtenerReporteMovimientosHuevosRequestDto request,
+        CancellationToken ct = default);
 }
 

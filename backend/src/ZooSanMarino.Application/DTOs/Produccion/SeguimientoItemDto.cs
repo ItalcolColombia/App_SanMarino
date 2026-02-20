@@ -39,10 +39,11 @@ public record SeguimientoItemDto(
     decimal? CoeficienteVariacion,
     string? ObservacionesPesaje,
     // Campos de agua (solo para Ecuador y Panamá)
-    decimal? ConsumoAguaDiario, // Consumo diario de agua en litros
-    decimal? ConsumoAguaPh, // Nivel de PH del agua
-    decimal? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
-    decimal? ConsumoAguaTemperatura // Temperatura del agua en °C
+    // NOTA: Usar double? para coincidir con double precision en PostgreSQL
+    double? ConsumoAguaDiario, // Consumo diario de agua en litros
+    double? ConsumoAguaPh, // Nivel de PH del agua
+    double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    double? ConsumoAguaTemperatura // Temperatura del agua en °C
 );
 
 
