@@ -23,6 +23,18 @@
           <span>Movimientos</span>
         </button>
 
+        <!-- Tab de Movimiento Alimento oculto temporalmente -->
+        <!--
+        <button type="button"
+                class="tab-btn"
+                [class.active]="activeTab==='movimiento-alimento'"
+                (click)="setTab('movimiento-alimento')"
+                [attr.aria-pressed]="activeTab==='movimiento-alimento'">
+          <fa-icon [icon]="faAlimento" aria-hidden="true"></fa-icon>
+          <span>Movimiento Alimento</span>
+        </button>
+        -->
+
         <button type="button"
                 class="tab-btn"
                 [class.active]="activeTab==='ajuste'"
@@ -78,6 +90,13 @@
       <ng-container *ngIf="activeTab==='movimientos'">
         <app-movimientos-unificado-form></app-movimientos-unificado-form>
       </ng-container>
+
+      <!-- Tab de Movimiento Alimento oculto temporalmente -->
+      <!--
+      <ng-container *ngIf="activeTab==='movimiento-alimento'">
+        <app-movimiento-alimento-form></app-movimiento-alimento-form>
+      </ng-container>
+      -->
 
       <ng-container *ngIf="activeTab==='ajuste'">
         <app-ajuste-form></app-ajuste-form>

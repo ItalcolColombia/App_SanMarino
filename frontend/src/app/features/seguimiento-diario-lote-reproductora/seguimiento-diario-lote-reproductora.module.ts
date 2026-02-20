@@ -9,7 +9,7 @@ import { RouterModule } from '@angular/router';
         loadComponent: () =>
           import('./pages/seguimiento-diario-lote-reproductora-list/seguimiento-diario-lote-reproductora-list.component')
             .then(m => m.SeguimientoDiarioLoteReproductoraListComponent),
-        title: 'Seguimiento Diario Lote Reproductora'
+        title: 'Seguimiento Reproductora Aves Engorde'
       }
     ])
   ]

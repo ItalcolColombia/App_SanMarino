@@ -27,7 +27,7 @@
         <fa-icon [icon]="faKey" class="mr-1" aria-hidden="true"></fa-icon> Permisos
       </button>
 
-      <button (click)="activeTab='menus'" class="px-4 py-2 rounded-lg transition"
+      <button (click)="activeTab='menus'; loadMenusForTab()" class="px-4 py-2 rounded-lg transition"
               [class.bg-warm-gray-100]="activeTab==='menus'" [class.font-semibold]="activeTab==='menus'">
         <fa-icon [icon]="faKey" class="mr-1 rotate-90" aria-hidden="true"></fa-icon> Menús
       </button>
@@ -43,7 +43,7 @@
           <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon> Nuevo Permiso
         </button>
 
-        <button *ngIf="activeTab==='menus'" (click)="abrirModalMenu()"
+        <button *ngIf="activeTab==='menus' && isAdminUser" (click)="abrirModalMenu()"
                 class="inline-flex items-center px-4 py-2 bg-chicken-yellow text-warm-gray-900 rounded-lg hover:-translate-y-0.5 hover:shadow transition">
           <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon> Nuevo Menú
         </button>
@@ -98,7 +98,10 @@
           <!-- HEADERS: Menús (no usamos tabla para cuerpo, mostramos árbol UX) -->
           <thead *ngIf="activeTab==='menus'">
             <tr>
-              <th scope="col">Estructura</th>
+              <th scope="col">
+                <span *ngIf="isAdminUser">Menús globales</span>
+                <span *ngIf="!isAdminUser">Menús de la empresa: {{ companiesMap[activeCompanyId ?? 0] || '—' }}</span>
+              </th>
             </tr>
           </thead>
 
@@ -220,22 +223,65 @@
               <td class="p-0">
                 <div class="p-3">
                   <!-- Estado de carga -->
-                  <div *ngIf="loading" class="empty-state my-6">
+                  <div *ngIf="tabMenusLoading" class="empty-state my-6">
                     <div class="inline-flex items-center gap-2">
                       <div class="spinner" aria-hidden="true"></div> Cargando menús…
                     </div>
                   </div>
 
-                  <!-- Vacío -->
-                  <div *ngIf="!loading && (!filteredMenus?.length)" class="empty-state my-6">
-                    <p>Sin menús</p>
-                    <button (click)="abrirModalMenu()" class="btn-primary mt-2">
-                      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon> Crear menú
-                    </button>
+                  <!-- Sin empresa activa (no admin) -->
+                  <div *ngIf="!tabMenusLoading && !isAdminUser && (activeCompanyId == null)" class="empty-state my-6">
+                    <p>Seleccione una empresa activa para ver sus menús.</p>
                   </div>
 
-                  <!-- Árbol -->
-                  <ul class="space-y-1">
+                  <!-- Vacío -->
+                  <div *ngIf="!tabMenusLoading && (isAdminUser || activeCompanyId != null) && (!filteredMenus?.length)" class="empty-state my-6">
+                    <p>Sin menús</p>
+                    <button *ngIf="isAdminUser" (click)="abrirModalMenu()" class="btn-primary mt-2">
+                      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon> Crear menú
+                    </button>
+                    <p *ngIf="!isAdminUser" class="text-sm text-warm-gray-600 mt-2">Asigne menús a la empresa desde Gestión de Empresas.</p>
+                  </div>
+
+                  <!-- Lista arrastrable (sin filtro) -->
+                  <div *ngIf="!tabMenusLoading && !filterMenus?.trim() && menuFlatList.length && (isAdminUser || activeCompanyId != null)"
+                       class="space-y-1">
+                    <p class="text-xs text-warm-gray-500 mb-2">Arrastre para reordenar o cambiar jerarquía. Los cambios se guardan al soltar.</p>
+                    <ul cdkDropList (cdkDropListDropped)="onMenuDrop($event)" [cdkDropListData]="menuFlatList" class="space-y-1">
+                      <li *ngFor="let item of menuFlatList; let i = index; trackBy: trackByMenuFlatId" cdkDrag
+                          [style.padding-left.rem]="item.depth * 1.5 + 0.5"
+                          class="rounded-lg border bg-white cursor-grab active:cursor-grabbing">
+                        <div class="flex items-center justify-between px-3 py-2">
+                          <div class="flex items-center gap-2 flex-1 min-w-0">
+                            <fa-icon [icon]="faGripVertical" class="text-warm-gray-400 shrink-0" cdkDragHandle aria-hidden="true"></fa-icon>
+                            <fa-icon [icon]="item.node.isGroup ? faFolder : faFile" class="text-warm-gray-600 shrink-0" aria-hidden="true"></fa-icon>
+                            <div class="min-w-0">
+                              <div class="font-medium">{{ item.node.label || item.node.key }}</div>
+                              <div class="text-xs text-warm-gray-500 flex flex-wrap gap-2">
+                                <span class="mono">key: {{ item.node.key }}</span>
+                                <span *ngIf="item.node.route">ruta: {{ item.node.route }}</span>
+                                <span *ngIf="item.node.icon">icono: {{ item.node.icon }}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div *ngIf="isAdminUser" class="inline-flex items-center gap-2 shrink-0">
+                            <button (click)="abrirModalMenu(item.node)" class="icon-btn" title="Editar menú">
+                              <fa-icon [icon]="faPen"></fa-icon>
+                            </button>
+                            <button (click)="eliminarMenu(item.node)" class="icon-btn danger" title="Eliminar menú">
+                              <fa-icon [icon]="faTrash"></fa-icon>
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    </ul>
+                    <p *ngIf="menuStructureSaving" class="text-xs text-warm-gray-500 mt-2">
+                      <span class="spinner inline-block w-3 h-3 mr-1"></span> Guardando orden…
+                    </p>
+                  </div>
+
+                  <!-- Árbol (con filtro o cuando no hay lista plana) -->
+                  <ul *ngIf="!tabMenusLoading && (filterMenus?.trim() || !menuFlatList.length) && (filteredMenus?.length)" class="space-y-1">
                     <ng-container *ngFor="let node of filteredMenus; trackBy: trackByMenuId">
                       <li class="rounded-lg border bg-white">
                         <div class="flex items-center justify-between px-3 py-2">
@@ -251,8 +297,7 @@
                               </div>
                             </div>
                           </div>
-
-                          <div class="inline-flex items-center gap-2">
+                          <div *ngIf="isAdminUser" class="inline-flex items-center gap-2">
                             <button (click)="abrirModalMenu(node)" class="icon-btn" title="Editar menú">
                               <fa-icon [icon]="faPen"></fa-icon>
                             </button>
@@ -261,8 +306,6 @@
                             </button>
                           </div>
                         </div>
-
-                        <!-- Hijos -->
                         <ng-container *ngIf="node.children?.length">
                           <div class="px-3 pb-3">
                             <ul class="pl-4 border-l space-y-1">
@@ -281,7 +324,7 @@
                                         </div>
                                       </div>
                                     </div>
-                                    <div class="inline-flex items-center gap-2">
+                                    <div *ngIf="isAdminUser" class="inline-flex items-center gap-2">
                                       <button (click)="abrirModalMenu(ch)" class="icon-btn" title="Editar menú">
                                         <fa-icon [icon]="faPen"></fa-icon>
                                       </button>
@@ -290,8 +333,6 @@
                                       </button>
                                     </div>
                                   </div>
-
-                                  <!-- Nietos (nivel 3 opcional) -->
                                   <ng-container *ngIf="ch.children?.length">
                                     <div class="px-3 pb-3">
                                       <ul class="pl-4 border-l space-y-1">
@@ -309,7 +350,7 @@
                                                 </div>
                                               </div>
                                             </div>
-                                            <div class="inline-flex items-center gap-2">
+                                            <div *ngIf="isAdminUser" class="inline-flex items-center gap-2">
                                               <button (click)="abrirModalMenu(g)" class="icon-btn" title="Editar menú">
                                                 <fa-icon [icon]="faPen"></fa-icon>
                                               </button>
@@ -401,13 +442,13 @@
         <p class="px-3 pb-2 text-[11px] text-warm-gray-500">Selecciona uno o más permisos para este rol.</p>
       </fieldset>
 
-      <!-- Empresas -->
+      <!-- Empresas: admin elige cualquier empresa; no admin solo la empresa activa en sesión -->
       <fieldset class="col-span-12 lg:col-span-6 rounded-xl border bg-white/60">
         <legend class="px-2 -ml-1 text-sm font-semibold text-warm-gray-700">
           Asignar a Empresas <span class="text-red-600">*</span>
         </legend>
 
-        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-auto pr-2">
+        <div *ngIf="isAdminUser" class="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-auto pr-2">
           <label *ngFor="let c of companies" class="flex items-center gap-2 rounded px-2 py-1 hover:bg-warm-gray-100">
             <input type="checkbox"
                    [checked]="form.controls['companyIds'].value.includes(c.id)"
@@ -417,15 +458,36 @@
           </label>
         </div>
 
-        <p class="px-3 pb-2 text-[11px] text-warm-gray-500">El rol estará disponible en las empresas seleccionadas.</p>
+        <div *ngIf="!isAdminUser" class="p-3">
+          <p class="text-sm text-warm-gray-700">
+            Este rol se asigna a la <strong>empresa activa</strong> en sesión:
+            <span class="font-semibold text-brand-red">{{ companiesMap[activeCompanyId ?? 0] || '—' }}</span>
+          </p>
+          <p class="text-[11px] text-warm-gray-500 mt-1">Solo un administrador puede asignar el rol a otras empresas.</p>
+        </div>
+
+        <p class="px-3 pb-2 text-[11px] text-warm-gray-500">Los menús se cargan según la primera empresa seleccionada.</p>
       </fieldset>
 
-      <!-- Menús (checkbox a partir del árbol aplanado) -->
+      <!-- Menús (solo los asignados a la empresa seleccionada; filtrados por company_menus) -->
       <fieldset class="col-span-12 rounded-xl border bg-white/60">
         <legend class="px-2 -ml-1 text-sm font-semibold text-warm-gray-700">Menús</legend>
 
-        <div class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-auto pr-2">
-          <label *ngFor="let m of flatMenus" class="flex items-center gap-2 rounded px-2 py-1 hover:bg-warm-gray-100">
+        <div *ngIf="!(form.controls['companyIds'].value?.length)" class="p-3 text-center text-warm-gray-500 text-sm">
+          Seleccione al menos una empresa arriba para cargar los menús disponibles de esa empresa.
+        </div>
+
+        <div *ngIf="roleModalMenusLoading && form.controls['companyIds'].value?.length" class="p-3 flex items-center justify-center gap-2 text-warm-gray-600">
+          <span class="spinner" aria-hidden="true"></span>
+          Cargando menús de la empresa…
+        </div>
+
+        <div *ngIf="!roleModalMenusLoading && form.controls['companyIds'].value?.length && roleModalFlatMenus.length === 0" class="p-3 text-center text-warm-gray-500 text-sm">
+          La empresa seleccionada no tiene menús asignados. Asígnele menús desde <strong>Gestión de Empresas → Menú</strong>.
+        </div>
+
+        <div *ngIf="!roleModalMenusLoading && roleModalFlatMenus.length > 0" class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-auto pr-2">
+          <label *ngFor="let m of roleModalFlatMenus" class="flex items-center gap-2 rounded px-2 py-1 hover:bg-warm-gray-100">
             <input type="checkbox"
                    [checked]="form.controls['menuIds'].value.includes(m.id)"
                    (change)="toggleMenu(m.id)"
@@ -437,7 +499,7 @@
           </label>
         </div>
 
-        <p class="px-3 pb-2 text-[11px] text-warm-gray-500">Selecciona los ítems de menú visibles para este rol.</p>
+        <p *ngIf="roleModalFlatMenus.length > 0" class="px-3 pb-2 text-[11px] text-warm-gray-500">Menús asignados a la empresa seleccionada. Marque los visibles para este rol.</p>
       </fieldset>
 
       <!-- Footer -->

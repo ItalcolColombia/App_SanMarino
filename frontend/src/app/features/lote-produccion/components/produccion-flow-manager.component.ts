@@ -1,8 +1,7 @@
 // src/app/features/lote-produccion/components/produccion-flow-manager.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LoteProduccionService } from '../services/lote-produccion.service';
-import { ProduccionLoteService } from '../services/produccion-lote.service';
 
 export interface ProduccionFlowState {
   loteId: string;
@@ -30,20 +29,20 @@ export interface ProduccionFlowState {
         <button (click)="retryCheck()" class="retry-btn">Reintentar</button>
       </div>
 
-      <!-- Paso 1: Configurar ProduccionLote -->
+      <!-- Paso 1: Crear lote en fase Producción (Opción B: lote hijo) -->
       <div *ngIf="!state.isLoading && !state.error && !state.hasProduccionLoteConfig" class="step-1">
         <div class="step-header">
-          <h3>Paso 1: Configuración Inicial del Lote</h3>
-          <p>Este lote necesita configuración inicial antes de registrar producción diaria.</p>
+          <h3>Paso 1: Registro inicial de producción</h3>
+          <p>Este lote necesita un registro inicial (lote en fase Producción) antes de registrar producción diaria.</p>
         </div>
         <div class="step-content">
           <button (click)="openProduccionLoteModal()" class="btn-primary">
-            Configurar Lote de Producción
+            Crear registro inicial de producción
           </button>
         </div>
       </div>
 
-      <!-- Paso 2: Registrar ProduccionDiaria -->
+      <!-- Paso 2: Registrar Producción Diaria -->
       <div *ngIf="!state.isLoading && !state.error && state.hasProduccionLoteConfig" class="step-2">
         <div class="step-header">
           <h3>Paso 2: Registro Diario de Producción</h3>
@@ -153,13 +152,12 @@ export interface ProduccionFlowState {
     }
   `]
 })
-export class ProduccionFlowManagerComponent implements OnInit {
+export class ProduccionFlowManagerComponent implements OnInit, OnChanges {
   @Input() loteId: string = '';
   @Output() openProduccionLote = new EventEmitter<void>();
   @Output() openProduccionDiaria = new EventEmitter<void>();
 
   private loteProduccionService = inject(LoteProduccionService);
-  private produccionLoteService = inject(ProduccionLoteService);
 
   state: ProduccionFlowState = {
     loteId: '',
@@ -167,14 +165,15 @@ export class ProduccionFlowManagerComponent implements OnInit {
     isLoading: true
   };
 
-  ngOnInit() {
+  ngOnInit(): void {
     if (this.loteId) {
       this.checkProduccionLoteConfig();
     }
   }
 
-  ngOnChanges() {
-    if (this.loteId && this.loteId !== this.state.loteId) {
+  ngOnChanges(changes: SimpleChanges): void {
+    const loteIdChange = changes['loteId'];
+    if (loteIdChange && this.loteId && this.loteId !== this.state.loteId) {
       this.checkProduccionLoteConfig();
     }
   }

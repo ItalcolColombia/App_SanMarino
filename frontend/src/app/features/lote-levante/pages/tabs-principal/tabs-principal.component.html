@@ -49,6 +49,38 @@
 
         <h3>Información General del Lote</h3>
 
+        <!-- Resumen de descuentos sobre el lote (historial: inicio, mortalidad, descarte, saldo) -->
+        <div class="resumen-descuentos ux-card" *ngIf="resumenLevante">
+          <h4>Descuentos sobre el lote en Levante</h4>
+          <p class="resumen-descuentos__intro">Las reducciones por mortalidad, descarte (selección) y error de sexaje se descontan del inicio del lote. El saldo es el que se usa en cálculos.</p>
+          <div class="resumen-descuentos__grid">
+            <div class="resumen-descuentos__block">
+              <span class="resumen-descuentos__label">Inicio (historial)</span>
+              <span class="resumen-descuentos__value">{{ resumenLevante.hembrasIniciales | number:'1.0-0' }} H / {{ resumenLevante.machosIniciales | number:'1.0-0' }} M</span>
+            </div>
+            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
+              <span class="resumen-descuentos__label">Mort. caja</span>
+              <span class="resumen-descuentos__value">{{ resumenLevante.mortCajaHembras | number:'1.0-0' }} H / {{ resumenLevante.mortCajaMachos | number:'1.0-0' }} M</span>
+            </div>
+            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
+              <span class="resumen-descuentos__label">Mortalidad acum.</span>
+              <span class="resumen-descuentos__value">{{ resumenLevante.mortalidadAcumHembras | number:'1.0-0' }} H / {{ resumenLevante.mortalidadAcumMachos | number:'1.0-0' }} M</span>
+            </div>
+            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
+              <span class="resumen-descuentos__label">Descarte (sel) acum.</span>
+              <span class="resumen-descuentos__value">{{ resumenLevante.selAcumHembras | number:'1.0-0' }} H / {{ resumenLevante.selAcumMachos | number:'1.0-0' }} M</span>
+            </div>
+            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
+              <span class="resumen-descuentos__label">Error sexaje acum.</span>
+              <span class="resumen-descuentos__value">{{ resumenLevante.errorSexajeAcumHembras | number:'1.0-0' }} H / {{ resumenLevante.errorSexajeAcumMachos | number:'1.0-0' }} M</span>
+            </div>
+            <div class="resumen-descuentos__block resumen-descuentos__block--saldo">
+              <span class="resumen-descuentos__label">Saldo actual (aves vivas)</span>
+              <span class="resumen-descuentos__value">{{ resumenLevante.saldoHembras | number:'1.0-0' }} H / {{ resumenLevante.saldoMachos | number:'1.0-0' }} M</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Resumen General -->
         <div class="resumen-grid" *ngIf="selectedLote">
           <div class="resumen-card">
@@ -109,7 +141,7 @@
                   <td colspan="11" class="empty-state">
                     <div class="empty-illustration" aria-hidden="true">📄</div>
                     <p>Sin registros para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="onCreate()">
+                    <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No hay aves disponibles o lote cerrado' : 'Crear el primero'">
                       Crear el primero
                     </button>
                   </td>
@@ -128,8 +160,9 @@
                   <td>{{ s.pesoPromM ?? 0 | number:'1.2-2' }}</td>
                   <td class="text-right">
                     <div class="btn-group">
-                      <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar">✎</button>
-                      <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" title="Eliminar">🗑️</button>
+                      <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle">👁️</button>
+                      <button type="button" (click)="onEdit(s)" class="icon-btn" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede editar' : 'Editar'">✎</button>
+                      <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar'">🗑️</button>
                     </div>
                   </td>
                 </tr>

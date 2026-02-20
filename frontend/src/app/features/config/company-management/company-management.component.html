@@ -49,76 +49,84 @@
       </div>
     </div>
 
-    <!-- Tabla -->
-    <div class="ux-card">
-      <div class="ux-scroll">
-        <table class="ux-table">
-          <caption class="sr-only">Listado de empresas</caption>
+    <!-- Tabla con scroll horizontal y columnas organizadas -->
+    <div class="ux-card table-card">
+      <div class="table-wrapper">
+        <div class="ux-scroll">
+          <table class="ux-table company-table">
+            <caption class="sr-only">Listado de empresas</caption>
 
-          <thead>
-            <tr>
-              <th scope="col">Nombre</th>
-              <th scope="col">Tipo ID</th>
-              <th scope="col">Número ID</th>
-              <th scope="col">Dirección</th>
-              <th scope="col">Teléfono</th>
-              <th scope="col">Correo</th>
-              <th scope="col">País</th>
-              <th scope="col">Países de Operación</th>
-              <th scope="col">Departamento</th>
-              <th scope="col">Ciudad</th>
-              <th scope="col" class="text-center">Móvil</th>
-              <th scope="col" class="text-center">Roles</th>
-              <th scope="col" class="text-center">Módulos</th>
-              <th scope="col" class="text-right">Acciones</th>
-            </tr>
-          </thead>
+            <thead>
+              <tr>
+                <th scope="col" class="col-name">Nombre</th>
+                <th scope="col" class="col-id-type">Tipo ID</th>
+                <th scope="col" class="col-id-num">Número ID</th>
+                <th scope="col" class="col-contact">Dirección</th>
+                <th scope="col" class="col-contact">Teléfono</th>
+                <th scope="col" class="col-contact">Correo</th>
+                <th scope="col" class="col-location">País</th>
+                <th scope="col" class="col-paises">Países de Operación</th>
+                <th scope="col" class="col-location">Depto.</th>
+                <th scope="col" class="col-location">Ciudad</th>
+                <th scope="col" class="col-icon text-center">Móvil</th>
+                <th scope="col" class="col-icon text-center">Roles</th>
+                <th scope="col" class="col-icon text-center">Módulos</th>
+                <th scope="col" class="col-icon text-center">Menú</th>
+                <th scope="col" class="col-actions text-right">Acciones</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            <tr *ngFor="let c of filteredList" class="ux-row">
-              <td>{{ c.name }}</td>
-              <td>{{ c.documentType }}</td>
-              <td>{{ c.identifier }}</td>
-              <td>{{ c.address }}</td>
-              <td>{{ c.phone }}</td>
-              <td>
-                <a class="hover:underline" [href]="'mailto:' + c.email">{{ c.email }}</a>
-              </td>
+            <tbody>
+              <tr *ngFor="let c of filteredList" class="ux-row">
+                <td class="col-name"><span class="cell-text" [title]="c.name">{{ c.name }}</span></td>
+                <td class="col-id-type"><span class="cell-text">{{ c.documentType }}</span></td>
+                <td class="col-id-num"><span class="cell-text">{{ c.identifier }}</span></td>
+                <td class="col-contact"><span class="cell-text" [title]="c.address">{{ c.address || '—' }}</span></td>
+                <td class="col-contact"><span class="cell-text">{{ c.phone || '—' }}</span></td>
+                <td class="col-contact">
+                  <a *ngIf="c.email" class="cell-link" [href]="'mailto:' + c.email" [title]="c.email">{{ c.email }}</a>
+                  <span *ngIf="!c.email" class="cell-text">—</span>
+                </td>
+                <td class="col-location"><span class="cell-text">{{ displayCountry(c) }}</span></td>
+                <td class="col-paises">
+                  <div class="cell-chips">
+                    <span
+                      *ngFor="let pais of getCompanyPaises(c.id)"
+                      class="chip-item">
+                      {{ pais.paisNombre }}
+                    </span>
+                    <span *ngIf="getCompanyPaises(c.id).length === 0" class="cell-muted">Sin países</span>
+                  </div>
+                </td>
+                <td class="col-location"><span class="cell-text">{{ displayDept(c) }}</span></td>
+                <td class="col-location"><span class="cell-text">{{ displayCity(c) }}</span></td>
 
-              <!-- Nombres (fallback si vienen strings legacy) -->
-              <td>{{ displayCountry(c) }}</td>
-              <td>
-                <div class="flex flex-wrap gap-1">
-                  <span
-                    *ngFor="let pais of getCompanyPaises(c.id)"
-                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-red/10 text-brand-red border border-brand-red/20">
-                    {{ pais.paisNombre }}
-                  </span>
-                  <span *ngIf="getCompanyPaises(c.id).length === 0" class="text-warm-gray-400 text-xs">
-                    Sin países asignados
-                  </span>
-                </div>
-              </td>
-              <td>{{ displayDept(c) }}</td>
-              <td>{{ displayCity(c) }}</td>
+                <td class="col-icon text-center">
+                  <fa-icon
+                    [icon]="faMobileAlt"
+                    [class.text-brand-red]="c.mobileAccess"
+                    [class.text-warm-gray-400]="!c.mobileAccess"
+                    aria-hidden="true">
+                  </fa-icon>
+                </td>
+                <td class="col-icon text-center">{{ c?.roleIds?.length || 0 }}</td>
+                <td class="col-icon text-center">{{ c.visualPermissions?.length || 0 }}</td>
 
-              <td class="text-center">
-                <fa-icon
-                  [icon]="faMobileAlt"
-                  [class.text-brand-red]="c.mobileAccess"
-                  [class.text-warm-gray-400]="!c.mobileAccess"
-                  aria-hidden="true">
-                </fa-icon>
-              </td>
-              <td class="text-center">{{ c?.roleIds?.length || 0 }}</td>
-              <td class="text-center">{{ c.visualPermissions?.length || 0 }}</td>
+                <td class="col-icon text-center">
+                  <button (click)="openMenuView(c)" class="icon-btn" [attr.aria-label]="'Ver menú de ' + c.name" title="Ver menú">
+                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                  </button>
+                </td>
 
-              <td class="text-right">
+                <td class="col-actions text-right">
                 <div class="inline-flex items-center gap-2">
                   <button (click)="openModal(c)" class="icon-btn" [attr.aria-label]="'Editar ' + c.name" title="Editar">
                     <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                   </button>
-                  <button (click)="delete(c.id!)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + c.name" title="Eliminar">
+                  <button (click)="openMenuEdit(c)" class="icon-btn" [attr.aria-label]="'Menú de ' + c.name" title="Asignar menú">
+                    <fa-icon [icon]="faListUl" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button (click)="openConfirmDelete(c)" class="icon-btn danger" [attr.aria-label]="'Eliminar ' + c.name" title="Eliminar">
                     <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
                   </button>
                 </div>
@@ -126,7 +134,7 @@
             </tr>
 
             <tr *ngIf="!filteredList?.length">
-              <td colspan="14" class="empty-state">
+              <td colspan="15" class="empty-state">
                 <div class="empty-illustration">🏢</div>
                 <p *ngIf="filterPaisId === null">No hay empresas registradas.</p>
                 <p *ngIf="filterPaisId !== null">No hay empresas asignadas al país seleccionado.</p>
@@ -141,24 +149,124 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Overlay de carga sobre la card -->
       <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-        <div class="spinner"></div>
-        Cargando…
+        <div class="loading-overlay-content">
+          <div class="spinner spinner-lg"></div>
+          <p class="loading-text">Cargando información…</p>
+        </div>
       </div>
     </div>
 
-    <!-- Toast de carga -->
-    <div *ngIf="loading" class="loading-toast">
-      <div class="inline-flex items-center gap-2">
-        <span class="spinner"></span>
-        Cargando…
-      </div>
+    <!-- Toast de feedback (éxito / error) -->
+    <div *ngIf="toastVisible" class="toast-feedback" [class.toast-success]="toastType === 'success'" [class.toast-error]="toastType === 'error'" role="alert">
+      <span class="toast-message">{{ toastMessage }}</span>
+      <button type="button" (click)="closeToast()" class="toast-close" aria-label="Cerrar">×</button>
     </div>
   </div>
 </div>
+
+<!-- MODAL: Confirmar eliminar empresa -->
+<div *ngIf="confirmDeleteOpen"
+     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title">
+  <div class="modal-confirm">
+    <h2 id="confirm-delete-title" class="modal-confirm-title">Confirmar eliminación</h2>
+    <p class="modal-confirm-text">
+      ¿Está seguro de eliminar la empresa <strong>{{ confirmDeleteName }}</strong>? Esta acción no se puede deshacer.
+    </p>
+    <div class="modal-confirm-actions">
+      <button type="button" (click)="cancelConfirmDelete()" class="btn-ghost">Cancelar</button>
+      <button type="button" (click)="confirmDelete()" class="btn-danger" [disabled]="loading">
+        {{ loading ? 'Eliminando…' : 'Sí, eliminar' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Ver menú de la empresa (solo lectura) -->
+<div *ngIf="menuViewModalOpen"
+     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="menu-view-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+    <div class="flex items-center justify-between p-4 border-b">
+      <h2 id="menu-view-title" class="text-xl font-bold text-brand-red">
+        Menú de la empresa: {{ menuViewCompanyName }}
+      </h2>
+      <button type="button" (click)="closeMenuView()" class="btn-ghost">Cerrar</button>
+    </div>
+    <div class="p-4 overflow-auto flex-1">
+      <p *ngIf="menuViewLoading" class="text-warm-gray-600">Cargando…</p>
+      <div *ngIf="!menuViewLoading && menuViewTree.length === 0" class="text-warm-gray-500 py-4">
+        Esta empresa no tiene menús asignados. Use el botón «Menú» en acciones para asignarlos.
+      </div>
+      <ul *ngIf="!menuViewLoading && menuViewTree.length > 0" class="space-y-1 list-none pl-0">
+        <ng-container *ngTemplateOutlet="companyMenuTreeView; context: { items: menuViewTree }"></ng-container>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<ng-template #companyMenuTreeView let-items="items">
+  <ng-container *ngFor="let item of items">
+    <li class="py-1">
+      <span class="font-medium">{{ item.label }}</span>
+      <span *ngIf="item.isEnabled === false" class="ml-2 text-xs text-amber-600">(deshabilitado)</span>
+      <ul *ngIf="item.children?.length" class="list-none pl-4 mt-1 space-y-1 border-l border-warm-gray-200">
+        <ng-container *ngTemplateOutlet="companyMenuTreeView; context: { items: item.children }"></ng-container>
+      </ul>
+    </li>
+  </ng-container>
+</ng-template>
+
+<!-- MODAL: Asignar menú a la empresa (edición) -->
+<div *ngIf="menuEditModalOpen"
+     class="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50"
+     role="dialog" aria-modal="true" aria-labelledby="menu-edit-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+    <div class="flex items-center justify-between p-4 border-b">
+      <h2 id="menu-edit-title" class="text-xl font-bold text-brand-red">
+        Asignar menú: {{ menuEditCompanyName }}
+      </h2>
+      <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cerrar</button>
+    </div>
+    <div class="p-4 overflow-auto flex-1">
+      <p *ngIf="menuEditLoading" class="text-warm-gray-600">Cargando…</p>
+      <div *ngIf="!menuEditLoading" class="space-y-2">
+        <p class="text-sm text-warm-gray-600">Marque los ítems de menú que tendrá esta empresa.</p>
+        <ul class="list-none pl-0 space-y-1">
+          <ng-container *ngTemplateOutlet="companyMenuTreeEdit; context: { items: menuEditTree }"></ng-container>
+        </ul>
+      </div>
+    </div>
+    <div class="p-4 border-t flex justify-end gap-2">
+      <button type="button" (click)="closeMenuEdit()" class="btn-ghost">Cancelar</button>
+      <button type="button" (click)="saveCompanyMenus()" class="btn-primary" [disabled]="menuEditSaving">
+        {{ menuEditSaving ? 'Guardando…' : 'Guardar menú' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<ng-template #companyMenuTreeEdit let-items="items">
+  <ng-container *ngFor="let node of items">
+    <li class="py-1">
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox"
+               [checked]="isMenuIdSelected(node.id)"
+               (change)="toggleMenuSelection(node.id)"
+               class="h-4 w-4 text-brand-red rounded border-warm-gray-300 focus:ring-brand-red/60"/>
+        <span>{{ node.label }}</span>
+      </label>
+      <ul *ngIf="node.children?.length" class="list-none pl-6 mt-1 space-y-1 border-l border-warm-gray-200">
+        <ng-container *ngTemplateOutlet="companyMenuTreeEdit; context: { items: node.children }"></ng-container>
+      </ul>
+    </li>
+  </ng-container>
+</ng-template>
 
 <!-- MODAL: Wizard Empresa -->
 <div *ngIf="modalOpen"

@@ -11,7 +11,7 @@ import { environment } from '../../../../environments/environment';
 export interface LoteSeguimientoDto {
   id: number;
   fecha: string;             // ISO (p.ej. '2025-03-10T00:00:00.000Z')
-  loteId: string;
+  loteId: number;            // Convertido a number desde string
   reproductoraId: string;
   mortalidadH: number;
   mortalidadM: number;
@@ -20,14 +20,31 @@ export interface LoteSeguimientoDto {
   errorH: number;
   errorM: number;
   tipoAlimento: string;
-  consumoAlimento: number;   // ← en UI: consumoKgHembras
+  consumoAlimento: number;   // Consumo para hembras (en kg)
+  consumoKgMachos?: number | null; // Consumo para machos (en kg)
   observaciones?: string | null;
-  pesoInicial?: number | null; // opcionales para extender
-  pesoFinal?: number | null;   // opcionales para extender
+  pesoInicial?: number | null;
+  pesoFinal?: number | null;
+  ciclo?: string | null; // 'Normal' | 'Reforzado'
+  // Campos de peso y uniformidad
+  pesoPromH?: number | null;
+  pesoPromM?: number | null;
+  uniformidadH?: number | null;
+  uniformidadM?: number | null;
+  cvH?: number | null;
+  cvM?: number | null;
+  // Campos de agua (solo para Ecuador y Panamá)
+  consumoAguaDiario?: number | null;
+  consumoAguaPh?: number | null;
+  consumoAguaOrp?: number | null;
+  consumoAguaTemperatura?: number | null;
+  // Metadata e items adicionales
+  metadata?: any | null;
+  itemsAdicionales?: any | null;
 }
 
-export type CreateLoteSeguimientoDto = Omit<LoteSeguimientoDto, 'id'>;
-export type UpdateLoteSeguimientoDto = LoteSeguimientoDto;
+export interface CreateLoteSeguimientoDto extends Omit<LoteSeguimientoDto, 'id'> {}
+export interface UpdateLoteSeguimientoDto extends LoteSeguimientoDto {}
 
 @Injectable({ providedIn: 'root' })
 export class LoteSeguimientoService {
@@ -41,18 +58,61 @@ export class LoteSeguimientoService {
     const d = new Date(v);
     return isNaN(d.getTime()) ? v : d.toISOString();
   }
-  private handleError = (err: HttpErrorResponse) =>
-    throwError(() => ({
+  private handleError = (err: HttpErrorResponse) => {
+    let errorMessage = 'Error inesperado en el servidor.';
+    
+    if (err.error) {
+      // Intentar obtener el mensaje de error del backend (incluir details si viene para diagnóstico)
+      if (err.error.message) {
+        errorMessage = err.error.message;
+        if (err.error.details) {
+          errorMessage += ` (${err.error.details})`;
+        }
+      } else if (err.error.detail) {
+        errorMessage = err.error.detail;
+      } else if (err.error.title) {
+        errorMessage = err.error.title;
+      } else if (typeof err.error === 'string') {
+        errorMessage = err.error;
+      }
+    }
+    
+    // Mensajes específicos según el código de estado
+    if (err.status === 400) {
+      errorMessage = errorMessage || 'Datos inválidos. Por favor, verifique la información ingresada.';
+    } else if (err.status === 404) {
+      errorMessage = errorMessage || 'El recurso solicitado no fue encontrado.';
+    } else if (err.status === 500) {
+      errorMessage = errorMessage || 'Error interno del servidor. Por favor, intente nuevamente más tarde.';
+    }
+    
+    return throwError(() => ({
       status: err.status,
-      message:
-        (err.error?.detail ?? err.error?.title) ||
-        (typeof err.error === 'string' ? err.error : 'Error inesperado en el servidor.')
+      message: errorMessage,
+      error: err.error
     }));
+  };
 
   // ====== Queries ======
   /** Trae seguimientos por lote y reproductora (como usa el componente). */
-  getByLoteYRepro(loteId: string, reproductoraId: string): Observable<LoteSeguimientoDto[]> {
-    const params = new HttpParams().set('loteId', loteId).set('reproductoraId', reproductoraId);
+  getByLoteYRepro(
+    loteId: string, 
+    reproductoraId: string, 
+    desde?: string | Date | null, 
+    hasta?: string | Date | null
+  ): Observable<LoteSeguimientoDto[]> {
+    let params = new HttpParams()
+      .set('loteId', loteId)
+      .set('reproductoraId', reproductoraId);
+    
+    if (desde) {
+      params = params.set('desde', this.toIsoIfDateLike(typeof desde === 'string' ? desde : desde.toISOString()));
+    }
+    
+    if (hasta) {
+      params = params.set('hasta', this.toIsoIfDateLike(typeof hasta === 'string' ? hasta : hasta.toISOString()));
+    }
+    
     return this.http.get<LoteSeguimientoDto[]>(this.base, { params }).pipe(catchError(this.handleError));
   }
 
@@ -62,17 +122,19 @@ export class LoteSeguimientoService {
 
   // ====== CRUD ======
   create(dto: CreateLoteSeguimientoDto): Observable<LoteSeguimientoDto> {
-    const payload: CreateLoteSeguimientoDto = {
+    const payload: any = {
       ...dto,
-      fecha: this.toIsoIfDateLike(dto.fecha)
+      fecha: this.toIsoIfDateLike(dto.fecha),
+      loteId: typeof dto.loteId === 'string' ? Number(dto.loteId) : dto.loteId
     };
     return this.http.post<LoteSeguimientoDto>(this.base, payload).pipe(catchError(this.handleError));
   }
 
   update(dto: UpdateLoteSeguimientoDto): Observable<LoteSeguimientoDto> {
-    const payload: UpdateLoteSeguimientoDto = {
+    const payload: any = {
       ...dto,
-      fecha: this.toIsoIfDateLike(dto.fecha)
+      fecha: this.toIsoIfDateLike(dto.fecha),
+      loteId: typeof dto.loteId === 'string' ? Number(dto.loteId) : dto.loteId
     };
     return this.http.put<LoteSeguimientoDto>(`${this.base}/${dto.id}`, payload).pipe(catchError(this.handleError));
   }

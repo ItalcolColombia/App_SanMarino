@@ -208,7 +208,11 @@ export class MovimientosUnificadoFormComponent implements OnInit {
   }
 
   submit() {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      console.error('Formulario inválido:', this.form.errors);
+      console.error('Valores del formulario:', this.form.value);
+      return;
+    }
 
     const operationType = this.operationType;
     const { catalogItemId, quantity, unit, reference, reason } = this.form.value;
@@ -228,9 +232,20 @@ export class MovimientosUnificadoFormComponent implements OnInit {
         return;
       }
 
+      // Validar que fromFarmId y toFarmId estén presentes
+      if (!fromFarmId || !toFarmId) {
+        alert('Debe seleccionar ambas granjas para el traslado.');
+        this.loading = false;
+        return;
+      }
+
+      // Convertir a número si viene como string
+      const fromFarmIdNum = typeof fromFarmId === 'string' ? parseInt(fromFarmId, 10) : fromFarmId;
+      const toFarmIdNum = typeof toFarmId === 'string' ? parseInt(toFarmId, 10) : toFarmId;
+
       // Guardar datos para el modal
-      const fromFarm = this.farms.find(f => f.id === fromFarmId)?.name || '';
-      const toFarm = this.farms.find(f => f.id === toFarmId)?.name || '';
+      const fromFarm = this.farms.find(f => f.id === fromFarmIdNum)?.name || '';
+      const toFarm = this.farms.find(f => f.id === toFarmIdNum)?.name || '';
       const product = this.items.find(i => i.id === catalogItemId);
       const productName = product ? `${product.codigo} — ${product.nombre}` : '';
 
@@ -241,18 +256,62 @@ export class MovimientosUnificadoFormComponent implements OnInit {
         quantity
       };
 
-      const payload = { toFarmId, catalogItemId, quantity, unit, reference, reason };
-      request$ = this.invSvc.postTransfer(fromFarmId, payload);
+      // Obtener el itemType del producto seleccionado si está disponible
+      const selectedItem = this.items.find(i => i.id === catalogItemId);
+      const itemType = selectedItem?.itemType || this.form.value.typeItem || null;
+      
+      const payload = { 
+        toFarmId: toFarmIdNum, 
+        catalogItemId: typeof catalogItemId === 'string' ? parseInt(catalogItemId, 10) : catalogItemId, 
+        itemType,  // Tipo de item del catálogo
+        quantity: typeof quantity === 'string' ? parseFloat(quantity) : quantity, 
+        unit: unit || 'kg', 
+        reference: reference || '', 
+        reason: reason || '' 
+      };
+      request$ = this.invSvc.postTransfer(fromFarmIdNum, payload);
 
     } else {
-      const { farmId, origin, destination } = this.form.value;
+      const { farmId, origin, destination, typeItem } = this.form.value;
+      
+      // Validar que farmId esté presente
+      if (!farmId) {
+        alert('Debe seleccionar una granja.');
+        this.loading = false;
+        return;
+      }
+
+      // Convertir a número si viene como string
+      const farmIdNum = typeof farmId === 'string' ? parseInt(farmId, 10) : farmId;
+      
+      // Obtener el itemType del producto seleccionado si está disponible
+      const selectedItem = this.items.find(i => i.id === catalogItemId);
+      const itemType = selectedItem?.itemType || typeItem || null;
 
       if (operationType === 'entrada') {
-        const payload = { catalogItemId, quantity, unit, reference, reason, origin };
-        request$ = this.invSvc.postEntry(farmId, payload);
+        const payload = { 
+          catalogItemId: typeof catalogItemId === 'string' ? parseInt(catalogItemId, 10) : catalogItemId, 
+          itemType,  // Tipo de item del catálogo
+          quantity: typeof quantity === 'string' ? parseFloat(quantity) : quantity, 
+          unit: unit || 'kg', 
+          reference: reference || '', 
+          reason: reason || '', 
+          origin: origin || '' 
+        };
+        console.log('Enviando entrada - farmId:', farmIdNum, 'payload:', payload);
+        request$ = this.invSvc.postEntry(farmIdNum, payload);
       } else {
-        const payload = { catalogItemId, quantity, unit, reference, reason, destination };
-        request$ = this.invSvc.postExit(farmId, payload);
+        const payload = { 
+          catalogItemId: typeof catalogItemId === 'string' ? parseInt(catalogItemId, 10) : catalogItemId, 
+          itemType,  // Tipo de item del catálogo
+          quantity: typeof quantity === 'string' ? parseFloat(quantity) : quantity, 
+          unit: unit || 'kg', 
+          reference: reference || '', 
+          reason: reason || '', 
+          destination: destination || '' 
+        };
+        console.log('Enviando salida - farmId:', farmIdNum, 'payload:', payload);
+        request$ = this.invSvc.postExit(farmIdNum, payload);
       }
     }
 

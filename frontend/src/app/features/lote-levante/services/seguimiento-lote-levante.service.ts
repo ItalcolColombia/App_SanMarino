@@ -120,6 +120,11 @@ export interface CreateSeguimientoLoteLevanteDto {
   consumoAguaPh?: number | null;
   consumoAguaOrp?: number | null;
   consumoAguaTemperatura?: number | null;
+
+  /** ID del usuario en sesión (desde storage). Se envía al backend para guardar en seguimiento_diario.created_by_user_id. */
+  createdByUserId?: string | null;
+  /** Tipo de seguimiento: siempre "levante" para este módulo. */
+  tipoSeguimiento?: 'levante' | null;
 }
 
 export interface UpdateSeguimientoLoteLevanteDto extends CreateSeguimientoLoteLevanteDto {
@@ -175,17 +180,10 @@ export class SeguimientoLoteLevanteService {
   }
 
   /**
-   * Polyfill de GetById: trae todo y filtra.
-   * (Si el backend agrega GET /{id}, cámbialo por una llamada directa.)
+   * Obtener un registro por ID.
    */
   getById(id: number): Observable<SeguimientoLoteLevanteDto> {
-    return this.getAll().pipe(
-      map(list => {
-        const found = (list ?? []).find(x => x.id === id);
-        if (!found) throw new Error(`Seguimiento ${id} no encontrado`);
-        return found;
-      })
-    );
+    return this.http.get<SeguimientoLoteLevanteDto>(`${this.baseUrl}/${id}`);
   }
 
   /** GET por LoteId */

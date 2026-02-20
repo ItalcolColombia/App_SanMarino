@@ -1,0 +1,297 @@
+<!-- src/app/features/inventario/components/movimiento-alimento-form/movimiento-alimento-form.component.html -->
+<div class="movimiento-alimento-container">
+  <div class="header-section">
+    <h2 class="section-title">
+      <fa-icon [icon]="faBoxes" class="title-icon"></fa-icon>
+      Movimiento de Alimento
+    </h2>
+    <p class="section-subtitle">
+      Registra el alimento que llega a los galpones con todos los detalles necesarios
+    </p>
+  </div>
+
+  <form class="movimiento-form" [formGroup]="form" (ngSubmit)="submit()">
+    <!-- Primera fila: Granja Origen (solo para traslados), Granja Destino y Producto -->
+    <div class="form-row">
+      <!-- Granja Origen (solo visible cuando tipoEntrada es "Traslados entre granjas") -->
+      <div 
+        class="form-group" 
+        [class.invalid]="isFieldInvalid('farmIdOrigen')"
+        *ngIf="form.get('tipoEntrada')?.value === 'Traslados entre granjas'">
+        <label class="form-label" for="farmIdOrigen">
+          <fa-icon [icon]="faBuilding"></fa-icon>
+          Granja Origen <span class="required">*</span>
+        </label>
+        <select 
+          id="farmIdOrigen" 
+          class="form-select" 
+          formControlName="farmIdOrigen">
+          <option value="" disabled>Seleccione la granja origen...</option>
+          <option *ngFor="let farm of farms" [value]="farm.id">
+            {{ farm.name }}
+          </option>
+        </select>
+        <span class="error-message" *ngIf="isFieldInvalid('farmIdOrigen')">
+          {{ getFieldError('farmIdOrigen') }}
+        </span>
+        <div class="field-help">
+          <small>Granja de donde se traslada el alimento</small>
+        </div>
+      </div>
+
+      <div class="form-group" [class.invalid]="isFieldInvalid('farmId')">
+        <label class="form-label" for="farmId">
+          <fa-icon [icon]="faBuilding"></fa-icon>
+          Granja {{ form.get('tipoEntrada')?.value === 'Traslados entre granjas' ? 'Destino' : '' }} <span class="required">*</span>
+        </label>
+        <select 
+          id="farmId" 
+          class="form-select" 
+          formControlName="farmId"
+          (change)="onFarmChange($any($event.target).value)">
+          <option value="" disabled>Seleccione una granja...</option>
+          <option *ngFor="let farm of farms" [value]="farm.id">
+            {{ farm.name }}
+          </option>
+        </select>
+        <span class="error-message" *ngIf="isFieldInvalid('farmId')">
+          {{ getFieldError('farmId') }}
+        </span>
+        <div class="field-help" *ngIf="form.get('tipoEntrada')?.value === 'Traslados entre granjas'">
+          <small>Granja donde llega el alimento</small>
+        </div>
+      </div>
+
+      <div class="form-group" [class.invalid]="isFieldInvalid('catalogItemId')">
+        <label class="form-label" for="catalogItemId">
+          Tipo de Alimento <span class="required">*</span>
+        </label>
+        <div class="product-search-wrapper">
+          <input 
+            type="text" 
+            id="searchProduct"
+            class="form-input search-input"
+            formControlName="searchProduct"
+            placeholder="Buscar alimento por código o nombre..."
+            [class.searching]="searching">
+          <select 
+            id="catalogItemId" 
+            class="form-select" 
+            formControlName="catalogItemId">
+            <option value="" disabled>Seleccione un alimento...</option>
+            <option *ngFor="let item of filteredItems" [value]="item.id">
+              {{ item.codigo }} — {{ item.nombre }}
+            </option>
+          </select>
+        </div>
+        <span class="error-message" *ngIf="isFieldInvalid('catalogItemId')">
+          {{ getFieldError('catalogItemId') }}
+        </span>
+        <div class="selected-product" *ngIf="selectedProduct">
+          <fa-icon [icon]="faBoxes"></fa-icon>
+          <span><strong>{{ selectedProduct.codigo }}</strong> — {{ selectedProduct.nombre }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Segunda fila: Cantidad, Unidad y Fecha -->
+    <div class="form-row">
+      <div class="form-group" [class.invalid]="isFieldInvalid('quantity')">
+        <label class="form-label" for="quantity">
+          Cantidad <span class="required">*</span>
+        </label>
+        <input 
+          type="number" 
+          id="quantity" 
+          class="form-input" 
+          formControlName="quantity"
+          step="0.001"
+          min="0.0001"
+          placeholder="0.000">
+        <span class="error-message" *ngIf="isFieldInvalid('quantity')">
+          {{ getFieldError('quantity') }}
+        </span>
+      </div>
+
+      <div class="form-group" [class.invalid]="isFieldInvalid('unit')">
+        <label class="form-label" for="unit">
+          Unidad <span class="required">*</span>
+        </label>
+        <select id="unit" class="form-select" formControlName="unit">
+          <option *ngFor="let unidad of unidades" [value]="unidad">
+            {{ unidad }}
+          </option>
+        </select>
+        <span class="error-message" *ngIf="isFieldInvalid('unit')">
+          {{ getFieldError('unit') }}
+        </span>
+      </div>
+
+      <div class="form-group" [class.invalid]="isFieldInvalid('fechaMovimiento')">
+        <label class="form-label" for="fechaMovimiento">
+          <fa-icon [icon]="faCalendar"></fa-icon>
+          Fecha del Movimiento <span class="required">*</span>
+        </label>
+        <input 
+          type="date" 
+          id="fechaMovimiento" 
+          class="form-input" 
+          formControlName="fechaMovimiento">
+        <span class="error-message" *ngIf="isFieldInvalid('fechaMovimiento')">
+          {{ getFieldError('fechaMovimiento') }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Tercera fila: Documento Origen y Tipo de Entrada -->
+    <div class="form-row">
+      <div class="form-group" [class.invalid]="isFieldInvalid('documentoOrigen')">
+        <label class="form-label" for="documentoOrigen">
+          Documento Origen <span class="required">*</span>
+        </label>
+        <select 
+          id="documentoOrigen" 
+          class="form-select" 
+          formControlName="documentoOrigen">
+          <option value="" disabled>Seleccione...</option>
+          <option value="Autoconsumo">Autoconsumo (autofacturado)</option>
+          <option value="RVN">RVN (Remisión facturada - Planta a Granja)</option>
+          <option value="EAN">EAN (Entrada de inventario)</option>
+        </select>
+        <span class="error-message" *ngIf="isFieldInvalid('documentoOrigen')">
+          {{ getFieldError('documentoOrigen') }}
+        </span>
+        <div class="field-help">
+          <small>Seleccione el tipo de documento que respalda este movimiento</small>
+        </div>
+      </div>
+
+      <div class="form-group" [class.invalid]="isFieldInvalid('tipoEntrada')">
+        <label class="form-label" for="tipoEntrada">
+          Tipo de Entrada <span class="required">*</span>
+        </label>
+        <select 
+          id="tipoEntrada" 
+          class="form-select" 
+          formControlName="tipoEntrada">
+          <option value="" disabled>Seleccione...</option>
+          <option value="Entrada Nueva">Entrada Nueva</option>
+          <option value="Traslado entre galpon">Traslado entre galpon</option>
+          <option value="Traslados entre granjas">Traslados entre granjas</option>
+        </select>
+        <span class="error-message" *ngIf="isFieldInvalid('tipoEntrada')">
+          {{ getFieldError('tipoEntrada') }}
+        </span>
+        <div class="field-help">
+          <small>Indique el tipo de entrada de inventario</small>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="galponDestinoId">
+          <fa-icon [icon]="faWarehouse"></fa-icon>
+          Galpón Destino
+        </label>
+        <select 
+          id="galponDestinoId" 
+          class="form-select" 
+          formControlName="galponDestinoId"
+          [disabled]="!form.get('farmId')?.value">
+          <option value="">Seleccione un galpón (opcional)...</option>
+          <option *ngFor="let galpon of galpones" [value]="galpon.galponId">
+            {{ galpon.galponNombre }} ({{ galpon.nucleo.nucleoNombre }})
+          </option>
+        </select>
+        <div class="field-help">
+          <small>Asigne el alimento a un galpón específico (opcional)</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cuarta fila: Referencia y Motivo -->
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="reference">
+          Referencia
+        </label>
+        <input 
+          type="text" 
+          id="reference" 
+          class="form-input" 
+          formControlName="reference"
+          placeholder="Número de documento, factura, etc.">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="reason">
+          Motivo / Observaciones
+        </label>
+        <textarea 
+          id="reason" 
+          class="form-textarea" 
+          formControlName="reason"
+          rows="3"
+          placeholder="Observaciones adicionales sobre el movimiento..."></textarea>
+      </div>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="form-actions">
+      <button 
+        type="button" 
+        class="btn btn-secondary"
+        (click)="clearForm()"
+        [disabled]="loading">
+        <fa-icon [icon]="faTimes"></fa-icon>
+        Limpiar
+      </button>
+      <button 
+        type="submit" 
+        class="btn btn-primary"
+        [disabled]="form.invalid || loading">
+        <fa-icon [icon]="faCheck" *ngIf="!loading"></fa-icon>
+        <span *ngIf="loading">Procesando...</span>
+        <span *ngIf="!loading">Registrar Movimiento</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- Modal de éxito -->
+  <div class="modal-overlay" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <fa-icon [icon]="faCheck" class="success-icon"></fa-icon>
+          Movimiento Registrado Exitosamente
+        </h3>
+        <button type="button" class="modal-close" (click)="closeSuccessModal()">
+          <fa-icon [icon]="faTimes"></fa-icon>
+        </button>
+      </div>
+      <div class="modal-body" *ngIf="lastMovementData">
+        <div class="success-details">
+          <div class="detail-item">
+            <strong>Granja:</strong> {{ lastMovementData.farm }}
+          </div>
+          <div class="detail-item">
+            <strong>Producto:</strong> {{ lastMovementData.producto }}
+          </div>
+          <div class="detail-item">
+            <strong>Cantidad:</strong> {{ lastMovementData.cantidad }} {{ lastMovementData.unidad }}
+          </div>
+          <div class="detail-item" *ngIf="lastMovementData.documentoOrigen">
+            <strong>Documento Origen:</strong> {{ lastMovementData.documentoOrigen }}
+          </div>
+          <div class="detail-item" *ngIf="lastMovementData.tipoEntrada">
+            <strong>Tipo de Entrada:</strong> {{ lastMovementData.tipoEntrada }}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" (click)="closeSuccessModal()">
+          Aceptar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

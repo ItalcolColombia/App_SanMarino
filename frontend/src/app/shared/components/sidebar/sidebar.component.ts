@@ -5,7 +5,8 @@ import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontaweso
 import {
   faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
-  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign
+  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign,
+  faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench
 } from '@fortawesome/free-solid-svg-icons';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
@@ -51,7 +52,8 @@ export class SidebarComponent implements OnInit {
     library.addIcons(
       faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
       faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
-      faGlobe, faMapMarkerAlt, faCity, faWarehouse, faBoxesAlt, faDollarSign
+      faGlobe, faMapMarkerAlt, faCity, faWarehouse, faBoxesAlt, faDollarSign,
+      faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench
     );
   }
 

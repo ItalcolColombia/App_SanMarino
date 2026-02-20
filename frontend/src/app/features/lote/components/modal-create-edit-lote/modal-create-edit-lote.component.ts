@@ -612,4 +612,23 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   get modalTitle(): string {
     return this.isEditing ? 'Editar Lote' : 'Registrar Nuevo Lote';
   }
+
+  /** Semanas desde encaset hasta hoy (null si no hay fecha). Regla: >= 26 → Producción, < 26 → Levante. */
+  get semanasDesdeEncaset(): number | null {
+    const fechaEncaset = this.form?.get('fechaEncaset')?.value;
+    if (!fechaEncaset) return null;
+    const encaset = new Date(fechaEncaset);
+    if (isNaN(encaset.getTime())) return null;
+    const hoy = new Date();
+    const dias = Math.floor((hoy.getTime() - encaset.getTime()) / (24 * 60 * 60 * 1000));
+    if (dias < 0) return 0;
+    return Math.max(0, Math.floor(dias / 7) + 1);
+  }
+
+  /** Fase resultante al crear: Producción si >= 26 semanas, Levante si no. */
+  get faseResultante(): string {
+    const sem = this.semanasDesdeEncaset;
+    if (sem === null) return '—';
+    return sem >= 26 ? 'Producción' : 'Levante';
+  }
 }

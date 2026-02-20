@@ -206,6 +206,13 @@
           </button>
           <button 
             type="button"
+            class="tab-button"
+            [class.active]="isTabActive('movimientos-huevos')"
+            (click)="setActiveTab('movimientos-huevos')">
+            Movimientos Huevos
+          </button>
+          <button 
+            type="button"
             *ngFor="let reporteSemanal of reporte()!.reportesSemanales"
             class="tab-button"
             [class.active]="isTabActive(reporteSemanal.semanaContable)"
@@ -267,6 +274,26 @@
                 </tfoot>
               </table>
             </div>
+          </div>
+
+          <!-- Tab Movimientos de Huevos -->
+          <div class="tab-panel" *ngIf="isTabActive('movimientos-huevos')">
+            <div class="datos-section" *ngIf="reporteMovimientosHuevos(); else loadingMovimientosHuevos">
+              <h2>Movimientos de Huevos</h2>
+              <div *ngIf="reporteMovimientosHuevos()!.movimientosDiarios.length === 0" class="empty-state">
+                <p>No hay datos de movimientos de huevos para el período seleccionado.</p>
+              </div>
+              <app-tabla-movimientos-huevos 
+                *ngIf="reporteMovimientosHuevos()!.movimientosDiarios.length > 0"
+                [reporte]="reporteMovimientosHuevos()!">
+              </app-tabla-movimientos-huevos>
+            </div>
+            <ng-template #loadingMovimientosHuevos>
+              <div class="loading-state">
+                <fa-icon [icon]="faSpinner" [spin]="true"></fa-icon>
+                <p>Cargando movimientos de huevos...</p>
+              </div>
+            </ng-template>
           </div>
 
           <!-- Tabs de Semanas -->

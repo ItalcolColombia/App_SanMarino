@@ -3,7 +3,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faBoxesStacked, faRightLeft, faWarehouse, faScrewdriverWrench, faList, faClipboardCheck, faArrowsUpDown, faBook } from '@fortawesome/free-solid-svg-icons';
+import { faBoxesStacked, faRightLeft, faWarehouse, faScrewdriverWrench, faList, faClipboardCheck, faArrowsUpDown, faBook, faWheatAwn } from '@fortawesome/free-solid-svg-icons';
 
 import { MovimientosUnificadoFormComponent } from '../movimientos-unificado-form/movimientos-unificado-form.component';
 import { InventarioListComponent } from '../inventario-list/inventario-list.component';
@@ -11,7 +11,7 @@ import { AjusteFormComponent } from '../ajuste-form/ajuste-form.component';
 import { KardexListComponent } from '../kardex-list/kardex-list.component';
 import { CatalogoAlimentosTabComponent } from '../catalogo-alimentos-tab/catalogo-alimentos-tab.component';
 
-type TabKey = 'movimientos' | 'ajuste' | 'kardex' | 'conteo' | 'stock' | 'catalogo';
+type TabKey = 'movimientos' | 'movimiento-alimento' | 'ajuste' | 'kardex' | 'conteo' | 'stock' | 'catalogo';
 @Component({
   selector: 'app-inventario-tabs',
   standalone: true,
@@ -31,6 +31,7 @@ type TabKey = 'movimientos' | 'ajuste' | 'kardex' | 'conteo' | 'stock' | 'catalo
 
 export class InventarioTabsComponent {
   faInOut   = faArrowsUpDown;
+  faAlimento = faWheatAwn;
   faWare    = faWarehouse;
   faWrench  = faScrewdriverWrench;
   faList    = faList;
@@ -42,6 +43,7 @@ export class InventarioTabsComponent {
   // Descripciones por pestaña (SUBTÍTULO dinámico)
   private readonly subtitleMap: Record<TabKey, string> = {
     movimientos: 'Registra entradas, salidas y traslados de productos entre granjas.',
+    'movimiento-alimento': 'Registra alimento que llega a los galpones con documento origen y tipo de entrada.',
     ajuste: 'Corrige diferencias de inventario (mermas, daños, conteos).',
     kardex: 'Consulta el historial de movimientos (Kardex) por producto.',
     conteo: 'Captura conteos físicos y concilia contra el sistema.',

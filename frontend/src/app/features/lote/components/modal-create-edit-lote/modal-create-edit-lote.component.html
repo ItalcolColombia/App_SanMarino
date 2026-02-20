@@ -11,6 +11,14 @@
 
     <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
       
+      <!-- Fase según semanas desde encaset: >= 26 Producción, < 26 Levante -->
+      <div *ngIf="!isEditing" class="info-flow" style="padding: 12px 16px; border-radius: 8px; background: #eff6ff; border: 1px solid #93c5fd; margin-bottom: 16px; font-size: 14px; color: #1e40af;">
+        <strong>Fase del lote:</strong> Según la fecha de encaset, si el lote tiene <strong>26 o más semanas</strong> de edad se creará en fase <strong>Producción</strong>; si tiene menos (p. ej. semana 25 o menos), en fase <strong>Levante</strong>.
+        <span *ngIf="semanasDesdeEncaset !== null" style="display: block; margin-top: 8px;">
+          Con la fecha seleccionada: <strong>{{ semanasDesdeEncaset }} semana(s)</strong> → se creará como <strong>{{ faseResultante }}</strong>.
+        </span>
+      </div>
+      
       <!-- CAMPO DE PRUEBA - PARA VERIFICAR QUE LOS CAMBIOS SE APLICAN -->
       <div style="padding: 25px; border: 5px solid #ef4444; border-radius: 15px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); margin-bottom: 30px; box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);">
         <label style="display: block; font-size: 24px; font-weight: 900; color: #991b1b; margin-bottom: 15px; text-transform: uppercase;">

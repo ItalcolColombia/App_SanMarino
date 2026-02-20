@@ -23,19 +23,22 @@ export interface CatalogItemDto {
   id?: number;
   codigo: string;
   nombre: string;
-  metadata?: any;   // aquí vive type_item, especie, raza, genero y otros
+  itemType?: string; // Tipo de item: alimento, vacuna, medicamento, etc.
+  metadata?: any;   // Campos adicionales específicos del tipo
   activo: boolean;
 }
 
 export interface CatalogItemCreateRequest {
   codigo: string;
   nombre: string;
+  itemType?: string; // Tipo de item: alimento, vacuna, medicamento, etc.
   metadata?: any;
   activo: boolean;
 }
 
 export interface CatalogItemUpdateRequest {
   nombre: string;
+  itemType?: string; // Tipo de item (opcional al actualizar)
   metadata?: any;
   activo: boolean;
 }

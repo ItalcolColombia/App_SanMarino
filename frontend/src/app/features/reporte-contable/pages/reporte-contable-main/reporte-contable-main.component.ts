@@ -18,7 +18,8 @@ import { Subject, takeUntil, finalize } from 'rxjs';
 import { 
   ReporteContableService, 
   ReporteContableCompletoDto,
-  GenerarReporteContableRequestDto 
+  GenerarReporteContableRequestDto,
+  ReporteMovimientosHuevosDto
 } from '../../services/reporte-contable.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
@@ -29,6 +30,7 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 import { TablaDetalleDiarioContableComponent } from '../../components/tabla-detalle-diario-contable/tabla-detalle-diario-contable.component';
 import { TablaAvesContableComponent } from '../../components/tabla-aves-contable/tabla-aves-contable.component';
 import { TablaBultosContableComponent } from '../../components/tabla-bultos-contable/tabla-bultos-contable.component';
+import { TablaMovimientosHuevosComponent } from '../../components/tabla-movimientos-huevos/tabla-movimientos-huevos.component';
 
 @Component({
   selector: 'app-reporte-contable-main',
@@ -41,7 +43,8 @@ import { TablaBultosContableComponent } from '../../components/tabla-bultos-cont
     FiltroSelectComponent,
     TablaDetalleDiarioContableComponent,
     TablaAvesContableComponent,
-    TablaBultosContableComponent
+    TablaBultosContableComponent,
+    TablaMovimientosHuevosComponent
   ],
   templateUrl: './reporte-contable-main.component.html',
   styleUrls: ['./reporte-contable-main.component.scss']
@@ -60,6 +63,8 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   // Estado
   loading = signal(false);
   reporte = signal<ReporteContableCompletoDto | null>(null);
+  reporteMovimientosHuevos = signal<ReporteMovimientosHuevosDto | null>(null);
+  loadingMovimientosHuevos = signal(false);
   
   // Filtros de selección (granja, núcleo, galpón, lote)
   selectedGranjaId: number | null = null;
@@ -83,7 +88,7 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   
   // UI
   error: string | null = null;
-  activeTab: 'resumen' | number = 'resumen'; // Tab activo: 'resumen' o número de semana
+  activeTab: 'resumen' | 'movimientos-huevos' | number = 'resumen'; // Tab activo: 'resumen', 'movimientos-huevos' o número de semana
 
   private destroy$ = new Subject<void>();
 
@@ -275,11 +280,31 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
         next: (reporte) => {
           this.reporte.set(reporte);
           this.error = null;
+          // Cargar también el reporte de movimientos de huevos
+          this.cargarReporteMovimientosHuevos(request);
         },
         error: (err) => {
           console.error('Error al generar reporte contable:', err);
           this.error = err.error?.message || 'Error al generar el reporte contable';
           this.reporte.set(null);
+        }
+      });
+  }
+
+  private cargarReporteMovimientosHuevos(request: GenerarReporteContableRequestDto): void {
+    this.loadingMovimientosHuevos.set(true);
+    this.reporteContableService.obtenerReporteMovimientosHuevos(request)
+      .pipe(
+        finalize(() => this.loadingMovimientosHuevos.set(false)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: (reporte) => {
+          this.reporteMovimientosHuevos.set(reporte);
+        },
+        error: (err) => {
+          console.error('Error al cargar reporte de movimientos de huevos:', err);
+          this.reporteMovimientosHuevos.set(null);
         }
       });
   }
@@ -378,11 +403,11 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   }
 
   // ================== MÉTODOS PARA TABS ==================
-  setActiveTab(tab: 'resumen' | number): void {
+  setActiveTab(tab: 'resumen' | 'movimientos-huevos' | number): void {
     this.activeTab = tab;
   }
 
-  isTabActive(tab: 'resumen' | number): boolean {
+  isTabActive(tab: 'resumen' | 'movimientos-huevos' | number): boolean {
     return this.activeTab === tab;
   }
 

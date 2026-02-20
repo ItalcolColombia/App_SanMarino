@@ -27,7 +27,8 @@ import {
   UpdateNucleoDto
 } from '../../services/nucleo.service';
 import { FarmDto, FarmService } from '../../../farm/services/farm.service';
-import { Company, CompanyService } from '../../../../core/services/company/company.service';
+import { ToastService } from '../../../../shared/services/toast.service';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 type NucleoForm = {
   nucleoId: string | number;
@@ -42,7 +43,8 @@ type NucleoForm = {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    FontAwesomeModule
+    FontAwesomeModule,
+    ConfirmationModalComponent,
   ],
   templateUrl: './nucleo-list.component.html',
   styleUrls: ['./nucleo-list.component.scss'],
@@ -63,20 +65,32 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   selectedCompanyId: number | null = null;
   selectedFarmId: number | null = null;
 
-  // Datos (estado local)
+  // Datos: solo núcleos al cargar la tabla; farms se cargan al abrir el modal
   nucleos: NucleoDto[] = [];
   viewNucleos: NucleoDto[] = [];
   farms: FarmDto[] = [];
-  companies: Company[] = [];
 
-  // Mapas auxiliares para lookups
-  farmMap: Record<number, string> = {};
-  companyMap: Record<number, string> = {};
+  /** Opciones de filtro cacheadas (misma referencia hasta que cambien datos) para evitar NG0103 con OnPush. */
+  filterCompanyOptions: { id: number; name: string }[] = [];
+  filterFarmOptions: { id: number; name: string }[] = [];
+  farmsFiltered: FarmDto[] = [];
 
-  // UI state
+  loadingModal = false;
+
   loading = false;
   modalOpen = false;
   editing: NucleoDto | null = null;
+
+  confirmOpen = false;
+  confirmData: ConfirmationModalData = {
+    title: 'Eliminar núcleo',
+    message: 'Esta acción no se puede deshacer.',
+    confirmText: 'Eliminar',
+    cancelText: 'Cancelar',
+    type: 'warning',
+    showCancel: true,
+  };
+  pendingDelete: NucleoDto | null = null;
 
   // Formulario
   form!: FormGroup;
@@ -88,61 +102,14 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     private readonly fb: FormBuilder,
     private readonly nucleoSvc: NucleoService,
     private readonly farmSvc: FarmService,
-    private readonly companySvc: CompanyService,
-    private readonly cdr: ChangeDetectorRef
+    private readonly cdr: ChangeDetectorRef,
+    private readonly toastSvc: ToastService,
   ) {}
 
   // ======== Lifecycle ========
   ngOnInit(): void {
     this.buildForm();
-
-    // Cargar granjas y compañías en paralelo y luego recomputar
-    this.loading = true;
-
-    this.farmSvc
-      .getAll()
-      .pipe(
-        tap(list => {
-          this.farms = list ?? [];
-          this.farmMap = {};
-          this.farms.forEach(f => (this.farmMap[f.id] = f.name));
-        }),
-        catchError(err => {
-          console.error('[Farms] load error', err);
-          this.farms = [];
-          this.farmMap = {};
-          return of([]);
-        })
-      )
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        // Luego compañías
-        this.companySvc
-          .getAll()
-          .pipe(
-            tap(clist => {
-              this.companies = clist ?? [];
-              this.companyMap = {};
-              this.companies.forEach(c => {
-                if (c.id !== undefined && c.id !== null) {
-                  this.companyMap[c.id] = c.name ?? '';
-                }
-              });
-            }),
-            catchError(err => {
-              console.error('[Companies] load error', err);
-              this.companies = [];
-              this.companyMap = {};
-              return of([]);
-            }),
-            finalize(() => {
-              // Cuando ya hay farms + companies, carga núcleos
-              this.loadNucleos();
-            }),
-            takeUntil(this.destroy$)
-          )
-          .subscribe();
-      });
+    this.loadNucleos();
   }
 
   ngOnDestroy(): void {
@@ -162,21 +129,25 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   // ======== UI helpers ========
   trackByNucleo = (_: number, n: NucleoDto) => `${n.nucleoId}|${n.granjaId}`;
 
-  get farmsFiltered(): FarmDto[] {
-    if (this.selectedCompanyId == null) return this.farms;
-    return this.farms.filter(f => f.companyId === this.selectedCompanyId);
-  }
-
   onCompanyChange(val: number | null): void {
-    this.selectedCompanyId = val;
-
-    // Si la granja seleccionada no pertenece a la compañía actual, limpiar
+    this.selectedCompanyId = val != null && !isNaN(Number(val)) ? Number(val) : null;
+    this.recompute();
     if (
       this.selectedFarmId != null &&
-      !this.farmsFiltered.some(f => f.id === this.selectedFarmId)
+      !this.filterFarmOptions.some(f => f.id === this.selectedFarmId)
     ) {
       this.selectedFarmId = null;
+      this.recompute();
     }
+  }
+
+  onFarmFilterChange(val: number | null): void {
+    this.selectedFarmId = val != null && !isNaN(Number(val)) ? Number(val) : null;
+    this.recompute();
+  }
+
+  onFiltroChange(val: string): void {
+    this.filtro = val ?? '';
     this.recompute();
   }
 
@@ -187,7 +158,7 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     this.recompute();
   }
 
-  // ======== Data load ========
+  /** Solo carga la lista de núcleos. Farms se cargan al abrir el modal (crear/editar). */
   private loadNucleos(): void {
     this.loading = true;
     this.nucleoSvc
@@ -199,6 +170,7 @@ export class NucleoListComponent implements OnInit, OnDestroy {
         }),
         catchError(err => {
           console.error('[Nucleos] load error', err);
+          this.toastSvc.error('No se pudieron cargar los núcleos. Intente de nuevo.', 'Error');
           this.nucleos = [];
           this.viewNucleos = [];
           return of([]);
@@ -215,16 +187,52 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   // ======== CRUD modal ========
   openModal(n?: NucleoDto): void {
     this.editing = n ?? null;
+    this.modalOpen = true;
+    this.loadFarmsForModal(n);
+    this.cdr.markForCheck();
+  }
 
+  /** Carga granjas solo al abrir el modal; luego rellena el form (crear o editar). */
+  private loadFarmsForModal(n?: NucleoDto): void {
+    if (this.farms.length > 0) {
+      this.farmsFiltered = this.selectedCompanyId == null
+        ? this.farms
+        : this.farms.filter(f => f.companyId === this.selectedCompanyId);
+      this.applyFormInModal(n);
+      return;
+    }
+    this.loadingModal = true;
+    this.farmSvc
+      .getAll()
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(err => {
+          console.error('[Farms] load for modal', err);
+          this.toastSvc.warning('No se pudieron cargar las granjas.', 'Aviso');
+          return of([]);
+        }),
+        finalize(() => {
+          this.loadingModal = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe(list => {
+        this.farms = list ?? [];
+        this.farmsFiltered = this.selectedCompanyId == null
+          ? this.farms
+          : this.farms.filter(f => f.companyId === this.selectedCompanyId);
+        this.applyFormInModal(n);
+      });
+  }
+
+  private applyFormInModal(n?: NucleoDto): void {
     if (n) {
-      // Editar
       this.form.reset({
         nucleoId: n.nucleoId,
         granjaId: n.granjaId,
         nucleoNombre: n.nucleoNombre
       });
     } else {
-      // Crear: generar ID de 6 dígitos único basado en lo cargado
       const newId = this.generateUniqueId6(this.nucleos);
       this.form.reset({
         nucleoId: newId,
@@ -232,8 +240,6 @@ export class NucleoListComponent implements OnInit, OnDestroy {
         nucleoNombre: ''
       });
     }
-
-    this.modalOpen = true;
     this.cdr.markForCheck();
   }
 
@@ -264,14 +270,15 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     req$
       .pipe(
         tap(saved => {
-          // Mantener estado local sin recargar
           this.upsertNucleo(saved);
           this.recompute();
           this.closeModal();
+          this.toastSvc.success(this.editing ? 'Núcleo actualizado correctamente.' : 'Núcleo creado correctamente.', 'Listo');
         }),
         catchError(err => {
           console.error('[Nucleo] save error', err);
-          // Aquí podrías emitir una notificación/toast
+          const msg = err?.error?.message || err?.error?.detail || 'No se pudo guardar el núcleo.';
+          this.toastSvc.error(msg, 'Error');
           return of(null);
         }),
         finalize(() => {
@@ -284,18 +291,44 @@ export class NucleoListComponent implements OnInit, OnDestroy {
   }
 
   delete(n: NucleoDto): void {
-    if (!confirm(`¿Eliminar el núcleo “${n.nucleoNombre}”?`)) return;
+    this.pendingDelete = n;
+    this.confirmData = {
+      title: 'Eliminar núcleo',
+      message: `¿Eliminar el núcleo "${n.nucleoNombre}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      showCancel: true,
+    };
+    this.confirmOpen = true;
+    this.cdr.markForCheck();
+  }
 
+  onConfirmDelete(): void {
+    const n = this.pendingDelete;
+    if (!n) {
+      this.confirmOpen = false;
+      this.pendingDelete = null;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.confirmOpen = false;
+    this.pendingDelete = null;
     this.loading = true;
+    this.cdr.markForCheck();
+
     this.nucleoSvc
       .delete(n.nucleoId, n.granjaId)
       .pipe(
         tap(() => {
           this.removeNucleo(n);
           this.recompute();
+          this.toastSvc.success('Núcleo eliminado correctamente.', 'Listo');
         }),
         catchError(err => {
           console.error('[Nucleo] delete error', err);
+          const msg = err?.error?.message || err?.error?.detail || 'No se pudo eliminar el núcleo.';
+          this.toastSvc.error(msg, 'Error');
           return of(null);
         }),
         finalize(() => {
@@ -305,6 +338,12 @@ export class NucleoListComponent implements OnInit, OnDestroy {
         takeUntil(this.destroy$)
       )
       .subscribe();
+  }
+
+  onCancelConfirm(): void {
+    this.confirmOpen = false;
+    this.pendingDelete = null;
+    this.cdr.markForCheck();
   }
 
   // ======== Estado local ========
@@ -330,34 +369,60 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     );
   }
 
+  /** Actualiza las listas cacheadas de opciones de filtro (evita NG0103 con OnPush). */
+  private updateFilterOptions(): void {
+    const companyMap = new Map<number, string>();
+    (this.nucleos ?? []).forEach(n => {
+      const id = n.companyId != null ? Number(n.companyId) : null;
+      if (id == null || isNaN(id)) return;
+      const name = (n.companyNombre ?? '').trim() || `Compañía ${id}`;
+      companyMap.set(id, name);
+    });
+    this.filterCompanyOptions = Array.from(companyMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const selCompany = this.selectedCompanyId != null ? Number(this.selectedCompanyId) : null;
+    const farmMap = new Map<number, string>();
+    (this.nucleos ?? []).forEach(n => {
+      if (selCompany != null && Number(n.companyId) !== selCompany) return;
+      const id = Number(n.granjaId);
+      if (isNaN(id)) return;
+      const name = (n.granjaNombre ?? '').trim() || `Granja ${id}`;
+      farmMap.set(id, name);
+    });
+    this.filterFarmOptions = Array.from(farmMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   recompute(): void {
-    const term = this.normalize(this.filtro);
+    this.updateFilterOptions();
+
+    const term = (this.filtro ?? '').trim();
+    const termNorm = this.normalize(term);
     let res = [...this.nucleos];
 
-    // Filtro por compañía
-    if (this.selectedCompanyId != null) {
-      res = res.filter(n => {
-        const farm = this.farms.find(f => f.id === n.granjaId);
-        return farm ? farm.companyId === this.selectedCompanyId : false;
-      });
-    }
+    const selCompany = this.selectedCompanyId != null ? Number(this.selectedCompanyId) : null;
+    const selFarm = this.selectedFarmId != null ? Number(this.selectedFarmId) : null;
 
-    // Filtro por granja
-    if (this.selectedFarmId != null) {
-      res = res.filter(n => n.granjaId === this.selectedFarmId);
+    if (selCompany != null && !isNaN(selCompany)) {
+      res = res.filter(n => Number(n.companyId) === selCompany);
     }
-
-    // Filtro por texto
-    if (term) {
+    if (selFarm != null && !isNaN(selFarm)) {
+      res = res.filter(n => Number(n.granjaId) === selFarm);
+    }
+    if (termNorm) {
       res = res.filter(n => {
         const haystack = [
           String(n.nucleoId ?? ''),
           this.safe(n.nucleoNombre),
-          this.safe(this.getFarmName(n.granjaId))
+          this.safe(n.granjaNombre),
+          this.safe(n.companyNombre)
         ]
           .map(this.normalize)
           .join(' ');
-        return haystack.includes(term);
+        return haystack.includes(termNorm);
       });
     }
 
@@ -381,13 +446,14 @@ export class NucleoListComponent implements OnInit, OnDestroy {
     return String(seq);
   }
 
-  getFarmName(granjaId: number): string {
-    return this.farmMap[granjaId] || '–';
+  /** Nombre de granja: del DTO o fallback si no viene (p. ej. detalle). */
+  getFarmName(n: NucleoDto): string {
+    return (n.granjaNombre ?? '').trim() || '–';
   }
 
-  getCompanyName(granjaId: number): string {
-    const farm = this.farms.find(f => f.id === granjaId);
-    return farm ? this.companyMap[farm.companyId] || '–' : '–';
+  /** Nombre de compañía: del DTO o fallback. */
+  getCompanyName(n: NucleoDto): string {
+    return (n.companyNombre ?? '').trim() || '–';
   }
 
   private normalize(s: string): string {

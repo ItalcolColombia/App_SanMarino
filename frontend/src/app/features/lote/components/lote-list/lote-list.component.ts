@@ -13,10 +13,11 @@ import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight } from '@fortaweso
 import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 import {
   LoteService, LoteDto, CreateLoteDto, UpdateLoteDto, LoteMortalidadResumenDto,
-  TrasladoLoteRequest, TrasladoLoteResponse
+  TrasladoLoteRequest, TrasladoLoteResponse, LoteFormDataResponse
 } from '../../services/lote.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../nucleo/services/nucleo.service';
@@ -98,7 +99,8 @@ export class ThousandSeparatorDirective {
     FormsModule,
     ThousandSeparatorDirective,
     ModalTrasladoLoteComponent,
-    FiltroSelectComponent
+    FiltroSelectComponent,
+    ConfirmationModalComponent
   ],
   templateUrl: './lote-list.component.html',
   styleUrls: ['./lote-list.component.scss']
@@ -117,6 +119,9 @@ export class LoteListComponent implements OnInit {
   modalTrasladoOpen = false;
   loteParaTrasladar: LoteDto | null = null;
   loadingTraslado = false;
+
+  // Pestaña de fase (Levante / Producción)
+  activeFase: 'levante' | 'produccion' = 'levante';
 
   // Búsqueda y orden
   filtro = '';
@@ -164,14 +169,30 @@ export class LoteListComponent implements OnInit {
   viewLotes: LoteDto[] = [];
   lotesReproductora: any[] = [];
 
-  // Filtros en cascada (lista)
+  // Filtros en cascada (lista) — opciones derivadas de los lotes cargados
   selectedCompanyId: number | null = null;
   selectedFarmId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
+  filterCompanyOptions: { id: number; label: string }[] = [];
+  filterFarmOptions: { id: number; name: string }[] = [];
+  filterNucleoOptions: { nucleoId: string; nucleoNombre: string }[] = [];
+  filterGalponOptions: { galponId: string; galponNombre: string }[] = [];
 
-  // Control de visibilidad del filtro de compañía
-  showCompanyFilter: boolean = false;
+  // Modal confirmación eliminar
+  confirmOpen = false;
+  confirmData: ConfirmationModalData = {
+    title: 'Eliminar lote',
+    message: 'Esta acción no se puede deshacer.',
+    confirmText: 'Eliminar',
+    cancelText: 'Cancelar',
+    type: 'warning',
+    showCancel: true,
+  };
+  pendingDelete: LoteDto | null = null;
+
+  // Carga del modal (solo al abrir crear/editar)
+  loadingModal = false;
 
   // Filtros (modal)
   nucleosFiltrados:   NucleoDto[] = [];
@@ -211,75 +232,54 @@ export class LoteListComponent implements OnInit {
   // ===================== Ciclo de vida ======================
   ngOnInit(): void {
     this.initForm();
+    this.loadLotes();
 
-    forkJoin({
-      farms:     this.farmSvc.getAll(),
-      nucleos:   this.nucleoSvc.getAll(),
-      galpones:  this.galponSvc.getAll(),
-      tecnicos:  this.userSvc.getAll(),
-      companies: this.companySvc.getAll(),
-      razas:     this.guiaGeneticaSvc.getRazasDisponibles(),
-    }).subscribe(({ farms, nucleos, galpones, tecnicos, companies, razas }) => {
-      // Catálogos
-      this.farms = farms;
-      this.farmById = {};
-      farms.forEach(f => { this.farmById[f.id] = f; this.farmMap[f.id] = f.name; });
+    // Chains del modal (usan datos cargados al abrir el modal)
+    this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
+      const granjaId = Number(granjaIdVal);
+      this.nucleosFiltrados = this.nucleos.filter(n => Number(n.granjaId) === granjaId);
+      this.filteredNucleos = this.nucleosFiltrados;
+      this.galponesFiltrados = [];
+      this.filteredGalpones = [];
+      this.form.get('galponId')?.setValue(null, { emitEvent: false });
 
-      this.nucleos = nucleos;
-      nucleos.forEach(n => this.nucleoMap[n.nucleoId] = n.nucleoNombre);
-
-      this.galpones = galpones;
-      galpones.forEach(g => this.galponMap[g.galponId] = g.galponNombre);
-
-      this.tecnicos = tecnicos;
-      tecnicos.forEach(u => {
-        if (u.id) {
-          this.techMap[u.id] = `${u.surName || ''} ${u.firstName}`;
-        }
-      });
-
-      this.companies = companies;
-      
-      // Determinar si mostrar el filtro de compañía
-      this.showCompanyFilter = companies.length > 1;
-      
-      // Si solo hay una compañía, seleccionarla automáticamente
-      if (companies.length === 1 && companies[0].id) {
-        this.selectedCompanyId = companies[0].id;
-      }
-
-      // Razas disponibles
-      this.razasDisponibles = razas;
-
-      // Lotes
-      this.loadLotes();
-    });
-
-    // Chains del modal
-    this.form.get('granjaId')!.valueChanges.subscribe(granjaId => {
-      this.nucleosFiltrados = this.nucleos.filter(n => n.granjaId === Number(granjaId));
-      this.filteredNucleos  = this.nucleosFiltrados;
       const primerNucleo = this.nucleosFiltrados[0]?.nucleoId ?? null;
       this.form.patchValue({ nucleoId: primerNucleo });
-
-      this.galponesFiltrados = [];
-      this.filteredGalpones  = [];
-      this.form.get('galponId')?.setValue(null);
+      if (primerNucleo && this.galpones.length > 0) {
+        const filtrados = this.galpones.filter(
+          g => Number(g.granjaId) === granjaId && String(g.nucleoId) === String(primerNucleo)
+        );
+        this.galponesFiltrados = [...filtrados];
+        this.filteredGalpones = this.galponesFiltrados;
+        const primerGalpon = this.galponesFiltrados[0]?.galponId ?? null;
+        this.form.patchValue({ galponId: primerGalpon }, { emitEvent: false });
+      }
     });
 
-    this.form.get('nucleoId')!.valueChanges.subscribe((nucleoId: string | null) => {
-      const granjaId = Number(this.form.get('granjaId')!.value);
+    this.form.get('nucleoId')!.valueChanges.subscribe((nucleoIdVal: string | number | null) => {
+      const granjaId = Number(this.form.get('granjaId')?.value);
+      const nucleoId = nucleoIdVal != null ? String(nucleoIdVal) : null;
       if (granjaId && nucleoId) {
-        this.galponSvc.getByGranjaAndNucleo(granjaId, nucleoId).subscribe(data => {
-          this.galponesFiltrados = data;
-          this.filteredGalpones  = data;
+        if (this.galpones.length > 0) {
+          const filtrados = this.galpones.filter(
+            g => Number(g.granjaId) === granjaId && String(g.nucleoId) === nucleoId
+          );
+          this.galponesFiltrados = [...filtrados];
+          this.filteredGalpones = this.galponesFiltrados;
           const primerGalpon = this.galponesFiltrados[0]?.galponId ?? null;
-          this.form.patchValue({ galponId: primerGalpon });
-        });
+          this.form.patchValue({ galponId: primerGalpon }, { emitEvent: false });
+        } else {
+          this.galponSvc.getByGranjaAndNucleo(granjaId, nucleoId).subscribe(data => {
+            this.galponesFiltrados = [...data];
+            this.filteredGalpones = this.galponesFiltrados;
+            const primerGalpon = this.galponesFiltrados[0]?.galponId ?? null;
+            this.form.patchValue({ galponId: primerGalpon }, { emitEvent: false });
+          });
+        }
       } else {
         this.galponesFiltrados = [];
-        this.filteredGalpones  = [];
-        this.form.get('galponId')?.setValue(null);
+        this.filteredGalpones = [];
+        this.form.get('galponId')?.setValue(null, { emitEvent: false });
       }
     });
 
@@ -360,68 +360,58 @@ export class LoteListComponent implements OnInit {
   // ===================== Carga ==============================
   private loadLotes(): void {
     this.loading = true;
-    this.loteSvc.getAll()
+    this.loteSvc.getAll(this.activeFase)
       .pipe(finalize(() => this.loading = false))
-      .subscribe(list => {
-        this.lotes = list;
-        this.recomputeList();
-
-        const calls = list.map(l => this.loteSvc.getResumenMortalidad(l.loteId));
-        if (calls.length) {
-          forkJoin(calls).subscribe({
-            next: (resumenes) => resumenes.forEach(r => { this.resumenMap[r.loteId] = r; }),
-            error: () => {}
-          });
-        }
+      .subscribe({
+        next: (list) => {
+          this.lotes = list;
+          this.buildFilterOptionsFromLotes();
+          this.recomputeList();
+        },
+        error: () => this.toastService.error('No se pudo cargar la lista de lotes.', 'Error')
       });
   }
 
-  // ===================== Filtros (lista) ====================
-  get farmsFilteredL(): FarmDto[] {
-    if (this.selectedCompanyId == null) return this.farms;
-    return this.farms.filter(f => f.companyId === this.selectedCompanyId);
-  }
-  get nucleosFilteredL(): NucleoDto[] {
-    if (this.selectedFarmId != null) return this.nucleos.filter(n => n.granjaId === this.selectedFarmId);
-    if (this.selectedCompanyId != null) {
-      const ids = new Set(this.farmsFilteredL.map(f => f.id));
-      return this.nucleos.filter(n => ids.has(n.granjaId));
-    }
-    return this.nucleos;
-  }
-  get galponesFilteredL(): GalponDetailDto[] {
-    let arr = this.galpones;
-    if (this.selectedFarmId != null) {
-      arr = arr.filter(g => g.granjaId === this.selectedFarmId);
-    } else if (this.selectedCompanyId != null) {
-      const ids = new Set(this.farmsFilteredL.map(f => f.id));
-      arr = arr.filter(g => ids.has(g.granjaId));
-    }
-    if (this.selectedNucleoId != null) arr = arr.filter(g => g.nucleoId === this.selectedNucleoId);
-    return arr;
+  setFase(fase: 'levante' | 'produccion'): void {
+    if (this.activeFase === fase) return;
+    this.activeFase = fase;
+    this.loadLotes();
   }
 
+  /** Construye opciones de filtro a partir de los lotes cargados (sin llamar a otros servicios). */
+  private buildFilterOptionsFromLotes(): void {
+    const companies = new Map<number, string>();
+    const farms = new Map<number, string>();
+    const nucleos = new Map<string, string>();
+    const galpones = new Map<string, string>();
+    for (const l of this.lotes) {
+      if (l.companyId != null) companies.set(l.companyId, `Compañía ${l.companyId}`);
+      if (l.farm?.id != null) farms.set(l.farm.id, l.farm.name ?? '');
+      if (l.nucleo?.nucleoId) nucleos.set(l.nucleo.nucleoId, l.nucleo.nucleoNombre ?? l.nucleo.nucleoId);
+      if (l.galpon?.galponId) galpones.set(l.galpon.galponId, l.galpon.galponNombre ?? l.galpon.galponId);
+    }
+    this.filterCompanyOptions = Array.from(companies.entries()).map(([id, label]) => ({ id, label }));
+    this.filterFarmOptions = Array.from(farms.entries()).map(([id, name]) => ({ id, name }));
+    this.filterNucleoOptions = Array.from(nucleos.entries()).map(([nucleoId, nucleoNombre]) => ({ nucleoId, nucleoNombre }));
+    this.filterGalponOptions = Array.from(galpones.entries()).map(([galponId, galponNombre]) => ({ galponId, galponNombre }));
+  }
+
+  // ===================== Filtros (lista) — opciones desde tabla ====================
   onCompanyChangeList(val: number | null) {
     this.selectedCompanyId = val;
-    if (this.selectedFarmId != null && !this.farmsFilteredL.some(f => f.id === this.selectedFarmId)) this.selectedFarmId = null;
-    if (this.selectedNucleoId != null && !this.nucleosFilteredL.some(n => n.nucleoId === this.selectedNucleoId)) this.selectedNucleoId = null;
-    if (this.selectedGalponId != null && !this.galponesFilteredL.some(g => g.galponId === this.selectedGalponId)) this.selectedGalponId = null;
     this.recomputeList();
   }
   onFarmChangeList(val: number | null) {
     this.selectedFarmId = val;
-    if (this.selectedNucleoId != null && !this.nucleosFilteredL.some(n => n.nucleoId === this.selectedNucleoId)) this.selectedNucleoId = null;
-    if (this.selectedGalponId != null && !this.galponesFilteredL.some(g => g.galponId === this.selectedGalponId)) this.selectedGalponId = null;
     this.recomputeList();
   }
   onNucleoChangeList(_val: string | null) {
-    if (this.selectedGalponId != null && !this.galponesFilteredL.some(g => g.galponId === this.selectedGalponId)) this.selectedGalponId = null;
     this.recomputeList();
   }
   resetListFilters() {
     this.filtro = '';
-    // No resetear selectedFarmId ya que es obligatorio
     this.selectedCompanyId = null;
+    this.selectedFarmId = null;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
     this.recomputeList();
@@ -433,31 +423,22 @@ export class LoteListComponent implements OnInit {
 
   // ===================== Recompute (filtros + orden) ========
   recomputeList() {
-    // Si no hay granja seleccionada, no mostrar lotes
-    if (!this.selectedFarmId) {
-      this.viewLotes = [];
-      return;
-    }
-
     const term = this.normalize(this.filtro);
     let res = [...this.lotes];
 
-    // Filtrar obligatoriamente por granja seleccionada
-    res = res.filter(l => l.granjaId === this.selectedFarmId);
-
-    // Filtros adicionales (opcionales)
-    if (this.selectedCompanyId != null) res = res.filter(l => this.farmById[l.granjaId]?.companyId === this.selectedCompanyId);
-    if (this.selectedNucleoId != null)  res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
-    if (this.selectedGalponId != null)  res = res.filter(l => (l.galponId ?? null) === this.selectedGalponId);
+    if (this.selectedCompanyId != null) res = res.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
+    if (this.selectedFarmId != null) res = res.filter(l => l.granjaId === this.selectedFarmId);
+    if (this.selectedNucleoId != null) res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
+    if (this.selectedGalponId != null) res = res.filter(l => (l.galponId ?? null) === this.selectedGalponId);
 
     if (term) {
       res = res.filter(l => {
         const haystack = [
           l.loteId ?? 0,
           l.loteNombre ?? '',
-          this.nucleoMap[l.nucleoId ?? ''] ?? '',
-          this.farmMap[l.granjaId] ?? '',
-          this.galponMap[l.galponId ?? ''] ?? ''
+          l.farm?.name ?? '',
+          l.nucleo?.nucleoNombre ?? '',
+          l.galpon?.galponNombre ?? ''
         ].map(s => this.normalize(String(s))).join(' ');
         return haystack.includes(term);
       });
@@ -501,9 +482,74 @@ export class LoteListComponent implements OnInit {
     });
   }
 
-  openModal(l?: LoteDto): void {
-    this.editing = l ?? null;
+  /** Carga todos los datos del modal crear/editar lote en una sola llamada (GET api/Lote/form-data). */
+  private loadModalData(): void {
+    this.loadingModal = true;
+    this.loteSvc.getFormData()
+      .pipe(finalize(() => (this.loadingModal = false)))
+      .subscribe({
+        next: (data) => this.applyFormDataResponse(data),
+        error: () => this.toastService.error('No se pudieron cargar los datos del formulario.', 'Error')
+      });
+  }
 
+  /**
+   * Distribuye la respuesta de form-data a las propiedades que usa el modal
+   * (cada select: Granja, Núcleo, Galpón, Raza; técnicos y companies para uso interno).
+   */
+  private applyFormDataResponse(data: LoteFormDataResponse): void {
+    const raw = (data as unknown) as Record<string, unknown>;
+    const farms = (raw['farms'] ?? raw['Farms'] ?? []) as FarmDto[];
+    const nucleos = (raw['nucleos'] ?? raw['Nucleos'] ?? []) as NucleoDto[];
+    const galpones = (raw['galpones'] ?? raw['Galpones'] ?? []) as GalponDetailDto[];
+    const tecnicos = (raw['tecnicos'] ?? raw['Tecnicos'] ?? []) as User[];
+    const companies = (raw['companies'] ?? raw['Companies'] ?? []) as Company[];
+    const razas = (raw['razas'] ?? raw['Razas'] ?? []) as string[];
+
+    this.farms = farms;
+    this.farmById = {};
+    this.farmMap = {};
+    farms.forEach((f) => {
+      this.farmById[f.id] = f;
+      this.farmMap[f.id] = f.name;
+    });
+
+    this.nucleos = nucleos;
+    this.nucleoMap = {};
+    nucleos.forEach((n) => {
+      this.nucleoMap[n.nucleoId] = n.nucleoNombre ?? n.nucleoId;
+    });
+
+    this.galpones = galpones;
+    this.galponMap = {};
+    galpones.forEach((g) => {
+      this.galponMap[g.galponId] = g.galponNombre ?? g.galponId;
+    });
+
+    this.tecnicos = tecnicos;
+    this.techMap = {};
+    tecnicos.forEach((u) => {
+      if (u.id) this.techMap[u.id] = `${u.surName ?? ''} ${u.firstName ?? ''}`.trim();
+    });
+
+    this.companies = companies;
+    this.razasDisponibles = Array.isArray(razas) ? [...razas] : [];
+
+    const granjaId = this.editing?.granjaId ?? this.form.get('granjaId')?.value;
+    const nucleoId = this.editing?.nucleoId ?? this.form.get('nucleoId')?.value;
+    this.nucleosFiltrados = granjaId != null ? this.nucleos.filter((n) => n.granjaId === Number(granjaId)) : [];
+    this.filteredNucleos = this.nucleosFiltrados;
+    this.galponesFiltrados =
+      granjaId != null && nucleoId != null
+        ? this.galpones.filter((g) => g.granjaId === Number(granjaId) && g.nucleoId === String(nucleoId))
+        : [];
+    this.filteredGalpones = this.galponesFiltrados;
+
+    this.applyModalFormState();
+  }
+
+  private applyModalFormState(): void {
+    const l = this.editing;
     if (l) {
       this.form.patchValue({
         ...l,
@@ -511,25 +557,16 @@ export class LoteListComponent implements OnInit {
           ? new Date(l.fechaEncaset).toISOString().substring(0, 10)
           : null
       });
-
-      this.nucleosFiltrados  = this.nucleos.filter(n => n.granjaId === l.granjaId);
-      this.filteredNucleos   = this.nucleosFiltrados;
+      this.nucleosFiltrados = this.nucleos.filter(n => n.granjaId === l.granjaId);
+      this.filteredNucleos = this.nucleosFiltrados;
       this.galponesFiltrados = this.galpones.filter(g =>
         g.granjaId === l.granjaId && g.nucleoId === String(l.nucleoId ?? '')
       );
       this.filteredGalpones = this.galponesFiltrados;
-
-      // Inicializar campos de sublote
-      // Si tiene lotePadreId, es un sublote
       const esSublote = !!l.lotePadreId;
       this.esLotePadre = esSublote;
-      this.form.patchValue({ 
-        esLotePadre: esSublote,
-        lotePadreId: l.lotePadreId || null
-      });
-      
+      this.form.patchValue({ esLotePadre: esSublote, lotePadreId: l.lotePadreId || null });
       if (esSublote && l.lotePadreId) {
-        // Si es sublote y tiene padre, cargar los filtros del lote padre
         this.loteSvc.getById(l.lotePadreId).subscribe({
           next: (lotePadre) => {
             this.selectedGranjaPadreId = lotePadre.granjaId;
@@ -539,16 +576,13 @@ export class LoteListComponent implements OnInit {
           }
         });
       } else {
-        // Si no es sublote, limpiar filtros
         this.selectedGranjaPadreId = null;
         this.selectedNucleoPadreId = null;
         this.selectedGalponPadreId = null;
       }
-
     } else {
-      // Para creación: no establecer loteId (la base de datos lo generará automáticamente)
       this.form.reset({
-        loteId: null, // Vacío - auto-incremento numérico
+        loteId: null,
         loteNombre: '',
         granjaId: null,
         nucleoId: null,
@@ -573,19 +607,20 @@ export class LoteListComponent implements OnInit {
         loteErp: '',
         lineaGenetica: ''
       });
-
-      this.nucleosFiltrados  = this.filteredNucleos  = [];
+      this.nucleosFiltrados = this.filteredNucleos = [];
       this.galponesFiltrados = this.filteredGalpones = [];
-      
-      // Inicializar campos de sublote para creación (por defecto no es sublote)
       this.form.patchValue({ esLotePadre: false, lotePadreId: null });
       this.esLotePadre = false;
       this.selectedGranjaPadreId = null;
       this.selectedNucleoPadreId = null;
       this.selectedGalponPadreId = null;
     }
+  }
 
+  openModal(l?: LoteDto): void {
+    this.editing = l ?? null;
     this.modalOpen = true;
+    this.loadModalData();
   }
 
   onEsLotePadreChange(event: Event): void {
@@ -605,21 +640,11 @@ export class LoteListComponent implements OnInit {
       this.loadingLotesPadres = false;
       return;
     }
-
-    this.loadingLotesPadres = true;
-    this.loteSvc.getAll().subscribe({
-      next: (lotes) => {
-        // Filtrar solo lotes que pueden ser padres (sin lotePadreId y no el lote actual)
-        this.lotesPadresDisponibles = lotes.filter(l => 
-          !l.lotePadreId && l.loteId !== this.editing?.loteId
-        );
-        this.filteredLotesPadres = [...this.lotesPadresDisponibles];
-        this.loadingLotesPadres = false;
-      },
-      error: () => {
-        this.loadingLotesPadres = false;
-      }
-    });
+    this.loadingLotesPadres = false;
+    this.lotesPadresDisponibles = this.lotes.filter(l =>
+      !l.lotePadreId && l.loteId !== this.editing?.loteId
+    );
+    this.filteredLotesPadres = [...this.lotesPadresDisponibles];
   }
 
   onGranjaPadreChange(granjaId: number | null): void {
@@ -686,28 +711,66 @@ export class LoteListComponent implements OnInit {
       : this.loteSvc.create(dto as CreateLoteDto);
 
     this.loading = true;
-    op$.pipe(finalize(() => {
-      this.loading = false;
-      this.modalOpen = false;
-      this.loadLotes();
-    })).subscribe();
+    op$.pipe(finalize(() => { this.loading = false; })).subscribe({
+      next: () => {
+        this.modalOpen = false;
+        this.toastService.success(
+          this.editing ? 'Lote actualizado correctamente.' : 'Lote registrado correctamente.',
+          'Listo'
+        );
+        this.loadLotes();
+      },
+      error: (err) => {
+        const msg = err?.error?.message || err?.message || 'Error al guardar el lote.';
+        this.toastService.error(msg, 'Error');
+      }
+    });
   }
 
   delete(l: LoteDto): void {
-    if (!confirm(`¿Eliminar lote “${l.loteNombre}”?`)) return;
+    this.pendingDelete = l;
+    this.confirmData = {
+      title: 'Eliminar lote',
+      message: `¿Eliminar el lote "${l.loteNombre}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      showCancel: true,
+    };
+    this.confirmOpen = true;
+  }
+
+  onConfirmDelete(): void {
+    const l = this.pendingDelete;
+    if (l == null) {
+      this.confirmOpen = false;
+      return;
+    }
+    this.confirmOpen = false;
+    this.pendingDelete = null;
     this.loading = true;
-    this.loteSvc.delete(l.loteId)
-      .pipe(finalize(() => {
-        this.loading = false;
+    this.loteSvc.delete(l.loteId).pipe(finalize(() => this.loading = false)).subscribe({
+      next: () => {
+        this.toastService.success('Lote eliminado correctamente.', 'Listo');
         this.loadLotes();
-      }))
-      .subscribe();
+      },
+      error: (err) => {
+        const msg = err?.error?.message || err?.message || 'Error al eliminar el lote.';
+        this.toastService.error(msg, 'Error');
+      }
+    });
+  }
+
+  onCancelConfirm(): void {
+    this.confirmOpen = false;
+    this.pendingDelete = null;
   }
 
   // ===================== Helpers ===========================
   get selectedFarmName(): string {
     if (!this.selectedFarmId) return '';
-    return this.farmMap[this.selectedFarmId] || '';
+    const opt = this.filterFarmOptions.find(f => f.id === this.selectedFarmId!);
+    return opt ? opt.name : this.farmMap[this.selectedFarmId] || '';
   }
 
   calcularEdadDias(fechaEncaset?: string | Date | null): number {
@@ -798,14 +861,27 @@ export class LoteListComponent implements OnInit {
   // ===================== MÉTODOS DE TRASLADO =====================
   
   openTrasladoModal(lote: LoteDto): void {
-    // Validar que el lote no esté ya trasladado
     if (lote.estadoTraslado === 'trasladado') {
       this.toastService.warning('Este lote ya ha sido trasladado anteriormente.', 'Lote ya Trasladado');
       return;
     }
-
     this.loteParaTrasladar = lote;
-    this.modalTrasladoOpen = true;
+    if (this.farms.length > 0 && this.nucleos.length > 0) {
+      this.modalTrasladoOpen = true;
+    } else {
+      this.loadingTraslado = true;
+      forkJoin({
+        farms: this.farmSvc.getAll(),
+        nucleos: this.nucleoSvc.getAll(),
+      }).pipe(finalize(() => this.loadingTraslado = false)).subscribe({
+        next: ({ farms, nucleos }) => {
+          this.farms = farms;
+          this.nucleos = nucleos;
+          this.modalTrasladoOpen = true;
+        },
+        error: () => this.toastService.error('No se pudieron cargar granjas y núcleos.', 'Error')
+      });
+    }
   }
 
   closeTrasladoModal(): void {

@@ -78,17 +78,62 @@
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
       [selectedLoteId]="selectedLoteId"
+      [filterDataUrl]="filterDataUrl"
+      (filterDataLoaded)="onFilterDataLoaded($event)"
       (granjaChange)="onGranjaChange($event)"
       (nucleoChange)="onNucleoChange($event)"
       (galponChange)="onGalponChange($event)"
       (loteChange)="onLoteChange($event)">
     </app-filtro-select>
 
+    <!-- Filtros de fecha -->
+    <section class="ux-card" *ngIf="selectedLoteId">
+      <div class="ux-card__header">
+        <h3>Filtros de Fecha</h3>
+      </div>
+      <div class="ux-card__content">
+        <div class="filter-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: end;">
+          <div class="form-field">
+            <label class="ux-label" for="filtro-desde">Desde</label>
+            <input
+              id="filtro-desde"
+              type="date"
+              class="ux-input"
+              [(ngModel)]="filtroDesde"
+              (change)="onFiltroFechaChange()"
+              [disabled]="!selectedLoteId">
+          </div>
+
+          <div class="form-field">
+            <label class="ux-label" for="filtro-hasta">Hasta</label>
+            <input
+              id="filtro-hasta"
+              type="date"
+              class="ux-input"
+              [(ngModel)]="filtroHasta"
+              (change)="onFiltroFechaChange()"
+              [disabled]="!selectedLoteId">
+          </div>
+
+          <div class="form-field">
+            <button
+              type="button"
+              class="btn btn--outline"
+              (click)="limpiarFiltrosFecha()"
+              [disabled]="!selectedLoteId || (!filtroDesde && !filtroHasta)">
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Tabs Principal: General, Indicadores y Gráfica -->
     <app-tabs-principal
       [seguimientos]="seguimientos"
       [selectedLote]="selectedLote"
       [produccionLote]="produccionLote"
+      [produccionLoteId]="currentProduccionLoteId"
       [loading]="loading"
       (create)="openDailyTrackingModal()"
       (edit)="editDailyTracking($event)"
@@ -105,6 +150,7 @@
   [loteNombre]="modalLoteNombre"
   [nucleoAsignado]="modalNucleoAsignado"
   [nucleosDisponibles]="modalNucleosDisponibles"
+  [avesDisponibles]="avesDisponiblesParaRegistro"
   [loading]="loading"
   (close)="cancelRegistroInicial()"
   (save)="onSaveRegistroInicial($event)"

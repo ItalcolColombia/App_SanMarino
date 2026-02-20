@@ -74,9 +74,10 @@ export class LoteProduccionService {
       .pipe(catchError(this.handleError));
   }
 
-  /** Verificar si un lote tiene configuración de ProduccionLote */
-  checkProduccionLoteConfig(loteId: string): Observable<{ hasProduccionLoteConfig: boolean }> {
-    return this.http.get<{ hasProduccionLoteConfig: boolean }>(`${this.base}/check-config/${loteId}`)
+  /** Verifica si el lote tiene configuración de producción (Opción B: lote con Fase Producción o hijo). */
+  checkProduccionLoteConfig(loteId: string | number): Observable<{ hasProduccionLoteConfig: boolean }> {
+    const id = typeof loteId === 'number' ? String(loteId) : loteId;
+    return this.http.get<{ hasProduccionLoteConfig: boolean }>(`${this.base}/check-config/${id}`)
       .pipe(catchError(this.handleError));
   }
 

@@ -33,6 +33,31 @@ export interface LoteDto {
   readonly fechaEncaset: string; // ISO
 }
 
+/** Item mínimo de galpón para filtros (respuesta de filter-data). */
+export interface GalponFilterItemDto {
+  readonly galponId: string;
+  readonly galponNombre: string;
+  readonly nucleoId: string;
+  readonly granjaId: number;
+}
+
+/** Item mínimo de lote para filtros (respuesta de filter-data). */
+export interface LoteFilterItemDto {
+  readonly loteId: number;
+  readonly loteNombre: string;
+  readonly granjaId: number;
+  readonly nucleoId: string | null;
+  readonly galponId: string | null;
+}
+
+/** Payload único con granjas, núcleos, galpones y lotes para los filtros del módulo. */
+export interface LoteReproductoraFilterDataDto {
+  readonly farms: ReadonlyArray<FarmDto>;
+  readonly nucleos: ReadonlyArray<NucleoDto>;
+  readonly galpones: ReadonlyArray<GalponFilterItemDto>;
+  readonly lotes: ReadonlyArray<LoteFilterItemDto>;
+}
+
 export interface LoteDtoExtendido {
   readonly loteId: string;
   readonly loteNombre: string;
@@ -51,7 +76,7 @@ export interface LoteDtoExtendido {
 }
 
 export interface LoteReproductoraDto {
-  readonly loteId: string;
+  readonly loteId: string; // Cambiado a string para coincidir con character varying(64) en BD
   readonly reproductoraId: string;
   readonly nombreLote: string;
   readonly fechaEncasetamiento: string | null; // ISO o null
@@ -69,6 +94,19 @@ export interface LoteReproductoraDto {
 
 export type CreateLoteReproductoraDto = LoteReproductoraDto;
 export type UpdateLoteReproductoraDto = LoteReproductoraDto;
+
+export interface AvesDisponiblesDto {
+  readonly hembrasIniciales: number;
+  readonly machosIniciales: number;
+  readonly mortalidadAcumuladaHembras: number;
+  readonly mortalidadAcumuladaMachos: number;
+  readonly mortCajaHembras: number;
+  readonly mortCajaMachos: number;
+  readonly asignadasHembras: number;
+  readonly asignadasMachos: number;
+  readonly hembrasDisponibles: number;
+  readonly machosDisponibles: number;
+}
 
 /* ===========================
    Búsqueda paginada (opcional)
@@ -177,6 +215,16 @@ export class LoteReproductoraService {
     return this.http.get<LoteDto[]>(`${this.base}/Lote`).pipe(catchError(this.handleError));
   }
 
+  /**
+   * Obtiene en una sola llamada los datos para los filtros en cascada:
+   * Granja → Núcleo → Galpón → Lote.
+   */
+  getFilterData(): Observable<LoteReproductoraFilterDataDto> {
+    return this.http
+      .get<LoteReproductoraFilterDataDto>(`${this.resourceBase}/filter-data`)
+      .pipe(catchError(this.handleError));
+  }
+
   // ---------- Lote Reproductora ----------
   getAll(): Observable<ReadonlyArray<LoteReproductoraDto>>;
   getAll(loteId: string): Observable<ReadonlyArray<LoteReproductoraDto>>;
@@ -266,6 +314,13 @@ export class LoteReproductoraService {
   updateLote(dto: LoteDtoExtendido): Observable<unknown> {
     return this.http
       .put(`${this.base}/Lote/${encodeURIComponent(dto.loteId)}`, dto)
+      .pipe(catchError(this.handleError));
+  }
+
+  // ---------- Obtener aves disponibles de un lote ----------
+  getAvesDisponibles(loteId: string): Observable<AvesDisponiblesDto> {
+    return this.http
+      .get<AvesDisponiblesDto>(`${this.resourceBase}/${encodeURIComponent(loteId)}/aves-disponibles`)
       .pipe(catchError(this.handleError));
   }
 }

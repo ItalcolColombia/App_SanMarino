@@ -102,7 +102,10 @@ export class TablaRegistroListComponent implements OnInit, OnDestroy {
       Promise.all(calls.map(call => call.toPromise())).then(resumenes => {
         resumenes.forEach(r => {
           if (r) {
-            this.resumenMap[r.loteId] = r;
+            const key = typeof r.loteId === 'string' ? parseInt(r.loteId, 10) : r.loteId;
+            if (!Number.isNaN(key)) {
+              this.resumenMap[key] = r;
+            }
           }
         });
       }).catch(error => {

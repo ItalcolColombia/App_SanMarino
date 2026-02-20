@@ -8,22 +8,44 @@
       </button>
     </div>
 
-    <!-- Filtros -->
+    <!-- Filtros (sobre los registros cargados: regional, departamento, ciudad, nombre, estado, búsqueda) -->
     <div class="ux-card p-4 mb-4">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-        <!-- Regional (string) -->
-        <div class="lg:col-span-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+        <!-- Regional -->
+        <div class="lg:col-span-2">
           <label for="f-regional" class="ux-label">Regional</label>
           <select id="f-regional" class="ux-select"
                   [(ngModel)]="selectedRegional"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let r of regionales" [ngValue]="r">{{ r }}</option>
+            <option *ngFor="let r of filterRegionalOptions" [ngValue]="r">{{ r }}</option>
           </select>
         </div>
 
-        <!-- Nombre exacto -->
-        <div class="lg:col-span-3">
+        <!-- Departamento -->
+        <div class="lg:col-span-2">
+          <label for="f-departamento" class="ux-label">Departamento</label>
+          <select id="f-departamento" class="ux-select"
+                  [(ngModel)]="selectedDepartamento"
+                  (ngModelChange)="recomputeList()">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let d of filterDepartamentoOptions" [ngValue]="d">{{ d }}</option>
+          </select>
+        </div>
+
+        <!-- Ciudad -->
+        <div class="lg:col-span-2">
+          <label for="f-ciudad" class="ux-label">Ciudad</label>
+          <select id="f-ciudad" class="ux-select"
+                  [(ngModel)]="selectedCiudad"
+                  (ngModelChange)="recomputeList()">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let c of filterCiudadOptions" [ngValue]="c">{{ c }}</option>
+          </select>
+        </div>
+
+        <!-- Nombre -->
+        <div class="lg:col-span-2">
           <label for="f-nombre" class="ux-label">Nombre de la granja</label>
           <input id="f-nombre" class="ux-input"
                  [(ngModel)]="filtroNombre"
@@ -32,7 +54,7 @@
         </div>
 
         <!-- Estado -->
-        <div class="lg:col-span-2">
+        <div class="lg:col-span-1">
           <label for="f-estado" class="ux-label">Estado</label>
           <select id="f-estado" class="ux-select"
                   [(ngModel)]="filtroEstado"
@@ -44,7 +66,7 @@
         </div>
 
         <!-- Búsqueda libre -->
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-2">
           <label for="f-search" class="ux-label">Buscar</label>
           <div class="ux-search">
             <fa-icon [icon]="['fas','magnifying-glass']" class="ux-search__icon" aria-hidden="true"></fa-icon>
@@ -80,16 +102,28 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let g of viewFarms; trackBy: trackByFarm">
+            <!-- Estado de carga -->
+            <tr *ngIf="loadingTable">
+              <td colspan="8" class="empty-state">
+                <div class="spinner" aria-hidden="true"></div>
+                <p>Cargando información de granjas...</p>
+              </td>
+            </tr>
+
+            <!-- Filas de datos -->
+            <tr *ngFor="let g of viewFarms; trackBy: trackByFarm" [class.hidden]="loadingTable">
               <td>{{ g.id }}</td>
-              <td>{{ companyName(g.companyId) }}</td>
+              <td>{{ g.companyNombre || companyName(g.companyId) || '—' }}</td>
               <td class="uppercase">{{ g.name }}</td>
-              <td>{{ g.regional || '' }}</td>
+              <td>{{ g.regionalNombre || getRegionalName(g.regionalId) || '—' }}</td>
               <td>{{ g.status }}</td>
-              <td>{{ g.department || '' }}</td>
-              <td>{{ g.city || '' }}</td>
+              <td>{{ g.departamentoNombre || g.department || '—' }}</td>
+              <td>{{ g.ciudadNombre || g.city || '—' }}</td>
               <td class="text-center">
                 <div class="inline-flex items-center gap-2">
+                  <button class="icon-btn" title="Ver detalle" (click)="showDetail(g)">
+                    <fa-icon [icon]="faEye"></fa-icon>
+                  </button>
                   <button class="icon-btn" title="Editar" (click)="openModal(g)">
                     <fa-icon [icon]="faPen"></fa-icon>
                   </button>
@@ -100,7 +134,8 @@
               </td>
             </tr>
 
-            <tr *ngIf="(viewFarms?.length ?? 0) === 0 && !loading">
+            <!-- Estado vacío -->
+            <tr *ngIf="(viewFarms?.length ?? 0) === 0 && !loadingTable">
               <td colspan="8" class="empty-state">
                 <div class="empty-illustration">🏡</div>
                 <p>No hay granjas que coincidan con los filtros.</p>
@@ -112,11 +147,6 @@
           </tbody>
         </table>
       </div>
-
-      <!-- Overlay de carga -->
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-        <div class="spinner"></div> Cargando…
-      </div>
     </div>
 
     <!-- MODAL: Crear/Editar Granja -->
@@ -127,27 +157,21 @@
           <button type="button" (click)="cancel()" class="btn-muted">Cerrar</button>
         </div>
 
-        <form [formGroup]="form" (ngSubmit)="save()" class="grid grid-cols-1 md:grid-cols-2 gap-4" novalidate>
-          <!-- ID (solo lectura; consecutivo sugerido por el front) -->
-          <div>
-            <label class="ux-label">ID (sugerido)</label>
-            <input formControlName="id"
-                   class="ux-input"
-                   [readonly]="true"
-                   [attr.aria-readonly]="true" />
-            <p class="ux-help">
-              Número sugerido (máximo ID actual + 1). No es editable por el usuario.
-            </p>
-          </div>
+        <!-- Indicador de carga del modal -->
+        <div *ngIf="loadingModal" class="loading-overlay" style="position: relative; min-height: 200px;">
+          <div class="spinner"></div>
+          <p style="margin-top: 0.5rem; color: var(--warm-600);">Cargando datos del formulario...</p>
+        </div>
 
-          <!-- Compañía -->
+        <form [formGroup]="form" (ngSubmit)="save()" class="grid grid-cols-1 md:grid-cols-2 gap-4" [class.hidden]="loadingModal" novalidate>
+          <!-- Compañía (desde storage: id y nombre de la empresa; solo lectura) -->
           <div>
             <label class="ux-label">Compañía <span class="req">*</span></label>
-            <select formControlName="companyId" class="ux-input"
-                    [class.is-invalid]="form.get('companyId')?.invalid && form.get('companyId')?.touched">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
-            </select>
+            <input formControlName="companyDisplayName"
+                   class="ux-input"
+                   readonly
+                   [attr.aria-readonly]="true"
+                   placeholder="Empresa de la sesión" />
           </div>
 
           <!-- Nombre -->
@@ -158,13 +182,16 @@
                    [class.is-invalid]="form.get('name')?.invalid && form.get('name')?.touched" />
           </div>
 
-          <!-- Regional (texto) -->
+          <!-- Regional (opciones desde lista maestra region_option_key; id y value; se envía regionalOptionId al backend) -->
           <div>
             <label class="ux-label">Regional</label>
-            <select formControlName="regional" class="ux-input">
-              <option [ngValue]="''">Seleccione…</option>
-              <option *ngFor="let r of regionales" [ngValue]="r">{{ r }}</option>
+            <select formControlName="regionalOptionId" class="ux-input">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let opt of regionalOptionItems" [ngValue]="opt.id">{{ opt.value }}</option>
             </select>
+            <p class="ux-help" *ngIf="regionalOptionItems.length === 0 && form.get('companyId')?.value">
+              No hay regionales disponibles para esta compañía.
+            </p>
           </div>
 
           <!-- Estado -->
@@ -177,16 +204,15 @@
           </div>
 
           <!-- ====== Cascada País → Departamento → Ciudad ====== -->
-          <!-- País (UI; carga Departamentos) -->
+          <!-- País: siempre el de la sesión (storage), select deshabilitado; con él se cargan Departamento y Ciudad -->
           <div>
             <label class="ux-label">País</label>
-            <select formControlName="paisId" class="ux-input" (change)="onPaisChange()">
+            <select formControlName="paisId" class="ux-input" (change)="onPaisChange()" [disabled]="paisDisabled">
               <option [ngValue]="null">Seleccione…</option>
               <option *ngFor="let p of paises" [ngValue]="p.paisId">
                 {{ p.paisNombre }}
               </option>
             </select>
-            <p class="ux-help">Al seleccionar un país, se cargarán sus Departamentos.</p>
           </div>
 
           <!-- Departamento -->
@@ -229,5 +255,106 @@
       </div>
     </div>
     <!-- /MODAL -->
+
+    <!-- MODAL: Detalle de Granja -->
+    <div *ngIf="detailOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+      <div class="ux-modal__panel ux-modal__panel--detail">
+        <div class="ux-modal__header ux-modal__header--detail">
+          <h2 id="detail-modal-title" class="ux-title">Detalle de la Granja</h2>
+          <button type="button" (click)="closeDetail()" class="btn-muted" aria-label="Cerrar">
+            <fa-icon [icon]="faTimes"></fa-icon>
+          </button>
+        </div>
+
+        <!-- Indicador de carga del detalle -->
+        <div *ngIf="loadingDetail" class="loading-overlay" style="position: relative; min-height: 300px;">
+          <div class="spinner"></div>
+          <p style="margin-top: 0.5rem; color: var(--warm-600);">Cargando información de la granja...</p>
+        </div>
+
+        <div class="ux-modal__body" *ngIf="selectedDetail && !loadingDetail">
+          <!-- Información Principal -->
+          <section class="detail-section">
+            <h3 class="detail-section__title">Información Principal</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">ID</span>
+                <span class="detail-value">{{ selectedDetail.id }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Nombre</span>
+                <span class="detail-value highlight">{{ selectedDetail.name }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Compañía</span>
+                <span class="detail-value">{{ selectedDetail.companyNombre || companyName(selectedDetail.companyId) || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Estado</span>
+                <span class="detail-value">
+                  <span class="ux-badge" [class.badge-active]="selectedDetail.status === 'A'"
+                        [class.badge-inactive]="selectedDetail.status === 'I'">
+                    {{ selectedDetail.status === 'A' ? 'Activa' : 'Inactiva' }}
+                  </span>
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Ubicación -->
+          <section class="detail-section">
+            <h3 class="detail-section__title">Ubicación</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Regional</span>
+                <span class="detail-value">{{ selectedDetail.regionalNombre || getRegionalName(selectedDetail.regionalId) || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Departamento</span>
+                <span class="detail-value">{{ selectedDetail.departamentoNombre || selectedDetail.department || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Ciudad</span>
+                <span class="detail-value">{{ selectedDetail.ciudadNombre || selectedDetail.city || '—' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Auditoría -->
+          <section class="detail-section" *ngIf="selectedDetail.createdAt || selectedDetail.updatedAt">
+            <h3 class="detail-section__title">Auditoría</h3>
+            <div class="detail-grid">
+              <div class="detail-item" *ngIf="selectedDetail.createdAt">
+                <span class="detail-label">Creado</span>
+                <span class="detail-value">{{ selectedDetail.createdAt | date:'short' }}</span>
+              </div>
+              <div class="detail-item" *ngIf="selectedDetail.updatedAt">
+                <span class="detail-label">Actualizado</span>
+                <span class="detail-value">{{ selectedDetail.updatedAt | date:'short' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Acciones -->
+          <div class="ux-actions">
+            <button type="button" class="btn-muted" (click)="closeDetail()">Cerrar</button>
+            <button type="button" class="btn-primary" (click)="closeDetail(); openModal(selectedDetail)">
+              <fa-icon [icon]="faPen"></fa-icon>
+              Editar Granja
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /MODAL DETALLE -->
+
+    <!-- Modal confirmación eliminar -->
+    <app-confirmation-modal
+      [isOpen]="confirmOpen"
+      [data]="confirmData"
+      (confirmed)="onConfirmDelete()"
+      (cancelled)="onCancelConfirm()"
+      (closed)="onCancelConfirm()">
+    </app-confirmation-modal>
   </div>
 </div>

@@ -260,6 +260,12 @@
 :host .info-value {
   font-size: var(--fs-md); font-weight: 700; color: var(--text);
 }
+:host .info-value--number { color: var(--brand-red, #b91c1c); }
+:host .info-hint {
+  font-size: var(--fs-xs); color: var(--text-sub); font-weight: 400;
+  margin-top: 0.25rem; line-height: 1.35; max-width: 420px;
+}
+:host .info-card--aves { min-width: 100%; }
 
 /* ==========================================================================
    🧭 Tabs del modal (CSS-only, accesible)

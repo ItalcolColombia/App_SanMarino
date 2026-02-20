@@ -87,19 +87,34 @@ export const appConfig: ApplicationConfig = {
               import('./features/lote-produccion/lote-produccion.module')
                 .then(m => m.LoteProduccionModule)
           },
-          {
-            path: 'reproductora',
-            loadChildren: () =>
-              import('./features/lote-reproductora/lote-reproductora.module')
-                .then(m => m.LoteReproductoraModule)
-          },
             {
             path: 'seguimiento-diario-lote-reproductora',
             loadChildren: () =>
+              import('./features/lote-levante/seguimiento-lote-levante.module')
+                .then(m => m.SeguimientoLoteLevanteModule)
+          },
+          {
+            path: 'seguimiento-diario-lote-reproductora_pollo_engorde',
+            loadChildren: () =>
               import('./features/seguimiento-diario-lote-reproductora/seguimiento-diario-lote-reproductora.module')
                 .then(m => m.SeguimientoDiarioLoteReproductoraModule)
+          },
+          {
+            path: 'aves-engorde',
+            loadChildren: () =>
+              import('./features/aves-engorde/seguimiento-aves-engorde.module')
+                .then(m => m.SeguimientoAvesEngordeModule)
           }
         ]
+      },
+
+      // Lote Reproductora (módulo independiente)
+      {
+        path: 'lote-reproductora',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/lote-reproductora/lote-reproductora.module')
+            .then(m => m.LoteReproductoraModule)
       },
 
       {
@@ -156,6 +171,18 @@ export const appConfig: ApplicationConfig = {
               import('./features/lote/page/lote-management/lote-management.componet')
                 .then(m => m.LoteManagementComponent)
           },
+          {
+            path: 'lote-engorde',
+            loadComponent: () =>
+              import('./features/lote-engorde/pages/lote-engorde-management/lote-engorde-management.component')
+                .then(m => m.LoteEngordeManagementComponent)
+          },
+          {
+            path: 'lote-reproductora-ave-engorde',
+            loadChildren: () =>
+              import('./features/lote-reproductora-ave-engorde/lote-reproductora-ave-engorde.module')
+                .then(m => m.LoteReproductoraAveEngordeModule)
+          },
           // Lotes
           { path: 'lotes', component: LoteListComponent },
 
@@ -171,42 +198,44 @@ export const appConfig: ApplicationConfig = {
             loadChildren: () =>
               import('./features/catalogo-alimentos/catalogo-alimentos.module')
                 .then(m => m.CatalogoAlimentosModule)
-          },
-
-          // Inventario (nuevo, lazy)
-          {
-            path: 'inventario',
-            loadChildren: () =>
-              import('./features/inventario/inventario.module')
-                .then(m => m.InventarioModule)
-          },
-
-          // app.routes.ts
-        {
-          path: 'inventario-management',
-          loadComponent: () =>
-            import('./features/inventario/components/inventario-tabs/inventario-tabs.component')
-              .then(m => m.InventarioTabsComponent)
-        },
-
-        // app.routes.ts
-        {
-          path: 'inventario/catalogo',
-          loadComponent: () =>
-            import('./features/catalogo-alimentos/catalogo-alimentos.module')
-              .then(m => m.CatalogoAlimentosModule)
-        },
-
-        // Módulo de DB Studio (lazy)
-         {
-          path: 'db-studio',
-          loadChildren: () =>
-            import('./features/db-studio/db-studio.module')
-              .then(m => m.DbStudioModule)
-        },
-
-          { path: '', redirectTo: 'farms-list', pathMatch: 'full' }
+          }
         ]
+      },
+      
+      // Indicador Ecuador (ruta independiente)
+      {
+        path: 'indicador-ecuador',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/indicador-ecuador/indicador-ecuador.module')
+            .then(m => m.IndicadorEcuadorModule)
+      },
+      
+      // Inventario (fuera de config, ruta independiente)
+      {
+        path: 'inventario',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/inventario/inventario.module')
+            .then(m => m.InventarioModule)
+      },
+      
+      // Ruta alternativa para inventario (también protegida)
+      {
+        path: 'inventario-management',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/inventario/components/inventario-tabs/inventario-tabs.component')
+            .then(m => m.InventarioTabsComponent)
+      },
+
+      // Módulo de DB Studio (lazy)
+      {
+        path: 'db-studio',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/db-studio/db-studio.module')
+            .then(m => m.DbStudioModule)
       },
 
       // Módulo de Traslados de Aves (lazy)
@@ -314,6 +343,13 @@ export const appConfig: ApplicationConfig = {
         loadChildren: () =>
           import('./features/movimientos-aves/movimientos-aves-routing.module')
             .then(m => m.MovimientosAvesRoutingModule)
+      },
+      {
+        path: 'movimiento-pollo-engorde',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/movimientos-pollo-engorde/movimientos-pollo-engorde-routing.module')
+            .then(m => m.MovimientosPolloEngordeRoutingModule)
       },
 
       { path: '**', redirectTo: 'login' }

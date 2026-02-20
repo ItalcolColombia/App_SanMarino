@@ -211,5 +211,76 @@ export class ReporteContableService {
       responseType: 'blob'
     });
   }
+
+  /**
+   * Obtiene el reporte de movimientos de huevos
+   */
+  obtenerReporteMovimientosHuevos(request: GenerarReporteContableRequestDto): Observable<ReporteMovimientosHuevosDto> {
+    let params = new HttpParams()
+      .set('lotePadreId', request.lotePadreId.toString());
+
+    if (request.semanaContable) {
+      params = params.set('semanaContable', request.semanaContable.toString());
+    }
+    if (request.fechaInicio) {
+      params = params.set('fechaInicio', request.fechaInicio);
+    }
+    if (request.fechaFin) {
+      params = params.set('fechaFin', request.fechaFin);
+    }
+
+    return this.http.get<ReporteMovimientosHuevosDto>(`${this.apiUrl}/movimientos-huevos`, { params });
+  }
+}
+
+export interface MovimientoHuevoDiarioDto {
+  fecha: string;
+  loteId: string;
+  loteNombre: string;
+  postura: number;
+  hvtoFertil: number;
+  hvoComercial: number;
+  huevoDesecho: number;
+  limpio: number;
+  tratado: number;
+  sucio: number;
+  deforme: number;
+  blanco: number;
+  dobleYema: number;
+  piso: number;
+  pequeno: number;
+  roto: number;
+  otro: number;
+  entrada: number;
+  capturaInfo: number;
+  venta: number;
+  salida: number;
+  trasladoAPlanta: number;
+  descarte: number;
+  tecnicoAAA?: number;
+  tecnicoAA?: number;
+  tecnicoB?: number;
+  tecnicoC?: number;
+  picadoPecoso?: number;
+  picadoManchado?: number;
+  picadoSucio?: number;
+}
+
+export interface ReporteMovimientosHuevosDto {
+  lotePadreId: number;
+  lotePadreNombre: string;
+  semanaContable?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
+  movimientosDiarios: MovimientoHuevoDiarioDto[];
+  totalPostura: number;
+  totalHvtoFertil: number;
+  totalHvoComercial: number;
+  totalHuevoDesecho: number;
+  totalEntrada: number;
+  totalVenta: number;
+  totalSalida: number;
+  totalTrasladoAPlanta: number;
+  totalDescarte: number;
 }
 

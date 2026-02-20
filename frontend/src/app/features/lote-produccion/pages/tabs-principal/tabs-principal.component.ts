@@ -17,6 +17,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
   @Input() produccionLote: ProduccionLoteDetalleDto | null = null;
+  /** ID del lote en fase Producción (hijo o mismo). Mismo que usa listado y modal de seguimiento diario. */
+  @Input() produccionLoteId: number | null = null;
   @Input() loading: boolean = false;
 
   @Output() create = new EventEmitter<void>();

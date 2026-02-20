@@ -10,50 +10,78 @@
       </button>
     </div>
 
+    <!-- Pestañas Levante / Producción -->
+    <div class="ux-card p-2 mb-4">
+      <div class="flex gap-2 border-b border-gray-200">
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+          [class.bg-primary]="activeFase === 'levante'"
+          [class.text-white]="activeFase === 'levante'"
+          [class.bg-gray-100]="activeFase !== 'levante'"
+          [class.text-gray-700]="activeFase !== 'levante'"
+          [class.hover:bg-gray-200]="activeFase !== 'levante'"
+          (click)="setFase('levante')">
+          Levante
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+          [class.bg-primary]="activeFase === 'produccion'"
+          [class.text-white]="activeFase === 'produccion'"
+          [class.bg-gray-100]="activeFase !== 'produccion'"
+          [class.text-gray-700]="activeFase !== 'produccion'"
+          [class.hover:bg-gray-200]="activeFase !== 'produccion'"
+          (click)="setFase('produccion')">
+          Producción
+        </button>
+      </div>
+    </div>
+
     <!-- Filtros en cascada + búsqueda + orden -->
     <div class="ux-card p-4 mb-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 items-end">
-        <!-- Compañía (solo si hay múltiples compañías) -->
-        <div class="sm:col-span-2 lg:col-span-1" *ngIf="showCompanyFilter">
+        <!-- Compañía (solo si hay más de una en la tabla) -->
+        <div class="sm:col-span-2 lg:col-span-1" *ngIf="filterCompanyOptions.length > 1">
           <label for="l-company" class="ux-label">Compañía</label>
           <select id="l-company" class="ux-select"
                   [(ngModel)]="selectedCompanyId"
                   (ngModelChange)="onCompanyChangeList($event)">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+            <option *ngFor="let c of filterCompanyOptions" [ngValue]="c.id">{{ c.label }}</option>
           </select>
         </div>
 
         <!-- Granja -->
-        <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="showCompanyFilter" [class.xl:col-span-2]="!showCompanyFilter">
+        <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="filterCompanyOptions.length > 1" [class.xl:col-span-2]="filterCompanyOptions.length <= 1">
           <label for="l-farm" class="ux-label">Granja</label>
           <select id="l-farm" class="ux-select"
                   [(ngModel)]="selectedFarmId"
                   (ngModelChange)="onFarmChangeList($event)">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let f of farmsFilteredL" [ngValue]="f.id">{{ f.name }}</option>
+            <option *ngFor="let f of filterFarmOptions" [ngValue]="f.id">{{ f.name }}</option>
           </select>
         </div>
 
         <!-- Núcleo -->
-        <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="showCompanyFilter" [class.xl:col-span-2]="!showCompanyFilter">
+        <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="filterCompanyOptions.length > 1" [class.xl:col-span-2]="filterCompanyOptions.length <= 1">
           <label for="l-nucleo" class="ux-label">Núcleo</label>
           <select id="l-nucleo" class="ux-select"
                   [(ngModel)]="selectedNucleoId"
                   (ngModelChange)="onNucleoChangeList($event)">
             <option [ngValue]="null">Todos</option>
-            <option *ngFor="let n of nucleosFilteredL" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            <option *ngFor="let n of filterNucleoOptions" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
           </select>
         </div>
 
         <!-- Galpón -->
-        <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="showCompanyFilter" [class.xl:col-span-2]="!showCompanyFilter">
+        <div class="sm:col-span-2 lg:col-span-1" [class.xl:col-span-1]="filterCompanyOptions.length > 1" [class.xl:col-span-2]="filterCompanyOptions.length <= 1">
           <label for="l-galpon" class="ux-label">Galpón</label>
           <select id="l-galpon" class="ux-select"
                   [(ngModel)]="selectedGalponId"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todos</option>
-            <option *ngFor="let g of galponesFilteredL" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            <option *ngFor="let g of filterGalponOptions" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
           </select>
         </div>
 
@@ -106,35 +134,21 @@
       </div>
     </div>
 
-    <!-- Mensaje cuando no hay granja seleccionada -->
-    <div *ngIf="!selectedFarmId" class="ux-card">
-      <div class="text-center py-12">
-        <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-          <fa-icon [icon]="faEye" class="text-blue-600 text-2xl"></fa-icon>
-        </div>
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Selecciona una granja</h3>
-        <p class="text-gray-600 mb-4">Para ver los lotes disponibles, primero selecciona una granja del filtro superior.</p>
-        <div class="text-sm text-gray-500">
-          <p>Una vez seleccionada la granja, podrás ver todos los lotes asociados a esa ubicación.</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Tabla de lotes (solo cuando hay granja seleccionada) -->
-    <div *ngIf="selectedFarmId" class="ux-card">
-      <!-- Header de la tabla con nombre de granja -->
+    <!-- Tabla de lotes -->
+    <div class="ux-card">
       <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
         <h3 class="text-lg font-semibold text-gray-900">
-          Lotes de la granja: <span class="text-blue-600">{{ selectedFarmName }}</span>
+          Lotes
+          <span *ngIf="selectedFarmName" class="text-blue-600"> — {{ selectedFarmName }}</span>
         </h3>
         <p class="text-sm text-gray-600 mt-1">
-          Mostrando {{ viewLotes.length }} lote(s) de esta granja
+          Mostrando {{ viewLotes.length }} lote(s)
         </p>
       </div>
 
       <div class="ux-scroll">
         <table class="ux-table">
-          <caption class="sr-only">Listado de lotes para la granja {{ selectedFarmName }}</caption>
+          <caption class="sr-only">Listado de lotes</caption>
 
           <thead>
             <tr>
@@ -142,14 +156,15 @@
               <th scope="col">Nombre</th>
               <th scope="col">Granja</th>
               <th scope="col">Núcleo</th>
+              <th scope="col">Galpón</th>
+              <th scope="col">Raza</th>
               <th scope="col">Fase</th>
-              <th scope="col">Edad (Dias)</th>
-              <th scope="col">Vivas H</th>
-              <th scope="col">Vivas M</th>
-              <th scope="col">Vivas total</th>
-              <th scope="col">Total aves</th>
+              <th scope="col">Edad (días)</th>
+              <th scope="col">Hembras</th>
+              <th scope="col">Machos</th>
+              <th scope="col">Aves encaset.</th>
               <th scope="col">Fecha encaset</th>
-              <th scope="col">Fecha de registro</th>
+              <th scope="col">Fecha registro</th>
               <th scope="col">Estado</th>
               <th scope="col" class="text-center">Acciones</th>
             </tr>
@@ -159,16 +174,17 @@
             <tr *ngFor="let l of viewLotes; trackBy: trackByLote" class="ux-row">
               <td>{{ l.loteId }}</td>
               <td>{{ l.loteNombre }}</td>
-              <td>{{ l.farm?.name || '—' }}</td>
-              <td>{{ l.nucleo?.nucleoNombre || '—' }}</td>
+              <td>{{ l.farm?.name ?? '—' }}</td>
+              <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
+              <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
+              <td>{{ l.raza ?? '—' }}</td>
               <td><span class="ux-badge">{{ calcularFase(l.fechaEncaset) }}</span></td>
               <td>{{ l.fechaEncaset ? calcularEdadDias(l.fechaEncaset) : '—' }}</td>
 
-              <td>{{ formatOrDash(vivasH(l)) }}</td>
-              <td>{{ formatOrDash(vivasM(l)) }}</td>
-              <td>{{ formatOrDash(vivasTotales(l)) }}</td>
+              <td>{{ formatOrDash(l.hembrasL) }}</td>
+              <td>{{ formatOrDash(l.machosL) }}</td>
 
-              <td>{{ formatNumber((l.hembrasL || 0) + (l.machosL || 0)) }}</td>
+              <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
               <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
               <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
               <td>
@@ -178,7 +194,7 @@
                 <span *ngIf="l.estadoTraslado === 'en_transferencia'" class="ux-badge bg-blue-100 text-blue-800">
                   En Transferencia
                 </span>
-                <span *ngIf="!l.estadoTraslado || l.estadoTraslado === 'normal'" class="ux-badge bg-green-100 text-green-800">
+                <span *ngIf="l.estadoTraslado !== 'trasladado' && l.estadoTraslado !== 'en_transferencia'" class="ux-badge bg-green-100 text-green-800">
                   Normal
                 </span>
               </td>
@@ -207,9 +223,9 @@
             </tr>
 
             <tr *ngIf="!loading && viewLotes.length === 0">
-              <td colspan="12" class="empty-state">
+              <td colspan="15" class="empty-state">
                 <div class="empty-illustration">📦</div>
-                <p>No hay lotes registrados en esta granja.</p>
+                <p>No hay lotes que coincidan con los filtros.</p>
                 <button (click)="openModal()" class="btn-secondary mt-2">
                   <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
                   Crear el primero
@@ -237,7 +253,14 @@
           <button (click)="modalOpen = false" type="button" class="btn-muted">Cerrar</button>
         </div>
 
-        <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
+        <div *ngIf="loadingModal" class="ux-modal__body flex items-center justify-center py-12" aria-busy="true">
+          <div class="text-center">
+            <div class="spinner mx-auto mb-3"></div>
+            <p class="text-gray-600">Cargando datos del formulario…</p>
+          </div>
+        </div>
+
+        <form *ngIf="!loadingModal" [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body space-y-6" novalidate>
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <!-- Granja -->
             <div>
@@ -582,4 +605,13 @@
     (confirm)="onConfirmarTraslado($event)">
   </app-modal-traslado-lote>
   <!-- /MODAL TRASLADO -->
+
+  <!-- MODAL CONFIRMACIÓN ELIMINAR -->
+  <app-confirmation-modal
+    [isOpen]="confirmOpen"
+    [data]="confirmData"
+    (confirmed)="onConfirmDelete()"
+    (cancelled)="onCancelConfirm()"
+    (closed)="onCancelConfirm()">
+  </app-confirmation-modal>
 </div>

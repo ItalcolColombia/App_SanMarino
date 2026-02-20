@@ -1,0 +1,248 @@
+<div class="modal-backdrop" *ngIf="isOpen" (click)="onClose()" role="button" tabindex="-1" aria-label="Cerrar"></div>
+<div class="modal-wrap" *ngIf="isOpen" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal" [class.modal--detail]="isReadOnly" [class.modal--form]="!isReadOnly" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <div class="modal__header-content">
+        <h2 id="modal-title">{{ modalTitle }}</h2>
+        <ng-container *ngIf="editingMovimiento && isReadOnly">
+          <span class="modal__badge" [attr.data-estado]="editingMovimiento.estado.toLowerCase()">{{ editingMovimiento.numeroMovimiento }}</span>
+          <span class="modal__estado" [attr.data-estado]="editingMovimiento.estado.toLowerCase()">{{ editingMovimiento.estado }}</span>
+        </ng-container>
+      </div>
+      <button type="button" class="modal__close" (click)="onClose()" aria-label="Cerrar">&times;</button>
+    </div>
+
+    <!-- Vista solo lectura: Ver detalle -->
+    <div *ngIf="isReadOnly && editingMovimiento" class="modal__body detail-view">
+      <div class="detail-section">
+        <h3 class="detail-section__title">Datos generales</h3>
+        <dl class="detail-grid">
+          <dt>Número</dt><dd>{{ editingMovimiento.numeroMovimiento }}</dd>
+          <dt>Fecha</dt><dd>{{ fechaCorta(editingMovimiento.fechaMovimiento) }}</dd>
+          <dt>Tipo</dt><dd>{{ editingMovimiento.tipoMovimiento }}</dd>
+          <dt>Estado</dt><dd><span class="detail-badge" [attr.data-estado]="editingMovimiento.estado.toLowerCase()">{{ editingMovimiento.estado }}</span></dd>
+        </dl>
+      </div>
+      <div class="detail-section">
+        <h3 class="detail-section__title">Origen y destino</h3>
+        <dl class="detail-grid">
+          <dt>Origen</dt><dd>{{ origenLabel }}</dd>
+          <dt>Granja origen</dt><dd>{{ editingMovimiento.granjaOrigenNombre || '—' }}</dd>
+          <dt>Destino</dt><dd>{{ editingMovimiento.loteDestinoNombre || editingMovimiento.granjaDestinoNombre || '—' }}</dd>
+        </dl>
+      </div>
+      <div class="detail-section">
+        <h3 class="detail-section__title">Cantidades</h3>
+        <dl class="detail-grid">
+          <dt>Hembras</dt><dd>{{ formatearNumero(editingMovimiento.cantidadHembras) }}</dd>
+          <dt>Machos</dt><dd>{{ formatearNumero(editingMovimiento.cantidadMachos) }}</dd>
+          <dt>Mixtas</dt><dd>{{ formatearNumero(editingMovimiento.cantidadMixtas) }}</dd>
+          <dt>Total aves</dt><dd><strong>{{ formatearNumero(editingMovimiento.totalAves) }}</strong></dd>
+        </dl>
+      </div>
+      <ng-container *ngIf="showDespachoEnDetalle">
+        <div class="detail-section detail-section--despacho">
+          <h3 class="detail-section__title">Datos de despacho</h3>
+          <dl class="detail-grid">
+            <dt>Nº despacho</dt><dd>{{ editingMovimiento.numeroDespacho || '—' }}</dd>
+            <dt>Edad (días)</dt><dd>{{ valor(editingMovimiento, 'edadAves') }}</dd>
+            <dt>Total pollos galpón</dt><dd>{{ valor(editingMovimiento, 'totalPollosGalpon') }}</dd>
+            <dt>Raza</dt><dd>{{ editingMovimiento.raza || '—' }}</dd>
+            <dt>Placa</dt><dd>{{ editingMovimiento.placa || '—' }}</dd>
+            <dt>Hora salida</dt><dd>{{ valor(editingMovimiento, 'horaSalida') }}</dd>
+            <dt>Guía Agrocalidad</dt><dd>{{ editingMovimiento.guiaAgrocalidad || '—' }}</dd>
+            <dt>Sellos</dt><dd>{{ editingMovimiento.sellos || '—' }}</dd>
+            <dt>Ayuno</dt><dd>{{ editingMovimiento.ayuno || '—' }}</dd>
+            <dt>Conductor</dt><dd>{{ editingMovimiento.conductor || '—' }}</dd>
+            <dt>Peso bruto (kg)</dt><dd>{{ editingMovimiento.pesoBruto != null ? formatearNumero(editingMovimiento.pesoBruto) : '—' }}</dd>
+            <dt>Peso tara (kg)</dt><dd>{{ editingMovimiento.pesoTara != null ? formatearNumero(editingMovimiento.pesoTara) : '—' }}</dd>
+            <dt>Peso neto (kg)</dt><dd>{{ editingMovimiento.pesoNeto != null ? formatearNumero(editingMovimiento.pesoNeto) : '—' }}</dd>
+            <dt>Promedio peso ave (kg)</dt><dd>{{ editingMovimiento.promedioPesoAve != null ? formatearNumero(editingMovimiento.promedioPesoAve) : '—' }}</dd>
+          </dl>
+        </div>
+      </ng-container>
+      <div class="detail-section">
+        <h3 class="detail-section__title">Observaciones</h3>
+        <p class="detail-text">{{ editingMovimiento.motivoMovimiento || '—' }}</p>
+        <p class="detail-text" *ngIf="editingMovimiento.observaciones">{{ editingMovimiento.observaciones }}</p>
+      </div>
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary" (click)="onClose()">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- Formulario: Crear / Editar (diseño amplio y responsive) -->
+    <form *ngIf="!isReadOnly" [formGroup]="form" (ngSubmit)="onSubmit()" class="modal__body form-register">
+      <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+      <section class="form-section">
+        <h3 class="form-section__title">Datos generales</h3>
+        <div class="form-grid form-grid--2">
+          <div class="form-group">
+            <label for="fechaMovimiento">Fecha movimiento</label>
+            <input id="fechaMovimiento" type="date" formControlName="fechaMovimiento" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label for="tipoMovimiento">Tipo movimiento</label>
+            <select id="tipoMovimiento" formControlName="tipoMovimiento" class="form-select">
+              <option value="Venta">Venta</option>
+              <option value="Traslado">Traslado</option>
+              <option value="Ajuste">Ajuste</option>
+              <option value="Liquidacion">Liquidación</option>
+              <option value="Retiro">Retiro</option>
+            </select>
+          </div>
+          <div class="form-group form-group--full">
+            <label>Origen</label>
+            <p class="form-readonly">{{ origenLabel }}</p>
+          </div>
+          <div class="form-group form-group--full" *ngIf="!isTipoVenta">
+            <label for="loteDestinoValue">Destino (opcional)</label>
+            <select id="loteDestinoValue" formControlName="loteDestinoValue" class="form-select">
+              <option [ngValue]="null">— Sin destino —</option>
+              <option *ngFor="let opt of destinoOpciones" [ngValue]="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h3 class="form-section__title">Cantidades a mover</h3>
+        <div class="form-available" *ngIf="availableTotal > 0 && !editingMovimiento">
+          <strong>Disponible en lote:</strong> {{ formatearNumero(availableTotal) }} aves
+          <span class="form-available__detail" *ngIf="maxHembras != null || maxMachos != null || maxMixtas != null">
+            (H: {{ formatearNumero(maxHembras ?? 0) }} · M: {{ formatearNumero(maxMachos ?? 0) }} · Mixtas: {{ formatearNumero(maxMixtas ?? 0) }})
+          </span>
+        </div>
+        <div class="form-grid form-grid--3">
+          <div class="form-group">
+            <label for="cantidadHembras">Hembras</label>
+            <input
+              id="cantidadHembras"
+              type="number"
+              min="0"
+              [attr.max]="maxHembras ?? undefined"
+              formControlName="cantidadHembras"
+              class="form-input"
+              [class.form-input--error]="exceedsAvailable" />
+          </div>
+          <div class="form-group">
+            <label for="cantidadMachos">Machos</label>
+            <input
+              id="cantidadMachos"
+              type="number"
+              min="0"
+              [attr.max]="maxMachos ?? undefined"
+              formControlName="cantidadMachos"
+              class="form-input"
+              [class.form-input--error]="exceedsAvailable" />
+          </div>
+          <div class="form-group">
+            <label for="cantidadMixtas">Mixtas</label>
+            <input
+              id="cantidadMixtas"
+              type="number"
+              min="0"
+              [attr.max]="maxMixtas ?? undefined"
+              formControlName="cantidadMixtas"
+              class="form-input"
+              [class.form-input--error]="exceedsAvailable" />
+          </div>
+        </div>
+        <p class="form-hint" *ngIf="totalAves > 0">
+          Total: {{ formatearNumero(totalAves) }} aves
+          <span class="form-hint--error" *ngIf="exceedsAvailable"> — No puede superar {{ formatearNumero(availableTotal) }} aves.</span>
+        </p>
+        <div class="form-group">
+          <label for="motivoMovimiento">Motivo</label>
+          <input id="motivoMovimiento" type="text" formControlName="motivoMovimiento" class="form-input" placeholder="Opcional" />
+        </div>
+      </section>
+
+      <!-- Sección Despacho (tipo = Venta) -->
+      <ng-container *ngIf="isDespacho">
+        <section class="form-section">
+          <h3 class="form-section__title">Datos de despacho (salida / venta)</h3>
+          <div class="form-grid form-grid--3">
+            <div class="form-group">
+              <label for="numeroDespacho">Número de despacho</label>
+              <input id="numeroDespacho" type="text" formControlName="numeroDespacho" class="form-input" placeholder="Ej. DESP-001" />
+            </div>
+            <div class="form-group">
+              <label for="edadAves">Edad (días)</label>
+              <input id="edadAves" type="number" min="0" formControlName="edadAves" class="form-input" [class.form-input--readonly]="lotFieldsReadOnly" placeholder="Edad aves" />
+            </div>
+            <div class="form-group">
+              <label for="totalPollosGalpon">Total pollos por galpón</label>
+              <input id="totalPollosGalpon" type="number" min="0" formControlName="totalPollosGalpon" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label for="raza">Raza</label>
+              <input id="raza" type="text" formControlName="raza" class="form-input" [class.form-input--readonly]="lotFieldsReadOnly" />
+            </div>
+            <div class="form-group">
+              <label for="placa">Placa</label>
+              <input id="placa" type="text" formControlName="placa" class="form-input" placeholder="Vehículo" />
+            </div>
+            <div class="form-group">
+              <label for="horaSalida">Hora salida</label>
+              <input id="horaSalida" type="time" formControlName="horaSalida" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label for="guiaAgrocalidad">Guía Agrocalidad</label>
+              <input id="guiaAgrocalidad" type="text" formControlName="guiaAgrocalidad" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label for="sellos">Sellos</label>
+              <input id="sellos" type="text" formControlName="sellos" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label for="ayuno">Ayuno</label>
+              <input id="ayuno" type="text" formControlName="ayuno" class="form-input" placeholder="Ej. horas" />
+            </div>
+            <div class="form-group form-group--full">
+              <label for="conductor">Conductor</label>
+              <input id="conductor" type="text" formControlName="conductor" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label for="pesoBruto">Peso bruto (kg)</label>
+              <input id="pesoBruto" type="number" step="0.01" min="0" formControlName="pesoBruto" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label for="pesoTara">Peso tara (kg)</label>
+              <input id="pesoTara" type="number" step="0.01" min="0" formControlName="pesoTara" class="form-input" />
+            </div>
+          </div>
+          <div class="form-despacho-totals" *ngIf="pesoNeto != null || promedioPesoAve != null">
+            <p *ngIf="pesoNeto != null"><strong>Peso neto:</strong> {{ formatearNumero(pesoNeto) }} kg</p>
+            <p *ngIf="promedioPesoAve != null && totalAves > 0"><strong>Promedio peso ave:</strong> {{ formatearNumero(promedioPesoAve) }} kg</p>
+          </div>
+        </section>
+      </ng-container>
+
+      <section class="form-section">
+        <h3 class="form-section__title">Observaciones</h3>
+        <div class="form-group">
+          <label for="observaciones">Observaciones</label>
+          <textarea id="observaciones" formControlName="observaciones" class="form-textarea" rows="3" placeholder="Opcional"></textarea>
+        </div>
+      </section>
+
+      <div class="modal__actions">
+        <button type="button" class="btn btn--outline" (click)="onClose()">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="form.invalid || loading">
+          <span *ngIf="loading">Guardando…</span>
+          <span *ngIf="!loading">{{ editingMovimiento ? 'Actualizar' : 'Guardar' }}</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<app-confirmation-modal
+  [isOpen]="showConfirmModal"
+  [data]="confirmModalData"
+  (confirmed)="onConfirmSubmit()"
+  (cancelled)="onCancelConfirm()"
+  (closed)="onCancelConfirm()">
+</app-confirmation-modal>
