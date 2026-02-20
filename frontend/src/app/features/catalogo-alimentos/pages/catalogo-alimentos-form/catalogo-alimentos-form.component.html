@@ -32,20 +32,26 @@
             </select>
           </div>
 
-          <!-- Tipo genérico -->
+          <!-- Tipo de ítem (columna separada) -->
           <div class="form-field">
-            <label for="f-type">Tipo de ítem</label>
-            <select id="f-type" formControlName="type_item">
-              <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
+            <label for="f-item-type">Tipo de ítem <span class="required">*</span></label>
+            <select id="f-item-type" formControlName="itemType">
+              <option value="alimento">Alimento</option>
+              <option value="vacuna">Vacuna</option>
+              <option value="medicamento">Medicamento</option>
+              <option value="accesorio">Accesorio</option>
+              <option value="biologico">Biológico</option>
+              <option value="consumible">Consumible</option>
+              <option value="otro">Otro</option>
             </select>
-            <small class="help">Esta clave se guardará como <code>type_item</code> en la metadata.</small>
+            <small class="help">Seleccione el tipo de ítem del catálogo. Este campo se guarda en la columna <code>item_type</code>.</small>
           </div>
 
-          <!-- Sección específica para alimento -->
+          <!-- Sección específica para ALIMENTO -->
           <div class="form-field form-field--full" *ngIf="isAlimento()">
             <div class="ux-card ux-card--sub">
               <div class="ux-card__header">
-                <strong>Alimento — configuración</strong>
+                <strong>📦 Alimento — Configuración</strong>
               </div>
 
               <div class="grid grid-3">
@@ -55,18 +61,18 @@
                     <option [ngValue]="true">Sí</option>
                     <option [ngValue]="false">No</option>
                   </select>
-                  <small class="help">Si es para pollos, guardaremos <code>especie: "pollo"</code>.</small>
+                  <small class="help">Si es para pollos, se guardará <code>especie: "pollo"</code> en metadata.</small>
                 </div>
 
                 <div class="form-field" *ngIf="requiereEstructuraPollos()">
-                  <label for="f-raza">Raza</label>
+                  <label for="f-raza">Raza <span class="required">*</span></label>
                   <select id="f-raza" formControlName="raza">
                     <option *ngFor="let r of razas" [ngValue]="r">{{ r }}</option>
                   </select>
                 </div>
 
                 <div class="form-field" *ngIf="requiereEstructuraPollos()">
-                  <label for="f-genero">Género</label>
+                  <label for="f-genero">Género <span class="required">*</span></label>
                   <select id="f-genero" formControlName="genero">
                     <option *ngFor="let g of generos" [ngValue]="g">{{ g }}</option>
                   </select>
@@ -74,7 +80,62 @@
               </div>
 
               <div *ngIf="requiereEstructuraPollos()" class="note note--info">
-                Se requerirán <code>raza</code> y <code>genero</code> en la metadata.
+                Se guardarán <code>raza</code> y <code>genero</code> en la metadata.
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección específica para VACUNA -->
+          <div class="form-field form-field--full" *ngIf="isVacuna()">
+            <div class="ux-card ux-card--sub">
+              <div class="ux-card__header">
+                <strong>💉 Vacuna — Configuración</strong>
+              </div>
+
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-temperatura">Temperatura de almacenamiento (°C)</label>
+                  <input id="f-temperatura" type="number" formControlName="temperatura" 
+                         placeholder="Ej: 2-8" step="0.1"/>
+                  <small class="help">Temperatura recomendada para almacenamiento.</small>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-fecha-vencimiento">Fecha de vencimiento</label>
+                  <input id="f-fecha-vencimiento" type="date" formControlName="fecha_vencimiento"/>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-lote">Número de lote</label>
+                  <input id="f-lote" type="text" formControlName="lote" placeholder="Ej: LOTE-2024-001"/>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-fabricante">Fabricante</label>
+                  <input id="f-fabricante" type="text" formControlName="fabricante" placeholder="Nombre del fabricante"/>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-dosis">Dosis recomendada</label>
+                  <input id="f-dosis" type="text" formControlName="dosis" placeholder="Ej: 0.5 ml por ave"/>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-via-administracion">Vía de administración</label>
+                  <select id="f-via-administracion" formControlName="via_administracion">
+                    <option value="">Seleccione...</option>
+                    <option value="Subcutánea">Subcutánea</option>
+                    <option value="Intramuscular">Intramuscular</option>
+                    <option value="Oral">Oral</option>
+                    <option value="Ocular">Ocular</option>
+                    <option value="Nasal">Nasal</option>
+                    <option value="Otra">Otra</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="note note--info">
+                Todos estos campos se guardarán en la metadata del producto.
               </div>
             </div>
           </div>

@@ -1,242 +1,384 @@
-<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
 
-  <!-- Main -->
-  <div class="main-content">
+  <div class="ux-main">
     <!-- Header -->
-    <header class="header">
-      <div class="header__title">
-        <span class="summary-chip ml-2" *ngIf="selectedLoteId">
-          {{ registros.length || 0 }} registro(s)
-        </span>
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1 class="ux-header__title-text">Lote Reproductora</h1>
+        <p class="ux-header__subtitle">Gestiona lotes reproductoras y asignación de aves a incubadoras</p>
+        <div class="ux-header__chips">
+          <span class="chip chip--info" *ngIf="selectedGranjaId">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName }}
+          </span>
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">Núcleo: {{ selectedNucleoNombre }}</span>
+          <span class="chip chip--muted" *ngIf="selectedGalponId">Galpón: {{ selectedGalponNombre }}</span>
+          <span class="chip chip--muted" *ngIf="selectedLoteId">Lote: {{ loteSeleccionado?.loteNombre || selectedLoteId }}</span>
+          <span class="chip chip--info" *ngIf="selectedLoteId && registros?.length">
+            {{ registros.length }} registro(s)
+          </span>
+        </div>
       </div>
-
-      <button
-        type="button"
-        class="btn-primary"
-        (click)="openNew()"
-        [disabled]="!selectedLoteId"
-        [attr.aria-disabled]="!selectedLoteId ? 'true' : null"
-        [title]="!selectedLoteId ? 'Primero selecciona el Lote al que se asignará' : 'Crear nuevo Lote Reproductora'">
-        <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
-        Nuevo
-      </button>
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          class="btn btn--primary"
+          (click)="openNew()"
+          [disabled]="!selectedLoteId || !canCreateMoreLotes()"
+          [attr.aria-disabled]="!selectedLoteId || !canCreateMoreLotes() ? 'true' : null"
+          [title]="!selectedLoteId ? 'Primero selecciona el Lote' : (!canCreateMoreLotes() ? 'El lote ya no tiene aves disponibles' : 'Crear nuevo Lote Reproductora')">
+          <fa-icon [icon]="faPlus" class="btn-icon" aria-hidden="true"></fa-icon>
+          Nuevo
+        </button>
+      </div>
     </header>
 
-    <!-- Filtros en cascada -->
-    <section class="ux-card mb-4" role="group" aria-labelledby="filtros-title">
-      <h2 id="filtros-title" class="sr-only">Filtros en cascada</h2>
-
-      <div class="filters">
-        <!-- Granja -->
-        <div class="filter">
+    <!-- Filtros -->
+    <section class="ux-card ux-card--filters" role="group" aria-labelledby="filtros-title">
+      <h2 id="filtros-title" class="ux-card__title">
+        <fa-icon [icon]="faFilter" class="ux-card__title-icon" aria-hidden="true"></fa-icon>
+        Filtros
+      </h2>
+      <div class="ux-toolbar ux-toolbar--filters">
+        <div class="ux-field">
           <label class="ux-label" for="sel-granja">Granja</label>
-          <select
-            id="sel-granja"
-            class="ux-select"
-            [(ngModel)]="selectedGranjaId"
-            (change)="onGranjaChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let g of granjas; trackBy: trackByIdx" [ngValue]="g.id">
-              {{ g.name }}
-            </option>
-          </select>
+          <div class="ux-select">
+            <select id="sel-granja" [ngModel]="selectedGranjaId" (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let g of granjas; trackBy: trackByIdx" [ngValue]="g.id">{{ g.name }}</option>
+            </select>
+          </div>
         </div>
-
-        <!-- Núcleo -->
-        <div class="filter">
+        <div class="ux-field">
           <label class="ux-label" for="sel-nucleo">Núcleo</label>
-          <select
-            id="sel-nucleo"
-            class="ux-select"
-            [(ngModel)]="selectedNucleoId"
-            (change)="onNucleoChange()"
-            [disabled]="!selectedGranjaId"
-            [attr.aria-disabled]="!selectedGranjaId ? 'true' : null">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let n of nucleos; trackBy: trackByIdx" [ngValue]="n.nucleoId">
-              {{ n.nucleoNombre }}
-            </option>
-          </select>
+          <div class="ux-select">
+            <select id="sel-nucleo" [disabled]="!selectedGranjaId" [ngModel]="selectedNucleoId" (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let n of nucleos; trackBy: trackByIdx" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
         </div>
-
-        <!-- Lote -->
-        <div class="filter">
+        <div class="ux-field">
+          <label class="ux-label" for="sel-galpon">Galpón</label>
+          <div class="ux-select">
+            <select id="sel-galpon" [disabled]="!selectedNucleoId" [ngModel]="selectedGalponId" (ngModelChange)="selectedGalponId = $event; onGalponChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let g of galpones; trackBy: trackByIdx" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="ux-field">
           <label class="ux-label" for="sel-lote">Lote</label>
-          <select
-            id="sel-lote"
-            class="ux-select"
-            [(ngModel)]="selectedLoteId"
-            (change)="onLoteChange()"
-            [disabled]="!selectedNucleoId"
-            [attr.aria-disabled]="!selectedNucleoId ? 'true' : null"
-            aria-describedby="hint-lote">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let l of lotes; trackBy: trackByIdx" [ngValue]="l.loteId">
-              {{ l.loteNombre }}
-            </option>
-          </select>
-          <small id="hint-lote" class="ux-hint">Selecciona el Lote para habilitar “Nuevo”.</small>
+          <div class="ux-select">
+            <select id="sel-lote" [disabled]="!selectedGalponId" [ngModel]="selectedLoteId" (ngModelChange)="selectedLoteId = $event; onLoteChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let l of lotes; trackBy: trackByIdx" [ngValue]="l.loteId">{{ l.loteNombre }}</option>
+            </select>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Aviso sin Lote -->
-    <section *ngIf="!selectedLoteId" class="ux-card ux-card--soft mb-4" role="status" aria-live="polite">
-      <div class="summary-grid">
-        <div class="summary-item">
-          <span class="summary-label">Estado</span>
-          <span class="summary-value">Lote sin seleccionar</span>
+    <!-- Sin lote seleccionado -->
+    <section *ngIf="!selectedLoteId" class="ux-card ux-card--guidance">
+      <div class="guidance-block">
+        <div class="guidance-block__icon" aria-hidden="true">📋</div>
+        <h2 class="guidance-block__title">Lote sin seleccionar</h2>
+        <p class="guidance-block__text">Elige Granja, Núcleo, Galpón y Lote en los filtros para ver los lotes reproductora y poder crear nuevos.</p>
+        <p class="guidance-block__hint">El botón «Nuevo» se habilita al seleccionar un Lote.</p>
+      </div>
+    </section>
+
+    <!-- Información del lote seleccionado (una card: barra + banner + tabla datos) -->
+    <section *ngIf="selectedLoteId && loteSeleccionado" class="lote-info-section">
+      <div class="ux-card lote-info-card">
+        <div class="lote-info-bar">
+          <div class="lote-info-bar__item lote-info-bar__item--highlight">
+            <span class="lote-info-bar__label">Creando para</span>
+            <span class="lote-info-bar__value">Lote #{{ selectedLoteId }}</span>
+          </div>
+          <div class="lote-info-bar__item">
+            <span class="lote-info-bar__label">Nombre del lote</span>
+            <span class="lote-info-bar__value">{{ loteSeleccionado.loteNombre || '—' }}</span>
+          </div>
+          <div class="lote-info-bar__hint">Pulsa "Nuevo" para registrar la reproductora</div>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Siguiente paso</span>
-          <span class="summary-value">Elige un Lote en el filtro para crear un Lote Reproductora</span>
+
+        <!-- Banner: Sin aves disponibles -->
+        <div *ngIf="avesDisponibles && !canCreateMoreLotes()" class="lote-info-banner lote-info-banner--warning">
+          <span class="lote-info-banner__icon" aria-hidden="true">⚠️</span>
+          <div class="lote-info-banner__body">
+            <strong>Sin Aves Disponibles</strong>
+            <p class="lote-info-banner__rule">El lote ya no tiene aves disponibles para distribuir en nuevos lotes reproductoras. Todas las aves han sido asignadas o han fallecido.</p>
+            <details class="lote-info-banner__details" *ngIf="avesDisponibles">
+              <summary>Ver resumen</summary>
+              <ul>
+                <li>Hembras iniciales: {{ avesDisponibles.hembrasIniciales }} · Asignadas: {{ avesDisponibles.asignadasHembras }}</li>
+                <li>Machos iniciales: {{ avesDisponibles.machosIniciales }} · Asignados: {{ avesDisponibles.asignadasMachos }}</li>
+                <li>Mortalidad H: {{ avesDisponibles.mortalidadAcumuladaHembras + avesDisponibles.mortCajaHembras }} · M: {{ avesDisponibles.mortalidadAcumuladaMachos + avesDisponibles.mortCajaMachos }}</li>
+              </ul>
+            </details>
+          </div>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Acción</span>
-          <span class="summary-chip">“Nuevo” deshabilitado</span>
+
+        <!-- Banner: Aves disponibles -->
+        <div *ngIf="avesDisponibles && canCreateMoreLotes()" class="lote-info-banner">
+          <span class="lote-info-banner__icon" aria-hidden="true">ℹ️</span>
+          <div class="lote-info-banner__body">
+            <strong>Aves Disponibles</strong>
+            <span class="lote-info-banner__stats">{{ getAvesDisponiblesMessage() }}</span>
+            <p class="lote-info-banner__rule">Límites por lote: El máximo es la cantidad disponible dividida entre el número de lotes. No puede exceder las aves disponibles en el lote original.</p>
+          </div>
+        </div>
+
+        <!-- Tabla datos del lote -->
+        <div class="lote-datos">
+          <table class="lote-datos-table">
+            <caption class="sr-only">Datos del lote seleccionado</caption>
+            <tbody>
+              <tr>
+                <th scope="row">Lote ID</th>
+                <td>{{ loteSeleccionado.loteId }}</td>
+                <th scope="row">Nombre</th>
+                <td>{{ loteSeleccionado.loteNombre }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Granja ID</th>
+                <td>{{ loteSeleccionado.granjaId }}</td>
+                <th scope="row">Aves encasetadas</th>
+                <td>{{ loteSeleccionado.avesEncasetadas ?? 0 }}</td>
+              </tr>
+              <tr class="lote-datos-table__row--accent">
+                <th scope="row">Hembras</th>
+                <td>{{ loteSeleccionado.hembrasL ?? 0 }}</td>
+                <th scope="row">Machos</th>
+                <td>{{ loteSeleccionado.machosL ?? 0 }}</td>
+              </tr>
+              <tr class="lote-datos-table__row--accent">
+                <th scope="row">Mixtas</th>
+                <td>{{ loteSeleccionado.mixtas ?? 0 }}</td>
+                <th scope="row">Peso H</th>
+                <td>{{ (loteSeleccionado.pesoInicialH ?? 0) | number:'1.0-3' }}</td>
+              </tr>
+              <tr>
+                <th scope="row">Peso M</th>
+                <td>{{ (loteSeleccionado.pesoInicialM ?? 0) | number:'1.0-3' }}</td>
+                <th scope="row">Peso Mixto</th>
+                <td>{{ (loteSeleccionado.pesoMixto ?? 0) | number:'1.0-3' }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
 
-    <!-- Contexto con Lote -->
-    <section *ngIf="selectedLoteId" class="ux-card mb-4" role="status" aria-live="polite">
-      <div class="summary-grid">
-        <div class="summary-item">
-          <span class="summary-label">Creando para</span>
-          <span class="summary-chip">Lote #{{ selectedLoteId }}</span>
+    <!-- Tabla de lotes reproductora -->
+    <section class="seguimiento-section">
+      <div class="ux-card seguimiento-card">
+        <header class="seguimiento-card__header">
+          <h2 class="seguimiento-card__title">Lotes Reproductora</h2>
+          <span class="seguimiento-card__badge" *ngIf="registros?.length">{{ registros.length }}</span>
+        </header>
+        <div class="seguimiento-table-wrap" [class.is-loading]="loading">
+          <table class="seguimiento-table">
+            <caption class="sr-only">Listado de lotes reproductora</caption>
+            <thead>
+              <tr>
+                <th scope="col">Lote Reproductora</th>
+                <th scope="col">Incubadora</th>
+                <th scope="col" colspan="3">Cantidad de aves</th>
+                <th scope="col" colspan="3">Peso llegada</th>
+                <th scope="col" class="seguimiento-table__actions">Acciones</th>
+              </tr>
+              <tr class="seguimiento-table__subhead">
+                <th scope="col"></th>
+                <th scope="col"></th>
+                <th scope="col">M</th>
+                <th scope="col">H</th>
+                <th scope="col">Mixtas</th>
+                <th scope="col">Peso M</th>
+                <th scope="col">Peso H</th>
+                <th scope="col">Peso Mixto</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngIf="!loading && (!registros || !registros.length)" class="seguimiento-table__empty">
+                <td colspan="9">
+                  <div class="empty-state">
+                    <div class="empty-state__icon" aria-hidden="true">📋</div>
+                    <p class="empty-state__title" *ngIf="!selectedLoteId">Selecciona un Lote para comenzar.</p>
+                    <p class="empty-state__title" *ngIf="selectedLoteId">Sin registros para este Lote.</p>
+                    <p class="empty-state__hint" *ngIf="selectedLoteId">Crea el primero con el botón «Nuevo».</p>
+                    <button type="button" class="btn btn--primary empty-state__cta" (click)="openNew()" [disabled]="!selectedLoteId || !canCreateMoreLotes()">
+                      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                      Crear el primero
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngFor="let r of registros; trackBy: trackByRegistro" class="seguimiento-table__row">
+                <td data-label="Lote Reproductora">{{ r.nombreLote }}</td>
+                <td data-label="Incubadora">{{ r.reproductoraId }}</td>
+                <td data-label="Machos"><span class="cell-chip">{{ r.m ?? 0 }}</span></td>
+                <td data-label="Hembras"><span class="cell-chip">{{ r.h ?? 0 }}</span></td>
+                <td data-label="Mixtas"><span class="cell-chip">{{ r.mixtas ?? 0 }}</span></td>
+                <td data-label="Peso M">{{ (r.pesoInicialM ?? 0) | number:'1.0-3' }}</td>
+                <td data-label="Peso H">{{ (r.pesoInicialH ?? 0) | number:'1.0-3' }}</td>
+                <td data-label="Peso Mixto">{{ (r.pesoMixto ?? 0) | number:'1.0-3' }}</td>
+                <td class="seguimiento-table__actions" data-label="Acciones">
+                  <div class="btn-group">
+                    <button type="button" class="icon-btn" title="Ver" aria-label="Ver" (click)="view(r)">
+                      <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button type="button" class="icon-btn" title="Editar" aria-label="Editar" (click)="edit(r)">
+                      <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--danger" title="Eliminar" aria-label="Eliminar" (click)="delete(r.loteId, r.reproductoraId)">
+                      <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="summary-item" *ngIf="loteSeleccionado?.loteNombre">
-          <span class="summary-label">Nombre del lote</span>
-          <span class="summary-value">{{ loteSeleccionado?.loteNombre }}</span>
+        <div *ngIf="loading" class="seguimiento-loading" aria-live="polite" role="status">
+          <div class="spinner" aria-hidden="true"></div>
+          <span>Cargando…</span>
         </div>
-        <div class="summary-item">
-          <span class="summary-label">Atajo</span>
-          <span class="summary-value">Pulsa “Nuevo” para registrar la reproductora</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- 🐣 Resumen Lote seleccionado -->
-    <section *ngIf="loteSeleccionado" class="ux-card ux-card--soft mb-4">
-      <div class="summary-grid">
-        <div class="summary-item"><span class="summary-label">Lote ID</span><span class="summary-value">{{ loteSeleccionado.loteId }}</span></div>
-        <div class="summary-item"><span class="summary-label">Nombre</span><span class="summary-value">{{ loteSeleccionado.loteNombre }}</span></div>
-        <div class="summary-item"><span class="summary-label">Granja ID</span><span class="summary-value">{{ loteSeleccionado.granjaId }}</span></div>
-        <div class="summary-item"><span class="summary-label">Hembras</span><span class="summary-chip">{{ loteSeleccionado.hembrasL ?? 0 }}</span></div>
-        <div class="summary-item"><span class="summary-label">Machos</span><span class="summary-chip">{{ loteSeleccionado.machosL ?? 0 }}</span></div>
-        <div class="summary-item"><span class="summary-label">Mixtas</span><span class="summary-chip">{{ loteSeleccionado.mixtas ?? 0 }}</span></div>
-        <div class="summary-item"><span class="summary-label">Aves encasetadas</span><span class="summary-value">{{ loteSeleccionado.avesEncasetadas ?? 0 }}</span></div>
-        <div class="summary-item"><span class="summary-label">Peso H</span><span class="summary-value">{{ (loteSeleccionado.pesoInicialH ?? 0) | number:'1.0-3' }}</span></div>
-        <div class="summary-item"><span class="summary-label">Peso M</span><span class="summary-value">{{ (loteSeleccionado.pesoInicialM ?? 0) | number:'1.0-3' }}</span></div>
-        <div class="summary-item"><span class="summary-label">Peso Mixto</span><span class="summary-value">{{ (loteSeleccionado.pesoMixto ?? 0) | number:'1.0-3' }}</span></div>
-      </div>
-    </section>
-
-    <!-- Tabla -->
-    <section class="ux-card">
-      <div class="ux-scroll">
-        <table class="ux-table">
-          <caption class="sr-only">Lotes Reproductora</caption>
-
-          <thead>
-            <tr class="group-row">
-              <th colspan="2" class="text-center">📋 Lote Reproductora</th>
-              <th colspan="3" class="text-center">🐣 Cantidad de aves</th>
-              <th colspan="3" class="text-center">⚖️ Peso llegada</th>
-              <th class="text-center">Acciones</th>
-            </tr>
-            <tr>
-              <th>Lote Reproductora</th>
-              <th>Incubadora</th>
-              <th>Machos</th>
-              <th>Hembras</th>
-              <th>Mixtas</th>
-              <th>Peso M</th>
-              <th>Peso H</th>
-              <th>Peso Mixto</th>
-              <th class="text-center">Acciones</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <!-- Estado: cargando -->
-            <tr *ngIf="loading" aria-live="polite">
-              <td colspan="9" class="empty-state">
-                <div class="spinner" aria-hidden="true"></div>
-                Cargando datos…
-              </td>
-            </tr>
-
-            <!-- Estado: vacío -->
-            <tr *ngIf="!loading && (!registros || !registros.length)">
-              <td colspan="9" class="empty-state">
-                <div class="empty-illustration">🫥</div>
-                <p *ngIf="!selectedLoteId">Selecciona un Lote para comenzar.</p>
-                <p *ngIf="selectedLoteId">Sin registros para este Lote.</p>
-                <button class="btn-secondary mt-2" (click)="openNew()" [disabled]="!selectedLoteId">
-                  <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
-                  Crear el primero
-                </button>
-              </td>
-            </tr>
-
-            <!-- Filas -->
-            <tr *ngFor="let r of registros; trackBy: trackByRegistro" class="ux-row">
-              <td>{{ r.nombreLote }}</td>
-              <td>{{ r.reproductoraId }}</td>
-              <td><span class="summary-chip">{{ r.m ?? 0 }}</span></td>
-              <td><span class="summary-chip">{{ r.h ?? 0 }}</span></td>
-              <td><span class="summary-chip">{{ r.mixtas ?? 0 }}</span></td>
-              <td>{{ (r.pesoInicialM ?? 0) | number:'1.0-3' }}</td>
-              <td>{{ (r.pesoInicialH ?? 0) | number:'1.0-3' }}</td>
-              <td>{{ (r.pesoMixto ?? 0)     | number:'1.0-3' }}</td>
-              <td class="text-center">
-                <div class="actions">
-                  <button class="icon-btn" title="Ver" aria-label="Ver" (click)="view(r)">
-                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button class="icon-btn" title="Editar" aria-label="Editar" (click)="edit(r)">
-                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button
-                    class="icon-btn danger"
-                    title="Eliminar"
-                    aria-label="Eliminar"
-                    (click)="delete(r.loteId, r.reproductoraId)">
-                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Overlay de carga -->
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-        <div class="spinner" aria-hidden="true"></div>
-        Cargando…
       </div>
     </section>
 
     <!-- Modal: Detalle -->
     <div *ngIf="detalleOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detalle-title">
-      <div class="ux-modal__panel">
-        <div class="ux-modal__header">
-          <h2 id="detalle-title">Detalle del Lote Reproductora</h2>
+      <div class="ux-modal__panel ux-modal__panel--detail">
+        <div class="ux-modal__header ux-modal__header--detail">
+          <div class="header-content">
+            <div class="header-icon">📋</div>
+            <div>
+              <h2 id="detalle-title">Detalle del Lote Reproductora</h2>
+              <p class="header-subtitle">{{ detalleData?.nombreLote || detalleData?.reproductoraId }}</p>
+            </div>
+          </div>
           <button class="ux-modal__close" (click)="closeDetalle()" aria-label="Cerrar">×</button>
         </div>
 
         <div class="ux-modal__body">
-          <div class="summary-grid">
-            <div class="summary-item"><span class="summary-label">Lote</span><span class="summary-value">{{ detalleData?.nombreLote }}</span></div>
-            <div class="summary-item"><span class="summary-label">Incubadora</span><span class="summary-value">{{ detalleData?.reproductoraId }}</span></div>
-            <div class="summary-item"><span class="summary-label">Machos</span><span class="summary-chip">{{ detalleData?.m ?? 0 }}</span></div>
-            <div class="summary-item"><span class="summary-label">Hembras</span><span class="summary-chip">{{ detalleData?.h ?? 0 }}</span></div>
-            <div class="summary-item"><span class="summary-label">Mixtas</span><span class="summary-chip">{{ detalleData?.mixtas ?? 0 }}</span></div>
-            <div class="summary-item"><span class="summary-label">Peso M</span><span class="summary-value">{{ (detalleData?.pesoInicialM ?? 0) | number:'1.0-3' }}</span></div>
-            <div class="summary-item"><span class="summary-label">Peso H</span><span class="summary-value">{{ (detalleData?.pesoInicialH ?? 0) | number:'1.0-3' }}</span></div>
-          </div>
+          <!-- Información General -->
+          <section class="detail-section">
+            <h3 class="section-title">
+              <span class="section-icon">ℹ️</span>
+              Información General
+            </h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Nombre del Lote</span>
+                <span class="detail-value">{{ detalleData?.nombreLote || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Incubadora</span>
+                <span class="detail-value highlight">{{ detalleData?.reproductoraId || '—' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Lote ID</span>
+                <span class="detail-value">{{ detalleData?.loteId || '—' }}</span>
+              </div>
+              <div class="detail-item" *ngIf="detalleData?.fechaEncasetamiento">
+                <span class="detail-label">Fecha Encasetamiento</span>
+                <span class="detail-value">{{ detalleData?.fechaEncasetamiento | date:'dd/MM/yyyy' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Cantidad de Aves -->
+          <section class="detail-section">
+            <h3 class="section-title">
+              <span class="section-icon">🐣</span>
+              Cantidad de Aves
+            </h3>
+            <div class="detail-grid detail-grid--birds">
+              <div class="detail-item detail-item--bird">
+                <span class="detail-label">Machos</span>
+                <span class="detail-value detail-value--bird detail-value--male">{{ detalleData?.m ?? 0 | number }}</span>
+              </div>
+              <div class="detail-item detail-item--bird">
+                <span class="detail-label">Hembras</span>
+                <span class="detail-value detail-value--bird detail-value--female">{{ detalleData?.h ?? 0 | number }}</span>
+              </div>
+              <div class="detail-item detail-item--bird">
+                <span class="detail-label">Mixtas</span>
+                <span class="detail-value detail-value--bird detail-value--mixed">{{ detalleData?.mixtas ?? 0 | number }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Pesos -->
+          <section class="detail-section">
+            <h3 class="section-title">
+              <span class="section-icon">⚖️</span>
+              Pesos de Llegada
+            </h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Peso Machos (kg)</span>
+                <span class="detail-value">{{ (detalleData?.pesoInicialM ?? 0) | number:'1.3-3' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Peso Hembras (kg)</span>
+                <span class="detail-value">{{ (detalleData?.pesoInicialH ?? 0) | number:'1.3-3' }}</span>
+              </div>
+              <div class="detail-item" *ngIf="detalleData?.pesoMixto">
+                <span class="detail-label">Peso Mixto (kg)</span>
+                <span class="detail-value">{{ detalleData?.pesoMixto | number:'1.3-3' }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Mortalidad en Caja -->
+          <section class="detail-section" *ngIf="detalleData?.mortCajaH || detalleData?.mortCajaM">
+            <h3 class="section-title">
+              <span class="section-icon">📊</span>
+              Mortalidad en Caja
+            </h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Mort. Caja Hembras</span>
+                <span class="detail-value">{{ detalleData?.mortCajaH ?? 0 | number }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Mort. Caja Machos</span>
+                <span class="detail-value">{{ detalleData?.mortCajaM ?? 0 | number }}</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Uniformidad -->
+          <section class="detail-section" *ngIf="detalleData?.unifH || detalleData?.unifM">
+            <h3 class="section-title">
+              <span class="section-icon">📈</span>
+              Uniformidad
+            </h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="detail-label">Uniformidad Hembras (%)</span>
+                <span class="detail-value">{{ detalleData?.unifH ?? 0 | number:'1.1-1' }}%</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Uniformidad Machos (%)</span>
+                <span class="detail-value">{{ detalleData?.unifM ?? 0 | number:'1.1-1' }}%</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="ux-modal__footer">
+          <button type="button" class="btn-secondary" (click)="detalleData && edit(detalleData)" *ngIf="detalleData">
+            <fa-icon [icon]="faPen" class="mr-2" aria-hidden="true"></fa-icon>
+            Editar
+          </button>
+          <button type="button" class="btn-ghost" (click)="closeDetalle()">Cerrar</button>
         </div>
       </div>
     </div>
@@ -248,7 +390,7 @@
           <h2 id="modal-title">
             {{ editing ? 'Editar' : (bulkMode ? 'Nuevo (múltiple)' : 'Nuevo') }} Lote Reproductora
           </h2>
-          <button class="ux-modal__close" (click)="cancel()" aria-label="Cerrar">×</button>
+          <button class="ux-modal__close" (click)="requestCancel()" aria-label="Cerrar">×</button>
         </div>
 
         <div class="ux-modal__body">
@@ -260,8 +402,8 @@
                 <input
                   type="checkbox"
                   class="ux-switch"
-                  [(ngModel)]="bulkMode"
-                  (change)="bulkMode ? regenerateIncubadoras(bulkCount) : null" />
+                  [ngModel]="bulkMode"
+                  (ngModelChange)="bulkMode = $event; onBulkModeChange()" />
                 <span>{{ bulkMode ? 'Múltiple' : 'Uno' }}</span>
               </label>
 
@@ -286,113 +428,531 @@
             <div class="mt-3 text-sm text-warm-gray-700" *ngIf="selectedLoteId">
               Lote destino: <span class="summary-chip">#{{ selectedLoteId }}</span>
             </div>
+            
+            <!-- Aves disponibles -->
+            <div class="mt-3 p-3 border rounded" 
+                 [class.bg-blue-50]="canCreateMoreLotes()" 
+                 [class.border-blue-200]="canCreateMoreLotes()"
+                 [class.bg-red-50]="!canCreateMoreLotes()"
+                 [class.border-red-300]="!canCreateMoreLotes()"
+                 *ngIf="avesDisponibles">
+              <div class="text-sm font-semibold mb-2" 
+                   [class.text-blue-900]="canCreateMoreLotes()"
+                   [class.text-red-900]="!canCreateMoreLotes()">
+                {{ canCreateMoreLotes() ? 'Aves disponibles en el lote:' : '⚠️ Sin aves disponibles' }}
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-sm" *ngIf="canCreateMoreLotes()">
+                <div>
+                  <span class="font-medium">Hembras:</span>
+                  <span class="ml-2">{{ avesDisponibles.hembrasDisponibles }} / {{ avesDisponibles.hembrasIniciales }}</span>
+                  <span class="text-xs text-gray-600 ml-1">
+                    ({{ avesDisponibles.asignadasHembras }} asignadas, {{ avesDisponibles.mortalidadAcumuladaHembras }} mortalidad)
+                  </span>
+                  <div class="text-xs text-blue-700 mt-1" *ngIf="bulkMode">
+                    Máx. por lote: {{ getMaxHembrasPorLote() }} ({{ avesDisponibles.hembrasDisponibles }} / {{ incubadoras.length }})
+                  </div>
+                </div>
+                <div>
+                  <span class="font-medium">Machos:</span>
+                  <span class="ml-2">{{ avesDisponibles.machosDisponibles }} / {{ avesDisponibles.machosIniciales }}</span>
+                  <span class="text-xs text-gray-600 ml-1">
+                    ({{ avesDisponibles.asignadasMachos }} asignados, {{ avesDisponibles.mortalidadAcumuladaMachos }} mortalidad)
+                  </span>
+                  <div class="text-xs text-blue-700 mt-1" *ngIf="bulkMode">
+                    Máx. por lote: {{ getMaxMachosPorLote() }} ({{ avesDisponibles.machosDisponibles }} / {{ incubadoras.length }})
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="!canCreateMoreLotes()" class="text-sm text-red-800">
+                <p class="font-semibold mb-1">⚠️ El lote ya no tiene aves disponibles para distribuir en nuevos lotes reproductoras.</p>
+                <p class="text-xs mb-2">Todas las aves han sido asignadas a otros lotes reproductoras o han fallecido.</p>
+                <p class="text-xs font-semibold">No se pueden crear más lotes reproductoras para este lote.</p>
+              </div>
+            </div>
           </div>
 
           <!-- SINGLE -->
           <form *ngIf="!bulkMode" [formGroup]="form" (ngSubmit)="save()" class="ux-form" novalidate>
-            <div class="form-section__title">Datos generales</div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label class="ux-label" for="inp-nombre">Lote Reproductora</label>
-                <input id="inp-nombre" class="ux-input" formControlName="nombreLote" />
+            <!-- Datos generales -->
+            <section class="form-section">
+              <div class="form-section__title">
+                <span class="section-icon">ℹ️</span>
+                Datos Generales
               </div>
-              <div>
-                <label class="ux-label" for="inp-rep">Incubadora</label>
-                <input id="inp-rep" class="ux-input" formControlName="reproductoraId" placeholder="Ej: Sanmarino" />
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="form-field">
+                  <label class="ux-label" for="inp-nombre">
+                    Nombre del Lote <span class="optional">(opcional)</span>
+                  </label>
+                  <input 
+                    id="inp-nombre" 
+                    class="ux-input" 
+                    [class.ux-input--error]="form.get('nombreLote')?.invalid && form.get('nombreLote')?.touched"
+                    formControlName="nombreLote"
+                    placeholder="Ej: Lote Reproductora 001" />
+                  <small class="field-error" *ngIf="form.get('nombreLote')?.invalid && form.get('nombreLote')?.touched">
+                    El nombre del lote es requerido
+                  </small>
+                </div>
+                <div class="form-field">
+                  <label class="ux-label" for="inp-rep">
+                    Incubadora <span class="required">*</span>
+                  </label>
+                  <input 
+                    id="inp-rep" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('reproductoraId')?.invalid && form.get('reproductoraId')?.touched"
+                    formControlName="reproductoraId" 
+                    placeholder="Ej: Sanmarino" />
+                  <small class="field-error" *ngIf="form.get('reproductoraId')?.invalid && form.get('reproductoraId')?.touched">
+                    La incubadora es requerida
+                  </small>
+                </div>
+                <div class="form-field">
+                  <label class="ux-label" for="inp-fecha">
+                    Fecha Encasetamiento <span class="optional">(opcional)</span>
+                  </label>
+                  <input 
+                    id="inp-fecha" 
+                    type="date" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('fechaEncasetamiento')?.invalid && form.get('fechaEncasetamiento')?.touched"
+                    formControlName="fechaEncasetamiento" />
+                  <small class="field-error" *ngIf="form.get('fechaEncasetamiento')?.invalid && form.get('fechaEncasetamiento')?.touched">
+                    La fecha es requerida
+                  </small>
+                </div>
               </div>
-              <div>
-                <label class="ux-label" for="inp-fecha">Fecha Encasetamiento</label>
-                <input id="inp-fecha" type="date" class="ux-input" formControlName="fechaEncasetamiento" />
-              </div>
-            </div>
+            </section>
 
-            <div class="form-section__title">Cantidad de aves</div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label class="ux-label" for="inp-m">Machos</label>
-                <input id="inp-m" type="number" class="ux-input" formControlName="m" inputmode="numeric" />
+            <!-- Cantidad de aves -->
+            <section class="form-section">
+              <div class="form-section__title">
+                <span class="section-icon">🐣</span>
+                Cantidad de Aves
               </div>
-              <div>
-                <label class="ux-label" for="inp-h">Hembras</label>
-                <input id="inp-h" type="number" class="ux-input" formControlName="h" inputmode="numeric" />
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="form-field">
+                  <label class="ux-label" for="inp-m">Machos</label>
+                  <input 
+                    id="inp-m" 
+                    type="number" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('m')?.invalid && form.get('m')?.touched"
+                    formControlName="m" 
+                    inputmode="numeric"
+                    [min]="0"
+                    [max]="avesDisponibles ? avesDisponibles.machosDisponibles : 0"
+                    placeholder="0" />
+                  <small class="field-error" *ngIf="form.get('m')?.invalid && form.get('m')?.touched">
+                    El valor debe ser entre 0 y {{ avesDisponibles?.machosDisponibles ?? 0 }}
+                  </small>
+                  <small class="field-hint" *ngIf="avesDisponibles">
+                    Disponibles: {{ avesDisponibles.machosDisponibles }} machos
+                  </small>
+                  <small class="field-hint field-hint--info" *ngIf="avesDisponibles && avesDisponibles.machosDisponibles === 0">
+                    El lote no tiene machos; puede registrar solo hembras.
+                  </small>
+                </div>
+                <div class="form-field">
+                  <label class="ux-label" for="inp-h">Hembras</label>
+                  <input 
+                    id="inp-h" 
+                    type="number" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('h')?.invalid && form.get('h')?.touched"
+                    formControlName="h" 
+                    inputmode="numeric"
+                    [min]="0"
+                    [max]="avesDisponibles ? avesDisponibles.hembrasDisponibles : 0"
+                    placeholder="0" />
+                  <small class="field-error" *ngIf="form.get('h')?.invalid && form.get('h')?.touched">
+                    <span *ngIf="form.get('h')?.errors?.['max']">
+                      No se pueden asignar más de {{ MAX_HEMBRAS_POR_LOTE }} hembras por lote.
+                    </span>
+                    <span *ngIf="!form.get('h')?.errors?.['max']">
+                      El valor debe ser mayor o igual a 0
+                    </span>
+                  </small>
+                  <small class="field-hint" *ngIf="avesDisponibles">
+                    Disponibles: {{ avesDisponibles.hembrasDisponibles }} hembras
+                  </small>
+                  <small class="field-hint text-xs text-gray-600 mt-1" *ngIf="avesDisponibles && avesDisponibles.hembrasDisponibles > 0">
+                    💡 Puede asignar hasta {{ avesDisponibles.hembrasDisponibles }} hembras disponibles en el lote
+                  </small>
+                </div>
+                <div class="form-field">
+                  <label class="ux-label" for="inp-mixtas">Mixtas</label>
+                  <input 
+                    id="inp-mixtas" 
+                    type="number" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('mixtas')?.invalid && form.get('mixtas')?.touched"
+                    formControlName="mixtas" 
+                    inputmode="numeric"
+                    min="0"
+                    placeholder="0" />
+                  <small class="field-error" *ngIf="form.get('mixtas')?.invalid && form.get('mixtas')?.touched">
+                    El valor debe ser mayor o igual a 0
+                  </small>
+                </div>
               </div>
-              <div>
-                <label class="ux-label" for="inp-mixtas">Mixtas</label>
-                <input id="inp-mixtas" type="number" class="ux-input" formControlName="mixtas" inputmode="numeric" />
-              </div>
-            </div>
+            </section>
 
-            <div class="form-section__title">Peso llegada</div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label class="ux-label" for="inp-pm">Peso Machos</label>
-                <input id="inp-pm" type="number" class="ux-input" formControlName="pesoInicialM" step="0.001" inputmode="decimal" />
+            <!-- Peso llegada -->
+            <section class="form-section">
+              <div class="form-section__title">
+                <span class="section-icon">⚖️</span>
+                Pesos de Llegada (kg)
               </div>
-              <div>
-                <label class="ux-label" for="inp-ph">Peso Hembras</label>
-                <input id="inp-ph" type="number" class="ux-input" formControlName="pesoInicialH" step="0.001" inputmode="decimal" />
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-field">
+                  <label class="ux-label" for="inp-pm">Peso Machos</label>
+                  <input 
+                    id="inp-pm" 
+                    type="number" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('pesoInicialM')?.invalid && form.get('pesoInicialM')?.touched"
+                    formControlName="pesoInicialM" 
+                    step="0.001" 
+                    inputmode="decimal"
+                    min="0"
+                    placeholder="0.000" />
+                  <small class="field-error" *ngIf="form.get('pesoInicialM')?.invalid && form.get('pesoInicialM')?.touched">
+                    El valor debe ser mayor o igual a 0
+                  </small>
+                </div>
+                <div class="form-field">
+                  <label class="ux-label" for="inp-ph">Peso Hembras</label>
+                  <input 
+                    id="inp-ph" 
+                    type="number" 
+                    class="ux-input"
+                    [class.ux-input--error]="form.get('pesoInicialH')?.invalid && form.get('pesoInicialH')?.touched"
+                    formControlName="pesoInicialH" 
+                    step="0.001" 
+                    inputmode="decimal"
+                    min="0"
+                    placeholder="0.000" />
+                  <small class="field-error" *ngIf="form.get('pesoInicialH')?.invalid && form.get('pesoInicialH')?.touched">
+                    El valor debe ser mayor o igual a 0
+                  </small>
+                </div>
               </div>
-            </div>
+            </section>
 
             <div class="ux-modal__actions">
-              <button type="button" class="btn-ghost" (click)="cancel()">Cancelar</button>
-              <button type="submit" class="btn-primary">{{ editing ? 'Actualizar' : 'Guardar' }}</button>
+              <button type="button" class="btn-ghost" (click)="requestCancel()" [disabled]="loading">
+                Cancelar
+              </button>
+              <button type="submit" class="btn-primary" [disabled]="loading || form.invalid" title="Completa los campos obligatorios (nombre, incubadora, fecha) y al menos 1 hembra, macho o mixta">
+                <span *ngIf="loading" class="spinner-inline"></span>
+                {{ editing ? 'Actualizar' : 'Guardar' }}
+              </button>
             </div>
           </form>
 
           <!-- MULTIPLE -->
           <form *ngIf="bulkMode" class="ux-form" (ngSubmit)="save()" novalidate [formGroup]="form">
-            <div formArrayName="incubadoras" class="space-y-6">
+            <!-- Resumen de creación múltiple -->
+            <div class="bulk-summary-card">
+              <div class="bulk-summary-header">
+                <div class="bulk-summary-icon">📦</div>
+                <div>
+                  <h3 class="bulk-summary-title">Creación Múltiple de Lotes Reproductoras</h3>
+                  <p class="bulk-summary-subtitle">
+                    Estás creando <strong>{{ incubadoras.length }}</strong> lote(s) reproductora(s) para el Lote #{{ selectedLoteId }}
+                  </p>
+                </div>
+              </div>
+              <div class="bulk-summary-stats" *ngIf="avesDisponibles">
+                <div class="stat-item">
+                  <span class="stat-label">Hembras Disponibles</span>
+                  <span class="stat-value stat-value--available">{{ avesDisponibles.hembrasDisponibles }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Machos Disponibles</span>
+                  <span class="stat-value stat-value--available">{{ avesDisponibles.machosDisponibles }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Máx. Hembras por Lote</span>
+                  <span class="stat-value">{{ getMaxHembrasPorLote() }}</span>
+                  <span class="text-xs text-gray-600">({{ avesDisponibles.hembrasDisponibles }} / {{ incubadoras.length }})</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Máx. Machos por Lote</span>
+                  <span class="stat-value">{{ getMaxMachosPorLote() }}</span>
+                  <span class="text-xs text-gray-600">({{ avesDisponibles.machosDisponibles }} / {{ incubadoras.length }})</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Total Hembras a Asignar</span>
+                  <span class="stat-value" 
+                        [class.stat-value--warning]="getTotalHembras() > avesDisponibles.hembrasDisponibles"
+                        [class.stat-value--available]="getTotalHembras() <= avesDisponibles.hembrasDisponibles">
+                    {{ getTotalHembras() }}
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Total Machos a Asignar</span>
+                  <span class="stat-value" 
+                        [class.stat-value--warning]="getTotalMachos() > avesDisponibles.machosDisponibles"
+                        [class.stat-value--available]="getTotalMachos() <= avesDisponibles.machosDisponibles">
+                    {{ getTotalMachos() }}
+                  </span>
+                </div>
+              </div>
+              <div class="mt-3 p-3 bg-red-50 border-2 border-red-300 rounded text-sm" *ngIf="!canCreateMoreLotes()">
+                <p class="font-semibold text-red-900 mb-1">⚠️ Sin aves disponibles</p>
+                <p class="text-red-800 text-xs mb-2">El lote ya no tiene aves disponibles para distribuir en nuevos lotes reproductoras. Todas las aves han sido asignadas o han fallecido.</p>
+                <p class="text-red-800 text-xs font-semibold">No se pueden crear más lotes reproductoras para este lote.</p>
+              </div>
+            </div>
+
+            <!-- Controles de gestión múltiple -->
+            <div class="bulk-controls">
+              <div class="bulk-controls-left">
+                <button type="button" class="btn-secondary btn-sm" (click)="addIncubadora()">
+                  <fa-icon [icon]="faPlus" class="mr-1" aria-hidden="true"></fa-icon>
+                  Agregar Incubadora
+                </button>
+                <span class="bulk-count-badge">{{ incubadoras.length }} incubadora(s)</span>
+              </div>
+              <div class="bulk-controls-right">
+                <label class="ux-label mb-0" for="bulk-count-input">Cantidad:</label>
+                <input
+                  id="bulk-count-input"
+                  type="number"
+                  class="ux-input w-20"
+                  min="1"
+                  max="50"
+                  [(ngModel)]="bulkCount"
+                  (change)="regenerateIncubadoras(bulkCount)"
+                  (keyup.enter)="regenerateIncubadoras(bulkCount)" />
+                <button type="button" class="btn-secondary btn-sm" (click)="regenerateIncubadoras(bulkCount)">
+                  Aplicar
+                </button>
+              </div>
+            </div>
+
+            <!-- Lista de incubadoras -->
+            <div formArrayName="incubadoras" class="bulk-incubadoras-list">
               <div
                 *ngFor="let g of incubadoras.controls; let i = index; trackBy: trackByIdx"
                 [formGroupName]="i"
-                class="ux-card incubadora-card">
-                <div class="flex items-center justify-between mb-2">
-                  <div class="font-semibold">Incubadora #{{ i + 1 }}</div>
+                class="incubadora-card-enhanced">
+                <!-- Header de la incubadora -->
+                <div class="incubadora-card-header">
+                  <div class="incubadora-card-number">
+                    <span class="incubadora-number-badge">{{ i + 1 }}</span>
+                    <span class="incubadora-label">Incubadora</span>
+                  </div>
                   <button
                     type="button"
-                    class="icon-btn danger"
-                    aria-label="Quitar"
+                    class="icon-btn danger btn-sm"
+                    aria-label="Quitar incubadora"
                     (click)="removeIncubadora(i)"
-                    *ngIf="incubadoras.length > 1">×</button>
+                    *ngIf="incubadoras.length > 1"
+                    title="Eliminar esta incubadora">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label class="ux-label">Lote Reproductora</label>
-                    <input class="ux-input" formControlName="nombreLote" />
+                <!-- Contenido de la incubadora -->
+                <div class="incubadora-card-body">
+                  <!-- Datos generales -->
+                  <div class="incubadora-section">
+                    <h4 class="incubadora-section-title">
+                      <span class="section-icon-small">ℹ️</span>
+                      Datos Generales
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-nombre-' + i">
+                          Nombre del Lote <span class="required">*</span>
+                        </label>
+                        <input 
+                          [id]="'bulk-nombre-' + i"
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('nombreLote')?.invalid && g.get('nombreLote')?.touched"
+                          formControlName="nombreLote"
+                          [placeholder]="'Ej: Lote Reproductora ' + (i + 1)" />
+                        <small class="field-error" *ngIf="g.get('nombreLote')?.invalid && g.get('nombreLote')?.touched">
+                          Requerido
+                        </small>
+                      </div>
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-rep-' + i">
+                          Incubadora <span class="required">*</span>
+                        </label>
+                        <input 
+                          [id]="'bulk-rep-' + i"
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('reproductoraId')?.invalid && g.get('reproductoraId')?.touched"
+                          formControlName="reproductoraId" 
+                          [placeholder]="getIncubadoraPlaceholder(i)" />
+                        <small class="field-error" *ngIf="g.get('reproductoraId')?.invalid && g.get('reproductoraId')?.touched">
+                          Requerido
+                        </small>
+                      </div>
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-fecha-' + i">
+                          Fecha Encasetamiento <span class="required">*</span>
+                        </label>
+                        <input 
+                          [id]="'bulk-fecha-' + i"
+                          type="date" 
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('fechaEncasetamiento')?.invalid && g.get('fechaEncasetamiento')?.touched"
+                          formControlName="fechaEncasetamiento" />
+                        <small class="field-error" *ngIf="g.get('fechaEncasetamiento')?.invalid && g.get('fechaEncasetamiento')?.touched">
+                          Requerido
+                        </small>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label class="ux-label">Incubadora</label>
-                    <input class="ux-input" formControlName="reproductoraId" placeholder="Ej: Sanmarino-A" />
-                  </div>
-                  <div>
-                    <label class="ux-label">Fecha Encasetamiento</label>
-                    <input type="date" class="ux-input" formControlName="fechaEncasetamiento" />
-                  </div>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
-                  <div><label class="ux-label">Machos</label><input type="number" class="ux-input" formControlName="m" inputmode="numeric" /></div>
-                  <div><label class="ux-label">Hembras</label><input type="number" class="ux-input" formControlName="h" inputmode="numeric" /></div>
-                  <div><label class="ux-label">Mixtas</label><input type="number" class="ux-input" formControlName="mixtas" inputmode="numeric" /></div>
-                </div>
+                  <!-- Cantidad de aves -->
+                  <div class="incubadora-section">
+                    <h4 class="incubadora-section-title">
+                      <span class="section-icon-small">🐣</span>
+                      Cantidad de Aves
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-m-' + i">Machos</label>
+                        <input 
+                          [id]="'bulk-m-' + i"
+                          type="number" 
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('m')?.invalid && g.get('m')?.touched"
+                          formControlName="m" 
+                          inputmode="numeric"
+                          [min]="0"
+                          [max]="getMaxMachosPorLote()"
+                          placeholder="0" />
+                        <small class="field-error" *ngIf="g.get('m')?.invalid && g.get('m')?.touched">
+                          <span *ngIf="g.get('m')?.errors?.['max']">
+                            Máx. {{ getMaxMachosPorLote() }} machos por lote ({{ avesDisponibles?.machosDisponibles || 0 }} / {{ incubadoras.length }})
+                          </span>
+                          <span *ngIf="g.get('m')?.errors?.['min']">
+                            El valor debe ser mayor o igual a 0
+                          </span>
+                        </small>
+                        <small class="field-hint" *ngIf="avesDisponibles">
+                          Disponibles: {{ avesDisponibles.machosDisponibles }} | 
+                          Máx. por lote: {{ getMaxMachosPorLote() }} ({{ avesDisponibles.machosDisponibles }} / {{ incubadoras.length }})
+                        </small>
+                      </div>
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-h-' + i">Hembras</label>
+                        <input 
+                          [id]="'bulk-h-' + i"
+                          type="number" 
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('h')?.invalid && g.get('h')?.touched"
+                          formControlName="h" 
+                          inputmode="numeric"
+                          [min]="0"
+                          [max]="getMaxHembrasPorLote()"
+                          placeholder="0" />
+                        <small class="field-error" *ngIf="g.get('h')?.invalid && g.get('h')?.touched">
+                          <span *ngIf="g.get('h')?.errors?.['max']">
+                            Máx. {{ getMaxHembrasPorLote() }} hembras por lote ({{ avesDisponibles?.hembrasDisponibles || 0 }} / {{ incubadoras.length }})
+                          </span>
+                          <span *ngIf="g.get('h')?.errors?.['min']">
+                            El valor debe ser mayor o igual a 0
+                          </span>
+                        </small>
+                        <small class="field-hint" *ngIf="avesDisponibles">
+                          Disponibles: {{ avesDisponibles.hembrasDisponibles }} | 
+                          Máx. por lote: {{ getMaxHembrasPorLote() }} ({{ avesDisponibles.hembrasDisponibles }} / {{ incubadoras.length }})
+                        </small>
+                      </div>
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-mixtas-' + i">Mixtas</label>
+                        <input 
+                          [id]="'bulk-mixtas-' + i"
+                          type="number" 
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('mixtas')?.invalid && g.get('mixtas')?.touched"
+                          formControlName="mixtas" 
+                          inputmode="numeric"
+                          min="0"
+                          placeholder="0" />
+                      </div>
+                    </div>
+                  </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                  <div><label class="ux-label">Peso Machos</label><input type="number" class="ux-input" formControlName="pesoInicialM" step="0.001" inputmode="decimal" /></div>
-                  <div><label class="ux-label">Peso Hembras</label><input type="number" class="ux-input" formControlName="pesoInicialH" step="0.001" inputmode="decimal" /></div>
+                  <!-- Pesos -->
+                  <div class="incubadora-section">
+                    <h4 class="incubadora-section-title">
+                      <span class="section-icon-small">⚖️</span>
+                      Pesos de Llegada (kg)
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-pm-' + i">Peso Machos</label>
+                        <input 
+                          [id]="'bulk-pm-' + i"
+                          type="number" 
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('pesoInicialM')?.invalid && g.get('pesoInicialM')?.touched"
+                          formControlName="pesoInicialM" 
+                          step="0.001" 
+                          inputmode="decimal"
+                          min="0"
+                          placeholder="0.000" />
+                      </div>
+                      <div class="form-field">
+                        <label class="ux-label" [for]="'bulk-ph-' + i">Peso Hembras</label>
+                        <input 
+                          [id]="'bulk-ph-' + i"
+                          type="number" 
+                          class="ux-input"
+                          [class.ux-input--error]="g.get('pesoInicialH')?.invalid && g.get('pesoInicialH')?.touched"
+                          formControlName="pesoInicialH" 
+                          step="0.001" 
+                          inputmode="decimal"
+                          min="0"
+                          placeholder="0.000" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div class="ux-modal__actions mt-6">
-              <button type="button" class="btn-ghost" (click)="cancel()">Cancelar</button>
-              <button type="submit" class="btn-primary">Guardar {{ incubadoras.length }} incubadora(s)</button>
+              <button type="button" class="btn-ghost" (click)="requestCancel()" [disabled]="loading">
+                Cancelar
+              </button>
+              <button type="submit" class="btn-primary" [disabled]="loading || form.invalid">
+                <span *ngIf="loading" class="spinner-inline"></span>
+                Guardar {{ incubadoras.length }} incubadora(s)
+              </button>
             </div>
           </form>
         </div>
       </div>
     </div>
     <!-- /Modales -->
+
+    <!-- Modal de Confirmación (eliminación) -->
+    <app-confirmation-modal
+      [isOpen]="confirmModalOpen"
+      [data]="confirmModalData"
+      (confirmed)="onConfirmDelete()"
+      (cancelled)="onCancelDelete()"
+      (closed)="confirmModalOpen = false">
+    </app-confirmation-modal>
+
+    <!-- Modal de Confirmación (salir sin guardar) -->
+    <app-confirmation-modal
+      [isOpen]="confirmCancelModalOpen"
+      [data]="confirmCancelModalData"
+      (confirmed)="doCancel()"
+      (cancelled)="confirmCancelModalOpen = false"
+      (closed)="confirmCancelModalOpen = false">
+    </app-confirmation-modal>
   </div>
 </div>

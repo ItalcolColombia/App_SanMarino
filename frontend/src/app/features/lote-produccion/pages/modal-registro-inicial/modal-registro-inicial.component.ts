@@ -17,6 +17,8 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   @Input() loteNombre: string = '';
   @Input() nucleoAsignado: string = '';
   @Input() nucleosDisponibles: Array<{ nucleoId: string, nucleoNombre: string }> = [];
+  /** Aves disponibles para encasetar en producción: saldo del lote (si pasó por Levante) o aves iniciales del lote */
+  @Input() avesDisponibles: { saldoHembras: number; saldoMachos: number } | null = null;
   @Input() loading: boolean = false;
 
   @Output() close = new EventEmitter<void>();
@@ -49,6 +51,12 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   ngOnChanges(): void {
     if (this.isOpen && this.loteId) {
       this.resetForm();
+      if (this.avesDisponibles) {
+        this.form.patchValue({
+          avesInicialesH: this.avesDisponibles.saldoHembras,
+          avesInicialesM: this.avesDisponibles.saldoMachos
+        });
+      }
       this.activeTab = 'general';
     }
   }
@@ -72,11 +80,13 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   }
 
   private resetForm(): void {
+    const avesH = this.avesDisponibles?.saldoHembras ?? 0;
+    const avesM = this.avesDisponibles?.saldoMachos ?? 0;
     this.form.reset({
       fechaInicio: this.todayYMD(),
       loteId: this.loteId,
-      avesInicialesH: 0,
-      avesInicialesM: 0,
+      avesInicialesH: avesH,
+      avesInicialesM: avesM,
       huevosIniciales: 0,
       tipoNido: 'Manual',
       ciclo: 'normal',
@@ -124,8 +134,8 @@ export class ModalRegistroInicialComponent implements OnInit, OnChanges {
   // Métodos públicos para mostrar mensajes (llamados desde el componente padre)
   showSuccessMessage(produccionLoteId: number): void {
     this.messageModalData = {
-      title: '✅ Registro Inicial Creado',
-      message: `El registro inicial de producción se ha creado exitosamente. El lote de producción #${produccionLoteId} está listo para comenzar el seguimiento diario.`,
+      title: '✅ Registro inicial creado',
+      message: `El lote en fase Producción se ha creado correctamente (ID: ${produccionLoteId}). Ya puede registrar el seguimiento diario.`,
       type: 'success',
       confirmText: 'Continuar',
       showCancel: false

@@ -32,8 +32,122 @@
   min-height: 0;
 }
 
+:host .ux-modal__dialog--large {
+  width: min(1200px, 95vw);
+}
+
 :host .ux-modal__footer {
   display: flex; justify-content: flex-end; gap: .75rem; padding: 1.25rem 1.5rem; border-top: 1px solid var(--border);
+}
+
+/* ==========================================================================
+   Tabs (misma estructura que modal crear)
+   ========================================================================== */
+:host .detalle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+:host .ux-tab-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+:host .ux-tabs-wrapper {
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--warm-200);
+}
+
+:host .ux-tabs {
+  display: flex;
+  align-items: end;
+  gap: .5rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+:host .ux-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--warm-200);
+  border-bottom: none;
+  border-top-left-radius: .6rem;
+  border-top-right-radius: .6rem;
+  background: var(--warm-100);
+  color: var(--warm-600);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: -1px;
+  white-space: nowrap;
+}
+:host .ux-tab:hover {
+  background: var(--warm-50);
+  color: var(--brand-red);
+}
+:host .tab-icon { font-size: 1rem; line-height: 1; }
+
+:host .ux-tab-panels {
+  background: var(--white);
+  padding: 0;
+  min-height: 320px;
+  overflow-y: auto;
+}
+
+:host .ux-tab-panel {
+  padding: 1.25rem;
+  display: none;
+}
+:host #det-tab-general:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-det-general { display: block; }
+:host #det-tab-hembras:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-det-hembras { display: block; }
+:host #det-tab-machos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-det-machos { display: block; }
+:host #det-tab-huevos:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-det-huevos { display: block; }
+:host #det-tab-pesaje:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-det-pesaje { display: block; }
+:host #det-tab-agua:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-det-agua { display: block; }
+
+:host #det-tab-general:checked ~ .ux-tabs-wrapper label[for="det-tab-general"],
+:host #det-tab-hembras:checked ~ .ux-tabs-wrapper label[for="det-tab-hembras"],
+:host #det-tab-machos:checked ~ .ux-tabs-wrapper label[for="det-tab-machos"],
+:host #det-tab-huevos:checked ~ .ux-tabs-wrapper label[for="det-tab-huevos"],
+:host #det-tab-pesaje:checked ~ .ux-tabs-wrapper label[for="det-tab-pesaje"],
+:host #det-tab-agua:checked ~ .ux-tabs-wrapper label[for="det-tab-agua"] {
+  background: var(--white);
+  color: var(--brand-red);
+  border-bottom: 2px solid var(--white);
+  font-weight: 700;
+}
+
+:host .tab-panel-header {
+  margin-bottom: 1.25rem;
+  padding-bottom: .75rem;
+  border-bottom: 2px solid var(--warm-100);
+}
+:host .tab-panel-header h3 { margin: 0 0 .25rem 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
+:host .tab-description { margin: 0; font-size: var(--fs-xs); color: var(--warm-500); }
+
+:host .data-group {
+  margin-top: 1.5rem;
+}
+:host .data-group-title {
+  margin: 0 0 .75rem 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--warm-700);
+}
+
+:host .detalle-meta {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--warm-200);
+  font-size: var(--fs-xs);
+  color: var(--warm-500);
 }
 
 /* ==========================================================================

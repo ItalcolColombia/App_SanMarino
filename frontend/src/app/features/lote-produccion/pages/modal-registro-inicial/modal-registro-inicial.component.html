@@ -28,6 +28,14 @@
           <span class="info-value">{{ nucleoAsignado }}</span>
         </div>
       </div>
+      <div class="info-card info-card--aves" *ngIf="avesDisponibles">
+        <div class="info-icon">🐔</div>
+        <div class="info-content">
+          <span class="info-label">Aves disponibles para encasetar en producción</span>
+          <span class="info-value info-value--number">{{ avesDisponibles.saldoHembras | number:'1.0-0' }} H / {{ avesDisponibles.saldoMachos | number:'1.0-0' }} M</span>
+          <small class="info-hint">Si el lote pasó por Levante: saldo actual (inicio − mort. caja − mortalidad − descarte − error sexaje). Si se creó directo en producción: aves iniciales del lote.</small>
+        </div>
+      </div>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
@@ -97,13 +105,13 @@
               <div class="form-field">
                 <label for="f-aves-h">Aves Iniciales Hembras</label>
                 <input id="f-aves-h" type="number" min="0" formControlName="avesInicialesH" placeholder="0" />
-                <small class="ux-hint">Número total de hembras al inicio</small>
+                <small class="ux-hint">Número total de hembras al inicio (sugerido según aves disponibles)</small>
               </div>
 
               <div class="form-field">
                 <label for="f-aves-m">Aves Iniciales Machos</label>
                 <input id="f-aves-m" type="number" min="0" formControlName="avesInicialesM" placeholder="0" />
-                <small class="ux-hint">Número total de machos al inicio</small>
+                <small class="ux-hint">Número total de machos al inicio (sugerido según aves disponibles)</small>
               </div>
 
               <div class="form-field">

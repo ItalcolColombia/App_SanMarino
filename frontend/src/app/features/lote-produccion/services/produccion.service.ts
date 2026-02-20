@@ -40,6 +40,9 @@ export interface CrearSeguimientoRequest {
   mortalidadM: number;
   selH: number; // Selección hembras (retiradas)
   selM: number; // Selección machos (retiradas)
+  errorSexajeHembras?: number;
+  errorSexajeMachos?: number;
+  ciclo?: string;
   // Consumo con unidad opcional (el backend hace la conversión)
   consumoH?: number; // Consumo hembras (puede venir en kg o gramos)
   unidadConsumoH?: string; // "kg" o "g" - default "kg"
@@ -75,12 +78,31 @@ export interface CrearSeguimientoRequest {
   pesoM?: number; // Peso promedio machos (kg)
   uniformidad?: number; // Uniformidad del lote (%)
   coeficienteVariacion?: number; // Coeficiente de variación (CV)
+  uniformidadHembras?: number;
+  uniformidadMachos?: number;
+  cvHembras?: number;
+  cvMachos?: number;
   observacionesPesaje?: string; // Observaciones específicas del pesaje
   // Campos de agua (solo para Ecuador y Panamá)
   consumoAguaDiario?: number; // Consumo diario de agua en litros
   consumoAguaPh?: number; // Nivel de PH del agua
   consumoAguaOrp?: number; // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
   consumoAguaTemperatura?: number; // Temperatura del agua en °C
+  /** ID del usuario en sesión (desde storage). Se envía al backend para seguimiento_diario.created_by_user_id. */
+  createdByUserId?: string | null;
+  /** Tipo de seguimiento: siempre "produccion" para este módulo. */
+  tipoSeguimiento?: 'produccion' | null;
+  /** Múltiples ítems por hembras (alimento, medicamento, etc.). Se guarda en metadata. */
+  itemsHembras?: ItemSeguimientoDto[] | null;
+  /** Múltiples ítems por machos (alimento, medicamento, etc.). Se guarda en metadata. */
+  itemsMachos?: ItemSeguimientoDto[] | null;
+}
+
+export interface ItemSeguimientoDto {
+  tipoItem: string;
+  catalogItemId: number;
+  cantidad: number;
+  unidad: string;
 }
 
 export interface SeguimientoItemDto {
@@ -176,6 +198,13 @@ export class ProduccionService {
    */
   crearSeguimiento(payload: CrearSeguimientoRequest): Observable<number> {
     return this.http.post<number>(`${this.baseUrl}/seguimiento`, payload);
+  }
+
+  /**
+   * Actualiza un seguimiento diario de producción existente.
+   */
+  actualizarSeguimiento(id: number, payload: CrearSeguimientoRequest): Observable<void> {
+    return this.http.put<void>(`${this.baseUrl}/seguimiento/${id}`, payload);
   }
 
   /**
@@ -370,6 +399,8 @@ export interface IndicadoresProduccionResponse {
   semanaInicial: number;
   semanaFinal: number;
   tieneDatosGuiaGenetica: boolean;
+  /** Mensaje cuando el lote tiene Raza/Año pero no hay datos de guía cargados en la compañía. */
+  mensajeGuiaGenetica?: string | null;
 }
 
 // ==================== DTOs para Liquidación Técnica de Producción ====================

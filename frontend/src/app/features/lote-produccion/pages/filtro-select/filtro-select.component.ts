@@ -1,12 +1,21 @@
 import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../services/nucleo.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { ProduccionService } from '../../services/produccion.service';
+
+/** Respuesta del endpoint filter-data (Granja → Núcleo → Galpón → Lote). */
+export interface FilterDataResponse {
+  farms: FarmDto[];
+  nucleos: NucleoDto[];
+  galpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }>;
+  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId: string | null; galponId: string | null }>;
+}
 
 @Component({
   selector: 'app-filtro-select',
@@ -24,12 +33,15 @@ export class FiltroSelectComponent implements OnInit {
   @Input() selectedNucleoId: string | null = null;
   @Input() selectedGalponId: string | null = null;
   @Input() selectedLoteId: number | null = null;
+  /** Si se define, se carga todo en una sola llamada GET a esta URL (filter-data). */
+  @Input() filterDataUrl: string | null = null;
 
   // ================== outputs ==================
   @Output() granjaChange = new EventEmitter<number | null>();
   @Output() nucleoChange = new EventEmitter<string | null>();
   @Output() galponChange = new EventEmitter<string | null>();
   @Output() loteChange = new EventEmitter<number | null>();
+  @Output() filterDataLoaded = new EventEmitter<FilterDataResponse>();
 
   // ================== catálogos ==================
   granjas: FarmDto[] = [];
@@ -40,6 +52,8 @@ export class FiltroSelectComponent implements OnInit {
   // ================== estado interno ==================
   hasSinGalpon = false;
   private allLotes: LoteDto[] = [];
+  private allNucleos: NucleoDto[] = [];
+  private allGalpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }> = [];
   private galponNameById = new Map<string, string>();
 
   constructor(
@@ -47,11 +61,61 @@ export class FiltroSelectComponent implements OnInit {
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
     private galponSvc: GalponService,
-    private produccionSvc: ProduccionService
+    private produccionSvc: ProduccionService,
+    private http: HttpClient
   ) { }
 
   ngOnInit(): void {
-    this.loadGranjas();
+    if (this.filterDataUrl) {
+      this.loadFromFilterData();
+    } else {
+      this.loadGranjas();
+    }
+  }
+
+  private loadFromFilterData(): void {
+    this.http.get<FilterDataResponse>(this.filterDataUrl!).subscribe({
+      next: (data) => {
+        this.granjas = data.farms ?? [];
+        this.allNucleos = data.nucleos ?? [];
+        this.allGalpones = data.galpones ?? [];
+        const lotesRaw = data.lotes ?? [];
+        const farmIds = new Set((data.farms ?? []).map(f => f.id));
+        const nucleoIdsByGranja = new Map<number, Set<string>>();
+        (data.nucleos ?? []).forEach(n => {
+          if (!nucleoIdsByGranja.has(n.granjaId)) nucleoIdsByGranja.set(n.granjaId, new Set());
+          nucleoIdsByGranja.get(n.granjaId)!.add(n.nucleoId);
+        });
+        const galponKeys = new Set((data.galpones ?? []).map(g => `${g.granjaId}|${g.nucleoId}|${String(g.galponId).trim()}`));
+        const lotesValidos = lotesRaw.filter(l => {
+          if (!farmIds.has(l.granjaId)) return false;
+          const nid = l.nucleoId?.trim();
+          if (!nid || !nucleoIdsByGranja.get(l.granjaId)?.has(nid)) return false;
+          const gid = l.galponId?.trim();
+          if (!gid) return false;
+          if (!galponKeys.has(`${l.granjaId}|${nid}|${gid}`)) return false;
+          return true;
+        });
+        this.allLotes = lotesValidos.map(l => ({
+          loteId: l.loteId,
+          loteNombre: l.loteNombre,
+          granjaId: l.granjaId,
+          nucleoId: l.nucleoId ?? undefined,
+          galponId: l.galponId ?? undefined
+        })) as LoteDto[];
+        this.galponNameById.clear();
+        (data.galpones ?? []).forEach(g => {
+          if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());
+        });
+        this.filterDataLoaded.emit({ ...data, lotes: lotesValidos });
+      },
+      error: () => {
+        this.granjas = [];
+        this.allNucleos = [];
+        this.allGalpones = [];
+        this.allLotes = [];
+      }
+    });
   }
 
   // ================== CARGA DE CATÁLOGOS ==================
@@ -139,6 +203,30 @@ export class FiltroSelectComponent implements OnInit {
     this.lotes = filtered.filter(l => this.normalizeId(l.galponId) === sel);
   }
 
+  private buildGalponesFromFilterData(): void {
+    if (!this.selectedGranjaId) {
+      this.galpones = [];
+      this.hasSinGalpon = false;
+      return;
+    }
+    const gid = Number(this.selectedGranjaId);
+    const nid = this.selectedNucleoId ? String(this.selectedNucleoId) : null;
+    const list = this.allGalpones.filter(g => g.granjaId === gid && (!nid || g.nucleoId === nid));
+    const result: Array<{ id: string; label: string }> = list.map(g => ({
+      id: String(g.galponId).trim(),
+      label: (g.galponNombre || g.galponId).trim()
+    }));
+    this.hasSinGalpon = this.allLotes.some(l =>
+      l.granjaId === gid && (!nid || String(l.nucleoId) === nid) && !this.hasValue(l.galponId)
+    );
+    if (this.hasSinGalpon) {
+      result.unshift({ id: this.SIN_GALPON, label: '— Sin galpón —' });
+    }
+    this.galpones = result.sort((a, b) =>
+      a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
+    );
+  }
+
   private buildGalponesFromLotes(): void {
     if (!this.selectedGranjaId) {
       this.galpones = [];
@@ -189,6 +277,14 @@ export class FiltroSelectComponent implements OnInit {
 
     if (!this.selectedGranjaId) return;
 
+    if (this.filterDataUrl) {
+      const gid = Number(this.selectedGranjaId);
+      this.nucleos = this.allNucleos.filter(n => n.granjaId === gid);
+      this.applyFiltersToLotes();
+      this.buildGalponesFromFilterData();
+      return;
+    }
+
     this.nucleoSvc.getByGranja(this.selectedGranjaId).subscribe({
       next: rows => (this.nucleos = rows || []),
       error: () => (this.nucleos = [])
@@ -203,6 +299,14 @@ export class FiltroSelectComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.lotes = [];
+    this.galpones = [];
+
+    if (this.filterDataUrl) {
+      this.applyFiltersToLotes();
+      this.buildGalponesFromFilterData();
+      return;
+    }
+
     this.applyFiltersToLotes();
     this.loadGalponCatalog();
   }

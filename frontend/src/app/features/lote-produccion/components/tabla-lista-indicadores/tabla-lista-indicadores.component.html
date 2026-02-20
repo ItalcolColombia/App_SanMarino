@@ -5,6 +5,9 @@
       Resumen de métricas clave por semana de producción
       <span *ngIf="tieneDatosGuiaGenetica" class="badge-guia">✓ Comparación con Guía Genética disponible</span>
     </p>
+    <div *ngIf="mensajeGuiaGenetica" class="mensaje-guia-info" role="alert">
+      ℹ️ {{ mensajeGuiaGenetica }}
+    </div>
   </div>
 
   <!-- Loading State -->
@@ -35,7 +38,7 @@
           <th colspan="3">💀 Mortalidad</th>
           <th colspan="4">🌾 Consumo (g/ave/día)</th>
           <th colspan="7">🥚 Producción Huevos</th>
-          <th colspan="5">⚖️ Peso / Uniformidad</th>
+          <th colspan="8">⚖️ Peso / Uniformidad</th>
         </tr>
         <tr>
           <!-- Mortalidad -->
@@ -60,7 +63,10 @@
           <th>Peso M (kg)</th>
           <th>Peso Huevo (g)</th>
           <th>Huevo Guía (g)</th>
+          <th>Dif. Huevo</th>
           <th>Unif Real</th>
+          <th>Unif Guía</th>
+          <th>Dif. Unif</th>
         </tr>
       </thead>
       <tbody>
@@ -119,12 +125,21 @@
           <td>{{ ind.pesoPromedioMachos ? (ind.pesoPromedioMachos | number:'1.2-2') : '—' }}</td>
           <td>{{ ind.pesoHuevoPromedio !== null && ind.pesoHuevoPromedio !== undefined ? (ind.pesoHuevoPromedio | number:'1.2-2') : '—' }}</td>
           <td>{{ ind.pesoHuevoGuia !== null && ind.pesoHuevoGuia !== undefined ? (ind.pesoHuevoGuia | number:'1.2-2') : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaPesoHuevo)" *ngIf="ind.diferenciaPesoHuevo !== null && ind.diferenciaPesoHuevo !== undefined">
+            {{ formatearPorcentaje(ind.diferenciaPesoHuevo) }}
+          </td>
+          <td *ngIf="ind.diferenciaPesoHuevo === null || ind.diferenciaPesoHuevo === undefined">—</td>
           <td>{{ ind.uniformidadPromedio !== null && ind.uniformidadPromedio !== undefined ? (ind.uniformidadPromedio | number:'1.2-2') : '—' }}</td>
+          <td>{{ ind.uniformidadGuia !== null && ind.uniformidadGuia !== undefined ? (ind.uniformidadGuia | number:'1.2-2') : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaUniformidad)" *ngIf="ind.diferenciaUniformidad !== null && ind.diferenciaUniformidad !== undefined">
+            {{ formatearPorcentaje(ind.diferenciaUniformidad) }}
+          </td>
+          <td *ngIf="ind.diferenciaUniformidad === null || ind.diferenciaUniformidad === undefined">—</td>
         </tr>
 
         <!-- Detalle clasificadora (expandible) -->
         <tr *ngIf="isExpanded(ind.semana)" class="detalle-row">
-          <td colspan="21">
+          <td colspan="27">
             <div>
               <strong>Clasificadora semana {{ ind.semana }}:</strong>
               Limpio: {{ ind.huevosLimpios }} |
@@ -150,6 +165,6 @@
   <div *ngIf="!loadingIndicadores && !error && indicadoresSemanales.length === 0" class="empty-state">
     <div class="empty-icon">📊</div>
     <p>No hay datos suficientes para calcular indicadores semanales.</p>
-    <p class="empty-hint">Agrega registros de producción desde la semana 26 para ver los indicadores.</p>
+    <p class="empty-hint">Los indicadores se calculan con los registros del <strong>Seguimiento Diario</strong> (pestaña General). Agrega registros desde la semana 26 de producción para ver los indicadores aquí.</p>
   </div>
 </div>

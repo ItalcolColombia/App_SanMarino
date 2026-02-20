@@ -1,0 +1,517 @@
+<!-- Modal de creación/edición -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="seguimiento-modal-title">
+  <div class="ux-modal__overlay" (click)="onClose()"></div>
+  <div class="ux-modal__dialog ux-modal__dialog--xl">
+    <header class="ux-modal__header">
+      <h2 id="seguimiento-modal-title">{{ editing ? 'Editar Registro' : 'Nuevo Registro' }}</h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <!-- Mensaje de validación -->
+    <div *ngIf="showValidationErrors && form.invalid" class="alert alert-error" style="margin: 1rem; padding: 1rem; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c33;">
+      <strong>⚠️ Por favor, complete todos los campos requeridos</strong>
+      <p style="margin: 0.5rem 0 0 0; font-size: 0.875rem;">Revise los campos marcados en rojo y complete la información faltante.</p>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <!-- INPUTS RADIO (ocultos, controlan los tabs) - DEBEN ESTAR ANTES DEL TABS-WRAPPER -->
+      <input type="radio" name="regTab" id="tab-general" checked class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-hembras" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-machos" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-pesaje" class="ux-tab-input" />
+      <input type="radio" name="regTab" id="tab-agua" class="ux-tab-input" [hidden]="!isEcuadorOrPanama" />
+
+      <!-- TABS NAVEGACIÓN - ARRIBA -->
+      <div class="ux-tabs-wrapper">
+        <div class="ux-tabs" role="tablist" aria-label="Secciones del registro">
+          <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">
+            <span class="tab-icon">📋</span>
+            <span class="tab-label">General</span>
+          </label>
+          <label class="ux-tab" id="lab-hembras" for="tab-hembras" role="tab" tabindex="0" aria-controls="panel-hembras" aria-selected="false">
+            <span class="tab-icon">🐔</span>
+            <span class="tab-label">Hembras</span>
+          </label>
+          <label class="ux-tab" id="lab-machos" for="tab-machos" role="tab" tabindex="0" aria-controls="panel-machos" aria-selected="false">
+            <span class="tab-icon">🐓</span>
+            <span class="tab-label">Machos</span>
+          </label>
+          <label class="ux-tab" id="lab-pesaje" for="tab-pesaje" role="tab" tabindex="0" aria-controls="panel-pesaje" aria-selected="false">
+            <span class="tab-icon">⚖️</span>
+            <span class="tab-label">Pesaje</span>
+          </label>
+          <label class="ux-tab" id="lab-agua" for="tab-agua" role="tab" tabindex="0" aria-controls="panel-agua" aria-selected="false" *appShowIfEcuadorPanama>
+            <span class="tab-icon">💧</span>
+            <span class="tab-label">Agua</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- CONTENIDO DE TABS - DEBAJO -->
+      <div class="ux-tab-panels">
+        <!-- GENERAL -->
+        <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
+          <div class="tab-panel-header">
+            <h3>Información General</h3>
+            <p class="tab-description">Configuración básica del seguimiento diario</p>
+          </div>
+          <div class="grid grid-2">
+            <div class="form-field" [class.has-error]="form.get('fecha')?.invalid && (form.get('fecha')?.touched || showValidationErrors)">
+              <label for="f-fecha">
+                <span class="label-icon">📅</span>
+                Fecha de Registro *
+              </label>
+              <input 
+                id="f-fecha" 
+                type="date" 
+                formControlName="fecha" 
+                required 
+                [class.ux-input--error]="form.get('fecha')?.invalid && (form.get('fecha')?.touched || showValidationErrors)" />
+              <small class="ux-hint">Fecha del seguimiento diario</small>
+              <small class="ux-error" *ngIf="form.get('fecha')?.invalid && (form.get('fecha')?.touched || showValidationErrors)">
+                La fecha es requerida
+              </small>
+            </div>
+
+            <div class="form-field" [class.has-error]="form.get('loteId')?.invalid && (form.get('loteId')?.touched || showValidationErrors)">
+              <label for="f-lote">
+                <span class="label-icon">🔢</span>
+                Lote *
+              </label>
+              <div class="ux-select">
+                <select 
+                  id="f-lote" 
+                  formControlName="loteId" 
+                  required
+                  [class.ux-input--error]="form.get('loteId')?.invalid && (form.get('loteId')?.touched || showValidationErrors)">
+                  <option value="" disabled>— Seleccione —</option>
+                  <option *ngFor="let l of lotes" [ngValue]="toString(l.loteId)">{{ l.loteNombre || l.loteId }}</option>
+                </select>
+              </div>
+              <small class="ux-hint">Seleccione el lote</small>
+              <small class="ux-error" *ngIf="form.get('loteId')?.invalid && (form.get('loteId')?.touched || showValidationErrors)">
+                El lote es requerido
+              </small>
+            </div>
+
+            <div class="form-field" [class.has-error]="form.get('reproductoraId')?.invalid && (form.get('reproductoraId')?.touched || showValidationErrors)">
+              <label for="f-repro">
+                <span class="label-icon">🐣</span>
+                Reproductora *
+              </label>
+              <div class="ux-select">
+                <select 
+                  id="f-repro" 
+                  formControlName="reproductoraId" 
+                  required
+                  [class.ux-input--error]="form.get('reproductoraId')?.invalid && (form.get('reproductoraId')?.touched || showValidationErrors)">
+                  <option value="" disabled>— Seleccione —</option>
+                  <option *ngFor="let r of repros" [ngValue]="r.reproductoraId">{{ r.nombreLote || r.reproductoraId }}</option>
+                </select>
+              </div>
+              <small class="ux-hint">Seleccione la reproductora</small>
+              <small class="ux-error" *ngIf="form.get('reproductoraId')?.invalid && (form.get('reproductoraId')?.touched || showValidationErrors)">
+                La reproductora es requerida
+              </small>
+            </div>
+
+            <div class="form-field">
+              <label for="f-ciclo">
+                <span class="label-icon">🔄</span>
+                Ciclo
+              </label>
+              <div class="ux-select">
+                <select id="f-ciclo" formControlName="ciclo">
+                  <option value="Normal">Normal</option>
+                  <option value="Reforzado">Reforzado</option>
+                </select>
+              </div>
+              <small class="ux-hint">Ciclo de producción</small>
+            </div>
+
+            <div class="form-field form-field--full">
+              <label for="f-obs">
+                <span class="label-icon">📝</span>
+                Observaciones
+              </label>
+              <textarea id="f-obs" rows="3" formControlName="observaciones" placeholder="Ingrese observaciones adicionales..."></textarea>
+            </div>
+          </div>
+        </section>
+
+        <!-- HEMBRAS -->
+        <section id="panel-hembras" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-hembras">
+          <div class="tab-panel-header">
+            <h3>Información de Hembras</h3>
+            <p class="tab-description">Registro de ítems, mortalidad y selección para hembras</p>
+          </div>
+
+          <!-- ÍTEMS (ALIMENTOS Y OTROS) -->
+          <div class="data-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 class="data-group-title">📦 Ítems Registrados</h3>
+              <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()">
+                ➕ Agregar Ítem
+              </button>
+            </div>
+            
+            <div *ngIf="itemsHembrasArray.length === 0" class="text-muted" style="padding: 1rem; text-align: center; border: 1px dashed #ccc; border-radius: 4px;">
+              No hay ítems registrados. Haga clic en "Agregar Ítem" para comenzar.
+            </div>
+            
+            <div *ngFor="let itemGroup of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemGroup)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f9f9f9;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h4 style="margin: 0; font-size: 0.9rem; color: #666;">Ítem {{ i + 1 }}</h4>
+                <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" style="color: #d32f2f;">
+                  🗑️ Eliminar
+                </button>
+              </div>
+              
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label [for]="'f-tipo-item-h-' + i">Tipo de ítem *</label>
+                  <div class="ux-select">
+                    <select [id]="'f-tipo-item-h-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let tipo of tiposItem" [ngValue]="tipo">
+                        {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value">
+                  <label [for]="'f-item-h-' + i">Ítem *</label>
+                  <div class="ux-select">
+                    <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value)" [ngValue]="a.id">
+                        {{ getItemDisplayText(a) }}
+                      </option>
+                    </select>
+                  </div>
+                  <small class="ux-hint text-success" *ngIf="itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
+                    Disponible en inventario: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                  </small>
+                  <small class="ux-hint text-muted" *ngIf="itemGroup.get('catalogItemId')?.value && !getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
+                    No hay información de inventario disponible para este ítem
+                  </small>
+                </div>
+                
+                <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value === 'alimento'">
+                  <label [for]="'f-cantidad-h-' + i">Cantidad *</label>
+                  <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                      <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
+                    </div>
+                    <div style="width: 100px;">
+                      <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                        <option value="kg">kg</option>
+                        <option value="g">gramos</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value && itemGroup.get('tipoItem')?.value !== 'alimento'">
+                  <label [for]="'f-cantidad-unidades-h-' + i">Cantidad de Unidades *</label>
+                  <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                      <input [id]="'f-cantidad-unidades-h-' + i" type="number" step="1" min="0" formControlName="cantidad" placeholder="Ej: 100" />
+                    </div>
+                    <div style="width: 100px;">
+                      <input type="text" [value]="'unidades'" readonly class="ux-input" style="width: 100%; background: #f5f5f5;" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MORTALIDAD Y SELECCIÓN -->
+          <div class="data-group">
+            <h3 class="data-group-title">💀 Mortalidad y Selección</h3>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-mh">Mortalidad Hembras *</label>
+                <input id="f-mh" type="number" min="0" formControlName="mortalidadH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-selh">Selección Hembras *</label>
+                <input id="f-selh" type="number" min="0" formControlName="selH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-errh">Error Sexaje Hembras *</label>
+                <input id="f-errh" type="number" min="0" formControlName="errorH" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- MACHOS -->
+        <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
+          <div class="tab-panel-header">
+            <h3>Información de Machos</h3>
+            <p class="tab-description">Registro de ítems, mortalidad y selección para machos</p>
+          </div>
+
+          <!-- ÍTEMS (ALIMENTOS Y OTROS) -->
+          <div class="data-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 class="data-group-title">📦 Ítems Registrados</h3>
+              <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemMachos()">
+                ➕ Agregar Ítem
+              </button>
+            </div>
+            
+            <div *ngIf="itemsMachosArray.length === 0" class="text-muted" style="padding: 1rem; text-align: center; border: 1px dashed #ccc; border-radius: 4px;">
+              No hay ítems registrados. Haga clic en "Agregar Ítem" para comenzar.
+            </div>
+            
+            <div *ngFor="let itemGroup of itemsMachosArray.controls; let i = index" [formGroup]="$any(itemGroup)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f9f9f9;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h4 style="margin: 0; font-size: 0.9rem; color: #666;">Ítem {{ i + 1 }}</h4>
+                <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(i)" style="color: #d32f2f;">
+                  🗑️ Eliminar
+                </button>
+              </div>
+              
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label [for]="'f-tipo-item-m-' + i">Tipo de ítem *</label>
+                  <div class="ux-select">
+                    <select [id]="'f-tipo-item-m-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let tipo of tiposItem" [ngValue]="tipo">
+                        {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value">
+                  <label [for]="'f-item-m-' + i">Ítem *</label>
+                  <div class="ux-select">
+                    <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
+                      <option [ngValue]="null">— Seleccione —</option>
+                      <option *ngFor="let a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value)" [ngValue]="a.id">
+                        {{ getItemDisplayText(a) }}
+                      </option>
+                    </select>
+                  </div>
+                  <small class="ux-hint text-success" *ngIf="itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
+                    Disponible en inventario: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                  </small>
+                  <small class="ux-hint text-muted" *ngIf="itemGroup.get('catalogItemId')?.value && !getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
+                    No hay información de inventario disponible para este ítem
+                  </small>
+                </div>
+                
+                <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value === 'alimento'">
+                  <label [for]="'f-cantidad-m-' + i">Cantidad *</label>
+                  <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                      <input [id]="'f-cantidad-m-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
+                    </div>
+                    <div style="width: 100px;">
+                      <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                        <option value="kg">kg</option>
+                        <option value="g">gramos</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value && itemGroup.get('tipoItem')?.value !== 'alimento'">
+                  <label [for]="'f-cantidad-unidades-m-' + i">Cantidad de Unidades *</label>
+                  <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <div style="flex: 1;">
+                      <input [id]="'f-cantidad-unidades-m-' + i" type="number" step="1" min="0" formControlName="cantidad" placeholder="Ej: 100" />
+                    </div>
+                    <div style="width: 100px;">
+                      <input type="text" [value]="'unidades'" readonly class="ux-input" style="width: 100%; background: #f5f5f5;" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MORTALIDAD Y SELECCIÓN -->
+          <div class="data-group">
+            <h3 class="data-group-title">💀 Mortalidad y Selección</h3>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-mm">Mortalidad Machos *</label>
+                <input id="f-mm" type="number" min="0" formControlName="mortalidadM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-selm">Selección Machos *</label>
+                <input id="f-selm" type="number" min="0" formControlName="selM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-errm">Error Sexaje Machos *</label>
+                <input id="f-errm" type="number" min="0" formControlName="errorM" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PESAJE -->
+        <section id="panel-pesaje" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-pesaje">
+          <div class="tab-panel-header">
+            <h3>Peso y Uniformidad</h3>
+            <p class="tab-description">Registro de peso inicial, final, promedio y uniformidad</p>
+          </div>
+          <div class="data-group">
+            <h3 class="data-group-title">⚖️ Peso Inicial / Final</h3>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-peso-inicial">Peso Inicial (kg)</label>
+                <input id="f-peso-inicial" type="number" step="0.001" min="0" formControlName="pesoInicial" placeholder="Opcional" />
+              </div>
+              <div class="form-field">
+                <label for="f-peso-final">Peso Final (kg)</label>
+                <input id="f-peso-final" type="number" step="0.001" min="0" formControlName="pesoFinal" placeholder="Opcional" />
+              </div>
+            </div>
+          </div>
+          <div class="data-group">
+            <h3 class="data-group-title">⚖️ Peso Promedio y Uniformidad</h3>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-ph">Promedio Peso Hembras (kg)</label>
+                <input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-uh">Uniformidad Hembras (%)</label>
+                <input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-cvh">Coeficiente de Variación (CV) Hembras</label>
+                <input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-pm">Promedio Peso Machos (kg)</label>
+                <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-um">Uniformidad Machos (%)</label>
+                <input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-cvm">Coeficiente de Variación (CV) Machos</label>
+                <input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- AGUA (solo para Ecuador y Panamá) -->
+        <section id="panel-agua" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-agua" *appShowIfEcuadorPanama>
+          <div class="tab-panel-header">
+            <h3>Información del Agua</h3>
+            <p class="tab-description">Parámetros de calidad del agua (solo para Ecuador y Panamá)</p>
+          </div>
+          <div class="data-group">
+            <h3 class="data-group-title">💧 Información del Agua</h3>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-consumo-agua-diario">
+                  <span class="label-icon">📊</span>
+                  Consumo Agua Diario (litros)
+                </label>
+                <input 
+                  id="f-consumo-agua-diario" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  formControlName="consumoAguaDiario" 
+                  placeholder="Ej: 1500.50" />
+                <small class="ux-hint">Consumo diario de agua en litros</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-agua-ph">
+                  <span class="label-icon">🧪</span>
+                  PH del Agua
+                </label>
+                <input 
+                  id="f-consumo-agua-ph" 
+                  type="number" 
+                  step="0.01" 
+                  min="0" 
+                  max="14" 
+                  formControlName="consumoAguaPh" 
+                  placeholder="Ej: 7.0" />
+                <small class="ux-hint">Nivel de PH del agua (0-14)</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-agua-orp">
+                  <span class="label-icon">⚡</span>
+                  ORP del Agua (mV)
+                </label>
+                <input 
+                  id="f-consumo-agua-orp" 
+                  type="number" 
+                  step="0.1" 
+                  min="0" 
+                  formControlName="consumoAguaOrp" 
+                  placeholder="Ej: 650.0" />
+                <small class="ux-hint">Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV</small>
+              </div>
+
+              <div class="form-field">
+                <label for="f-consumo-agua-temperatura">
+                  <span class="label-icon">🌡️</span>
+                  Temperatura del Agua (°C)
+                </label>
+                <input 
+                  id="f-consumo-agua-temperatura" 
+                  type="number" 
+                  step="0.1" 
+                  min="0" 
+                  formControlName="consumoAguaTemperatura" 
+                  placeholder="Ej: 25.5" />
+                <small class="ux-hint">Temperatura del agua en grados Celsius</small>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="ux-modal__footer">
+        <button 
+          type="button" 
+          class="btn btn--ghost" 
+          (click)="onClose()"
+          [disabled]="loading || saving">
+          Cancelar
+        </button>
+        <button 
+          type="submit" 
+          class="btn btn--primary" 
+          [disabled]="loading || saving || form.invalid">
+          <span *ngIf="loading || saving" class="spinner-inline"></span>
+          {{ (loading || saving) ? 'Guardando…' : (editing ? 'Actualizar' : 'Guardar') }}
+        </button>
+      </footer>
+    </form>
+
+    <!-- Overlay de carga mejorado -->
+    <div *ngIf="loading || saving" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div>
+      <p>{{ editing ? 'Actualizando registro…' : 'Guardando registro…' }}</p>
+    </div>
+  </div>
+</div>

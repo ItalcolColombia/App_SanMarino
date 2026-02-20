@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
-import { LoteDto } from '../../../lote/services/lote.service';
+import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
@@ -17,11 +17,16 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
+  /** Resumen de descuentos (mortalidad, descarte, error sexaje) sobre el lote en Levante. */
+  @Input() resumenLevante: LoteMortalidadResumenDto | null = null;
   @Input() loading: boolean = false;
+  /** Si true, deshabilita botones Crear / Editar / Eliminar (ej. lote sin aves o cerrado por reproductoras). */
+  @Input() disableCreateEditDelete: boolean = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
   @Output() delete = new EventEmitter<number>();
+  @Output() viewDetail = new EventEmitter<SeguimientoLoteLevanteDto>();
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
 
@@ -62,6 +67,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   onDelete(id: number): void {
     this.delete.emit(id);
+  }
+
+  onViewDetail(seg: SeguimientoLoteLevanteDto): void {
+    this.viewDetail.emit(seg);
   }
 
   // ================== CALCULO DE EDAD ==================

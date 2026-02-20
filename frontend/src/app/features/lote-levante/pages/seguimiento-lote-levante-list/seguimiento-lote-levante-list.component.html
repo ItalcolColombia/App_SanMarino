@@ -79,20 +79,24 @@
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
       [selectedLoteId]="selectedLoteId"
+      [filterDataUrl]="filterDataUrl"
+      (filterDataLoaded)="onFilterDataLoaded($event)"
       (granjaChange)="onGranjaChange($event)"
       (nucleoChange)="onNucleoChange($event)"
       (galponChange)="onGalponChange($event)"
       (loteChange)="onLoteChange($event)">
     </app-filtro-select>
     
-    <!-- Tabs Principal: General, Indicadores y Gráfica -->
+    <!-- Tabs Principal: General, Indicadores y Gráfica (resumen de descuentos para visualizar mortalidad/descarte) -->
     <app-tabs-principal
       [seguimientos]="seguimientos"
       [selectedLote]="selectedLote"
+      [resumenLevante]="resumenSelected"
       [loading]="loading"
       (create)="create()"
       (edit)="edit($event)"
-      (delete)="delete($event)">
+      (delete)="delete($event)"
+      (viewDetail)="viewDetail($event)">
     </app-tabs-principal>
   </div>
 </div>
@@ -107,6 +111,13 @@
   (close)="cancel()"
   (save)="onSave($event)">
 </app-modal-create-edit>
+
+<!-- Modal de detalle (solo lectura) -->
+<app-modal-detalle-seguimiento-levante
+  [isOpen]="detailModalOpen"
+  [seguimiento]="editing"
+  (close)="detailModalOpen = false; editing = null;">
+</app-modal-detalle-seguimiento-levante>
 
 <!-- ================= MODAL: CÁLCULOS ================= -->
 <app-modal-calculos

@@ -5,7 +5,8 @@ import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
-  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign
+  faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign,
+  faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench
 } from '@fortawesome/free-solid-svg-icons';
 import { environment } from '../../../environments/environment';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
@@ -42,6 +43,7 @@ const ICON_MAP: Record<string, IconDefinition> = {
   'clipboard-list': faClipboardList,
   'calendar-day':   faCalendarDay,
   'chart-bar':      faChartBar,
+  'chart-line':     faChartLine,
   'heartbeat':      faHeartbeat,
   'cog':            faCog,
   'users':          faUsers,
@@ -54,7 +56,20 @@ const ICON_MAP: Record<string, IconDefinition> = {
   'city':           faCity,
   'boxes-alt':      faBoxesAlt,
   'warehouse':      faWarehouse,
-  'dollar-sign':    faDollarSign
+  'dollar-sign':    faDollarSign,
+  'layer-group':    faLayerGroup,
+  'egg':            faEgg,
+  'home':           faHome,
+  'bars':           faBars,
+  'key':            faKey,
+  'user-shield':    faUserShield,
+  'tools':          faScrewdriverWrench,
+  'faHome':         faHome,
+  'faUsers':        faUsers,
+  'faTools':        faScrewdriverWrench,
+  'faBars':         faBars,
+  'faKey':          faKey,
+  'faUserShield':   faUserShield
 };
 
 function toLinkArray(route?: string | null): string[] | undefined {

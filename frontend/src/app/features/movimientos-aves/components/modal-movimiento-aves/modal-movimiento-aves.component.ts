@@ -570,11 +570,12 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   private cargarTiposMovimiento(): void {
     this.masterListService.getByKey('movimiento_de_aves_tipo_movimiento').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.tiposMovimiento.set(masterList.options);
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          const arr = masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? '');
+          this.tiposMovimiento.set(arr);
           // Si no hay valor por defecto y hay opciones, establecer la primera como valor por defecto
-          if (this.tiposMovimiento().length > 0 && !this.formMovimiento.get('tipoMovimiento')?.value) {
-            this.formMovimiento.patchValue({ tipoMovimiento: this.tiposMovimiento()[0] });
+          if (arr.length > 0 && !this.formMovimiento.get('tipoMovimiento')?.value) {
+            this.formMovimiento.patchValue({ tipoMovimiento: arr[0] });
           }
         } else {
           // Fallback a valores por defecto si no se encuentra la lista maestra
@@ -592,8 +593,8 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   private cargarPlantasDestino(): void {
     this.masterListService.getByKey('traslado_de_huevos_planta_destino').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.plantasDestino.set(masterList.options);
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          this.plantasDestino.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
         } else {
           this.plantasDestino.set([]);
         }
@@ -610,8 +611,8 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     // Si en el futuro se crea una específica para movimientos de aves, se puede cambiar
     this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.motivosMovimiento.set(masterList.options);
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          this.motivosMovimiento.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
         } else {
           this.motivosMovimiento.set([]);
         }

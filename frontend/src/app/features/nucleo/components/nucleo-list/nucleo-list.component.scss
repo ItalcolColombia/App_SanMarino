@@ -132,6 +132,12 @@
 .ux-table tbody tr:hover td { background: var(--warm-100); }
 
 /* acciones en tabla */
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 .icon-btn {
   display:inline-flex; align-items:center; justify-content:center;
   width:34px; height:34px; border-radius:8px;
@@ -183,6 +189,49 @@
   border:1px dashed var(--warm-200); border-radius:.75rem;
 }
 .ux-meta__item { font-size:.85rem; color: var(--warm-600); }
+
+/* Filtros responsive */
+.ux-card--filters {
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.filters-form__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+@media (min-width: 640px) {
+  .filters-form__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .filters-form__field--search,
+  .filters-form__actions {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .filters-form__grid {
+    grid-template-columns: minmax(180px, 260px) minmax(180px, 260px) 1fr auto;
+    gap: 0.75rem;
+  }
+  .filters-form__field--search {
+    grid-column: span 1;
+    min-width: 0;
+  }
+  .filters-form__actions {
+    grid-column: span 1;
+  }
+}
+
+.filters-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
 
 /* responsive */
 @media (max-width: 1024px) {

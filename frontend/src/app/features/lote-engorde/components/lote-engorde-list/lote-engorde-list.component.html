@@ -1,0 +1,626 @@
+<div class="le-page" [attr.aria-busy]="loading ? 'true' : null">
+  <div class="le-main">
+    <!-- Encabezado de página -->
+    <header class="le-header">
+      <div class="le-header__content">
+        <h1 class="le-header__title">Lote Aves de Engorde</h1>
+        <p class="le-header__subtitle">Gestiona los lotes de aves de engorde por granja, núcleo y galpón</p>
+        <div class="le-header__chips" *ngIf="activeFiltersCount > 0 || selectedFarmName">
+          <span class="le-chip le-chip--info" *ngIf="selectedFarmName">
+            <span class="le-chip__dot" aria-hidden="true"></span>
+            {{ selectedFarmName }}
+          </span>
+          <span class="le-chip le-chip--muted" *ngIf="activeFiltersCount > 0">
+            {{ activeFiltersCount }} filtro(s) activo(s)
+          </span>
+        </div>
+      </div>
+      <div class="le-header__actions">
+        <button type="button" (click)="openModal()" class="le-btn le-btn--primary">
+          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+          <span>Nuevo Lote de Engorde</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros -->
+    <section class="le-card le-card--filters" role="group" aria-labelledby="le-filtros-title">
+      <h2 id="le-filtros-title" class="le-card__title">
+        <fa-icon [icon]="faFilter" class="le-card__title-icon" aria-hidden="true"></fa-icon>
+        Filtros
+      </h2>
+      <div class="le-filters-grid">
+        <div class="le-field" *ngIf="filterCompanyOptions.length > 1">
+          <label for="le-company" class="le-label">Compañía</label>
+          <select id="le-company" class="le-select" [(ngModel)]="selectedCompanyId" (ngModelChange)="onCompanyChangeList($event)">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let c of filterCompanyOptions" [ngValue]="c.id">{{ c.label }}</option>
+          </select>
+        </div>
+        <div class="le-field">
+          <label for="le-farm" class="le-label">Granja</label>
+          <select id="le-farm" class="le-select" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChangeList($event)">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let f of filterFarmOptions" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+        <div class="le-field">
+          <label for="le-nucleo" class="le-label">Núcleo</label>
+          <select id="le-nucleo" class="le-select" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChangeList($event)">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let n of filterNucleoOptions" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+          </select>
+        </div>
+        <div class="le-field">
+          <label for="le-galpon" class="le-label">Galpón</label>
+          <select id="le-galpon" class="le-select" [(ngModel)]="selectedGalponId" (ngModelChange)="recomputeList()">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let g of filterGalponOptions" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+          </select>
+        </div>
+        <div class="le-field le-field--search">
+          <label for="le-filter" class="le-label">Buscar</label>
+          <div class="le-search">
+            <fa-icon [icon]="['fas','magnifying-glass']" class="le-search__icon" aria-hidden="true"></fa-icon>
+            <input id="le-filter" type="text" [(ngModel)]="filtro" (ngModelChange)="recomputeList()"
+                   placeholder="Por nombre, granja, núcleo…" class="le-input" aria-label="Buscar lote de engorde"/>
+          </div>
+        </div>
+        <div class="le-field le-field--sort">
+          <label for="le-sort-key" class="le-label">Ordenar</label>
+          <select id="le-sort-key" class="le-select" [ngModel]="sortKey" (ngModelChange)="onSortKeyChange($event)">
+            <option [ngValue]="'edad'">Edad</option>
+            <option [ngValue]="'fecha'">Fecha</option>
+          </select>
+        </div>
+        <div class="le-field le-field--dir">
+          <label for="le-sort-dir" class="le-label">Orden</label>
+          <select id="le-sort-dir" class="le-select" [ngModel]="sortDir" (ngModelChange)="onSortDirChange($event)">
+            <option [ngValue]="'desc'">Desc</option>
+            <option [ngValue]="'asc'">Asc</option>
+          </select>
+        </div>
+        <div class="le-field le-field--action">
+          <button type="button" class="le-btn le-btn--ghost" (click)="resetListFilters()">
+            <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabla de lotes -->
+    <section class="le-card le-card--table">
+      <div class="le-table-header">
+        <div class="le-table-header__text">
+          <h2 class="le-table-header__title">Lotes de Engorde</h2>
+          <p class="le-table-header__meta">Mostrando {{ viewLotes.length }} lote(s)</p>
+        </div>
+      </div>
+
+      <div class="le-table-wrap">
+        <table class="le-table">
+          <caption class="sr-only">Listado de lotes de engorde</caption>
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Granja</th>
+              <th scope="col">Núcleo</th>
+              <th scope="col">Galpón</th>
+              <th scope="col">Raza</th>
+              <th scope="col">Edad (días)</th>
+              <th scope="col">Hembras</th>
+              <th scope="col">Machos</th>
+              <th scope="col">Aves encaset.</th>
+              <th scope="col">Fecha encaset</th>
+              <th scope="col">Fecha registro</th>
+              <th scope="col" class="le-table__actions-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let l of viewLotes; trackBy: trackByLote" class="le-table__row">
+              <td>{{ l.loteAveEngordeId }}</td>
+              <td><span class="le-table__cell-name">{{ l.loteNombre }}</span></td>
+              <td>{{ l.farm?.name ?? '—' }}</td>
+              <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
+              <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
+              <td>{{ l.raza ?? '—' }}</td>
+              <td>{{ l.fechaEncaset ? calcularEdadDias(l.fechaEncaset) : '—' }}</td>
+              <td>{{ formatOrDash(l.hembrasL) }}</td>
+              <td>{{ formatOrDash(l.machosL) }}</td>
+              <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
+              <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
+              <td class="le-table__actions-cell">
+                <div class="le-actions-inline">
+                  <button type="button" (click)="openDetail(l)" class="le-icon-btn" title="Ver detalle" aria-label="Ver detalle">
+                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button type="button" (click)="openModal(l)" class="le-icon-btn" title="Editar" aria-label="Editar">
+                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                  </button>
+                  <button type="button" (click)="delete(l)" class="le-icon-btn le-icon-btn--danger" title="Eliminar" aria-label="Eliminar">
+                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr *ngIf="!loading && viewLotes.length === 0">
+              <td colspan="13" class="le-empty">
+                <div class="le-empty__icon" aria-hidden="true">📦</div>
+                <p class="le-empty__text">No hay lotes de engorde que coincidan con los filtros.</p>
+                <button type="button" (click)="openModal()" class="le-btn le-btn--secondary">
+                  <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                  Crear el primero
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div *ngIf="loading" class="le-loading" aria-live="polite">
+        <div class="le-spinner"></div>
+        <span>Cargando…</span>
+      </div>
+    </section>
+
+    <!-- MODAL: Crear / Editar -->
+    <div *ngIf="modalOpen" class="le-modal" role="dialog" aria-modal="true" aria-labelledby="le-modal-title">
+      <div class="le-modal__panel le-modal__panel--wide">
+        <div class="le-modal__header">
+          <h2 id="le-modal-title" class="le-modal__title">
+            {{ editing ? 'Editar Lote de Engorde' : 'Nuevo Lote de Engorde' }}
+          </h2>
+          <button type="button" (click)="modalOpen = false" class="le-btn le-btn--muted" aria-label="Cerrar">Cerrar</button>
+        </div>
+
+        <div *ngIf="loadingModal" class="le-modal__body le-modal__body--loading" aria-busy="true">
+          <div class="le-loading le-loading--centered">
+            <div class="le-spinner"></div>
+            <p>Cargando datos del formulario…</p>
+          </div>
+        </div>
+
+        <form *ngIf="!loadingModal" [formGroup]="form" (ngSubmit)="save()" class="le-modal__body le-modal__form" novalidate>
+          <!-- Sección: Ubicación -->
+          <div class="le-form-section">
+            <h3 class="le-form-section__title">Ubicación</h3>
+            <div class="le-form-grid">
+              <div class="le-field">
+                <label class="le-label">Granja <span class="le-req">*</span></label>
+                <select formControlName="granjaId" class="le-input" [class.le-input--invalid]="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">
+                  <option value="" disabled selected>Seleccione…</option>
+                  <option *ngFor="let g of farms" [value]="g.id">{{ g.name }}</option>
+                </select>
+                <small class="le-error" *ngIf="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">La granja es requerida</small>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Núcleo</label>
+                <select formControlName="nucleoId" class="le-input">
+                  <option value="" disabled selected>Seleccione…</option>
+                  <option *ngFor="let n of nucleosFiltrados" [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                </select>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Galpón</label>
+                <select formControlName="galponId" class="le-input">
+                  <option value="" disabled selected>Seleccione…</option>
+                  <option *ngFor="let g of galponesFiltrados" [value]="g.galponId">{{ g.galponNombre }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Identificación del lote -->
+          <div class="le-form-section">
+            <h3 class="le-form-section__title">Identificación del lote</h3>
+            <div class="le-form-grid">
+              <div class="le-field">
+                <label class="le-label">Nombre del lote <span class="le-req">*</span></label>
+                <input formControlName="loteNombre" class="le-input" placeholder="Ej: Lote 001" [class.le-input--invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
+                <small class="le-error" *ngIf="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched">El nombre es requerido</small>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Fecha de encasetamiento <span class="le-req">*</span></label>
+                <input type="date" formControlName="fechaEncaset" class="le-input" [class.le-input--invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched"/>
+                <small class="le-error" *ngIf="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched">La fecha es requerida</small>
+              </div>
+              <div class="le-field le-field--hidden">
+                <label class="le-label">Regional</label>
+                <input formControlName="regional" class="le-input" placeholder="Regional"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Lote ERP</label>
+                <input formControlName="loteErp" class="le-input" placeholder="Código ERP"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Genética -->
+          <div class="le-form-section">
+            <h3 class="le-form-section__title">Genética</h3>
+            <div class="le-form-grid">
+              <div class="le-field">
+                <label class="le-label">Raza <span class="le-req">*</span></label>
+                <select formControlName="raza" class="le-input" [class.le-input--invalid]="form.get('raza')?.invalid && form.get('raza')?.touched">
+                  <option value="" disabled selected>Seleccione raza…</option>
+                  <option *ngFor="let raza of razasDisponibles" [value]="raza">{{ raza }}</option>
+                </select>
+                <small class="le-error" *ngIf="form.get('raza')?.invalid && form.get('raza')?.touched">La raza es requerida</small>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Año Tabla Genética <span class="le-req">*</span></label>
+                <select formControlName="anoTablaGenetica" class="le-input"
+                        [class.le-input--invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
+                        [disabled]="!selectedRaza || loadingAnos">
+                  <option value="" disabled selected>{{ loadingAnos ? 'Cargando…' : !selectedRaza ? 'Primero seleccione raza' : 'Seleccione año…' }}</option>
+                  <option *ngFor="let ano of anosDisponibles" [value]="ano">{{ ano }}</option>
+                </select>
+                <small class="le-error" *ngIf="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched">Año requerido</small>
+                <small class="le-error" *ngIf="selectedRaza && !loadingAnos && !razaValida">No hay años para "{{ selectedRaza }}"</small>
+                <small class="le-warning" *ngIf="selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0">La raza no tiene años de tabla</small>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Técnico</label>
+                <select formControlName="tecnico" class="le-input">
+                  <option value="" disabled selected>Seleccione…</option>
+                  <option *ngFor="let t of tecnicos" [ngValue]="getTecnicoDisplayName(t)">{{ getTecnicoDisplayName(t) }}</option>
+                </select>
+              </div>
+              <div class="le-field le-field--hidden">
+                <label class="le-label">Línea</label>
+                <input formControlName="linea" class="le-input"/>
+              </div>
+              <div class="le-field le-field--hidden">
+                <label class="le-label">Tipo línea</label>
+                <input formControlName="tipoLinea" class="le-input"/>
+              </div>
+              <div class="le-field le-field--hidden">
+                <label class="le-label">Código guía genética</label>
+                <input formControlName="codigoGuiaGenetica" class="le-input"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Aves y pesos -->
+          <div class="le-form-section">
+            <h3 class="le-form-section__title">Aves y pesos (gramos)</h3>
+            <div class="le-form-grid le-form-grid--wide">
+              <div class="le-field">
+                <label class="le-label"># Hembras</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="hembrasL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label"># Machos</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="machosL" (input)="actualizarEncasetadas()" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Aves encasetadas</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="avesEncasetadas" readonly class="le-input le-input--readonly" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Mixtas</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="mixtas" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Peso mixto (g)</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="pesoMixto" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Peso llegada H (g)</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="pesoInicialH" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Peso llegada M (g)</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="pesoInicialM" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Unif H</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="unifH" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Unif M</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="unifM" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Mort. caja H</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="mortCajaH" class="le-input" placeholder="0"/>
+              </div>
+              <div class="le-field">
+                <label class="le-label">Mort. caja M</label>
+                <input type="text" inputmode="numeric" appThousandSeparator formControlName="mortCajaM" class="le-input" placeholder="0"/>
+              </div>
+            </div>
+            <p class="le-form-hint">Los pesos se registran en gramos. Los separadores de miles se aplican automáticamente.</p>
+          </div>
+
+          <div class="le-modal__actions">
+            <button type="button" (click)="modalOpen = false" class="le-btn le-btn--muted">Cancelar</button>
+            <button type="submit" [disabled]="form.invalid || loading" class="le-btn le-btn--primary">
+              {{ editing ? 'Actualizar' : 'Guardar' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: Detalle (se abre al hacer clic en Ver detalle; carga con getById) -->
+    <div *ngIf="loadingDetail || selectedLote" class="le-modal" role="dialog" aria-modal="true" aria-labelledby="le-detail-title">
+      <div class="le-modal__panel">
+        <div class="le-modal__header">
+          <h2 id="le-detail-title" class="le-modal__title">Detalle · Lote #{{ selectedLote?.loteAveEngordeId ?? '…' }}</h2>
+          <div class="le-modal__header-actions">
+            <button *ngIf="selectedLote" type="button" (click)="openModal(selectedLote); selectedLote = null; avesDisponibles = null; selectedReproductor = null" class="le-btn le-btn--primary">
+              <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+              Editar
+            </button>
+            <button type="button" (click)="selectedLote = null; avesDisponibles = null; selectedReproductor = null" class="le-btn le-btn--muted">Cerrar</button>
+          </div>
+        </div>
+        <div *ngIf="loadingDetail" class="le-modal__body le-modal__body--detail">
+          <div class="le-detail-loading le-detail-loading--centered">
+            <div class="le-spinner"></div>
+            <p>Cargando detalle del lote…</p>
+          </div>
+        </div>
+        <div *ngIf="!loadingDetail && selectedLote" class="le-modal__body le-modal__body--detail">
+          <div class="le-detail-form">
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Ubicación</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Granja</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.farm?.name ?? getFarmName(selectedLote.granjaId)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Núcleo</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.nucleo?.nucleoNombre ?? getNucleoName(selectedLote.nucleoId)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Galpón</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.galpon?.galponNombre ?? getGalponName(selectedLote.galponId)" readonly disabled>
+                </div>
+              </div>
+            </section>
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Identificación</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Nombre del lote</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.loteNombre" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Regional</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.regional || '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Lote ERP</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.loteErp || '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Fecha encasetamiento</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Edad (días)</label>
+                  <input type="text" class="le-detail-input" [value]="calcularEdadDias(selectedLote.fechaEncaset) + ' días'" readonly disabled>
+                </div>
+              </div>
+            </section>
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Genética</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Raza</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.raza || '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Año tabla genética</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.anoTablaGenetica ?? '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Técnico</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.tecnico || '—'" readonly disabled>
+                </div>
+              </div>
+            </section>
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Aves y pesos</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Hembras</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.hembrasL || 0)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Machos</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.machosL || 0)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Aves encasetadas</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.avesEncasetadas || 0)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Mixtas</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedLote.mixtas)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Peso mixto (g)</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedLote.pesoMixto)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Peso llegada H (g)</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.pesoInicialH || 0)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Peso llegada M (g)</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.pesoInicialM || 0)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Unif H / M</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedLote.unifH) + ' / ' + formatOrDash(selectedLote.unifM)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Mort. caja H / M</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedLote.mortCajaH) + ' / ' + formatOrDash(selectedLote.mortCajaM)" readonly disabled>
+                </div>
+                <div class="le-detail-field le-detail-field--full" *ngIf="avesDisponibles !== null">
+                  <label class="le-detail-label">Aves disponibles</label>
+                  <input type="text" class="le-detail-input" [value]="'Hembras: ' + formatNumber(avesDisponibles.hembrasDisponibles) + ' · Machos: ' + formatNumber(avesDisponibles.machosDisponibles)" readonly disabled>
+                </div>
+              </div>
+            </section>
+            <section class="le-detail-section le-detail-section--full">
+              <h3 class="le-detail-section__title">Lotes reproductora de pollo engorde</h3>
+              <div *ngIf="loadingReproductora" class="le-detail-loading">
+                <span>Cargando lotes reproductora…</span>
+              </div>
+              <div *ngIf="!loadingReproductora && lotesReproductora.length === 0" class="le-detail-empty">
+                <p>Este lote no tiene lotes reproductora asociados.</p>
+              </div>
+              <div *ngIf="!loadingReproductora && lotesReproductora.length > 0" class="le-detail-table-wrap">
+                <table class="le-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Nombre lote</th>
+                      <th>Estado</th>
+                      <th class="text-right">Saldo actual</th>
+                      <th class="text-right">Saldo apertura</th>
+                      <th class="le-table__actions-col">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of lotesReproductora">
+                      <td>{{ r.reproductoraId }}</td>
+                      <td>{{ r.nombreLote }}</td>
+                      <td>
+                        <span class="le-estado" [class.le-estado--cerrado]="r.estado === 'Cerrado'" [class.le-estado--disponible]="r.estado === 'Vigente'">
+                          {{ r.estado === 'Vigente' ? 'Disponible' : r.estado }}
+                        </span>
+                      </td>
+                      <td class="text-right">{{ formatNumber(r.avesActuales) }}</td>
+                      <td class="text-right">{{ formatNumber(r.saldoApertura ?? 0) }}</td>
+                      <td>
+                        <button type="button" (click)="openReproductorDetail(r)" class="le-btn le-btn--sm le-btn--ghost" title="Ver detalle del lote reproductora">
+                          <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                          Detalle
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Detalle del lote reproductora (submodal) -->
+    <div *ngIf="selectedReproductor" class="le-modal" role="dialog" aria-modal="true" aria-labelledby="le-rep-detail-title">
+      <div class="le-modal__panel le-modal__panel--sm">
+        <div class="le-modal__header">
+          <h2 id="le-rep-detail-title" class="le-modal__title">Lote reproductora · {{ selectedReproductor.nombreLote }}</h2>
+          <button type="button" (click)="closeReproductorDetail()" class="le-btn le-btn--muted">Cerrar</button>
+        </div>
+        <div class="le-modal__body le-modal__body--detail">
+          <div class="le-detail-form">
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Datos básicos</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Código reproductora</label>
+                  <input type="text" class="le-detail-input" [value]="selectedReproductor.reproductoraId" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Nombre del lote</label>
+                  <input type="text" class="le-detail-input" [value]="selectedReproductor.nombreLote" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Fecha encasetamiento</label>
+                  <input type="text" class="le-detail-input" [value]="selectedReproductor.fechaEncasetamiento ? (selectedReproductor.fechaEncasetamiento | date:'dd/MM/yyyy') : '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Estado</label>
+                  <div class="le-detail-input le-detail-input--readonly">
+                    <span class="le-estado" [class.le-estado--cerrado]="selectedReproductor.estado === 'Cerrado'" [class.le-estado--disponible]="selectedReproductor.estado === 'Vigente'">
+                      {{ selectedReproductor.estado === 'Vigente' ? 'Disponible' : selectedReproductor.estado }}
+                    </span>
+                  </div>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Saldo actual</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedReproductor.avesActuales)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Saldo con que se abrió el lote</label>
+                  <input type="text" class="le-detail-input" [value]="formatNumber(selectedReproductor.saldoApertura ?? 0) + ' (H: ' + formatNumber(selectedReproductor.avesInicioHembras ?? 0) + ', M: ' + formatNumber(selectedReproductor.avesInicioMachos ?? 0) + ')'" readonly disabled>
+                </div>
+              </div>
+            </section>
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Aves</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Hembras (H)</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.h)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Machos (M)</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.m)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Mixtas</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.mixtas)" readonly disabled>
+                </div>
+              </div>
+            </section>
+            <section class="le-detail-section">
+              <h3 class="le-detail-section__title">Mortalidad, uniformidad y peso</h3>
+              <div class="le-detail-fields">
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Mort. caja H</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.mortCajaH)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Mort. caja M</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.mortCajaM)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Unif H</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.unifH)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Unif M</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.unifM)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Peso inicial H</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.pesoInicialH)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Peso inicial M</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.pesoInicialM)" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Peso mixto</label>
+                  <input type="text" class="le-detail-input" [value]="formatOrDash(selectedReproductor.pesoMixto)" readonly disabled>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <app-confirmation-modal
+      [isOpen]="confirmOpen"
+      [data]="confirmData"
+      (confirmed)="onConfirmDelete()"
+      (cancelled)="onCancelConfirm()"
+      (closed)="onCancelConfirm()">
+    </app-confirmation-modal>
+  </div>
+</div>

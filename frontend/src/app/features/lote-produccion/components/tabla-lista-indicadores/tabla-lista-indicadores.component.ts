@@ -14,11 +14,14 @@ import { finalize } from 'rxjs/operators';
 export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
+  /** ID del lote en fase Producción (mismo que listado y modal seguimiento diario). Si viene, se usa para la petición de indicadores. */
+  @Input() produccionLoteId: number | null = null;
   @Input() loading: boolean = false;
 
   indicadoresSemanales: IndicadorProduccionSemanalDto[] = [];
   loadingIndicadores = false;
   tieneDatosGuiaGenetica = false;
+  mensajeGuiaGenetica: string | null = null;
   error: string | null = null;
   expanded = new Set<number>(); // semanas expandidas para detalle clasificadora
 
@@ -29,14 +32,15 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['selectedLote'] || changes['seguimientos']) {
+    if (changes['selectedLote'] || changes['seguimientos'] || changes['produccionLoteId']) {
       this.cargarIndicadores();
     }
   }
 
   cargarIndicadores(): void {
-    // Validar que tenemos un lote seleccionado con loteId
-    if (!this.selectedLote || !this.selectedLote.loteId) {
+    // Usar el lote en producción (mismo que listado y modal de seguimiento diario) cuando esté disponible
+    const loteId = this.produccionLoteId ?? this.selectedLote?.loteId ?? null;
+    if (loteId == null) {
       this.indicadoresSemanales = [];
       this.error = null;
       return;
@@ -45,13 +49,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     this.loadingIndicadores = true;
     this.error = null;
 
-    // Preparar request para el backend
-    // El backend recibirá el loteId y buscará todos los registros de producción_diaria
-    // Luego los agrupará por semana y calculará los indicadores
+    // Request al backend: datos desde seguimiento_diario en fase producción (misma fuente que el tab General).
+    // semanaDesde: 1 = desde la primera semana de producción (el backend numera 1, 2, 3... desde FechaInicioProducción).
     const request: IndicadoresProduccionRequest = {
-      loteId: this.selectedLote.loteId,
-      semanaDesde: 26, // Solo desde semana 26 (producción)
-      semanaHasta: null, // Sin límite superior
+      loteId,
+      semanaDesde: 1,
+      semanaHasta: null,
       fechaDesde: null,
       fechaHasta: null
     };
@@ -75,6 +78,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
           // Solo los asignamos para mostrar en la tabla
           this.indicadoresSemanales = response.indicadores || [];
           this.tieneDatosGuiaGenetica = response.tieneDatosGuiaGenetica || false;
+          this.mensajeGuiaGenetica = response.mensajeGuiaGenetica ?? null;
           this.error = null;
 
           console.log(`✅ Indicadores cargados: ${this.indicadoresSemanales.length} semanas`, response);
@@ -84,6 +88,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
           this.error = err.error?.message || 'Error al cargar indicadores semanales. Por favor, intenta de nuevo.';
           this.indicadoresSemanales = [];
           this.tieneDatosGuiaGenetica = false;
+          this.mensajeGuiaGenetica = null;
         }
       });
   }

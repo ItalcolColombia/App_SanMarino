@@ -1,7 +1,7 @@
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { finalize, map } from 'rxjs/operators';
 
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 
@@ -21,7 +21,8 @@ import {
 
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../services/nucleo.service';
-import { FiltroSelectComponent } from '../filtro-select/filtro-select.component';
+import { FiltroSelectComponent, FilterDataResponse } from '../filtro-select/filtro-select.component';
+import { environment } from '../../../../../environments/environment';
 import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.component';
 import { ModalRegistroInicialComponent } from '../modal-registro-inicial/modal-registro-inicial.component';
 import { ModalSeguimientoDiarioComponent } from '../modal-seguimiento-diario/modal-seguimiento-diario.component';
@@ -52,16 +53,25 @@ export class LoteProduccionListComponent implements OnInit {
   // ================== constantes / sentinelas ==================
   readonly SIN_GALPON = '__SIN_GALPON__';
 
+  readonly filterDataUrl = `${environment.apiUrl}/SeguimientoProduccion/filter-data`;
+
   // ================== catálogos (otros) ==================
   granjas: FarmDto[] = [];
   nucleos: NucleoDto[] = [];
   galpones: Array<{ id: string; label: string }> = [];
+  private filterData: FilterDataResponse | null = null;
+  private allNucleos: NucleoDto[] = [];
+  private allGalpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }> = [];
 
   // ================== selección / filtro ==================
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
   selectedLoteId: number | null = null;
+  
+  // Filtros de fecha
+  filtroDesde: string | null = null;
+  filtroHasta: string | null = null;
 
   // ================== datos ==================
   private allLotes: LoteDto[] = [];
@@ -76,6 +86,8 @@ export class LoteProduccionListComponent implements OnInit {
   modalLoteNombre: string = '';
   modalNucleoAsignado: string = '';
   modalNucleosDisponibles: Array<{ nucleoId: string, nucleoNombre: string }> = [];
+  /** Aves disponibles para encasetar en producción: desde resumen Levante (saldo) o aves iniciales del lote si no pasó por Levante */
+  avesDisponiblesParaRegistro: { saldoHembras: number; saldoMachos: number } | null = null;
 
   // ================== UI ==================
   loading = false;
@@ -102,10 +114,23 @@ export class LoteProduccionListComponent implements OnInit {
 
   // ================== INIT ==================
   ngOnInit(): void {
-    // cargar catálogos de granjas, etc.
-    this.farmSvc.getAll().subscribe({
-      next: fs => (this.granjas = fs || []),
-      error: () => (this.granjas = [])
+    // Granjas, núcleos, galpones y lotes (producción) se cargan vía filter-data en FiltroSelect.
+  }
+
+  onFilterDataLoaded(data: FilterDataResponse): void {
+    this.filterData = data;
+    this.granjas = data.farms ?? [];
+    this.allNucleos = data.nucleos ?? [];
+    this.allGalpones = data.galpones ?? [];
+    this.allLotes = (data.lotes ?? []).map(l => ({
+      loteId: l.loteId,
+      loteNombre: l.loteNombre,
+      granjaId: l.granjaId,
+      nucleoId: l.nucleoId ?? undefined,
+      galponId: l.galponId ?? undefined
+    })) as LoteDto[];
+    (data.galpones ?? []).forEach(g => {
+      if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());
     });
   }
 
@@ -154,6 +179,14 @@ export class LoteProduccionListComponent implements OnInit {
 
     if (!this.selectedGranjaId) return;
 
+    if (this.filterData) {
+      const gid = Number(this.selectedGranjaId);
+      this.nucleos = this.allNucleos.filter(n => n.granjaId === gid);
+      this.applyFiltersToLotes();
+      this.buildGalponesFromFilterData();
+      return;
+    }
+
     this.nucleoSvc.getByGranja(this.selectedGranjaId).subscribe({
       next: rows => (this.nucleos = rows || []),
       error: () => (this.nucleos = [])
@@ -171,6 +204,13 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLote = null;
     this.produccionLote = null;
     this.currentProduccionLoteId = null;
+
+    if (this.filterData) {
+      this.applyFiltersToLotes();
+      this.buildGalponesFromFilterData();
+      return;
+    }
+
     this.applyFiltersToLotes();
     this.loadGalponCatalog();
   }
@@ -191,6 +231,9 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLote = null;
     this.produccionLote = null;
     this.currentProduccionLoteId = null;
+    // Limpiar filtros de fecha al cambiar de lote
+    this.filtroDesde = null;
+    this.filtroHasta = null;
 
     if (!this.selectedLoteId) return;
 
@@ -237,6 +280,8 @@ export class LoteProduccionListComponent implements OnInit {
 
     this.produccionSvc.listarSeguimiento({
       loteId: this.selectedLoteId,
+      desde: this.filtroDesde || undefined,
+      hasta: this.filtroHasta || undefined,
       page: 1,
       size: 100
     }).pipe(finalize(() => (this.loading = false)))
@@ -244,6 +289,21 @@ export class LoteProduccionListComponent implements OnInit {
       next: response => (this.seguimientos = response.items || []),
       error: () => (this.seguimientos = [])
     });
+  }
+  
+  // ================== FILTROS DE FECHA ==================
+  onFiltroFechaChange(): void {
+    if (this.selectedLoteId) {
+      this.loadSeguimientos();
+    }
+  }
+  
+  limpiarFiltrosFecha(): void {
+    this.filtroDesde = null;
+    this.filtroHasta = null;
+    if (this.selectedLoteId) {
+      this.loadSeguimientos();
+    }
   }
 
   // ================== CARGA Y FILTRADO ==================
@@ -287,6 +347,23 @@ export class LoteProduccionListComponent implements OnInit {
 
     const sel = this.normalizeId(this.selectedGalponId);
     this.lotes = filtered.filter(l => this.normalizeId(l.galponId) === sel);
+  }
+
+  private buildGalponesFromFilterData(): void {
+    if (!this.selectedGranjaId) {
+      this.galpones = [];
+      return;
+    }
+    const gid = Number(this.selectedGranjaId);
+    const nid = this.selectedNucleoId ? String(this.selectedNucleoId) : null;
+    const list = this.allGalpones.filter(g => g.granjaId === gid && (!nid || g.nucleoId === nid));
+    const result: Array<{ id: string; label: string }> = list.map(g => ({
+      id: String(g.galponId).trim(),
+      label: (g.galponNombre || g.galponId).trim()
+    }));
+    this.galpones = result.sort((a, b) =>
+      a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
+    );
   }
 
   private buildGalponesFromLotes(): void {
@@ -344,45 +421,63 @@ export class LoteProduccionListComponent implements OnInit {
     });
   }
 
-  // Cargar datos del lote para el modal de registro inicial
+  // Cargar datos del lote para el modal de registro inicial (incl. aves disponibles desde Levante o lote)
   private loadLoteDataForModal(): void {
     if (!this.selectedLoteId) return;
 
-    // 1. Obtener detalles del lote
+    // 1. Obtener detalles del lote y resumen de mortalidad (aves disponibles) en paralelo
     this.loteSvc.getById(this.selectedLoteId).subscribe({
       next: (lote: any) => {
         this.modalLoteNombre = lote.loteNombre || '—';
         this.modalNucleoAsignado = lote.nucleo?.nucleoNombre || lote.nucleoId || '';
 
-        // 2. Obtener todos los núcleos de la granja
-        if (lote.granjaId) {
-          this.nucleoSvc.getByGranja(lote.granjaId).subscribe({
-            next: (nucleos: NucleoDto[]) => {
-              this.modalNucleosDisponibles = nucleos.map(n => ({
-                nucleoId: n.nucleoId,
-                nucleoNombre: n.nucleoNombre || n.nucleoId
-              }));
+        const fallbackH = lote.hembrasL ?? 0;
+        const fallbackM = lote.machosL ?? 0;
 
-              // 3. Abrir modal con los datos
-              this.modalRegistroInicialOpen = true;
-            },
-            error: () => {
-              this.modalNucleosDisponibles = [];
-              this.modalRegistroInicialOpen = true;
-            }
-          });
-        } else {
-          this.modalNucleosDisponibles = [];
-          this.modalRegistroInicialOpen = true;
-        }
+        // 2. Aves disponibles: si el lote pasó por Levante → saldo del resumen; si no → aves iniciales del lote
+        this.loteSvc.getResumenMortalidad(this.selectedLoteId!).subscribe({
+          next: (resumen) => {
+            this.avesDisponiblesParaRegistro = {
+              saldoHembras: resumen.saldoHembras ?? fallbackH,
+              saldoMachos: resumen.saldoMachos ?? fallbackM
+            };
+            this.openRegistroInicialModalWithNucleos(lote.granjaId);
+          },
+          error: () => {
+            this.avesDisponiblesParaRegistro = { saldoHembras: fallbackH, saldoMachos: fallbackM };
+            this.openRegistroInicialModalWithNucleos(lote.granjaId);
+          }
+        });
       },
       error: () => {
         this.modalLoteNombre = '';
         this.modalNucleoAsignado = '';
         this.modalNucleosDisponibles = [];
+        this.avesDisponiblesParaRegistro = null;
         this.modalRegistroInicialOpen = true;
       }
     });
+  }
+
+  private openRegistroInicialModalWithNucleos(granjaId: number | undefined): void {
+    if (granjaId) {
+      this.nucleoSvc.getByGranja(granjaId).subscribe({
+        next: (nucleos: NucleoDto[]) => {
+          this.modalNucleosDisponibles = nucleos.map(n => ({
+            nucleoId: n.nucleoId,
+            nucleoNombre: n.nucleoNombre || n.nucleoId
+          }));
+          this.modalRegistroInicialOpen = true;
+        },
+        error: () => {
+          this.modalNucleosDisponibles = [];
+          this.modalRegistroInicialOpen = true;
+        }
+      });
+    } else {
+      this.modalNucleosDisponibles = [];
+      this.modalRegistroInicialOpen = true;
+    }
   }
 
   edit(seg: SeguimientoItemDto): void {
@@ -399,6 +494,7 @@ export class LoteProduccionListComponent implements OnInit {
   // ================== MODALES ==================
   cancelRegistroInicial(): void {
     this.modalRegistroInicialOpen = false;
+    this.avesDisponiblesParaRegistro = null;
   }
 
   onSaveRegistroInicial(request: CrearProduccionLoteRequest): void {
@@ -445,23 +541,29 @@ export class LoteProduccionListComponent implements OnInit {
     this.editingSeguimiento = null;
   }
 
-  onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
+onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
     this.loading = true;
     const isUpdate = !!this.editingSeguimiento;
-    
-    // Por ahora solo tenemos crear, pero podemos agregar actualizar más adelante
-    this.produccionSvc.crearSeguimiento(request)
+    const id = this.editingSeguimiento?.id;
+
+    const request$ = isUpdate && id != null
+      ? this.produccionSvc.actualizarSeguimiento(id, request)
+      : this.produccionSvc.crearSeguimiento(request).pipe(
+          map(() => undefined as void)
+        );
+
+    request$
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: () => {
-          // Mostrar mensaje de éxito en el modal
           if (this.modalSeguimientoDiario) {
             this.modalSeguimientoDiario.showSuccessMessage(isUpdate);
           }
+          this.editingSeguimiento = null;
+          this.modalSeguimientoDiarioOpen = false;
           this.loadSeguimientos();
         },
         error: (err) => {
-          // Mostrar mensaje de error en el modal
           const errorMessage = err?.error?.message || err?.error?.detail || err?.message || 'Error desconocido al guardar el seguimiento diario.';
           if (this.modalSeguimientoDiario) {
             this.modalSeguimientoDiario.showErrorMessage(errorMessage);

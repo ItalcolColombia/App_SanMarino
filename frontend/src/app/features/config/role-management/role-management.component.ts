@@ -24,7 +24,8 @@ import {
   faUsers,
   faMagnifyingGlass,
   faFolder,
-  faFile
+  faFile,
+  faGripVertical
 } from '@fortawesome/free-solid-svg-icons';
 
 import {
@@ -48,6 +49,17 @@ import {
   MenuItem
 } from '../../../core/services/menu/menu.service';
 
+import { MenuService as SidebarMenuService } from '../../../shared/services/menu.service';
+
+import {
+  CompanyMenuService,
+  CompanyMenuItem,
+  CompanyMenuItemStructureDto,
+  UpdateCompanyMenuStructureRequest
+} from '../../../core/services/company-menu/company-menu.service';
+
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+
 import {
   BehaviorSubject,
   Subject,
@@ -61,6 +73,13 @@ import {
 } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 
+/** Ítem plano para lista drag-and-drop (árbol aplanado con profundidad). */
+export interface MenuFlatItem {
+  node: MenuItem;
+  depth: number;
+  parentId: number | null;
+}
+
 @Component({
   selector: 'app-role-management',
   standalone: true,
@@ -71,6 +90,7 @@ import { AuthService } from '../../../core/auth/auth.service';
     FormsModule,
     SidebarComponent,
     FontAwesomeModule,
+    DragDropModule,
   ],
   templateUrl: './role-management.component.html',
   styleUrls: ['./role-management.component.scss']
@@ -86,6 +106,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   faMagnifyingGlass = faMagnifyingGlass;
   faFolder = faFolder;
   faFile = faFile;
+  faGripVertical = faGripVertical;
 
   // Tabs y filtros
   activeTab: 'roles' | 'perms' | 'menus' = 'roles';
@@ -100,13 +121,28 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
 
   permissions: Permission[] = [];
 
-  // Menús: árbol y plano
+  // Menús: árbol y plano (catálogo global; para CRUD y dropdown padre)
   menusTree: MenuItem[] = [];
   flatMenus: MenuItem[] = [];
   menusMap: Record<number, string> = {};
 
+  // Pestaña Menús: admin = menús globales, no admin = menús de la empresa activa
+  tabMenusTree: MenuItem[] = [];
+  tabMenusLoading = false;
+  /** Lista plana para drag-and-drop (solo cuando no hay filtro de búsqueda). */
+  menuFlatList: MenuFlatItem[] = [];
+  menuStructureSaving = false;
+
+  // Menús filtrados por empresa (modal Rol): solo los asignados a la empresa seleccionada
+  roleModalMenusTree: MenuItem[] = [];
+  roleModalFlatMenus: MenuItem[] = [];
+  roleModalMenusLoading = false;
+  roleModalMenusCompanyId: number | null = null;
+
   // UI state
   loading = false;
+  isAdminUser = false;
+  activeCompanyId: number | null = null;
 
   // Modal Roles
   modalOpen = false;
@@ -137,11 +173,13 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     private companySvc: CompanyService,
     private permSvc: PermissionService,
     private menuSvc: MenuService,
+    private companyMenuSvc: CompanyMenuService,
+    private sidebarMenuSvc: SidebarMenuService,
     private authService: AuthService,
     library: FaIconLibrary
   ) {
     library.addIcons(
-      faUserShield, faPen, faTrash, faPlus, faKey, faUsers, faMagnifyingGlass, faFolder, faFile
+      faUserShield, faPen, faTrash, faPlus, faKey, faUsers, faMagnifyingGlass, faFolder, faFile, faGripVertical
     );
   }
 
@@ -178,6 +216,13 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     this.loadPermissions();
     this.loadMenus();
 
+    // Al cambiar empresas en el modal de rol, cargar menús de la primera empresa seleccionada
+    this.form?.controls['companyIds']?.valueChanges
+      ?.pipe(takeUntil(this.destroy$))
+      ?.subscribe((companyIds: number[]) => {
+        this.loadRoleModalMenusByCompany(companyIds);
+      });
+
     this.page$
       .pipe(takeUntil(this.destroy$))
       .subscribe(({ page, pageSize }) => this.loadRoles(page, pageSize));
@@ -192,21 +237,17 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   // LOADERS
   // =========================
   private loadCompanies() {
-    // Obtener información del usuario en sesión y cargar empresas según rol
     this.authService.session$
       .pipe(
-        take(1), // Solo tomar el primer valor (valor actual)
+        take(1),
         switchMap((session) => {
           const userRoles = session?.user?.roles || [];
-          
-          // Verificar si el usuario es admin o administrador (case-insensitive)
-          const isAdmin = userRoles.some(role => 
+          this.isAdminUser = userRoles.some(role =>
             role && (role.toLowerCase() === 'admin' || role.toLowerCase() === 'administrador')
           );
+          this.activeCompanyId = session?.activeCompanyId ?? null;
 
-          // Si es admin/administrador, obtener todas las empresas
-          // Si no, obtener solo las empresas del usuario en sesión (ya filtradas por backend)
-          return isAdmin 
+          return this.isAdminUser
             ? this.companySvc.getAllForAdmin()
             : this.companySvc.getAll();
         }),
@@ -262,6 +303,10 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
             m[it.id] = it.label || it.key;
             return m;
           }, {} as Record<number, string>);
+          if (this.activeTab === 'menus' && this.isAdminUser) {
+            this.tabMenusTree = this.menusTree;
+            this.menuFlatList = this.buildMenuFlatList(this.tabMenusTree);
+          }
         },
         error: () => alert('No se pudieron cargar los menús.')
       });
@@ -317,13 +362,12 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
 
   get filteredMenus(): MenuItem[] {
     const t = this.filterMenus.trim().toLowerCase();
-    if (!t) return this.menusTree;
-    // filtra por label/key/route y mantiene estructura parcial (hijos si matchea nodo o ancestro)
+    const source = this.tabMenusTree;
+    if (!t) return source;
     const matches = (node: MenuItem): boolean =>
       (node.label || '').toLowerCase().includes(t) ||
       (node.key || '').toLowerCase().includes(t) ||
       (node.route || '').toLowerCase().includes(t);
-
     const filterTree = (nodes: MenuItem[]): MenuItem[] => {
       const out: MenuItem[] = [];
       for (const n of nodes) {
@@ -334,7 +378,201 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       }
       return out;
     };
-    return filterTree(this.menusTree);
+    return filterTree(source);
+  }
+
+  /** Carga datos de la pestaña Menús: admin = árbol global, no admin = menús de la empresa activa. */
+  loadMenusForTab(): void {
+    if (this.isAdminUser) {
+      if (this.menusTree.length > 0) {
+        this.tabMenusTree = this.menusTree;
+        this.menuFlatList = this.buildMenuFlatList(this.tabMenusTree);
+        this.tabMenusLoading = false;
+        return;
+      }
+      this.tabMenusLoading = true;
+      this.menuSvc
+        .getTree()
+        .pipe(
+          takeUntil(this.destroy$),
+          finalize(() => (this.tabMenusLoading = false))
+        )
+        .subscribe({
+        next: (tree) => {
+          this.menusTree = tree ?? [];
+          this.flatMenus = this.flattenMenus(this.menusTree);
+          this.menusMap = this.flatMenus.reduce((m, it) => {
+            m[it.id] = it.label || it.key;
+            return m;
+          }, {} as Record<number, string>);
+          this.tabMenusTree = this.menusTree;
+          this.menuFlatList = this.buildMenuFlatList(this.tabMenusTree);
+        },
+        error: () => {
+          this.tabMenusTree = [];
+          this.menuFlatList = [];
+        }
+      });
+      return;
+    }
+    if (this.activeCompanyId == null) {
+      this.tabMenusTree = [];
+      this.menuFlatList = [];
+      this.tabMenusLoading = false;
+      return;
+    }
+    this.tabMenusLoading = true;
+    this.companyMenuSvc
+      .getMenusForCompany(this.activeCompanyId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => (this.tabMenusLoading = false))
+      )
+      .subscribe({
+        next: (tree) => {
+          this.tabMenusTree = (tree ?? []).map((n) => this.companyMenuToMenuItem(n));
+          this.menuFlatList = this.buildMenuFlatList(this.tabMenusTree);
+        },
+        error: () => {
+          this.tabMenusTree = [];
+          this.menuFlatList = [];
+        }
+      });
+  }
+
+  /** Construye lista plana desde el árbol (para drag-and-drop). */
+  buildMenuFlatList(nodes: MenuItem[], depth = 0, parentId: number | null = null): MenuFlatItem[] {
+    const out: MenuFlatItem[] = [];
+    for (const node of nodes) {
+      out.push({ node: { ...node }, depth, parentId });
+      if (node.children?.length) {
+        out.push(...this.buildMenuFlatList(node.children, depth + 1, node.id));
+      }
+    }
+    return out;
+  }
+
+  /** Reconstruye árbol desde lista plana (preservando orden y jerarquía por depth). */
+  buildTreeFromFlatList(flat: MenuFlatItem[]): MenuItem[] {
+    const roots: MenuItem[] = [];
+    const lastAtDepth: (MenuItem | null)[] = [];
+    for (const { node, depth, parentId } of flat) {
+      const clone: MenuItem = { ...node, children: [] };
+      if (depth === 0) {
+        roots.push(clone);
+        lastAtDepth[0] = clone;
+      } else {
+        const parent = lastAtDepth[depth - 1] ?? null;
+        if (parent) {
+          if (!parent.children) parent.children = [];
+          parent.children.push(clone);
+        }
+        lastAtDepth[depth] = clone;
+      }
+    }
+    return roots;
+  }
+
+  /** Flatten tree to structure DTOs (menuId, sortOrder, parentMenuId) for company menu API. */
+  private treeToStructureItems(nodes: MenuItem[], parentMenuId: number | null, startOrder: number): { order: number; items: CompanyMenuItemStructureDto[] } {
+    let order = startOrder;
+    const items: CompanyMenuItemStructureDto[] = [];
+    for (const n of nodes) {
+      items.push({
+        menuId: n.id,
+        sortOrder: order,
+        parentMenuId,
+        isEnabled: true
+      });
+      order += 1;
+      if (n.children?.length) {
+        const child = this.treeToStructureItems(n.children, n.id, order);
+        items.push(...child.items);
+        order = child.order;
+      }
+    }
+    return { order, items };
+  }
+
+  onMenuDrop(event: CdkDragDrop<MenuFlatItem[]>) {
+    if (event.previousIndex === event.currentIndex) return;
+    const list = [...this.menuFlatList];
+    moveItemInArray(list, event.previousIndex, event.currentIndex);
+    this.menuFlatList = list;
+    this.tabMenusTree = this.buildTreeFromFlatList(list);
+    this.persistMenuOrder(event.currentIndex);
+  }
+
+  /** Parent y orden de un ítem en la lista plana (por depth). */
+  private getParentAndOrder(flat: MenuFlatItem[], index: number): { parentId: number | null; order: number } {
+    const item = flat[index];
+    let parentId: number | null = null;
+    if (item.depth > 0) {
+      for (let i = index - 1; i >= 0; i--) {
+        if (flat[i].depth === item.depth - 1) {
+          parentId = flat[i].node.id;
+          break;
+        }
+      }
+    }
+    let order = 0;
+    for (let i = 0; i < index; i++) {
+      if (flat[i].depth !== item.depth) continue;
+      let p: number | null = null;
+      if (flat[i].depth > 0) {
+        for (let j = i - 1; j >= 0; j--) {
+          if (flat[j].depth === flat[i].depth - 1) {
+            p = flat[j].node.id;
+            break;
+          }
+        }
+      }
+      if (p === parentId) order++;
+    }
+    return { parentId, order };
+  }
+
+  /** Persiste orden/jerarquía: admin = update un menú, no admin = estructura empresa. */
+  persistMenuOrder(movedIndex?: number) {
+    if (this.isAdminUser) {
+      const flat = this.menuFlatList;
+      const idx = movedIndex ?? 0;
+      const { parentId, order } = this.getParentAndOrder(flat, idx);
+      const node = flat[idx].node;
+      this.menuStructureSaving = true;
+      this.menuSvc
+        .update({
+          id: node.id,
+          key: node.key,
+          label: node.label,
+          icon: node.icon,
+          route: node.route,
+          parentId: parentId ?? undefined,
+          sortOrder: order,
+          isGroup: !!node.children?.length
+        })
+        .pipe(takeUntil(this.destroy$), finalize(() => (this.menuStructureSaving = false)))
+        .subscribe({
+          next: () => {
+            this.menusTree = this.tabMenusTree;
+            this.flatMenus = this.flattenMenus(this.menusTree);
+            this.menusMap = this.flatMenus.reduce((m, it) => { m[it.id] = it.label || it.key; return m; }, {} as Record<number, string>);
+          },
+          error: () => alert('Error al guardar el orden del menú.')
+        });
+      return;
+    }
+    if (this.activeCompanyId == null) return;
+    const { items } = this.treeToStructureItems(this.tabMenusTree, null, 0);
+    const request: UpdateCompanyMenuStructureRequest = { items };
+    this.menuStructureSaving = true;
+    this.companyMenuSvc
+      .updateCompanyMenuStructure(this.activeCompanyId, request)
+      .pipe(takeUntil(this.destroy$), finalize(() => (this.menuStructureSaving = false)))
+      .subscribe({
+        next: () => {},
+        error: () => alert('Error al guardar el orden de menús de la empresa.')
+      });
   }
 
   // =========================
@@ -350,13 +588,74 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         companyIds:   [...(r.companyIds || [])],
         menuIds:      [...(r.menuIds || [])],
       });
+      // valueChanges de companyIds cargará los menús de la primera empresa
     } else {
+      // Crear: si no es admin, asignar por defecto solo la empresa activa (storage)
+      const defaultCompanyIds =
+        !this.isAdminUser && this.activeCompanyId != null ? [this.activeCompanyId] : [];
       this.form.reset({
-        id: null, name: '',
-        permissions: [], companyIds: [], menuIds: []
+        id: null,
+        name: '',
+        permissions: [],
+        companyIds: defaultCompanyIds,
+        menuIds: []
       });
+      this.roleModalFlatMenus = [];
+      this.roleModalMenusTree = [];
+      this.roleModalMenusCompanyId = null;
+      if (defaultCompanyIds.length > 0) {
+        this.loadRoleModalMenusByCompany(defaultCompanyIds);
+      }
     }
     this.modalOpen = true;
+  }
+
+  /** Convierte árbol CompanyMenuItem a MenuItem (id, key, label, etc.) */
+  private companyMenuToMenuItem(node: CompanyMenuItem): MenuItem {
+    const children = (node.children?.length)
+      ? node.children.map(ch => this.companyMenuToMenuItem(ch))
+      : undefined;
+    return {
+      id: node.id,
+      key: node.label || String(node.id),
+      label: node.label,
+      icon: node.icon ?? undefined,
+      route: node.route ?? undefined,
+      parentId: undefined,
+      sortOrder: node.order,
+      isGroup: !!(node.children?.length),
+      children,
+    };
+  }
+
+  /** Carga en el modal de rol los menús asignados a la primera empresa seleccionada. */
+  loadRoleModalMenusByCompany(companyIds: number[]) {
+    const companyId = companyIds?.length ? companyIds[0] : null;
+    if (!companyId) {
+      this.roleModalMenusTree = [];
+      this.roleModalFlatMenus = [];
+      this.roleModalMenusCompanyId = null;
+      return;
+    }
+    if (this.roleModalMenusCompanyId === companyId) return; // ya cargados
+    this.roleModalMenusLoading = true;
+    this.roleModalMenusCompanyId = companyId;
+    this.companyMenuSvc.getMenusForCompany(companyId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.roleModalMenusLoading = false)
+      )
+      .subscribe({
+        next: (tree: CompanyMenuItem[]) => {
+          this.roleModalMenusTree = (tree ?? []).map(n => this.companyMenuToMenuItem(n));
+          this.roleModalFlatMenus = this.flattenMenus(this.roleModalMenusTree);
+        },
+        error: () => {
+          this.roleModalMenusTree = [];
+          this.roleModalFlatMenus = [];
+          this.roleModalMenusCompanyId = null;
+        }
+      });
   }
 
   closeModal() {
@@ -432,7 +731,11 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         finalize(() => { this.loading = false; this.modalOpen = false; }),
         takeUntil(this.destroy$)
       )
-      .subscribe(() => this.refreshRolesPage());
+      .subscribe(() => {
+        this.refreshRolesPage();
+        // Refrescar menú del sidebar para que el usuario vea los cambios de menú sin cerrar sesión
+        this.sidebarMenuSvc.preloadMyMenu(this.activeCompanyId ?? undefined).pipe(take(1)).subscribe();
+      });
   }
 
   deleteRole(id: number) {
@@ -606,6 +909,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   trackByRoleId = (_: number, r: Role) => r.id;
   trackByPermId = (_: number, p: Permission) => p.id;
   trackByMenuId = (_: number, m: MenuItem) => m.id;
+  trackByMenuFlatId = (_: number, item: MenuFlatItem) => item.node.id;
 
   private refreshRolesPage() {
     const { page, pageSize } = this.page$.value;

@@ -48,11 +48,19 @@ export class CatalogoAlimentosFormComponent implements OnInit {
   get fNombre(): FormControl { return this.form.get('nombre') as FormControl; }
   get fActivo(): FormControl { return this.form.get('activo') as FormControl; }
 
-  // Controles “estructurados” (se vuelcan a metadata)
-  get fTypeItem(): FormControl { return this.form.get('type_item') as FormControl; }
+  // Controles "estructurados"
+  get fItemType(): FormControl { return this.form.get('itemType') as FormControl; }
   get fEsParaPollos(): FormControl { return this.form.get('es_para_pollos') as FormControl; }
   get fRaza(): FormControl { return this.form.get('raza') as FormControl; }
   get fGenero(): FormControl { return this.form.get('genero') as FormControl; }
+  
+  // Controles específicos para VACUNA
+  get fTemperatura(): FormControl { return this.form.get('temperatura') as FormControl; }
+  get fFechaVencimiento(): FormControl { return this.form.get('fecha_vencimiento') as FormControl; }
+  get fLote(): FormControl { return this.form.get('lote') as FormControl; }
+  get fFabricante(): FormControl { return this.form.get('fabricante') as FormControl; }
+  get fDosis(): FormControl { return this.form.get('dosis') as FormControl; }
+  get fViaAdministracion(): FormControl { return this.form.get('via_administracion') as FormControl; }
 
   // Editor libre de metadata
   get metadataArray(): FormArray<FormGroup> {
@@ -60,7 +68,8 @@ export class CatalogoAlimentosFormComponent implements OnInit {
   }
 
   // Derivados
-  isAlimento = computed(() => this.fTypeItem.value === 'alimento');
+  isAlimento = computed(() => this.fItemType.value === 'alimento');
+  isVacuna = computed(() => this.fItemType.value === 'vacuna');
   requiereEstructuraPollos = computed(() => this.isAlimento() && this.fEsParaPollos.value === true);
 
   jsonPreview = signal('{}');
@@ -78,18 +87,31 @@ export class CatalogoAlimentosFormComponent implements OnInit {
       nombre: ['', [Validators.required, Validators.maxLength(150)]],
       activo: [true, Validators.required],
 
-      // Campos estructurados -> se guardan en metadata
-      type_item: ['alimento' as CatalogItemType, Validators.required],
+      // Tipo de item (columna separada, no en metadata)
+      itemType: ['alimento' as CatalogItemType, Validators.required],
+
+      // Campos estructurados para ALIMENTO -> se guardan en metadata
       es_para_pollos: [true],                 // solo guía UI; no se guarda como tal, se traduce a especie
       raza: ['Ross'],
       genero: ['Mixto'],
+
+      // Campos específicos para VACUNA -> se guardan en metadata
+      temperatura: [null],                    // Temperatura de almacenamiento
+      fecha_vencimiento: [null],              // Fecha de vencimiento
+      lote: [''],                             // Número de lote
+      fabricante: [''],                       // Fabricante
+      dosis: [''],                            // Dosis recomendada
+      via_administracion: [''],                // Vía de administración
 
       // key/value libres
       metadata: this.fb.array<FormGroup>([])
     });
 
     // Cambios que afectan validaciones dinámicas
-    this.fTypeItem.valueChanges.subscribe(() => this.applyDynamicValidators());
+    this.fItemType.valueChanges.subscribe(() => {
+      this.applyDynamicValidators();
+      this.clearTypeSpecificFields();
+    });
     this.fEsParaPollos.valueChanges.subscribe(() => this.applyDynamicValidators());
     this.applyDynamicValidators();
 
@@ -122,15 +144,26 @@ export class CatalogoAlimentosFormComponent implements OnInit {
   private toMetadataObject(): any {
     const meta: Record<string, any> = {};
 
-    // 1) Estructurados
-    meta['type_item'] = this.fTypeItem.value;
-    if (this.requiereEstructuraPollos()) {
-      meta['especie'] = 'pollo';
-      meta['raza'] = this.fRaza.value;
-      meta['genero'] = this.fGenero.value;
+    // 1) Campos específicos para ALIMENTO
+    if (this.isAlimento()) {
+      if (this.requiereEstructuraPollos()) {
+        meta['especie'] = 'pollo';
+        meta['raza'] = this.fRaza.value;
+        meta['genero'] = this.fGenero.value;
+      }
     }
 
-    // 2) Libres (ignorando claves reservadas para no sobrescribir)
+    // 2) Campos específicos para VACUNA
+    if (this.isVacuna()) {
+      if (this.fTemperatura.value) meta['temperatura'] = this.fTemperatura.value;
+      if (this.fFechaVencimiento.value) meta['fecha_vencimiento'] = this.fFechaVencimiento.value;
+      if (this.fLote.value) meta['lote'] = this.fLote.value;
+      if (this.fFabricante.value) meta['fabricante'] = this.fFabricante.value;
+      if (this.fDosis.value) meta['dosis'] = this.fDosis.value;
+      if (this.fViaAdministracion.value) meta['via_administracion'] = this.fViaAdministracion.value;
+    }
+
+    // 3) Libres (ignorando claves reservadas para no sobrescribir)
     for (const g of this.metadataArray.controls) {
       const k = (g.get('key')?.value || '').trim();
       const v = g.get('value')?.value;
@@ -141,32 +174,65 @@ export class CatalogoAlimentosFormComponent implements OnInit {
     return meta;
   }
 
-  private fromMetadataObject(meta: any): void {
+  private fromMetadataObject(meta: any, itemType?: string): void {
     // Default
-    this.fTypeItem.setValue('alimento');
+    this.fItemType.setValue(itemType || 'alimento');
     this.fEsParaPollos.setValue(true);
     this.fRaza.setValue('Ross');
     this.fGenero.setValue('Mixto');
+    
+    // Limpiar campos de vacuna
+    this.fTemperatura.setValue(null);
+    this.fFechaVencimiento.setValue(null);
+    this.fLote.setValue('');
+    this.fFabricante.setValue('');
+    this.fDosis.setValue('');
+    this.fViaAdministracion.setValue('');
 
     this.metadataArray.clear();
 
     if (meta && typeof meta === 'object') {
-      // Estructurados
-      if (meta['type_item']) this.fTypeItem.setValue(meta['type_item']);
+      // Campos específicos para ALIMENTO
       const esPollo = meta['especie'] === 'pollo';
       this.fEsParaPollos.setValue(esPollo);
       if (meta['raza']) this.fRaza.setValue(meta['raza']);
       if (meta['genero']) this.fGenero.setValue(meta['genero']);
 
-      // Libres
+      // Campos específicos para VACUNA
+      if (meta['temperatura']) this.fTemperatura.setValue(meta['temperatura']);
+      if (meta['fecha_vencimiento']) this.fFechaVencimiento.setValue(meta['fecha_vencimiento']);
+      if (meta['lote']) this.fLote.setValue(meta['lote']);
+      if (meta['fabricante']) this.fFabricante.setValue(meta['fabricante']);
+      if (meta['dosis']) this.fDosis.setValue(meta['dosis']);
+      if (meta['via_administracion']) this.fViaAdministracion.setValue(meta['via_administracion']);
+
+      // Libres (excluyendo campos estructurados)
+      const reservedKeys = new Set([...this.RESERVED_KEYS, 'especie', 'raza', 'genero', 'temperatura', 'fecha_vencimiento', 'lote', 'fabricante', 'dosis', 'via_administracion']);
       Object.keys(meta)
-        .filter(k => !this.RESERVED_KEYS.has(k))
+        .filter(k => !reservedKeys.has(k))
         .forEach(k => this.addMetaRow(k, meta[k]));
     }
     if (this.metadataArray.length === 0) this.addMetaRow();
 
     this.applyDynamicValidators();
     this.updateJsonPreview();
+  }
+  
+  private clearTypeSpecificFields(): void {
+    // Limpiar campos cuando cambia el tipo
+    if (!this.isAlimento()) {
+      this.fEsParaPollos.setValue(true);
+      this.fRaza.setValue('Ross');
+      this.fGenero.setValue('Mixto');
+    }
+    if (!this.isVacuna()) {
+      this.fTemperatura.setValue(null);
+      this.fFechaVencimiento.setValue(null);
+      this.fLote.setValue('');
+      this.fFabricante.setValue('');
+      this.fDosis.setValue('');
+      this.fViaAdministracion.setValue('');
+    }
   }
 
   // ====== Validación dinámica ======
@@ -191,10 +257,11 @@ export class CatalogoAlimentosFormComponent implements OnInit {
         this.form.patchValue({
           codigo: item.codigo,
           nombre: item.nombre,
+          itemType: item.itemType || 'alimento',
           activo: item.activo
         });
         this.form.get('codigo')?.disable(); // código no editable
-        this.fromMetadataObject(item.metadata);
+        this.fromMetadataObject(item.metadata, item.itemType);
       });
   }
 
@@ -209,6 +276,7 @@ export class CatalogoAlimentosFormComponent implements OnInit {
     if (this.editingId) {
       const dto: CatalogItemUpdateRequest = {
         nombre: raw.nombre,
+        itemType: raw.itemType,
         activo: raw.activo,
         metadata
       };
@@ -219,6 +287,7 @@ export class CatalogoAlimentosFormComponent implements OnInit {
       const dto: CatalogItemCreateRequest = {
         codigo: raw.codigo,
         nombre: raw.nombre,
+        itemType: raw.itemType || 'alimento',
         activo: raw.activo,
         metadata
       };

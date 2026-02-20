@@ -1,0 +1,218 @@
+<!-- Modal de Detalle de Seguimiento Diario - UX mejorada: cerrar en header, footer y Escape/backdrop -->
+<div *ngIf="isOpen" class="ux-modal detalle-modal__backdrop" role="dialog" aria-modal="true" aria-labelledby="detalle-seguimiento-modal-title" (click)="onBackdropClick($event)">
+  <div class="ux-modal__dialog ux-modal__dialog--large detalle-modal__dialog" (click)="$event.stopPropagation()">
+    <header class="ux-modal__header detalle-modal__header">
+      <h2 id="detalle-seguimiento-modal-title">Detalle del Seguimiento Diario</h2>
+      <button type="button" class="detalle-modal__close" (click)="onClose()" aria-label="Cerrar modal" title="Cerrar">
+        <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+      </button>
+    </header>
+
+    <div class="ux-modal__content ux-modal__content--detail" *ngIf="loading">
+      <div class="detail-loading">
+        <div class="spinner"></div>
+        <p>Cargando detalles...</p>
+      </div>
+    </div>
+
+    <div class="ux-modal__content ux-modal__content--detail" *ngIf="!loading && seguimiento">
+      <div class="detail-form">
+        <!-- Información general -->
+        <section class="detail-section">
+          <h3 class="detail-section__title">Información general</h3>
+          <div class="detail-fields">
+            <div class="detail-field">
+              <label class="detail-label">Fecha de registro</label>
+              <input type="text" class="detail-input" [value]="formatDate(seguimiento.fechaRegistro)" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Lote ID</label>
+              <input type="text" class="detail-input" [value]="seguimiento.loteId" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Tipo de alimento</label>
+              <input type="text" class="detail-input" [value]="seguimiento.tipoAlimento || '—'" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Ciclo</label>
+              <input type="text" class="detail-input" [value]="seguimiento.ciclo || 'Normal'" readonly disabled>
+            </div>
+            <div class="detail-field detail-field--full" *ngIf="seguimiento.observaciones">
+              <label class="detail-label">Observaciones</label>
+              <input type="text" class="detail-input" [value]="seguimiento.observaciones" readonly disabled>
+            </div>
+          </div>
+        </section>
+
+        <!-- Hembras -->
+        <section class="detail-section">
+          <h3 class="detail-section__title">Hembras</h3>
+          <div class="detail-fields">
+            <div class="detail-field">
+              <label class="detail-label">Mortalidad hembras</label>
+              <input type="text" class="detail-input" [value]="seguimiento.mortalidadHembras" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Sel H (retiradas)</label>
+              <input type="text" class="detail-input" [value]="seguimiento.selH" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Error sexaje hembras</label>
+              <input type="text" class="detail-input" [value]="seguimiento.errorSexajeHembras" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Consumo (kg)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.consumoKgHembras != null ? formatNumber(seguimiento.consumoKgHembras) + ' kg' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.pesoPromH">
+              <label class="detail-label">Peso promedio (kg)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.pesoPromH != null ? formatNumber(seguimiento.pesoPromH) + ' kg' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.uniformidadH">
+              <label class="detail-label">Uniformidad (%)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.uniformidadH != null ? formatNumber(seguimiento.uniformidadH) + '%' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.cvH">
+              <label class="detail-label">Coeficiente de variación (CV)</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.cvH)" readonly disabled>
+            </div>
+          </div>
+          <div class="detail-items-wrap" *ngIf="itemsHembras.length > 0">
+            <h4 class="detail-items-title">Ítems registrados (hembras)</h4>
+            <div class="detail-table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Alimento / Ítem</th>
+                    <th>Cantidad</th>
+                    <th>Unidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of itemsHembras">
+                    <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
+                    <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                    <td>{{ formatNumber(item.cantidad) }}</td>
+                    <td>{{ item.unidad }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Machos -->
+        <section class="detail-section">
+          <h3 class="detail-section__title">Machos</h3>
+          <div class="detail-fields">
+            <div class="detail-field">
+              <label class="detail-label">Mortalidad machos</label>
+              <input type="text" class="detail-input" [value]="seguimiento.mortalidadMachos" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Sel M (retiradas)</label>
+              <input type="text" class="detail-input" [value]="seguimiento.selM" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Error sexaje machos</label>
+              <input type="text" class="detail-input" [value]="seguimiento.errorSexajeMachos" readonly disabled>
+            </div>
+            <div class="detail-field">
+              <label class="detail-label">Consumo (kg)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.consumoKgMachos != null ? formatNumber(seguimiento.consumoKgMachos) + ' kg' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.pesoPromM">
+              <label class="detail-label">Peso promedio (kg)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.pesoPromM != null ? formatNumber(seguimiento.pesoPromM) + ' kg' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.uniformidadM">
+              <label class="detail-label">Uniformidad (%)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.uniformidadM != null ? formatNumber(seguimiento.uniformidadM) + '%' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.cvM">
+              <label class="detail-label">Coeficiente de variación (CV)</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.cvM)" readonly disabled>
+            </div>
+          </div>
+          <div class="detail-items-wrap" *ngIf="itemsMachos.length > 0">
+            <h4 class="detail-items-title">Ítems registrados (machos)</h4>
+            <div class="detail-table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Alimento / Ítem</th>
+                    <th>Cantidad</th>
+                    <th>Unidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of itemsMachos">
+                    <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
+                    <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                    <td>{{ formatNumber(item.cantidad) }}</td>
+                    <td>{{ item.unidad }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Agua (Ecuador / Panamá) -->
+        <section class="detail-section" *appShowIfEcuadorPanama>
+          <h3 class="detail-section__title">Información de agua</h3>
+          <div class="detail-fields">
+            <div class="detail-field" *ngIf="seguimiento.consumoAguaDiario">
+              <label class="detail-label">Consumo diario (litros)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.consumoAguaDiario != null ? formatNumber(seguimiento.consumoAguaDiario) + ' L' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.consumoAguaPh">
+              <label class="detail-label">PH del agua</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.consumoAguaPh)" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.consumoAguaOrp">
+              <label class="detail-label">ORP (mV)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.consumoAguaOrp != null ? formatNumber(seguimiento.consumoAguaOrp) + ' mV' : '—')" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.consumoAguaTemperatura">
+              <label class="detail-label">Temperatura (°C)</label>
+              <input type="text" class="detail-input" [value]="(seguimiento.consumoAguaTemperatura != null ? formatNumber(seguimiento.consumoAguaTemperatura) + ' °C' : '—')" readonly disabled>
+            </div>
+          </div>
+        </section>
+
+        <!-- Nutricional -->
+        <section class="detail-section" *ngIf="seguimiento.kcalAlH || seguimiento.protAlH || seguimiento.kcalAveH || seguimiento.protAveH">
+          <h3 class="detail-section__title">Información nutricional</h3>
+          <div class="detail-fields">
+            <div class="detail-field" *ngIf="seguimiento.kcalAlH">
+              <label class="detail-label">Kcal/Al H</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.kcalAlH)" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.protAlH">
+              <label class="detail-label">Prot/Al H</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.protAlH)" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.kcalAveH">
+              <label class="detail-label">Kcal/Ave H</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.kcalAveH)" readonly disabled>
+            </div>
+            <div class="detail-field" *ngIf="seguimiento.protAveH">
+              <label class="detail-label">Prot/Ave H</label>
+              <input type="text" class="detail-input" [value]="formatNumber(seguimiento.protAveH)" readonly disabled>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="ux-modal__footer detalle-modal__footer">
+      <button type="button" class="detalle-modal__btn-close" (click)="onClose()">
+        <fa-icon [icon]="faXmark" aria-hidden="true"></fa-icon>
+        <span>Cerrar</span>
+      </button>
+    </footer>
+  </div>
+</div>

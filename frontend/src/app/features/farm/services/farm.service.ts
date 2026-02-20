@@ -13,13 +13,21 @@ export interface FarmDto {
   companyId: number;           // ← número garantizado al leer
   status: 'A' | 'I' | string;
 
-  // Opcionales para UI
-  regional?: string | null;
+  // IDs
   regionalId?: number | null;
-  department?: string | null;
-  city?: string | null;
   departamentoId?: number | null;
   ciudadId?: number | null;
+
+  // Nombres que vienen del backend
+  departamentoNombre?: string | null;
+  ciudadNombre?: string | null;
+  regionalNombre?: string | null;
+  companyNombre?: string | null;
+
+  // Compatibilidad con código existente (usar nombres del backend)
+  regional?: string | null;
+  department?: string | null;
+  city?: string | null;
 
   createdAt?: string;
   updatedAt?: string;
@@ -30,9 +38,8 @@ export interface CreateFarmDto {
   name: string;
   companyId: number;
   status: 'A' | 'I';
-  // opcionales
-  regional?: string | '1';
   regionalId?: number | null;
+  regionalOptionId?: number | null; // id de master_list_options; el backend lo resuelve a regional_id
   departamentoId?: number | null;
   ciudadId?: number | null;
   department?: string | null;

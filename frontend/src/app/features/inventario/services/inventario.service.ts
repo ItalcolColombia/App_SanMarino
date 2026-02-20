@@ -25,6 +25,7 @@ export interface CatalogItemDto {
   id: number;
   codigo: string;
   nombre: string;
+  itemType?: string;  // Tipo de item: alimento, vacuna, medicamento, etc.
   activo: boolean;
   metadata?: any; // aquí vive type_item, especie, raza, genero y otros
 }
@@ -82,6 +83,7 @@ export interface InventoryMovementDto {
   id: number;
   farmId: number;
   catalogItemId: number;
+  itemType?: string;  // Tipo de item: alimento, vacuna, medicamento, etc.
   codigo: string;
   nombre: string;
   quantity: number;
@@ -92,6 +94,11 @@ export interface InventoryMovementDto {
   origin?: string | null;
   destination?: string | null;
   transferGroupId?: string | null;
+  // Campos específicos para movimiento de alimento
+  documentoOrigen?: string | null;      // Autoconsumo, RVN, EAN
+  tipoEntrada?: string | null;          // Entrada Nueva, Traslado entre galpon, Traslados entre granjas
+  galponDestinoId?: string | null;      // ID del galpón destino
+  fechaMovimiento?: string | null;      // ISO date
   metadata?: any;
   responsibleUserId?: string | null;
   createdAt: string; // ISO
@@ -110,11 +117,17 @@ export interface MovementQuery {
 export interface InventoryEntryRequest {
   catalogItemId?: number;
   codigo?: string;
+  itemType?: string;      // Tipo de item del catálogo (alimento, vacuna, medicamento, etc.) - opcional, se obtiene del catálogo si no se envía
   quantity: number;      // positivo
   unit?: string;
   reference?: string;
   reason?: string;
   origin?: string;       // Origen para entradas (ej: "Planta Sanmarino", "Planta Itacol")
+  // Campos específicos para movimiento de alimento
+  documentoOrigen?: string;      // Autoconsumo (autofacturado), RVN (Remisión facturada - Planta a Granja), EAN (Entrada de inventario)
+  tipoEntrada?: string;          // Entrada Nueva, Traslado entre galpon, Traslados entre granjas
+  galponDestinoId?: string;      // ID del galpón destino
+  fechaMovimiento?: string;     // ISO date (opcional, si no se envía usa created_at)
   metadata?: any;
 }
 export interface InventoryExitRequest extends InventoryEntryRequest {
@@ -211,12 +224,16 @@ export class InventarioService {
   }
 
   // ===== Inventario (stock) =====
-  getInventory(farmId: number): Observable<FarmInventoryDto[]> {
-    return this.http.get<FarmInventoryDto[]>(`${this.api}/farms/${farmId}/inventory`);
+  getInventory(farmId: number, itemType?: string | null): Observable<FarmInventoryDto[]> {
+    let params = new HttpParams();
+    if (itemType && itemType.trim()) {
+      params = params.set('itemType', itemType.trim());
+    }
+    return this.http.get<FarmInventoryDto[]>(`${this.api}/farms/${farmId}/inventory`, { params });
   }
   /** Alias cómodo para los componentes que esperan getStock() */
-  getStock(farmId: number): Observable<FarmInventoryDto[]> {
-    return this.getInventory(farmId);
+  getStock(farmId: number, itemType?: string | null): Observable<FarmInventoryDto[]> {
+    return this.getInventory(farmId, itemType);
   }
   /** Obtener inventario de un producto específico por farmId y catalogItemId */
   getInventoryByItem(farmId: number, catalogItemId: number): Observable<FarmInventoryDto | null> {

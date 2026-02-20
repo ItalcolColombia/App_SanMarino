@@ -6,54 +6,13 @@
     <div class="ux-header">
       <div class="ux-header__title">
         <h1 class="ux-title">Gestión de Lotes</h1>
-        <p class="ux-subtitle">Administra lotes comerciales y de reproductora en una sola vista.</p>
+        <p class="ux-subtitle">Administra lotes comerciales.</p>
       </div>
     </div>
 
-    <!-- Tabs -->
-    <nav class="ux-tabs" role="tablist" aria-label="Secciones">
-      <button
-        class="ux-tab"
-        role="tab"
-        [attr.aria-selected]="isActive('lotes')"
-        [class.active]="isActive('lotes')"
-        (click)="setTab('lotes')"
-        id="tab-lotes"
-        aria-controls="panel-lotes">
-        <fa-icon [icon]="faLotes" class="mr-1" aria-hidden="true"></fa-icon>
-        Lotes
-      </button>
-
-      <button
-        class="ux-tab"
-        role="tab"
-        [attr.aria-selected]="isActive('reproductoras')"
-        [class.active]="isActive('reproductoras')"
-        (click)="setTab('reproductoras')"
-        id="tab-reproductoras"
-        aria-controls="panel-reproductoras">
-        <fa-icon [icon]="faReproductoras" class="mr-1" aria-hidden="true"></fa-icon>
-        Lotes Reproductoras
-      </button>
-    </nav>
-
-    <!-- Paneles -->
-    <section
-      class="ux-tabpanel"
-      id="panel-lotes"
-      role="tabpanel"
-      [attr.aria-labelledby]="'tab-lotes'"
-      *ngIf="isActive('lotes')">
+    <!-- Panel de Lotes -->
+    <section class="ux-tabpanel" id="panel-lotes" role="tabpanel">
       <app-lote-list></app-lote-list>
-    </section>
-
-    <section
-      class="ux-tabpanel"
-      id="panel-reproductoras"
-      role="tabpanel"
-      [attr.aria-labelledby]="'tab-reproductoras'"
-      *ngIf="isActive('reproductoras')">
-      <app-lote-reproductora-list></app-lote-reproductora-list>
     </section>
   </div>
 </div>

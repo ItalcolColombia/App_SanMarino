@@ -173,6 +173,70 @@
 }
 
 /* ==========================================================================
+   📉 Resumen descuentos (mortalidad, descarte, error sexaje → saldo)
+   ========================================================================== */
+.resumen-descuentos {
+  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  background: var(--warm-50);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.resumen-descuentos h4 {
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.resumen-descuentos__intro {
+  margin: 0 0 var(--space-4) 0;
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+}
+
+.resumen-descuentos__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.resumen-descuentos__block {
+  padding: var(--space-3) var(--space-4);
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.resumen-descuentos__block--resta {
+  border-left: 3px solid var(--warm-400);
+}
+
+.resumen-descuentos__block--saldo {
+  border-left: 3px solid var(--brand-red);
+  background: var(--amber-25);
+  font-weight: 600;
+}
+
+.resumen-descuentos__label {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--warm-600);
+  margin-bottom: var(--space-1);
+}
+
+.resumen-descuentos__value {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.resumen-descuentos__block--saldo .resumen-descuentos__value {
+  color: var(--brand-red);
+}
+
+/* ==========================================================================
    📋 Tablas
    ========================================================================== */
 .table-container {

@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
 import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
 import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
@@ -46,6 +46,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private alimentosByCode = new Map<string, CatalogItemExtended>();
   private alimentosById = new Map<number, CatalogItemExtended>();
   private alimentosByName = new Map<string, CatalogItemExtended>();
+  private inventarioPorItem = new Map<number, { quantity: number; unit: string }>();
 
   // Tipos de ítem
   tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
@@ -99,7 +100,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         this.form.patchValue({ produccionLoteId: this.produccionLoteId });
       }
 
-      // Cargar inventario de la granja si está disponible
+      // Cargar inventario de la granja si está disponible (sin filtro inicial)
       if (this.granjaId) {
         this.cargarInventarioGranja(this.granjaId);
       }
@@ -121,17 +122,21 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadM: [0, [Validators.required, Validators.min(0)]],
       selH: [0, [Validators.required, Validators.min(0)]],
       selM: [0, [Validators.required, Validators.min(0)]],
-      // Nuevos campos para tipo de ítem
+      errorSexajeHembras: [0, [Validators.min(0)]],
+      errorSexajeMachos: [0, [Validators.min(0)]],
+      ciclo: ['Normal'],
+      // Múltiples ítems por hembras/machos (como en levante)
+      itemsHembras: this.fb.array([]),
+      itemsMachos: this.fb.array([]),
+      // Compatibilidad: tipo/consumo único (si no hay ítems)
       tipoItemHembras: [null],
       tipoItemMachos: [null],
-      // Alimentos (filtrados por tipo)
       tipoAlimentoHembras: [null],
       tipoAlimentoMachos: [null],
-      // Consumo con unidad de medida - el backend hace la conversión
-      consumoHembras: [0, [Validators.required, Validators.min(0)]],
-      unidadConsumoHembras: ['kg', Validators.required], // 'kg' o 'g'
-      consumoMachos: [0, [Validators.required, Validators.min(0)]],
-      unidadConsumoMachos: ['kg'], // 'kg' o 'g'
+      consumoHembras: [0, [Validators.min(0)]],
+      unidadConsumoHembras: ['kg'],
+      consumoMachos: [0, [Validators.min(0)]],
+      unidadConsumoMachos: ['kg'],
       huevosTotales: [0, [Validators.required, Validators.min(0)]],
       huevosIncubables: [0, [Validators.required, Validators.min(0)]],
       // Campos de Clasificadora de Huevos - (Limpio, Tratado) = HuevoInc +
@@ -151,11 +156,15 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoHuevo: [0, [Validators.required, Validators.min(0)]],
       etapa: [1, [Validators.required, Validators.min(1), Validators.max(3)]],
       observaciones: [''],
-      // Campos de Pesaje Semanal (registro una vez por semana)
+      // Campos de Pesaje Semanal / por sexo (alineados con seguimiento_diario)
       pesoH: [null, [Validators.min(0)]],
       pesoM: [null, [Validators.min(0)]],
       uniformidad: [null, [Validators.min(0), Validators.max(100)]],
       coeficienteVariacion: [null, [Validators.min(0), Validators.max(100)]],
+      uniformidadHembras: [null, [Validators.min(0), Validators.max(100)]],
+      uniformidadMachos: [null, [Validators.min(0), Validators.max(100)]],
+      cvHembras: [null, [Validators.min(0), Validators.max(100)]],
+      cvMachos: [null, [Validators.min(0), Validators.max(100)]],
       observacionesPesaje: [''],
       // Campos de agua (solo para Ecuador y Panamá)
       consumoAguaDiario: [null, [Validators.min(0)]],
@@ -169,16 +178,20 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       this.calcularYActualizarEtapa();
     });
 
-    // Suscribirse a cambios en tipoItem para filtrar productos
+    // Suscribirse a cambios en tipoItem para recargar inventario filtrado desde el backend
     this.form.get('tipoItemHembras')?.valueChanges.subscribe(tipo => {
-      this.filtrarAlimentosPorTipo('hembras', tipo);
+      if (this.granjaId) {
+        this.cargarInventarioGranja(this.granjaId, 'hembras', tipo);
+      }
       this.form.patchValue({ tipoAlimentoHembras: null }, { emitEvent: false });
       this.inventarioDisponibleHembras = null;
       this.mensajeInventarioHembras = '';
     });
 
     this.form.get('tipoItemMachos')?.valueChanges.subscribe(tipo => {
-      this.filtrarAlimentosPorTipo('machos', tipo);
+      if (this.granjaId) {
+        this.cargarInventarioGranja(this.granjaId, 'machos', tipo);
+      }
       this.form.patchValue({ tipoAlimentoMachos: null }, { emitEvent: false });
       this.inventarioDisponibleMachos = null;
       this.mensajeInventarioMachos = '';
@@ -204,7 +217,74 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     });
   }
 
+  get itemsHembrasArray(): FormArray {
+    return this.form.get('itemsHembras') as FormArray;
+  }
+
+  get itemsMachosArray(): FormArray {
+    return this.form.get('itemsMachos') as FormArray;
+  }
+
+  agregarItemHembras(): void {
+    const itemForm = this.fb.group({
+      tipoItem: [null, Validators.required],
+      catalogItemId: [null, Validators.required],
+      cantidad: [0, [Validators.required, Validators.min(0)]],
+      unidad: ['kg', Validators.required]
+    });
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      else if (tipo) itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
+    });
+    this.itemsHembrasArray.push(itemForm);
+  }
+
+  eliminarItemHembras(index: number): void {
+    this.itemsHembrasArray.removeAt(index);
+  }
+
+  agregarItemMachos(): void {
+    const itemForm = this.fb.group({
+      tipoItem: [null, Validators.required],
+      catalogItemId: [null, Validators.required],
+      cantidad: [0, [Validators.required, Validators.min(0)]],
+      unidad: ['kg', Validators.required]
+    });
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      else if (tipo) itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
+    });
+    this.itemsMachosArray.push(itemForm);
+  }
+
+  eliminarItemMachos(index: number): void {
+    this.itemsMachosArray.removeAt(index);
+  }
+
+  getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemExtended[] {
+    if (!tipoItem) return this.alimentosCatalog;
+    return this.alimentosCatalog.filter(a => {
+      const t = a.tipoItem || (a as any).metadata?.type_item || (a as any).metadata?.itemType;
+      return t === tipoItem;
+    });
+  }
+
+  getCantidadDisponible(catalogItemId: number | null | undefined): { quantity: number; unit: string } | null {
+    if (!catalogItemId) return null;
+    return this.inventarioPorItem.get(catalogItemId) ?? null;
+  }
+
+  getItemDisplayText(item: CatalogItemExtended): string {
+    const cantidad = this.getCantidadDisponible(item.id ?? undefined);
+    if (cantidad) return `${item.codigo} — ${item.nombre} (Disp.: ${cantidad.quantity.toFixed(2)} ${cantidad.unit})`;
+    return `${item.codigo} — ${item.nombre}`;
+  }
+
   private resetForm(): void {
+    while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
+    while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
     const fechaHoy = this.todayYMD();
     this.form.reset({
       fechaRegistro: fechaHoy,
@@ -213,6 +293,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadM: 0,
       selH: 0,
       selM: 0,
+      errorSexajeHembras: 0,
+      errorSexajeMachos: 0,
+      ciclo: 'Normal',
+      itemsHembras: [],
+      itemsMachos: [],
       consumoHembras: 0,
       unidadConsumoHembras: 'kg',
       consumoMachos: 0,
@@ -238,11 +323,15 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoHuevo: 0,
       etapa: this.calcularEtapa(fechaHoy),
       observaciones: '',
-      // Campos de Pesaje Semanal
+      // Campos de Pesaje Semanal / por sexo
       pesoH: null,
       pesoM: null,
       uniformidad: null,
       coeficienteVariacion: null,
+      uniformidadHembras: null,
+      uniformidadMachos: null,
+      cvHembras: null,
+      cvMachos: null,
       observacionesPesaje: '',
       // Campos de agua (solo para Ecuador y Panamá)
       consumoAguaDiario: null,
@@ -255,10 +344,54 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private populateForm(): void {
     if (!this.editingSeguimiento) return;
 
-    const fechaRegistro = this.toYMD(this.editingSeguimiento.fechaRegistro);
-    
-    // Leer valores desde metadata si están disponibles
+    while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
+    while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
+
     const metadata: any = this.editingSeguimiento.metadata || {};
+    const itemsHembras = metadata?.itemsHembras ?? [];
+    const itemsMachos = metadata?.itemsMachos ?? [];
+    (itemsHembras as any[]).forEach((item: any) => {
+      this.itemsHembrasArray.push(this.fb.group({
+        tipoItem: [item.tipoItem ?? 'alimento', Validators.required],
+        catalogItemId: [item.catalogItemId ?? null, Validators.required],
+        cantidad: [Number(item.cantidad) ?? 0, [Validators.required, Validators.min(0)]],
+        unidad: [item.unidad ?? 'kg', Validators.required]
+      }));
+    });
+    (itemsMachos as any[]).forEach((item: any) => {
+      this.itemsMachosArray.push(this.fb.group({
+        tipoItem: [item.tipoItem ?? 'alimento', Validators.required],
+        catalogItemId: [item.catalogItemId ?? null, Validators.required],
+        cantidad: [Number(item.cantidad) ?? 0, [Validators.required, Validators.min(0)]],
+        unidad: [item.unidad ?? 'kg', Validators.required]
+      }));
+    });
+    if (itemsHembras.length === 0 && itemsMachos.length === 0) {
+      const consH = metadata?.consumoOriginalHembras ?? this.editingSeguimiento.consKgH ?? 0;
+      const unidH = metadata?.unidadConsumoOriginalHembras ?? 'kg';
+      const consM = metadata?.consumoOriginalMachos ?? this.editingSeguimiento.consKgM ?? 0;
+      const unidM = metadata?.unidadConsumoOriginalMachos ?? 'kg';
+      const tipoAlimentoH = metadata?.tipoAlimentoHembras ?? null;
+      const tipoAlimentoM = metadata?.tipoAlimentoMachos ?? null;
+      if (tipoAlimentoH || consH > 0) {
+        this.itemsHembrasArray.push(this.fb.group({
+          tipoItem: ['alimento', Validators.required],
+          catalogItemId: [tipoAlimentoH ?? null, Validators.required],
+          cantidad: [consH, [Validators.required, Validators.min(0)]],
+          unidad: [unidH, Validators.required]
+        }));
+      }
+      if (tipoAlimentoM || consM > 0) {
+        this.itemsMachosArray.push(this.fb.group({
+          tipoItem: ['alimento', Validators.required],
+          catalogItemId: [tipoAlimentoM ?? null, Validators.required],
+          cantidad: [consM, [Validators.required, Validators.min(0)]],
+          unidad: [unidM, Validators.required]
+        }));
+      }
+    }
+
+    const fechaRegistro = this.toYMD(this.editingSeguimiento.fechaRegistro);
     const consumoOriginalHembras = metadata?.consumoOriginalHembras ?? this.editingSeguimiento.consKgH;
     const unidadConsumoOriginalHembras = metadata?.unidadConsumoOriginalHembras ?? 'kg';
     const consumoOriginalMachos = metadata?.consumoOriginalMachos ?? this.editingSeguimiento.consKgM;
@@ -286,6 +419,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       mortalidadM: this.editingSeguimiento.mortalidadM,
       selH: this.editingSeguimiento.selH || 0,
       selM: (this.editingSeguimiento as any).selM || 0,
+      errorSexajeHembras: (this.editingSeguimiento as any).errorSexajeHembras ?? 0,
+      errorSexajeMachos: (this.editingSeguimiento as any).errorSexajeMachos ?? 0,
+      ciclo: (this.editingSeguimiento as any).ciclo || 'Normal',
       consumoHembras: consumoHembrasDisplay,
       unidadConsumoHembras: unidadConsumoOriginalHembras === 'kg' && consumoOriginalHembras < 1 ? 'g' : unidadConsumoOriginalHembras,
       consumoMachos: consumoMachosDisplay,
@@ -311,11 +447,15 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoHuevo: this.editingSeguimiento.pesoHuevo,
       etapa: this.editingSeguimiento.etapa || this.calcularEtapa(fechaRegistro || this.todayYMD()),
       observaciones: this.editingSeguimiento.observaciones || '',
-      // Campos de Pesaje Semanal
+      // Campos de Pesaje Semanal / por sexo
       pesoH: (this.editingSeguimiento as any).pesoH || null,
       pesoM: (this.editingSeguimiento as any).pesoM || null,
       uniformidad: (this.editingSeguimiento as any).uniformidad || null,
       coeficienteVariacion: (this.editingSeguimiento as any).coeficienteVariacion || null,
+      uniformidadHembras: (this.editingSeguimiento as any).uniformidadHembras ?? null,
+      uniformidadMachos: (this.editingSeguimiento as any).uniformidadMachos ?? null,
+      cvHembras: (this.editingSeguimiento as any).cvHembras ?? null,
+      cvMachos: (this.editingSeguimiento as any).cvMachos ?? null,
       observacionesPesaje: (this.editingSeguimiento as any).observacionesPesaje || '',
       // Campos de agua (solo para Ecuador y Panamá)
       consumoAguaDiario: (this.editingSeguimiento as any).consumoAguaDiario ?? null,
@@ -325,22 +465,43 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     });
 
     // Cargar inventario y alimentos si hay tipo de ítem seleccionado
-    if (tipoItemHembras && this.granjaId) {
-      this.cargarInventarioGranja(this.granjaId);
-      setTimeout(() => {
-        if (tipoAlimentoHembras) {
-          this.consultarInventario('hembras', tipoAlimentoHembras);
-        }
-      }, 100);
-    }
-    
-    if (tipoItemMachos && this.granjaId) {
-      this.cargarInventarioGranja(this.granjaId);
-      setTimeout(() => {
-        if (tipoAlimentoMachos) {
-          this.consultarInventario('machos', tipoAlimentoMachos);
-        }
-      }, 100);
+    // Si no hay tipoItem pero hay tipoAlimento, intentar obtener el tipoItem del inventario
+    if (this.granjaId) {
+      if (tipoItemHembras) {
+        this.cargarInventarioGranja(this.granjaId, 'hembras', tipoItemHembras);
+        setTimeout(() => {
+          if (tipoAlimentoHembras) {
+            this.consultarInventario('hembras', tipoAlimentoHembras);
+          }
+        }, 100);
+      } else if (tipoAlimentoHembras) {
+        // Si no hay tipoItem pero hay tipoAlimento, cargar inventario sin filtro y actualizar tipoItem
+        this.cargarInventarioGranja(this.granjaId, 'hembras');
+        setTimeout(() => {
+          this.actualizarTiposItemDesdeInventario('hembras');
+          if (tipoAlimentoHembras) {
+            this.consultarInventario('hembras', tipoAlimentoHembras);
+          }
+        }, 100);
+      }
+      
+      if (tipoItemMachos) {
+        this.cargarInventarioGranja(this.granjaId, 'machos', tipoItemMachos);
+        setTimeout(() => {
+          if (tipoAlimentoMachos) {
+            this.consultarInventario('machos', tipoAlimentoMachos);
+          }
+        }, 100);
+      } else if (tipoAlimentoMachos) {
+        // Si no hay tipoItem pero hay tipoAlimento, cargar inventario sin filtro y actualizar tipoItem
+        this.cargarInventarioGranja(this.granjaId, 'machos');
+        setTimeout(() => {
+          this.actualizarTiposItemDesdeInventario('machos');
+          if (tipoAlimentoMachos) {
+            this.consultarInventario('machos', tipoAlimentoMachos);
+          }
+        }, 100);
+      }
     }
   }
 
@@ -407,19 +568,41 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       return;
     }
 
+    const itemsHembras = this.itemsHembrasArray.controls
+      .map(c => ({ tipoItem: c.get('tipoItem')?.value, catalogItemId: c.get('catalogItemId')?.value, cantidad: Number(c.get('cantidad')?.value) || 0, unidad: c.get('unidad')?.value || 'kg' }))
+      .filter((x: any) => x.tipoItem && x.catalogItemId);
+    const itemsMachos = this.itemsMachosArray.controls
+      .map(c => ({ tipoItem: c.get('tipoItem')?.value, catalogItemId: c.get('catalogItemId')?.value, cantidad: Number(c.get('cantidad')?.value) || 0, unidad: c.get('unidad')?.value || 'kg' }))
+      .filter((x: any) => x.tipoItem && x.catalogItemId);
+    const useItems = itemsHembras.length > 0 || itemsMachos.length > 0;
+    let tipoAlimentoVal = raw.tipoAlimento || 'Standard';
+    if (useItems) {
+      const nombres: string[] = [];
+      [...itemsHembras, ...itemsMachos].forEach((it: any) => {
+        if (it.tipoItem === 'alimento') {
+          const a = this.alimentosById.get(it.catalogItemId);
+          if (a?.nombre) nombres.push(a.nombre);
+        }
+      });
+      if (nombres.length) tipoAlimentoVal = nombres.join(' / ');
+    }
+
     const request: CrearSeguimientoRequest = {
-      produccionLoteId: this.produccionLoteId, // Usar el Input directamente
+      produccionLoteId: this.produccionLoteId,
       fechaRegistro: this.ymdToIsoAtNoon(ymd),
       mortalidadH: Number(raw.mortalidadH) || 0,
       mortalidadM: Number(raw.mortalidadM) || 0,
       selH: Number(raw.selH) || 0,
       selM: Number(raw.selM) || 0,
-      consumoH: Number(raw.consumoHembras) || 0,
+      errorSexajeHembras: raw.errorSexajeHembras != null ? Number(raw.errorSexajeHembras) : 0,
+      errorSexajeMachos: raw.errorSexajeMachos != null ? Number(raw.errorSexajeMachos) : 0,
+      ciclo: raw.ciclo?.trim() || undefined,
+      consumoH: useItems ? undefined : (Number(raw.consumoHembras) || 0),
       unidadConsumoH: raw.unidadConsumoHembras || 'kg',
-      consumoM: Number(raw.consumoMachos) || 0,
+      consumoM: useItems ? undefined : (Number(raw.consumoMachos) || 0),
       unidadConsumoM: raw.unidadConsumoMachos || 'kg',
-      tipoItemHembras: raw.tipoItemHembras || undefined,
-      tipoItemMachos: raw.tipoItemMachos || undefined,
+      tipoItemHembras: useItems ? undefined : (raw.tipoItemHembras || undefined),
+      tipoItemMachos: useItems ? undefined : (raw.tipoItemMachos || undefined),
       tipoAlimentoHembras: raw.tipoAlimentoHembras ? Number(raw.tipoAlimentoHembras) : undefined,
       tipoAlimentoMachos: raw.tipoAlimentoMachos ? Number(raw.tipoAlimentoMachos) : undefined,
       huevosTotales: Number(raw.huevosTotales) || 0,
@@ -435,7 +618,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       huevoRoto: Number(raw.huevoRoto) || 0,
       huevoDesecho: Number(raw.huevoDesecho) || 0,
       huevoOtro: Number(raw.huevoOtro) || 0,
-      tipoAlimento: raw.tipoAlimento || 'Standard',
+      tipoAlimento: tipoAlimentoVal,
+      itemsHembras: useItems ? itemsHembras : undefined,
+      itemsMachos: useItems ? itemsMachos : undefined,
       pesoHuevo: Number(raw.pesoHuevo) || 0,
       etapa: Number(raw.etapa) || this.calcularEtapa(ymd),
       observaciones: raw.observaciones?.trim() || undefined,
@@ -444,12 +629,18 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       pesoM: raw.pesoM ? Number(raw.pesoM) : undefined,
       uniformidad: raw.uniformidad ? Number(raw.uniformidad) : undefined,
       coeficienteVariacion: raw.coeficienteVariacion ? Number(raw.coeficienteVariacion) : undefined,
+      uniformidadHembras: raw.uniformidadHembras != null && raw.uniformidadHembras !== '' ? Number(raw.uniformidadHembras) : undefined,
+      uniformidadMachos: raw.uniformidadMachos != null && raw.uniformidadMachos !== '' ? Number(raw.uniformidadMachos) : undefined,
+      cvHembras: raw.cvHembras != null && raw.cvHembras !== '' ? Number(raw.cvHembras) : undefined,
+      cvMachos: raw.cvMachos != null && raw.cvMachos !== '' ? Number(raw.cvMachos) : undefined,
       observacionesPesaje: raw.observacionesPesaje?.trim() || undefined,
       // Campos de agua (solo para Ecuador y Panamá)
       consumoAguaDiario: raw.consumoAguaDiario ? Number(raw.consumoAguaDiario) : undefined,
       consumoAguaPh: raw.consumoAguaPh ? Number(raw.consumoAguaPh) : undefined,
       consumoAguaOrp: raw.consumoAguaOrp ? Number(raw.consumoAguaOrp) : undefined,
-      consumoAguaTemperatura: raw.consumoAguaTemperatura ? Number(raw.consumoAguaTemperatura) : undefined
+      consumoAguaTemperatura: raw.consumoAguaTemperatura ? Number(raw.consumoAguaTemperatura) : undefined,
+      createdByUserId: this.storage.get()?.user?.id ?? null,
+      tipoSeguimiento: 'produccion'
     };
 
     this.save.emit(request);
@@ -597,30 +788,45 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   // ================== INVENTARIO Y ALIMENTOS ==================
   
   /**
-   * Carga el inventario de la granja y lo mapea a CatalogItemDto
+   * Carga el inventario de la granja filtrado por tipo de item desde el backend
+   * El backend filtra por empresa, país, granja y tipo de item
    */
-  cargarInventarioGranja(granjaId: number): void {
+  cargarInventarioGranja(granjaId: number, sexo?: 'hembras' | 'machos', itemType?: string | null): void {
     if (!granjaId) return;
 
-    this.inventarioSvc.getInventory(granjaId).pipe(
+    // Obtener el tipo de item del formulario si no se proporciona
+    if (!itemType && sexo) {
+      itemType = sexo === 'hembras' 
+        ? this.form.get('tipoItemHembras')?.value 
+        : this.form.get('tipoItemMachos')?.value;
+    }
+
+    this.inventarioSvc.getInventory(granjaId, itemType).pipe(
       catchError(err => {
         console.error('Error al cargar inventario:', err);
         return of([]);
       })
     ).subscribe((items: FarmInventoryDto[]) => {
-      // Filtrar solo items activos con cantidad > 0
       const itemsActivos = items.filter((item: FarmInventoryDto) => item.active && item.quantity > 0);
-      
-      // Mapear a CatalogItemExtended
-      this.alimentosCatalog = itemsActivos.map((item: FarmInventoryDto) => {
+      itemsActivos.forEach((item: FarmInventoryDto) => {
+        this.inventarioPorItem.set(item.catalogItemId, { quantity: item.quantity, unit: item.unit || 'kg' });
+      });
+      const catalogItems = itemsActivos.map((item: FarmInventoryDto) => {
+        const metadata = item.catalogItemMetadata || {};
+        // Asegurar que el tipoItem esté disponible
+        const itemType = metadata.itemType || metadata.type_item || 'alimento';
+        if (!metadata.itemType && !metadata.type_item) {
+          metadata.itemType = itemType;
+        }
+        
         const catalogItem: CatalogItemExtended = {
           id: item.catalogItemId,
           codigo: item.codigo,
           nombre: item.nombre,
-          tipoItem: item.catalogItemMetadata?.type_item || 'alimento',
+          tipoItem: itemType,
           unidad: item.unit,
           activo: item.active,
-          metadata: item.catalogItemMetadata
+          metadata: metadata
         };
         
         this.alimentosByCode.set(item.codigo, catalogItem);
@@ -630,33 +836,68 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         return catalogItem;
       });
 
-      // Aplicar filtros actuales si hay tipo de ítem seleccionado
-      const tipoH = this.form.get('tipoItemHembras')?.value;
-      const tipoM = this.form.get('tipoItemMachos')?.value;
-      if (tipoH) this.filtrarAlimentosPorTipo('hembras', tipoH);
-      if (tipoM) this.filtrarAlimentosPorTipo('machos', tipoM);
+      // Actualizar el catálogo completo y los filtrados según el sexo
+      if (sexo === 'hembras') {
+        this.alimentosFiltradosHembras = catalogItems;
+        // Después de cargar el inventario, actualizar los tipos de ítem si estamos editando
+        this.actualizarTiposItemDesdeInventario('hembras');
+      } else if (sexo === 'machos') {
+        this.alimentosFiltradosMachos = catalogItems;
+        // Después de cargar el inventario, actualizar los tipos de ítem si estamos editando
+        this.actualizarTiposItemDesdeInventario('machos');
+      } else {
+        this.alimentosCatalog = catalogItems;
+        this.alimentosFiltradosHembras = catalogItems;
+        this.alimentosFiltradosMachos = catalogItems;
+        const tipoH = this.form.get('tipoItemHembras')?.value;
+        const tipoM = this.form.get('tipoItemMachos')?.value;
+        if (tipoH) {
+          this.cargarInventarioGranja(granjaId, 'hembras', tipoH);
+        }
+        if (tipoM) {
+          this.cargarInventarioGranja(granjaId, 'machos', tipoM);
+        }
+      }
     });
   }
 
   /**
-   * Filtra alimentos por tipo de ítem
+   * Actualiza los tipos de ítem cuando se carga el inventario
+   * Esto asegura que el tipoItem se muestre correctamente al editar
    */
-  filtrarAlimentosPorTipo(sexo: 'hembras' | 'machos', tipo: string | null): void {
-    if (!tipo) {
-      if (sexo === 'hembras') {
-        this.alimentosFiltradosHembras = [];
-      } else {
-        this.alimentosFiltradosMachos = [];
-      }
-      return;
-    }
+  private actualizarTiposItemDesdeInventario(sexo: 'hembras' | 'machos'): void {
+    if (!this.editingSeguimiento) return;
 
-    const filtrados = this.alimentosCatalog.filter((item: CatalogItemExtended) => item.tipoItem === tipo);
+    const catalogItemId = sexo === 'hembras' 
+      ? this.form.get('tipoAlimentoHembras')?.value 
+      : this.form.get('tipoAlimentoMachos')?.value;
     
-    if (sexo === 'hembras') {
-      this.alimentosFiltradosHembras = filtrados;
-    } else {
-      this.alimentosFiltradosMachos = filtrados;
+    const tipoItemControl = sexo === 'hembras'
+      ? this.form.get('tipoItemHembras')
+      : this.form.get('tipoItemMachos');
+    
+    if (catalogItemId && tipoItemControl) {
+      const item = this.alimentosById.get(catalogItemId);
+      if (item) {
+        // Obtener tipoItem desde múltiples fuentes posibles
+        const tipoItem = item.metadata?.type_item || item.metadata?.itemType || item.tipoItem || 'alimento';
+        const tipoItemActual = tipoItemControl.value;
+        
+        // Si el tipoItem actual es 'alimento' (fallback) o está vacío, actualizarlo con el real
+        if ((!tipoItemActual || tipoItemActual === 'alimento') && tipoItem && tipoItem !== tipoItemActual) {
+          tipoItemControl.patchValue(tipoItem, { emitEvent: false });
+          // Recargar inventario con el tipo correcto
+          if (this.granjaId) {
+            this.cargarInventarioGranja(this.granjaId, sexo, tipoItem);
+          }
+        } else if (tipoItemActual && tipoItemActual !== tipoItem && tipoItem) {
+          // Si el tipoItem actual no coincide con el del catálogo, actualizar
+          tipoItemControl.patchValue(tipoItem, { emitEvent: false });
+          if (this.granjaId) {
+            this.cargarInventarioGranja(this.granjaId, sexo, tipoItem);
+          }
+        }
+      }
     }
   }
 

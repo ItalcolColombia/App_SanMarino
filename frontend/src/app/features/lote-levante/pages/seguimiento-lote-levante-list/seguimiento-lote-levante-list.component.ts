@@ -22,7 +22,8 @@ import { NucleoService, NucleoDto } from '../../services/nucleo.service';
 import { ModalLiquidacionComponent } from '../modal-liquidacion/modal-liquidacion.component';
 import { ModalCalculosComponent } from '../modal-calculos/modal-calculos.component';
 import { ModalCreateEditComponent } from '../modal-create-edit/modal-create-edit.component';
-import { FiltroSelectComponent } from '../filtro-select/filtro-select.component';
+import { ModalDetalleSeguimientoLevanteComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
+import { FiltroSelectComponent, FilterDataResponse } from '../filtro-select/filtro-select.component';
 import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.component';
 
 // ===== Importa el servicio del catálogo =====
@@ -33,6 +34,7 @@ import {
 } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
+import { environment } from '../../../../../environments/environment';
 
 
 
@@ -40,13 +42,16 @@ import { expand, map, reduce } from 'rxjs/operators';
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, FiltroSelectComponent, TabsPrincipalComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })
 export class SeguimientoLoteLevanteListComponent implements OnInit {
   // ================== constantes / sentinelas ==================
   readonly SIN_GALPON = '__SIN_GALPON__';
+
+  /** URL del endpoint filter-data: una sola llamada para Granja → Núcleo → Galpón → Lote. */
+  readonly filterDataUrl = `${environment.apiUrl}/SeguimientoLoteLevante/filter-data`;
 
   // ================== catálogos (BACKEND) ==================
   alimentosCatalog: CatalogItemDto[] = [];
@@ -60,6 +65,10 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   granjas: FarmDto[] = [];
   nucleos: NucleoDto[] = [];
   galpones: Array<{ id: string; label: string }> = [];
+  /** Cuando se usa filter-data: datos completos para evitar llamadas extra en cascada. */
+  private filterData: FilterDataResponse | null = null;
+  private allNucleos: NucleoDto[] = [];
+  private allGalpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }> = [];
 
   // ================== selección / filtro ==================
   selectedGranjaId: number | null = null;
@@ -79,6 +88,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   // ================== UI ==================
   loading = false;
   modalOpen = false;
+  detailModalOpen = false;
   editing: SeguimientoLoteLevanteDto | null = null;
   hasSinGalpon = false;
 
@@ -98,12 +108,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   // ================== INIT ==================
   ngOnInit(): void {
-    // cargar catálogos de granjas, etc.
-    this.farmSvc.getAll().subscribe({
-      next: fs => (this.granjas = fs || []),
-      error: () => (this.granjas = [])
-    });
-
+    // Granjas, núcleos, galpones y lotes se cargan vía filter-data en FiltroSelect (una sola llamada).
     // CARGA CATÁLOGO DE ALIMENTOS (para selects y mapeos en tabla)
     this.loadAlimentosCatalog();
   }
@@ -201,6 +206,23 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   }
 
   // ================== CASCADA DE FILTROS ==================
+  onFilterDataLoaded(data: FilterDataResponse): void {
+    this.filterData = data;
+    this.granjas = data.farms ?? [];
+    this.allNucleos = data.nucleos ?? [];
+    this.allGalpones = data.galpones ?? [];
+    this.allLotes = (data.lotes ?? []).map(l => ({
+      loteId: l.loteId,
+      loteNombre: l.loteNombre,
+      granjaId: l.granjaId,
+      nucleoId: l.nucleoId ?? undefined,
+      galponId: l.galponId ?? undefined
+    })) as LoteDto[];
+    (data.galpones ?? []).forEach(g => {
+      if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());
+    });
+  }
+
   onGranjaChange(granjaId: number | null): void {
     this.selectedGranjaId = granjaId;
     this.selectedNucleoId = null;
@@ -215,6 +237,14 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.nucleos = [];
 
     if (!this.selectedGranjaId) return;
+
+    if (this.filterData) {
+      const gid = Number(this.selectedGranjaId);
+      this.nucleos = this.allNucleos.filter(n => n.granjaId === gid);
+      this.applyFiltersToLotes();
+      this.buildGalponesFromFilterData();
+      return;
+    }
 
     this.nucleoSvc.getByGranja(this.selectedGranjaId).subscribe({
       next: rows => (this.nucleos = rows || []),
@@ -232,6 +262,13 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.seguimientos = [];
     this.selectedLote = null;
     this.resumenSelected = null;
+
+    if (this.filterData) {
+      this.applyFiltersToLotes();
+      this.buildGalponesFromFilterData();
+      return;
+    }
+
     this.applyFiltersToLotes();
     this.loadGalponCatalog();
   }
@@ -324,6 +361,30 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.lotes = filtered.filter(l => this.normalizeId(l.galponId) === sel);
   }
 
+  private buildGalponesFromFilterData(): void {
+    if (!this.selectedGranjaId) {
+      this.galpones = [];
+      this.hasSinGalpon = false;
+      return;
+    }
+    const gid = Number(this.selectedGranjaId);
+    const nid = this.selectedNucleoId ? String(this.selectedNucleoId) : null;
+    const list = this.allGalpones.filter(g => g.granjaId === gid && (!nid || g.nucleoId === nid));
+    const result: Array<{ id: string; label: string }> = list.map(g => ({
+      id: String(g.galponId).trim(),
+      label: (g.galponNombre || g.galponId).trim()
+    }));
+    this.hasSinGalpon = this.allLotes.some(l =>
+      l.granjaId === gid && (!nid || String(l.nucleoId) === nid) && !this.hasValue(l.galponId)
+    );
+    if (this.hasSinGalpon) {
+      result.unshift({ id: this.SIN_GALPON, label: '— Sin galpón —' });
+    }
+    this.galpones = result.sort((a, b) =>
+      a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
+    );
+  }
+
   private buildGalponesFromLotes(): void {
     if (!this.selectedGranjaId) {
       this.galpones = [];
@@ -371,6 +432,11 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   edit(seg: SeguimientoLoteLevanteDto): void {
     this.editing = seg;
     this.modalOpen = true;
+  }
+
+  viewDetail(seg: SeguimientoLoteLevanteDto): void {
+    this.editing = seg;
+    this.detailModalOpen = true;
   }
 
   delete(id: number): void {

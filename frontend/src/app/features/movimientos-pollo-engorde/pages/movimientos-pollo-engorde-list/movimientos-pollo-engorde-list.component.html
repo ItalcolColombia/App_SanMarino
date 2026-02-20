@@ -1,0 +1,367 @@
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>Movimiento de Pollo Engorde</h1>
+        <div class="ux-header__meta">
+          <ng-template #noGranjaChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Selecciona una granja
+            </span>
+          </ng-template>
+          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">
+            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+          </span>
+          <span class="chip chip--muted" *ngIf="selectedGalponId">
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+          <span class="chip chip--info" *ngIf="selectedLoteValue">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote: {{ selectedLoteNombre }}
+          </span>
+          <span class="chip chip--muted" *ngIf="selectedLoteValue">
+            {{ filteredMovimientos.length || 0 }} de {{ movimientos.length || 0 }} registro(s)
+          </span>
+        </div>
+      </div>
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          (click)="create()"
+          class="btn btn--primary"
+          [disabled]="!hasLoteSelected"
+          [title]="!hasLoteSelected ? 'Primero selecciona un lote' : 'Nuevo registro'">
+          Nuevo registro
+        </button>
+      </div>
+    </header>
+
+    <!-- Filtros en cascada: Granja → Núcleo → Galpón → Lote -->
+    <section class="ux-card ux-card--filtros" *ngIf="granjas.length">
+      <div class="ux-card__header">
+        <h2>Filtros</h2>
+      </div>
+      <div class="ux-card__body">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="selGranja">Granja</label>
+            <select
+              id="selGranja"
+              class="filter-select"
+              [ngModel]="selectedGranjaId"
+              (ngModelChange)="onGranjaChange($event)">
+              <option [ngValue]="null">— Seleccione granja —</option>
+              <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="selNucleo">Núcleo</label>
+            <select
+              id="selNucleo"
+              class="filter-select"
+              [ngModel]="selectedNucleoId"
+              (ngModelChange)="onNucleoChange($event)"
+              [disabled]="!selectedGranjaId">
+              <option [ngValue]="null">— Todos —</option>
+              <option *ngFor="let n of nucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="selGalpon">Galpón</label>
+            <select
+              id="selGalpon"
+              class="filter-select"
+              [ngModel]="selectedGalponId"
+              (ngModelChange)="onGalponChange($event)"
+              [disabled]="!selectedGranjaId">
+              <option [ngValue]="null">— Todos —</option>
+              <option *ngFor="let g of galpones" [value]="g.id">{{ g.label }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="selLote">Lote (Ave Engorde / Reproductora)</label>
+            <select
+              id="selLote"
+              class="filter-select"
+              [ngModel]="selectedLoteValue"
+              (ngModelChange)="onLoteChange($event)"
+              [disabled]="!selectedGranjaId || lotesOpciones.length === 0">
+              <option [ngValue]="null">— Seleccione lote —</option>
+              <option *ngFor="let opt of lotesOpciones" [ngValue]="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Información del lote seleccionado (Ave Engorde o Reproductora) -->
+    <section class="ux-card ux-card--lote-info" *ngIf="selectedLoteValue">
+      <div class="ux-card__header">
+        <h2>Información del lote seleccionado</h2>
+      </div>
+      <div class="ux-card__body">
+        <div *ngIf="loadingLoteDetalle" class="loading-state">
+          <p>Cargando información del lote…</p>
+        </div>
+
+        <!-- Lote Ave Engorde (lote normal) -->
+        <div *ngIf="!loadingLoteDetalle && loteDetalleAveEngorde" class="lote-info-table-wrap">
+          <p class="lote-info-tipo"><strong>Tipo:</strong> Lote Ave Engorde (pollos de engorde)</p>
+          <table class="lote-info-table">
+            <tbody>
+              <tr><th>Nombre del lote</th><td>{{ loteDetalleAveEngorde.loteNombre || '—' }}</td></tr>
+              <tr><th>Granja</th><td>{{ loteDetalleAveEngorde.farm?.name || loteDetalleAveEngorde.granjaId || '—' }}</td></tr>
+              <tr><th>Núcleo</th><td>{{ loteDetalleAveEngorde.nucleo?.nucleoNombre || loteDetalleAveEngorde.nucleoId || '—' }}</td></tr>
+              <tr><th>Galpón</th><td>{{ loteDetalleAveEngorde.galpon?.galponNombre || loteDetalleAveEngorde.galponId || '—' }}</td></tr>
+              <tr><th>Fecha encasetamiento</th><td>{{ fechaCorta(loteDetalleAveEngorde.fechaEncaset) }}</td></tr>
+              <tr><th>Hembras</th><td class="number-cell">{{ formatearNumero(loteDetalleAveEngorde.hembrasL ?? 0) }}</td></tr>
+              <tr><th>Machos</th><td class="number-cell">{{ formatearNumero(loteDetalleAveEngorde.machosL ?? 0) }}</td></tr>
+              <tr><th>Mixtas</th><td class="number-cell">{{ formatearNumero(loteDetalleAveEngorde.mixtas ?? 0) }}</td></tr>
+              <tr><th>Total aves</th><td class="number-cell"><strong>{{ formatearNumero(totalAvesAveEngorde(loteDetalleAveEngorde)) }}</strong></td></tr>
+              <tr *ngIf="resumenAvesLote" class="resumen-row">
+                <th>Resumen (reporte)</th>
+                <td>
+                  <span class="resumen-text">Inicio: <strong>{{ formatearNumero(resumenAvesLote.avesInicioTotal) }}</strong></span>
+                  <span class="resumen-text"> · Salidas: <strong>{{ formatearNumero(resumenAvesLote.avesSalidasTotal) }}</strong></span>
+                  <span class="resumen-text"> · Vendidas: <strong>{{ formatearNumero(resumenAvesLote.avesVendidasTotal) }}</strong></span>
+                  <span class="resumen-text"> · Actual: <strong>{{ formatearNumero(resumenAvesLote.avesActualesTotal) }}</strong></span>
+                </td>
+              </tr>
+              <tr><th>Raza</th><td>{{ loteDetalleAveEngorde.raza || '—' }}</td></tr>
+              <tr><th>Línea</th><td>{{ loteDetalleAveEngorde.linea || '—' }}</td></tr>
+              <tr><th>Código ERP</th><td>{{ loteDetalleAveEngorde.loteErp || '—' }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Lote Reproductora Ave Engorde -->
+        <div *ngIf="!loadingLoteDetalle && loteDetalleReproductora" class="lote-info-table-wrap">
+          <p class="lote-info-tipo"><strong>Tipo:</strong> Lote Reproductora (reproductora de pollo engorde)</p>
+          <table class="lote-info-table">
+            <tbody>
+              <tr><th>Nombre del lote</th><td>{{ loteDetalleReproductora.nombreLote || '—' }}</td></tr>
+              <tr><th>Lote Ave Engorde (padre)</th><td>{{ nombreLoteAveEngordePadre }}</td></tr>
+              <tr><th>ID reproductora</th><td>{{ loteDetalleReproductora.reproductoraId || '—' }}</td></tr>
+              <tr><th>Fecha encasetamiento</th><td>{{ fechaCorta(loteDetalleReproductora.fechaEncasetamiento) }}</td></tr>
+              <tr><th>Hembras</th><td class="number-cell">{{ formatearNumero(loteDetalleReproductora.h ?? 0) }}</td></tr>
+              <tr><th>Machos</th><td class="number-cell">{{ formatearNumero(loteDetalleReproductora.m ?? 0) }}</td></tr>
+              <tr><th>Mixtas</th><td class="number-cell">{{ formatearNumero(loteDetalleReproductora.mixtas ?? 0) }}</td></tr>
+              <tr><th>Total aves</th><td class="number-cell"><strong>{{ formatearNumero(totalAvesReproductora(loteDetalleReproductora)) }}</strong></td></tr>
+              <tr *ngIf="resumenAvesLote" class="resumen-row">
+                <th>Resumen (reporte)</th>
+                <td>
+                  <span class="resumen-text">Inicio: <strong>{{ formatearNumero(resumenAvesLote.avesInicioTotal) }}</strong></span>
+                  <span class="resumen-text"> · Salidas: <strong>{{ formatearNumero(resumenAvesLote.avesSalidasTotal) }}</strong></span>
+                  <span class="resumen-text"> · Vendidas: <strong>{{ formatearNumero(resumenAvesLote.avesVendidasTotal) }}</strong></span>
+                  <span class="resumen-text"> · Actual: <strong>{{ formatearNumero(resumenAvesLote.avesActualesTotal) }}</strong></span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+    <section class="ux-card" *ngIf="selectedLoteValue">
+      <div class="ux-card__header">
+        <h2>Registros de Movimiento de Pollo Engorde</h2>
+      </div>
+      <div class="ux-card__filters">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="filtroBusqueda">Buscar</label>
+            <input
+              type="text"
+              id="filtroBusqueda"
+              [(ngModel)]="filtroBusqueda"
+              (ngModelChange)="onFiltroChange()"
+              placeholder="Número, tipo, origen, destino..."
+              class="filter-input"
+            />
+          </div>
+          <div class="filter-group">
+            <label for="filtroTipoMovimiento">Tipo</label>
+            <select
+              id="filtroTipoMovimiento"
+              [(ngModel)]="filtroTipoMovimiento"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-select">
+              <option value="">Todos</option>
+              <option value="Traslado">Traslado</option>
+              <option value="Ajuste">Ajuste</option>
+              <option value="Liquidacion">Liquidación</option>
+              <option value="Venta">Venta</option>
+              <option value="Retiro">Retiro</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="filtroEstado">Estado</label>
+            <select
+              id="filtroEstado"
+              [(ngModel)]="filtroEstado"
+              (ngModelChange)="onFiltroChange()"
+              class="filter-select">
+              <option value="">Todos</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Completado">Completado</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <button
+              type="button"
+              class="btn btn--outline"
+              (click)="limpiarFiltros()"
+              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
+              Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="ux-card__body">
+        <div *ngIf="loading" class="loading-state">
+          <p>Cargando movimientos...</p>
+        </div>
+        <div *ngIf="!loading" class="table-container">
+          <div class="ux-scroll">
+            <table class="ux-table">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Origen</th>
+                  <th>Destino</th>
+                  <th>Total Aves</th>
+                  <th>Hembras</th>
+                  <th>Machos</th>
+                  <th>Mixtas</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="movimientos.length === 0">
+                  <td colspan="11" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🐔</div>
+                    <p>No hay registros de movimientos para este lote.</p>
+                    <button type="button" class="btn btn--outline" (click)="create()">Crear el primero</button>
+                  </td>
+                </tr>
+                <tr *ngIf="movimientos.length > 0 && filteredMovimientos.length === 0">
+                  <td colspan="11" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🔍</div>
+                    <p>No se encontraron registros con los filtros aplicados.</p>
+                    <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">Limpiar filtros</button>
+                  </td>
+                </tr>
+                <tr *ngFor="let m of filteredMovimientos; trackBy: trackById" class="ux-row">
+                  <td><strong>{{ m.numeroMovimiento }}</strong></td>
+                  <td>{{ fechaCorta(m.fechaMovimiento) }}</td>
+                  <td><span class="badge badge--info">{{ m.tipoMovimiento }}</span></td>
+                  <td>
+                    <div *ngIf="m.granjaOrigenNombre || m.loteOrigenNombre">
+                      <div>{{ m.granjaOrigenNombre || '—' }}</div>
+                      <small class="text-muted" *ngIf="m.loteOrigenNombre">Lote: {{ m.loteOrigenNombre }}</small>
+                    </div>
+                    <div *ngIf="!m.granjaOrigenNombre && !m.loteOrigenNombre">—</div>
+                  </td>
+                  <td>
+                    <div *ngIf="m.granjaDestinoNombre || m.loteDestinoNombre">
+                      <div>{{ m.granjaDestinoNombre || m.loteDestinoNombre || '—' }}</div>
+                      <small class="text-muted" *ngIf="m.loteDestinoNombre && m.granjaDestinoNombre">Lote: {{ m.loteDestinoNombre }}</small>
+                    </div>
+                    <div *ngIf="!m.granjaDestinoNombre && !m.loteDestinoNombre">—</div>
+                  </td>
+                  <td class="number-cell"><strong>{{ formatearNumero(m.totalAves) }}</strong></td>
+                  <td class="number-cell">{{ formatearNumero(m.cantidadHembras) }}</td>
+                  <td class="number-cell">{{ formatearNumero(m.cantidadMachos) }}</td>
+                  <td class="number-cell">{{ formatearNumero(m.cantidadMixtas) }}</td>
+                  <td>
+                    <span
+                      class="badge"
+                      [class.badge--success]="m.estado === 'Completado'"
+                      [class.badge--warning]="m.estado === 'Pendiente'"
+                      [class.badge--danger]="m.estado === 'Cancelado'">
+                      {{ m.estado }}
+                    </span>
+                  </td>
+                  <td class="text-right">
+                    <div class="btn-group">
+                      <button type="button" (click)="viewDetail(m)" class="action-btn action-btn--view" title="Ver detalle">
+                        <span class="action-icon">👁</span>
+                        <span class="action-label">Ver</span>
+                      </button>
+                      <button
+                        type="button"
+                        (click)="editMovimiento(m)"
+                        class="action-btn action-btn--edit"
+                        title="Editar"
+                        [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
+                        <span class="action-icon">✎</span>
+                        <span class="action-label">Editar</span>
+                      </button>
+                      <button
+                        type="button"
+                        (click)="completarMovimiento(m)"
+                        class="action-btn action-btn--success"
+                        title="Completar (descontar aves del lote)"
+                        [disabled]="m.estado !== 'Pendiente'">
+                        <span class="action-icon">✓</span>
+                        <span class="action-label">Completar</span>
+                      </button>
+                      <button
+                        type="button"
+                        (click)="deleteMovimiento(m)"
+                        class="action-btn action-btn--delete"
+                        title="Cancelar"
+                        [disabled]="m.estado === 'Cancelado'">
+                        <span class="action-icon">🗑</span>
+                        <span class="action-label">Cancelar</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ux-card" *ngIf="!selectedLoteValue && selectedGranjaId">
+      <div class="empty-state">
+        <div class="empty-illustration" aria-hidden="true">🔍</div>
+        <p>Selecciona un lote (Ave Engorde o Reproductora) para ver sus movimientos.</p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<app-modal-movimiento-pollo-engorde
+  [isOpen]="modalOpen"
+  [loteOrigenValue]="selectedLoteValue"
+  [lotesDestinoOptions]="lotesOpciones"
+  [editingMovimiento]="editingMovimiento"
+  [availableBirds]="availableBirdsForModal"
+  [lotInfoFromLote]="lotInfoForMovement"
+  (close)="closeModal()"
+  (save)="onMovimientoSaved()">
+</app-modal-movimiento-pollo-engorde>
+
+<app-confirmation-modal
+  [isOpen]="showConfirmationModal"
+  [data]="confirmationModalData"
+  (confirmed)="movimientoToDelete ? onConfirmDelete() : movimientoToComplete ? onConfirmCompletar() : onConfirmationModalClose()"
+  (cancelled)="onCancelDelete()"
+  (closed)="onConfirmationModalClose()">
+</app-confirmation-modal>

@@ -1,0 +1,716 @@
+<div class="flex h-screen">
+  <app-sidebar class="w-64"></app-sidebar>
+
+  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
+    <!-- Header: en Pollo Engorde usa el subtítulo del documento Liquidación Técnica – Pollo Engorde -->
+    <div class="ux-header">
+      <div class="ux-header__title">
+        <h1 class="ux-title">📊 Indicador Ecuador</h1>
+        <p class="ux-subtitle" *ngIf="vistaIndicador === 'polloEngorde'">Liquidación Técnica – Pollo Engorde (Lote padre y Lotes reproductores). Solo se liquida cuando el lote tiene cero aves.</p>
+        <p class="ux-subtitle" *ngIf="vistaIndicador === 'general'">Liquidación Técnica de Cierre de Mes de Granja – Conglomerado de Todas las Granjas (Lotes Levante/Producción)</p>
+      </div>
+    </div>
+
+    <!-- Selector de vista: General vs Pollo Engorde. En Ecuador viene fijado en Pollo Engorde y deshabilitado. -->
+    <div class="ux-card mb-4">
+      <div class="card-body">
+        <div class="filter-group">
+          <label class="filter-label">Vista</label>
+          <select [(ngModel)]="vistaIndicador" class="ux-input" style="max-width: 320px;" [disabled]="vistaSelectDisabled" [attr.aria-readonly]="vistaSelectDisabled">
+            <option value="general">Indicadores generales (Lotes Levante/Producción)</option>
+            <option value="polloEngorde">Pollo Engorde – Lote padre + Lotes reproductores</option>
+          </select>
+          <p class="form-hint" *ngIf="vistaSelectDisabled">Vista fijada en Pollo Engorde para Ecuador.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel de Filtros -->
+    <div class="ux-card mb-6">
+      <div class="card-header">
+        <h2 class="card-title">🔍 Filtros de Búsqueda</h2>
+      </div>
+      <div class="card-body">
+        <div class="filters-grid" *ngIf="loadingFilterData && vistaIndicador === 'general'">
+          <p class="filter-loading">Cargando filtros…</p>
+        </div>
+        <!-- Filtros Pollo Engorde (según doc LIQUIDACION_TECNICA_POLLO_ENGORDE): Lote + fechas + solo cerrados + variables Conv. Ajustada -->
+        <div class="filters-grid pollo-engorde-filtros mb-4" *ngIf="!loadingFilterData && vistaIndicador === 'polloEngorde'">
+          <div class="filter-group">
+            <label class="filter-label"><span class="filter-icon">📋</span> Lote (Ave Engorde)</label>
+            <select [(ngModel)]="selectedLoteAveEngordeId" class="ux-input">
+              <option [ngValue]="null">Seleccione lote padre</option>
+              <option *ngFor="let l of lotesAveEngorde" [ngValue]="l.loteAveEngordeId">{{ l.loteNombre || ('Lote ' + l.loteAveEngordeId) }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><span class="filter-icon">📅</span> Fecha Desde</label>
+            <input type="date" [(ngModel)]="fechaDesde" class="ux-input">
+          </div>
+          <div class="filter-group">
+            <label class="filter-label"><span class="filter-icon">📅</span> Fecha Hasta</label>
+            <input type="date" [(ngModel)]="fechaHasta" class="ux-input">
+          </div>
+          <div class="filter-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="soloLotesCerrados" class="checkbox-input">
+              <span class="checkbox-text"><span class="filter-icon">✅</span> Solo lotes cerrados (aves = 0)</span>
+            </label>
+          </div>
+          <!-- Ocultos por ahora: variables Conv. Ajustada (default 2,7 y 4,5 en backend) -->
+          <div class="filter-group" *ngIf="false">
+            <label class="filter-label">Conv. Ajustada – Peso (variable, default 2,7)</label>
+            <input type="number" [(ngModel)]="pesoAjusteVariable" step="0.1" min="0" class="ux-input" placeholder="2.7">
+          </div>
+          <div class="filter-group" *ngIf="false">
+            <label class="filter-label">Conv. Ajustada – Divisor (variable, default 4,5)</label>
+            <input type="number" [(ngModel)]="divisorAjusteVariable" step="0.1" min="0.1" class="ux-input" placeholder="4.5">
+          </div>
+          <div class="filter-group filter-group-action">
+            <button (click)="verIndicadoresPolloEngordePorLotePadre()" [disabled]="loading || !selectedLoteAveEngordeId" class="btn btn-primary">
+              <span class="btn-icon">📊</span> Ver indicadores por lote padre
+            </button>
+          </div>
+        </div>
+        <div class="filters-grid" *ngIf="!loadingFilterData && vistaIndicador === 'general'">
+          <!-- Granja -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">🏭</span>
+              Granja
+            </label>
+            <select 
+              [(ngModel)]="selectedGranjaId" 
+              (ngModelChange)="onGranjaChange()"
+              class="ux-input">
+              <option [ngValue]="null">Todas las granjas</option>
+              <option *ngFor="let granja of granjas" [ngValue]="granja.id">{{ granja.name }}</option>
+            </select>
+          </div>
+
+          <!-- Núcleo -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">📍</span>
+              Núcleo
+            </label>
+            <select 
+              [(ngModel)]="selectedNucleoId" 
+              (ngModelChange)="onNucleoChange()"
+              class="ux-input"
+              [disabled]="!selectedGranjaId">
+              <option [ngValue]="null">Todos los núcleos</option>
+              <option *ngFor="let n of nucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+            </select>
+          </div>
+
+          <!-- Galpón -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">🐔</span>
+              Galpón
+            </label>
+            <select 
+              [(ngModel)]="selectedGalponId" 
+              (ngModelChange)="onGalponChange()"
+              class="ux-input"
+              [disabled]="!selectedGranjaId">
+              <option [ngValue]="null">Todos los galpones</option>
+              <option *ngFor="let g of galpones" [ngValue]="g.galponId">{{ g.galponNombre || g.galponId }}</option>
+            </select>
+          </div>
+
+          <!-- Lote -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">📋</span>
+              Lote
+            </label>
+            <select 
+              [(ngModel)]="selectedLoteId"
+              class="ux-input"
+              [disabled]="!selectedGranjaId">
+              <option [ngValue]="null">Todos los lotes</option>
+              <option *ngFor="let lote of lotes" [ngValue]="lote.loteId">{{ lote.loteNombre || ('Lote ' + lote.loteId) }}</option>
+            </select>
+          </div>
+
+          <!-- Fecha Desde -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">📅</span>
+              Fecha Desde
+            </label>
+            <input 
+              type="date" 
+              [(ngModel)]="fechaDesde"
+              class="ux-input">
+          </div>
+
+          <!-- Fecha Hasta -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">📅</span>
+              Fecha Hasta
+            </label>
+            <input 
+              type="date" 
+              [(ngModel)]="fechaHasta"
+              class="ux-input">
+          </div>
+
+          <!-- Tipo Lote -->
+          <div class="filter-group">
+            <label class="filter-label">
+              <span class="filter-icon">🏷️</span>
+              Tipo de Lote
+            </label>
+            <select 
+              [(ngModel)]="tipoLote"
+              class="ux-input">
+              <option value="Todos">Todos</option>
+              <option value="Produccion">Producción</option>
+              <option value="Levante">Levante</option>
+              <option value="Reproductora">Reproductora</option>
+            </select>
+          </div>
+
+          <!-- Solo Lotes Cerrados -->
+          <div class="filter-group checkbox-group">
+            <label class="checkbox-label">
+              <input 
+                type="checkbox" 
+                id="soloLotesCerrados"
+                [(ngModel)]="soloLotesCerrados"
+                class="checkbox-input">
+              <span class="checkbox-text">
+                <span class="filter-icon">✅</span>
+                Solo lotes cerrados (aves = 0)
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Botones de Acción (vista general) -->
+        <div class="actions-bar" *ngIf="vistaIndicador === 'general'">
+          <button 
+            (click)="calcularIndicadores()"
+            [disabled]="loading"
+            class="btn btn-primary">
+            <span class="btn-icon">📊</span>
+            Calcular Indicadores
+          </button>
+          <button 
+            (click)="calcularConsolidado()"
+            [disabled]="loading"
+            class="btn btn-success">
+            <span class="btn-icon">📈</span>
+            Ver Consolidado
+          </button>
+          <button 
+            (click)="verLotesCerrados()"
+            [disabled]="loading"
+            class="btn btn-warning">
+            <span class="btn-icon">✅</span>
+            Ver Lotes Cerrados (aves = 0)
+          </button>
+          <button 
+            (click)="limpiarFiltros()"
+            class="btn btn-secondary">
+            <span class="btn-icon">🔄</span>
+            Limpiar Filtros
+          </button>
+        </div>
+        <div class="actions-bar" *ngIf="vistaIndicador === 'polloEngorde'">
+          <button (click)="limpiarFiltros()" class="btn btn-secondary">
+            <span class="btn-icon">🔄</span>
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Liquidación por período (Semanal / Mensual): solo para vista general (Lotes Levante/Producción). Pollo Engorde tiene su propia liquidación. -->
+    <div class="ux-card mb-6" *ngIf="vistaIndicador === 'general'">
+      <div class="card-header card-header-block">
+        <div>
+          <h2 class="card-title">📅 Liquidación por período</h2>
+          <p class="card-desc">Solo granjas con lotes cerrados (aves = 0) cuya fecha de cierre está en el rango. Semanal (viernes) o Mensual (primeros días). Aplica a Lotes Levante/Producción.</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label class="filter-label">Tipo período</label>
+            <select [(ngModel)]="liquidacionTipo" class="ux-input">
+              <option value="Semanal">Semanal</option>
+              <option value="Mensual">Mensual</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Fecha inicio</label>
+            <input type="date" [(ngModel)]="liquidacionFechaInicio" class="ux-input">
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Fecha fin</label>
+            <input type="date" [(ngModel)]="liquidacionFechaFin" class="ux-input">
+          </div>
+          <div class="filter-group filter-group-action">
+            <button 
+              (click)="calcularLiquidacionPeriodo()"
+              [disabled]="loading"
+              class="btn btn-primary">
+              Calcular liquidación
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mensaje de Error -->
+    <div *ngIf="error" class="alert alert-error">
+      <span class="alert-icon">⚠️</span>
+      <span class="alert-message">{{ error }}</span>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="loading" class="loading-container">
+      <div class="spinner"></div>
+      <p class="loading-text">Calculando indicadores...</p>
+    </div>
+
+    <!-- Resultado Pollo Engorde: Lote padre + tabs por reproductor (UX mejorado) -->
+    <div *ngIf="!loading && mostrarPolloEngorde && resultadoPolloEngorde" class="result-pollo-engorde">
+      <div class="result-pollo-engorde__card ux-card">
+        <div class="result-pollo-engorde__header card-header">
+          <div class="result-pollo-engorde__title-wrap">
+            <h2 class="card-title">Indicadores Pollo Engorde</h2>
+            <p class="result-pollo-engorde__subtitle">Lote padre y reproductores · Liquidación técnica</p>
+          </div>
+          <div class="result-pollo-engorde__header-actions">
+            <span class="badge badge-info">{{ resultadoPolloEngorde.lotesReproductores.length + 1 }} lote(s)</span>
+            <button type="button" (click)="mostrarPolloEngorde = false; resultadoPolloEngorde = null" class="btn btn-sm btn-secondary">Cerrar</button>
+          </div>
+        </div>
+
+        <div class="result-pollo-engorde__tabs tabs-header">
+          <button type="button" class="tab-btn" [class.active]="tabPolloEngordeActivo === 'padre'" (click)="setTabPolloEngorde('padre')">
+            Lote padre
+          </button>
+          <button type="button" *ngFor="let r of resultadoPolloEngorde.lotesReproductores" class="tab-btn" [class.active]="tabPolloEngordeActivo === r.id" (click)="setTabPolloEngorde(r.id)">
+            {{ r.nombreLote }}
+          </button>
+        </div>
+
+        <div class="result-pollo-engorde__body card-body">
+          <!-- Hint colapsable -->
+          <div class="result-pollo-engorde__hint">
+            <span class="result-pollo-engorde__hint-text">Mortalidad = sacrificio en granja (seguimiento diario). Aves vendidas/despacho = salidas por venta o despacho. Solo se liquida cuando el lote tiene cero aves.</span>
+          </div>
+
+          <!-- Tab Lote padre: KPIs + tabla organizada por bloques -->
+          <ng-container *ngIf="tabPolloEngordeActivo === 'padre'">
+            <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
+            <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
+          </ng-container>
+          <!-- Tab reproductor -->
+          <ng-container *ngFor="let r of resultadoPolloEngorde.lotesReproductores">
+            <ng-container *ngIf="tabPolloEngordeActivo === r.id">
+              <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: r.indicador }"></ng-container>
+              <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: r.indicador }"></ng-container>
+            </ng-container>
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Templates reutilizables: resumen KPI y tabla por bloques -->
+      <ng-template #kpiSummary let-ind>
+        <div class="kpi-summary">
+          <div class="kpi-summary__item">
+            <span class="kpi-summary__label">Aves encasetadas</span>
+            <span class="kpi-summary__value">{{ ind.avesEncasetadas | number:'1.0-0' }}</span>
+          </div>
+          <div class="kpi-summary__item">
+            <span class="kpi-summary__label">Aves vendidas/despacho</span>
+            <span class="kpi-summary__value">{{ ind.avesSacrificadas | number:'1.0-0' }}</span>
+          </div>
+          <div class="kpi-summary__item">
+            <span class="kpi-summary__label">Mortalidad (seg.)</span>
+            <span class="kpi-summary__value">{{ ind.mortalidad | number:'1.0-0' }}</span>
+          </div>
+          <div class="kpi-summary__item">
+            <span class="kpi-summary__label">Supervivencia</span>
+            <span class="kpi-summary__value kpi-summary__value--success">{{ formatearPorcentaje(ind.supervivenciaPorcentaje) }}</span>
+          </div>
+          <div class="kpi-summary__item">
+            <span class="kpi-summary__label">Kg Carne</span>
+            <span class="kpi-summary__value">{{ formatearNumero(ind.kgCarnePollos, 2) }}</span>
+          </div>
+          <div class="kpi-summary__item">
+            <span class="kpi-summary__label">Conversión</span>
+            <span class="kpi-summary__value">{{ formatearNumero(ind.conversion, 3) }}</span>
+          </div>
+        </div>
+      </ng-template>
+
+      <ng-template #tablaIndicadoresPollo let-ind>
+        <div class="indicadores-grid">
+          <section class="indicadores-block">
+            <h3 class="indicadores-block__title">Identificación</h3>
+            <dl class="indicadores-dl">
+              <dt>Granja</dt><dd>{{ ind.granjaNombre }}</dd>
+              <dt>Lote</dt><dd>{{ ind.loteNombre || '-' }}</dd>
+              <dt>Galpón</dt><dd>{{ ind.galponNombre || ind.galponId || '-' }}</dd>
+              <dt>F. inicio lote</dt><dd>{{ ind.fechaInicioLote ? (ind.fechaInicioLote | date:'dd/MM/yyyy') : '-' }}</dd>
+              <dt>F. cierre lote</dt><dd>{{ ind.fechaCierreLote ? (ind.fechaCierreLote | date:'dd/MM/yyyy') : '-' }}</dd>
+            </dl>
+          </section>
+          <section class="indicadores-block">
+            <h3 class="indicadores-block__title">Aves</h3>
+            <dl class="indicadores-dl">
+              <dt>Aves encasetadas</dt><dd>{{ ind.avesEncasetadas | number:'1.0-0' }}</dd>
+              <dt>Aves vendidas/despacho</dt><dd>{{ ind.avesSacrificadas | number:'1.0-0' }}</dd>
+              <dt>Mortalidad (sacrif. seg.)</dt><dd>{{ ind.mortalidad | number:'1.0-0' }}</dd>
+              <dt>Mortalidad %</dt><dd>{{ formatearPorcentaje(ind.mortalidadPorcentaje) }}</dd>
+              <dt>Supervivencia %</dt><dd class="text-success">{{ formatearPorcentaje(ind.supervivenciaPorcentaje) }}</dd>
+            </dl>
+          </section>
+          <section class="indicadores-block">
+            <h3 class="indicadores-block__title">Consumo y producción</h3>
+            <dl class="indicadores-dl">
+              <dt>Consumo total (kg)</dt><dd>{{ formatearNumero(ind.consumoTotalAlimentoKg, 2) }}</dd>
+              <dt>Consumo ave (g)</dt><dd>{{ formatearNumero(ind.consumoAveGramos, 2) }}</dd>
+              <dt>Kg Carne</dt><dd>{{ formatearNumero(ind.kgCarnePollos, 2) }}</dd>
+              <dt>Peso prom. (kg)</dt><dd>{{ formatearNumero(ind.pesoPromedioKilos, 3) }}</dd>
+              <dt>Conversión</dt><dd>{{ formatearNumero(ind.conversion, 3) }}</dd>
+              <dt>Conv. ajustada</dt><dd>{{ formatearNumero(ind.conversionAjustada2700, 3) }}</dd>
+            </dl>
+          </section>
+          <section class="indicadores-block">
+            <h3 class="indicadores-block__title">Edad y área</h3>
+            <dl class="indicadores-dl">
+              <dt>Edad (días)</dt><dd>{{ formatearNumero(ind.edadPromedio, 1) }}</dd>
+              <dt>M²</dt><dd>{{ formatearNumero(ind.metrosCuadrados, 2) }}</dd>
+              <dt>Aves/m²</dt><dd>{{ formatearNumero(ind.avesPorMetroCuadrado, 2) }}</dd>
+              <dt>Kg/m²</dt><dd>{{ formatearNumero(ind.kgPorMetroCuadrado, 2) }}</dd>
+            </dl>
+          </section>
+          <section class="indicadores-block">
+            <h3 class="indicadores-block__title">Eficiencias</h3>
+            <dl class="indicadores-dl">
+              <dt>Efic. Americana</dt><dd>{{ formatearNumero(ind.eficienciaAmericana, 2) }}</dd>
+              <dt>Efic. Europea</dt><dd>{{ formatearNumero(ind.eficienciaEuropea, 2) }}</dd>
+              <dt>I. Productividad</dt><dd>{{ formatearNumero(ind.indiceProductividad, 2) }}</dd>
+              <dt>Ganancia/día</dt><dd>{{ formatearNumero(ind.gananciaDia, 2) }}</dd>
+            </dl>
+          </section>
+        </div>
+      </ng-template>
+    </div>
+
+    <!-- Tabla de Indicadores -->
+    <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarPolloEngorde && indicadores.length > 0" class="ux-card">
+      <div class="card-header">
+        <h2 class="card-title">📋 Resultados de Indicadores</h2>
+        <span class="badge badge-info">{{ indicadores.length }} registro(s)</span>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Granja</th>
+              <th>Lote</th>
+              <th class="text-right">Aves Encasetadas</th>
+              <th class="text-right">Aves Sacrificadas</th>
+              <th class="text-right">Mortalidad</th>
+              <th class="text-right">Mortalidad %</th>
+              <th class="text-right">Supervivencia %</th>
+              <th class="text-right">Consumo Total (kg)</th>
+              <th class="text-right">Consumo/Ave (g)</th>
+              <th class="text-right">Kg Carne</th>
+              <th class="text-right">Peso Promedio (kg)</th>
+              <th class="text-right">Conversión</th>
+              <th class="text-right">Conv. Ajustada</th>
+              <th class="text-right">Edad (días)</th>
+              <th class="text-right">M²</th>
+              <th class="text-right">Aves/M²</th>
+              <th class="text-right">Kg/M²</th>
+              <th class="text-right">Efic. Americana</th>
+              <th class="text-right">Efic. Europea</th>
+              <th class="text-right">Índ. Productividad</th>
+              <th class="text-right">Ganancia/Día</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let ind of indicadores">
+              <td class="font-semibold">{{ ind.granjaNombre }}</td>
+              <td>{{ ind.loteNombre || '-' }}</td>
+              <td class="text-right">{{ ind.avesEncasetadas | number:'1.0-0' }}</td>
+              <td class="text-right">{{ ind.avesSacrificadas | number:'1.0-0' }}</td>
+              <td class="text-right">{{ ind.mortalidad | number:'1.0-0' }}</td>
+              <td class="text-right">{{ formatearPorcentaje(ind.mortalidadPorcentaje) }}</td>
+              <td class="text-right text-success">{{ formatearPorcentaje(ind.supervivenciaPorcentaje) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.consumoTotalAlimentoKg, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.consumoAveGramos, 2) }}</td>
+              <td class="text-right font-semibold">{{ formatearNumero(ind.kgCarnePollos, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.pesoPromedioKilos, 3) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.conversion, 3) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.conversionAjustada2700, 3) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.edadPromedio, 1) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.metrosCuadrados, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.avesPorMetroCuadrado, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.kgPorMetroCuadrado, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.eficienciaAmericana, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.eficienciaEuropea, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.indiceProductividad, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.gananciaDia, 2) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tabla Lotes Cerrados (aves = 0) -->
+    <div *ngIf="!loading && mostrarLotesCerrados" class="ux-card">
+      <div class="card-header">
+        <h2 class="card-title">✅ Lotes cerrados (aves = 0)</h2>
+        <div class="header-actions">
+          <span class="badge badge-info">{{ lotesCerrados.length }} lote(s)</span>
+          <button (click)="mostrarLotesCerrados = false" class="btn btn-sm btn-secondary">Cerrar</button>
+        </div>
+      </div>
+      <div class="table-container" *ngIf="lotesCerrados.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Granja</th>
+              <th>Lote</th>
+              <th class="text-right">Aves Encaset.</th>
+              <th class="text-right">Aves Sacrif.</th>
+              <th class="text-right">Mortalidad</th>
+              <th class="text-right">Mortalidad %</th>
+              <th class="text-right">Superv. %</th>
+              <th class="text-right">Consumo Total (kg)</th>
+              <th class="text-right">Kg Carne</th>
+              <th class="text-right">Peso Prom. (kg)</th>
+              <th class="text-right">Conversión</th>
+              <th class="text-right">F. Cierre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let ind of lotesCerrados">
+              <td class="font-semibold">{{ ind.granjaNombre }}</td>
+              <td>{{ ind.loteNombre || '-' }}</td>
+              <td class="text-right">{{ ind.avesEncasetadas | number:'1.0-0' }}</td>
+              <td class="text-right">{{ ind.avesSacrificadas | number:'1.0-0' }}</td>
+              <td class="text-right">{{ ind.mortalidad | number:'1.0-0' }}</td>
+              <td class="text-right">{{ formatearPorcentaje(ind.mortalidadPorcentaje) }}</td>
+              <td class="text-right text-success">{{ formatearPorcentaje(ind.supervivenciaPorcentaje) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.consumoTotalAlimentoKg, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.kgCarnePollos, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.pesoPromedioKilos, 3) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.conversion, 3) }}</td>
+              <td class="text-right">{{ ind.fechaCierreLote ? (ind.fechaCierreLote | date:'dd/MM/yyyy') : '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="lotesCerrados.length === 0" class="empty-state">
+        <p class="empty-message">No hay lotes cerrados en el rango de fechas (encaset).</p>
+      </div>
+    </div>
+
+    <!-- Liquidación por período - Resultado -->
+    <div *ngIf="!loading && mostrarLiquidacion && liquidacionPeriodo" class="ux-card">
+      <div class="card-header">
+        <h2 class="card-title">📅 Liquidación {{ liquidacionPeriodo.tipoPeriodo }}</h2>
+        <span class="badge badge-info">{{ liquidacionPeriodo.fechaInicio | date:'dd/MM/yyyy' }} - {{ liquidacionPeriodo.fechaFin | date:'dd/MM/yyyy' }}</span>
+        <button (click)="mostrarLiquidacion = false" class="btn btn-sm btn-secondary">Cerrar</button>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card metric-primary">
+          <div class="metric-icon">🏭</div>
+          <div class="metric-content">
+            <p class="metric-label">Granjas liquidadas</p>
+            <p class="metric-value">{{ liquidacionPeriodo.totalGranjas }}</p>
+          </div>
+        </div>
+        <div class="metric-card metric-success">
+          <div class="metric-icon">✅</div>
+          <div class="metric-content">
+            <p class="metric-label">Lotes cerrados en período</p>
+            <p class="metric-value">{{ liquidacionPeriodo.totalLotesCerrados }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="table-container" *ngIf="liquidacionPeriodo.indicadores.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Granja</th>
+              <th>Lote</th>
+              <th class="text-right">Aves Encaset.</th>
+              <th class="text-right">Aves Sacrif.</th>
+              <th class="text-right">Mortalidad %</th>
+              <th class="text-right">Superv. %</th>
+              <th class="text-right">Kg Carne</th>
+              <th class="text-right">Conversión</th>
+              <th class="text-right">F. Cierre</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let ind of liquidacionPeriodo.indicadores">
+              <td class="font-semibold">{{ ind.granjaNombre }}</td>
+              <td>{{ ind.loteNombre || '-' }}</td>
+              <td class="text-right">{{ ind.avesEncasetadas | number:'1.0-0' }}</td>
+              <td class="text-right">{{ ind.avesSacrificadas | number:'1.0-0' }}</td>
+              <td class="text-right">{{ formatearPorcentaje(ind.mortalidadPorcentaje) }}</td>
+              <td class="text-right text-success">{{ formatearPorcentaje(ind.supervivenciaPorcentaje) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.kgCarnePollos, 2) }}</td>
+              <td class="text-right">{{ formatearNumero(ind.conversion, 3) }}</td>
+              <td class="text-right">{{ ind.fechaCierreLote ? (ind.fechaCierreLote | date:'dd/MM/yyyy') : '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div *ngIf="liquidacionPeriodo.indicadores.length === 0" class="empty-state">
+        <p class="empty-message">No hay lotes cerrados en este período (fecha de cierre entre inicio y fin).</p>
+      </div>
+    </div>
+
+    <!-- Vista Consolidada -->
+    <div *ngIf="!loading && mostrarConsolidado && consolidado" class="ux-card">
+      <div class="card-header">
+        <h2 class="card-title">📊 Resumen Consolidado</h2>
+        <button (click)="mostrarConsolidado = false" class="btn btn-sm btn-secondary">
+          Ver Detalle
+        </button>
+      </div>
+      
+      <!-- Métricas Principales -->
+      <div class="metrics-grid">
+        <div class="metric-card metric-primary">
+          <div class="metric-icon">🏭</div>
+          <div class="metric-content">
+            <p class="metric-label">Total Granjas</p>
+            <p class="metric-value">{{ consolidado.totalGranjas }}</p>
+          </div>
+        </div>
+        <div class="metric-card metric-success">
+          <div class="metric-icon">📋</div>
+          <div class="metric-content">
+            <p class="metric-label">Total Lotes</p>
+            <p class="metric-value">{{ consolidado.totalLotes }}</p>
+          </div>
+        </div>
+        <div class="metric-card metric-warning">
+          <div class="metric-icon">✅</div>
+          <div class="metric-content">
+            <p class="metric-label">Lotes Cerrados</p>
+            <p class="metric-value">{{ consolidado.totalLotesCerrados }}</p>
+          </div>
+        </div>
+        <div class="metric-card metric-info">
+          <div class="metric-icon">🐔</div>
+          <div class="metric-content">
+            <p class="metric-label">Aves Encasetadas</p>
+            <p class="metric-value">{{ consolidado.totalAvesEncasetadas | number:'1.0-0' }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Resumen -->
+      <div class="table-container mt-6">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Indicador</th>
+              <th class="text-right">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Total Aves Sacrificadas</strong></td>
+              <td class="text-right font-semibold">{{ consolidado.totalAvesSacrificadas | number:'1.0-0' }}</td>
+            </tr>
+            <tr>
+              <td>Total Mortalidad (mortalidad + selección, unidades)</td>
+              <td class="text-right">{{ consolidado.totalMortalidad | number:'1.0-0' }}</td>
+            </tr>
+            <tr>
+              <td>Mortalidad (%)</td>
+              <td class="text-right">{{ formatearPorcentaje(consolidado.promedioMortalidadPorcentaje) }}</td>
+            </tr>
+            <tr>
+              <td>Supervivencia %</td>
+              <td class="text-right text-success">{{ formatearPorcentaje(consolidado.promedioSupervivenciaPorcentaje) }}</td>
+            </tr>
+            <tr>
+              <td>Consumo total alimento (kg)</td>
+              <td class="text-right">{{ formatearNumero(consolidado.totalConsumoAlimentoKg, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Consumo ave (g)</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioConsumoAveGramos, 2) }}</td>
+            </tr>
+            <tr>
+              <td><strong>Kg Carne de Pollos</strong></td>
+              <td class="text-right font-semibold">{{ formatearNumero(consolidado.totalKgCarnePollos, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Peso promedio (kg)</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioPesoKilos, 3) }}</td>
+            </tr>
+            <tr>
+              <td>Conversión</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioConversion, 3) }}</td>
+            </tr>
+            <tr>
+              <td>Conv. Ajustada (2,7 / 4,5)</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioConversionAjustada, 3) }}</td>
+            </tr>
+            <tr>
+              <td>Edad (días, promedio saques)</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioEdad, 1) }}</td>
+            </tr>
+            <tr>
+              <td>Metros cuadrados</td>
+              <td class="text-right">{{ formatearNumero(consolidado.totalMetrosCuadrados, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Aves / m²</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioAvesPorMetroCuadrado, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Kg / m²</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioKgPorMetroCuadrado, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Eficiencia Americana</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioEficienciaAmericana, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Eficiencia Europea</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioEficienciaEuropea, 2) }}</td>
+            </tr>
+            <tr>
+              <td>I. Productividad</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioIndiceProductividad, 2) }}</td>
+            </tr>
+            <tr>
+              <td>Ganancia / día</td>
+              <td class="text-right">{{ formatearNumero(consolidado.promedioGananciaDia, 2) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Estado Vacío -->
+    <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarPolloEngorde && indicadores.length === 0" class="empty-state">
+      <div class="empty-icon">📊</div>
+      <h3 class="empty-title">No se encontraron indicadores</h3>
+      <p class="empty-message">Ajuste los filtros y calcule nuevamente para ver los resultados.</p>
+    </div>
+  </div>
+</div>

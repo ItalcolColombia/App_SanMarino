@@ -5,15 +5,19 @@ import { environment } from '../../../../environments/environment';
 import { LoteReproductoraDto } from '../../lote-reproductora/services/lote-reproductora.service';
 
 
-// ⬇️ NUEVO: DTO del resumen de mortalidad
+// ⬇️ Resumen de mortalidad y descuentos del lote en Levante (historial + descuentos)
 export interface LoteMortalidadResumenDto {
-  loteId: number;  // Cambiado a number
-  mortalidadAcumHembras: number;
-  mortalidadAcumMachos: number;
+  loteId: string;
   hembrasIniciales: number;
   machosIniciales: number;
   mortCajaHembras: number;
   mortCajaMachos: number;
+  mortalidadAcumHembras: number;
+  mortalidadAcumMachos: number;
+  selAcumHembras: number;
+  selAcumMachos: number;
+  errorSexajeAcumHembras: number;
+  errorSexajeAcumMachos: number;
   saldoHembras: number;
   saldoMachos: number;
 }
@@ -33,8 +37,10 @@ export interface LoteDto {
 
   hembrasL?: number;
   machosL?: number;
+  mixtas?: number | null;
   pesoInicialH?: number;
   pesoInicialM?: number;
+  pesoMixto?: number | null;
   unifH?: number;
   unifM?: number;
   mortCajaH?: number;
@@ -88,8 +94,16 @@ export interface LoteDto {
   // Estado de traslado
   estadoTraslado?: string | null; // "normal", "trasladado", "en_transferencia"
   
-  // Lote padre
-  lotePadreId?: number | null; // ID del lote padre
+  // Lote padre (Opción B)
+  lotePadreId?: number | null;
+
+  /** Fase del lote: "Levante" o "Produccion". */
+  fase?: string | null;
+
+  /** ID y nombre del país en sesión al crear; nombre de la empresa en sesión. */
+  paisId?: number | null;
+  paisNombre?: string | null;
+  empresaNombre?: string | null;
 }
 
 
@@ -99,6 +113,16 @@ export interface CreateLoteDto extends Omit<LoteDto, 'loteId'> {
 
 export interface UpdateLoteDto extends LoteDto {}
 
+/** Respuesta del endpoint form-data: todos los catálogos para el modal crear/editar lote en una sola llamada. */
+export interface LoteFormDataResponse {
+  farms: Array<{ id: number; name: string; companyId?: number }>;
+  nucleos: Array<{ nucleoId: string; nucleoNombre?: string | null; granjaId: number }>;
+  galpones: Array<{ galponId: string; galponNombre?: string | null; nucleoId: string; granjaId: number }>;
+  tecnicos: Array<{ id?: string; firstName?: string; surName?: string }>;
+  companies: Array<{ id: number; name: string }>;
+  razas: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class LoteService {
   private readonly baseUrl = `${environment.apiUrl}/Lote`;
@@ -107,7 +131,16 @@ export class LoteService {
 
   constructor() {}
 
-  getAll(): Observable<LoteDto[]> {
+  /** Obtiene en una sola llamada todos los datos para el formulario de crear/editar lote. */
+  getFormData(): Observable<LoteFormDataResponse> {
+    return this.http.get<LoteFormDataResponse>(`${this.baseUrl}/form-data`);
+  }
+
+  /** @param fase 'levante' | 'produccion' | undefined (todos, sin lotes hijo de producción) */
+  getAll(fase?: 'levante' | 'produccion'): Observable<LoteDto[]> {
+    if (fase) {
+      return this.http.get<LoteDto[]>(this.baseUrl, { params: { fase } });
+    }
     return this.http.get<LoteDto[]>(this.baseUrl);
   }
 

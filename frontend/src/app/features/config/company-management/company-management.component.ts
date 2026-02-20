@@ -24,7 +24,9 @@ import {
   faAngleLeft,
   faAngleRight,
   faMagnifyingGlass,
-  faShieldHalved
+  faShieldHalved,
+  faEye,
+  faListUl
 } from '@fortawesome/free-solid-svg-icons';
 
 import { finalize, Observable, forkJoin, of } from 'rxjs';
@@ -43,6 +45,9 @@ import { CityService, CityDto } from '../../../core/services/city/city.service';
 import { RoleService, Role } from '../../../core/services/role/role.service';
 // Servicio: empresa-país
 import { CompanyPaisService } from '../../../core/services/company-pais/company-pais.service';
+// Servicio: menú por empresa
+import { CompanyMenuService, CompanyMenuItem } from '../../../core/services/company-menu/company-menu.service';
+import { MenuService, MenuItem } from '../../../core/services/menu/menu.service';
 
 @Component({
   selector: 'app-company-management',
@@ -69,6 +74,8 @@ export class CompanyManagementComponent implements OnInit {
   faNext = faAngleRight;
   faSearch = faMagnifyingGlass;
   faShield = faShieldHalved;
+  faEye = faEye;
+  faListUl = faListUl;
 
   // Listado principal
   list: Company[] = [];
@@ -126,6 +133,33 @@ export class CompanyManagementComponent implements OnInit {
   // Tipos de identificación
   identificationOptions: string[] = [];
 
+  // Menú por empresa: modal ver
+  menuViewModalOpen = false;
+  menuViewCompanyName = '';
+  menuViewCompanyId: number | null = null;
+  menuViewTree: CompanyMenuItem[] = [];
+  menuViewLoading = false;
+
+  // Menú por empresa: modal editar
+  menuEditModalOpen = false;
+  menuEditCompanyName = '';
+  menuEditCompanyId: number | null = null;
+  menuEditTree: MenuItem[] = [];
+  menuEditLoading = false;
+  menuEditSaving = false;
+  selectedMenuIdsForEdit: number[] = [];
+
+  // Confirmación eliminar
+  confirmDeleteOpen = false;
+  confirmDeleteId: number | null = null;
+  confirmDeleteName = '';
+
+  // Toast de feedback (éxito / error)
+  toastVisible = false;
+  toastType: 'success' | 'error' | 'info' = 'info';
+  toastMessage = '';
+  private toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     private fb: FormBuilder,
     private svc: CompanyService,
@@ -135,11 +169,14 @@ export class CompanyManagementComponent implements OnInit {
     private citySvc: CityService,
     private roleSvc: RoleService,
     private companyPaisSvc: CompanyPaisService,
+    private companyMenuSvc: CompanyMenuService,
+    private menuSvc: MenuService,
     library: FaIconLibrary
   ) {
     library.addIcons(
       faBuilding, faMobileAlt, faPen, faTrash, faPlus,
-      faAngleLeft, faAngleRight, faMagnifyingGlass, faShieldHalved
+      faAngleLeft, faAngleRight, faMagnifyingGlass, faShieldHalved,
+      faEye, faListUl
     );
   }
 
@@ -168,7 +205,7 @@ export class CompanyManagementComponent implements OnInit {
 
     // Master list: tipos de ID
     this.mlSvc.getByKey('type_identit').subscribe({
-      next: ml => this.identificationOptions = ml?.options ?? [],
+      next: ml => this.identificationOptions = ml?.optionValues ?? (Array.isArray(ml?.options) ? (ml.options as { value?: string }[]).map(o => o?.value ?? '') : []),
       error: err => console.error('No pude cargar tipos de identificación', err)
     });
 
@@ -450,7 +487,7 @@ export class CompanyManagementComponent implements OnInit {
 
     // Validar que se haya seleccionado al menos un país
     if (this.selectedPaisIds.length === 0) {
-      alert('Debe seleccionar al menos un país para la empresa');
+      this.showToast('error', 'Debe seleccionar al menos un país para la empresa');
       return;
     }
 
@@ -557,26 +594,66 @@ export class CompanyManagementComponent implements OnInit {
       .subscribe({
         next: () => {
           this.loadCompanies();
-          // Recargar también los países disponibles por si se creó uno nuevo
           this.loadAvailablePaises();
-          alert('Empresa guardada exitosamente');
+          this.showToast('success', this.editing ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.');
         },
         error: err => {
           console.error('Error guardando empresa:', err);
-          alert('Error al guardar la empresa. Ver consola para más detalles.');
+          const msg = err?.error?.message || err?.message || 'Error al guardar la empresa. Intente de nuevo.';
+          this.showToast('error', msg);
         }
       });
   }
 
-  delete(id: number) {
-    if (!confirm('¿Eliminar esta empresa?')) return;
+  openConfirmDelete(c: Company): void {
+    this.confirmDeleteId = c.id ?? null;
+    this.confirmDeleteName = c.name ?? '';
+    this.confirmDeleteOpen = true;
+  }
+
+  cancelConfirmDelete(): void {
+    this.confirmDeleteOpen = false;
+    this.confirmDeleteId = null;
+    this.confirmDeleteName = '';
+  }
+
+  confirmDelete(): void {
+    if (this.confirmDeleteId == null) {
+      this.cancelConfirmDelete();
+      return;
+    }
     this.loading = true;
-    this.svc.delete(id)
+    this.svc.delete(this.confirmDeleteId)
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
-        next: () => this.loadCompanies(),
-        error: err => console.error('Error eliminando empresa', err)
+        next: () => {
+          this.cancelConfirmDelete();
+          this.loadCompanies();
+          this.showToast('success', 'Empresa eliminada correctamente.');
+        },
+        error: err => {
+          console.error('Error eliminando empresa', err);
+          const msg = err?.error?.message || err?.message || 'No se pudo eliminar la empresa. Intente de nuevo.';
+          this.showToast('error', msg);
+        }
       });
+  }
+
+  showToast(type: 'success' | 'error' | 'info', message: string): void {
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toastType = type;
+    this.toastMessage = message;
+    this.toastVisible = true;
+    this.toastTimeout = setTimeout(() => {
+      this.toastVisible = false;
+      this.toastTimeout = null;
+    }, 5000);
+  }
+
+  closeToast(): void {
+    if (this.toastTimeout) clearTimeout(this.toastTimeout);
+    this.toastVisible = false;
+    this.toastTimeout = null;
   }
 
   // ========= Selects geografía (desde servicios) =========
@@ -704,5 +781,116 @@ export class CompanyManagementComponent implements OnInit {
     if (!this.previewRoleId) return [];
     const r = this.rolesMap.get(this.previewRoleId);
     return (r?.permissions || []).map(p => (p || '').toLowerCase()).sort();
+  }
+
+  // ========= Menú por empresa =========
+  openMenuView(c: Company): void {
+    this.menuViewCompanyName = c.name ?? '';
+    this.menuViewCompanyId = c.id ?? null;
+    this.menuViewModalOpen = true;
+    this.menuViewTree = [];
+    this.menuViewLoading = true;
+    if (this.menuViewCompanyId != null) {
+      this.companyMenuSvc.getMenusForCompany(this.menuViewCompanyId).pipe(
+        finalize(() => (this.menuViewLoading = false))
+      ).subscribe({
+        next: (tree) => (this.menuViewTree = tree ?? []),
+        error: (err) => {
+          console.error('Error cargando menú de la empresa', err);
+          this.menuViewTree = [];
+        }
+      });
+    } else {
+      this.menuViewLoading = false;
+    }
+  }
+
+  closeMenuView(): void {
+    this.menuViewModalOpen = false;
+    this.menuViewCompanyName = '';
+    this.menuViewCompanyId = null;
+    this.menuViewTree = [];
+  }
+
+  openMenuEdit(c: Company): void {
+    this.menuEditCompanyName = c.name ?? '';
+    this.menuEditCompanyId = c.id ?? null;
+    this.menuEditModalOpen = true;
+    this.menuEditTree = [];
+    this.selectedMenuIdsForEdit = [];
+    this.menuEditLoading = true;
+    if (this.menuEditCompanyId == null) {
+      this.menuEditLoading = false;
+      return;
+    }
+    forkJoin({
+      allMenus: this.menuSvc.getTree(),
+      companyMenus: this.companyMenuSvc.getMenusForCompany(this.menuEditCompanyId)
+    }).pipe(
+      finalize(() => (this.menuEditLoading = false))
+    ).subscribe({
+      next: ({ allMenus, companyMenus }) => {
+        this.menuEditTree = allMenus ?? [];
+        this.selectedMenuIdsForEdit = this.flattenMenuIds(companyMenus ?? []);
+      },
+      error: (err) => {
+        console.error('Error cargando datos para asignar menú', err);
+        this.menuEditTree = [];
+      }
+    });
+  }
+
+  closeMenuEdit(): void {
+    this.menuEditModalOpen = false;
+    this.menuEditCompanyName = '';
+    this.menuEditCompanyId = null;
+    this.menuEditTree = [];
+    this.selectedMenuIdsForEdit = [];
+  }
+
+  private flattenMenuIds(items: CompanyMenuItem[]): number[] {
+    const ids: number[] = [];
+    const visit = (nodes: CompanyMenuItem[]) => {
+      for (const n of nodes) {
+        ids.push(n.id);
+        if (n.children?.length) visit(n.children);
+      }
+    };
+    visit(items);
+    return ids;
+  }
+
+  isMenuIdSelected(menuId: number): boolean {
+    return this.selectedMenuIdsForEdit.includes(menuId);
+  }
+
+  toggleMenuSelection(menuId: number): void {
+    const idx = this.selectedMenuIdsForEdit.indexOf(menuId);
+    if (idx >= 0) {
+      this.selectedMenuIdsForEdit = this.selectedMenuIdsForEdit.filter(id => id !== menuId);
+    } else {
+      this.selectedMenuIdsForEdit = [...this.selectedMenuIdsForEdit, menuId];
+    }
+  }
+
+  saveCompanyMenus(): void {
+    if (this.menuEditCompanyId == null) return;
+    this.menuEditSaving = true;
+    this.companyMenuSvc.setCompanyMenus(this.menuEditCompanyId, {
+      menuIds: this.selectedMenuIdsForEdit,
+      isEnabled: true
+    }).pipe(
+      finalize(() => (this.menuEditSaving = false))
+    ).subscribe({
+      next: () => {
+        this.showToast('success', 'Menú guardado correctamente.');
+        this.closeMenuEdit();
+      },
+      error: (err) => {
+        console.error('Error guardando menú de la empresa', err);
+        const msg = err?.error?.message || err?.message || 'Error al guardar el menú. Intente de nuevo.';
+        this.showToast('error', msg);
+      }
+    });
   }
 }

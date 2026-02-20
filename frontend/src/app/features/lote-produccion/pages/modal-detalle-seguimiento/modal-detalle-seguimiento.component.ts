@@ -1,12 +1,12 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { ProduccionService, SeguimientoItemDto } from '../../services/produccion.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 
 @Component({
   selector: 'app-modal-detalle-seguimiento',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule],
   templateUrl: './modal-detalle-seguimiento.component.html',
   styleUrls: ['./modal-detalle-seguimiento.component.scss']
 })
@@ -17,10 +17,15 @@ export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {
 
   loading: boolean = false;
   seguimiento: SeguimientoItemDto | null = null;
+  isEcuadorOrPanama: boolean = false;
 
-  constructor(private produccionService: ProduccionService) {}
+  constructor(
+    private produccionService: ProduccionService,
+    private countryFilter: CountryFilterService
+  ) {}
 
   ngOnInit(): void {
+    this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
   ngOnChanges(changes: SimpleChanges): void {

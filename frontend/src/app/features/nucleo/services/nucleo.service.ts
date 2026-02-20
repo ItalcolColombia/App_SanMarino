@@ -5,9 +5,12 @@ import { Observable, shareReplay, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
 export interface NucleoDto {
-  nucleoId:     string;
-  granjaId:     number;
-  nucleoNombre: string;
+  nucleoId:       string;
+  granjaId:       number;
+  nucleoNombre:   string;
+  granjaNombre?:  string | null;
+  companyNombre?: string | null;
+  companyId?:     number | null;
 }
 
 export interface CreateNucleoDto {

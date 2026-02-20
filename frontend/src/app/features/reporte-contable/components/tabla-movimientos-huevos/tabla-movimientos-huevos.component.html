@@ -1,0 +1,68 @@
+<!-- src/app/features/reporte-contable/components/tabla-movimientos-huevos/tabla-movimientos-huevos.component.html -->
+<div class="tabla-container" *ngIf="reporte">
+  <h3 class="section-title">Movimientos de Huevos</h3>
+  
+  <div class="table-wrapper">
+    <table class="reporte-table">
+      <thead>
+        <tr class="header-row header-row--main">
+          <th rowspan="2" class="col-fecha">Día</th>
+          <th rowspan="2" class="col-fecha">Fecha</th>
+          <th rowspan="2" class="col-lote">Lote</th>
+          <th colspan="4" class="header-group header-group--produccion">Producción</th>
+          <th colspan="6" class="header-group header-group--movimientos">Movimientos</th>
+        </tr>
+        <tr class="header-row header-row--sub">
+          <!-- Producción -->
+          <th class="col-numero">POSTURA</th>
+          <th class="col-numero">HVTO FERTIL</th>
+          <th class="col-numero">HVO COMERCIAL</th>
+          <th class="col-numero">HUEVO DESECHO</th>
+          <!-- Movimientos -->
+          <th class="col-numero">ENTRADA</th>
+          <th class="col-numero">CAPTURA INFO</th>
+          <th class="col-numero">VENTA</th>
+          <th class="col-numero">SALIDA</th>
+          <th class="col-numero">TRASLADO A PLANTA</th>
+          <th class="col-numero">DESCARTE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let movimiento of movimientosDiarios" class="data-row">
+          <td class="col-fecha">{{ getDiaSemana(movimiento.fecha) }}</td>
+          <td class="col-fecha">{{ formatFecha(movimiento.fecha) }}</td>
+          <td class="col-lote">{{ movimiento.loteNombre || movimiento.loteId }}</td>
+          <!-- Producción -->
+          <td class="text-right col-numero">{{ movimiento.postura | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.hvtoFertil | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.hvoComercial | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.huevoDesecho | number:'1.0-0' }}</td>
+          <!-- Movimientos -->
+          <td class="text-right col-numero">{{ movimiento.entrada | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.capturaInfo | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.venta | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.salida | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.trasladoAPlanta | number:'1.0-0' }}</td>
+          <td class="text-right col-numero">{{ movimiento.descarte | number:'1.0-0' }}</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="3" class="total-label"><strong>TOTALES</strong></td>
+          <!-- Totales Producción -->
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalPostura | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHvtoFertil | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHvoComercial | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalHuevoDesecho | number:'1.0-0' }}</strong></td>
+          <!-- Totales Movimientos -->
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalEntrada | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalPostura | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalVenta | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalSalida | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalTrasladoAPlanta | number:'1.0-0' }}</strong></td>
+          <td class="text-right col-numero highlight-yellow"><strong>{{ reporte.totalDescarte | number:'1.0-0' }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

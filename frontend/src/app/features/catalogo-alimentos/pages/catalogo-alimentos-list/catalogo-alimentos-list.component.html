@@ -103,7 +103,7 @@
               <!-- Tipo -->
               <td>
                 <span class="chip chip--info">
-                  {{ typeOf(it.metadata) || '—' }}
+                  {{ (typeOf(it) | titlecase) || '—' }}
                 </span>
               </td>
 
@@ -125,6 +125,7 @@
 
               <td class="text-right">
                 <div class="btn-group">
+                  <button type="button" class="icon-btn" (click)="showDetail(it)" title="Ver detalle">👁</button>
                   <button type="button" class="icon-btn" (click)="edit(it)" title="Editar">✎</button>
                   <button type="button" class="icon-btn icon-btn--danger" (click)="delete(it.id!)" title="Eliminar">🗑</button>
                 </div>
@@ -182,11 +183,11 @@
 
           <div class="form-field">
             <label for="f-type">Tipo de ítem *</label>
-            <select id="f-type" formControlName="type_item">
+            <select id="f-type" formControlName="itemType">
               <option [ngValue]="null" disabled>Seleccione un tipo...</option>
               <option *ngFor="let t of tiposItem" [ngValue]="t">{{ t | titlecase }}</option>
             </select>
-            <small class="help">Se guardará como <code>type_item</code> en la metadata.</small>
+            <small class="help">Este campo se guarda en la columna <code>item_type</code> de la base de datos.</small>
           </div>
 
           <div class="form-field">
@@ -393,6 +394,76 @@
 
     <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
       <div class="spinner"></div> Guardando…
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Detalle -->
+<div class="ux-modal-overlay" *ngIf="detailModalOpen" (click)="closeDetail()">
+  <div class="ux-modal ux-modal--large" (click)="$event.stopPropagation()">
+    <div class="ux-modal__header">
+      <h2 class="ux-modal__title">Detalle del Producto</h2>
+      <button type="button" class="ux-modal__close" (click)="closeDetail()" aria-label="Cerrar">×</button>
+    </div>
+
+    <div class="ux-modal__body" *ngIf="selectedItem">
+      <!-- Información Básica -->
+      <div class="detail-section">
+        <h3 class="detail-section__title">Información Básica</h3>
+        <div class="detail-grid">
+          <div class="detail-item">
+            <span class="detail-label">Código:</span>
+            <span class="detail-value"><code>{{ selectedItem.codigo }}</code></span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Nombre:</span>
+            <span class="detail-value">{{ selectedItem.nombre }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Tipo de Ítem:</span>
+            <span class="detail-value">
+              <span class="chip chip--info">{{ (selectedItem.itemType || 'alimento') | titlecase }}</span>
+            </span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Estado:</span>
+            <span class="detail-value">
+              <span class="chip" [class.chip--success]="selectedItem.activo" [class.chip--danger]="!selectedItem.activo">
+                {{ selectedItem.activo ? 'Activo' : 'Inactivo' }}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metadata como Tabla -->
+      <div class="detail-section" *ngIf="selectedItem.metadata && getMetadataAsArray(selectedItem.metadata).length > 0">
+        <h3 class="detail-section__title">Información Adicional</h3>
+        <div class="ux-scroll">
+          <table class="ux-table ux-table--compact">
+            <thead>
+              <tr>
+                <th scope="col">Campo</th>
+                <th scope="col">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of getMetadataAsArray(selectedItem.metadata)">
+                <td><strong>{{ item.key | titlecase }}</strong></td>
+                <td>{{ formatMetadataValue(item.value) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="detail-section" *ngIf="!selectedItem.metadata || getMetadataAsArray(selectedItem.metadata).length === 0">
+        <p class="detail-empty">No hay información adicional registrada.</p>
+      </div>
+    </div>
+
+    <div class="ux-modal__footer">
+      <button type="button" class="btn btn--primary" (click)="closeDetail()">Cerrar</button>
     </div>
   </div>
 </div>

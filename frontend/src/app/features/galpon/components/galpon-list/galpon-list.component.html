@@ -1,9 +1,5 @@
 <!-- src/app/features/galpon/pages/galpon-list/galpon-list.component.html -->
 <div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
-    <div class="flex" [class.h-screen]="!embedded">
-
-</div>
-
   <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
     <!-- Header -->
     <div class="ux-header">
@@ -17,38 +13,36 @@
     <!-- Filtros en cascada + búsqueda -->
     <div class="ux-card p-4 mb-4">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-        <!-- Compañía -->
+        <!-- Compañía (opciones derivadas de los galpones cargados) -->
         <div class="lg:col-span-3">
           <label for="g-company" class="ux-label">Compañía</label>
-          <select id="g-company" class="ux-select"
+          <select id="g-company" name="gCompany" class="ux-select"
                   [(ngModel)]="selectedCompanyId"
                   (ngModelChange)="onCompanyChangeList($event)">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let c of companies" [ngValue]="c.id">{{ c.name }}</option>
+            <option *ngFor="let c of filterCompanyOptions" [ngValue]="c.id">{{ c.name }}</option>
           </select>
         </div>
 
-        <!-- Granja (depende de compañía) -->
+        <!-- Granja (opciones derivadas; depende de compañía) -->
         <div class="lg:col-span-3">
           <label for="g-farm" class="ux-label">Granja</label>
-          <select id="g-farm" class="ux-select"
+          <select id="g-farm" name="gFarm" class="ux-select"
                   [(ngModel)]="selectedFarmId"
                   (ngModelChange)="onFarmChangeList($event)">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let f of farmsFilteredG" [ngValue]="f.id">{{ f.name }}</option>
+            <option *ngFor="let f of filterFarmOptions" [ngValue]="f.id">{{ f.name }}</option>
           </select>
         </div>
 
-        <!-- Núcleo (depende de granja/compañía) -->
+        <!-- Núcleo (opciones derivadas; depende de granja/compañía) -->
         <div class="lg:col-span-3">
           <label for="g-nucleo" class="ux-label">Núcleo</label>
-          <select id="g-nucleo" class="ux-select"
+          <select id="g-nucleo" name="gNucleo" class="ux-select"
                   [(ngModel)]="selectedNucleoId"
                   (ngModelChange)="onNucleoChangeList($event)">
             <option [ngValue]="null">Todos</option>
-            <option *ngFor="let n of nucleosFilteredG" [ngValue]="n.nucleoId">
-              {{ n.nucleoNombre }}
-            </option>
+            <option *ngFor="let n of filterNucleoOptions" [value]="n.id">{{ n.name }}</option>
           </select>
         </div>
 
@@ -59,9 +53,10 @@
             <fa-icon [icon]="['fas','magnifying-glass']" class="ux-search__icon" aria-hidden="true"></fa-icon>
             <input
               id="galpon-filter"
+              name="galponFilter"
               type="text"
               [(ngModel)]="filtro"
-              (ngModelChange)="recomputeList()"
+              (ngModelChange)="onFiltroChange($event)"
               placeholder="Buscar por galpón, núcleo o granja…"
               class="ux-input"
               aria-label="Buscar galpón"
@@ -97,9 +92,9 @@
 
           <tbody>
             <tr *ngFor="let g of viewGalpones" class="ux-row">
-              <td>{{ g.company.name }}</td>
-              <td>{{ g.farm.name }}</td>
-              <td>{{ g.nucleo.nucleoNombre }}</td>
+              <td>{{ g.company.name || '—' }}</td>
+              <td>{{ g.farm.name || '—' }}</td>
+              <td>{{ g.nucleo.nucleoNombre || '—' }}</td>
               <td>{{ g.galponNombre }}</td>
               <td>{{ g.ancho || '–' }}</td>
               <td>{{ g.largo || '–' }}</td>
@@ -149,7 +144,12 @@
           <button type="button" (click)="modalOpen = false" class="btn-muted">Cerrar</button>
         </div>
 
-        <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body grid grid-cols-1 md:grid-cols-2 gap-4" novalidate>
+        <div *ngIf="loadingModal" class="loading-overlay" style="position:relative; min-height:180px;">
+          <div class="spinner"></div>
+          <p style="margin-top:.5rem; color:var(--warm-600);">Cargando datos del formulario…</p>
+        </div>
+
+        <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body grid grid-cols-1 md:grid-cols-2 gap-4" [class.hidden]="loadingModal" novalidate>
           <!-- ID (solo lectura en edición) -->
           <div>
             <label class="ux-label">ID Galpón</label>
@@ -245,5 +245,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal confirmación eliminar -->
+    <app-confirmation-modal
+      [isOpen]="confirmOpen"
+      [data]="confirmData"
+      (confirmed)="onConfirmDelete()"
+      (cancelled)="onCancelConfirm()"
+      (closed)="onCancelConfirm()">
+    </app-confirmation-modal>
   </div>
 </div>

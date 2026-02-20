@@ -133,11 +133,11 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   private cargarTiposOperacion(): void {
     this.masterListService.getByKey('traslado_de_huevos_tipo_de_operacion').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.tiposOperacion.set(masterList.options);
-          // Si no hay valor por defecto y hay opciones, establecer la primera como valor por defecto
-          if (this.tiposOperacion().length > 0 && !this.formHuevos.get('tipoOperacion')?.value) {
-            this.formHuevos.patchValue({ tipoOperacion: this.tiposOperacion()[0] });
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          const arr = masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? '');
+          this.tiposOperacion.set(arr);
+          if (arr.length > 0 && !this.formHuevos.get('tipoOperacion')?.value) {
+            this.formHuevos.patchValue({ tipoOperacion: arr[0] });
           }
         } else {
           // Fallback a valores por defecto si no se encuentra la lista maestra
@@ -155,8 +155,8 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   private cargarTiposDestino(): void {
     this.masterListService.getByKey('traslado_de_huevos_tipo_destino').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.tiposDestino.set(masterList.options);
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          this.tiposDestino.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
         } else {
           // Fallback a valores por defecto si no se encuentra la lista maestra
           this.tiposDestino.set(['Granja', 'Planta']);
@@ -173,8 +173,8 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   private cargarPlantasDestino(): void {
     this.masterListService.getByKey('traslado_de_huevos_planta_destino').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.plantasDestino.set(masterList.options);
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          this.plantasDestino.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
         } else {
           this.plantasDestino.set([]);
         }
@@ -189,8 +189,8 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   private cargarMotivosVenta(): void {
     this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
       next: (masterList) => {
-        if (masterList && masterList.options) {
-          this.motivosVenta.set(masterList.options);
+        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
+          this.motivosVenta.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
         } else {
           this.motivosVenta.set([]);
         }
