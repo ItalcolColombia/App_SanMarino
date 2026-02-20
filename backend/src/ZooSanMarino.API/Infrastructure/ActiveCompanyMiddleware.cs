@@ -24,6 +24,43 @@ public sealed class ActiveCompanyMiddleware
     public async Task InvokeAsync(HttpContext context, ZooSanMarinoContext db)
     {
         var companyName = context.Request.Headers["X-Active-Company"].FirstOrDefault();
+        var companyIdHeader = context.Request.Headers["X-Active-Company-Id"].FirstOrDefault();
+
+        // Preferir ID de empresa desde storage (X-Active-Company-Id) cuando venga
+        int? companyIdFromHeader = null;
+        if (!string.IsNullOrWhiteSpace(companyIdHeader) && int.TryParse(companyIdHeader, out var cidFromHeader) && cidFromHeader > 0)
+            companyIdFromHeader = cidFromHeader;
+
+        if (companyIdFromHeader.HasValue)
+        {
+            var cid = companyIdFromHeader.Value;
+            if (string.IsNullOrWhiteSpace(companyName))
+                companyName = await db.Companies.AsNoTracking().Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync() ?? "";
+            var name = (companyName ?? "").Trim();
+
+            if (context.User?.Identity?.IsAuthenticated != true)
+            {
+                context.Items[EffectiveCompanyIdItemKey] = cid;
+                context.Items[EffectiveCompanyNameItemKey] = name;
+                await _next(context);
+                return;
+            }
+            var claim = context.User.FindFirst(ClaimTypes.NameIdentifier) ?? context.User.FindFirst("sub");
+            if (claim != null && Guid.TryParse(claim.Value, out var uid))
+            {
+                var userEmail = await db.UserLogins.AsNoTracking().Include(ul => ul.Login).Where(ul => ul.UserId == uid).Select(ul => ul.Login.email).FirstOrDefaultAsync();
+                var isSuperAdmin = !string.IsNullOrWhiteSpace(userEmail) && userEmail.Trim().Equals("moiesbbuga@gmail.com", StringComparison.OrdinalIgnoreCase);
+                var canUse = isSuperAdmin || await db.UserCompanies.AsNoTracking().AnyAsync(uc => uc.UserId == uid && uc.CompanyId == cid);
+                if (canUse)
+                {
+                    context.Items[EffectiveCompanyIdItemKey] = cid;
+                    context.Items[EffectiveCompanyNameItemKey] = name;
+                    await _next(context);
+                    return;
+                }
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(companyName))
         {
             await _next(context);

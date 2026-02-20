@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/Produccion/CrearSeguimientoRequest.cs
 using System.ComponentModel.DataAnnotations;
+using ZooSanMarino.Application.DTOs;
 
 namespace ZooSanMarino.Application.DTOs.Produccion;
 
@@ -10,22 +11,18 @@ public record CrearSeguimientoRequest(
     [Required] [Range(0, int.MaxValue)] int MortalidadM,
     [Required] [Range(0, int.MaxValue)] int SelH, // Selección hembras (retiradas)
     // Consumo con unidad opcional (el backend hace la conversión a kg)
-    double? ConsumoH, // Consumo hembras (puede venir en kg o gramos)
-    string? UnidadConsumoH, // "kg" o "g" - default "kg"
-    double? ConsumoM, // Consumo machos (puede venir en kg o gramos)
-    string? UnidadConsumoM, // "kg" o "g" - default "kg"
-    // IDs de alimentos (opcionales, para validación de inventario)
+    double? ConsumoH,
+    string? UnidadConsumoH,
+    double? ConsumoM,
+    string? UnidadConsumoM,
     int? TipoAlimentoHembras,
     int? TipoAlimentoMachos,
-    // Tipo de ítem (alimento, medicamento, etc.) - se guarda en Metadata
     string? TipoItemHembras,
     string? TipoItemMachos,
     [Required] [Range(0, int.MaxValue)] int HuevosTotales,
     [Required] [Range(0, int.MaxValue)] int HuevosIncubables,
-    // Campos de Clasificadora de Huevos - (Limpio, Tratado) = HuevoInc +
     [Range(0, int.MaxValue)] int HuevoLimpio,
     [Range(0, int.MaxValue)] int HuevoTratado,
-    // Campos de Clasificadora de Huevos - (Sucio, Deforme, Blanco, Doble Yema, Piso, Pequeño, Roto, Desecho, Otro) = Huevo Total
     [Range(0, int.MaxValue)] int HuevoSucio,
     [Range(0, int.MaxValue)] int HuevoDeforme,
     [Range(0, int.MaxValue)] int HuevoBlanco,
@@ -37,21 +34,27 @@ public record CrearSeguimientoRequest(
     [Range(0, int.MaxValue)] int HuevoOtro,
     [Required] string TipoAlimento,
     [Required] [Range(0, double.MaxValue)] decimal PesoHuevo,
-    [Required] [Range(1, 3)] int Etapa, // 1: semana 25-33, 2: 34-50, 3: >50
+    [Required] [Range(1, 3)] int Etapa,
     string? Observaciones,
-    // Campos de Pesaje Semanal (registro una vez por semana)
-    [Range(0, double.MaxValue)] decimal? PesoH, // Peso promedio hembras (kg)
-    [Range(0, double.MaxValue)] decimal? PesoM, // Peso promedio machos (kg)
-    [Range(0, 100)] decimal? Uniformidad, // Uniformidad del lote (%)
-    [Range(0, 100)] decimal? CoeficienteVariacion, // Coeficiente de variación (CV)
-    string? ObservacionesPesaje, // Observaciones específicas del pesaje
-    // Campos de agua (solo para Ecuador y Panamá)
-    [Range(0, double.MaxValue)] double? ConsumoAguaDiario, // Consumo diario de agua en litros
-    [Range(0, 14)] double? ConsumoAguaPh, // Nivel de PH del agua (0-14)
-    [Range(0, double.MaxValue)] double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
-    [Range(0, double.MaxValue)] double? ConsumoAguaTemperatura, // Temperatura del agua en °C
-    [Range(0, int.MaxValue)] int SelM = 0 // Selección machos (retiradas) - default para compatibilidad (debe ir al final)
+    [Range(0, double.MaxValue)] decimal? PesoH,
+    [Range(0, double.MaxValue)] decimal? PesoM,
+    [Range(0, 100)] decimal? Uniformidad,
+    [Range(0, 100)] decimal? CoeficienteVariacion,
+    string? ObservacionesPesaje,
+    [Range(0, double.MaxValue)] double? ConsumoAguaDiario,
+    [Range(0, 14)] double? ConsumoAguaPh,
+    [Range(0, double.MaxValue)] double? ConsumoAguaOrp,
+    [Range(0, double.MaxValue)] double? ConsumoAguaTemperatura,
+    // Opcionales con valor por defecto (deben ir al final en C#)
+    [Range(0, int.MaxValue)] int? ErrorSexajeHembras = 0,
+    [Range(0, int.MaxValue)] int? ErrorSexajeMachos = 0,
+    [Range(0, 100)] double? UniformidadHembras = null,
+    [Range(0, 100)] double? UniformidadMachos = null,
+    [Range(0, 100)] double? CvHembras = null,
+    [Range(0, 100)] double? CvMachos = null,
+    string? Ciclo = null,
+    [Range(0, int.MaxValue)] int SelM = 0,
+    List<ItemSeguimientoDto>? ItemsHembras = null,
+    List<ItemSeguimientoDto>? ItemsMachos = null,
+    string? CreatedByUserId = null
 );
-
-
-

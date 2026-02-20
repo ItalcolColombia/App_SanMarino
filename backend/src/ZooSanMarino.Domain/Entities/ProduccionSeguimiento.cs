@@ -4,7 +4,8 @@ namespace ZooSanMarino.Domain.Entities;
 public class ProduccionSeguimiento : AuditableEntity
 {
     public int Id { get; set; }
-    public int ProduccionLoteId { get; set; }
+    /// <summary>Lote en fase Producción (lote hijo o mismo lote si está en producción).</summary>
+    public int LoteId { get; set; }
     public DateTime FechaRegistro { get; set; }
     
     // Mortalidad
@@ -23,7 +24,7 @@ public class ProduccionSeguimiento : AuditableEntity
     public string? Observaciones { get; set; }
     
     // Navegación
-    public ProduccionLote ProduccionLote { get; set; } = null!;
+    public Lote Lote { get; set; } = null!;
 }
 
 

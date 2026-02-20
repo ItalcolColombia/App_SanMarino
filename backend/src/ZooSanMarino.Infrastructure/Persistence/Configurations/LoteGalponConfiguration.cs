@@ -15,7 +15,7 @@ public class LoteGalponConfiguration : IEntityTypeConfiguration<LoteGalpon>
     b.HasKey(x => new { x.LoteId, x.ReproductoraId, x.GalponId });
 
 
-    b.Property(x => x.LoteId).HasColumnName("lote_id").IsRequired();
+    b.Property(x => x.LoteId).HasColumnName("lote_id").HasMaxLength(64).IsRequired();
     b.Property(x => x.ReproductoraId).HasColumnName("reproductora_id").HasMaxLength(64).IsRequired();
     b.Property(x => x.GalponId).HasColumnName("galpon_id").HasMaxLength(64).IsRequired();
     b.Property(x => x.M).HasColumnName("m");

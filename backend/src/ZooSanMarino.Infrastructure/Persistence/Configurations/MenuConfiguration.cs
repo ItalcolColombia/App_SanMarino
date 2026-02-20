@@ -14,6 +14,10 @@ public class MenuConfiguration : IEntityTypeConfiguration<Menu>
         b.Property(x => x.Icon).HasMaxLength(60);
         b.Property(x => x.Route).HasMaxLength(200);
 
+        // Tabla menus puede no tener created_at/updated_at; no mapear para evitar 42703
+        b.Ignore(x => x.CreatedAt);
+        b.Ignore(x => x.UpdatedAt);
+
         b.HasOne(x => x.Parent)
          .WithMany(x => x.Children)
          .HasForeignKey(x => x.ParentId)

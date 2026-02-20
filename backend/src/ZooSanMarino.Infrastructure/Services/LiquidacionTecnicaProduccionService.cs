@@ -25,39 +25,33 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
 
     public async Task<LiquidacionTecnicaProduccionDto> CalcularLiquidacionProduccionAsync(LiquidacionTecnicaProduccionRequest request)
     {
-        // 1. Obtener datos del lote y producción inicial
+        // 1. Obtener lote padre y lote de producción (Opción B: lote hijo con Fase = Produccion)
         var lote = await ObtenerLoteAsync(request.LoteId);
-        var produccionLote = await ObtenerProduccionLoteAsync(lote);
-        
-        if (produccionLote == null)
-        {
-            throw new InvalidOperationException($"No se encontró registro inicial de producción para el lote {request.LoteId}");
-        }
+        var loteProd = await ObtenerLoteProduccionAsync(lote);
+        if (loteProd == null)
+            throw new InvalidOperationException($"No se encontró lote en producción para el lote {request.LoteId}. Cree el registro inicial desde el módulo de producción.");
 
         // 2. Calcular semana actual y fecha límite
         var fechaHasta = request.FechaHasta ?? DateTime.Today;
         var semanaActual = CalcularSemana(lote.FechaEncaset, fechaHasta);
-        
-        // 3. Obtener seguimientos desde semana 26
-        var seguimientos = await ObtenerSeguimientosProduccionAsync(lote, fechaHasta);
-        
-        // 4. Filtrar seguimientos por semana >= 26
+
+        // 3. Obtener seguimientos (por lote hijo en producción)
+        var seguimientos = await ObtenerSeguimientosProduccionAsync(lote, loteProd, fechaHasta);
         var seguimientosProduccion = seguimientos
             .Where(s => CalcularSemana(lote.FechaEncaset, s.Fecha) >= 26)
             .OrderBy(s => s.Fecha)
             .ToList();
 
-        // 5. Obtener producción inicial
-        var hembrasIniciales = produccionLote.AvesInicialesH;
-        var machosIniciales = produccionLote.AvesInicialesM;
+        var hembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
+        var machosIniciales = loteProd.MachosInicialesProd ?? 0;
 
         // 6. Calcular métricas por etapas
-        var etapa1 = await CalcularEtapaAsync(seguimientosProduccion, lote, produccionLote, 1, 25, 33);
-        var etapa2 = await CalcularEtapaAsync(seguimientosProduccion, lote, produccionLote, 2, 34, 50);
-        var etapa3 = await CalcularEtapaAsync(seguimientosProduccion, lote, produccionLote, 3, 51, null);
+        var etapa1 = await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 1, 25, 33);
+        var etapa2 = await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 2, 34, 50);
+        var etapa3 = await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 3, 51, null);
 
         // 7. Calcular métricas acumuladas
-        var totales = CalcularMetricasAcumuladas(produccionLote, seguimientosProduccion, lote);
+        var totales = CalcularMetricasAcumuladas(loteProd, seguimientosProduccion, lote);
 
         // 8. Obtener datos de guía genética y comparar
         var comparacionGuia = await CalcularComparacionConGuiaAsync(lote, seguimientosProduccion, semanaActual, totales);
@@ -68,9 +62,9 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
             lote.FechaEncaset ?? DateTime.MinValue,
             lote.Raza,
             lote.AnoTablaGenetica,
-            produccionLote.AvesInicialesH,
-            produccionLote.AvesInicialesM,
-            produccionLote.HuevosIniciales,
+            hembrasIniciales,
+            machosIniciales,
+            loteProd.HuevosIniciales ?? 0,
             etapa1,
             etapa2,
             etapa3,
@@ -91,7 +85,10 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
         var semanaActual = CalcularSemana(lote.FechaEncaset, DateTime.Today);
         if (semanaActual < 26) return false;
 
-        var seguimientos = await ObtenerSeguimientosProduccionAsync(lote, DateTime.Today);
+        var loteProd = await ObtenerLoteProduccionAsync(lote);
+        if (loteProd == null) return false;
+
+        var seguimientos = await ObtenerSeguimientosProduccionAsync(lote, loteProd, DateTime.Today);
         return seguimientos.Any(s => CalcularSemana(lote.FechaEncaset, s.Fecha) >= 26);
     }
 
@@ -100,19 +97,19 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
         var lote = await ObtenerLoteAsync(loteId);
         if (lote == null || !lote.FechaEncaset.HasValue) return null;
 
-        var seguimientos = await ObtenerSeguimientosProduccionAsync(lote, DateTime.Today);
+        var loteProd = await ObtenerLoteProduccionAsync(lote);
+        if (loteProd == null) return null;
+
+        var seguimientos = await ObtenerSeguimientosProduccionAsync(lote, loteProd, DateTime.Today);
         var seguimientosProduccion = seguimientos
             .Where(s => CalcularSemana(lote.FechaEncaset, s.Fecha) >= 26)
             .ToList();
 
-        var produccionLote = await ObtenerProduccionLoteAsync(lote);
-        if (produccionLote == null) return null;
-
         return etapa switch
         {
-            1 => await CalcularEtapaAsync(seguimientosProduccion, lote, produccionLote, 1, 25, 33),
-            2 => await CalcularEtapaAsync(seguimientosProduccion, lote, produccionLote, 2, 34, 50),
-            3 => await CalcularEtapaAsync(seguimientosProduccion, lote, produccionLote, 3, 51, null),
+            1 => await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 1, 25, 33),
+            2 => await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 2, 34, 50),
+            3 => await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 3, 51, null),
             _ => null
         };
     }
@@ -131,26 +128,54 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
         return lote;
     }
 
-    private async Task<ProduccionLote?> ObtenerProduccionLoteAsync(Lote lote)
+    /// <summary>Obtiene el lote en fase Producción: el hijo del lote padre o el mismo lote si ya es Produccion (Opción B).</summary>
+    private async Task<Lote?> ObtenerLoteProduccionAsync(Lote lote)
     {
-        var loteIdStr = lote.LoteId?.ToString();
-        if (string.IsNullOrEmpty(loteIdStr)) return null;
-
-        return await _context.ProduccionLotes
+        if (lote.Fase == "Produccion" && lote.LoteId.HasValue)
+            return lote;
+        if (!lote.LoteId.HasValue) return null;
+        return await _context.Lotes
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.LoteId == loteIdStr && p.DeletedAt == null);
+            .FirstOrDefaultAsync(l => l.LotePadreId == lote.LoteId && l.Fase == "Produccion" && l.DeletedAt == null);
     }
 
-    private async Task<List<SeguimientoProduccion>> ObtenerSeguimientosProduccionAsync(Lote lote, DateTime fechaHasta)
+    private async Task<List<SeguimientoProduccionRegistroDto>> ObtenerSeguimientosProduccionAsync(Lote lote, Lote loteProd, DateTime fechaHasta)
     {
-        var loteIdStr = lote.LoteId?.ToString();
-        if (string.IsNullOrEmpty(loteIdStr)) return new List<SeguimientoProduccion>();
+        var loteProdId = loteProd.LoteId;
+        if (!loteProdId.HasValue) return new List<SeguimientoProduccionRegistroDto>();
+        var loteIdStr = loteProdId.Value.ToString();
 
-        return await _context.SeguimientoProduccion
+        var fromLegacy = await _context.SeguimientoProduccion
             .AsNoTracking()
-            .Where(s => s.LoteId == loteIdStr && s.Fecha <= fechaHasta)
-            .OrderBy(s => s.Fecha)
+            .Where(s => s.LoteId == loteProdId.Value && s.Fecha <= fechaHasta)
+            .Select(s => new SeguimientoProduccionRegistroDto(
+                s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.SelM,
+                s.ConsKgH, s.ConsKgM, s.HuevoTot, s.HuevoInc,
+                s.HuevoLimpio, s.HuevoTratado, s.HuevoSucio, s.HuevoDeforme, s.HuevoBlanco,
+                s.HuevoDobleYema, s.HuevoPiso, s.HuevoPequeno, s.HuevoRoto, s.HuevoDesecho, s.HuevoOtro,
+                s.PesoHuevo, s.Etapa, s.PesoH, s.PesoM, s.Uniformidad, s.CoeficienteVariacion, s.ObservacionesPesaje
+            ))
             .ToListAsync();
+
+        var fromUnificado = await _context.SeguimientoDiario
+            .AsNoTracking()
+            .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr && s.Fecha <= fechaHasta)
+            .Select(s => new SeguimientoProduccionRegistroDto(
+                s.Fecha,
+                s.MortalidadHembras ?? 0, s.MortalidadMachos ?? 0, s.SelH ?? 0, s.SelM ?? 0,
+                (decimal)(s.ConsumoKgHembras ?? 0), (decimal)(s.ConsumoKgMachos ?? 0),
+                s.HuevoTot ?? 0, s.HuevoInc ?? 0,
+                s.HuevoLimpio ?? 0, s.HuevoTratado ?? 0, s.HuevoSucio ?? 0, s.HuevoDeforme ?? 0, s.HuevoBlanco ?? 0,
+                s.HuevoDobleYema ?? 0, s.HuevoPiso ?? 0, s.HuevoPequeno ?? 0, s.HuevoRoto ?? 0, s.HuevoDesecho ?? 0, s.HuevoOtro ?? 0,
+                (decimal)(s.PesoHuevo ?? 0), s.Etapa ?? 0, s.PesoH, s.PesoM, s.Uniformidad, s.CoeficienteVariacion, s.ObservacionesPesaje
+            ))
+            .ToListAsync();
+
+        return fromUnificado.Concat(fromLegacy)
+            .GroupBy(x => x.Fecha.Date)
+            .Select(g => g.First())
+            .OrderBy(x => x.Fecha)
+            .ToList();
     }
 
     private static int CalcularSemana(DateTime? fechaEncaset, DateTime fechaRegistro)
@@ -161,20 +186,20 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
     }
 
     private Task<EtapaLiquidacionDto> CalcularEtapaAsync(
-        List<SeguimientoProduccion> seguimientos,
+        List<SeguimientoProduccionRegistroDto> seguimientos,
         Lote lote,
-        ProduccionLote produccionLote,
+        Lote loteProd,
         int etapa,
         int semanaDesde,
         int? semanaHasta)
     {
-        return Task.FromResult(CalcularEtapa(seguimientos, lote, produccionLote, etapa, semanaDesde, semanaHasta));
+        return Task.FromResult(CalcularEtapa(seguimientos, lote, loteProd, etapa, semanaDesde, semanaHasta));
     }
 
     private EtapaLiquidacionDto CalcularEtapa(
-        List<SeguimientoProduccion> seguimientos,
+        List<SeguimientoProduccionRegistroDto> seguimientos,
         Lote lote,
-        ProduccionLote produccionLote,
+        Lote loteProd,
         int etapa,
         int semanaDesde,
         int? semanaHasta)
@@ -212,9 +237,9 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
         var huevosTotales = seguimientosEtapa.Sum(s => s.HuevoTot);
         var huevosIncubables = seguimientosEtapa.Sum(s => s.HuevoInc);
 
-        // Obtener producción inicial para calcular porcentajes
-        var hembrasIniciales = produccionLote.AvesInicialesH;
-        var machosIniciales = produccionLote.AvesInicialesM;
+        // Obtener producción inicial para calcular porcentajes (Opción B: desde Lote)
+        var hembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
+        var machosIniciales = loteProd.MachosInicialesProd ?? 0;
 
         var porcMortalidadH = hembrasIniciales > 0 ? (decimal)mortalidadH / hembrasIniciales * 100 : 0;
         var porcMortalidadM = machosIniciales > 0 ? (decimal)mortalidadM / machosIniciales * 100 : 0;
@@ -344,12 +369,12 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
     }
 
     private MetricasAcumuladasProduccionDto CalcularMetricasAcumuladas(
-        ProduccionLote produccionLote,
-        List<SeguimientoProduccion> seguimientos,
+        Lote loteProd,
+        List<SeguimientoProduccionRegistroDto> seguimientos,
         Lote lote)
     {
-        var hembrasIniciales = produccionLote.AvesInicialesH;
-        var machosIniciales = produccionLote.AvesInicialesM;
+        var hembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
+        var machosIniciales = loteProd.MachosInicialesProd ?? 0;
 
         var totalMortalidadH = seguimientos.Sum(s => s.MortalidadH);
         var totalMortalidadM = seguimientos.Sum(s => s.MortalidadM);
@@ -407,7 +432,7 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
 
     private async Task<ComparacionGuiaProduccionDto?> CalcularComparacionConGuiaAsync(
         Lote lote,
-        List<SeguimientoProduccion> seguimientos,
+        List<SeguimientoProduccionRegistroDto> seguimientos,
         int semanaActual,
         MetricasAcumuladasProduccionDto totales)
     {

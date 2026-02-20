@@ -5,7 +5,7 @@ namespace ZooSanMarino.Application.Interfaces;
 
 public interface IFarmInventoryService
 {
-    Task<List<FarmInventoryDto>> GetByFarmAsync(int farmId, string? q, CancellationToken ct = default);
+    Task<List<FarmInventoryDto>> GetByFarmAsync(int farmId, string? q, string? itemType = null, CancellationToken ct = default);
     Task<FarmInventoryDto?> GetByIdAsync(int farmId, int id, CancellationToken ct = default);
     Task<FarmInventoryDto?> GetByFarmAndCatalogItemAsync(int farmId, int catalogItemId, CancellationToken ct = default);
 

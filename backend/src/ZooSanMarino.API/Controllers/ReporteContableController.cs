@@ -55,8 +55,19 @@ public class ReporteContableController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error inesperado al generar reporte contable");
-            return StatusCode(500, new { message = "Error interno del servidor" });
+            _logger.LogError(ex, "Error inesperado al generar reporte contable: {Message}", ex.Message);
+            _logger.LogError(ex, "StackTrace: {StackTrace}", ex.StackTrace);
+            if (ex.InnerException != null)
+            {
+                _logger.LogError(ex.InnerException, "InnerException: {Message}", ex.InnerException.Message);
+            }
+            // En desarrollo, devolver más detalles
+            var errorResponse = new { 
+                message = "Error interno del servidor", 
+                details = ex.Message,
+                innerException = ex.InnerException?.Message
+            };
+            return StatusCode(500, errorResponse);
         }
     }
 
@@ -123,6 +134,42 @@ public class ReporteContableController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error inesperado al exportar reporte contable a Excel");
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Obtiene el reporte de movimientos de huevos para un lote padre
+    /// </summary>
+    [HttpGet("movimientos-huevos")]
+    public async Task<ActionResult<ReporteMovimientosHuevosDto>> ObtenerReporteMovimientosHuevos(
+        [FromQuery] int lotePadreId,
+        [FromQuery] int? semanaContable = null,
+        [FromQuery] DateTime? fechaInicio = null,
+        [FromQuery] DateTime? fechaFin = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var request = new ObtenerReporteMovimientosHuevosRequestDto
+            {
+                LotePadreId = lotePadreId,
+                SemanaContable = semanaContable,
+                FechaInicio = fechaInicio,
+                FechaFin = fechaFin
+            };
+
+            var reporte = await _reporteContableService.ObtenerReporteMovimientosHuevosAsync(request, ct);
+            return Ok(reporte);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Error al obtener reporte de movimientos de huevos");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error inesperado al obtener reporte de movimientos de huevos");
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }

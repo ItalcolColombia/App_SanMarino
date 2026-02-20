@@ -12,16 +12,25 @@ public class MasterListController : ControllerBase
     private readonly IMasterListService _svc;
     public MasterListController(IMasterListService svc) => _svc = svc;
 
-    // Listar todas
-    [HttpGet] public async Task<IActionResult> GetAll() => Ok(await _svc.GetAllAsync());
+    // Listar todas (filtradas por CompanyId y CountryId)
+    [HttpGet] 
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int? companyId = null,
+        [FromQuery] int? countryId = null) => 
+        Ok(await _svc.GetAllAsync(companyId, countryId));
 
     // Obtener por id
-    [HttpGet("{id:int}")] public async Task<IActionResult> GetById(int id) =>
+    [HttpGet("{id:int}")] 
+    public async Task<IActionResult> GetById(int id) =>
         (await _svc.GetByIdAsync(id)) is MasterListDto dto ? Ok(dto) : NotFound();
 
-    // Obtener por clave
-    [HttpGet("byKey/{key}")] public async Task<IActionResult> GetByKey(string key) =>
-        (await _svc.GetByKeyAsync(key)) is MasterListDto dto ? Ok(dto) : NotFound();
+    // Obtener por clave (filtrado por CompanyId y CountryId)
+    [HttpGet("byKey/{key}")] 
+    public async Task<IActionResult> GetByKey(
+        string key,
+        [FromQuery] int? companyId = null,
+        [FromQuery] int? countryId = null) =>
+        (await _svc.GetByKeyAsync(key, companyId, countryId)) is MasterListDto dto ? Ok(dto) : NotFound();
 
     // Crear
     [HttpPost] public async Task<IActionResult> Create(CreateMasterListDto dto)

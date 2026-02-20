@@ -2,7 +2,7 @@
 namespace ZooSanMarino.Application.DTOs;
 
 public record LoteReproductoraDto(
-    int       LoteId,
+    string    LoteId,  // Cambiado a string para coincidir con character varying(64) en BD
     string    ReproductoraId,
     string    NombreLote,
     DateTime? FechaEncasetamiento,
@@ -19,7 +19,7 @@ public record LoteReproductoraDto(
 );
 
 public record CreateLoteReproductoraDto(
-    int       LoteId,
+    string    LoteId,  // Cambiado a string para coincidir con character varying(64) en BD
     string    ReproductoraId,
     string    NombreLote,
     DateTime? FechaEncasetamiento,
@@ -36,7 +36,7 @@ public record CreateLoteReproductoraDto(
 );
 
 public record UpdateLoteReproductoraDto(
-    int       LoteId,
+    string    LoteId,  // Cambiado a string para coincidir con character varying(64) en BD
     string    ReproductoraId,
     string    NombreLote,
     DateTime? FechaEncasetamiento,

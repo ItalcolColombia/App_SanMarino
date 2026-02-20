@@ -14,9 +14,9 @@ public class ProduccionSeguimientoConfiguration : IEntityTypeConfiguration<Produ
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedOnAdd();
 
-        builder.Property(x => x.ProduccionLoteId)
+        builder.Property(x => x.LoteId)
             .IsRequired()
-            .HasColumnName("produccion_lote_id");
+            .HasColumnName("lote_id");
 
         builder.Property(x => x.FechaRegistro)
             .IsRequired()
@@ -59,14 +59,14 @@ public class ProduccionSeguimientoConfiguration : IEntityTypeConfiguration<Produ
             .HasMaxLength(1000)
             .HasColumnName("observaciones");
 
-        // Relación con ProduccionLote
-        builder.HasOne(x => x.ProduccionLote)
-            .WithMany(x => x.Seguimientos)
-            .HasForeignKey(x => x.ProduccionLoteId)
+        // Relación con Lote (lote en fase Producción)
+        builder.HasOne(x => x.Lote)
+            .WithMany(x => x.ProduccionSeguimientos)
+            .HasForeignKey(x => x.LoteId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Índices
-        builder.HasIndex(x => new { x.ProduccionLoteId, x.FechaRegistro })
+        builder.HasIndex(x => new { x.LoteId, x.FechaRegistro })
             .IsUnique()
             .HasDatabaseName("IX_produccion_seguimiento_lote_fecha_unique");
 

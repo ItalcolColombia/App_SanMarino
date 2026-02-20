@@ -1,16 +1,19 @@
-using System.Linq.Expressions;
+// Seguimiento Diario Levante: persiste en la tabla unificada seguimiento_diario (tipo = 'levante')
+// usando ISeguimientoDiarioService. La API y DTOs del módulo Levante se mantienen igual.
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
-using ZooSanMarino.Domain.Entities;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
 public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 {
+    private const string TipoLevante = "levante";
+
     private readonly ZooSanMarinoContext _ctx;
+    private readonly ISeguimientoDiarioService _seguimientoDiarioService;
     private readonly IAlimentoNutricionProvider _alimentos;
     private readonly IGramajeProvider _gramaje;
     private readonly ICurrentUser _current;
@@ -18,232 +21,241 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
     public SeguimientoLoteLevanteService(
         ZooSanMarinoContext ctx,
+        ISeguimientoDiarioService seguimientoDiarioService,
         IAlimentoNutricionProvider alimentos,
         IGramajeProvider gramaje,
         ICurrentUser current,
         IMovimientoAvesService movimientoAvesService)
     {
         _ctx = ctx;
+        _seguimientoDiarioService = seguimientoDiarioService;
         _alimentos = alimentos;
         _gramaje = gramaje;
         _current = current;
         _movimientoAvesService = movimientoAvesService;
     }
 
-    // Mapeo a DTO actualizado con los nuevos campos opcionales
-    private static readonly Expression<Func<SeguimientoLoteLevante, SeguimientoLoteLevanteDto>> ToDto =
-        x => new SeguimientoLoteLevanteDto(
-            x.Id, x.LoteId, x.FechaRegistro,
-            x.MortalidadHembras, x.MortalidadMachos,
-            x.SelH, x.SelM,
-            x.ErrorSexajeHembras, x.ErrorSexajeMachos,
-            x.ConsumoKgHembras, x.TipoAlimento, x.Observaciones,
-            x.KcalAlH, x.ProtAlH, x.KcalAveH, x.ProtAveH, x.Ciclo,
-
-            // NUEVOS (mantenidos para compatibilidad)
-            x.ConsumoKgMachos,
-            x.PesoPromH, x.PesoPromM,
-            x.UniformidadH, x.UniformidadM,
-            x.CvH, x.CvM,
-            // Metadata JSONB para campos adicionales
-            x.Metadata,
-            // Items adicionales JSONB para otros tipos de ítems (no alimentos)
-            x.ItemsAdicionales
+    private static SeguimientoLoteLevanteDto MapToLevanteDto(SeguimientoDiarioDto u)
+    {
+        return new SeguimientoLoteLevanteDto(
+            Id: (int)u.Id,
+            LoteId: int.Parse(u.LoteId),
+            FechaRegistro: u.Fecha,
+            MortalidadHembras: u.MortalidadHembras ?? 0,
+            MortalidadMachos: u.MortalidadMachos ?? 0,
+            SelH: u.SelH ?? 0,
+            SelM: u.SelM ?? 0,
+            ErrorSexajeHembras: u.ErrorSexajeHembras ?? 0,
+            ErrorSexajeMachos: u.ErrorSexajeMachos ?? 0,
+            ConsumoKgHembras: (double)(u.ConsumoKgHembras ?? 0),
+            TipoAlimento: u.TipoAlimento ?? "",
+            Observaciones: u.Observaciones,
+            KcalAlH: u.KcalAlH,
+            ProtAlH: u.ProtAlH,
+            KcalAveH: u.KcalAveH,
+            ProtAveH: u.ProtAveH,
+            Ciclo: u.Ciclo ?? "Normal",
+            ConsumoKgMachos: u.ConsumoKgMachos.HasValue ? (double)u.ConsumoKgMachos.Value : null,
+            PesoPromH: u.PesoPromHembras,
+            PesoPromM: u.PesoPromMachos,
+            UniformidadH: u.UniformidadHembras,
+            UniformidadM: u.UniformidadMachos,
+            CvH: u.CvHembras,
+            CvM: u.CvMachos,
+            Metadata: u.Metadata,
+            ItemsAdicionales: u.ItemsAdicionales,
+            ConsumoAguaDiario: u.ConsumoAguaDiario,
+            ConsumoAguaPh: u.ConsumoAguaPh,
+            ConsumoAguaOrp: u.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: u.ConsumoAguaTemperatura
         );
+    }
 
-    // ===========================
-    // LISTAR POR LOTE (seguro por compañía)
-    // ===========================
+    private static CreateSeguimientoDiarioDto MapToCreateUnificado(SeguimientoLoteLevanteDto dto,
+        double consumoKgHembras, double? kcalAlH, double? protAlH, double? kcalAveH, double? protAveH)
+    {
+        return new CreateSeguimientoDiarioDto(
+            TipoSeguimiento: TipoLevante,
+            LoteId: dto.LoteId.ToString(),
+            ReproductoraId: null,
+            Fecha: dto.FechaRegistro,
+            MortalidadHembras: dto.MortalidadHembras,
+            MortalidadMachos: dto.MortalidadMachos,
+            SelH: dto.SelH,
+            SelM: dto.SelM,
+            ErrorSexajeHembras: dto.ErrorSexajeHembras,
+            ErrorSexajeMachos: dto.ErrorSexajeMachos,
+            ConsumoKgHembras: (decimal)consumoKgHembras,
+            ConsumoKgMachos: dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
+            TipoAlimento: dto.TipoAlimento,
+            Observaciones: dto.Observaciones,
+            Ciclo: dto.Ciclo,
+            PesoPromHembras: dto.PesoPromH,
+            PesoPromMachos: dto.PesoPromM,
+            UniformidadHembras: dto.UniformidadH,
+            UniformidadMachos: dto.UniformidadM,
+            CvHembras: dto.CvH,
+            CvMachos: dto.CvM,
+            ConsumoAguaDiario: dto.ConsumoAguaDiario,
+            ConsumoAguaPh: dto.ConsumoAguaPh,
+            ConsumoAguaOrp: dto.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: dto.ConsumoAguaTemperatura,
+            Metadata: dto.Metadata,
+            ItemsAdicionales: dto.ItemsAdicionales,
+            PesoInicial: null,
+            PesoFinal: null,
+            KcalAlH: kcalAlH,
+            ProtAlH: protAlH,
+            KcalAveH: kcalAveH,
+            ProtAveH: protAveH,
+            HuevoTot: null,
+            HuevoInc: null,
+            HuevoLimpio: null,
+            HuevoTratado: null,
+            HuevoSucio: null,
+            HuevoDeforme: null,
+            HuevoBlanco: null,
+            HuevoDobleYema: null,
+            HuevoPiso: null,
+            HuevoPequeno: null,
+            HuevoRoto: null,
+            HuevoDesecho: null,
+            HuevoOtro: null,
+            PesoHuevo: null,
+            Etapa: null,
+            PesoH: null,
+            PesoM: null,
+            Uniformidad: null,
+            CoeficienteVariacion: null,
+            ObservacionesPesaje: null,
+            CreatedByUserId: dto.CreatedByUserId
+        );
+    }
+
+    private static UpdateSeguimientoDiarioDto MapToUpdateUnificado(SeguimientoLoteLevanteDto dto,
+        double consumoKgHembras, double? kcalAlH, double? protAlH, double? kcalAveH, double? protAveH)
+    {
+        return new UpdateSeguimientoDiarioDto(
+            Id: (long)dto.Id,
+            TipoSeguimiento: TipoLevante,
+            LoteId: dto.LoteId.ToString(),
+            ReproductoraId: null,
+            Fecha: dto.FechaRegistro,
+            MortalidadHembras: dto.MortalidadHembras,
+            MortalidadMachos: dto.MortalidadMachos,
+            SelH: dto.SelH,
+            SelM: dto.SelM,
+            ErrorSexajeHembras: dto.ErrorSexajeHembras,
+            ErrorSexajeMachos: dto.ErrorSexajeMachos,
+            ConsumoKgHembras: (decimal)consumoKgHembras,
+            ConsumoKgMachos: dto.ConsumoKgMachos.HasValue ? (decimal)dto.ConsumoKgMachos.Value : null,
+            TipoAlimento: dto.TipoAlimento,
+            Observaciones: dto.Observaciones,
+            Ciclo: dto.Ciclo,
+            PesoPromHembras: dto.PesoPromH,
+            PesoPromMachos: dto.PesoPromM,
+            UniformidadHembras: dto.UniformidadH,
+            UniformidadMachos: dto.UniformidadM,
+            CvHembras: dto.CvH,
+            CvMachos: dto.CvM,
+            ConsumoAguaDiario: dto.ConsumoAguaDiario,
+            ConsumoAguaPh: dto.ConsumoAguaPh,
+            ConsumoAguaOrp: dto.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: dto.ConsumoAguaTemperatura,
+            Metadata: dto.Metadata,
+            ItemsAdicionales: dto.ItemsAdicionales,
+            PesoInicial: null,
+            PesoFinal: null,
+            KcalAlH: kcalAlH,
+            ProtAlH: protAlH,
+            KcalAveH: kcalAveH,
+            ProtAveH: protAveH,
+            HuevoTot: null,
+            HuevoInc: null,
+            HuevoLimpio: null,
+            HuevoTratado: null,
+            HuevoSucio: null,
+            HuevoDeforme: null,
+            HuevoBlanco: null,
+            HuevoDobleYema: null,
+            HuevoPiso: null,
+            HuevoPequeno: null,
+            HuevoRoto: null,
+            HuevoDesecho: null,
+            HuevoOtro: null,
+            PesoHuevo: null,
+            Etapa: null,
+            PesoH: null,
+            PesoM: null,
+            Uniformidad: null,
+            CoeficienteVariacion: null,
+            ObservacionesPesaje: null
+        );
+    }
+
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId)
     {
-        var q = from s in _ctx.SeguimientoLoteLevante.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking()
-                    on s.LoteId equals l.LoteId
-                where l.CompanyId == _current.CompanyId
-                   && l.DeletedAt == null
-                   && s.LoteId == loteId
-                select s;
-
-        return await q
-            .OrderBy(x => x.FechaRegistro)
-            .Select(ToDto)
-            .ToListAsync();
+        var filter = new SeguimientoDiarioFilterRequest
+        {
+            TipoSeguimiento = TipoLevante,
+            LoteId = loteId.ToString(),
+            Page = 1,
+            PageSize = 10_000,
+            OrderBy = "Fecha",
+            OrderAsc = true
+        };
+        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
+        return paged.Items.Select(MapToLevanteDto).ToList();
     }
 
-    // ===========================
-    // CREAR
-    // ===========================
+    public async Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id)
+    {
+        var u = await _seguimientoDiarioService.GetByIdAsync((long)id);
+        if (u is null || u.TipoSeguimiento != TipoLevante)
+            return null;
+        return MapToLevanteDto(u);
+    }
+
+    public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
+    {
+        var filter = new SeguimientoDiarioFilterRequest
+        {
+            TipoSeguimiento = TipoLevante,
+            LoteId = loteId?.ToString(),
+            FechaDesde = desde,
+            FechaHasta = hasta,
+            Page = 1,
+            PageSize = 10_000,
+            OrderBy = "Fecha",
+            OrderAsc = true
+        };
+        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
+        return paged.Items.Select(MapToLevanteDto).ToList();
+    }
+
     public async Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto)
     {
-        // 0) Verificar lote y tenant
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId == dto.LoteId
-                                     && l.CompanyId == _current.CompanyId
-                                     && l.DeletedAt == null);
-        if (lote is null) throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
+            .SingleOrDefaultAsync(l => l.LoteId == dto.LoteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null);
+        if (lote is null)
+            throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
-        // 1) Duplicado por Lote+Fecha
-        var duplicado = await (from s in _ctx.SeguimientoLoteLevante
-                               where s.LoteId == dto.LoteId
-                                  && s.FechaRegistro.Date == dto.FechaRegistro.Date
-                               select s.Id).AnyAsync();
-        if (duplicado) throw new InvalidOperationException("Ya existe un registro para ese Lote y Fecha.");
-
-        // 2) Autocompletar nutrientes si no vienen
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
         {
             var np = await _alimentos.GetNutrientesAsync(dto.TipoAlimento);
-            if (np.HasValue)
-            {
-                kcalAlH ??= np.Value.kcal;
-                protAlH ??= np.Value.prot;
-            }
+            if (np.HasValue) { kcalAlH ??= np.Value.kcal; protAlH ??= np.Value.prot; }
         }
 
-        // 3) Sugerir consumo por gramaje si <= 0 (hembras)
         double consumoKgH = dto.ConsumoKgHembras;
         if (consumoKgH <= 0 && !string.IsNullOrWhiteSpace(lote.GalponId) && lote.FechaEncaset.HasValue)
         {
             int semana = CalcularSemana(lote.FechaEncaset.Value, dto.FechaRegistro);
-
-            double? gramajeGrAve = null;
-            if (int.TryParse(lote.GalponId, out var galponIdInt))
-                gramajeGrAve = await _gramaje.GetGramajeGrPorAveAsync(galponIdInt, semana, dto.TipoAlimento);
-            else
-            {
-                if (_gramaje is IGramajeProviderV2 v2)
-                    gramajeGrAve = await v2.GetGramajeGrPorAveAsync(lote.GalponId, semana, dto.TipoAlimento);
-            }
-
-            if (gramajeGrAve.HasValue && gramajeGrAve.Value > 0)
-            {
-                int hembrasVivas = await CalcularHembrasVivasAsync(dto.LoteId);
-                consumoKgH = Math.Round((gramajeGrAve.Value * hembrasVivas) / 1000.0, 3); // gr → kg
-            }
-        }
-
-        // 4) Derivados (por ahora solo hembras, igual que antes)
-        var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
-
-        var ent = new SeguimientoLoteLevante
-        {
-            LoteId = dto.LoteId,
-            FechaRegistro = dto.FechaRegistro,
-            MortalidadHembras = dto.MortalidadHembras,
-            MortalidadMachos = dto.MortalidadMachos,
-            SelH = dto.SelH,
-            SelM = dto.SelM,
-            ErrorSexajeHembras = dto.ErrorSexajeHembras,
-            ErrorSexajeMachos = dto.ErrorSexajeMachos,
-
-            ConsumoKgHembras = consumoKgH,
-            ConsumoKgMachos = dto.ConsumoKgMachos,
-            
-            // Metadata JSONB para campos adicionales/extras
-            Metadata = dto.Metadata,
-            // Items adicionales JSONB para otros tipos de ítems (no alimentos)
-            ItemsAdicionales = dto.ItemsAdicionales,
-
-            PesoPromH = dto.PesoPromH,
-            PesoPromM = dto.PesoPromM,
-            UniformidadH = dto.UniformidadH,
-            UniformidadM = dto.UniformidadM,
-            CvH = dto.CvH,
-            CvM = dto.CvM,
-
-            TipoAlimento = dto.TipoAlimento,
-            Observaciones = dto.Observaciones,
-
-            KcalAlH = kcalAlH,
-            ProtAlH = protAlH,
-            KcalAveH = kcalAveH,
-            ProtAveH = protAveH,
-
-            Ciclo = dto.Ciclo
-        };
-
-        _ctx.SeguimientoLoteLevante.Add(ent);
-        await _ctx.SaveChangesAsync();
-
-        // Registrar retiro automático si hay mortalidades o selecciones
-        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
-        if (totalRetiradas > 0)
-        {
-            try
-            {
-                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                    loteId: dto.LoteId,
-                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
-                    machosRetirados: dto.MortalidadMachos + dto.SelM,
-                    mixtasRetiradas: 0, // Los seguimientos levante no tienen mixtas
-                    fechaMovimiento: dto.FechaRegistro,
-                    fuenteSeguimiento: "Levante",
-                    observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | Observaciones: {dto.Observaciones}"
-                );
-            }
-            catch (Exception ex)
-            {
-                // Log error pero no fallar el guardado del seguimiento
-                // TODO: Agregar logging aquí
-                Console.WriteLine($"Error al registrar retiro desde seguimiento levante: {ex.Message}");
-            }
-        }
-
-        return await _ctx.SeguimientoLoteLevante.AsNoTracking()
-            .Where(x => x.Id == ent.Id)
-            .Select(ToDto)
-            .SingleAsync();
-    }
-
-    // ===========================
-    // ACTUALIZAR
-    // ===========================
-    public async Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto)
-    {
-        var ent = await _ctx.SeguimientoLoteLevante.FindAsync(dto.Id);
-        if (ent is null) return null;
-
-        // Validar lote + tenant
-        var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId == dto.LoteId
-                                     && l.CompanyId == _current.CompanyId
-                                     && l.DeletedAt == null);
-        if (lote is null) throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
-
-        // Duplicado al cambiar Lote/Fecha
-        var cambiaClave = ent.LoteId != dto.LoteId || ent.FechaRegistro.Date != dto.FechaRegistro.Date;
-        if (cambiaClave)
-        {
-            var existeOtro = await _ctx.SeguimientoLoteLevante.AnyAsync(x =>
-                x.Id != dto.Id && x.LoteId == dto.LoteId && x.FechaRegistro.Date == dto.FechaRegistro.Date);
-            if (existeOtro) throw new InvalidOperationException("Ya existe un registro para ese Lote y Fecha.");
-        }
-
-        // Nutrientes (si faltan)
-        double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
-        if (kcalAlH is null || protAlH is null)
-        {
-            var np = await _alimentos.GetNutrientesAsync(dto.TipoAlimento);
-            if (np.HasValue)
-            {
-                kcalAlH ??= np.Value.kcal;
-                protAlH ??= np.Value.prot;
-            }
-        }
-
-        // Consumo sugerido si no viene (>0 respeta valor del usuario)
-        double consumoKgH = dto.ConsumoKgHembras;
-        if (consumoKgH <= 0 && !string.IsNullOrWhiteSpace(lote.GalponId) && lote.FechaEncaset.HasValue)
-        {
-            int semana = CalcularSemana(lote.FechaEncaset.Value, dto.FechaRegistro);
-
             double? gramajeGrAve = null;
             if (int.TryParse(lote.GalponId, out var galponIdInt))
                 gramajeGrAve = await _gramaje.GetGramajeGrPorAveAsync(galponIdInt, semana, dto.TipoAlimento);
             else if (_gramaje is IGramajeProviderV2 v2)
                 gramajeGrAve = await v2.GetGramajeGrPorAveAsync(lote.GalponId, semana, dto.TipoAlimento);
-
             if (gramajeGrAve.HasValue && gramajeGrAve.Value > 0)
             {
                 int hembrasVivas = await CalcularHembrasVivasAsync(dto.LoteId);
@@ -252,43 +264,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         }
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
+        var createDto = MapToCreateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
+        var created = await _seguimientoDiarioService.CreateAsync(createDto);
 
-        ent.LoteId = dto.LoteId;
-        ent.FechaRegistro = dto.FechaRegistro;
-        ent.MortalidadHembras = dto.MortalidadHembras;
-        ent.MortalidadMachos = dto.MortalidadMachos;
-        ent.SelH = dto.SelH;
-        ent.SelM = dto.SelM;
-        ent.ErrorSexajeHembras = dto.ErrorSexajeHembras;
-        ent.ErrorSexajeMachos = dto.ErrorSexajeMachos;
-
-        ent.ConsumoKgHembras = consumoKgH;
-        ent.ConsumoKgMachos = dto.ConsumoKgMachos;
-        
-        // Metadata JSONB para campos adicionales/extras
-        ent.Metadata = dto.Metadata;
-        ent.ItemsAdicionales = dto.ItemsAdicionales;
-
-        ent.PesoPromH = dto.PesoPromH;
-        ent.PesoPromM = dto.PesoPromM;
-        ent.UniformidadH = dto.UniformidadH;
-        ent.UniformidadM = dto.UniformidadM;
-        ent.CvH = dto.CvH;
-        ent.CvM = dto.CvM;
-
-        ent.TipoAlimento = dto.TipoAlimento;
-        ent.Observaciones = dto.Observaciones;
-
-        ent.KcalAlH = kcalAlH;
-        ent.ProtAlH = protAlH;
-        ent.KcalAveH = kcalAveH;
-        ent.ProtAveH = protAveH;
-
-        ent.Ciclo = dto.Ciclo;
-
-        await _ctx.SaveChangesAsync();
-
-        // Registrar retiro automático si hay mortalidades o selecciones
         var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
         if (totalRetiradas > 0)
         {
@@ -301,84 +279,124 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
                     mixtasRetiradas: 0,
                     fechaMovimiento: dto.FechaRegistro,
                     fuenteSeguimiento: "Levante",
-                    observaciones: $"Actualización - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM}"
-                );
+                    observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | Observaciones: {dto.Observaciones}");
             }
-            catch (Exception ex)
+            catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento levante: {ex.Message}"); }
+        }
+
+        return MapToLevanteDto(created);
+    }
+
+    public async Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto)
+    {
+        var lote = await _ctx.Lotes.AsNoTracking()
+            .SingleOrDefaultAsync(l => l.LoteId == dto.LoteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null);
+        if (lote is null)
+            throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
+
+        double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
+        if (kcalAlH is null || protAlH is null)
+        {
+            var np = await _alimentos.GetNutrientesAsync(dto.TipoAlimento);
+            if (np.HasValue) { kcalAlH ??= np.Value.kcal; protAlH ??= np.Value.prot; }
+        }
+
+        double consumoKgH = dto.ConsumoKgHembras;
+        if (consumoKgH <= 0 && !string.IsNullOrWhiteSpace(lote.GalponId) && lote.FechaEncaset.HasValue)
+        {
+            int semana = CalcularSemana(lote.FechaEncaset.Value, dto.FechaRegistro);
+            double? gramajeGrAve = null;
+            if (int.TryParse(lote.GalponId, out var galponIdInt))
+                gramajeGrAve = await _gramaje.GetGramajeGrPorAveAsync(galponIdInt, semana, dto.TipoAlimento);
+            else if (_gramaje is IGramajeProviderV2 v2)
+                gramajeGrAve = await v2.GetGramajeGrPorAveAsync(lote.GalponId, semana, dto.TipoAlimento);
+            if (gramajeGrAve.HasValue && gramajeGrAve.Value > 0)
             {
-                // Log error pero no fallar la actualización
-                Console.WriteLine($"Error al registrar retiro desde seguimiento levante (actualización): {ex.Message}");
+                int hembrasVivas = await CalcularHembrasVivasAsync(dto.LoteId);
+                consumoKgH = Math.Round((gramajeGrAve.Value * hembrasVivas) / 1000.0, 3);
             }
         }
 
-        return new SeguimientoLoteLevanteDto(
-            ent.Id, ent.LoteId, ent.FechaRegistro,
-            ent.MortalidadHembras, ent.MortalidadMachos,
-            ent.SelH, ent.SelM, ent.ErrorSexajeHembras, ent.ErrorSexajeMachos,
-            ent.ConsumoKgHembras, ent.TipoAlimento, ent.Observaciones,
-            ent.KcalAlH, ent.ProtAlH, ent.KcalAveH, ent.ProtAveH, ent.Ciclo,
+        var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
+        var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
+        var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
+        if (updated is null) return null;
 
-            // NUEVOS (mantenidos para compatibilidad)
-            ent.ConsumoKgMachos,
-            ent.PesoPromH, ent.PesoPromM,
-            ent.UniformidadH, ent.UniformidadM,
-            ent.CvH, ent.CvM,
-            // Metadata JSONB para campos adicionales
-            ent.Metadata,
-            // Items adicionales JSONB para otros tipos de ítems (no alimentos)
-            ent.ItemsAdicionales
-        );
+        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
+        if (totalRetiradas > 0)
+        {
+            try
+            {
+                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                    loteId: dto.LoteId,
+                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
+                    machosRetirados: dto.MortalidadMachos + dto.SelM,
+                    mixtasRetiradas: 0,
+                    fechaMovimiento: dto.FechaRegistro,
+                    fuenteSeguimiento: "Levante",
+                    observaciones: $"Actualización - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM}");
+            }
+            catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento levante (actualización): {ex.Message}"); }
+        }
+
+        return MapToLevanteDto(updated);
     }
 
-    // ===========================
-    // ELIMINAR
-    // ===========================
     public async Task<bool> DeleteAsync(int id)
     {
-        var ent = await _ctx.SeguimientoLoteLevante.FindAsync(id);
-        if (ent is null) return false;
-
-        // (Opcional) Validar que el lote pertenezca a la compañía actual
-        var ok = await _ctx.Lotes.AsNoTracking()
-            .AnyAsync(l => l.LoteId == ent.LoteId && l.CompanyId == _current.CompanyId);
-        if (!ok) return false;
-
-        _ctx.SeguimientoLoteLevante.Remove(ent);
-        await _ctx.SaveChangesAsync();
-        return true;
+        return await _seguimientoDiarioService.DeleteAsync((long)id);
     }
 
-    // ===========================
-    // FILTRO (seguro por compañía)
-    // ===========================
-    public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
+    /// <summary>
+    /// Suma mortalidad/selección/error desde la tabla unificada seguimiento_diario (tipo levante).
+    /// Base de hembras desde lote_etapa_levante (historial) si existe; si no, desde lote.
+    /// </summary>
+    private async Task<int> CalcularHembrasVivasAsync(int loteId)
     {
-        var q = from s in _ctx.SeguimientoLoteLevante.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking()
-                    on s.LoteId equals l.LoteId
-                where l.CompanyId == _current.CompanyId && l.DeletedAt == null
-                select s;
+        var loteIdStr = loteId.ToString();
+        int baseH;
+        int mortCajaH;
+        var etapa = await _ctx.LoteEtapaLevante.AsNoTracking()
+            .FirstOrDefaultAsync(el => el.LoteId == loteId);
+        if (etapa != null)
+        {
+            baseH = etapa.AvesInicioHembras;
+            var lote = await _ctx.Lotes.AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
+                .Select(l => new { MortCaja = l.MortCajaH ?? 0 })
+                .SingleOrDefaultAsync();
+            mortCajaH = lote?.MortCaja ?? 0;
+        }
+        else
+        {
+            var loteData = await _ctx.Lotes.AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
+                .Select(l => new { Base = l.HembrasL ?? 0, MortCaja = l.MortCajaH ?? 0 })
+                .SingleAsync();
+            baseH = loteData.Base;
+            mortCajaH = loteData.MortCaja;
+        }
 
-        if (loteId.HasValue)
-            q = q.Where(x => x.LoteId == loteId.Value);
-        if (desde.HasValue)
-            q = q.Where(x => x.FechaRegistro >= desde.Value);
-        if (hasta.HasValue)
-            q = q.Where(x => x.FechaRegistro <= hasta.Value);
+        var sum = await _ctx.SeguimientoDiario.AsNoTracking()
+            .Where(x => x.TipoSeguimiento == TipoLevante && x.LoteId == loteIdStr)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                MortH = g.Sum(x => x.MortalidadHembras ?? 0),
+                SelH = g.Sum(x => x.SelH ?? 0),
+                ErrH = g.Sum(x => x.ErrorSexajeHembras ?? 0)
+            })
+            .SingleOrDefaultAsync();
 
-        return await q
-            .OrderBy(x => x.LoteId).ThenBy(x => x.FechaRegistro)
-            .Select(ToDto)
-            .ToListAsync();
+        int mort = sum?.MortH ?? 0, sel = sum?.SelH ?? 0, err = sum?.ErrH ?? 0;
+        var vivas = baseH - mortCajaH - mort - sel - err;
+        return Math.Max(0, vivas);
     }
 
-    // ===========================
-    // Helpers
-    // ===========================
     private static (double? kcalAveH, double? protAveH) CalcularDerivados(double consumoKgHembras, double? kcalAlH, double? protAlH)
     {
-        double? kcal = (kcalAlH is null) ? null : Math.Round(consumoKgHembras * kcalAlH.Value, 3);
-        double? prot = (protAlH is null) ? null : Math.Round(consumoKgHembras * protAlH.Value, 3);
+        double? kcal = kcalAlH is null ? null : Math.Round(consumoKgHembras * kcalAlH.Value, 3);
+        double? prot = protAlH is null ? null : Math.Round(consumoKgHembras * protAlH.Value, 3);
         return (kcal, prot);
     }
 
@@ -388,77 +406,42 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         return Math.Max(1, (int)Math.Floor(dias / 7.0) + 1);
     }
 
-    private async Task<int> CalcularHembrasVivasAsync(int loteId)
+    /// <summary>
+    /// Resultado calculado: ejecuta SP y lee ProduccionResultadoLevante.
+    /// NOTA: El SP sp_recalcular_seguimiento_levante debe leer de seguimiento_diario (tipo=levante)
+    /// en lugar de seguimiento_lote_levante para que los datos coincidan.
+    /// </summary>
+    public async Task<ResultadoLevanteResponse> GetResultadoAsync(int loteId, DateTime? desde, DateTime? hasta, bool recalcular = true)
     {
-        var baseH = await _ctx.Lotes.AsNoTracking()
-            .Where(l => l.LoteId == loteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
-            .Select(l => new { Base = l.HembrasL ?? 0, MortCaja = l.MortCajaH ?? 0 })
-            .SingleAsync();
-
-        var sum = await _ctx.SeguimientoLoteLevante.AsNoTracking()
-            .Where(x => x.LoteId == loteId)
-            .GroupBy(_ => 1)
-            .Select(g => new
-            {
-                MortH = g.Sum(x => x.MortalidadHembras),
-                SelH = g.Sum(x => x.SelH),
-                ErrH = g.Sum(x => x.ErrorSexajeHembras)
-            })
-            .SingleOrDefaultAsync();
-
-        int mort = sum?.MortH ?? 0;
-        int sel = sum?.SelH ?? 0;
-        int err = sum?.ErrH ?? 0;
-
-        var vivas = baseH.Base - baseH.MortCaja - mort - sel - err;
-        return Math.Max(0, vivas);
-    }
-    
-      public async Task<ResultadoLevanteResponse> GetResultadoAsync(
-        int loteId, DateTime? desde, DateTime? hasta, bool recalcular = true)
-    {
-        // 0) Validar lote/tenant
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId == loteId
-                                     && l.CompanyId == _current.CompanyId
-                                     && l.DeletedAt == null);
+            .SingleOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null);
         if (lote is null)
             throw new InvalidOperationException($"Lote '{loteId}' no existe o no pertenece a la compañía.");
 
-        // 1) Recalcular on-demand (opcional)
         if (recalcular)
-        {
-            // IMPORTANTE: usa parámetro para evitar SQL injection
-            await _ctx.Database.ExecuteSqlInterpolatedAsync(
-                $"select sp_recalcular_seguimiento_levante({loteId})");
-        }
+            await _ctx.Database.ExecuteSqlInterpolatedAsync($"select sp_recalcular_seguimiento_levante({loteId})");
 
-        // 2) Query del snapshot
         var q = from r in _ctx.ProduccionResultadoLevante.AsNoTracking()
                 where r.LoteId == loteId
                 select r;
-
         if (desde.HasValue) q = q.Where(x => x.Fecha >= desde.Value.Date);
         if (hasta.HasValue) q = q.Where(x => x.Fecha <= hasta.Value.Date);
 
         var items = await q.OrderBy(x => x.Fecha)
             .Select(r => new ResultadoLevanteItemDto(
                 r.Fecha, r.EdadSemana,
-                // H
                 r.HembraViva, r.MortH, r.SelHOut, r.ErrH,
                 r.ConsKgH, r.PesoH, r.UnifH, r.CvH,
                 r.MortHPct, r.SelHPct, r.ErrHPct,
                 r.MsEhH, r.AcMortH, r.AcSelH, r.AcErrH,
                 r.AcConsKgH, r.ConsAcGrH, r.GrAveDiaH,
                 r.DifConsHPct, r.DifPesoHPct, r.RetiroHPct, r.RetiroHAcPct,
-                // M
                 r.MachoVivo, r.MortM, r.SelMOut, r.ErrM,
                 r.ConsKgM, r.PesoM, r.UnifM, r.CvM,
                 r.MortMPct, r.SelMPct, r.ErrMPct,
                 r.MsEmM, r.AcMortM, r.AcSelM, r.AcErrM,
                 r.AcConsKgM, r.ConsAcGrM, r.GrAveDiaM,
                 r.DifConsMPct, r.DifPesoMPct, r.RetiroMPct, r.RetiroMAcPct,
-                // Rel/Guías
                 r.RelMHPct,
                 r.PesoHGuia, r.UnifHGuia, r.ConsAcGrHGuia, r.GrAveDiaHGuia, r.MortHPctGuia,
                 r.PesoMGuia, r.UnifMGuia, r.ConsAcGrMGuia, r.GrAveDiaMGuia, r.MortMPctGuia,
@@ -466,13 +449,10 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             ))
             .ToListAsync();
 
-        return new ResultadoLevanteResponse(
-            loteId, desde?.Date, hasta?.Date, items.Count, items);
+        return new ResultadoLevanteResponse(loteId, desde?.Date, hasta?.Date, items.Count, items);
     }
-
 }
 
-// (Opcional): Si tienes provider que acepta string GalponId
 public interface IGramajeProviderV2
 {
     Task<double?> GetGramajeGrPorAveAsync(string galponId, int semana, string tipoAlimento);

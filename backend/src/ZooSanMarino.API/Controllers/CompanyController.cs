@@ -11,11 +11,13 @@ namespace ZooSanMarino.API.Controllers;
 public class CompanyController : ControllerBase
 {
     private readonly ICompanyService _svc;
+    private readonly ICompanyMenuService _companyMenuSvc;
     private readonly ICurrentUser _currentUser;
-    
-    public CompanyController(ICompanyService svc, ICurrentUser currentUser)
+
+    public CompanyController(ICompanyService svc, ICompanyMenuService companyMenuSvc, ICurrentUser currentUser)
     {
         _svc = svc;
+        _companyMenuSvc = companyMenuSvc;
         _currentUser = currentUser;
     }
 
@@ -77,4 +79,30 @@ public class CompanyController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id) =>
         (await _svc.DeleteAsync(id)) ? NoContent() : NotFound();
+
+    /// <summary>Obtiene los menús asignados a la empresa (árbol con estado habilitado).</summary>
+    [HttpGet("{id:int}/menus")]
+    public async Task<IActionResult> GetCompanyMenus(int id)
+    {
+        var menus = await _companyMenuSvc.GetMenusForCompanyAsync(id);
+        return Ok(menus);
+    }
+
+    /// <summary>Asigna o actualiza los menús de la empresa.</summary>
+    [HttpPut("{id:int}/menus")]
+    public async Task<IActionResult> SetCompanyMenus(int id, [FromBody] SetCompanyMenusRequest request)
+    {
+        if (request == null) return BadRequest();
+        await _companyMenuSvc.SetCompanyMenusAsync(id, request);
+        return NoContent();
+    }
+
+    /// <summary>Actualiza orden y jerarquía (parent) de los menús de la empresa.</summary>
+    [HttpPut("{id:int}/menus/structure")]
+    public async Task<IActionResult> UpdateCompanyMenuStructure(int id, [FromBody] UpdateCompanyMenuStructureRequest request)
+    {
+        if (request == null) return BadRequest();
+        await _companyMenuSvc.UpdateCompanyMenuStructureAsync(id, request);
+        return NoContent();
+    }
 }

@@ -15,11 +15,10 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .UseIdentityAlwaysColumn()
             .HasColumnName("id");
 
-        // lote_id es text en la BD
+        // lote_id es int FK a lotes (Opción B)
         builder.Property(x => x.LoteId)
             .IsRequired()
-            .HasColumnName("lote_id")
-            .HasColumnType("text");
+            .HasColumnName("lote_id");
         
         builder.Property(x => x.Fecha)
             .IsRequired()
@@ -184,12 +183,6 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .HasColumnName("consumo_agua_temperatura")
             .HasColumnType("double precision")
             .IsRequired(false);
-
-        // NOTA: No hay relación de navegación con Lote porque:
-        // - lote_id en produccion_diaria es text
-        // - Lote.LoteId es int?
-        // - Son tipos incompatibles para foreign key
-        // Si necesitas acceder al Lote, hazlo manualmente usando el string del lote_id
 
         // Índice único por lote y fecha
         builder.HasIndex(x => new { x.LoteId, x.Fecha }).IsUnique();

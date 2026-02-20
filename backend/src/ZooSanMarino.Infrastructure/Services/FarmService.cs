@@ -55,6 +55,26 @@ namespace ZooSanMarino.Infrastructure.Services
             return _current.CompanyId;
         }
 
+        /// <summary>
+        /// Resuelve el id de una opción de lista maestra (master_list_options) al regional_id de la tabla Regional
+        /// por coincidencia de nombre (Value de la opción = RegionalNombre), para la compañía dada.
+        /// </summary>
+        private async Task<int?> ResolveRegionalIdFromOptionIdAsync(int? regionalOptionId, int companyId)
+        {
+            if (!regionalOptionId.HasValue || regionalOptionId.Value <= 0) return null;
+            var opt = await _ctx.MasterListOptions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == regionalOptionId.Value);
+            if (opt?.Value == null) return null;
+            var value = opt.Value.Trim();
+            if (string.IsNullOrEmpty(value)) return null;
+            var regional = await _ctx.Regionales
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.RegionalCia == companyId &&
+                    (r.RegionalNombre != null && r.RegionalNombre.Trim().ToLower() == value.ToLower()));
+            return regional?.RegionalId;
+        }
+
         // ======================================================
         // BÚSQUEDA / LISTADO AVANZADO
         // ======================================================
@@ -254,12 +274,33 @@ namespace ZooSanMarino.Infrastructure.Services
                     f.Id,
                     f.CompanyId,
                     f.Name,
-                    f.RegionalId,        // ⬅️ int?
+                    f.RegionalId,
                     f.Status,
                     f.DepartamentoId,
-                    f.MunicipioId        // → CiudadId
+                    f.MunicipioId,
+                    _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
+                    _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
+                    f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
+                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault()
                 ))
                 .ToListAsync();
+
+            // Si regionalNombre sigue null, puede ser id de opción de lista maestra (master_list_options)
+            var idsSinNombre = result.Where(x => x.RegionalNombre == null && x.RegionalId.HasValue).Select(x => x.RegionalId!.Value).Distinct().ToList();
+            if (idsSinNombre.Count > 0)
+            {
+                var nombresOpcion = await _ctx.MasterListOptions
+                    .AsNoTracking()
+                    .Where(o => idsSinNombre.Contains(o.Id))
+                    .ToDictionaryAsync(o => o.Id, o => o.Value ?? "");
+                result = result.Select(f =>
+                {
+                    if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
+                    if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
+                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre);
+                    return f;
+                }).ToList();
+            }
 
             Console.WriteLine($"=== FarmService.GetAllAsync - Devolviendo {result.Count} granjas ===");
             return result;
@@ -305,20 +346,35 @@ namespace ZooSanMarino.Infrastructure.Services
             return userEmail?.ToLower() == "moiesbbuga@gmail.com";
         }
 
-        public async Task<FarmDto?> GetByIdAsync(int id) =>
-            await _ctx.Farms
+        public async Task<FarmDto?> GetByIdAsync(int id)
+        {
+            var dto = await _ctx.Farms
                 .AsNoTracking()
                 .Where(f => f.CompanyId == _current.CompanyId && f.DeletedAt == null && f.Id == id)
                 .Select(f => new FarmDto(
                     f.Id,
                     f.CompanyId,
                     f.Name,
-                    f.RegionalId,        // ⬅️ int?
+                    f.RegionalId,
                     f.Status,
                     f.DepartamentoId,
-                    f.MunicipioId        // → CiudadId
+                    f.MunicipioId,
+                    _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
+                    _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
+                    f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
+                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault()
                 ))
                 .SingleOrDefaultAsync();
+
+            if (dto == null) return null;
+            if (dto.RegionalNombre == null && dto.RegionalId.HasValue)
+            {
+                var nombreOpcion = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == dto.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
+                if (!string.IsNullOrWhiteSpace(nombreOpcion))
+                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre);
+            }
+            return dto;
+        }
 
         public async Task<FarmDto> CreateAsync(CreateFarmDto dto)
         {
@@ -333,11 +389,11 @@ namespace ZooSanMarino.Infrastructure.Services
                 throw new ArgumentException("CiudadId es obligatorio.", nameof(dto.CiudadId));
 
             // NUEVA VALIDACIÓN: Verificar que el usuario puede crear granjas en este país
-            var departamento = await _ctx.Set<Departamento>()
+            var departamentoEntity = await _ctx.Set<Departamento>()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.DepartamentoId == dto.DepartamentoId.Value);
             
-            if (departamento == null)
+            if (departamentoEntity == null)
                 throw new ArgumentException("El departamento especificado no existe.", nameof(dto.DepartamentoId));
 
             // Obtener la empresa activa del usuario
@@ -347,12 +403,12 @@ namespace ZooSanMarino.Infrastructure.Services
             // Primero verificar si la empresa activa tiene el país asignado
             var companyHasCountry = await _ctx.CompanyPaises
                 .AsNoTracking()
-                .AnyAsync(cp => cp.CompanyId == effectiveCompanyId && cp.PaisId == departamento.PaisId);
+                .AnyAsync(cp => cp.CompanyId == effectiveCompanyId && cp.PaisId == departamentoEntity.PaisId);
             
             // Si la empresa activa tiene el país, permitir crear
             // Si no, verificar otros permisos (admin, otras empresas, etc.)
             var canCreateInCountry = companyHasCountry || 
-                await _userPermissionService.CanCreateFarmInCountryAsync(_current.UserId, departamento.PaisId);
+                await _userPermissionService.CanCreateFarmInCountryAsync(_current.UserId, departamentoEntity.PaisId);
             
             if (!canCreateInCountry)
             {
@@ -378,7 +434,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 
                 var paisNombre = await _ctx.Set<Pais>()
                     .AsNoTracking()
-                    .Where(p => p.PaisId == departamento.PaisId)
+                    .Where(p => p.PaisId == departamentoEntity.PaisId)
                     .Select(p => p.PaisNombre)
                     .FirstOrDefaultAsync() ?? "desconocido";
                 
@@ -402,11 +458,12 @@ namespace ZooSanMarino.Infrastructure.Services
                                f.DeletedAt == null);
             if (dup) throw new InvalidOperationException("Ya existe una granja con ese nombre en la compañía.");
 
+            var regionalId = dto.RegionalId ?? await ResolveRegionalIdFromOptionIdAsync(dto.RegionalOptionId, effectiveCompanyId);
             var entity = new Farm
             {
                 CompanyId       = effectiveCompanyId,
                 Name            = name,
-                RegionalId      = dto.RegionalId,            // null OK
+                RegionalId      = regionalId,                // null OK; puede venir de dto o resuelto desde RegionalOptionId
                 Status          = normalizedStatus,          // 'A'/'I'
                 DepartamentoId  = dto.DepartamentoId!.Value,
                 MunicipioId     = dto.CiudadId!.Value,       // DTO ciudadId → entidad MunicipioId
@@ -452,8 +509,35 @@ namespace ZooSanMarino.Infrastructure.Services
             }
             else
             {
-                Console.WriteLine($"FarmService.CreateAsync - WARNING: No se pudo obtener UserGuid, no se asignó la granja automáticamente");
+                    Console.WriteLine($"FarmService.CreateAsync - WARNING: No se pudo obtener UserGuid, no se asignó la granja automáticamente");
             }
+
+            // Obtener nombres de departamento y municipio
+            var departamentoNombre = await _ctx.Set<Departamento>()
+                .AsNoTracking()
+                .Where(d => d.DepartamentoId == entity.DepartamentoId)
+                .Select(d => d.DepartamentoNombre)
+                .FirstOrDefaultAsync();
+            
+            var ciudadNombre = await _ctx.Set<Municipio>()
+                .AsNoTracking()
+                .Where(m => m.MunicipioId == entity.MunicipioId)
+                .Select(m => m.MunicipioNombre)
+                .FirstOrDefaultAsync();
+            
+            string? regionalNombre = null;
+            if (entity.RegionalId.HasValue)
+            {
+                regionalNombre = await _ctx.Regionales
+                    .AsNoTracking()
+                    .Where(r => r.RegionalCia == entity.CompanyId && r.RegionalId == entity.RegionalId.Value)
+                    .Select(r => r.RegionalNombre)
+                    .FirstOrDefaultAsync();
+                if (string.IsNullOrWhiteSpace(regionalNombre))
+                    regionalNombre = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == entity.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
+            }
+
+            var companyNombre = await _ctx.Companies.AsNoTracking().Where(c => c.Id == entity.CompanyId).Select(c => c.Name).FirstOrDefaultAsync();
 
             return new FarmDto(
                 entity.Id,
@@ -462,7 +546,11 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.RegionalId,
                 entity.Status,
                 entity.DepartamentoId,
-                entity.MunicipioId
+                entity.MunicipioId,
+                departamentoNombre,
+                ciudadNombre,
+                regionalNombre,
+                companyNombre
             );
         }
 
@@ -495,7 +583,9 @@ namespace ZooSanMarino.Infrastructure.Services
             }
 
             entity.Name           = name;
-            entity.RegionalId     = dto.RegionalId;                 // null OK
+            entity.RegionalId     = dto.RegionalId
+                ?? await ResolveRegionalIdFromOptionIdAsync(dto.RegionalOptionId, entity.CompanyId)
+                ?? entity.RegionalId;  // null OK; puede venir de dto, resuelto desde RegionalOptionId, o conservar actual
             entity.Status         = NormalizeStatus(dto.Status);    // 'A'/'I'
             entity.DepartamentoId = dto.DepartamentoId!.Value;
             entity.MunicipioId    = dto.CiudadId!.Value;
@@ -504,6 +594,33 @@ namespace ZooSanMarino.Infrastructure.Services
 
             await _ctx.SaveChangesAsync();
 
+            // Obtener nombres de departamento y municipio
+            var departamentoNombre = await _ctx.Set<Departamento>()
+                .AsNoTracking()
+                .Where(d => d.DepartamentoId == entity.DepartamentoId)
+                .Select(d => d.DepartamentoNombre)
+                .FirstOrDefaultAsync();
+            
+            var ciudadNombre = await _ctx.Set<Municipio>()
+                .AsNoTracking()
+                .Where(m => m.MunicipioId == entity.MunicipioId)
+                .Select(m => m.MunicipioNombre)
+                .FirstOrDefaultAsync();
+            
+            string? regionalNombre = null;
+            if (entity.RegionalId.HasValue)
+            {
+                regionalNombre = await _ctx.Regionales
+                    .AsNoTracking()
+                    .Where(r => r.RegionalCia == entity.CompanyId && r.RegionalId == entity.RegionalId.Value)
+                    .Select(r => r.RegionalNombre)
+                    .FirstOrDefaultAsync();
+                if (string.IsNullOrWhiteSpace(regionalNombre))
+                    regionalNombre = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == entity.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
+            }
+
+            var companyNombre = await _ctx.Companies.AsNoTracking().Where(c => c.Id == entity.CompanyId).Select(c => c.Name).FirstOrDefaultAsync();
+
             return new FarmDto(
                 entity.Id,
                 entity.CompanyId,
@@ -511,7 +628,11 @@ namespace ZooSanMarino.Infrastructure.Services
                 entity.RegionalId,
                 entity.Status,
                 entity.DepartamentoId,
-                entity.MunicipioId
+                entity.MunicipioId,
+                departamentoNombre,
+                ciudadNombre,
+                regionalNombre,
+                companyNombre
             );
         }
 

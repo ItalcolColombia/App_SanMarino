@@ -15,7 +15,10 @@ public class LoteReproductoraConfiguration : IEntityTypeConfiguration<LoteReprod
     b.HasKey(x => new { x.LoteId, x.ReproductoraId });
 
 
-    b.Property(x => x.LoteId).HasColumnName("lote_id").IsRequired();
+    b.Property(x => x.LoteId)
+        .HasColumnName("lote_id")
+        .HasMaxLength(64)
+        .IsRequired();
     b.Property(x => x.ReproductoraId).HasColumnName("reproductora_id").HasMaxLength(64).IsRequired();
     b.Property(x => x.NombreLote).HasColumnName("nombre_lote").HasMaxLength(200).IsRequired();
     b.Property(x => x.FechaEncasetamiento).HasColumnName("fecha_encasetamiento");
@@ -23,6 +26,8 @@ public class LoteReproductoraConfiguration : IEntityTypeConfiguration<LoteReprod
 
     b.Property(x => x.M).HasColumnName("m");
     b.Property(x => x.H).HasColumnName("h");
+    b.Property(x => x.AvesInicioHembras).HasColumnName("aves_inicio_hembras");
+    b.Property(x => x.AvesInicioMachos).HasColumnName("aves_inicio_machos");
     b.Property(x => x.Mixtas).HasColumnName("mixtas");
     b.Property(x => x.MortCajaH).HasColumnName("mort_caja_h");
     b.Property(x => x.MortCajaM).HasColumnName("mort_caja_m");
@@ -35,10 +40,11 @@ public class LoteReproductoraConfiguration : IEntityTypeConfiguration<LoteReprod
     b.Property(x => x.PesoMixto).HasColumnName("peso_mixto").HasPrecision(10,3);
 
 
-    b.HasOne(x => x.Lote)
-    .WithMany(x => x.Reproductoras)
-    .HasForeignKey(x => x.LoteId)
-    .OnDelete(DeleteBehavior.Restrict);
+    // Relación con Lote: lote_id en lote_reproductoras es string (character varying),
+    // pero en lotes es integer. No podemos usar foreign key automática por el desajuste de tipos.
+    // La validación de integridad referencial se maneja manualmente en el servicio.
+    // Ignoramos la propiedad de navegación Lote para evitar que EF Core intente crear la relación:
+    // b.Ignore(x => x.Lote); // Comentado porque la propiedad ya está comentada en la entidad
 
 
     b.HasMany(x => x.LoteGalpones)

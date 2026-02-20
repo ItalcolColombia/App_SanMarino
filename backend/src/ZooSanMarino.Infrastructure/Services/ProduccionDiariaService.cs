@@ -24,15 +24,15 @@ public class ProduccionDiariaService : IProduccionDiariaService
     public async Task<IEnumerable<ProduccionDiariaDto>> GetAllAsync()
     {
         var q = from p in _ctx.SeguimientoProduccion.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId.ToString()
-                where l.CompanyId == _current.CompanyId && l.DeletedAt == null
+                from l in _ctx.Lotes.AsNoTracking()
+                where p.LoteId == l.LoteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null
                 select p;
 
         return await q
             .OrderByDescending(x => x.Fecha)
             .Select(x => new ProduccionDiariaDto(
                 x.Id,
-                x.LoteId,
+                x.LoteId.ToString(),
                 x.Fecha, // Fecha -> FechaRegistro
                 x.MortalidadH, // MortalidadH -> MortalidadHembras
                 x.MortalidadM, // MortalidadM -> MortalidadMachos
@@ -51,19 +51,17 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
     public async Task<IEnumerable<ProduccionDiariaDto>> GetByLoteIdAsync(int loteId)
     {
-        var loteIdStr = loteId.ToString();
         var q = from p in _ctx.SeguimientoProduccion.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId.ToString()
-                where l.CompanyId == _current.CompanyId && 
-                      l.DeletedAt == null && 
-                      p.LoteId == loteIdStr
+                from l in _ctx.Lotes.AsNoTracking()
+                where p.LoteId == l.LoteId && l.CompanyId == _current.CompanyId &&
+                      l.DeletedAt == null && p.LoteId == loteId
                 select p;
 
         return await q
             .OrderByDescending(x => x.Fecha)
             .Select(x => new ProduccionDiariaDto(
                 x.Id,
-                x.LoteId,
+                x.LoteId.ToString(),
                 x.Fecha, // Fecha -> FechaRegistro
                 x.MortalidadH, // MortalidadH -> MortalidadHembras
                 x.MortalidadM, // MortalidadM -> MortalidadMachos
@@ -82,30 +80,32 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
     public async Task<ProduccionDiariaDto> CreateAsync(CreateProduccionDiariaDto dto)
     {
+        if (!int.TryParse(dto.LoteId, out var loteIdInt))
+            throw new InvalidOperationException($"LoteId '{dto.LoteId}' no es un número válido.");
+
         // Verificar que el lote existe y pertenece a la compañía
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId.ToString() == dto.LoteId &&
+            .SingleOrDefaultAsync(l => l.LoteId == loteIdInt &&
                                        l.CompanyId == _current.CompanyId &&
                                        l.DeletedAt == null);
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
-        // VALIDACIÓN CRÍTICA: Verificar que existe un ProduccionLote configurado para este lote
-        var produccionLote = await _ctx.ProduccionLotes.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.LoteId.ToString() == dto.LoteId);
-        if (produccionLote is null)
-            throw new InvalidOperationException($"El lote '{dto.LoteId}' no tiene configuración de producción inicial. Debe crear primero el registro de ProduccionLote.");
+        // Opción B: lote en producción = mismo lote Fase Produccion o hijo
+        var loteProd = lote.Fase == "Produccion" ? lote : await _ctx.Lotes.AsNoTracking()
+            .FirstOrDefaultAsync(l => l.LotePadreId == loteIdInt && l.Fase == "Produccion" && l.DeletedAt == null);
+        if (loteProd is null)
+            throw new InvalidOperationException($"El lote '{dto.LoteId}' no tiene configuración de producción inicial. Cree el lote en fase Producción desde el módulo de producción.");
 
-        // Verificar que no existe ya un registro para la misma fecha y lote
+        var loteIdSeguimiento = loteProd.LoteId ?? loteIdInt;
         var existeRegistro = await _ctx.SeguimientoProduccion.AsNoTracking()
-            .AnyAsync(p => p.LoteId == dto.LoteId && 
-                          p.Fecha.Date == dto.FechaRegistro.Date);
+            .AnyAsync(p => p.LoteId == loteIdSeguimiento && p.Fecha.Date == dto.FechaRegistro.Date);
         if (existeRegistro)
             throw new InvalidOperationException($"Ya existe un registro de producción diaria para el lote '{dto.LoteId}' en la fecha '{dto.FechaRegistro:yyyy-MM-dd}'.");
 
         var entity = new Domain.Entities.SeguimientoProduccion
         {
-            LoteId = dto.LoteId,
+            LoteId = loteIdSeguimiento,
             Fecha = dto.FechaRegistro,
             MortalidadH = dto.MortalidadHembras,
             MortalidadM = dto.MortalidadMachos,
@@ -124,34 +124,30 @@ public class ProduccionDiariaService : IProduccionDiariaService
         await _ctx.SaveChangesAsync();
 
         // Registrar retiro automático si hay mortalidades o selecciones
-        if (int.TryParse(dto.LoteId, out int loteIdInt))
+        var totalRetiradasCreate = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH;
+        if (totalRetiradasCreate > 0)
         {
-            var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH;
-            if (totalRetiradas > 0)
+            try
             {
-                try
-                {
-                    await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                        loteId: loteIdInt,
-                        hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
-                        machosRetirados: dto.MortalidadMachos,
-                        mixtasRetiradas: 0, // Los seguimientos producción no tienen mixtas
-                        fechaMovimiento: dto.FechaRegistro,
-                        fuenteSeguimiento: "Produccion",
-                        observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH} | Observaciones: {dto.Observaciones}"
-                    );
-                }
-                catch (Exception ex)
-                {
-                    // Log error pero no fallar el guardado del seguimiento
-                    Console.WriteLine($"Error al registrar retiro desde seguimiento producción: {ex.Message}");
-                }
+                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                    loteId: loteIdInt,
+                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
+                    machosRetirados: dto.MortalidadMachos,
+                    mixtasRetiradas: 0,
+                    fechaMovimiento: dto.FechaRegistro,
+                    fuenteSeguimiento: "Produccion",
+                    observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH} | Observaciones: {dto.Observaciones}"
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al registrar retiro desde seguimiento producción: {ex.Message}");
             }
         }
 
         return new ProduccionDiariaDto(
             entity.Id,
-            entity.LoteId,
+            entity.LoteId.ToString(),
             entity.Fecha, // Fecha -> FechaRegistro
             entity.MortalidadH, // MortalidadH -> MortalidadHembras
             entity.MortalidadM, // MortalidadM -> MortalidadMachos
@@ -172,9 +168,12 @@ public class ProduccionDiariaService : IProduccionDiariaService
         var entity = await _ctx.SeguimientoProduccion.FindAsync(dto.Id);
         if (entity == null) return null;
 
+        if (!int.TryParse(dto.LoteId, out var loteIdInt))
+            throw new InvalidOperationException($"LoteId '{dto.LoteId}' no es un número válido.");
+
         // Verificar que el lote existe y pertenece a la compañía
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId.ToString() == dto.LoteId &&
+            .SingleOrDefaultAsync(l => l.LoteId == loteIdInt &&
                                        l.CompanyId == _current.CompanyId &&
                                        l.DeletedAt == null);
         if (lote is null)
@@ -182,13 +181,13 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
         // Verificar que no existe ya otro registro para la misma fecha y lote (excluyendo el actual)
         var existeOtroRegistro = await _ctx.SeguimientoProduccion.AsNoTracking()
-            .AnyAsync(p => p.LoteId == dto.LoteId && 
-                          p.Fecha.Date == dto.FechaRegistro.Date &&
-                          p.Id != dto.Id);
+            .AnyAsync(p => p.LoteId == loteIdInt &&
+                           p.Fecha.Date == dto.FechaRegistro.Date &&
+                           p.Id != dto.Id);
         if (existeOtroRegistro)
             throw new InvalidOperationException($"Ya existe otro registro de producción diaria para el lote '{dto.LoteId}' en la fecha '{dto.FechaRegistro:yyyy-MM-dd}'.");
 
-        entity.LoteId = dto.LoteId;
+        entity.LoteId = loteIdInt;
         entity.Fecha = dto.FechaRegistro;
         entity.MortalidadH = dto.MortalidadHembras;
         entity.MortalidadM = dto.MortalidadMachos;
@@ -204,8 +203,7 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
         await _ctx.SaveChangesAsync();
 
-        // Registrar retiro automático si hay mortalidades o selecciones
-        if (int.TryParse(dto.LoteId, out int loteIdInt))
+        // Registrar retiro automático si hay mortalidades o selecciones (loteIdInt ya definido al inicio del método)
         {
             var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH;
             if (totalRetiradas > 0)
@@ -232,7 +230,7 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
         return new ProduccionDiariaDto(
             entity.Id,
-            entity.LoteId,
+            entity.LoteId.ToString(),
             entity.Fecha, // Fecha -> FechaRegistro
             entity.MortalidadH, // MortalidadH -> MortalidadHembras
             entity.MortalidadM, // MortalidadM -> MortalidadMachos
@@ -255,7 +253,7 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
         // Verificar que el lote pertenece a la compañía
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId.ToString() == entity.LoteId &&
+            .SingleOrDefaultAsync(l => l.LoteId == entity.LoteId &&
                                        l.CompanyId == _current.CompanyId &&
                                        l.DeletedAt == null);
         if (lote is null) return false;
@@ -268,12 +266,12 @@ public class ProduccionDiariaService : IProduccionDiariaService
     public async Task<IEnumerable<ProduccionDiariaDto>> FilterAsync(FilterProduccionDiariaDto filter)
     {
         var q = from p in _ctx.SeguimientoProduccion.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking() on p.LoteId equals l.LoteId.ToString()
-                where l.CompanyId == _current.CompanyId && l.DeletedAt == null
+                from l in _ctx.Lotes.AsNoTracking()
+                where p.LoteId == l.LoteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null
                 select p;
 
-        if (!string.IsNullOrWhiteSpace(filter.LoteId))
-            q = q.Where(x => x.LoteId == filter.LoteId);
+        if (!string.IsNullOrWhiteSpace(filter.LoteId) && int.TryParse(filter.LoteId, out var filterLoteId))
+            q = q.Where(x => x.LoteId == filterLoteId);
         if (filter.Desde.HasValue)
             q = q.Where(x => x.Fecha >= filter.Desde.Value);
         if (filter.Hasta.HasValue)
@@ -283,7 +281,7 @@ public class ProduccionDiariaService : IProduccionDiariaService
             .OrderByDescending(x => x.Fecha)
             .Select(x => new ProduccionDiariaDto(
                 x.Id,
-                x.LoteId,
+                x.LoteId.ToString(),
                 x.Fecha, // Fecha -> FechaRegistro
                 x.MortalidadH, // MortalidadH -> MortalidadHembras
                 x.MortalidadM, // MortalidadM -> MortalidadMachos
@@ -302,17 +300,15 @@ public class ProduccionDiariaService : IProduccionDiariaService
 
     public async Task<bool> HasProduccionLoteConfigAsync(string loteId)
     {
-        // Verificar que el lote existe y pertenece a la compañía
         var lote = await _ctx.Lotes.AsNoTracking()
             .SingleOrDefaultAsync(l => l.LoteId.ToString() == loteId &&
                                        l.CompanyId == _current.CompanyId &&
                                        l.DeletedAt == null);
         if (lote is null) return false;
 
-        // Verificar si existe un ProduccionLote configurado para este lote
-        var produccionLote = await _ctx.ProduccionLotes.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.LoteId.ToString() == loteId);
-        
-        return produccionLote is not null;
+        // Opción B: existe lote en fase Producción (mismo lote o hijo)
+        if (lote.Fase == "Produccion") return true;
+        return await _ctx.Lotes.AsNoTracking()
+            .AnyAsync(l => l.LotePadreId == lote.LoteId && l.Fase == "Produccion" && l.DeletedAt == null);
     }
 }

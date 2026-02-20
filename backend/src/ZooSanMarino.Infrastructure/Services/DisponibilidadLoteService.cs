@@ -42,45 +42,50 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             return null;
         }
 
-        // Determinar si es levante o producción
-        var produccionLote = await _context.ProduccionLotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.LoteId == loteId && p.DeletedAt == null);
+        // Opción B: producción = mismo lote con Fase "Produccion" o lote hijo con Fase "Produccion"
+        Lote? loteProd = null;
+        if (lote.Fase == "Produccion" && lote.LoteId.HasValue)
+            loteProd = lote;
+        else if (lote.LoteId.HasValue)
+            loteProd = await _context.Lotes
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .Include(l => l.Nucleo)
+                .Include(l => l.Galpon)
+                .FirstOrDefaultAsync(l => l.LotePadreId == lote.LoteId && l.Fase == "Produccion" && l.DeletedAt == null);
 
-        if (produccionLote != null)
+        if (loteProd != null)
         {
-            // Es un lote de producción - calcular disponibilidad de huevos
-            return await ObtenerDisponibilidadHuevosAsync(lote, produccionLote);
+            return await ObtenerDisponibilidadHuevosAsync(loteProd);
         }
-        else
-        {
-            // Es un lote de levante - calcular disponibilidad de aves
-            return await ObtenerDisponibilidadAvesAsync(lote);
-        }
+        return await ObtenerDisponibilidadAvesAsync(lote);
     }
 
-    private async Task<DisponibilidadLoteDto> ObtenerDisponibilidadHuevosAsync(Lote lote, ProduccionLote produccionLote)
+    private async Task<DisponibilidadLoteDto> ObtenerDisponibilidadHuevosAsync(Lote loteProd)
     {
-        var loteIdStr = lote.LoteId?.ToString() ?? string.Empty;
+        if (!loteProd.LoteId.HasValue)
+            throw new InvalidOperationException("Lote sin LoteId.");
 
-        // Obtener todos los registros de producción diaria para este lote
-        var seguimientos = await _context.SeguimientoProduccion
+        var loteIdStr = loteProd.LoteId.Value.ToString();
+
+        // Seguimientos desde tabla unificada seguimiento_diario (tipo produccion) — alineado con seguimiento diario unificado
+        var seguimientos = await _context.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.LoteId == loteIdStr)
+            .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr)
             .ToListAsync();
 
         // Calcular totales acumulados por tipo de huevo
-        var totalLimpio = seguimientos.Sum(s => s.HuevoLimpio);
-        var totalTratado = seguimientos.Sum(s => s.HuevoTratado);
-        var totalSucio = seguimientos.Sum(s => s.HuevoSucio);
-        var totalDeforme = seguimientos.Sum(s => s.HuevoDeforme);
-        var totalBlanco = seguimientos.Sum(s => s.HuevoBlanco);
-        var totalDobleYema = seguimientos.Sum(s => s.HuevoDobleYema);
-        var totalPiso = seguimientos.Sum(s => s.HuevoPiso);
-        var totalPequeno = seguimientos.Sum(s => s.HuevoPequeno);
-        var totalRoto = seguimientos.Sum(s => s.HuevoRoto);
-        var totalDesecho = seguimientos.Sum(s => s.HuevoDesecho);
-        var totalOtro = seguimientos.Sum(s => s.HuevoOtro);
+        var totalLimpio = seguimientos.Sum(s => s.HuevoLimpio ?? 0);
+        var totalTratado = seguimientos.Sum(s => s.HuevoTratado ?? 0);
+        var totalSucio = seguimientos.Sum(s => s.HuevoSucio ?? 0);
+        var totalDeforme = seguimientos.Sum(s => s.HuevoDeforme ?? 0);
+        var totalBlanco = seguimientos.Sum(s => s.HuevoBlanco ?? 0);
+        var totalDobleYema = seguimientos.Sum(s => s.HuevoDobleYema ?? 0);
+        var totalPiso = seguimientos.Sum(s => s.HuevoPiso ?? 0);
+        var totalPequeno = seguimientos.Sum(s => s.HuevoPequeno ?? 0);
+        var totalRoto = seguimientos.Sum(s => s.HuevoRoto ?? 0);
+        var totalDesecho = seguimientos.Sum(s => s.HuevoDesecho ?? 0);
+        var totalOtro = seguimientos.Sum(s => s.HuevoOtro ?? 0);
 
         // Obtener traslados completados para restar
         var trasladosCompletados = await _context.TrasladoHuevos
@@ -120,18 +125,18 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         
         var totalHuevosIncubables = totalLimpio + totalTratado;
 
-        var fechaUltimoRegistro = seguimientos.Any() 
-            ? seguimientos.Max(s => s.Fecha) 
+        var fechaUltimoRegistro = seguimientos.Count > 0
+            ? seguimientos.Max(s => s.Fecha)
             : (DateTime?)null;
 
-        var diasEnProduccion = produccionLote.FechaInicio != default
-            ? (DateTime.Today - produccionLote.FechaInicio.Date).Days
+        var diasEnProduccion = loteProd.FechaInicioProduccion.HasValue && loteProd.FechaInicioProduccion.Value != default
+            ? (DateTime.Today - loteProd.FechaInicioProduccion.Value.Date).Days
             : 0;
 
         return new DisponibilidadLoteDto
         {
-            LoteId = lote.LoteId ?? 0,
-            LoteNombre = lote.LoteNombre,
+            LoteId = loteProd.LoteId ?? 0,
+            LoteNombre = loteProd.LoteNombre,
             TipoLote = "Produccion",
             Aves = null,
             Huevos = new HuevosDisponiblesDto
@@ -152,12 +157,12 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
                 FechaUltimoRegistro = fechaUltimoRegistro,
                 DiasEnProduccion = diasEnProduccion
             },
-            GranjaId = lote.GranjaId,
-            GranjaNombre = lote.Farm?.Name ?? string.Empty,
-            NucleoId = lote.NucleoId,
-            NucleoNombre = lote.Nucleo?.NucleoNombre,
-            GalponId = lote.GalponId,
-            GalponNombre = lote.Galpon?.GalponNombre
+            GranjaId = loteProd.GranjaId,
+            GranjaNombre = loteProd.Farm?.Name ?? string.Empty,
+            NucleoId = loteProd.NucleoId,
+            NucleoNombre = loteProd.Nucleo?.NucleoNombre,
+            GalponId = loteProd.GalponId,
+            GalponNombre = loteProd.Galpon?.GalponNombre
         };
     }
 
@@ -169,14 +174,14 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
         var hembrasIniciales = lote.HembrasL ?? 0;
         var machosIniciales = lote.MachosL ?? 0;
 
-        // Calcular mortalidad acumulada desde seguimientos de levante
-        var seguimientos = await _context.SeguimientoLoteLevante
+        // Calcular mortalidad acumulada desde tabla unificada seguimiento_diario (tipo levante) — alineado con seguimiento diario unificado
+        var seguimientos = await _context.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.LoteId == loteIdInt)
+            .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteIdInt.ToString())
             .ToListAsync();
 
-        var mortalidadAcumHembras = seguimientos.Sum(s => s.MortalidadHembras);
-        var mortalidadAcumMachos = seguimientos.Sum(s => s.MortalidadMachos);
+        var mortalidadAcumHembras = seguimientos.Sum(s => s.MortalidadHembras ?? 0);
+        var mortalidadAcumMachos = seguimientos.Sum(s => s.MortalidadMachos ?? 0);
 
         // Obtener retiros acumulados desde movimientos de aves completados
         var retirosCompletados = await _context.MovimientoAves

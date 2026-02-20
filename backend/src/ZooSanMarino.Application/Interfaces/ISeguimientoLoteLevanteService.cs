@@ -6,6 +6,7 @@ namespace ZooSanMarino.Application.Interfaces;
 public interface ISeguimientoLoteLevanteService
 {
     Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId);
+    Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id);
     Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta);
     Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto);
     Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto);

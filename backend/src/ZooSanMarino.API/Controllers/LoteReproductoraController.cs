@@ -1,8 +1,10 @@
 // file: src/ZooSanMarino.API/Controllers/LoteReproductoraController.cs
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
+using AvesDisponiblesDto = ZooSanMarino.Application.DTOs.AvesDisponiblesDto;
 
 namespace ZooSanMarino.API.Controllers;
 
@@ -12,7 +14,27 @@ namespace ZooSanMarino.API.Controllers;
 public class LoteReproductoraController : ControllerBase
 {
     private readonly ILoteReproductoraService _svc;
-    public LoteReproductoraController(ILoteReproductoraService svc) => _svc = svc;
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public LoteReproductoraController(ILoteReproductoraService svc, IServiceScopeFactory scopeFactory)
+    {
+        _svc = svc;
+        _scopeFactory = scopeFactory;
+    }
+
+    /// <summary>
+    /// Datos para los filtros en cascada (Granja → Núcleo → Galpón → Lote) en una sola llamada.
+    /// Usa un scope nuevo para evitar concurrencia con el DbContext del request.
+    /// </summary>
+    [HttpGet("filter-data")]
+    [ProducesResponseType(typeof(LoteReproductoraFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoteReproductoraFilterDataDto>> GetFilterData(CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteReproductoraFilterDataService>();
+        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        return Ok(data);
+    }
 
     // ======================================
     // LISTADO (opcionalmente filtrado por lote)
@@ -21,10 +43,9 @@ public class LoteReproductoraController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LoteReproductoraDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<LoteReproductoraDto>>> GetAll(
-        [FromQuery] int? loteId,  // Changed from string? to int?
+        [FromQuery] string? loteId,
         CancellationToken ct)
     {
-        // Nota: el service actual no acepta ct; si lo agregas en futuro, pásalo.
         var items = await _svc.GetAllAsync(loteId);
         return Ok(items);
     }
@@ -36,11 +57,11 @@ public class LoteReproductoraController : ControllerBase
     [ProducesResponseType(typeof(LoteReproductoraDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoteReproductoraDto>> GetById(
-        [FromRoute] int loteId,  // Changed from string to int
+        [FromRoute] string loteId,
         [FromRoute] string repId,
         CancellationToken ct)
     {
-        var dto = await _svc.GetByIdAsync(loteId, repId);  // Changed from loteId
+        var dto = await _svc.GetByIdAsync(loteId, repId);
         return dto is null ? NotFound() : Ok(dto);
     }
 
@@ -103,7 +124,7 @@ public class LoteReproductoraController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoteReproductoraDto>> Update(
-        [FromRoute] int loteId,  // Changed from string to int
+        [FromRoute] string loteId,
         [FromRoute] string repId,
         [FromBody] UpdateLoteReproductoraDto dto,
         CancellationToken ct)
@@ -111,7 +132,7 @@ public class LoteReproductoraController : ControllerBase
         if (dto is null)
             return ValidationProblem(new ValidationProblemDetails { Detail = "Body requerido." });
 
-        if (dto.LoteId != loteId ||  // Changed from string.Equals to int comparison
+        if (!string.Equals(dto.LoteId, loteId, StringComparison.Ordinal) ||
             !string.Equals(dto.ReproductoraId, repId, StringComparison.Ordinal))
         {
             return ValidationProblem(new ValidationProblemDetails
@@ -131,11 +152,25 @@ public class LoteReproductoraController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(
-        [FromRoute] int loteId,  // Changed from string to int
+        [FromRoute] string loteId,
         [FromRoute] string repId,
         CancellationToken ct)
     {
-        var ok = await _svc.DeleteAsync(loteId, repId);  // Changed from loteId
+        var ok = await _svc.DeleteAsync(loteId, repId);
         return ok ? NoContent() : NotFound();
+    }
+
+    // ======================================
+    // OBTENER AVES DISPONIBLES DE UN LOTE
+    // ======================================
+    [HttpGet("{loteId}/aves-disponibles")]
+    [ProducesResponseType(typeof(AvesDisponiblesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AvesDisponiblesDto>> GetAvesDisponibles(
+        [FromRoute] string loteId,
+        CancellationToken ct)
+    {
+        var aves = await _svc.GetAvesDisponiblesAsync(loteId);
+        return aves is null ? NotFound() : Ok(aves);
     }
 }

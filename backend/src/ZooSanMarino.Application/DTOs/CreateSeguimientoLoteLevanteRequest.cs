@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 // file: backend/src/ZooSanMarino.Application/DTOs/CreateSeguimientoLoteLevanteRequest.cs
 namespace ZooSanMarino.Application.DTOs;
@@ -15,9 +16,9 @@ public class ItemSeguimientoDto
 }
 
 /// <summary>
-/// Request DTO para crear/actualizar seguimiento de lote levante.
-/// Permite enviar consumo en kg o gramos, el backend hace la conversión.
-/// Ahora soporta múltiples ítems por género (hembras/machos).
+/// Request DTO para crear/actualizar seguimiento diario de lote LEVANTE únicamente.
+/// No usar en Seguimiento Diario Reproductora Aves de Engorde (ese módulo usa CreateSeguimientoDiarioLoteReproductoraRequest).
+/// Permite consumo en kg o gramos; soporta múltiples ítems y campos de agua (Ecuador/Panamá).
 /// </summary>
 public class CreateSeguimientoLoteLevanteRequest
 {
@@ -70,6 +71,21 @@ public class CreateSeguimientoLoteLevanteRequest
     public double? CvH { get; set; }
     public double? CvM { get; set; }
     
+    // Campos de agua (solo para Ecuador y Panamá) — explícito para binding JSON camelCase
+    [JsonPropertyName("consumoAguaDiario")]
+    public double? ConsumoAguaDiario { get; set; } // Consumo diario de agua en litros
+    [JsonPropertyName("consumoAguaPh")]
+    public double? ConsumoAguaPh { get; set; } // Nivel de PH del agua (0-14)
+    [JsonPropertyName("consumoAguaOrp")]
+    public double? ConsumoAguaOrp { get; set; } // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    [JsonPropertyName("consumoAguaTemperatura")]
+    public double? ConsumoAguaTemperatura { get; set; } // Temperatura del agua en °C
+
+    /// <summary>
+    /// ID del usuario que crea el registro (desde storage/token en el frontend). Opcional; si no se envía, el backend usa el usuario actual.
+    /// </summary>
+    public string? CreatedByUserId { get; set; }
+
     /// <summary>
     /// Convierte este request a SeguimientoLoteLevanteDto, haciendo la conversión de unidades si es necesario.
     /// Separa los alimentos (que van a campos tradicionales) de otros ítems (que van a ItemsAdicionales).
@@ -151,7 +167,14 @@ public class CreateSeguimientoLoteLevanteRequest
                                    ConsumoMachos, UnidadConsumoMachos, TipoItemHembras, TipoItemMachos, 
                                    TipoAlimentoHembras, TipoAlimentoMachos, CantidadUnidadesHembras, CantidadUnidadesMachos),
             // Items adicionales JSONB solo para ítems que NO son alimentos
-            ItemsAdicionales: itemsAdicionales
+            ItemsAdicionales: itemsAdicionales,
+            // Campos de agua (solo para Ecuador y Panamá)
+            // NOTA: Ya son double?, no necesitan conversión
+            ConsumoAguaDiario: ConsumoAguaDiario,
+            ConsumoAguaPh: ConsumoAguaPh,
+            ConsumoAguaOrp: ConsumoAguaOrp,
+            ConsumoAguaTemperatura: ConsumoAguaTemperatura,
+            CreatedByUserId: CreatedByUserId
         );
     }
     
@@ -279,8 +302,7 @@ public class CreateSeguimientoLoteLevanteRequest
     
     /// <summary>
     /// Construye el objeto Metadata JSONB con los campos adicionales.
-    /// NOTA: Los arrays de ítems NO se guardan aquí, van a ItemsAdicionales (para ítems no-alimento)
-    /// o se procesan como alimentos (para ítems de tipo "alimento").
+    /// AHORA: Guarda TODOS los items (incluyendo alimentos) en metadata para poder cargarlos al editar.
     /// </summary>
     private static JsonDocument? BuildMetadata(
         List<ItemSeguimientoDto>? itemsHembras,
@@ -293,8 +315,28 @@ public class CreateSeguimientoLoteLevanteRequest
     {
         var metadata = new Dictionary<string, object?>();
         
-        // NOTA: Los arrays de ítems NO se guardan en metadata, van a ItemsAdicionales
-        // (para ítems no-alimento) o se procesan como alimentos (para ítems de tipo "alimento")
+        // NUEVO: Guardar TODOS los items en metadata (incluyendo alimentos) para poder cargarlos al editar
+        if (itemsHembras != null && itemsHembras.Count > 0)
+        {
+            metadata["itemsHembras"] = itemsHembras.Select(i => new
+            {
+                tipoItem = i.TipoItem,
+                catalogItemId = i.CatalogItemId,
+                cantidad = i.Cantidad,
+                unidad = i.Unidad
+            }).ToList();
+        }
+        
+        if (itemsMachos != null && itemsMachos.Count > 0)
+        {
+            metadata["itemsMachos"] = itemsMachos.Select(i => new
+            {
+                tipoItem = i.TipoItem,
+                catalogItemId = i.CatalogItemId,
+                cantidad = i.Cantidad,
+                unidad = i.Unidad
+            }).ToList();
+        }
         
         // COMPATIBILIDAD HACIA ATRÁS: Mantener campos antiguos si no hay arrays
         if ((itemsHembras == null || itemsHembras.Count == 0) && consumoHembras.HasValue)

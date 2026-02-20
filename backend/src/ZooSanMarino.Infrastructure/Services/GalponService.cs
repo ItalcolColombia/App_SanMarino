@@ -20,17 +20,20 @@ public class GalponService : AppInterfaces.IGalponService
     private readonly AppInterfaces.ICurrentUser _current;
     private readonly AppInterfaces.ICompanyResolver _companyResolver;
     private readonly AppInterfaces.IUserPermissionService _userPermissionService;
+    private readonly AppInterfaces.IUserFarmService _userFarmService;
 
     public GalponService(
         ZooSanMarinoContext ctx, 
         AppInterfaces.ICurrentUser current,
         AppInterfaces.ICompanyResolver companyResolver,
-        AppInterfaces.IUserPermissionService userPermissionService)
+        AppInterfaces.IUserPermissionService userPermissionService,
+        AppInterfaces.IUserFarmService userFarmService)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
         _userPermissionService = userPermissionService;
+        _userFarmService = userFarmService;
     }
 
     /// <summary>
@@ -98,6 +101,20 @@ public class GalponService : AppInterfaces.IGalponService
         return userEmail?.ToLower() == "moiesbbuga@gmail.com";
     }
 
+    /// <summary>
+    /// Obtiene los IDs de granjas a los que el usuario actual tiene acceso (UserFarms + granjas de sus empresas).
+    /// Si no hay UserGuid, devuelve null (no filtrar por granja).
+    /// </summary>
+    private async Task<List<int>?> GetAllowedFarmIdsForCurrentUserAsync()
+    {
+        var userIdGuid = _current.UserGuid;
+        if (!userIdGuid.HasValue) return null;
+
+        var accessible = await _userFarmService.GetUserAccessibleFarmsAsync(userIdGuid.Value);
+        var ids = accessible.Select(x => x.FarmId).Distinct().ToList();
+        return ids;
+    }
+
     // ─────────────────────────────────────────────────────────────────────────────
     // BÚSQUEDA DETALLADA (PAGINADA)
     // ─────────────────────────────────────────────────────────────────────────────
@@ -119,10 +136,16 @@ public class GalponService : AppInterfaces.IGalponService
         }
         else
         {
-            // Si NO es admin, filtrar solo por los galpones de su empresa
+            // Doble filtro: empresa + granjas a las que el usuario tiene permiso (núcleos implícitos por granja)
             var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             Console.WriteLine($"=== GalponService.SearchAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
             q = q.Where(g => g.CompanyId == effectiveCompanyId);
+
+            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
+            else
+                q = q.Where(g => g.GranjaId == -1);
         }
 
         if (req.SoloActivos) q = q.Where(g => g.DeletedAt == null);
@@ -189,10 +212,15 @@ public class GalponService : AppInterfaces.IGalponService
         }
         else
         {
-            // Si NO es admin, filtrar solo por los galpones de su empresa
             var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             Console.WriteLine($"=== GalponService.GetAllDetailAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
             q = q.Where(g => g.CompanyId == effectiveCompanyId);
+
+            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
+            else
+                q = q.Where(g => g.GranjaId == -1);
         }
 
         return await ProjectToDetail(q).ToListAsync();
@@ -223,9 +251,13 @@ public class GalponService : AppInterfaces.IGalponService
 
         if (!isAdmin)
         {
-            // Si NO es admin, filtrar solo por los galpones de su empresa
             var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             q = q.Where(g => g.CompanyId == effectiveCompanyId);
+            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
+            else
+                q = q.Where(g => g.GranjaId == -1);
         }
 
         return await ProjectToDetail(q).ToListAsync();
@@ -252,10 +284,16 @@ public class GalponService : AppInterfaces.IGalponService
         }
         else
         {
-            // Si NO es admin, filtrar solo por los galpones de su empresa
+            // Doble filtro: empresa + granjas con permiso (galpones solo de núcleos de esas granjas)
             var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             Console.WriteLine($"=== GalponService.GetAllAsync - Usuario NO es admin, filtrando por empresa: {effectiveCompanyId} ===");
             q = q.Where(g => g.CompanyId == effectiveCompanyId);
+
+            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
+            else
+                q = q.Where(g => g.GranjaId == -1);
         }
 
         return await ProjectToDetail(q).ToListAsync();
@@ -284,9 +322,13 @@ public class GalponService : AppInterfaces.IGalponService
 
         if (!isAdmin)
         {
-            // Si NO es admin, filtrar solo por los galpones de su empresa
             var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             q = q.Where(g => g.CompanyId == effectiveCompanyId);
+            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
+            else
+                q = q.Where(g => g.GranjaId == -1);
         }
 
         return await ProjectToDetail(q).ToListAsync();
@@ -308,9 +350,13 @@ public class GalponService : AppInterfaces.IGalponService
 
         if (!isAdmin)
         {
-            // Si NO es admin, filtrar solo por los galpones de su empresa
             var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
             q = q.Where(g => g.CompanyId == effectiveCompanyId);
+            var allowedFarmIds = await GetAllowedFarmIdsForCurrentUserAsync();
+            if (allowedFarmIds != null && allowedFarmIds.Count > 0)
+                q = q.Where(g => allowedFarmIds.Contains(g.GranjaId));
+            else
+                q = q.Where(g => g.GranjaId == -1);
         }
 
         return await ProjectToDetail(q).ToListAsync();

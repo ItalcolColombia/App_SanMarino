@@ -319,26 +319,24 @@ public class TrasladoNavigationController : ControllerBase
         {
             var loteIdStr = loteId.ToString();
             
-            // Verificar si tiene registros en seguimiento de producción
+            // Verificar si tiene registros en seguimiento de producción (SeguimientoProduccion.LoteId es int)
             var tieneSeguimiento = await _context.SeguimientoProduccion
                 .AsNoTracking()
-                .AnyAsync(s => s.LoteId == loteIdStr);
+                .AnyAsync(s => s.LoteId == loteId);
             
             if (tieneSeguimiento)
             {
                 return "Produccion";
             }
             
-            // Verificar si tiene registro en ProduccionLote
-            var tieneProduccionLote = await _context.ProduccionLotes
+            // Opción B: existe lote en fase Producción (mismo id o hijo de este lote)
+            var tieneLoteProduccion = await _context.Lotes
                 .AsNoTracking()
-                .AnyAsync(p => p.LoteId == loteIdStr && p.DeletedAt == null);
-            
-            if (tieneProduccionLote)
-            {
+                .AnyAsync(l => (l.LoteId == loteId || l.LotePadreId == loteId) &&
+                               l.Fase == "Produccion" && l.DeletedAt == null);
+            if (tieneLoteProduccion)
                 return "Produccion";
-            }
-            
+
             return "Levante";
         }
         catch
@@ -354,10 +352,9 @@ public class TrasladoNavigationController : ControllerBase
     {
         try
         {
-            var loteIdStr = loteId.ToString();
             return await _context.SeguimientoProduccion
                 .AsNoTracking()
-                .AnyAsync(s => s.LoteId == loteIdStr);
+                .AnyAsync(s => s.LoteId == loteId);
         }
         catch
         {

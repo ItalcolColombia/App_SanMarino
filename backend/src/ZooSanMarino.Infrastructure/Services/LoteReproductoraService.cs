@@ -35,16 +35,17 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
     // ----------------------------------------------------
     // LISTADO (tenant-safe; opcional por LoteId)
     // ----------------------------------------------------
-    public async Task<IEnumerable<LoteReproductoraDto>> GetAllAsync(int? loteId = null)  // Changed from string? to int?
+    public async Task<IEnumerable<LoteReproductoraDto>> GetAllAsync(string? loteId = null)
     {
+        // Convertir lote_id de integer a string para el JOIN
         var q =
             from lr in _ctx.LoteReproductoras.AsNoTracking()
-            join l in _ctx.Lotes.AsNoTracking() on lr.LoteId equals l.LoteId
+            join l in _ctx.Lotes.AsNoTracking() on lr.LoteId equals l.LoteId.ToString()
             where l.CompanyId == _current.CompanyId && l.DeletedAt == null
             select lr;
 
-        if (loteId.HasValue)  // Changed from string.IsNullOrWhiteSpace check
-            q = q.Where(lr => lr.LoteId == loteId.Value);  // Changed from loteId
+        if (!string.IsNullOrWhiteSpace(loteId))
+            q = q.Where(lr => lr.LoteId == loteId);
 
         var list = await q
             .OrderBy(lr => lr.LoteId)
@@ -57,13 +58,13 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
     // ----------------------------------------------------
     // DETALLE (tenant-safe)
     // ----------------------------------------------------
-    public async Task<LoteReproductoraDto?> GetByIdAsync(int loteId, string repId)  // Changed from string to int
+    public async Task<LoteReproductoraDto?> GetByIdAsync(string loteId, string repId)
     {
         var ent =
             await (from lr in _ctx.LoteReproductoras.AsNoTracking()
-                   join l in _ctx.Lotes.AsNoTracking() on lr.LoteId equals l.LoteId
+                   join l in _ctx.Lotes.AsNoTracking() on lr.LoteId equals l.LoteId.ToString()
                    where l.CompanyId == _current.CompanyId && l.DeletedAt == null
-                      && lr.LoteId == loteId && lr.ReproductoraId == repId  // Changed from loteId
+                      && lr.LoteId == loteId && lr.ReproductoraId == repId
                    select lr).SingleOrDefaultAsync();
 
         return ent is null ? null : Map(ent);
@@ -94,6 +95,8 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
             // Cantidades: default 0 si null (DB tiene checks de no-negativo)
             M                    = dto.M         ?? 0,
             H                    = dto.H         ?? 0,
+            AvesInicioHembras    = dto.H         ?? 0,
+            AvesInicioMachos     = dto.M         ?? 0,
             Mixtas               = dto.Mixtas    ?? 0,
             MortCajaH            = dto.MortCajaH ?? 0,
             MortCajaM            = dto.MortCajaM ?? 0,
@@ -169,6 +172,8 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
                 FechaEncasetamiento  = dto.FechaEncasetamiento?.ToUniversalTime(),
                 M                    = dto.M         ?? 0,
                 H                    = dto.H         ?? 0,
+                AvesInicioHembras    = dto.H         ?? 0,
+                AvesInicioMachos     = dto.M         ?? 0,
                 Mixtas               = dto.Mixtas    ?? 0,
                 MortCajaH            = dto.MortCajaH ?? 0,
                 MortCajaM            = dto.MortCajaM ?? 0,
@@ -200,7 +205,7 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
     {
         var ent =
             await (from lr in _ctx.LoteReproductoras
-                   join l in _ctx.Lotes on lr.LoteId equals l.LoteId
+                   join l in _ctx.Lotes on lr.LoteId equals l.LoteId.ToString()
                    where l.CompanyId == _current.CompanyId && l.DeletedAt == null
                       && lr.LoteId == dto.LoteId && lr.ReproductoraId == dto.ReproductoraId
                    select lr).SingleOrDefaultAsync();
@@ -229,13 +234,13 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
     // ----------------------------------------------------
     // DELETE (tenant-safe)
     // ----------------------------------------------------
-    public async Task<bool> DeleteAsync(int loteId, string repId)  // Changed from string to int
+    public async Task<bool> DeleteAsync(string loteId, string repId)
     {
         var ent =
             await (from lr in _ctx.LoteReproductoras
-                   join l in _ctx.Lotes on lr.LoteId equals l.LoteId
+                   join l in _ctx.Lotes on lr.LoteId equals l.LoteId.ToString()
                    where l.CompanyId == _current.CompanyId && l.DeletedAt == null
-                      && lr.LoteId == loteId && lr.ReproductoraId == repId  // Changed from loteId
+                      && lr.LoteId == loteId && lr.ReproductoraId == repId
                    select lr).SingleOrDefaultAsync();
 
         if (ent is null) return false;
@@ -246,15 +251,96 @@ public class LoteReproductoraService : AppInterfaces.ILoteReproductoraService
     }
 
     // ----------------------------------------------------
+    // OBTENER AVES DISPONIBLES DE UN LOTE
+    // ----------------------------------------------------
+    public async Task<AvesDisponiblesDto?> GetAvesDisponiblesAsync(string loteId)
+    {
+        // Convertir loteId string a int para buscar en Lotes
+        if (!int.TryParse(loteId, out var loteIdInt))
+        {
+            return null;
+        }
+
+        // Validar que el lote existe y pertenece al tenant
+        var lote = await _ctx.Lotes.AsNoTracking()
+            .Where(l => l.LoteId == loteIdInt &&
+                       l.CompanyId == _current.CompanyId &&
+                       l.DeletedAt == null)
+            .Select(l => new { l.HembrasL, l.MachosL, l.MortCajaH, l.MortCajaM })
+            .SingleOrDefaultAsync();
+
+        if (lote == null) return null;
+
+        // Obtener mortalidad acumulada desde seguimientos de levante
+        var mortalidad = await _ctx.SeguimientoLoteLevante
+            .AsNoTracking()
+            .Where(s => s.LoteId == loteIdInt)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                MortH = (int?)g.Sum(x => x.MortalidadHembras) ?? 0,
+                MortM = (int?)g.Sum(x => x.MortalidadMachos) ?? 0
+            })
+            .SingleOrDefaultAsync();
+
+        int mortH = mortalidad?.MortH ?? 0;
+        int mortM = mortalidad?.MortM ?? 0;
+
+        // Obtener aves ya asignadas a lotes reproductoras (loteId es string en lote_reproductoras)
+        var asignadas = await _ctx.LoteReproductoras
+            .AsNoTracking()
+            .Where(lr => lr.LoteId == loteId)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                AsignadasH = (int?)g.Sum(x => x.H) ?? 0,
+                AsignadasM = (int?)g.Sum(x => x.M) ?? 0
+            })
+            .SingleOrDefaultAsync();
+
+        int asignadasH = asignadas?.AsignadasH ?? 0;
+        int asignadasM = asignadas?.AsignadasM ?? 0;
+
+        // Calcular aves disponibles
+        int hembrasIniciales = lote.HembrasL ?? 0;
+        int machosIniciales = lote.MachosL ?? 0;
+        int mortCajaH = lote.MortCajaH ?? 0;
+        int mortCajaM = lote.MortCajaM ?? 0;
+
+        int hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortH - asignadasH);
+        int machosDisponibles = Math.Max(0, machosIniciales - mortCajaM - mortM - asignadasM);
+
+        return new AvesDisponiblesDto
+        {
+            HembrasIniciales = hembrasIniciales,
+            MachosIniciales = machosIniciales,
+            MortalidadAcumuladaHembras = mortH,
+            MortalidadAcumuladaMachos = mortM,
+            MortCajaHembras = mortCajaH,
+            MortCajaMachos = mortCajaM,
+            AsignadasHembras = asignadasH,
+            AsignadasMachos = asignadasM,
+            HembrasDisponibles = hembrasDisponibles,
+            MachosDisponibles = machosDisponibles
+        };
+    }
+
+    // ----------------------------------------------------
     // Helpers
     // ----------------------------------------------------
-    private async Task EnsureLoteExistsForTenant(int loteId)  // Changed from string to int
+    private async Task EnsureLoteExistsForTenant(string loteId)
     {
+        // Convertir loteId string a int para buscar en Lotes
+        if (!int.TryParse(loteId, out var loteIdInt))
+        {
+            throw new InvalidOperationException($"Lote '{loteId}' no es un ID válido.");
+        }
+
         var ok = await _ctx.Lotes.AsNoTracking()
-            .AnyAsync(l => l.LoteId == loteId &&  // Changed from loteId
+            .AnyAsync(l => l.LoteId == loteIdInt &&
                            l.CompanyId == _current.CompanyId &&
                            l.DeletedAt == null);
         if (!ok)
-            throw new InvalidOperationException($"Lote '{loteId}' no existe o no pertenece a la compañía.");  // Changed from loteId
+            throw new InvalidOperationException($"Lote '{loteId}' no existe o no pertenece a la compañía.");
     }
 }

@@ -4,19 +4,23 @@ public sealed class LoteMortalidadResumenDto
 {
     public string LoteId { get; init; } = default!;
 
-    // Sumas acumuladas (de SeguimientoLoteLevante)
-    public int MortalidadAcumHembras { get; init; }
-    public int MortalidadAcumMachos  { get; init; }
-
-    // Bases del lote (valores de carga inicial)
+    // Bases del lote (desde historial lote_etapa_levante o lote)
     public int HembrasIniciales { get; init; }
     public int MachosIniciales  { get; init; }
 
-    // Mortandad en caja (si aplica en tu modelo)
+    // Mortandad en caja
     public int MortCajaHembras  { get; init; }
     public int MortCajaMachos   { get; init; }
 
-    // Saldos resultantes solicitados (solo restando mortalidad)
+    // Descuentos acumulados (desde seguimiento_diario tipo levante)
+    public int MortalidadAcumHembras { get; init; }
+    public int MortalidadAcumMachos  { get; init; }
+    public int SelAcumHembras        { get; init; }
+    public int SelAcumMachos         { get; init; }
+    public int ErrorSexajeAcumHembras { get; init; }
+    public int ErrorSexajeAcumMachos  { get; init; }
+
+    // Saldos resultantes (inicio - mort caja - mortalidad - sel - error sexaje)
     public int SaldoHembras     { get; init; }
     public int SaldoMachos      { get; init; }
 }

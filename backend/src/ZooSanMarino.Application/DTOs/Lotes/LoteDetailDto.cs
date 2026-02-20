@@ -33,7 +33,10 @@ public sealed record LoteDetailDto(
     int?      EdadInicial,
     string?   LoteErp,  // ← NUEVO: Código ERP del lote
     string?   EstadoTraslado,  // ← Estados: null/"normal", "trasladado", "en_transferencia"
-    int?      LotePadreId,  // ← NUEVO: ID del lote padre
+    int?      LotePadreId,
+    int?      PaisId,        // País en sesión al crear
+    string?   PaisNombre,
+    string?   EmpresaNombre,
     // Auditoría
     int       CompanyId,
     int       CreatedByUserId,

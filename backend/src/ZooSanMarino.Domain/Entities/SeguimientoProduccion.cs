@@ -5,7 +5,7 @@ public class SeguimientoProduccion
 {
     public int Id { get; set; }
     public DateTime Fecha { get; set; }
-    public string LoteId { get; set; } = null!; // text en BD
+    public int LoteId { get; set; } // FK a lotes (Opción B)
     
     public int MortalidadH { get; set; }
     public int MortalidadM { get; set; }
@@ -51,16 +51,13 @@ public class SeguimientoProduccion
     public System.Text.Json.JsonDocument? Metadata { get; set; }
     
     // Campos de agua (solo para Ecuador y Panamá)
-    public decimal? ConsumoAguaDiario { get; set; } // Consumo diario de agua en litros
-    public decimal? ConsumoAguaPh { get; set; } // Nivel de PH del agua
-    public decimal? ConsumoAguaOrp { get; set; } // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
-    public decimal? ConsumoAguaTemperatura { get; set; } // Temperatura del agua en °C
+    // NOTA: Usar double? para coincidir con double precision en PostgreSQL
+    public double? ConsumoAguaDiario { get; set; } // Consumo diario de agua en litros
+    public double? ConsumoAguaPh { get; set; } // Nivel de PH del agua
+    public double? ConsumoAguaOrp { get; set; } // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
+    public double? ConsumoAguaTemperatura { get; set; } // Temperatura del agua en °C
     
-    // NOTA: No hay relación de navegación con Lote porque:
-    // - LoteId aquí es string (text en BD)
-    // - Lote.LoteId es int?
-    // - Son tipos incompatibles para foreign key
-    // Si necesitas acceder al Lote, hazlo manualmente convirtiendo el string a int
+    // Navegación opcional (Opción B: lote_id es int FK a lotes; Lote.LoteId es int? por tanto no se configura FK en EF)
 }
 
 

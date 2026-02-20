@@ -10,6 +10,7 @@ public interface IProduccionService
     Task<int> CrearProduccionLoteAsync(CrearProduccionLoteRequest request);
     Task<ProduccionLoteDetalleDto?> ObtenerProduccionLoteAsync(int loteId);
     Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request);
+    Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request);
     Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int loteId, DateTime? desde, DateTime? hasta, int page, int size);
     Task<SeguimientoItemDto?> ObtenerSeguimientoPorIdAsync(int seguimientoId);
     Task<bool> EliminarSeguimientoAsync(int seguimientoId);

@@ -1,93 +1,253 @@
 // file: src/ZooSanMarino.Infrastructure/Services/LoteSeguimientoService.cs
+// Seguimiento Diario Lote Reproductora: persiste en la tabla unificada seguimiento_diario (tipo = 'reproductora')
+// usando ISeguimientoDiarioService. La API y DTOs del módulo (LoteSeguimientoController, LoteSeguimientoDto) se mantienen igual.
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Expressions;
 using ZooSanMarino.Application.DTOs;
-using AppInterfaces = ZooSanMarino.Application.Interfaces; // ILoteSeguimientoService, ICurrentUser
-using ZooSanMarino.Domain.Entities;
+using AppInterfaces = ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Persistence;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
 public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
 {
+    private const string TipoReproductora = "reproductora";
+
     private readonly ZooSanMarinoContext _ctx;
     private readonly AppInterfaces.ICurrentUser _current;
+    private readonly AppInterfaces.ISeguimientoDiarioService _seguimientoDiarioService;
 
-    public LoteSeguimientoService(ZooSanMarinoContext ctx, AppInterfaces.ICurrentUser current)
+    public LoteSeguimientoService(
+        ZooSanMarinoContext ctx,
+        AppInterfaces.ICurrentUser current,
+        AppInterfaces.ISeguimientoDiarioService seguimientoDiarioService)
     {
         _ctx = ctx;
         _current = current;
+        _seguimientoDiarioService = seguimientoDiarioService;
     }
 
-    // Mapeo centralizado
-    private static readonly Expression<Func<LoteSeguimiento, LoteSeguimientoDto>> ToDto =
-        x => new LoteSeguimientoDto(
-            x.Id,
-            x.Fecha,
-            x.LoteId,
-            x.ReproductoraId,
-            x.PesoInicial,
-            x.PesoFinal,
-            x.MortalidadM,
-            x.MortalidadH,
-            x.SelM,
-            x.SelH,
-            x.ErrorM,
-            x.ErrorH,
-            x.TipoAlimento,
-            x.ConsumoAlimento,
-            x.Observaciones
-        );
+    private static int ParseLoteId(string? loteId)
+    {
+        if (string.IsNullOrWhiteSpace(loteId)) return 0;
+        return int.TryParse(loteId.Trim(), out var n) ? n : 0;
+    }
 
-    // ======================================================
-    // LISTADO (solo registros cuyo Lote pertenece a la compañía actual)
-    // ======================================================
+    private static LoteSeguimientoDto MapFromUnificado(SeguimientoDiarioDto u)
+    {
+        return new LoteSeguimientoDto(
+            (int)u.Id,
+            u.Fecha,
+            ParseLoteId(u.LoteId),
+            u.ReproductoraId ?? "",
+            u.PesoInicial,
+            u.PesoFinal,
+            u.MortalidadMachos,
+            u.MortalidadHembras,
+            u.SelM,
+            u.SelH,
+            u.ErrorSexajeMachos,
+            u.ErrorSexajeHembras,
+            u.TipoAlimento,
+            u.ConsumoKgHembras,
+            u.ConsumoKgMachos,
+            u.Observaciones,
+            u.Ciclo,
+            u.PesoPromHembras,
+            u.PesoPromMachos,
+            u.UniformidadHembras,
+            u.UniformidadMachos,
+            u.CvHembras,
+            u.CvMachos,
+            u.ConsumoAguaDiario,
+            u.ConsumoAguaPh,
+            u.ConsumoAguaOrp,
+            u.ConsumoAguaTemperatura,
+            u.Metadata,
+            u.ItemsAdicionales
+        );
+    }
+
+    private static CreateSeguimientoDiarioDto MapToCreateUnificado(CreateLoteSeguimientoDto dto, string? createdByUserId)
+    {
+        var loteIdStr = dto.LoteId.ToString();
+        return new CreateSeguimientoDiarioDto(
+            TipoSeguimiento: TipoReproductora,
+            LoteId: loteIdStr,
+            ReproductoraId: dto.ReproductoraId?.Trim(),
+            Fecha: dto.Fecha,
+            MortalidadHembras: dto.MortalidadH,
+            MortalidadMachos: dto.MortalidadM,
+            SelH: dto.SelH,
+            SelM: dto.SelM,
+            ErrorSexajeHembras: dto.ErrorH,
+            ErrorSexajeMachos: dto.ErrorM,
+            ConsumoKgHembras: dto.ConsumoAlimento,
+            ConsumoKgMachos: dto.ConsumoKgMachos,
+            TipoAlimento: dto.TipoAlimento,
+            Observaciones: dto.Observaciones,
+            Ciclo: dto.Ciclo ?? "Normal",
+            PesoPromHembras: dto.PesoPromH,
+            PesoPromMachos: dto.PesoPromM,
+            UniformidadHembras: dto.UniformidadH,
+            UniformidadMachos: dto.UniformidadM,
+            CvHembras: dto.CvH,
+            CvMachos: dto.CvM,
+            ConsumoAguaDiario: dto.ConsumoAguaDiario,
+            ConsumoAguaPh: dto.ConsumoAguaPh,
+            ConsumoAguaOrp: dto.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: dto.ConsumoAguaTemperatura,
+            Metadata: dto.Metadata,
+            ItemsAdicionales: dto.ItemsAdicionales,
+            PesoInicial: dto.PesoInicial,
+            PesoFinal: dto.PesoFinal,
+            KcalAlH: null,
+            ProtAlH: null,
+            KcalAveH: null,
+            ProtAveH: null,
+            HuevoTot: null,
+            HuevoInc: null,
+            HuevoLimpio: null,
+            HuevoTratado: null,
+            HuevoSucio: null,
+            HuevoDeforme: null,
+            HuevoBlanco: null,
+            HuevoDobleYema: null,
+            HuevoPiso: null,
+            HuevoPequeno: null,
+            HuevoRoto: null,
+            HuevoDesecho: null,
+            HuevoOtro: null,
+            PesoHuevo: null,
+            Etapa: null,
+            PesoH: null,
+            PesoM: null,
+            Uniformidad: null,
+            CoeficienteVariacion: null,
+            ObservacionesPesaje: null,
+            CreatedByUserId: createdByUserId
+        );
+    }
+
+    private static UpdateSeguimientoDiarioDto MapToUpdateUnificado(UpdateLoteSeguimientoDto dto)
+    {
+        var loteIdStr = dto.LoteId.ToString();
+        return new UpdateSeguimientoDiarioDto(
+            Id: dto.Id,
+            TipoSeguimiento: TipoReproductora,
+            LoteId: loteIdStr,
+            ReproductoraId: dto.ReproductoraId?.Trim(),
+            Fecha: dto.Fecha,
+            MortalidadHembras: dto.MortalidadH,
+            MortalidadMachos: dto.MortalidadM,
+            SelH: dto.SelH,
+            SelM: dto.SelM,
+            ErrorSexajeHembras: dto.ErrorH,
+            ErrorSexajeMachos: dto.ErrorM,
+            ConsumoKgHembras: dto.ConsumoAlimento,
+            ConsumoKgMachos: dto.ConsumoKgMachos,
+            TipoAlimento: dto.TipoAlimento,
+            Observaciones: dto.Observaciones,
+            Ciclo: dto.Ciclo ?? "Normal",
+            PesoPromHembras: dto.PesoPromH,
+            PesoPromMachos: dto.PesoPromM,
+            UniformidadHembras: dto.UniformidadH,
+            UniformidadMachos: dto.UniformidadM,
+            CvHembras: dto.CvH,
+            CvMachos: dto.CvM,
+            ConsumoAguaDiario: dto.ConsumoAguaDiario,
+            ConsumoAguaPh: dto.ConsumoAguaPh,
+            ConsumoAguaOrp: dto.ConsumoAguaOrp,
+            ConsumoAguaTemperatura: dto.ConsumoAguaTemperatura,
+            Metadata: dto.Metadata,
+            ItemsAdicionales: dto.ItemsAdicionales,
+            PesoInicial: dto.PesoInicial,
+            PesoFinal: dto.PesoFinal,
+            KcalAlH: null,
+            ProtAlH: null,
+            KcalAveH: null,
+            ProtAveH: null,
+            HuevoTot: null,
+            HuevoInc: null,
+            HuevoLimpio: null,
+            HuevoTratado: null,
+            HuevoSucio: null,
+            HuevoDeforme: null,
+            HuevoBlanco: null,
+            HuevoDobleYema: null,
+            HuevoPiso: null,
+            HuevoPequeno: null,
+            HuevoRoto: null,
+            HuevoDesecho: null,
+            HuevoOtro: null,
+            PesoHuevo: null,
+            Etapa: null,
+            PesoH: null,
+            PesoM: null,
+            Uniformidad: null,
+            CoeficienteVariacion: null,
+            ObservacionesPesaje: null
+        );
+    }
+
     public async Task<IEnumerable<LoteSeguimientoDto>> GetAllAsync()
     {
-        var q = from s in _ctx.LoteSeguimientos.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking()
-                    on s.LoteId equals l.LoteId
-                where l.CompanyId == _current.CompanyId && l.DeletedAt == null
-                select s;
-
-        return await q
-            .OrderBy(x => x.LoteId).ThenBy(x => x.Fecha)
-            .Select(ToDto)
-            .ToListAsync();
+        var filter = new SeguimientoDiarioFilterRequest
+        {
+            TipoSeguimiento = TipoReproductora,
+            LoteId = null,
+            ReproductoraId = null,
+            Page = 1,
+            PageSize = 10_000,
+            OrderBy = "Fecha",
+            OrderAsc = false
+        };
+        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
+        return paged.Items.Select(MapFromUnificado).ToList();
     }
 
-    // ======================================================
-    // GET por Id (validando tenant via join a Lote)
-    // ======================================================
+    public async Task<IEnumerable<LoteSeguimientoDto>> GetByLoteYReproAsync(string loteId, string reproductoraId, DateTime? desde = null, DateTime? hasta = null)
+    {
+        if (string.IsNullOrWhiteSpace(loteId) || string.IsNullOrWhiteSpace(reproductoraId))
+            return Array.Empty<LoteSeguimientoDto>();
+
+        var filter = new SeguimientoDiarioFilterRequest
+        {
+            TipoSeguimiento = TipoReproductora,
+            LoteId = loteId.Trim(),
+            ReproductoraId = reproductoraId.Trim(),
+            FechaDesde = desde,
+            FechaHasta = hasta,
+            Page = 1,
+            PageSize = 10_000,
+            OrderBy = "Fecha",
+            OrderAsc = true
+        };
+        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
+        return paged.Items.Select(MapFromUnificado).ToList();
+    }
+
     public async Task<LoteSeguimientoDto?> GetByIdAsync(int id)
     {
-        var q = from s in _ctx.LoteSeguimientos.AsNoTracking()
-                join l in _ctx.Lotes.AsNoTracking()
-                    on s.LoteId equals l.LoteId
-                where l.CompanyId == _current.CompanyId && l.DeletedAt == null && s.Id == id
-                select s;
-
-        return await q.Select(ToDto).SingleOrDefaultAsync();
+        var u = await _seguimientoDiarioService.GetByIdAsync((long)id);
+        if (u is null || (u.TipoSeguimiento?.Trim().ToLowerInvariant() != TipoReproductora))
+            return null;
+        return MapFromUnificado(u);
     }
 
-    // ======================================================
-    // CREATE (valida Lote y LoteReproductora)
-    // ======================================================
     public async Task<LoteSeguimientoDto> CreateAsync(CreateLoteSeguimientoDto dto)
     {
-        // 1) Validar Lote en la compañía
+        var loteIdStr = dto.LoteId.ToString();
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId == dto.LoteId &&
+            .SingleOrDefaultAsync(l => l.LoteId.ToString() == loteIdStr &&
                                        l.CompanyId == _current.CompanyId &&
                                        l.DeletedAt == null);
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
-        // 2) Validar que la Reproductora exista para ese Lote (y, por transitividad, en el mismo tenant)
         var existeReproductora = await (from lr in _ctx.LoteReproductoras.AsNoTracking()
                                         join l in _ctx.Lotes.AsNoTracking()
-                                            on lr.LoteId equals l.LoteId
-                                        where lr.LoteId == dto.LoteId &&
+                                            on lr.LoteId equals l.LoteId.ToString()
+                                        where lr.LoteId == loteIdStr &&
                                               lr.ReproductoraId == dto.ReproductoraId &&
                                               l.CompanyId == _current.CompanyId &&
                                               l.DeletedAt == null
@@ -95,63 +255,26 @@ public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
         if (!existeReproductora)
             throw new InvalidOperationException("La Reproductora indicada no existe para ese Lote.");
 
-        // 3) (Opcional) Enforzar unicidad Lote+Reproductora+Fecha
-        var duplicado = await _ctx.LoteSeguimientos.AsNoTracking()
-            .AnyAsync(x => x.LoteId == dto.LoteId &&
-                           x.ReproductoraId == dto.ReproductoraId &&
-                           x.Fecha.Date == dto.Fecha.Date);
-        if (duplicado)
-            throw new InvalidOperationException("Ya existe un seguimiento para ese Lote, Reproductora y Fecha.");
-
-        var ent = new LoteSeguimiento
-        {
-            Fecha           = dto.Fecha,
-            LoteId          = dto.LoteId,
-            ReproductoraId  = dto.ReproductoraId,
-            PesoInicial     = dto.PesoInicial,
-            PesoFinal       = dto.PesoFinal,
-            MortalidadM     = dto.MortalidadM,
-            MortalidadH     = dto.MortalidadH,
-            SelM            = dto.SelM,
-            SelH            = dto.SelH,
-            ErrorM          = dto.ErrorM,
-            ErrorH          = dto.ErrorH,
-            TipoAlimento    = dto.TipoAlimento,
-            ConsumoAlimento = dto.ConsumoAlimento,
-            Observaciones   = dto.Observaciones
-        };
-
-        _ctx.LoteSeguimientos.Add(ent);
-        await _ctx.SaveChangesAsync();
-
-        return await GetByIdAsync(ent.Id) ?? // vuelve a pasar por el filtro de tenant
-               new LoteSeguimientoDto(
-                   ent.Id, ent.Fecha, ent.LoteId, ent.ReproductoraId, ent.PesoInicial, ent.PesoFinal,
-                   ent.MortalidadM, ent.MortalidadH, ent.SelM, ent.SelH, ent.ErrorM, ent.ErrorH,
-                   ent.TipoAlimento, ent.ConsumoAlimento, ent.Observaciones);
+        var createdByUserId = _current.UserGuid?.ToString() ?? _current.UserId.ToString();
+        var createDto = MapToCreateUnificado(dto, createdByUserId);
+        var created = await _seguimientoDiarioService.CreateAsync(createDto);
+        return MapFromUnificado(created);
     }
 
-    // ======================================================
-    // UPDATE (valida cambios de Lote/Reproductora y duplicados)
-    // ======================================================
     public async Task<LoteSeguimientoDto?> UpdateAsync(UpdateLoteSeguimientoDto dto)
     {
-        var ent = await _ctx.LoteSeguimientos.FindAsync(dto.Id);
-        if (ent is null) return null;
-
-        // Validar que el nuevo Lote pertenezca a la compañía
+        var loteIdStr = dto.LoteId.ToString();
         var lote = await _ctx.Lotes.AsNoTracking()
-            .SingleOrDefaultAsync(l => l.LoteId == dto.LoteId &&
+            .SingleOrDefaultAsync(l => l.LoteId.ToString() == loteIdStr &&
                                        l.CompanyId == _current.CompanyId &&
                                        l.DeletedAt == null);
         if (lote is null)
             throw new InvalidOperationException($"Lote '{dto.LoteId}' no existe o no pertenece a la compañía.");
 
-        // Validar Reproductora del Lote
         var existeReproductora = await (from lr in _ctx.LoteReproductoras.AsNoTracking()
                                         join l in _ctx.Lotes.AsNoTracking()
-                                            on lr.LoteId equals l.LoteId
-                                        where lr.LoteId == dto.LoteId &&
+                                            on lr.LoteId equals l.LoteId.ToString()
+                                        where lr.LoteId == loteIdStr &&
                                               lr.ReproductoraId == dto.ReproductoraId &&
                                               l.CompanyId == _current.CompanyId &&
                                               l.DeletedAt == null
@@ -159,55 +282,13 @@ public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
         if (!existeReproductora)
             throw new InvalidOperationException("La Reproductora indicada no existe para ese Lote.");
 
-        // Si cambia la clave Lote/Reproductora/Fecha, impedir duplicado
-        var cambiaClave = ent.LoteId != dto.LoteId ||
-                          ent.ReproductoraId != dto.ReproductoraId ||
-                          ent.Fecha.Date != dto.Fecha.Date;
-        if (cambiaClave)
-        {
-            var existeOtro = await _ctx.LoteSeguimientos.AsNoTracking()
-                .AnyAsync(x => x.Id != dto.Id &&
-                               x.LoteId == dto.LoteId &&
-                               x.ReproductoraId == dto.ReproductoraId &&
-                               x.Fecha.Date == dto.Fecha.Date);
-            if (existeOtro)
-                throw new InvalidOperationException("Ya existe un seguimiento para ese Lote, Reproductora y Fecha.");
-        }
-
-        ent.Fecha           = dto.Fecha;
-        ent.LoteId          = dto.LoteId;
-        ent.ReproductoraId  = dto.ReproductoraId;
-        ent.PesoInicial     = dto.PesoInicial;
-        ent.PesoFinal       = dto.PesoFinal;
-        ent.MortalidadM     = dto.MortalidadM;
-        ent.MortalidadH     = dto.MortalidadH;
-        ent.SelM            = dto.SelM;
-        ent.SelH            = dto.SelH;
-        ent.ErrorM          = dto.ErrorM;
-        ent.ErrorH          = dto.ErrorH;
-        ent.TipoAlimento    = dto.TipoAlimento;
-        ent.ConsumoAlimento = dto.ConsumoAlimento;
-        ent.Observaciones   = dto.Observaciones;
-
-        await _ctx.SaveChangesAsync();
-
-        return await GetByIdAsync(ent.Id);
+        var updateDto = MapToUpdateUnificado(dto);
+        var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
+        return updated is null ? null : MapFromUnificado(updated);
     }
 
-    // ======================================================
-    // DELETE (verifica pertenencia del Lote al tenant)
-    // ======================================================
     public async Task<bool> DeleteAsync(int id)
     {
-        var ent = await _ctx.LoteSeguimientos.FindAsync(id);
-        if (ent is null) return false;
-
-        var ok = await _ctx.Lotes.AsNoTracking()
-            .AnyAsync(l => l.LoteId == ent.LoteId && l.CompanyId == _current.CompanyId);
-        if (!ok) return false;
-
-        _ctx.LoteSeguimientos.Remove(ent);
-        await _ctx.SaveChangesAsync();
-        return true;
+        return await _seguimientoDiarioService.DeleteAsync((long)id);
     }
 }

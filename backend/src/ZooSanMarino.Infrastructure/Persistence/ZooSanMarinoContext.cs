@@ -29,6 +29,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<Departamento> Departamentos { get; set; } = null!;
         public DbSet<Municipio> Municipios { get; set; } = null!;
         public DbSet<LoteSeguimiento> LoteSeguimientos { get; set; } = null!;
+        public DbSet<SeguimientoDiario> SeguimientoDiario { get; set; } = null!;
         public DbSet<MasterList> MasterLists { get; set; } = null!;
         public DbSet<MasterListOption> MasterListOptions { get; set; } = null!;
         public DbSet<Role> Roles { get; set; } = null!;
@@ -56,6 +57,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<FarmInventoryMovement> FarmInventoryMovements => Set<FarmInventoryMovement>();
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
+        public DbSet<CompanyMenu> CompanyMenus => Set<CompanyMenu>();
         public DbSet<ProduccionAvicolaRaw> ProduccionAvicolaRaw => Set<ProduccionAvicolaRaw>();
         
         // Sistema de Inventario de Aves
@@ -71,7 +73,14 @@ namespace ZooSanMarino.Infrastructure.Persistence
         
         // Historial de traslados de lotes
         public DbSet<HistorialTrasladoLote> HistorialTrasladoLote => Set<HistorialTrasladoLote>();
-        
+        public DbSet<LoteEtapaLevante> LoteEtapaLevante => Set<LoteEtapaLevante>();
+        public DbSet<LoteAveEngorde> LoteAveEngorde { get; set; } = null!;
+        public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
+        public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
+        public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
+        public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
+        public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();
+
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 

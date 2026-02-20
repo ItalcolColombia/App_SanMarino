@@ -7,8 +7,15 @@ using System.Globalization;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
+/// <summary>
+/// Servicio de indicadores semanales de producción.
+/// Alineado con ProduccionService: misma resolución de lote en producción (CompanyId + LotePadreId/LoteId)
+/// y misma fuente de datos (tabla unificada seguimiento_diario, tipo produccion).
+/// Incluye comparativos con guía genética cuando está disponible.
+/// </summary>
 public class IndicadoresProduccionService : IIndicadoresProduccionService
 {
+    private const string TipoProduccion = "produccion";
     private readonly ZooSanMarinoContext _context;
     private readonly IGuiaGeneticaService _guiaGeneticaService;
     private readonly ICurrentUser _currentUser;
@@ -26,103 +33,190 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         _companyResolver = companyResolver;
     }
 
-    private async Task<int?> TryResolveCompanyIdFromHeaderAsync()
+    /// <summary>
+    /// Resuelve CompanyId activo: header X-Active-Company-Id (por nombre) o claim del usuario.
+    /// Misma lógica que el resto del proyecto para filtrado por compañía.
+    /// </summary>
+    private async Task<int> ResolveCompanyIdAsync()
     {
         if (!string.IsNullOrWhiteSpace(_currentUser.ActiveCompanyName))
         {
             var byName = await _companyResolver.GetCompanyIdByNameAsync(_currentUser.ActiveCompanyName.Trim());
-            if (byName.HasValue) return byName.Value;
+            if (byName.HasValue && byName.Value > 0)
+                return byName.Value;
         }
-        return null;
+        var claimId = _currentUser.CompanyId;
+        if (claimId > 0)
+            return claimId;
+        throw new InvalidOperationException("No se pudo determinar la compañía activa (CompanyId). Verifique sesión o header X-Active-Company-Id.");
     }
 
+    /// <summary>
+    /// Obtiene indicadores semanales de producción.
+    /// Flujo alineado con ProduccionService.ListarSeguimientoAsync: mismo criterio de lote en producción y misma tabla de datos.
+    /// </summary>
     public async Task<IndicadoresProduccionResponse> ObtenerIndicadoresSemanalesAsync(IndicadoresProduccionRequest request)
     {
-        // 1) Obtener lote (y su granja) sin depender del header, para inferir compañía correcta
-        var lote = await _context.Lotes
+        // ─── 1) Resolver compañía (igual que en el resto del módulo Producción) ───
+        int companyId;
+        try
+        {
+            companyId = await ResolveCompanyIdAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ArgumentException(ex.Message, ex);
+        }
+
+        // ─── 2) Resolver lote en producción (mismo criterio que ProduccionService.ListarSeguimientoAsync) ───
+        var loteId = request.LoteId;
+        // Comparación exacta de Fase (EF Core no traduce string.Equals con StringComparison a SQL)
+        var loteProd = await _context.Lotes
             .AsNoTracking()
-            .Where(l => l.LoteId == request.LoteId && l.DeletedAt == null)
+            .Where(l =>
+                l.CompanyId == companyId
+                && l.DeletedAt == null
+                && l.Fase == "Produccion"
+                && l.LotePadreId == loteId)
+            .OrderBy(l => l.LoteId)
             .FirstOrDefaultAsync();
 
-        if (lote == null || !lote.FechaEncaset.HasValue)
-            throw new ArgumentException($"Lote {request.LoteId} no encontrado o sin fecha de encaset");
+        if (loteProd == null)
+        {
+            loteProd = await _context.Lotes
+                .AsNoTracking()
+                .Where(l =>
+                    l.CompanyId == companyId
+                    && l.DeletedAt == null
+                    && l.Fase == "Produccion"
+                    && l.LoteId == loteId)
+                .FirstOrDefaultAsync();
+        }
 
-        // 2) Resolver CompanyId "real" desde la granja (fuente de verdad)
-        var farmCompanyId = await _context.Farms
+        if (loteProd == null)
+        {
+            throw new ArgumentException(
+                $"No se encontró lote en producción para el lote {loteId}. " +
+                "Verifique que: 1) El lote esté en fase Producción, 2) Pertenezca a su compañía activa, 3) Exista registro inicial de producción.");
+        }
+
+        // ─── 3) Fecha de referencia para cálculo de semanas ───
+        var fechaReferencia = loteProd.FechaInicioProduccion;
+        if (!fechaReferencia.HasValue && loteProd.LotePadreId.HasValue)
+        {
+            var padre = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == loteProd.LotePadreId && l.DeletedAt == null)
+                .Select(l => l.FechaEncaset)
+                .FirstOrDefaultAsync();
+            fechaReferencia = padre;
+        }
+        if (!fechaReferencia.HasValue)
+        {
+            throw new ArgumentException(
+                $"El lote en producción {loteProd.LoteId} no tiene fecha de inicio de producción ni fecha de encaset (lote padre). " +
+                "Necesaria para calcular semanas.");
+        }
+
+        var fechaEncaset = fechaReferencia.Value;
+        var loteIdStr = loteProd.LoteId!.Value.ToString();
+
+        // ─── 4) Seguimientos desde tabla unificada (misma fuente que listado y modal Seguimiento Diario) ───
+        var fromUnificado = _context.SeguimientoDiario
             .AsNoTracking()
-            .Where(f => f.Id == lote.GranjaId)
-            .Select(f => (int?)f.CompanyId)
-            .SingleOrDefaultAsync();
-
-        var loteCompanyId = farmCompanyId ?? lote.CompanyId;
-        if (loteCompanyId <= 0)
-            throw new ArgumentException("No fue posible determinar la compañía del lote (CompanyId inválido).");
-
-        // 3) Validación contra compañía activa (si viene header); si no viene, usa el claim
-        var headerCompanyId = await TryResolveCompanyIdFromHeaderAsync();
-        var userCompanyId = headerCompanyId ?? _currentUser.CompanyId;
-        if (userCompanyId > 0 && userCompanyId != loteCompanyId)
-            throw new ArgumentException("El lote no pertenece a la compañía activa.");
-
-        var companyId = loteCompanyId;
-
-        var loteIdStr = request.LoteId.ToString();
-        var produccionLote = await _context.ProduccionLotes
-            .AsNoTracking()
-            // Compatibilidad: algunos registros antiguos pueden tener CompanyId=0
-            .Where(p => p.LoteId == loteIdStr && p.DeletedAt == null && (p.CompanyId == companyId || p.CompanyId == 0))
-            .FirstOrDefaultAsync();
-
-        if (produccionLote == null)
-            throw new ArgumentException($"No se encontró producción para el lote {request.LoteId}");
-
-        // 2. Obtener seguimientos de producción diaria usando LoteId como string
-        var seguimientosQuery = _context.SeguimientoProduccion
-            .AsNoTracking()
-            .Where(s => s.LoteId == loteIdStr);
+            .Where(s => s.TipoSeguimiento == TipoProduccion && s.LoteId == loteIdStr);
 
         if (request.FechaDesde.HasValue)
-            seguimientosQuery = seguimientosQuery.Where(s => s.Fecha >= request.FechaDesde.Value);
-
+            fromUnificado = fromUnificado.Where(s => s.Fecha >= request.FechaDesde.Value);
         if (request.FechaHasta.HasValue)
-            seguimientosQuery = seguimientosQuery.Where(s => s.Fecha <= request.FechaHasta.Value);
+            fromUnificado = fromUnificado.Where(s => s.Fecha <= request.FechaHasta.Value);
 
-        var seguimientos = await seguimientosQuery
+        // OrderBy sobre la entidad (s.Fecha) para que EF traduzca a SQL; luego proyectar a DTO
+        var seguimientos = await fromUnificado
             .OrderBy(s => s.Fecha)
+            .Select(s => new SeguimientoProduccionRegistroDto(
+                s.Fecha,
+                s.MortalidadHembras ?? 0,
+                s.MortalidadMachos ?? 0,
+                s.SelH ?? 0,
+                s.SelM ?? 0,
+                (decimal)(s.ConsumoKgHembras ?? 0),
+                (decimal)(s.ConsumoKgMachos ?? 0),
+                s.HuevoTot ?? 0,
+                s.HuevoInc ?? 0,
+                s.HuevoLimpio ?? 0,
+                s.HuevoTratado ?? 0,
+                s.HuevoSucio ?? 0,
+                s.HuevoDeforme ?? 0,
+                s.HuevoBlanco ?? 0,
+                s.HuevoDobleYema ?? 0,
+                s.HuevoPiso ?? 0,
+                s.HuevoPequeno ?? 0,
+                s.HuevoRoto ?? 0,
+                s.HuevoDesecho ?? 0,
+                s.HuevoOtro ?? 0,
+                (decimal)(s.PesoHuevo ?? 0),
+                s.Etapa ?? 0,
+                s.PesoH,
+                s.PesoM,
+                s.Uniformidad,
+                s.CoeficienteVariacion,
+                s.ObservacionesPesaje))
             .ToListAsync();
 
         if (seguimientos.Count == 0)
+        {
             return new IndicadoresProduccionResponse(
                 new List<IndicadorProduccionSemanalDto>(),
                 0,
                 0,
                 0,
-                false
-            );
+                false);
+        }
 
-        // 3. Obtener datos de guía genética si están disponibles
-        var tieneGuiaGenetica = !string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue;
-        var guias = tieneGuiaGenetica && lote.AnoTablaGenetica.HasValue
-            ? (await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(lote.Raza!, lote.AnoTablaGenetica.Value)).ToList()
-            : new List<ZooSanMarino.Application.DTOs.GuiaGeneticaDto>();
-
-        // Prefetch de la guía completa (ProduccionAvicolaRaw) UNA sola vez para los campos de huevos
-        Dictionary<int, ProduccionAvicolaRaw> guiaRawBySemana = new();
-        if (tieneGuiaGenetica && lote.AnoTablaGenetica.HasValue)
+        // ─── 5) Lote de referencia para guía genética (padre si el de producción no tiene Raza/Ano) ───
+        Lote loteParaGuia = loteProd;
+        if ((string.IsNullOrWhiteSpace(loteProd.Raza) || !loteProd.AnoTablaGenetica.HasValue) && loteProd.LotePadreId.HasValue)
         {
-            var razaNorm = lote.Raza!.Trim().ToLowerInvariant();
-            var ano = lote.AnoTablaGenetica.Value.ToString(CultureInfo.InvariantCulture);
+            var padre = await _context.Lotes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == loteProd.LotePadreId && l.DeletedAt == null);
+            if (padre != null)
+                loteParaGuia = padre;
+        }
 
+        var tieneGuiaGenetica = !string.IsNullOrWhiteSpace(loteParaGuia.Raza) && loteParaGuia.AnoTablaGenetica.HasValue;
+        var guias = new List<ZooSanMarino.Application.DTOs.GuiaGeneticaDto>();
+
+        if (tieneGuiaGenetica && loteParaGuia.AnoTablaGenetica.HasValue)
+        {
+            try
+            {
+                guias = (await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(
+                    loteParaGuia.Raza!,
+                    loteParaGuia.AnoTablaGenetica.Value)).ToList();
+            }
+            catch
+            {
+                tieneGuiaGenetica = false;
+            }
+        }
+
+        // ─── 6) Guía raw (ProduccionAvicolaRaw) para comparativos de huevos ───
+        var guiaRawBySemana = new Dictionary<int, ProduccionAvicolaRaw>();
+        if (tieneGuiaGenetica && loteParaGuia.AnoTablaGenetica.HasValue)
+        {
+            var razaNorm = loteParaGuia.Raza!.Trim().ToLowerInvariant();
+            var ano = loteParaGuia.AnoTablaGenetica.Value.ToString(CultureInfo.InvariantCulture);
             var raw = await _context.ProduccionAvicolaRaw
                 .AsNoTracking()
                 .Where(p =>
-                    p.CompanyId == companyId &&
-                    p.DeletedAt == null &&
-                    p.Raza != null &&
-                    p.AnioGuia != null &&
-                    EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                    p.AnioGuia.Trim() == ano
-                )
+                    p.CompanyId == companyId
+                    && p.DeletedAt == null
+                    && p.Raza != null
+                    && p.AnioGuia != null
+                    && EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm)
+                    && p.AnioGuia.Trim() == ano)
                 .ToListAsync();
 
             guiaRawBySemana = raw
@@ -132,48 +226,36 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 .ToDictionary(g => g.Key, g => g.First().r);
         }
 
-        // 4. Agrupar seguimientos por semana
-        var fechaEncaset = lote.FechaEncaset.Value;
+        // ─── 7) Agrupar por semana (semana 1 = días 0-6 desde fechaEncaset) ───
         var seguimientosPorSemana = seguimientos
             .GroupBy(s =>
             {
-                var diasDesdeEncaset = (s.Fecha.Date - fechaEncaset.Date).Days;
-                var semana = (diasDesdeEncaset / 7) + 1; // Semana 1 = días 0-6, Semana 2 = días 7-13, etc.
-                return semana;
+                var dias = (s.Fecha.Date - fechaEncaset.Date).Days;
+                return (dias / 7) + 1;
             })
             .OrderBy(g => g.Key)
             .ToList();
 
-        // 5. Filtrar por rango de semanas si se especifica
         var semanasFiltradas = seguimientosPorSemana
             .Where(g =>
-            {
-                if (request.SemanaDesde.HasValue && g.Key < request.SemanaDesde.Value)
-                    return false;
-                if (request.SemanaHasta.HasValue && g.Key > request.SemanaHasta.Value)
-                    return false;
-                return true;
-            })
+                (!request.SemanaDesde.HasValue || g.Key >= request.SemanaDesde.Value)
+                && (!request.SemanaHasta.HasValue || g.Key <= request.SemanaHasta.Value))
             .ToList();
 
-        // 6. Calcular indicadores para cada semana
+        // ─── 8) Calcular indicadores por semana (con comparativos cuando hay guía) ───
         var indicadores = new List<IndicadorProduccionSemanalDto>();
-        var avesHembrasActuales = produccionLote.AvesInicialesH;
-        var avesMachosActuales = produccionLote.AvesInicialesM;
+        var avesHembrasActuales = loteProd.HembrasInicialesProd ?? 0;
+        var avesMachosActuales = loteProd.MachosInicialesProd ?? 0;
 
         foreach (var grupoSemana in semanasFiltradas)
         {
             var semana = grupoSemana.Key;
             var seguimientosSemana = grupoSemana.OrderBy(s => s.Fecha).ToList();
-            
-            // Calcular el período real de la semana basándose en fechaEncaset
-            // Semana 1 = días 0-6 desde fechaEncaset
-            // Semana 2 = días 7-13, etc.
-            var diasDesdeInicioSemana = (semana - 1) * 7;
-            var fechaInicioSemana = fechaEncaset.AddDays(diasDesdeInicioSemana).Date;
-            var fechaFinSemana = fechaInicioSemana.AddDays(6).Date; // 6 días después (total 7 días)
 
-            // Calcular métricas de la semana
+            var diasInicio = (semana - 1) * 7;
+            var fechaInicioSemana = fechaEncaset.AddDays(diasInicio).Date;
+            var fechaFinSemana = fechaInicioSemana.AddDays(6).Date;
+
             var mortalidadH = seguimientosSemana.Sum(s => s.MortalidadH);
             var mortalidadM = seguimientosSemana.Sum(s => s.MortalidadM);
             var seleccionH = seguimientosSemana.Sum(s => s.SelH);
@@ -182,68 +264,42 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             var huevosTotales = seguimientosSemana.Sum(s => s.HuevoTot);
             var huevosIncubables = seguimientosSemana.Sum(s => s.HuevoInc);
             var promedioHuevosPorDia = seguimientosSemana.Count > 0 ? (decimal)huevosTotales / seguimientosSemana.Count : 0;
-            
-            // Eficiencia basada en aves al inicio de la semana
+
             var eficiencia = avesHembrasActuales + avesMachosActuales > 0
                 ? (decimal)promedioHuevosPorDia / (avesHembrasActuales + avesMachosActuales) * 100
                 : 0;
 
-            // Pesos promedio (de registros con datos)
-            var registrosConPesoH = seguimientosSemana.Where(s => s.PesoH.HasValue).ToList();
-            var pesoPromedioH = registrosConPesoH.Count > 0
-                ? (decimal?)registrosConPesoH.Average(s => (double)s.PesoH!.Value)
+            var pesoPromedioH = seguimientosSemana.Where(s => s.PesoH.HasValue).Count() > 0
+                ? (decimal?)seguimientosSemana.Where(s => s.PesoH.HasValue).Average(s => (double)s.PesoH!.Value)
                 : null;
-
-            var registrosConPesoM = seguimientosSemana.Where(s => s.PesoM.HasValue).ToList();
-            var pesoPromedioM = registrosConPesoM.Count > 0
-                ? (decimal?)registrosConPesoM.Average(s => (double)s.PesoM!.Value)
+            var pesoPromedioM = seguimientosSemana.Where(s => s.PesoM.HasValue).Count() > 0
+                ? (decimal?)seguimientosSemana.Where(s => s.PesoM.HasValue).Average(s => (double)s.PesoM!.Value)
                 : null;
-
             var uniformidadPromedio = seguimientosSemana.Where(s => s.Uniformidad.HasValue).Count() > 0
                 ? (decimal?)seguimientosSemana.Where(s => s.Uniformidad.HasValue).Average(s => (double)s.Uniformidad!.Value)
                 : null;
-
             var cvPromedio = seguimientosSemana.Where(s => s.CoeficienteVariacion.HasValue).Count() > 0
                 ? (decimal?)seguimientosSemana.Where(s => s.CoeficienteVariacion.HasValue).Average(s => (double)s.CoeficienteVariacion!.Value)
                 : null;
-
             var pesoHuevoPromedio = seguimientosSemana.Where(s => s.PesoHuevo > 0).Count() > 0
                 ? (decimal?)seguimientosSemana.Where(s => s.PesoHuevo > 0).Average(s => (double)s.PesoHuevo)
                 : null;
 
-            // Clasificadora de huevos
-            var huevosLimpios = seguimientosSemana.Sum(s => s.HuevoLimpio);
-            var huevosTratados = seguimientosSemana.Sum(s => s.HuevoTratado);
-            var huevosSucios = seguimientosSemana.Sum(s => s.HuevoSucio);
-            var huevosDeformes = seguimientosSemana.Sum(s => s.HuevoDeforme);
-            var huevosBlancos = seguimientosSemana.Sum(s => s.HuevoBlanco);
-            var huevosDobleYema = seguimientosSemana.Sum(s => s.HuevoDobleYema);
-            var huevosPiso = seguimientosSemana.Sum(s => s.HuevoPiso);
-            var huevosPequenos = seguimientosSemana.Sum(s => s.HuevoPequeno);
-            var huevosRotos = seguimientosSemana.Sum(s => s.HuevoRoto);
-            var huevosDesecho = seguimientosSemana.Sum(s => s.HuevoDesecho);
-            var huevosOtro = seguimientosSemana.Sum(s => s.HuevoOtro);
-
-            // Porcentajes
             var porcMortalidadH = avesHembrasActuales > 0 ? (decimal)mortalidadH / avesHembrasActuales * 100 : 0;
             var porcMortalidadM = avesMachosActuales > 0 ? (decimal)mortalidadM / avesMachosActuales * 100 : 0;
             var porcSeleccionH = avesHembrasActuales > 0 ? (decimal)seleccionH / avesHembrasActuales * 100 : 0;
 
-            // Obtener datos de guía genética para esta semana
-            var guiaSemana = guias.FirstOrDefault(g => g.Edad == semana);
-            
-            // Calcular datos de guía genética
-            decimal? consumoGuiaH = null;
-            decimal? consumoGuiaM = null;
-            decimal? mortalidadGuiaH = null;
-            decimal? mortalidadGuiaM = null;
-            decimal? pesoGuiaH = null;
-            decimal? pesoGuiaM = null;
-            decimal? uniformidadGuia = null;
-            decimal? huevosTotalesGuia = null;
-            decimal? huevosIncubablesGuia = null;
-            decimal? porcentajeProduccionGuia = null;
-            decimal? pesoHuevoGuia = null;
+            var avesHembrasInicioSemana = avesHembrasActuales + mortalidadH + seleccionH;
+            var avesMachosInicioSemana = avesMachosActuales + mortalidadM;
+
+            // Comparativos con guía: la guía genética usa Edad = semanas de VIDA (26, 27, 28...).
+            // Nuestra "semana" es semanas desde inicio de producción (1, 2, 3...). Semana producción 1 = edad 26.
+            const int EdadInicioProduccion = 26;
+            var edadGuia = (EdadInicioProduccion - 1) + semana; // producción 1 -> 26, 2 -> 27, etc.
+            var guiaSemana = guias.FirstOrDefault(g => g.Edad == edadGuia);
+            decimal? consumoGuiaH = null, consumoGuiaM = null, mortalidadGuiaH = null, mortalidadGuiaM = null;
+            decimal? pesoGuiaH = null, pesoGuiaM = null, uniformidadGuia = null;
+            decimal? huevosTotalesGuia = null, huevosIncubablesGuia = null, porcentajeProduccionGuia = null, pesoHuevoGuia = null;
 
             if (guiaSemana != null)
             {
@@ -251,32 +307,24 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 consumoGuiaM = (decimal)guiaSemana.ConsumoMachos;
                 mortalidadGuiaH = (decimal)guiaSemana.MortalidadHembras;
                 mortalidadGuiaM = (decimal)guiaSemana.MortalidadMachos;
-                pesoGuiaH = (decimal)guiaSemana.PesoHembras / 1000; // Convertir gramos a kg
-                pesoGuiaM = (decimal)guiaSemana.PesoMachos / 1000;
+                pesoGuiaH = (decimal)guiaSemana.PesoHembras / 1000m;
+                pesoGuiaM = (decimal)guiaSemana.PesoMachos / 1000m;
                 uniformidadGuia = (decimal)guiaSemana.Uniformidad;
-
-                if (guiaRawBySemana.TryGetValue(semana, out var guiaCompletaSemana) && guiaCompletaSemana != null)
-                {
-                    huevosTotalesGuia = ParseDecimal(guiaCompletaSemana.HTotalAa);
-                    huevosIncubablesGuia = ParseDecimal(guiaCompletaSemana.HIncAa);
-                    porcentajeProduccionGuia = ParseDecimal(guiaCompletaSemana.ProdPorcentaje);
-                    pesoHuevoGuia = ParseDecimal(guiaCompletaSemana.PesoHuevo);
-                }
+            }
+            // ProduccionAvicolaRaw también está indexado por Edad (semanas de vida)
+            if (guiaRawBySemana.TryGetValue(edadGuia, out var rawSemana) && rawSemana != null)
+            {
+                huevosTotalesGuia = ParseDecimal(rawSemana.HTotalAa);
+                huevosIncubablesGuia = ParseDecimal(rawSemana.HIncAa);
+                porcentajeProduccionGuia = ParseDecimal(rawSemana.ProdPorcentaje);
+                pesoHuevoGuia = ParseDecimal(rawSemana.PesoHuevo);
             }
 
-            // Calcular aves al inicio de la semana (antes de mortalidad y selección)
-            // Estas son las aves que teníamos al inicio para calcular promedios correctos
-            var avesHembrasInicioSemana = avesHembrasActuales + mortalidadH + seleccionH;
-            var avesMachosInicioSemana = avesMachosActuales + mortalidadM;
-
-            // Calcular consumo real en g/ave/día
-            // consumoKgH y consumoKgM son el total de kg consumidos en la semana
-            // Para obtener g/ave/día: (totalKg * 1000) / (días con registro * aves al inicio de semana)
             var consumoRealH = seguimientosSemana.Count > 0 && avesHembrasInicioSemana > 0
-                ? (decimal?)(consumoKgH * 1000 / (seguimientosSemana.Count * avesHembrasInicioSemana)) // g/ave/día
+                ? (decimal?)(consumoKgH * 1000 / (seguimientosSemana.Count * avesHembrasInicioSemana))
                 : null;
             var consumoRealM = seguimientosSemana.Count > 0 && avesMachosInicioSemana > 0
-                ? (decimal?)(consumoKgM * 1000 / (seguimientosSemana.Count * avesMachosInicioSemana)) // g/ave/día
+                ? (decimal?)(consumoKgM * 1000 / (seguimientosSemana.Count * avesMachosInicioSemana))
                 : null;
 
             var difConsumoH = CalcularDiferenciaPorcentual(consumoRealH, consumoGuiaH);
@@ -287,11 +335,12 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             var difPesoM = CalcularDiferenciaPorcentual(pesoPromedioM, pesoGuiaM);
             var difUniformidad = CalcularDiferenciaPorcentual(uniformidadPromedio, uniformidadGuia);
             var difHuevosTotales = CalcularDiferenciaPorcentual((decimal?)promedioHuevosPorDia, huevosTotalesGuia);
-            var difHuevosIncubables = CalcularDiferenciaPorcentual((decimal?)huevosIncubables / seguimientosSemana.Count, huevosIncubablesGuia);
+            var difHuevosIncubables = seguimientosSemana.Count > 0
+                ? CalcularDiferenciaPorcentual((decimal?)huevosIncubables / seguimientosSemana.Count, huevosIncubablesGuia)
+                : null;
             var difPorcentajeProduccion = CalcularDiferenciaPorcentual((decimal?)eficiencia, porcentajeProduccionGuia);
             var difPesoHuevo = CalcularDiferenciaPorcentual(pesoHuevoPromedio, pesoHuevoGuia);
 
-            // Aves al final de la semana (actualizar para la siguiente iteración)
             avesHembrasActuales = Math.Max(0, avesHembrasActuales - mortalidadH - seleccionH);
             avesMachosActuales = Math.Max(0, avesMachosActuales - mortalidadM);
 
@@ -341,44 +390,44 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 uniformidadGuia,
                 difUniformidad,
                 cvPromedio,
-                huevosLimpios,
-                huevosTratados,
-                huevosSucios,
-                huevosDeformes,
-                huevosBlancos,
-                huevosDobleYema,
-                huevosPiso,
-                huevosPequenos,
-                huevosRotos,
-                huevosDesecho,
-                huevosOtro,
+                seguimientosSemana.Sum(s => s.HuevoLimpio),
+                seguimientosSemana.Sum(s => s.HuevoTratado),
+                seguimientosSemana.Sum(s => s.HuevoSucio),
+                seguimientosSemana.Sum(s => s.HuevoDeforme),
+                seguimientosSemana.Sum(s => s.HuevoBlanco),
+                seguimientosSemana.Sum(s => s.HuevoDobleYema),
+                seguimientosSemana.Sum(s => s.HuevoPiso),
+                seguimientosSemana.Sum(s => s.HuevoPequeno),
+                seguimientosSemana.Sum(s => s.HuevoRoto),
+                seguimientosSemana.Sum(s => s.HuevoDesecho),
+                seguimientosSemana.Sum(s => s.HuevoOtro),
                 avesHembrasInicioSemana,
                 avesMachosInicioSemana,
                 avesHembrasActuales,
-                avesMachosActuales
-            ));
+                avesMachosActuales));
+
         }
 
         var semanaInicial = semanasFiltradas.Any() ? semanasFiltradas.Min(g => g.Key) : 0;
         var semanaFinal = semanasFiltradas.Any() ? semanasFiltradas.Max(g => g.Key) : 0;
+
+        var tieneDatosGuia = tieneGuiaGenetica && guias.Any();
+        string? mensajeGuia = null;
+        if (tieneGuiaGenetica && !guias.Any())
+            mensajeGuia = $"El lote tiene Raza ({loteParaGuia.Raza}) y Año genético ({loteParaGuia.AnoTablaGenetica}) pero no hay datos de guía cargados para esa combinación en su compañía. Cargue la guía genética (produccion_avicola_raw) para Raza/Ano correspondiente.";
 
         return new IndicadoresProduccionResponse(
             indicadores,
             indicadores.Count,
             semanaInicial,
             semanaFinal,
-            tieneGuiaGenetica && guias.Any()
-        );
+            tieneDatosGuia,
+            mensajeGuia);
     }
 
     public async Task<IndicadorProduccionSemanalDto?> ObtenerIndicadorSemanaAsync(int loteId, int semana)
     {
-        var request = new IndicadoresProduccionRequest(
-            loteId,
-            SemanaDesde: semana,
-            SemanaHasta: semana
-        );
-
+        var request = new IndicadoresProduccionRequest(loteId, SemanaDesde: semana, SemanaHasta: semana);
         var response = await ObtenerIndicadoresSemanalesAsync(request);
         return response.Indicadores.FirstOrDefault();
     }
@@ -389,7 +438,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
     {
         if (string.IsNullOrWhiteSpace(edadStr)) return null;
         var s = edadStr.Trim().Replace(",", ".");
-        if (int.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var n))
+        if (int.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var n))
             return n;
         var match = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)");
         if (match.Success && int.TryParse(match.Groups[1].Value, out var n2))
@@ -401,10 +450,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         var clean = value.Trim().Replace(",", ".");
-        if (decimal.TryParse(clean, System.Globalization.NumberStyles.Any,
-            System.Globalization.CultureInfo.InvariantCulture, out var result))
-            return result;
-        return null;
+        return decimal.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var result) ? result : null;
     }
 
     private static decimal? CalcularDiferenciaPorcentual(decimal? valorReal, decimal? valorGuia)
@@ -416,4 +462,3 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
 
     #endregion
 }
-

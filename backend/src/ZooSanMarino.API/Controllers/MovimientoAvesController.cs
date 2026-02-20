@@ -266,21 +266,20 @@ public class MovimientoAvesController : ControllerBase
 
             if (tipoLote == "Produccion")
             {
-                // PRODUCCIÓN: Obtener aves iniciales desde ProduccionLotes
-                var produccionLote = await _context.ProduccionLotes
+                // Opción B: aves iniciales desde Lote (Fase Produccion o hijo)
+                var loteProd = lote.Fase == "Produccion" ? lote : await _context.Lotes
                     .AsNoTracking()
-                    .Where(p => p.LoteId == loteId.ToString())
-                    .FirstOrDefaultAsync();
+                    .FirstOrDefaultAsync(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null);
 
-                if (produccionLote != null)
+                if (loteProd != null)
                 {
-                    hembrasIniciales = produccionLote.AvesInicialesH;
-                    machosIniciales = produccionLote.AvesInicialesM;
+                    hembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
+                    machosIniciales = loteProd.MachosInicialesProd ?? 0;
+                    var loteIdSeguimiento = loteProd.LoteId ?? loteId;
 
-                    // Obtener todos los registros de seguimiento de producción
                     var seguimientos = await _context.SeguimientoProduccion
                         .AsNoTracking()
-                        .Where(s => s.LoteId == loteId.ToString())
+                        .Where(s => s.LoteId == loteIdSeguimiento)
                         .ToListAsync();
 
                     // Calcular descuentos acumulados
@@ -289,7 +288,6 @@ public class MovimientoAvesController : ControllerBase
                     var totalSeleccionH = seguimientos.Sum(s => s.SelH);
                     var totalSeleccionM = seguimientos.Sum(s => s.SelM);
 
-                    // Obtener movimientos de aves completados que salen del lote
                     var movimientosSalida = await _context.MovimientoAves
                         .AsNoTracking()
                         .Where(m => m.LoteOrigenId == loteId && 
@@ -300,7 +298,6 @@ public class MovimientoAvesController : ControllerBase
                     var totalMovimientosSalidaH = movimientosSalida.Sum(m => m.CantidadHembras);
                     var totalMovimientosSalidaM = movimientosSalida.Sum(m => m.CantidadMachos);
 
-                    // Obtener movimientos de aves completados que entran al lote
                     var movimientosEntrada = await _context.MovimientoAves
                         .AsNoTracking()
                         .Where(m => m.LoteDestinoId == loteId && 
@@ -371,22 +368,18 @@ public class MovimientoAvesController : ControllerBase
 
             var totalAvesActuales = hembrasActuales + machosActuales + mixtasActuales;
 
-            // Obtener fecha de inicio de producción (semana 26) si existe
             DateTime? fechaInicioProduccion = null;
-            if (tipoLote == "Produccion")
+            if (tipoLote == "Produccion" && lote != null)
             {
-                var produccionLote = await _context.ProduccionLotes
+                var loteProdFecha = lote.Fase == "Produccion" ? lote : await _context.Lotes
                     .AsNoTracking()
-                    .Where(p => p.LoteId == loteId.ToString())
-                    .FirstOrDefaultAsync();
-                fechaInicioProduccion = produccionLote?.FechaInicio;
+                    .FirstOrDefaultAsync(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null);
+                fechaInicioProduccion = loteProdFecha?.FechaInicioProduccion;
             }
 
             // Obtener raza y año genético: si el lote tiene LotePadreId, obtener del lote padre
-            // (esto es común cuando se crea un lote de producción desde un lote de levante)
-            string? raza = lote.Raza;
+            string? raza = lote!.Raza;
             int? anoTablaGenetica = lote.AnoTablaGenetica;
-            
             if (lote.LotePadreId.HasValue && (string.IsNullOrEmpty(raza) || !anoTablaGenetica.HasValue))
             {
                 var lotePadre = await _context.Lotes

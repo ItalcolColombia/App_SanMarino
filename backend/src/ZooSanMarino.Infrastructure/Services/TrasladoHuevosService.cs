@@ -139,61 +139,62 @@ public class TrasladoHuevosService : ITrasladoHuevosService
     }
 
     /// <summary>
-    /// Aplica descuento en el registro diario de producción restando los huevos trasladados
+    /// Aplica descuento en el registro diario de producción (tabla unificada seguimiento_diario) restando los huevos trasladados.
+    /// Alineado con el seguimiento diario unificado de huevos por lote.
     /// </summary>
     private async Task AplicarDescuentoEnProduccionDiariaAsync(TrasladoHuevos traslado)
     {
-        // Buscar el registro de producción diaria más reciente del lote para la fecha del traslado
-        // Si no existe, crear uno nuevo con valores negativos para descontar
         var fechaTraslado = traslado.FechaTraslado.Date;
         var loteIdStr = traslado.LoteId;
+        if (string.IsNullOrEmpty(loteIdStr)) return;
 
-        // Buscar registro existente para esa fecha
-        var registroExistente = await _context.SeguimientoProduccion
-            .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaTraslado)
+        var registroExistente = await _context.SeguimientoDiario
+            .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr && s.Fecha.Date == fechaTraslado)
             .FirstOrDefaultAsync();
 
         if (registroExistente != null)
         {
-            // Restar las cantidades del registro existente
-            registroExistente.HuevoLimpio = Math.Max(0, registroExistente.HuevoLimpio - traslado.CantidadLimpio);
-            registroExistente.HuevoTratado = Math.Max(0, registroExistente.HuevoTratado - traslado.CantidadTratado);
-            registroExistente.HuevoSucio = Math.Max(0, registroExistente.HuevoSucio - traslado.CantidadSucio);
-            registroExistente.HuevoDeforme = Math.Max(0, registroExistente.HuevoDeforme - traslado.CantidadDeforme);
-            registroExistente.HuevoBlanco = Math.Max(0, registroExistente.HuevoBlanco - traslado.CantidadBlanco);
-            registroExistente.HuevoDobleYema = Math.Max(0, registroExistente.HuevoDobleYema - traslado.CantidadDobleYema);
-            registroExistente.HuevoPiso = Math.Max(0, registroExistente.HuevoPiso - traslado.CantidadPiso);
-            registroExistente.HuevoPequeno = Math.Max(0, registroExistente.HuevoPequeno - traslado.CantidadPequeno);
-            registroExistente.HuevoRoto = Math.Max(0, registroExistente.HuevoRoto - traslado.CantidadRoto);
-            registroExistente.HuevoDesecho = Math.Max(0, registroExistente.HuevoDesecho - traslado.CantidadDesecho);
-            registroExistente.HuevoOtro = Math.Max(0, registroExistente.HuevoOtro - traslado.CantidadOtro);
+            registroExistente.HuevoLimpio = Math.Max(0, (registroExistente.HuevoLimpio ?? 0) - traslado.CantidadLimpio);
+            registroExistente.HuevoTratado = Math.Max(0, (registroExistente.HuevoTratado ?? 0) - traslado.CantidadTratado);
+            registroExistente.HuevoSucio = Math.Max(0, (registroExistente.HuevoSucio ?? 0) - traslado.CantidadSucio);
+            registroExistente.HuevoDeforme = Math.Max(0, (registroExistente.HuevoDeforme ?? 0) - traslado.CantidadDeforme);
+            registroExistente.HuevoBlanco = Math.Max(0, (registroExistente.HuevoBlanco ?? 0) - traslado.CantidadBlanco);
+            registroExistente.HuevoDobleYema = Math.Max(0, (registroExistente.HuevoDobleYema ?? 0) - traslado.CantidadDobleYema);
+            registroExistente.HuevoPiso = Math.Max(0, (registroExistente.HuevoPiso ?? 0) - traslado.CantidadPiso);
+            registroExistente.HuevoPequeno = Math.Max(0, (registroExistente.HuevoPequeno ?? 0) - traslado.CantidadPequeno);
+            registroExistente.HuevoRoto = Math.Max(0, (registroExistente.HuevoRoto ?? 0) - traslado.CantidadRoto);
+            registroExistente.HuevoDesecho = Math.Max(0, (registroExistente.HuevoDesecho ?? 0) - traslado.CantidadDesecho);
+            registroExistente.HuevoOtro = Math.Max(0, (registroExistente.HuevoOtro ?? 0) - traslado.CantidadOtro);
 
-            // Recalcular totales
-            registroExistente.HuevoTot = registroExistente.HuevoLimpio + registroExistente.HuevoTratado +
-                                         registroExistente.HuevoSucio + registroExistente.HuevoDeforme +
-                                         registroExistente.HuevoBlanco + registroExistente.HuevoDobleYema +
-                                         registroExistente.HuevoPiso + registroExistente.HuevoPequeno +
-                                         registroExistente.HuevoRoto + registroExistente.HuevoDesecho +
-                                         registroExistente.HuevoOtro;
-            registroExistente.HuevoInc = registroExistente.HuevoLimpio + registroExistente.HuevoTratado;
+            var limpio = registroExistente.HuevoLimpio ?? 0;
+            var tratado = registroExistente.HuevoTratado ?? 0;
+            var sucio = registroExistente.HuevoSucio ?? 0;
+            var deforme = registroExistente.HuevoDeforme ?? 0;
+            var blanco = registroExistente.HuevoBlanco ?? 0;
+            var dobleYema = registroExistente.HuevoDobleYema ?? 0;
+            var piso = registroExistente.HuevoPiso ?? 0;
+            var pequeno = registroExistente.HuevoPequeno ?? 0;
+            var roto = registroExistente.HuevoRoto ?? 0;
+            var desecho = registroExistente.HuevoDesecho ?? 0;
+            var otro = registroExistente.HuevoOtro ?? 0;
+            registroExistente.HuevoTot = limpio + tratado + sucio + deforme + blanco + dobleYema + piso + pequeno + roto + desecho + otro;
+            registroExistente.HuevoInc = limpio + tratado;
 
-            // Actualizar observaciones
             var obsTraslado = $"Descuento por traslado {traslado.NumeroTraslado}";
             registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
                 ? obsTraslado
                 : $"{registroExistente.Observaciones} | {obsTraslado}";
+            registroExistente.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
         }
         else
         {
-            // Si no existe registro para esa fecha, crear uno con valores negativos para descontar
-            // Esto permite rastrear el descuento aunque no haya registro previo
-            var registroDescuento = new SeguimientoProduccion
+            var registroDescuento = new SeguimientoDiario
             {
+                TipoSeguimiento = "produccion",
                 LoteId = loteIdStr,
                 Fecha = fechaTraslado,
-                // Valores negativos para descontar
                 HuevoLimpio = -traslado.CantidadLimpio,
                 HuevoTratado = -traslado.CantidadTratado,
                 HuevoSucio = -traslado.CantidadSucio,
@@ -205,95 +206,83 @@ public class TrasladoHuevosService : ITrasladoHuevosService
                 HuevoRoto = -traslado.CantidadRoto,
                 HuevoDesecho = -traslado.CantidadDesecho,
                 HuevoOtro = -traslado.CantidadOtro,
-                // Totales negativos
                 HuevoTot = -traslado.TotalHuevos,
                 HuevoInc = -(traslado.CantidadLimpio + traslado.CantidadTratado),
-                // Otros campos en cero
-                MortalidadH = 0,
-                MortalidadM = 0,
-                SelH = 0,
-                ConsKgH = 0,
-                ConsKgM = 0,
-                TipoAlimento = "N/A",
-                PesoHuevo = 0,
-                Etapa = 0,
-                Observaciones = $"Registro de descuento por traslado {traslado.NumeroTraslado} - {traslado.TipoOperacion}"
+                Observaciones = $"Registro de descuento por traslado {traslado.NumeroTraslado} - {traslado.TipoOperacion}",
+                CreatedAt = DateTime.UtcNow
             };
 
-            _context.SeguimientoProduccion.Add(registroDescuento);
+            _context.SeguimientoDiario.Add(registroDescuento);
             await _context.SaveChangesAsync();
         }
     }
 
     /// <summary>
-    /// Ajusta la producción diaria cuando se edita un traslado.
-    /// Devuelve las cantidades originales y luego aplica las nuevas cantidades.
+    /// Ajusta la producción diaria (tabla unificada seguimiento_diario) cuando se edita un traslado.
     /// </summary>
     private async Task AjustarProduccionDiariaPorEdicionAsync(TrasladoHuevos traslado, Dictionary<string, int> cantidadesOriginales)
     {
         var fechaTraslado = traslado.FechaTraslado.Date;
         var loteIdStr = traslado.LoteId;
+        if (string.IsNullOrEmpty(loteIdStr)) return;
 
-        // Buscar registro existente para esa fecha
-        var registroExistente = await _context.SeguimientoProduccion
-            .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaTraslado)
+        var registroExistente = await _context.SeguimientoDiario
+            .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr && s.Fecha.Date == fechaTraslado)
             .FirstOrDefaultAsync();
 
         if (registroExistente != null)
         {
-            // PRIMERO: Devolver las cantidades originales (sumarlas de vuelta)
-            registroExistente.HuevoLimpio += cantidadesOriginales["Limpio"];
-            registroExistente.HuevoTratado += cantidadesOriginales["Tratado"];
-            registroExistente.HuevoSucio += cantidadesOriginales["Sucio"];
-            registroExistente.HuevoDeforme += cantidadesOriginales["Deforme"];
-            registroExistente.HuevoBlanco += cantidadesOriginales["Blanco"];
-            registroExistente.HuevoDobleYema += cantidadesOriginales["DobleYema"];
-            registroExistente.HuevoPiso += cantidadesOriginales["Piso"];
-            registroExistente.HuevoPequeno += cantidadesOriginales["Pequeno"];
-            registroExistente.HuevoRoto += cantidadesOriginales["Roto"];
-            registroExistente.HuevoDesecho += cantidadesOriginales["Desecho"];
-            registroExistente.HuevoOtro += cantidadesOriginales["Otro"];
+            registroExistente.HuevoLimpio = (registroExistente.HuevoLimpio ?? 0) + cantidadesOriginales["Limpio"];
+            registroExistente.HuevoTratado = (registroExistente.HuevoTratado ?? 0) + cantidadesOriginales["Tratado"];
+            registroExistente.HuevoSucio = (registroExistente.HuevoSucio ?? 0) + cantidadesOriginales["Sucio"];
+            registroExistente.HuevoDeforme = (registroExistente.HuevoDeforme ?? 0) + cantidadesOriginales["Deforme"];
+            registroExistente.HuevoBlanco = (registroExistente.HuevoBlanco ?? 0) + cantidadesOriginales["Blanco"];
+            registroExistente.HuevoDobleYema = (registroExistente.HuevoDobleYema ?? 0) + cantidadesOriginales["DobleYema"];
+            registroExistente.HuevoPiso = (registroExistente.HuevoPiso ?? 0) + cantidadesOriginales["Piso"];
+            registroExistente.HuevoPequeno = (registroExistente.HuevoPequeno ?? 0) + cantidadesOriginales["Pequeno"];
+            registroExistente.HuevoRoto = (registroExistente.HuevoRoto ?? 0) + cantidadesOriginales["Roto"];
+            registroExistente.HuevoDesecho = (registroExistente.HuevoDesecho ?? 0) + cantidadesOriginales["Desecho"];
+            registroExistente.HuevoOtro = (registroExistente.HuevoOtro ?? 0) + cantidadesOriginales["Otro"];
 
-            // SEGUNDO: Aplicar las nuevas cantidades (restarlas)
-            registroExistente.HuevoLimpio = Math.Max(0, registroExistente.HuevoLimpio - traslado.CantidadLimpio);
-            registroExistente.HuevoTratado = Math.Max(0, registroExistente.HuevoTratado - traslado.CantidadTratado);
-            registroExistente.HuevoSucio = Math.Max(0, registroExistente.HuevoSucio - traslado.CantidadSucio);
-            registroExistente.HuevoDeforme = Math.Max(0, registroExistente.HuevoDeforme - traslado.CantidadDeforme);
-            registroExistente.HuevoBlanco = Math.Max(0, registroExistente.HuevoBlanco - traslado.CantidadBlanco);
-            registroExistente.HuevoDobleYema = Math.Max(0, registroExistente.HuevoDobleYema - traslado.CantidadDobleYema);
-            registroExistente.HuevoPiso = Math.Max(0, registroExistente.HuevoPiso - traslado.CantidadPiso);
-            registroExistente.HuevoPequeno = Math.Max(0, registroExistente.HuevoPequeno - traslado.CantidadPequeno);
-            registroExistente.HuevoRoto = Math.Max(0, registroExistente.HuevoRoto - traslado.CantidadRoto);
-            registroExistente.HuevoDesecho = Math.Max(0, registroExistente.HuevoDesecho - traslado.CantidadDesecho);
-            registroExistente.HuevoOtro = Math.Max(0, registroExistente.HuevoOtro - traslado.CantidadOtro);
+            registroExistente.HuevoLimpio = Math.Max(0, (registroExistente.HuevoLimpio ?? 0) - traslado.CantidadLimpio);
+            registroExistente.HuevoTratado = Math.Max(0, (registroExistente.HuevoTratado ?? 0) - traslado.CantidadTratado);
+            registroExistente.HuevoSucio = Math.Max(0, (registroExistente.HuevoSucio ?? 0) - traslado.CantidadSucio);
+            registroExistente.HuevoDeforme = Math.Max(0, (registroExistente.HuevoDeforme ?? 0) - traslado.CantidadDeforme);
+            registroExistente.HuevoBlanco = Math.Max(0, (registroExistente.HuevoBlanco ?? 0) - traslado.CantidadBlanco);
+            registroExistente.HuevoDobleYema = Math.Max(0, (registroExistente.HuevoDobleYema ?? 0) - traslado.CantidadDobleYema);
+            registroExistente.HuevoPiso = Math.Max(0, (registroExistente.HuevoPiso ?? 0) - traslado.CantidadPiso);
+            registroExistente.HuevoPequeno = Math.Max(0, (registroExistente.HuevoPequeno ?? 0) - traslado.CantidadPequeno);
+            registroExistente.HuevoRoto = Math.Max(0, (registroExistente.HuevoRoto ?? 0) - traslado.CantidadRoto);
+            registroExistente.HuevoDesecho = Math.Max(0, (registroExistente.HuevoDesecho ?? 0) - traslado.CantidadDesecho);
+            registroExistente.HuevoOtro = Math.Max(0, (registroExistente.HuevoOtro ?? 0) - traslado.CantidadOtro);
 
-            // Recalcular totales
-            registroExistente.HuevoTot = registroExistente.HuevoLimpio + registroExistente.HuevoTratado +
-                                         registroExistente.HuevoSucio + registroExistente.HuevoDeforme +
-                                         registroExistente.HuevoBlanco + registroExistente.HuevoDobleYema +
-                                         registroExistente.HuevoPiso + registroExistente.HuevoPequeno +
-                                         registroExistente.HuevoRoto + registroExistente.HuevoDesecho +
-                                         registroExistente.HuevoOtro;
-            registroExistente.HuevoInc = registroExistente.HuevoLimpio + registroExistente.HuevoTratado;
+            var limpio = registroExistente.HuevoLimpio ?? 0;
+            var tratado = registroExistente.HuevoTratado ?? 0;
+            registroExistente.HuevoTot = limpio + tratado + (registroExistente.HuevoSucio ?? 0) + (registroExistente.HuevoDeforme ?? 0) +
+                                         (registroExistente.HuevoBlanco ?? 0) + (registroExistente.HuevoDobleYema ?? 0) +
+                                         (registroExistente.HuevoPiso ?? 0) + (registroExistente.HuevoPequeno ?? 0) +
+                                         (registroExistente.HuevoRoto ?? 0) + (registroExistente.HuevoDesecho ?? 0) + (registroExistente.HuevoOtro ?? 0);
+            registroExistente.HuevoInc = limpio + tratado;
 
-            // Actualizar observaciones
             var obsAjuste = $"Ajuste por edición de traslado {traslado.NumeroTraslado}";
             registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
                 ? obsAjuste
                 : $"{registroExistente.Observaciones} | {obsAjuste}";
+            registroExistente.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
         }
         else
         {
-            // Si no existe registro, crear uno con las nuevas cantidades descontadas
-            // (las originales ya estaban descontadas, así que solo aplicamos las nuevas)
-            var registroAjuste = new SeguimientoProduccion
+            var limpioA = Math.Max(0, -traslado.CantidadLimpio);
+            var tratadoA = Math.Max(0, -traslado.CantidadTratado);
+            var registroAjuste = new SeguimientoDiario
             {
+                TipoSeguimiento = "produccion",
                 LoteId = loteIdStr,
                 Fecha = fechaTraslado,
-                HuevoLimpio = Math.Max(0, -traslado.CantidadLimpio),
-                HuevoTratado = Math.Max(0, -traslado.CantidadTratado),
+                HuevoLimpio = limpioA,
+                HuevoTratado = tratadoA,
                 HuevoSucio = Math.Max(0, -traslado.CantidadSucio),
                 HuevoDeforme = Math.Max(0, -traslado.CantidadDeforme),
                 HuevoBlanco = Math.Max(0, -traslado.CantidadBlanco),
@@ -304,25 +293,15 @@ public class TrasladoHuevosService : ITrasladoHuevosService
                 HuevoDesecho = Math.Max(0, -traslado.CantidadDesecho),
                 HuevoOtro = Math.Max(0, -traslado.CantidadOtro),
                 Observaciones = $"Ajuste por edición de traslado {traslado.NumeroTraslado}",
-                MortalidadH = 0,
-                MortalidadM = 0,
-                SelH = 0,
-                ConsKgH = 0,
-                ConsKgM = 0,
-                TipoAlimento = "N/A",
-                PesoHuevo = 0,
-                Etapa = 0
+                CreatedAt = DateTime.UtcNow
             };
+            var st = (registroAjuste.HuevoSucio ?? 0) + (registroAjuste.HuevoDeforme ?? 0) + (registroAjuste.HuevoBlanco ?? 0) +
+                     (registroAjuste.HuevoDobleYema ?? 0) + (registroAjuste.HuevoPiso ?? 0) + (registroAjuste.HuevoPequeno ?? 0) +
+                     (registroAjuste.HuevoRoto ?? 0) + (registroAjuste.HuevoDesecho ?? 0) + (registroAjuste.HuevoOtro ?? 0);
+            registroAjuste.HuevoTot = limpioA + tratadoA + st;
+            registroAjuste.HuevoInc = limpioA + tratadoA;
 
-            registroAjuste.HuevoTot = registroAjuste.HuevoLimpio + registroAjuste.HuevoTratado +
-                                     registroAjuste.HuevoSucio + registroAjuste.HuevoDeforme +
-                                     registroAjuste.HuevoBlanco + registroAjuste.HuevoDobleYema +
-                                     registroAjuste.HuevoPiso + registroAjuste.HuevoPequeno +
-                                     registroAjuste.HuevoRoto + registroAjuste.HuevoDesecho +
-                                     registroAjuste.HuevoOtro;
-            registroAjuste.HuevoInc = registroAjuste.HuevoLimpio + registroAjuste.HuevoTratado;
-
-            _context.SeguimientoProduccion.Add(registroAjuste);
+            _context.SeguimientoDiario.Add(registroAjuste);
             await _context.SaveChangesAsync();
         }
     }
@@ -391,55 +370,53 @@ public class TrasladoHuevosService : ITrasladoHuevosService
     }
 
     /// <summary>
-    /// Devuelve los huevos al inventario cuando se cancela un traslado
+    /// Devuelve los huevos al inventario (seguimiento diario producción) cuando se cancela un traslado.
     /// </summary>
     private async Task DevolverHuevosAlInventarioAsync(TrasladoHuevos traslado)
     {
         var fechaTraslado = traslado.FechaTraslado.Date;
         var loteIdStr = traslado.LoteId;
+        if (string.IsNullOrEmpty(loteIdStr)) return;
 
-        // Buscar registro existente para esa fecha
-        var registroExistente = await _context.SeguimientoProduccion
-            .Where(s => s.LoteId == loteIdStr && s.Fecha.Date == fechaTraslado)
+        var registroExistente = await _context.SeguimientoDiario
+            .Where(s => s.TipoSeguimiento == "produccion" && s.LoteId == loteIdStr && s.Fecha.Date == fechaTraslado)
             .FirstOrDefaultAsync();
 
         if (registroExistente != null)
         {
-            // Devolver las cantidades al inventario (sumarlas de vuelta)
-            registroExistente.HuevoLimpio += traslado.CantidadLimpio;
-            registroExistente.HuevoTratado += traslado.CantidadTratado;
-            registroExistente.HuevoSucio += traslado.CantidadSucio;
-            registroExistente.HuevoDeforme += traslado.CantidadDeforme;
-            registroExistente.HuevoBlanco += traslado.CantidadBlanco;
-            registroExistente.HuevoDobleYema += traslado.CantidadDobleYema;
-            registroExistente.HuevoPiso += traslado.CantidadPiso;
-            registroExistente.HuevoPequeno += traslado.CantidadPequeno;
-            registroExistente.HuevoRoto += traslado.CantidadRoto;
-            registroExistente.HuevoDesecho += traslado.CantidadDesecho;
-            registroExistente.HuevoOtro += traslado.CantidadOtro;
+            registroExistente.HuevoLimpio = (registroExistente.HuevoLimpio ?? 0) + traslado.CantidadLimpio;
+            registroExistente.HuevoTratado = (registroExistente.HuevoTratado ?? 0) + traslado.CantidadTratado;
+            registroExistente.HuevoSucio = (registroExistente.HuevoSucio ?? 0) + traslado.CantidadSucio;
+            registroExistente.HuevoDeforme = (registroExistente.HuevoDeforme ?? 0) + traslado.CantidadDeforme;
+            registroExistente.HuevoBlanco = (registroExistente.HuevoBlanco ?? 0) + traslado.CantidadBlanco;
+            registroExistente.HuevoDobleYema = (registroExistente.HuevoDobleYema ?? 0) + traslado.CantidadDobleYema;
+            registroExistente.HuevoPiso = (registroExistente.HuevoPiso ?? 0) + traslado.CantidadPiso;
+            registroExistente.HuevoPequeno = (registroExistente.HuevoPequeno ?? 0) + traslado.CantidadPequeno;
+            registroExistente.HuevoRoto = (registroExistente.HuevoRoto ?? 0) + traslado.CantidadRoto;
+            registroExistente.HuevoDesecho = (registroExistente.HuevoDesecho ?? 0) + traslado.CantidadDesecho;
+            registroExistente.HuevoOtro = (registroExistente.HuevoOtro ?? 0) + traslado.CantidadOtro;
 
-            // Recalcular totales
-            registroExistente.HuevoTot = registroExistente.HuevoLimpio + registroExistente.HuevoTratado +
-                                         registroExistente.HuevoSucio + registroExistente.HuevoDeforme +
-                                         registroExistente.HuevoBlanco + registroExistente.HuevoDobleYema +
-                                         registroExistente.HuevoPiso + registroExistente.HuevoPequeno +
-                                         registroExistente.HuevoRoto + registroExistente.HuevoDesecho +
-                                         registroExistente.HuevoOtro;
-            registroExistente.HuevoInc = registroExistente.HuevoLimpio + registroExistente.HuevoTratado;
+            var limpio = registroExistente.HuevoLimpio ?? 0;
+            var tratado = registroExistente.HuevoTratado ?? 0;
+            registroExistente.HuevoTot = limpio + tratado + (registroExistente.HuevoSucio ?? 0) + (registroExistente.HuevoDeforme ?? 0) +
+                                         (registroExistente.HuevoBlanco ?? 0) + (registroExistente.HuevoDobleYema ?? 0) +
+                                         (registroExistente.HuevoPiso ?? 0) + (registroExistente.HuevoPequeno ?? 0) +
+                                         (registroExistente.HuevoRoto ?? 0) + (registroExistente.HuevoDesecho ?? 0) + (registroExistente.HuevoOtro ?? 0);
+            registroExistente.HuevoInc = limpio + tratado;
 
-            // Actualizar observaciones
             var obsCancelacion = $"Huevos devueltos por cancelación de traslado {traslado.NumeroTraslado}";
             registroExistente.Observaciones = string.IsNullOrEmpty(registroExistente.Observaciones)
                 ? obsCancelacion
                 : $"{registroExistente.Observaciones} | {obsCancelacion}";
+            registroExistente.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
         }
         else
         {
-            // Si no existe registro, crear uno con las cantidades devueltas (valores positivos)
-            var registroDevolucion = new SeguimientoProduccion
+            var registroDevolucion = new SeguimientoDiario
             {
+                TipoSeguimiento = "produccion",
                 LoteId = loteIdStr,
                 Fecha = fechaTraslado,
                 HuevoLimpio = traslado.CantidadLimpio,
@@ -454,25 +431,15 @@ public class TrasladoHuevosService : ITrasladoHuevosService
                 HuevoDesecho = traslado.CantidadDesecho,
                 HuevoOtro = traslado.CantidadOtro,
                 Observaciones = $"Huevos devueltos por cancelación de traslado {traslado.NumeroTraslado}",
-                MortalidadH = 0,
-                MortalidadM = 0,
-                SelH = 0,
-                ConsKgH = 0,
-                ConsKgM = 0,
-                TipoAlimento = "N/A",
-                PesoHuevo = 0,
-                Etapa = 0
+                CreatedAt = DateTime.UtcNow
             };
+            var st = (registroDevolucion.HuevoSucio ?? 0) + (registroDevolucion.HuevoDeforme ?? 0) + (registroDevolucion.HuevoBlanco ?? 0) +
+                     (registroDevolucion.HuevoDobleYema ?? 0) + (registroDevolucion.HuevoPiso ?? 0) + (registroDevolucion.HuevoPequeno ?? 0) +
+                     (registroDevolucion.HuevoRoto ?? 0) + (registroDevolucion.HuevoDesecho ?? 0) + (registroDevolucion.HuevoOtro ?? 0);
+            registroDevolucion.HuevoTot = (registroDevolucion.HuevoLimpio ?? 0) + (registroDevolucion.HuevoTratado ?? 0) + st;
+            registroDevolucion.HuevoInc = (registroDevolucion.HuevoLimpio ?? 0) + (registroDevolucion.HuevoTratado ?? 0);
 
-            registroDevolucion.HuevoTot = registroDevolucion.HuevoLimpio + registroDevolucion.HuevoTratado +
-                                         registroDevolucion.HuevoSucio + registroDevolucion.HuevoDeforme +
-                                         registroDevolucion.HuevoBlanco + registroDevolucion.HuevoDobleYema +
-                                         registroDevolucion.HuevoPiso + registroDevolucion.HuevoPequeno +
-                                         registroDevolucion.HuevoRoto + registroDevolucion.HuevoDesecho +
-                                         registroDevolucion.HuevoOtro;
-            registroDevolucion.HuevoInc = registroDevolucion.HuevoLimpio + registroDevolucion.HuevoTratado;
-
-            _context.SeguimientoProduccion.Add(registroDevolucion);
+            _context.SeguimientoDiario.Add(registroDevolucion);
             await _context.SaveChangesAsync();
         }
     }

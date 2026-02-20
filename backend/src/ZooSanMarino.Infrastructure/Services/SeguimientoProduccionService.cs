@@ -20,7 +20,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             .Select(x => new SeguimientoProduccionDto(
                 x.Id,
                 x.Fecha,
-                x.LoteId,
+                x.LoteId.ToString(),
                 x.MortalidadH,
                 x.MortalidadM,
                 x.SelH,
@@ -40,9 +40,8 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto?> GetByLoteIdAsync(int loteId)
     {
-        var loteIdStr = loteId.ToString();
         var entity = await _ctx.SeguimientoProduccion
-            .Where(x => x.LoteId == loteIdStr)
+            .Where(x => x.LoteId == loteId)
             .OrderByDescending(x => x.Fecha)
             .FirstOrDefaultAsync();
 
@@ -51,7 +50,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         return new SeguimientoProduccionDto(
             entity.Id,
             entity.Fecha,
-            entity.LoteId,
+            entity.LoteId.ToString(),
             entity.MortalidadH,
             entity.MortalidadM,
             entity.SelH,
@@ -70,10 +69,16 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
 
     public async Task<SeguimientoProduccionDto> CreateAsync(CreateSeguimientoProduccionDto dto)
     {
+        var loteProd = await _ctx.Lotes.AsNoTracking()
+            .FirstOrDefaultAsync(l => l.LoteId == dto.LoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+        if (loteProd == null)
+            throw new InvalidOperationException(
+                "No existe lote en fase Producción con ese ID. Cree primero el lote de producción desde el lote en Levante.");
+
         var entity = new Domain.Entities.SeguimientoProduccion
         {
+            LoteId = dto.LoteId,
             Fecha = dto.Fecha,
-            LoteId = dto.LoteId.ToString(),
             MortalidadH = dto.MortalidadH,
             MortalidadM = dto.MortalidadM,
             SelH = dto.SelH,
@@ -95,7 +100,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         return new SeguimientoProduccionDto(
             entity.Id,
             entity.Fecha,
-            entity.LoteId,
+            entity.LoteId.ToString(),
             entity.MortalidadH,
             entity.MortalidadM,
             entity.SelH,
@@ -118,7 +123,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         if (entity == null) return null;
 
         entity.Fecha = dto.Fecha;
-        entity.LoteId = dto.LoteId.ToString();
+        entity.LoteId = dto.LoteId;
         entity.MortalidadH = dto.MortalidadH;
         entity.MortalidadM = dto.MortalidadM;
         entity.SelH = dto.SelH;
@@ -138,7 +143,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         return new SeguimientoProduccionDto(
             entity.Id,
             entity.Fecha,
-            entity.LoteId,
+            entity.LoteId.ToString(),
             entity.MortalidadH,
             entity.MortalidadM,
             entity.SelH,
@@ -170,7 +175,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
         var query = _ctx.SeguimientoProduccion.AsQueryable();
 
         if (filter.LoteId.HasValue)
-            query = query.Where(x => x.LoteId == filter.LoteId.Value.ToString());
+            query = query.Where(x => x.LoteId == filter.LoteId.Value);
 
         if (filter.Desde.HasValue)
             query = query.Where(x => x.Fecha >= filter.Desde.Value);
@@ -183,7 +188,7 @@ public class SeguimientoProduccionService : ISeguimientoProduccionService
             .Select(x => new SeguimientoProduccionDto(
                 x.Id,
                 x.Fecha,
-                x.LoteId,
+                x.LoteId.ToString(),
                 x.MortalidadH,
                 x.MortalidadM,
                 x.SelH,

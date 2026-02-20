@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 
@@ -6,13 +7,27 @@ namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Produces("application/json")]
 public class SeguimientoProduccionController : ControllerBase
 {
     private readonly ISeguimientoProduccionService _svc;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public SeguimientoProduccionController(ISeguimientoProduccionService svc)
+    public SeguimientoProduccionController(ISeguimientoProduccionService svc, IServiceScopeFactory scopeFactory)
     {
         _svc = svc;
+        _scopeFactory = scopeFactory;
+    }
+
+    /// <summary>Datos para filtros en cascada (Granja → Núcleo → Galpón → Lote) con solo lotes de producción.</summary>
+    [HttpGet("filter-data")]
+    [ProducesResponseType(typeof(LoteReproductoraFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoteReproductoraFilterDataDto>> GetFilterData(CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteProduccionFilterDataService>();
+        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        return Ok(data);
     }
 
     // ✅ Crear nuevo registro de seguimiento

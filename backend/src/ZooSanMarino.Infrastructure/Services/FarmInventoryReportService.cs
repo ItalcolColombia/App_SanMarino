@@ -9,13 +9,47 @@ using ZooSanMarino.Infrastructure.Persistence;
 public class FarmInventoryReportService : IFarmInventoryReportService
 {
     private readonly ZooSanMarinoContext _db;
-    public FarmInventoryReportService(ZooSanMarinoContext db) => _db = db;
+    private readonly ICurrentUser? _current;
+    
+    public FarmInventoryReportService(ZooSanMarinoContext db, ICurrentUser? current = null)
+    {
+        _db = db;
+        _current = current;
+    }
 
     public async Task<IEnumerable<KardexItemDto>> GetKardexAsync(int farmId, int catalogItemId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
+        // Validar que la granja pertenezca a la empresa del usuario
+        var farm = await _db.Set<Farm>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Id == farmId, ct);
+        
+        if (farm == null) return Enumerable.Empty<KardexItemDto>();
+        
+        // Filtrar por empresa del usuario actual
+        if (_current != null && _current.CompanyId > 0)
+        {
+            if (farm.CompanyId != _current.CompanyId)
+            {
+                return Enumerable.Empty<KardexItemDto>();
+            }
+        }
+
         var q = _db.FarmInventoryMovements
             .AsNoTracking()
             .Where(m => m.FarmId == farmId && m.CatalogItemId == catalogItemId);
+        
+        // Filtrar por empresa y país del usuario actual
+        if (_current != null && _current.CompanyId > 0)
+        {
+            q = q.Where(m => m.CompanyId == _current.CompanyId);
+            
+            if (_current.PaisId.HasValue && _current.PaisId.Value > 0)
+            {
+                q = q.Where(m => m.PaisId == _current.PaisId.Value);
+            }
+        }
+        
         if (from.HasValue) q = q.Where(m => m.CreatedAt >= from.Value);
         if (to.HasValue)   q = q.Where(m => m.CreatedAt <= to.Value);
 

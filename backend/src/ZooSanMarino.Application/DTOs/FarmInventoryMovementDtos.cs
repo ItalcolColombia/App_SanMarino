@@ -8,6 +8,7 @@ public class InventoryMovementDto
     public int Id { get; set; }
     public int FarmId { get; set; }
     public int CatalogItemId { get; set; }
+    public string? ItemType { get; set; }  // Tipo de item: alimento, vacuna, medicamento, etc.
     public string Codigo { get; set; } = null!;
     public string Nombre { get; set; } = null!;
     public decimal Quantity { get; set; }
@@ -18,6 +19,13 @@ public class InventoryMovementDto
     public string? Origin { get; set; }
     public string? Destination { get; set; }
     public Guid? TransferGroupId { get; set; }
+    
+    // Campos específicos para movimiento de alimento
+    public string? DocumentoOrigen { get; set; }      // Autoconsumo, RVN, EAN
+    public string? TipoEntrada { get; set; }          // Entrada Nueva, Traslado entre galpon, Traslados entre granjas
+    public string? GalponDestinoId { get; set; }      // ID del galpón destino
+    public DateTimeOffset? FechaMovimiento { get; set; } // Fecha del movimiento
+    
     public JsonDocument? Metadata { get; set; }
     public string? ResponsibleUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -27,11 +35,19 @@ public class InventoryEntryRequest
 {
     public int? CatalogItemId { get; set; }
     public string? Codigo { get; set; }
+    public string? ItemType { get; set; }      // Tipo de item del catálogo (opcional, se obtiene del catálogo si no se envía)
     public decimal Quantity { get; set; }      // positivo
     public string? Unit { get; set; }
     public string? Reference { get; set; }
     public string? Reason { get; set; }
     public string? Origin { get; set; }        // Origen para entradas (ej: "Planta Sanmarino", "Planta Itacol")
+    
+    // Campos específicos para movimiento de alimento
+    public string? DocumentoOrigen { get; set; }      // Autoconsumo (autofacturado), RVN (Remisión facturada - Planta a Granja), EAN (Entrada de inventario)
+    public string? TipoEntrada { get; set; }          // Entrada Nueva, Traslado entre galpon, Traslados entre granjas
+    public string? GalponDestinoId { get; set; }      // ID del galpón destino
+    public DateTimeOffset? FechaMovimiento { get; set; } // Fecha del movimiento (opcional, si no se envía usa created_at)
+    
     public JsonDocument? Metadata { get; set; }
 }
 public class InventoryExitRequest : InventoryEntryRequest 

@@ -172,24 +172,38 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUserFarmService, UserFarmService>();
 builder.Services.AddScoped<ICompanyService, CompanyService>();
+builder.Services.AddScoped<ICompanyMenuService, CompanyMenuService>();
 builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<INucleoService, NucleoService>();
 builder.Services.AddScoped<IGalponService, GalponService>();
 builder.Services.AddScoped<ILoteService, LoteService>();
+builder.Services.AddScoped<ILoteFormDataService, LoteFormDataService>();
+builder.Services.AddScoped<ILoteAveEngordeService, LoteAveEngordeService>();
 builder.Services.AddScoped<ILoteReproductoraService, LoteReproductoraService>();
+builder.Services.AddScoped<ILoteReproductoraFilterDataService, LoteReproductoraFilterDataService>();
+builder.Services.AddScoped<ILoteReproductoraAveEngordeService, LoteReproductoraAveEngordeService>();
+builder.Services.AddScoped<ILoteReproductoraAveEngordeFilterDataService, LoteReproductoraAveEngordeFilterDataService>();
+builder.Services.AddScoped<ILoteProduccionFilterDataService, LoteProduccionFilterDataService>();
+builder.Services.AddScoped<ILoteLevanteFilterDataService, LoteLevanteFilterDataService>();
 builder.Services.AddScoped<ILoteGalponService, LoteGalponService>();
 builder.Services.AddScoped<IRegionalService, RegionalService>();
 builder.Services.AddScoped<IPaisService, PaisService>();
 builder.Services.AddScoped<IDepartamentoService, DepartamentoService>();
 builder.Services.AddScoped<IMunicipioService, MunicipioService>();
 builder.Services.AddScoped<ILoteSeguimientoService, LoteSeguimientoService>();
+builder.Services.AddScoped<ISeguimientoDiarioService, SeguimientoDiarioService>();
 builder.Services.AddScoped<IMasterListService, MasterListService>();
 // Sistema de Inventario de Aves (registrado antes para inyección en seguimientos)
 builder.Services.AddScoped<IInventarioAvesService, InventarioAvesService>();
 builder.Services.AddScoped<IHistorialInventarioService, HistorialInventarioService>();
 builder.Services.AddScoped<IMovimientoAvesService, MovimientoAvesService>();
+builder.Services.AddScoped<IMovimientoPolloEngordeService, MovimientoPolloEngordeService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
+builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
+builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
+builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraService, SeguimientoDiarioLoteReproductoraService>();
+builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, SeguimientoDiarioLoteReproductoraFilterDataService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
 builder.Services.AddScoped<IProduccionDiariaService, ProduccionDiariaService>();
 builder.Services.AddScoped<IProduccionService, ProduccionService>();
@@ -219,8 +233,12 @@ builder.Services.AddScoped<ILiquidacionTecnicaService, LiquidacionTecnicaService
 builder.Services.AddScoped<ILiquidacionTecnicaProduccionService, LiquidacionTecnicaProduccionService>();
 builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionService>();
 
+// Indicador Ecuador Service
+builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
+
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEcuadorService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEcuadorService>();
 
 // Reporte Técnico Service
 builder.Services.AddScoped<IReporteTecnicoService, ReporteTecnicoService>();
@@ -392,6 +410,10 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        // Evitar error "positive and negative infinity cannot be written as valid JSON"
+        // cuando reportes tienen división por cero (ej. machoIni=0 → ConsAcGrMGUIA infinito)
+        options.JsonSerializerOptions.Converters.Add(new ZooSanMarino.API.Infrastructure.JsonDoubleConverter());
+        options.JsonSerializerOptions.Converters.Add(new ZooSanMarino.API.Infrastructure.JsonNullableDoubleConverter());
     });
 
 var app = builder.Build();
