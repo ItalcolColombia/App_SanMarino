@@ -29,6 +29,8 @@ import { LoteDto } from '../../../lote/services/lote.service';
 export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   @Input() loteId: string | null = null;
   @Input() loteNombre: string | null = null;
+  /** true cuando el lote es LoteAveEngordeId (módulo aves de engorde / Ecuador). */
+  @Input() esLoteAveEngorde: boolean = false;
 
   // Señales reactivas
   loading = signal(false);
@@ -200,9 +202,9 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     let request$: Observable<LiquidacionTecnicaDto | LiquidacionTecnicaCompletaDto>;
 
     if (tipoVista === 'completa') {
-      request$ = this.liquidacionService.getLiquidacionCompleta(this.loteId, fechaHasta);
+      request$ = this.liquidacionService.getLiquidacionCompleta(this.loteId, fechaHasta, this.esLoteAveEngorde);
     } else {
-      request$ = this.liquidacionService.getLiquidacionTecnica(this.loteId, fechaHasta);
+      request$ = this.liquidacionService.getLiquidacionTecnica(this.loteId, fechaHasta, this.esLoteAveEngorde);
     }
 
     // Cargar liquidación técnica básica
@@ -211,9 +213,9 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     ).subscribe({
       next: (data: LiquidacionTecnicaDto | LiquidacionTecnicaCompletaDto) => {
         if (tipoVista === 'completa') {
-          const completaData = data as LiquidacionTecnicaCompletaDto;
+          const completaData = data as LiquidacionTecnicaCompletaDto & { liquidacion?: LiquidacionTecnicaDto };
           this.liquidacionCompleta.set(completaData);
-          this.liquidacion.set(completaData.resumen);
+          this.liquidacion.set(completaData.resumen ?? completaData.liquidacion ?? null);
         } else {
           const simpleData = data as LiquidacionTecnicaDto;
           this.liquidacion.set(simpleData);

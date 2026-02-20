@@ -1,0 +1,161 @@
+<div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>Seguimiento diario pollo de engorde</h1>
+
+        <div class="ux-header__meta">
+          <ng-template #noGranjaChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot" aria-hidden="true"></span>
+              Selecciona una granja
+            </span>
+          </ng-template>
+
+          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
+            <span class="chip chip--dot" aria-hidden="true"></span>
+            Granja: {{ selectedGranjaName || selectedGranjaId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedNucleoId">
+            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedGalponId">
+            Galpón: {{ selectedGalponNombre }}
+          </span>
+
+          <span class="chip chip--info" *ngIf="selectedLoteId">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Lote: {{ selectedLoteNombre }}
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId">
+            {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días
+          </span>
+
+          <span class="chip chip--muted" *ngIf="selectedLoteId">
+            {{ seguimientos.length || 0 }} registro(s)
+          </span>
+        </div>
+      </div>
+
+      <div class="ux-header__actions">
+        <button
+          type="button"
+          class="btn btn--outline"
+          [disabled]="!selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
+          (click)="openLiquidacion()">
+          Liquidación técnica
+        </button>
+
+        <button
+          type="button"
+          (click)="create()"
+          class="btn btn--primary"
+          [disabled]="!selectedLoteId || noPuedeSeguimiento"
+          [title]="noPuedeSeguimiento ? 'No hay aves disponibles o lote cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
+          Nuevo registro
+        </button>
+      </div>
+    </header>
+
+    <app-filtro-select
+      [selectedGranjaId]="selectedGranjaId"
+      [selectedNucleoId]="selectedNucleoId"
+      [selectedGalponId]="selectedGalponId"
+      [selectedLoteId]="selectedLoteId"
+      [filterDataUrl]="filterDataUrl"
+      (filterDataLoaded)="onFilterDataLoaded($event)"
+      (granjaChange)="onGranjaChange($event)"
+      (nucleoChange)="onNucleoChange($event)"
+      (galponChange)="onGalponChange($event)"
+      (loteChange)="onLoteChange($event)">
+    </app-filtro-select>
+
+    <!-- Información del lote y aves disponibles (después de restar lotes reproductora) -->
+    <section *ngIf="selectedLoteId && selectedLote" class="ux-card ux-card--info pe-info-lote">
+      <h2 class="ux-card__title">Información del lote y disponibilidad de aves</h2>
+
+      <p *ngIf="avesDisponiblesTotal === 0 && avesDisponibles" class="pe-info-lote__msg pe-info-lote__msg--error" role="alert">
+        <strong>No se puede hacer seguimiento</strong> porque no hay aves disponibles en el lote. Las aves fueron asignadas en su totalidad a lotes reproductora.
+      </p>
+      <p *ngIf="loteCerradoPorReproductoras && lotesReproductora.length > 0" class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
+        <strong>Lote cerrado</strong> porque los lotes reproductora ya no tienen aves disponibles.
+      </p>
+
+      <div class="pe-info-lote__grid">
+        <div class="pe-info-lote__block">
+          <h3 class="pe-info-lote__block-title">Datos del lote</h3>
+          <dl class="pe-info-lote-dl">
+            <dt>Nombre</dt>
+            <dd>{{ selectedLote.loteNombre }}</dd>
+            <dt>Fecha encasetamiento</dt>
+            <dd>{{ selectedLote.fechaEncaset | date:'dd/MM/yyyy' }}</dd>
+            <dt>Aves encasetadas</dt>
+            <dd>{{ (selectedLote.avesEncasetadas ?? 0) | number:'1.0-0' }}</dd>
+          </dl>
+        </div>
+        <div class="pe-info-lote__block" *ngIf="avesDisponibles">
+          <h3 class="pe-info-lote__block-title">Aves disponibles (para seguimiento pollo engorde)</h3>
+          <p class="pe-info-lote-aves">{{ avesDisponiblesTotal | number:'1.0-0' }}</p>
+          <p class="pe-info-lote-hint">Después de restar las aves asignadas a lotes reproductora y la mortalidad/selección registrada en los seguimientos diarios (H: {{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}, M: {{ avesDisponibles.machosDisponibles | number:'1.0-0' }}).</p>
+        </div>
+      </div>
+    </section>
+
+    <app-tabs-principal
+      [seguimientos]="seguimientos"
+      [selectedLote]="selectedLote"
+      [resumenLevante]="resumenSelected"
+      [loading]="loading"
+      [disableCreateEditDelete]="noPuedeSeguimiento"
+      (create)="create()"
+      (edit)="edit($event)"
+      (delete)="delete($event)"
+      (viewDetail)="viewDetail($event)">
+    </app-tabs-principal>
+  </div>
+</div>
+
+<app-modal-create-edit
+  [isOpen]="modalOpen"
+  [editing]="editing"
+  [lotes]="lotes"
+  [selectedLoteId]="selectedLoteId"
+  [loading]="loading"
+  (close)="cancel()"
+  (save)="onSave($event)">
+</app-modal-create-edit>
+
+<app-modal-detalle-seguimiento-levante
+  [isOpen]="detailModalOpen"
+  [seguimiento]="editing"
+  [skipFetch]="true"
+  (close)="detailModalOpen = false; editing = null;">
+</app-modal-detalle-seguimiento-levante>
+
+<app-modal-calculos
+  [isOpen]="calcsOpen"
+  [loteId]="selectedLoteId"
+  [loteNombre]="selectedLoteNombre"
+  (close)="closeCalculos()">
+</app-modal-calculos>
+
+<app-modal-liquidacion
+  [isOpen]="liquidacionOpen"
+  [loteId]="selectedLoteId"
+  [loteNombre]="selectedLoteNombre"
+  [esLoteAveEngorde]="true"
+  (close)="closeLiquidacion()">
+</app-modal-liquidacion>
+
+<app-confirmation-modal
+  [isOpen]="errorModalOpen"
+  [data]="errorModalData"
+  (confirmed)="onErrorModalClose()"
+  (closed)="onErrorModalClose()">
+</app-confirmation-modal>

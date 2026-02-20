@@ -87,16 +87,19 @@ export interface LiquidacionTecnicaComparacionCompletaDto {
 })
 export class LiquidacionComparacionService {
   private baseUrl = `${environment.apiUrl}/LiquidacionTecnicaComparacion`;
+  private baseUrlEcuador = `${environment.apiUrl}/LiquidacionTecnicaEcuador`;
 
   constructor(private http: HttpClient) {}
 
   /**
-   * Compara los datos del lote con la guía genética correspondiente
+   * Compara los datos del lote con la guía genética correspondiente.
+   * @param useEcuador true cuando loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador).
    */
-  compararConGuiaGenetica(loteId: number, fechaHasta?: string): Observable<LiquidacionTecnicaComparacionDto> {
-    let url = `${this.baseUrl}/lote/${loteId}`;
+  compararConGuiaGenetica(loteId: number, fechaHasta?: string, useEcuador = false): Observable<LiquidacionTecnicaComparacionDto> {
+    const base = useEcuador ? this.baseUrlEcuador : this.baseUrl;
+    let url = `${base}/lote/${loteId}`;
     if (fechaHasta) {
-      url += `?fechaHasta=${fechaHasta}`;
+      url += `?fechaHasta=${encodeURIComponent(fechaHasta)}`;
     }
     return this.http.get<LiquidacionTecnicaComparacionDto>(url);
   }
@@ -104,18 +107,20 @@ export class LiquidacionComparacionService {
   /**
    * Alias para compatibilidad con el componente
    */
-  getComparacionBasica(loteId: number, fechaHasta?: Date): Observable<LiquidacionTecnicaComparacionDto> {
+  getComparacionBasica(loteId: number, fechaHasta?: Date, useEcuador = false): Observable<LiquidacionTecnicaComparacionDto> {
     const fechaHastaStr = fechaHasta ? fechaHasta.toISOString() : undefined;
-    return this.compararConGuiaGenetica(loteId, fechaHastaStr);
+    return this.compararConGuiaGenetica(loteId, fechaHastaStr, useEcuador);
   }
 
   /**
-   * Obtiene la comparación completa con detalles
+   * Obtiene la comparación completa con detalles.
+   * @param useEcuador true cuando loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador).
    */
-  obtenerComparacionCompleta(loteId: number, fechaHasta?: string): Observable<LiquidacionTecnicaComparacionCompletaDto> {
-    let url = `${this.baseUrl}/lote/${loteId}/completa`;
+  obtenerComparacionCompleta(loteId: number, fechaHasta?: string, useEcuador = false): Observable<LiquidacionTecnicaComparacionCompletaDto> {
+    const base = useEcuador ? this.baseUrlEcuador : this.baseUrl;
+    let url = `${base}/lote/${loteId}/completa`;
     if (fechaHasta) {
-      url += `?fechaHasta=${fechaHasta}`;
+      url += `?fechaHasta=${encodeURIComponent(fechaHasta)}`;
     }
     return this.http.get<LiquidacionTecnicaComparacionCompletaDto>(url);
   }

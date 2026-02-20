@@ -13,6 +13,8 @@ import { LiquidacionComparacionService, LiquidacionTecnicaComparacionDto, Liquid
 export class LiquidacionComparacionComponent implements OnInit, OnChanges {
   @Input() loteId: number | null = null;
   @Input() fechaHasta?: string;
+  /** true cuando loteId es LoteAveEngordeId (módulo aves de engorde / Ecuador). */
+  @Input() esLoteAveEngorde: boolean = false;
 
   comparacion: LiquidacionTecnicaComparacionDto | null = null;
   observaciones: string | null = null;
@@ -28,7 +30,7 @@ export class LiquidacionComparacionComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['loteId'] && this.loteId) {
+    if ((changes['loteId'] || changes['esLoteAveEngorde']) && this.loteId) {
       this.cargarComparacion();
     }
   }
@@ -41,7 +43,7 @@ export class LiquidacionComparacionComponent implements OnInit, OnChanges {
     this.comparacion = null;
     this.observaciones = null;
 
-    this.liquidacionComparacionService.obtenerComparacionCompleta(this.loteId, this.fechaHasta)
+    this.liquidacionComparacionService.obtenerComparacionCompleta(this.loteId, this.fechaHasta, this.esLoteAveEngorde)
       .subscribe({
         next: (resultado) => {
           this.comparacion = resultado.resumen;

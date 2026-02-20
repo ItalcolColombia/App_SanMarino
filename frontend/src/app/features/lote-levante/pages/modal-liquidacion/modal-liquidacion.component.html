@@ -12,13 +12,15 @@
     <section class="liquidacion-modal-content">
       <app-liquidacion-tecnica
         [loteId]="loteId?.toString() || ''"
-        [loteNombre]="loteNombre">
+        [loteNombre]="loteNombre"
+        [esLoteAveEngorde]="esLoteAveEngorde">
       </app-liquidacion-tecnica>
       
       <!-- Comparación con Guía Genética -->
       <div class="comparacion-guia-section" *ngIf="loteId">
         <app-liquidacion-comparacion
-          [loteId]="loteId">
+          [loteId]="loteId"
+          [esLoteAveEngorde]="esLoteAveEngorde">
         </app-liquidacion-comparacion>
       </div>
     </section>

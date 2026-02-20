@@ -1,0 +1,137 @@
+<div class="ux-page">
+  <app-sidebar class="ux-sidebar"></app-sidebar>
+
+  <div class="ux-main">
+    <header class="ux-header">
+      <div class="ux-header__title">
+        <h1>{{ isEdit ? 'Editar Seguimiento diario pollo de engorde' : 'Nuevo Seguimiento diario pollo de engorde' }}</h1>
+        <div class="ux-header__meta">
+          <ng-container *ngIf="form.get('loteId')?.value as lid; else noLoteChip">
+            <span class="chip chip--info">
+              <span class="chip__dot"></span>
+              Lote: {{ loteNombre(lid) }}
+            </span>
+            <span class="chip chip--muted">
+              {{ calcularEdadDias(lotesById[lid]?.fechaEncaset) }} días
+            </span>
+          </ng-container>
+          <ng-template #noLoteChip>
+            <span class="chip chip--warning">
+              <span class="chip__dot"></span>
+              Selecciona un lote para continuar
+            </span>
+          </ng-template>
+        </div>
+      </div>
+      <button
+        type="submit"
+        form="seguimientoForm"
+        class="btn btn--primary"
+        [disabled]="loading || form.invalid"
+        [title]="form.invalid ? 'Completa los campos requeridos' : 'Guardar'">
+        {{ loading ? 'Guardando…' : 'Guardar' }}
+      </button>
+    </header>
+
+    <section class="ux-card">
+      <form [formGroup]="form" (ngSubmit)="save()" id="seguimientoForm" class="ux-form" novalidate>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="loteId">Lote <span class="req">*</span></label>
+            <div class="ux-select">
+              <select id="loteId" formControlName="loteId" [attr.aria-invalid]="f['loteId'].invalid && f['loteId'].touched ? 'true' : null">
+                <option value="" disabled>— Selecciona un lote —</option>
+                <option *ngFor="let l of lotes" [ngValue]="l.loteId">
+                  {{ l.loteNombre }} ({{ calcularEdadDias(l.fechaEncaset) }} días)
+                </option>
+              </select>
+            </div>
+            <small class="field-hint" *ngIf="f['loteId'].valid && form.value.loteId">
+              Edad: {{ calcularEdadDias(lotesById[form.value.loteId]?.fechaEncaset) || '—' }} días
+            </small>
+            <small class="field-error" *ngIf="f['loteId'].invalid && f['loteId'].touched">Obligatorio.</small>
+          </div>
+          <div class="form-field">
+            <label for="fechaRegistro">Fecha <span class="req">*</span></label>
+            <input id="fechaRegistro" type="date" formControlName="fechaRegistro" [max]="maxDateForInput()" [attr.aria-invalid]="f['fechaRegistro'].invalid && f['fechaRegistro'].touched ? 'true' : null" />
+            <small class="field-error" *ngIf="f['fechaRegistro'].invalid && f['fechaRegistro'].touched">Obligatorio.</small>
+          </div>
+        </div>
+
+        <h3 class="section-title">Mortalidad</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="mortalidadHembras">Hembras <span class="req">*</span></label>
+            <input id="mortalidadHembras" type="number" min="0" formControlName="mortalidadHembras" />
+          </div>
+          <div class="form-field">
+            <label for="mortalidadMachos">Machos <span class="req">*</span></label>
+            <input id="mortalidadMachos" type="number" min="0" formControlName="mortalidadMachos" />
+          </div>
+        </div>
+
+        <h3 class="section-title">Selección</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="selH">Hembras <span class="req">*</span></label>
+            <input id="selH" type="number" min="0" formControlName="selH" />
+          </div>
+          <div class="form-field">
+            <label for="selM">Machos <span class="req">*</span></label>
+            <input id="selM" type="number" min="0" formControlName="selM" />
+          </div>
+        </div>
+
+        <h3 class="section-title">Error de sexaje</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="errorSexajeHembras">Hembras <span class="req">*</span></label>
+            <input id="errorSexajeHembras" type="number" min="0" formControlName="errorSexajeHembras" />
+          </div>
+          <div class="form-field">
+            <label for="errorSexajeMachos">Machos <span class="req">*</span></label>
+            <input id="errorSexajeMachos" type="number" min="0" formControlName="errorSexajeMachos" />
+          </div>
+        </div>
+
+        <h3 class="section-title">Alimentación</h3>
+        <div class="grid grid-2">
+          <div class="form-field">
+            <label for="tipoAlimento">Tipo de alimento <span class="req">*</span></label>
+            <input id="tipoAlimento" type="text" formControlName="tipoAlimento" />
+          </div>
+          <div class="form-field">
+            <label for="consumoKgHembras">Consumo (Kg Hembras) <span class="req">*</span></label>
+            <input id="consumoKgHembras" type="number" step="0.01" min="0" formControlName="consumoKgHembras" />
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="form-field form-field--full">
+            <label for="observaciones">Observaciones</label>
+            <textarea id="observaciones" rows="3" formControlName="observaciones"></textarea>
+          </div>
+          <div class="form-field">
+            <label for="ciclo">Ciclo</label>
+            <div class="ux-select">
+              <select id="ciclo" formControlName="ciclo">
+                <option value="Normal">Normal</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <footer class="ux-modal__footer">
+          <button type="button" class="btn btn--ghost" (click)="cancel()">Cancelar</button>
+          <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
+            {{ loading ? 'Guardando…' : 'Guardar' }}
+          </button>
+        </footer>
+      </form>
+
+      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
+        <div class="spinner"></div> Procesando…
+      </div>
+    </section>
+  </div>
+</div>
