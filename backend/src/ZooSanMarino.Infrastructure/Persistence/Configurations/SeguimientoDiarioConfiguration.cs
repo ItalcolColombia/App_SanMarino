@@ -15,6 +15,8 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
 
         b.Property(x => x.TipoSeguimiento).HasColumnName("tipo_seguimiento").HasMaxLength(20).IsRequired();
         b.Property(x => x.LoteId).HasColumnName("lote_id").HasMaxLength(64).IsRequired();
+        b.Property(x => x.LotePosturaLevanteId).HasColumnName("lote_postura_levante_id");
+        b.Property(x => x.LotePosturaProduccionId).HasColumnName("lote_postura_produccion_id");
         b.Property(x => x.ReproductoraId).HasColumnName("reproductora_id").HasMaxLength(64);
         b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
 

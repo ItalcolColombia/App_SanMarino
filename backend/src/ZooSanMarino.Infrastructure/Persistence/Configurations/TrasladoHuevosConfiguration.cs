@@ -35,6 +35,9 @@ public class TrasladoHuevosConfiguration : IEntityTypeConfiguration<TrasladoHuev
             .HasMaxLength(50)
             .IsRequired();
         
+        builder.Property(t => t.LotePosturaProduccionId)
+            .HasColumnName("lote_postura_produccion_id");
+        
         builder.Property(t => t.GranjaOrigenId)
             .HasColumnName("granja_origen_id")
             .IsRequired();
@@ -152,6 +155,7 @@ public class TrasladoHuevosConfiguration : IEntityTypeConfiguration<TrasladoHuev
 
         // Índices
         builder.HasIndex(t => t.LoteId);
+        builder.HasIndex(t => t.LotePosturaProduccionId);
         builder.HasIndex(t => t.FechaTraslado);
         builder.HasIndex(t => t.Estado);
         builder.HasIndex(t => t.NumeroTraslado)

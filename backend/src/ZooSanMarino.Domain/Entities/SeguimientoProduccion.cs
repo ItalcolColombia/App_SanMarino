@@ -5,7 +5,9 @@ public class SeguimientoProduccion
 {
     public int Id { get; set; }
     public DateTime Fecha { get; set; }
-    public int LoteId { get; set; } // FK a lotes (Opción B)
+    public int LoteId { get; set; } // FK a lotes (Opción B, legacy)
+    /// <summary>FK a lote_postura_produccion. Registros nuevos usan este ID.</summary>
+    public int? LotePosturaProduccionId { get; set; }
     
     public int MortalidadH { get; set; }
     public int MortalidadM { get; set; }
