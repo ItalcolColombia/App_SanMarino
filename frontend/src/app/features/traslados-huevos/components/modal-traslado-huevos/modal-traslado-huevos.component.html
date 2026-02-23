@@ -167,6 +167,7 @@
               <div *ngIf="formHuevos.get('granjaDestinoId')?.value" class="lote-destino-filters" style="margin-top: 1rem; padding: 1rem; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
                 <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: #333;">Lote Destino (Opcional)</label>
                 <app-filtro-select
+                  [filterDataUrl]="filterDataUrl"
                   [selectedGranjaId]="formHuevos.get('granjaDestinoId')?.value"
                   [selectedNucleoId]="selectedNucleoDestinoId"
                   [selectedGalponId]="selectedGalponDestinoId"

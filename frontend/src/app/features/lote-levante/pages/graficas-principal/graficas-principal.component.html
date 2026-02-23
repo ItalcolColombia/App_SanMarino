@@ -23,6 +23,60 @@
   <!-- Contenido principal de gráficas -->
   <div *ngIf="!loading && indicadoresSemanales.length > 0" class="graficas-content-wrapper">
 
+    <!-- ========== FILTRO POR RANGO ========== -->
+    <div class="filtro-rango-card">
+      <h4 class="filtro-rango-title">📅 Filtrar por rango del lote</h4>
+      <p class="filtro-rango-hint">Reduce los datos mostrados en las gráficas por fecha o por edad en semanas.</p>
+      <div class="filtro-rango-controls">
+        <div class="filtro-mode-toggle">
+          <button type="button" class="filtro-mode-btn"
+                  [class.active]="modoFiltro === 'todos'"
+                  (click)="modoFiltro = 'todos'; aplicarFiltro()">
+            Todos
+          </button>
+          <button type="button" class="filtro-mode-btn"
+                  [class.active]="modoFiltro === 'fechas'"
+                  (click)="modoFiltro = 'fechas'">
+            Por fechas
+          </button>
+          <button type="button" class="filtro-mode-btn"
+                  [class.active]="modoFiltro === 'edad'"
+                  (click)="modoFiltro = 'edad'">
+            Por edad (semanas)
+          </button>
+        </div>
+
+        <div class="filtro-rango-fields" *ngIf="modoFiltro === 'fechas'">
+          <div class="filtro-field">
+            <label>Desde</label>
+            <input type="date" [(ngModel)]="fechaDesde">
+          </div>
+          <div class="filtro-field">
+            <label>Hasta</label>
+            <input type="date" [(ngModel)]="fechaHasta">
+          </div>
+          <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
+        </div>
+
+        <div class="filtro-rango-fields" *ngIf="modoFiltro === 'edad'">
+          <div class="filtro-field">
+            <label>Semana desde</label>
+            <input type="number" min="1" [(ngModel)]="semanaDesde" placeholder="1">
+          </div>
+          <div class="filtro-field">
+            <label>Semana hasta</label>
+            <input type="number" min="1" [(ngModel)]="semanaHasta" placeholder="20">
+          </div>
+          <button type="button" class="btn-aplicar" (click)="aplicarFiltro()">Aplicar</button>
+        </div>
+
+        <div class="filtro-badge" *ngIf="modoFiltro !== 'todos'">
+          Mostrando {{ indicadoresFiltrados.length }} de {{ indicadoresSemanales.length }} semanas
+          <button type="button" class="btn-limpiar" (click)="limpiarFiltro()">Limpiar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ========== CONTROLES ========== -->
     <div class="graficas-controls">
       <!-- Selector de tipo de gráfica (Múltiple) -->
@@ -157,31 +211,38 @@
       </div>
 
       <!-- Selector comparativo -->
-      <div class="control-group control-group--comparativo">
-        <label class="control-label">
+      <div class="control-group control-group--comparativo comparativo-card">
+        <label class="control-label comparativo-label">
           <input type="checkbox"
                  [(ngModel)]="mostrarComparativo"
                  (change)="toggleComparativo()">
-          Comparar Semanas
+          📊 Comparar dos semanas
         </label>
+        <p class="comparativo-hint" *ngIf="mostrarComparativo">Selecciona dos semanas para ver una comparación lado a lado de las métricas principales.</p>
         <div class="comparativo-selectors" *ngIf="mostrarComparativo">
-          <select class="control-select"
-                  [(ngModel)]="semanaComparacion1"
-                  (ngModelChange)="onSemanaComparacionChange()">
-            <option [ngValue]="null">Seleccione semana 1</option>
-            <option *ngFor="let semana of semanasDisponibles" [ngValue]="semana">
-              Semana {{ semana }}
-            </option>
-          </select>
-          <span class="vs-badge">VS</span>
-          <select class="control-select"
-                  [(ngModel)]="semanaComparacion2"
-                  (ngModelChange)="onSemanaComparacionChange()">
-            <option [ngValue]="null">Seleccione semana 2</option>
-            <option *ngFor="let semana of semanasDisponibles" [ngValue]="semana">
-              Semana {{ semana }}
-            </option>
-          </select>
+          <div class="comparativo-select-group">
+            <label class="comparativo-select-label">Semana A</label>
+            <select class="control-select"
+                    [(ngModel)]="semanaComparacion1"
+                    (ngModelChange)="onSemanaComparacionChange()">
+              <option [ngValue]="null">Seleccione</option>
+              <option *ngFor="let semana of semanasDisponibles" [ngValue]="semana">
+                Semana {{ semana }}
+              </option>
+            </select>
+          </div>
+          <span class="vs-badge">vs</span>
+          <div class="comparativo-select-group">
+            <label class="comparativo-select-label">Semana B</label>
+            <select class="control-select"
+                    [(ngModel)]="semanaComparacion2"
+                    (ngModelChange)="onSemanaComparacionChange()">
+              <option [ngValue]="null">Seleccione</option>
+              <option *ngFor="let semana of semanasDisponibles" [ngValue]="semana">
+                Semana {{ semana }}
+              </option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -217,7 +278,7 @@
       <div class="grafica-card">
         <div class="grafica-card-header">
           <h4>{{ getTituloGrafica() }}</h4>
-          <span class="grafica-badge">{{ indicadoresSemanales.length }} semanas</span>
+          <span class="grafica-badge">{{ indicadoresFiltrados.length }} semanas</span>
         </div>
         <div class="grafica-card-body">
           <!-- Gráfica de Comparación Personalizada -->
@@ -247,16 +308,22 @@
           </div>
 
           <!-- Gráfica Comparativa de Semanas -->
-          <div class="chart-container" *ngIf="mostrarComparativo && !mostrarComparacionPersonalizada && semanaComparacion1 && semanaComparacion2">
+          <div class="chart-container chart-comparativo" *ngIf="mostrarComparativo && !mostrarComparacionPersonalizada && semanaComparacion1 && semanaComparacion2">
+            <div class="chart-comparativo-header">
+              <h5>Comparación de métricas</h5>
+              <div class="chart-comparativo-legend">
+                <span class="legend-item"><span class="legend-dot legend-dot--a"></span> Semana {{ semanaComparacion1 }}</span>
+                <span class="legend-item"><span class="legend-dot legend-dot--b"></span> Semana {{ semanaComparacion2 }}</span>
+              </div>
+            </div>
             <canvas baseChart
                     [type]="barChartType"
                     [data]="comparativoChartData"
                     [options]="comparativoChartOptions">
             </canvas>
-            <div class="chart-info">
+            <div class="chart-info chart-info--comparativo">
               <p class="info-text">
-                Comparando <strong>Semana {{ semanaComparacion1 }}</strong> vs
-                <strong>Semana {{ semanaComparacion2 }}</strong>
+                Comparando <strong>Semana {{ semanaComparacion1 }}</strong> vs <strong>Semana {{ semanaComparacion2 }}</strong> en mortalidad, selección, consumo, peso, conversión y aves vivas.
               </p>
             </div>
           </div>
@@ -374,7 +441,7 @@
     </div>
 
     <!-- ========== GRÁFICAS ADICIONALES (GRID) ========== -->
-    <div class="graficas-grid" *ngIf="indicadoresSemanales.length > 0">
+    <div class="graficas-grid" *ngIf="indicadoresFiltrados.length > 0">
       <!-- Gráfica de Mortalidad por Semana -->
       <div class="grafica-card grafica-card--small">
         <div class="grafica-card-header">
@@ -439,7 +506,7 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Peso Actual:</span>
-              <span class="stat-value">{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.pesoCierre | number:'1.2-2' }}g</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.2-2' }}g</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Ganancia:</span>
@@ -476,7 +543,7 @@
       </div>
 
       <!-- Gráfica de Distribución (Torta) -->
-      <div class="grafica-card grafica-card--small" *ngIf="indicadoresSemanales.length > 0">
+      <div class="grafica-card grafica-card--small" *ngIf="indicadoresFiltrados.length > 0">
         <div class="grafica-card-header">
           <h5>🥧 Distribución Última Semana</h5>
         </div>
@@ -488,14 +555,14 @@
                     [options]="tortaChartOptions">
             </canvas>
           </div>
-          <div class="grafica-stats" *ngIf="indicadoresSemanales.length > 0">
+          <div class="grafica-stats" *ngIf="indicadoresFiltrados.length > 0">
             <div class="stat-item">
               <span class="stat-label">Mortalidad:</span>
-              <span class="stat-value">{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.mortalidadSem | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.mortalidadSem | number:'1.2-2' }}%</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Selección:</span>
-              <span class="stat-value">{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.seleccionSem | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.seleccionSem | number:'1.2-2' }}%</span>
             </div>
           </div>
         </div>
@@ -517,7 +584,7 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Aves Actuales:</span>
-              <span class="stat-value">{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.avesFinSemana | number:'1.0-0' }}</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.avesFinSemana | number:'1.0-0' }}</span>
             </div>
           </div>
         </div>
@@ -525,14 +592,14 @@
     </div>
 
     <!-- ========== RESUMEN DE MÉTRICAS ========== -->
-    <div class="metricas-resumen" *ngIf="indicadoresSemanales.length > 0">
+    <div class="metricas-resumen" *ngIf="indicadoresFiltrados.length > 0">
       <h4>📊 Resumen de Métricas Generales</h4>
       <div class="metricas-grid">
         <div class="metrica-card">
           <div class="metrica-icon">⚖️</div>
           <div class="metrica-content">
             <h5>Peso Actual</h5>
-            <p>{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.pesoCierre | number:'1.2-2' }}g</p>
+            <p>{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.2-2' }}g</p>
           </div>
         </div>
 
@@ -556,7 +623,7 @@
           <div class="metrica-icon">🐔</div>
           <div class="metrica-content">
             <h5>Aves Actuales</h5>
-            <p>{{ indicadoresSemanales[indicadoresSemanales.length - 1]?.avesFinSemana | number:'1.0-0' }}</p>
+            <p>{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.avesFinSemana | number:'1.0-0' }}</p>
           </div>
         </div>
       </div>

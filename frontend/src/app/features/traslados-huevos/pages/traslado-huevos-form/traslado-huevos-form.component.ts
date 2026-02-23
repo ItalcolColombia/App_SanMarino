@@ -1,40 +1,35 @@
 // frontend/src/app/features/traslados-huevos/pages/traslado-huevos-form/traslado-huevos-form.component.ts
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
+import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { TrasladosHuevosService, DisponibilidadLoteDto, CrearTrasladoHuevosDto, HuevosDisponiblesDto } from '../../services/traslados-huevos.service';
-import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { FarmService } from '../../../farm/services/farm.service';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-traslado-huevos-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, ReactiveFormsModule, SidebarComponent, FiltroSelectComponent],
   templateUrl: './traslado-huevos-form.component.html',
   styleUrls: ['./traslado-huevos-form.component.scss']
 })
 export class TrasladoHuevosFormComponent implements OnInit {
-  // Formulario
   formHuevos!: FormGroup;
 
-  // Estado
-  lotes = signal<LoteDto[]>([]);
   disponibilidad = signal<DisponibilidadLoteDto | null>(null);
   loading = signal<boolean>(false);
   loadingDisponibilidad = signal<boolean>(false);
   error = signal<string | null>(null);
   success = signal<string | null>(null);
 
-  // Granjas para destino
   granjas = signal<any[]>([]);
+  selectedLotePosturaProduccionId: number | null = null;
 
-  // Computed
-  loteSeleccionado = computed(() => {
-    const loteId = this.formHuevos?.get('loteId')?.value;
-    return this.lotes().find(l => String(l.loteId) === String(loteId));
-  });
+  /** URL para filter-data: Granja → Núcleo → Galpón → Lote LPP */
+  readonly filterDataUrl = `${environment.apiUrl}/traslados/filter-data`;
 
   // Tipos de huevo para el formulario
   tiposHuevo: Array<{ key: string; label: string; disponible: () => number }> = [
@@ -54,7 +49,6 @@ export class TrasladoHuevosFormComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private trasladosService: TrasladosHuevosService,
-    private loteService: LoteService,
     private farmService: FarmService,
     private router: Router
   ) {
@@ -62,15 +56,24 @@ export class TrasladoHuevosFormComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.cargarLotes();
     this.cargarGranjas();
+  }
+
+  onLoteChange(loteId: number | null): void {
+    this.selectedLotePosturaProduccionId = loteId;
+    this.formHuevos.get('lotePosturaProduccionId')?.setValue(loteId ?? null);
+    if (loteId != null) {
+      this.cargarDisponibilidadLPP(loteId);
+    } else {
+      this.disponibilidad.set(null);
+    }
   }
 
   private initForm(): void {
     // Formulario de traslado de huevos
     const hoyHuevos = new Date().toISOString().split('T')[0]; // Formato YYYY-MM-DD para input date
     const huevosControls: any = {
-      loteId: ['', [Validators.required]],
+      lotePosturaProduccionId: [null, [Validators.required]],
       fechaTraslado: [hoyHuevos, [Validators.required]],
       tipoOperacion: ['Traslado', [Validators.required]],
       granjaDestinoId: [null],
@@ -88,16 +91,6 @@ export class TrasladoHuevosFormComponent implements OnInit {
 
     this.formHuevos = this.fb.group(huevosControls, { validators: this.validarTrasladoHuevos.bind(this) });
 
-    // Suscribirse a cambios en loteId para cargar disponibilidad
-    this.formHuevos.get('loteId')?.valueChanges.subscribe(loteId => {
-      if (loteId) {
-        this.cargarDisponibilidad(loteId);
-      } else {
-        this.disponibilidad.set(null);
-      }
-    });
-
-    // Suscribirse a cambios en tipoOperacion para mostrar/ocultar campos de destino
     this.formHuevos.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
       this.actualizarValidadoresDestino(tipo);
     });
@@ -144,21 +137,6 @@ export class TrasladoHuevosFormComponent implements OnInit {
     return null;
   }
 
-  private cargarLotes(): void {
-    this.loading.set(true);
-    this.loteService.getAll().subscribe({
-      next: (lotes) => {
-        this.lotes.set(lotes);
-        this.loading.set(false);
-      },
-      error: (error) => {
-        console.error('Error cargando lotes:', error);
-        this.error.set('Error al cargar lotes');
-        this.loading.set(false);
-      }
-    });
-  }
-
   private cargarGranjas(): void {
     this.farmService.getAll().subscribe({
       next: (granjas) => {
@@ -170,22 +148,17 @@ export class TrasladoHuevosFormComponent implements OnInit {
     });
   }
 
-  private cargarDisponibilidad(loteId: string): void {
+  private cargarDisponibilidadLPP(lotePosturaProduccionId: number): void {
     this.loadingDisponibilidad.set(true);
     this.error.set(null);
 
-    this.trasladosService.getDisponibilidadLote(loteId).subscribe({
-      next: (disponibilidad) => {
-        this.disponibilidad.set(disponibilidad);
+    this.trasladosService.getDisponibilidadLoteLPP(lotePosturaProduccionId).subscribe({
+      next: (disp) => {
+        this.disponibilidad.set(disp);
         this.loadingDisponibilidad.set(false);
-
-        // Validar que el tipo de lote coincida con el tipo de traslado
-        if (disponibilidad.tipoLote !== 'Produccion') {
-          this.error.set('Este lote es de levante, selecciona traslado de aves');
-        }
       },
-      error: (error) => {
-        console.error('Error cargando disponibilidad:', error);
+      error: (err) => {
+        console.error('Error cargando disponibilidad:', err);
         this.error.set('Error al cargar disponibilidad del lote');
         this.disponibilidad.set(null);
         this.loadingDisponibilidad.set(false);
@@ -208,8 +181,10 @@ export class TrasladoHuevosFormComponent implements OnInit {
       ? new Date(formValue.fechaTraslado)
       : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
 
+    const lppId = formValue.lotePosturaProduccionId ? Number(formValue.lotePosturaProduccionId) : undefined;
     const dto: CrearTrasladoHuevosDto = {
-      loteId: String(formValue.loteId),
+      lotePosturaProduccionId: lppId,
+      loteId: lppId ? '' : String(formValue.loteId ?? ''),
       fechaTraslado: fechaTraslado,
       tipoOperacion: formValue.tipoOperacion,
       cantidadLimpio: formValue.cantidadLimpio || 0,
@@ -235,19 +210,22 @@ export class TrasladoHuevosFormComponent implements OnInit {
       next: (result) => {
         this.success.set(`Traslado de huevos creado exitosamente. Número: ${result.numeroTraslado}`);
         const hoy = new Date().toISOString().split('T')[0];
-        this.formHuevos.reset({
+        this.formHuevos.patchValue({
+          lotePosturaProduccionId: null,
           fechaTraslado: hoy,
           tipoOperacion: 'Traslado'
         });
         this.tiposHuevo.forEach(tipo => {
           this.formHuevos.get(`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`)?.setValue(0);
         });
+        this.selectedLotePosturaProduccionId = null;
         this.disponibilidad.set(null);
         this.loading.set(false);
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error creando traslado de huevos:', error);
-        this.error.set(error.message || 'Error al crear traslado de huevos');
+        const msg = error?.error?.message ?? error?.message ?? 'Error al crear traslado de huevos';
+        this.error.set(msg);
         this.loading.set(false);
       }
     });

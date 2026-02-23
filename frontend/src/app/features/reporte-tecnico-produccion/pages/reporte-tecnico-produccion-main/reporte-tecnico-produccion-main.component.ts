@@ -17,12 +17,11 @@ import {
   ReporteTecnicoProduccionCuadroCompletoDto,
   ReporteClasificacionHuevoComercioCompletoDto
 } from '../../services/reporte-tecnico-produccion.service';
-import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
-import { FarmService, FarmDto } from '../../../farm/services/farm.service';
-import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
-import { GalponService } from '../../../galpon/services/galpon.service';
+import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
+import { FarmDto } from '../../../farm/services/farm.service';
+import { NucleoDto } from '../../../lote-levante/services/nucleo.service';
+import { environment } from '../../../../../environments/environment';
 import { TablaReporteDiarioProduccionComponent } from '../../components/tabla-reporte-diario-produccion/tabla-reporte-diario-produccion.component';
 import { TablaReporteCuadroProduccionComponent } from '../../components/tabla-reporte-cuadro-produccion/tabla-reporte-cuadro-produccion.component';
 import { TablaClasificacionHuevoComercioComponent } from '../../components/tabla-clasificacion-huevo-comercio/tabla-clasificacion-huevo-comercio.component';
@@ -57,17 +56,21 @@ export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy 
   reporteClasificacion = signal<ReporteClasificacionHuevoComercioCompletoDto | null>(null);
   sublotes = signal<string[]>([]);
   
-  // Filtros de selección (granja, núcleo, galpón, lote)
+  // filter-data: una sola llamada para Granja → Núcleo → Galpón → Lote LPP (lote_postura_produccion)
+  readonly filterDataUrl = `${environment.apiUrl}/ReporteTecnicoProduccion/filter-data`;
+  
+  // Filtros de selección (granja, núcleo, galpón, lote LPP)
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
+  /** ID de lote_postura_produccion (LotePosturaProduccionId) */
   selectedLoteId: number | null = null;
   
-  // Catálogos
+  // Catálogos (desde filter-data)
   granjas: FarmDto[] = [];
   nucleos: NucleoDto[] = [];
-  private allLotes: LoteDto[] = [];
-  selectedLote: LoteDto | null = null;
+  private filterData: FilterDataResponse | null = null;
+  selectedLoteInfo: { loteNombre: string } | null = null;
   
   // Filtros de reporte
   tipoConsolidacion: 'sublote' | 'consolidado' = 'sublote';
@@ -83,35 +86,19 @@ export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy 
 
   private destroy$ = new Subject<void>();
 
-  constructor(
-    private reporteService: ReporteTecnicoProduccionService,
-    private loteService: LoteService,
-    private farmService: FarmService,
-    private nucleoService: NucleoService,
-    private galponService: GalponService
-  ) {}
+  constructor(private reporteService: ReporteTecnicoProduccionService) {}
 
-  ngOnInit(): void {
-    this.cargarGranjas();
+  ngOnInit(): void {}
+
+  onFilterDataLoaded(data: FilterDataResponse): void {
+    this.granjas = data.farms ?? [];
+    this.nucleos = data.nucleos ?? [];
+    this.filterData = data;
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-  }
-
-  private cargarGranjas(): void {
-    this.farmService.getAll()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (granjas) => {
-          this.granjas = granjas || [];
-        },
-        error: (err) => {
-          console.error('Error al cargar granjas:', err);
-          this.granjas = [];
-        }
-      });
   }
 
   // ================== EVENTOS DE FILTRO ==================
@@ -120,84 +107,55 @@ export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy 
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteInfo = null;
     this.reporte.set(null);
-    this.nucleos = [];
-
-    if (!this.selectedGranjaId) return;
-
-    this.nucleoService.getByGranja(this.selectedGranjaId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (rows) => (this.nucleos = rows || []),
-        error: () => (this.nucleos = [])
-      });
-
-    this.reloadLotes();
+    this.reporteCuadro.set(null);
+    this.reporteClasificacion.set(null);
+    if (this.filterData) {
+      const gid = Number(granjaId);
+      this.nucleos = (this.filterData.nucleos ?? []).filter((n: any) => n.granjaId === gid);
+    }
   }
 
   onNucleoChange(nucleoId: string | null): void {
     this.selectedNucleoId = nucleoId;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteInfo = null;
     this.reporte.set(null);
-    this.applyFiltersToLotes();
+    this.reporteCuadro.set(null);
+    this.reporteClasificacion.set(null);
   }
 
   onGalponChange(galponId: string | null): void {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteInfo = null;
     this.reporte.set(null);
-    this.applyFiltersToLotes();
+    this.reporteCuadro.set(null);
+    this.reporteClasificacion.set(null);
   }
 
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.reporte.set(null);
+    this.reporteCuadro.set(null);
+    this.reporteClasificacion.set(null);
 
     if (!this.selectedLoteId) {
-      this.selectedLote = null;
+      this.selectedLoteInfo = null;
       return;
     }
 
-    this.loteService.getById(this.selectedLoteId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (lote) => {
-          this.selectedLote = lote || null;
-          if (lote) {
-            const nombreBase = this.extraerNombreBase(lote.loteNombre);
-            this.loteNombreBase = nombreBase;
-            this.cargarSublotes(nombreBase);
-          }
-        },
-        error: () => (this.selectedLote = null)
-      });
-  }
-
-  private reloadLotes(): void {
-    if (!this.selectedGranjaId) {
-      this.allLotes = [];
-      return;
+    const lote = (this.filterData?.lotes ?? []).find((l: any) =>
+      (l.lotePosturaProduccionId ?? l.loteId) === this.selectedLoteId
+    );
+    this.selectedLoteInfo = lote ? { loteNombre: lote.loteNombre } : null;
+    if (lote?.loteNombre) {
+      const nombreBase = this.extraerNombreBase(lote.loteNombre);
+      this.loteNombreBase = nombreBase;
+      this.cargarSublotes(nombreBase);
     }
-
-    this.loteService.getAll()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (all) => {
-          this.allLotes = all || [];
-          this.applyFiltersToLotes();
-        },
-        error: () => {
-          this.allLotes = [];
-        }
-      });
-  }
-
-  private applyFiltersToLotes(): void {
-    // Los lotes se filtran automáticamente por el componente filtro-select
   }
 
   private extraerNombreBase(loteNombre: string): string {
@@ -410,10 +368,18 @@ export class ReporteTecnicoProduccionMainComponent implements OnInit, OnDestroy 
   }
 
   get selectedGalponNombre(): string {
-    return '';
+    if (!this.selectedGalponId) return '';
+    if ((this.selectedGalponId as string) === '__SIN_GALPON__') return '— Sin galpón —';
+    const g = (this.filterData?.galpones ?? []).find(
+      (x: { galponId?: string }) => String(x.galponId ?? '').trim() === String(this.selectedGalponId).trim()
+    );
+    return (g as { galponNombre?: string })?.galponNombre ?? '';
   }
 
   get selectedLoteNombre(): string {
-    return this.selectedLote?.loteNombre ?? '';
+    return this.selectedLoteInfo?.loteNombre
+      ?? this.reporte()?.loteInfo?.loteNombre
+      ?? this.reporteCuadro()?.loteInfo?.loteNombre
+      ?? '';
   }
 }

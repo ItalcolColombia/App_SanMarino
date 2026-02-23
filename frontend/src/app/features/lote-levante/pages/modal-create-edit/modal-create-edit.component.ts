@@ -24,6 +24,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   @Input() editing: SeguimientoLoteLevanteDto | null = null;
   @Input() lotes: LoteDto[] = [];
   @Input() selectedLoteId: number | null = null;
+  /** ID de lote_postura_levante. Se envía al backend al crear (desde selectedLote del padre). */
+  @Input() lotePosturaLevanteId: number | null = null;
   @Input() loading: boolean = false;
 
   @Output() close = new EventEmitter<void>();
@@ -1153,9 +1155,11 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const ymd = this.toYMD(raw.fechaRegistro)!;
 
     // El backend ahora acepta consumo con unidad y hace la conversión automáticamente
+    const lotePosturaLevanteId = this.editing?.lotePosturaLevanteId ?? this.lotePosturaLevanteId ?? null;
     const baseDto = {
       fechaRegistro: this.ymdToIsoAtNoon(ymd),
       loteId: raw.loteId,
+      lotePosturaLevanteId: lotePosturaLevanteId,
       mortalidadHembras: Number(raw.mortalidadHembras) || 0,
       mortalidadMachos: Number(raw.mortalidadMachos) || 0,
       selH: Number(raw.selH) || 0,

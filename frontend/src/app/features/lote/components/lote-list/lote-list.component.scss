@@ -141,6 +141,20 @@
   font-size:.75rem; font-weight:700; color: var(--brand-red);
   background: #fff2f3; border:1px solid #ffd5d8; border-radius: 999px; padding:.15rem .5rem;
 }
+.ux-badge--estado {
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.ux-badge--estado--abierto {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+.ux-badge--estado--cerrado {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
 
 /* ================================
    CARD & SCROLL
@@ -258,6 +272,44 @@
   border:1px dashed var(--warm-200); border-radius:.75rem;
 }
 .ux-meta__item { font-size:.85rem; color: var(--warm-600); }
+
+/* Modal detalle: campos readonly organizados */
+.ux-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem 1.5rem;
+}
+.ux-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.ux-detail-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--warm-600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ux-detail-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--warm-200);
+  border-radius: 0.5rem;
+  background: var(--warm-50);
+  color: var(--slate-800);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: default;
+}
+.ux-detail-input:disabled {
+  opacity: 1;
+}
+.ux-detail-input--highlight {
+  background: #f0fdf4;
+  border-color: #86efac;
+  font-weight: 700;
+  color: #166534;
+}
 
 /* ================================
    RESPONSIVE FINO

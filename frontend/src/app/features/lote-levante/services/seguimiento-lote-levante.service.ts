@@ -7,6 +7,8 @@ export interface SeguimientoLoteLevanteDto {
   id: number;
   fechaRegistro: string;          // ISO
   loteId: string;
+  /** ID de lote_postura_levante. Solo aplica para seguimiento tipo levante. */
+  lotePosturaLevanteId?: number | null;
 
   mortalidadHembras: number;
   mortalidadMachos: number;
@@ -61,6 +63,8 @@ export interface ItemSeguimientoDto {
 export interface CreateSeguimientoLoteLevanteDto {
   fechaRegistro: string;          // ISO
   loteId: string;
+  /** ID de lote_postura_levante. Solo aplica para seguimiento tipo levante. */
+  lotePosturaLevanteId?: number | null;
 
   mortalidadHembras: number;
   mortalidadMachos: number;

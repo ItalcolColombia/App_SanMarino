@@ -5,6 +5,7 @@ import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
+import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 
 interface PuntoGrafica {
   semana: number;
@@ -29,7 +30,8 @@ interface SerieGrafica {
 })
 export class GraficasPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
-  @Input() selectedLote: LoteDto | null = null;
+  /** LoteDto (aves-engorde) o LotePosturaLevanteDto (seguimiento levante). */
+  @Input() selectedLote: LoteDto | LotePosturaLevanteDto | null = null;
   @Input() loading: boolean = false;
 
   // Datos para gráficas
@@ -42,8 +44,38 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   tipoVisualizacion: 'linea' | 'barra' | 'torta' = 'barra';
   mostrarGraficaCombinada: boolean = false; // Activar gráfica combinada cuando hay múltiples tipos seleccionados
 
+  // ========== FILTRO POR RANGO ==========
+  modoFiltro: 'todos' | 'fechas' | 'edad' = 'todos';
+  fechaDesde: string = '';
+  fechaHasta: string = '';
+  semanaDesde: number | null = null;
+  semanaHasta: number | null = null;
+
+  /** Indicadores filtrados según modoFiltro (fechas o edad). Usados en todas las gráficas. */
+  get indicadoresFiltrados(): any[] {
+    if (!this.indicadoresSemanales.length) return [];
+    if (this.modoFiltro === 'todos') return this.indicadoresSemanales;
+    if (this.modoFiltro === 'fechas') {
+      const d = this.fechaDesde && this.fechaHasta;
+      if (!d) return this.indicadoresSemanales;
+      return this.indicadoresSemanales.filter((ind: any) => {
+        const f = ind.fechaInicio || '';
+        return f >= this.fechaDesde && f <= this.fechaHasta;
+      });
+    }
+    if (this.modoFiltro === 'edad' && this.semanaDesde != null && this.semanaHasta != null) {
+      return this.indicadoresSemanales.filter(
+        (ind: any) => ind.semana >= this.semanaDesde! && ind.semana <= this.semanaHasta!
+      );
+    }
+    return this.indicadoresSemanales;
+  }
+
   // ========== SELECTOR COMPARATIVO ==========
-  semanasDisponibles: number[] = [];
+  /** Semanas disponibles según indicadores filtrados (para selector de comparación). */
+  get semanasDisponibles(): number[] {
+    return [...new Set(this.indicadoresFiltrados.map((ind: any) => ind.semana))].sort((a, b) => a - b);
+  }
   semanaComparacion1: number | null = null;
   semanaComparacion2: number | null = null;
   mostrarComparativo: boolean = false;
@@ -189,7 +221,29 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     this.conversionChartOptions = { ...baseOptions };
     this.seleccionChartOptions = { ...baseOptions };
     this.avesChartOptions = { ...baseOptions };
-    this.comparativoChartOptions = { ...baseOptions };
+    this.comparativoChartOptions = {
+      ...baseOptions,
+      plugins: {
+        ...baseOptions.plugins,
+        tooltip: {
+          ...baseOptions.plugins?.tooltip,
+          callbacks: {
+            label: (context: any) => {
+              const label = context.dataset.label || '';
+              const value = context.parsed.y;
+              const metrica = context.label;
+              return `${label}: ${typeof value === 'number' ? value.toFixed(2) : value} ${metrica.includes('%') ? '' : ''}`;
+            }
+          }
+        }
+      },
+      datasets: {
+        bar: {
+          barPercentage: 0.75,
+          categoryPercentage: 0.8
+        } as any
+      }
+    };
     this.comparacionPersonalizadaChartOptions = { ...baseOptions };
 
     // Opciones especiales para gráfica combinada de tipos
@@ -277,22 +331,33 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
       this.seriesGraficas = [];
       this.indicadoresSemanales = [];
-      this.semanasDisponibles = [];
       return;
     }
 
     // Calcular indicadores semanales (reutilizar lógica del componente de indicadores)
     this.indicadoresSemanales = this.calcularIndicadoresSemanales();
 
-    // Actualizar semanas disponibles
-    this.semanasDisponibles = this.indicadoresSemanales.map(ind => ind.semana).sort((a, b) => a - b);
-
-    // Si no hay semanas seleccionadas para comparación, seleccionar las primeras dos si existen
-    if (!this.semanaComparacion1 && this.semanasDisponibles.length > 0) {
-      this.semanaComparacion1 = this.semanasDisponibles[0];
+    // Inicializar rangos de filtro con el total de datos disponibles
+    if (this.indicadoresSemanales.length > 0) {
+      const fechas = this.indicadoresSemanales.map((ind: any) => ind.fechaInicio || '').filter(Boolean);
+      if (fechas.length > 0) {
+        this.fechaDesde = fechas.reduce((a, b) => (a <= b ? a : b));
+        this.fechaHasta = fechas.reduce((a, b) => (a >= b ? a : b));
+      }
+      const semanas = this.indicadoresSemanales.map((ind: any) => ind.semana);
+      this.semanaDesde = Math.min(...semanas);
+      this.semanaHasta = Math.max(...semanas);
     }
-    if (!this.semanaComparacion2 && this.semanasDisponibles.length > 1) {
-      this.semanaComparacion2 = this.semanasDisponibles[1];
+
+    // Validar y asignar semanas para comparación
+    const semanas = this.semanasDisponibles;
+    if (semanas.length > 0) {
+      if (!this.semanaComparacion1 || !semanas.includes(this.semanaComparacion1)) {
+        this.semanaComparacion1 = semanas[0];
+      }
+      if (!this.semanaComparacion2 || !semanas.includes(this.semanaComparacion2) || this.semanaComparacion2 === this.semanaComparacion1) {
+        this.semanaComparacion2 = semanas.length > 1 ? semanas[1] : semanas[0];
+      }
     }
 
     // Preparar series de datos para gráficas (para compatibilidad)
@@ -302,18 +367,30 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     this.prepararChartData();
   }
 
+  /** Aplicar filtro y refrescar gráficas. */
+  aplicarFiltro(): void {
+    this.prepararChartData();
+  }
+
+  /** Limpiar filtro y mostrar todos los datos. */
+  limpiarFiltro(): void {
+    this.modoFiltro = 'todos';
+    this.prepararChartData();
+  }
+
   // ========== PREPARACIÓN DE DATOS PARA CHART.JS ==========
   private prepararChartData(): void {
-    if (this.indicadoresSemanales.length === 0) return;
+    const ind = this.indicadoresFiltrados;
+    if (ind.length === 0) return;
 
-    const labels = this.indicadoresSemanales.map(ind => `Semana ${ind.semana}`);
+    const labels = ind.map((x: any) => `Semana ${x.semana}`);
 
     // Gráfica de Mortalidad
     this.mortalidadChartData = {
       labels,
       datasets: [{
         label: 'Mortalidad (%)',
-        data: this.indicadoresSemanales.map(ind => ind.mortalidadSem || 0),
+        data: ind.map((x: any) => x.mortalidadSem || 0),
         backgroundColor: 'rgba(245, 124, 0, 0.7)',
         borderColor: 'rgba(245, 124, 0, 1)',
         borderWidth: 2
@@ -326,14 +403,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       datasets: [
         {
           label: 'Consumo Real (g)',
-          data: this.indicadoresSemanales.map(ind => ind.consumoReal || 0),
+          data: ind.map((x: any) => x.consumoReal || 0),
           backgroundColor: 'rgba(211, 47, 47, 0.7)',
           borderColor: 'rgba(211, 47, 47, 1)',
           borderWidth: 2
         },
         {
           label: 'Consumo Tabla (g)',
-          data: this.indicadoresSemanales.map(ind => ind.consumoTabla || 0),
+          data: ind.map((x: any) => x.consumoTabla || 0),
           backgroundColor: 'rgba(25, 118, 210, 0.7)',
           borderColor: 'rgba(25, 118, 210, 1)',
           borderWidth: 2
@@ -346,7 +423,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       labels,
       datasets: [{
         label: 'Peso Promedio (g)',
-        data: this.indicadoresSemanales.map(ind => ind.pesoCierre || 0),
+        data: ind.map((x: any) => x.pesoCierre || 0),
         backgroundColor: 'rgba(56, 142, 60, 0.7)',
         borderColor: 'rgba(56, 142, 60, 1)',
         borderWidth: 2,
@@ -360,7 +437,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       labels,
       datasets: [{
         label: 'Conversión Alimenticia',
-        data: this.indicadoresSemanales.map(ind => ind.conversionAlimenticia || 0),
+        data: ind.map((x: any) => x.conversionAlimenticia || 0),
         backgroundColor: 'rgba(33, 150, 243, 0.7)',
         borderColor: 'rgba(33, 150, 243, 1)',
         borderWidth: 2,
@@ -374,7 +451,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       labels,
       datasets: [{
         label: 'Selección (%)',
-        data: this.indicadoresSemanales.map(ind => ind.seleccionSem || 0),
+        data: ind.map((x: any) => x.seleccionSem || 0),
         backgroundColor: 'rgba(156, 39, 176, 0.7)',
         borderColor: 'rgba(156, 39, 176, 1)',
         borderWidth: 2
@@ -386,7 +463,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       labels,
       datasets: [{
         label: 'Aves Vivas',
-        data: this.indicadoresSemanales.map(ind => ind.avesFinSemana || 0),
+        data: ind.map((x: any) => x.avesFinSemana || 0),
         backgroundColor: 'rgba(123, 31, 162, 0.7)',
         borderColor: 'rgba(123, 31, 162, 1)',
         borderWidth: 2
@@ -394,7 +471,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     };
 
     // Gráfica de Torta (distribución de mortalidad vs selección en última semana)
-    const ultimaSemana = this.indicadoresSemanales[this.indicadoresSemanales.length - 1];
+    const ultimaSemana = ind[ind.length - 1];
     if (ultimaSemana) {
       const total = (ultimaSemana.mortalidadSem || 0) + (ultimaSemana.seleccionSem || 0);
       if (total > 0) {
@@ -442,8 +519,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       return;
     }
 
-    const semana1 = this.indicadoresSemanales.find(ind => ind.semana === this.semanaComparacion1);
-    const semana2 = this.indicadoresSemanales.find(ind => ind.semana === this.semanaComparacion2);
+    const semana1 = this.indicadoresFiltrados.find((ind: any) => ind.semana === this.semanaComparacion1);
+    const semana2 = this.indicadoresFiltrados.find((ind: any) => ind.semana === this.semanaComparacion2);
 
     if (!semana1 || !semana2) {
       this.comparativoChartData = { labels: [], datasets: [] };
@@ -475,8 +552,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   private getMetricasParaComparacion(): Array<{ nombre: string; semana1: number; semana2: number }> {
-    const semana1 = this.indicadoresSemanales.find(ind => ind.semana === this.semanaComparacion1);
-    const semana2 = this.indicadoresSemanales.find(ind => ind.semana === this.semanaComparacion2);
+    const semana1 = this.indicadoresFiltrados.find((ind: any) => ind.semana === this.semanaComparacion1);
+    const semana2 = this.indicadoresFiltrados.find((ind: any) => ind.semana === this.semanaComparacion2);
 
     if (!semana1 || !semana2) return [];
 
@@ -756,93 +833,94 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   private prepararSeriesGraficas(): SerieGrafica[] {
-    if (this.indicadoresSemanales.length === 0) return [];
+    const ind = this.indicadoresFiltrados;
+    if (ind.length === 0) return [];
 
     return [
       {
         nombre: 'Consumo Real (g)',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.consumoReal,
-          etiqueta: `Semana ${ind.semana}: ${ind.consumoReal.toFixed(0)}g`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.consumoReal,
+          etiqueta: `Semana ${x.semana}: ${x.consumoReal.toFixed(0)}g`
         })),
         color: '#d32f2f',
         tipo: 'barra'
       },
       {
         nombre: 'Consumo Tabla (g)',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.consumoTabla,
-          etiqueta: `Semana ${ind.semana}: ${ind.consumoTabla.toFixed(0)}g`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.consumoTabla,
+          etiqueta: `Semana ${x.semana}: ${x.consumoTabla.toFixed(0)}g`
         })),
         color: '#1976d2',
         tipo: 'barra'
       },
       {
         nombre: 'Peso Promedio (g)',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.pesoCierre,
-          etiqueta: `Semana ${ind.semana}: ${ind.pesoCierre.toFixed(2)}g`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.pesoCierre,
+          etiqueta: `Semana ${x.semana}: ${x.pesoCierre.toFixed(2)}g`
         })),
         color: '#388e3c',
         tipo: 'linea'
       },
       {
         nombre: 'Mortalidad (%)',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.mortalidadSem,
-          etiqueta: `Semana ${ind.semana}: ${ind.mortalidadSem.toFixed(2)}%`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.mortalidadSem,
+          etiqueta: `Semana ${x.semana}: ${x.mortalidadSem.toFixed(2)}%`
         })),
         color: '#f57c00',
         tipo: 'barra'
       },
       {
         nombre: 'Selección (%)',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.seleccionSem,
-          etiqueta: `Semana ${ind.semana}: ${ind.seleccionSem.toFixed(2)}%`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.seleccionSem,
+          etiqueta: `Semana ${x.semana}: ${x.seleccionSem.toFixed(2)}%`
         })),
         color: '#9c27b0',
         tipo: 'barra'
       },
       {
         nombre: 'Conversión Alimenticia',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.conversionAlimenticia,
-          etiqueta: `Semana ${ind.semana}: ${ind.conversionAlimenticia.toFixed(2)}`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.conversionAlimenticia,
+          etiqueta: `Semana ${x.semana}: ${x.conversionAlimenticia.toFixed(2)}`
         })),
         color: '#2196f3',
         tipo: 'linea'
       },
       {
         nombre: 'Eficiencia',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.eficiencia,
-          etiqueta: `Semana ${ind.semana}: ${ind.eficiencia.toFixed(2)}`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.eficiencia,
+          etiqueta: `Semana ${x.semana}: ${(x.eficiencia || 0).toFixed(2)}`
         })),
         color: '#4caf50',
         tipo: 'linea'
       },
       {
         nombre: 'Aves Vivas',
-        datos: this.indicadoresSemanales.map(ind => ({
-          semana: ind.semana,
-          fecha: ind.fechaInicio,
-          valor: ind.avesFinSemana,
-          etiqueta: `Semana ${ind.semana}: ${ind.avesFinSemana} aves`
+        datos: ind.map((x: any) => ({
+          semana: x.semana,
+          fecha: x.fechaInicio,
+          valor: x.avesFinSemana,
+          etiqueta: `Semana ${x.semana}: ${x.avesFinSemana} aves`
         })),
         color: '#7b1fa2',
         tipo: 'barra'
@@ -902,9 +980,10 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   calcularGananciaTotal(): number {
-    if (this.indicadoresSemanales.length === 0) return 0;
-    const primerPeso = this.indicadoresSemanales[0].pesoInicial;
-    const ultimoPeso = this.indicadoresSemanales[this.indicadoresSemanales.length - 1].pesoCierre;
+    const ind = this.indicadoresFiltrados;
+    if (ind.length === 0) return 0;
+    const primerPeso = ind[0].pesoInicial;
+    const ultimoPeso = ind[ind.length - 1].pesoCierre;
     return ultimoPeso - primerPeso;
   }
 
@@ -920,15 +999,17 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   calcularPromedioIndicadores(propiedad: string): number {
-    if (this.indicadoresSemanales.length === 0) return 0;
-    const suma = this.indicadoresSemanales.reduce((acc, ind) => acc + (ind[propiedad] || 0), 0);
-    return suma / this.indicadoresSemanales.length;
+    const ind = this.indicadoresFiltrados;
+    if (ind.length === 0) return 0;
+    const suma = ind.reduce((acc: number, x: any) => acc + (x[propiedad] || 0), 0);
+    return suma / ind.length;
   }
 
   getMejorSemanaConversion(): string {
-    if (this.indicadoresSemanales.length === 0) return 'N/A';
+    const ind = this.indicadoresFiltrados;
+    if (ind.length === 0) return 'N/A';
 
-    const mejorSemana = this.indicadoresSemanales.reduce((mejor, actual) =>
+    const mejorSemana = ind.reduce((mejor: any, actual: any) =>
       actual.conversionAlimenticia < mejor.conversionAlimenticia ? actual : mejor
     );
 
@@ -978,12 +1059,13 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   actualizarGraficaComparacionPersonalizada(): void {
-    if (this.metricasSeleccionadas.length === 0 || this.indicadoresSemanales.length === 0) {
+    const ind = this.indicadoresFiltrados;
+    if (this.metricasSeleccionadas.length === 0 || ind.length === 0) {
       this.comparacionPersonalizadaChartData = { labels: [], datasets: [] };
       return;
     }
 
-    const labels = this.indicadoresSemanales.map(ind => `Semana ${ind.semana}`);
+    const labels = ind.map((x: any) => `Semana ${x.semana}`);
     const datasets = this.metricasSeleccionadas.map(metricaId => {
       const metrica = this.metricasDisponibles.find(m => m.id === metricaId);
       if (!metrica) return null;
@@ -993,25 +1075,25 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
       switch (metricaId) {
         case 'mortalidad':
-          data = this.indicadoresSemanales.map(ind => ind.mortalidadSem || 0);
+          data = ind.map((x: any) => x.mortalidadSem || 0);
           break;
         case 'consumoReal':
-          data = this.indicadoresSemanales.map(ind => ind.consumoReal || 0);
+          data = ind.map((x: any) => x.consumoReal || 0);
           break;
         case 'consumoTabla':
-          data = this.indicadoresSemanales.map(ind => ind.consumoTabla || 0);
+          data = ind.map((x: any) => x.consumoTabla || 0);
           break;
         case 'peso':
-          data = this.indicadoresSemanales.map(ind => ind.pesoCierre || 0);
+          data = ind.map((x: any) => x.pesoCierre || 0);
           break;
         case 'conversion':
-          data = this.indicadoresSemanales.map(ind => ind.conversionAlimenticia || 0);
+          data = ind.map((x: any) => x.conversionAlimenticia || 0);
           break;
         case 'seleccion':
-          data = this.indicadoresSemanales.map(ind => ind.seleccionSem || 0);
+          data = ind.map((x: any) => x.seleccionSem || 0);
           break;
         case 'aves':
-          data = this.indicadoresSemanales.map(ind => ind.avesFinSemana || 0);
+          data = ind.map((x: any) => x.avesFinSemana || 0);
           break;
         default:
           return null;
@@ -1052,12 +1134,13 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
   // ========== MÉTODOS PARA GRÁFICA COMBINADA DE TIPOS ==========
   actualizarGraficaTiposCombinados(): void {
-    if (this.tiposGraficaSeleccionados.length === 0 || this.indicadoresSemanales.length === 0) {
+    const ind = this.indicadoresFiltrados;
+    if (this.tiposGraficaSeleccionados.length === 0 || ind.length === 0) {
       this.tiposCombinadosChartData = { labels: [], datasets: [] };
       return;
     }
 
-    const labels = this.indicadoresSemanales.map(ind => `Semana ${ind.semana}`);
+    const labels = ind.map((x: any) => `Semana ${x.semana}`);
     const datasets: any[] = [];
 
     // Actualizar opciones según el tipo de visualización
@@ -1099,41 +1182,40 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
       switch (tipo) {
         case 'mortalidad':
-          data = this.indicadoresSemanales.map(ind => ind.mortalidadSem || 0);
+          data = ind.map((x: any) => x.mortalidadSem || 0);
           break;
         case 'consumo':
-          // Para consumo, mostrar consumo real
-          data = this.indicadoresSemanales.map(ind => ind.consumoReal || 0);
+          data = ind.map((x: any) => x.consumoReal || 0);
           break;
         case 'consumoTabla':
-          data = this.indicadoresSemanales.map(ind => ind.consumoTabla || 0);
+          data = ind.map((x: any) => x.consumoTabla || 0);
           break;
         case 'peso':
-          data = this.indicadoresSemanales.map(ind => ind.pesoCierre || 0);
+          data = ind.map((x: any) => x.pesoCierre || 0);
           break;
         case 'conversion':
-          data = this.indicadoresSemanales.map(ind => ind.conversionAlimenticia || 0);
+          data = ind.map((x: any) => x.conversionAlimenticia || 0);
           break;
         case 'seleccion':
-          data = this.indicadoresSemanales.map(ind => ind.seleccionSem || 0);
+          data = ind.map((x: any) => x.seleccionSem || 0);
           break;
         case 'retiro':
-          data = this.indicadoresSemanales.map(ind => ind.retiroSem || 0);
+          data = ind.map((x: any) => x.retiroSem || 0);
           break;
         case 'uniformidad':
-          data = this.indicadoresSemanales.map(ind => ind.uniformidad || 0);
+          data = ind.map((x: any) => x.uniformidad || 0);
           break;
         case 'cv':
-          data = this.indicadoresSemanales.map(ind => ind.cv || 0);
+          data = ind.map((x: any) => x.cv || 0);
           break;
         case 'difConsumo':
-          data = this.indicadoresSemanales.map(ind => ind.difConsumoPorc || 0);
+          data = ind.map((x: any) => x.difConsumoPorc || 0);
           break;
         case 'incrConsumo':
-          data = this.indicadoresSemanales.map(ind => ind.incrConsumoReal || 0);
+          data = ind.map((x: any) => x.incrConsumoReal || 0);
           break;
         case 'aves':
-          data = this.indicadoresSemanales.map(ind => ind.avesFinSemana || 0);
+          data = ind.map((x: any) => x.avesFinSemana || 0);
           break;
         default:
           return;

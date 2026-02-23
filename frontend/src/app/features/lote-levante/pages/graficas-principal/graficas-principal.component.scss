@@ -408,6 +408,136 @@
   color: var(--warm-600);
 }
 
+/* ========== FILTRO POR RANGO ========== */
+.filtro-rango-card {
+  margin-bottom: var(--space-6);
+  padding: var(--space-4);
+  background: linear-gradient(135deg, var(--warm-50) 0%, #f8fafc 100%);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.filtro-rango-title {
+  margin: 0 0 var(--space-1) 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.filtro-rango-hint {
+  margin: 0 0 var(--space-4) 0;
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+}
+
+.filtro-mode-toggle {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.filtro-mode-btn {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--text-sub);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.filtro-mode-btn:hover {
+  background: var(--warm-100);
+  border-color: var(--brand-red);
+}
+
+.filtro-mode-btn.active {
+  background: var(--brand-red);
+  color: var(--white);
+  border-color: var(--brand-red);
+}
+
+.filtro-rango-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.filtro-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filtro-field label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--warm-600);
+}
+
+.filtro-field input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  min-width: 140px;
+}
+
+.filtro-field input:focus {
+  outline: none;
+  border-color: var(--brand-red);
+  box-shadow: var(--ring);
+}
+
+.btn-aplicar {
+  padding: var(--space-2) var(--space-4);
+  background: var(--brand-red);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.btn-aplicar:hover {
+  background: var(--brand-red-600);
+  transform: translateY(-1px);
+}
+
+.filtro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--amber-50);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  color: var(--text-sub);
+}
+
+.btn-limpiar {
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  color: var(--brand-red);
+  border: 1px solid var(--brand-red);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.btn-limpiar:hover {
+  background: var(--brand-red);
+  color: var(--white);
+}
+
 /* ========== CONTROLES ========== */
 .graficas-controls {
   display: flex;
@@ -491,11 +621,86 @@
   font-weight: 600;
 }
 
+.comparativo-card {
+  border-left: 4px solid var(--brand-red);
+}
+
+.comparativo-hint {
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+}
+
 .comparativo-selectors {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  align-items: flex-end;
+  gap: var(--space-4);
   margin-top: var(--space-2);
+}
+
+.comparativo-select-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.comparativo-select-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--warm-600);
+}
+
+.chart-comparativo {
+  padding-top: 0;
+}
+
+.chart-comparativo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.chart-comparativo-header h5 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.chart-comparativo-legend {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-dot--a {
+  background: rgba(211, 47, 47, 1);
+}
+
+.legend-dot--b {
+  background: rgba(25, 118, 210, 1);
+}
+
+.chart-info--comparativo {
+  margin-top: var(--space-3);
 }
 
 .vs-badge {

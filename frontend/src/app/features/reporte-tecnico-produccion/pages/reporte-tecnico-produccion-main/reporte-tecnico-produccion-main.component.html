@@ -62,8 +62,9 @@
       </div>
     </header>
 
-    <!-- Filtros de selección -->
+    <!-- Filtros de selección (filter-data: Granja → Núcleo → Galpón → Lote LPP desde lote_postura_produccion) -->
     <app-filtro-select
+      [filterDataUrl]="filterDataUrl"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -71,7 +72,8 @@
       (granjaChange)="onGranjaChange($event)"
       (nucleoChange)="onNucleoChange($event)"
       (galponChange)="onGalponChange($event)"
-      (loteChange)="onLoteChange($event)">
+      (loteChange)="onLoteChange($event)"
+      (filterDataLoaded)="onFilterDataLoaded($event)">
     </app-filtro-select>
 
     <!-- Filtros de Reporte -->

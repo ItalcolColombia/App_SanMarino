@@ -23,6 +23,7 @@ import {
 })
 export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   @Input() loteId: string | null = null;
+  @Input() lotePosturaProduccionId: number | null = null;
   @Input() loteNombre: string | null = null;
 
   // Señales reactivas
@@ -66,24 +67,30 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['loteId'] && this.loteId) {
+    if ((changes['loteId'] || changes['lotePosturaProduccionId']) && (this.loteId || this.lotePosturaProduccionId != null)) {
       this.cargarLiquidacion();
     }
   }
 
   /**
-   * Cargar liquidación técnica de producción
+   * Cargar liquidación técnica de producción.
+   * Usa lotePosturaProduccionId (flujo LPP) o loteId (legacy).
    */
   cargarLiquidacion(): void {
-    if (!this.loteId) {
+    const useLpp = this.lotePosturaProduccionId != null;
+    const useLegacy = this.loteId && !useLpp;
+
+    if (!useLpp && !useLegacy) {
       this.liquidacion.set(null);
       return;
     }
 
-    const loteIdNum = parseInt(this.loteId, 10);
-    if (isNaN(loteIdNum)) {
-      this.error.set('ID de lote inválido');
-      return;
+    if (useLegacy) {
+      const loteIdNum = parseInt(this.loteId!, 10);
+      if (isNaN(loteIdNum)) {
+        this.error.set('ID de lote inválido');
+        return;
+      }
     }
 
     const fechaHasta = this.form.value.fechaHasta || new Date();
@@ -92,7 +99,11 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     this.loading.set(true);
     this.error.set(null);
 
-    this.produccionService.calcularLiquidacionProduccion(loteIdNum, fechaHastaStr).pipe(
+    const request = useLpp
+      ? { lotePosturaProduccionId: this.lotePosturaProduccionId!, fechaHasta: fechaHastaStr }
+      : { loteId: parseInt(this.loteId!, 10), fechaHasta: fechaHastaStr };
+
+    this.produccionService.calcularLiquidacionProduccion(request).pipe(
       finalize(() => this.loading.set(false))
     ).subscribe({
       next: (data) => {

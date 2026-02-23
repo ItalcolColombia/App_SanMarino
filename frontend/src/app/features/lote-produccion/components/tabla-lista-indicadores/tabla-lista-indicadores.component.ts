@@ -14,8 +14,10 @@ import { finalize } from 'rxjs/operators';
 export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
-  /** ID del lote en fase Producción (mismo que listado y modal seguimiento diario). Si viene, se usa para la petición de indicadores. */
+  /** ID del lote en fase Producción (mismo que listado y modal seguimiento diario). Flujo legacy. */
   @Input() produccionLoteId: number | null = null;
+  /** ID del lote postura producción (flujo LPP). Si viene, se prioriza sobre produccionLoteId. */
+  @Input() lotePosturaProduccionId: number | null = null;
   @Input() loading: boolean = false;
 
   indicadoresSemanales: IndicadorProduccionSemanalDto[] = [];
@@ -32,15 +34,18 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['selectedLote'] || changes['seguimientos'] || changes['produccionLoteId']) {
+    if (changes['selectedLote'] || changes['seguimientos'] || changes['produccionLoteId'] || changes['lotePosturaProduccionId']) {
       this.cargarIndicadores();
     }
   }
 
   cargarIndicadores(): void {
-    // Usar el lote en producción (mismo que listado y modal de seguimiento diario) cuando esté disponible
-    const loteId = this.produccionLoteId ?? this.selectedLote?.loteId ?? null;
-    if (loteId == null) {
+    // Flujo LPP: priorizar lotePosturaProduccionId. Flujo legacy: produccionLoteId o selectedLote.loteId
+    const lppId = this.lotePosturaProduccionId ?? null;
+    const loteIdLegacy = (this.produccionLoteId && this.produccionLoteId > 0) ? this.produccionLoteId : (this.selectedLote?.loteId ?? null);
+    const hasLpp = lppId != null && lppId > 0;
+    const hasLegacy = loteIdLegacy != null && loteIdLegacy > 0;
+    if (!hasLpp && !hasLegacy) {
       this.indicadoresSemanales = [];
       this.error = null;
       return;
@@ -49,10 +54,11 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     this.loadingIndicadores = true;
     this.error = null;
 
-    // Request al backend: datos desde seguimiento_diario en fase producción (misma fuente que el tab General).
-    // semanaDesde: 1 = desde la primera semana de producción (el backend numera 1, 2, 3... desde FechaInicioProducción).
+    // Request al backend: LPP o legacy (misma fuente que el tab General).
+    // semanaDesde: 1 = desde la primera semana de producción.
     const request: IndicadoresProduccionRequest = {
-      loteId,
+      loteId: hasLegacy ? loteIdLegacy! : 0,
+      lotePosturaProduccionId: hasLpp ? lppId! : null,
       semanaDesde: 1,
       semanaHasta: null,
       fechaDesde: null,

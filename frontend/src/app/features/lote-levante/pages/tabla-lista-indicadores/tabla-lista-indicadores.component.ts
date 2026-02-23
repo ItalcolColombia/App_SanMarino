@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
+import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { GuiaGeneticaDto, GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 
 interface IndicadorSemanal {
@@ -63,7 +64,8 @@ interface IndicadorSemanal {
 })
 export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
-  @Input() selectedLote: LoteDto | null = null;
+  /** LoteDto (aves-engorde) o LotePosturaLevanteDto (seguimiento levante). */
+  @Input() selectedLote: LoteDto | LotePosturaLevanteDto | null = null;
   @Input() loading: boolean = false;
 
   // Datos calculados

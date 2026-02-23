@@ -173,9 +173,25 @@
 }
 
 /* ==========================================================================
-   📉 Resumen descuentos (mortalidad, descarte, error sexaje → saldo)
+   📉 Aviso lote cerrado
    ========================================================================== */
-.resumen-descuentos {
+.info-lote-alerta {
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+}
+
+.info-lote-alerta--cerrado {
+  background: var(--amber-100);
+  border: 1px solid var(--amber-200);
+  color: var(--brand-red-700);
+}
+
+/* ==========================================================================
+   📉 Información del lote - Descuentos (hembras / machos separados)
+   ========================================================================== */
+.info-lote-card {
   margin-bottom: var(--space-6);
   padding: var(--space-5);
   background: var(--warm-50);
@@ -183,56 +199,120 @@
   border-radius: var(--radius-md);
 }
 
-.resumen-descuentos h4 {
+.info-lote__header {
+  margin-bottom: var(--space-4);
+}
+
+.info-lote__title {
   margin: 0 0 var(--space-2) 0;
   font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--text-sub);
 }
 
-.resumen-descuentos__intro {
-  margin: 0 0 var(--space-4) 0;
+.info-lote__intro {
+  margin: 0;
   font-size: var(--fs-sm);
   color: var(--warm-600);
+  line-height: 1.5;
 }
 
-.resumen-descuentos__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-3);
-}
-
-.resumen-descuentos__block {
-  padding: var(--space-3) var(--space-4);
+.info-lote__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   background: var(--white);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
+  overflow: hidden;
 }
 
-.resumen-descuentos__block--resta {
+.info-lote__header-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
+  color: var(--white);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.info-lote__col-label {
+  display: flex;
+  align-items: center;
+}
+
+.info-lote__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  transition: background-color var(--t-fast);
+}
+
+.info-lote__row:last-child {
+  border-bottom: none;
+}
+
+.info-lote__row:hover {
+  background: var(--warm-50);
+}
+
+.info-lote__row--inicio {
+  background: var(--warm-50);
+}
+
+.info-lote__row--resta {
   border-left: 3px solid var(--warm-400);
 }
 
-.resumen-descuentos__block--saldo {
-  border-left: 3px solid var(--brand-red);
+.info-lote__row--saldo {
   background: var(--amber-25);
+  border-left: 3px solid var(--brand-red);
   font-weight: 600;
 }
 
-.resumen-descuentos__label {
-  display: block;
-  font-size: var(--fs-xs);
-  color: var(--warm-600);
-  margin-bottom: var(--space-1);
+.info-lote__label {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-sub);
+  margin: 0;
 }
 
-.resumen-descuentos__value {
+.info-lote__input {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
   font-size: var(--fs-md);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
+  background: var(--warm-100);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: right;
+  cursor: default;
 }
 
-.resumen-descuentos__block--saldo .resumen-descuentos__value {
+.info-lote__input:disabled {
+  opacity: 1;
+  color: var(--text);
+  background: var(--warm-100);
+  cursor: default;
+}
+
+.info-lote__input--saldo {
+  background: var(--amber-100);
+  color: var(--brand-red);
+  font-weight: 700;
+}
+
+.info-lote__row--saldo .info-lote__input--saldo:disabled {
+  background: var(--amber-100);
   color: var(--brand-red);
 }
 
@@ -450,6 +530,20 @@
   
   .resumen-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .info-lote__header-row,
+  .info-lote__row {
+    grid-template-columns: 1fr 1fr 1fr;
+    padding: var(--space-2) var(--space-3);
+  }
+  
+  .info-lote__header-row {
+    font-size: 0.65rem;
+  }
+  
+  .info-lote__label {
+    font-size: var(--fs-xs);
   }
   
   .indicadores-table {

@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChange
 import { CommonModule } from '@angular/common';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
+import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
@@ -16,12 +17,15 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoLoteLevanteDto[] = [];
-  @Input() selectedLote: LoteDto | null = null;
+  /** LoteDto (aves-engorde) o LotePosturaLevanteDto (seguimiento levante). */
+  @Input() selectedLote: LoteDto | LotePosturaLevanteDto | null = null;
   /** Resumen de descuentos (mortalidad, descarte, error sexaje) sobre el lote en Levante. */
   @Input() resumenLevante: LoteMortalidadResumenDto | null = null;
   @Input() loading: boolean = false;
-  /** Si true, deshabilita botones Crear / Editar / Eliminar (ej. lote sin aves o cerrado por reproductoras). */
+  /** Si true, deshabilita botones Crear / Editar / Eliminar (ej. lote sin aves o cerrado). */
   @Input() disableCreateEditDelete: boolean = false;
+  /** Si true, muestra aviso "Lote cerrado" en la información del lote. */
+  @Input() isLoteCerrado: boolean = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();

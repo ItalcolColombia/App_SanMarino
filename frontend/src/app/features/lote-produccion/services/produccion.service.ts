@@ -34,7 +34,10 @@ export interface ProduccionLoteDetalleDto {
 }
 
 export interface CrearSeguimientoRequest {
-  produccionLoteId: number;
+  /** ID del lote en fase Producción (legacy). Usar solo uno: produccionLoteId o lotePosturaProduccionId. */
+  produccionLoteId?: number | null;
+  /** ID del lote postura producción (nuevo flujo LPP). Usar solo uno: produccionLoteId o lotePosturaProduccionId. */
+  lotePosturaProduccionId?: number | null;
   fechaRegistro: string; // ISO date
   mortalidadH: number;
   mortalidadM: number;
@@ -108,6 +111,8 @@ export interface ItemSeguimientoDto {
 export interface SeguimientoItemDto {
   id: number;
   produccionLoteId: number;
+  /** ID del lote postura producción cuando el registro pertenece a LPP. */
+  lotePosturaProduccionId?: number | null;
   fechaRegistro: string; // ISO date
   mortalidadH: number;
   mortalidadM: number;
@@ -156,7 +161,9 @@ export interface ListaSeguimientoResponse {
 }
 
 export interface ListaSeguimientoQuery {
-  loteId: number;
+  loteId?: number | null;
+  /** ID del lote postura producción (flujo LPP). Usar loteId o lotePosturaProduccionId. */
+  lotePosturaProduccionId?: number | null;
   desde?: string;
   hasta?: string;
   page?: number;
@@ -213,7 +220,11 @@ export class ProduccionService {
   listarSeguimiento(query: ListaSeguimientoQuery): Observable<ListaSeguimientoResponse> {
     let params = new HttpParams();
 
-    params = params.set('loteId', query.loteId.toString());
+    if (query.lotePosturaProduccionId != null) {
+      params = params.set('lotePosturaProduccionId', query.lotePosturaProduccionId.toString());
+    } else if (query.loteId != null) {
+      params = params.set('loteId', query.loteId.toString());
+    }
 
     if (query.desde) {
       params = params.set('desde', query.desde);
@@ -257,13 +268,20 @@ export class ProduccionService {
   }
 
   /**
-   * Calcula la liquidación técnica de producción para un lote
+   * Calcula la liquidación técnica de producción.
+   * Usar lotePosturaProduccionId (flujo LPP) o loteId (legacy).
    * Organizado por etapas: 1 (25-33), 2 (34-50), 3 (>50)
    */
-  calcularLiquidacionProduccion(loteId: number, fechaHasta?: string): Observable<LiquidacionTecnicaProduccionDto> {
+  calcularLiquidacionProduccion(
+    options: { loteId?: number; lotePosturaProduccionId?: number; fechaHasta?: string }
+  ): Observable<LiquidacionTecnicaProduccionDto> {
     const request: LiquidacionTecnicaProduccionRequest = {
-      loteId,
-      fechaHasta: fechaHasta ? new Date(fechaHasta).toISOString() : undefined
+      ...(options.lotePosturaProduccionId != null && options.lotePosturaProduccionId > 0
+        ? { lotePosturaProduccionId: options.lotePosturaProduccionId }
+        : options.loteId != null && options.loteId > 0
+          ? { loteId: options.loteId }
+          : {}),
+      ...(options.fechaHasta ? { fechaHasta: new Date(options.fechaHasta).toISOString() } : {})
     };
     return this.http.post<LiquidacionTecnicaProduccionDto>(`${this.baseUrl}/liquidacion-tecnica`, request);
   }
@@ -386,7 +404,10 @@ export interface IndicadorProduccionSemanalDto {
 }
 
 export interface IndicadoresProduccionRequest {
-  loteId: number;
+  /** ID del lote legacy (produccion_diaria). Usar solo uno: loteId o lotePosturaProduccionId. */
+  loteId?: number | null;
+  /** ID del lote postura producción (flujo LPP). Usar solo uno: loteId o lotePosturaProduccionId. */
+  lotePosturaProduccionId?: number | null;
   fechaDesde?: string | null;
   fechaHasta?: string | null;
   semanaDesde?: number | null;
@@ -539,7 +560,8 @@ export interface ComparacionGuiaProduccionDto {
 }
 
 export interface LiquidacionTecnicaProduccionRequest {
-  loteId: number;
+  loteId?: number;
+  lotePosturaProduccionId?: number;
   fechaHasta?: string;
   etapaFiltro?: number;
 }

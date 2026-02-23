@@ -19,6 +19,8 @@ import {
   LoteService, LoteDto, CreateLoteDto, UpdateLoteDto, LoteMortalidadResumenDto,
   TrasladoLoteRequest, TrasladoLoteResponse, LoteFormDataResponse
 } from '../../services/lote.service';
+import { LotePosturaLevanteService, LotePosturaLevanteDto } from '../../services/lote-postura-levante.service';
+import { LotePosturaProduccionService, LotePosturaProduccionDto } from '../../services/lote-postura-produccion.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../nucleo/services/nucleo.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
@@ -114,14 +116,16 @@ export class LoteListComponent implements OnInit {
   modalOpen = false;
   editing: LoteDto | null = null;
   selectedLote: LoteDto | null = null;
+  selectedLoteLevante: LotePosturaLevanteDto | null = null;
+  selectedLoteProduccion: LotePosturaProduccionDto | null = null;
   
   // Modal de traslado
   modalTrasladoOpen = false;
   loteParaTrasladar: LoteDto | null = null;
   loadingTraslado = false;
 
-  // Pestaña de fase (Levante / Producción)
-  activeFase: 'levante' | 'produccion' = 'levante';
+  // Pestaña: Levante = lote_postura_levante, Lote = lotes, Producción = lote_postura_produccion
+  activeTab: 'levante' | 'lote' | 'produccion' = 'levante';
 
   // Búsqueda y orden
   filtro = '';
@@ -164,10 +168,19 @@ export class LoteListComponent implements OnInit {
   techMap:   Record<string, string> = {};
   private farmById: Record<number, FarmDto> = {};
 
-  // Lotes
+  // Lotes (tab Lote = tabla lotes)
   lotes: LoteDto[] = [];
   viewLotes: LoteDto[] = [];
+  // Lotes postura levante (tab Levante = tabla lote_postura_levante)
+  lotesLevante: LotePosturaLevanteDto[] = [];
+  viewLotesLevante: LotePosturaLevanteDto[] = [];
+  // Lotes postura producción (tab Producción = tabla lote_postura_produccion)
+  lotesProduccion: LotePosturaProduccionDto[] = [];
+  viewLotesProduccion: LotePosturaProduccionDto[] = [];
   lotesReproductora: any[] = [];
+  lotesLevanteAsociados: LotePosturaLevanteDto[] = [];
+  lotesProduccionAsociados: LotePosturaProduccionDto[] = [];
+  activeDetailTab: 'levante' | 'produccion' | 'reproductora' = 'levante';
 
   // Filtros en cascada (lista) — opciones derivadas de los lotes cargados
   selectedCompanyId: number | null = null;
@@ -207,6 +220,8 @@ export class LoteListComponent implements OnInit {
   constructor(
     private fb:        FormBuilder,
     private loteSvc:   LoteService,
+    private lotePosturaLevanteSvc: LotePosturaLevanteService,
+    private lotePosturaProduccionSvc: LotePosturaProduccionService,
     private farmSvc:   FarmService,
     private nucleoSvc: NucleoService,
     private galponSvc: GalponService,
@@ -232,7 +247,7 @@ export class LoteListComponent implements OnInit {
   // ===================== Ciclo de vida ======================
   ngOnInit(): void {
     this.initForm();
-    this.loadLotes();
+    this.loadData();
 
     // Chains del modal (usan datos cargados al abrir el modal)
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
@@ -358,37 +373,77 @@ export class LoteListComponent implements OnInit {
   }
 
   // ===================== Carga ==============================
-  private loadLotes(): void {
+  private loadData(): void {
     this.loading = true;
-    this.loteSvc.getAll(this.activeFase)
-      .pipe(finalize(() => this.loading = false))
-      .subscribe({
-        next: (list) => {
-          this.lotes = list;
-          this.buildFilterOptionsFromLotes();
-          this.recomputeList();
-        },
-        error: () => this.toastService.error('No se pudo cargar la lista de lotes.', 'Error')
-      });
+    if (this.activeTab === 'levante') {
+      this.lotePosturaLevanteSvc.getAll()
+        .pipe(finalize(() => this.loading = false))
+        .subscribe({
+          next: (list) => {
+            this.lotesLevante = list;
+            this.buildFilterOptions();
+            this.recomputeList();
+          },
+          error: () => this.toastService.error('No se pudo cargar la lista de lotes levante.', 'Error')
+        });
+    } else if (this.activeTab === 'produccion') {
+      this.lotePosturaProduccionSvc.getAll()
+        .pipe(finalize(() => this.loading = false))
+        .subscribe({
+          next: (list) => {
+            this.lotesProduccion = list;
+            this.buildFilterOptions();
+            this.recomputeList();
+          },
+          error: () => this.toastService.error('No se pudo cargar la lista de lotes producción.', 'Error')
+        });
+    } else {
+      this.loteSvc.getAll()
+        .pipe(finalize(() => this.loading = false))
+        .subscribe({
+          next: (list) => {
+            this.lotes = list;
+            this.buildFilterOptions();
+            this.recomputeList();
+          },
+          error: () => this.toastService.error('No se pudo cargar la lista de lotes.', 'Error')
+        });
+    }
   }
 
-  setFase(fase: 'levante' | 'produccion'): void {
-    if (this.activeFase === fase) return;
-    this.activeFase = fase;
-    this.loadLotes();
+  setTab(tab: 'levante' | 'lote' | 'produccion'): void {
+    if (this.activeTab === tab) return;
+    this.activeTab = tab;
+    this.loadData();
   }
 
-  /** Construye opciones de filtro a partir de los lotes cargados (sin llamar a otros servicios). */
-  private buildFilterOptionsFromLotes(): void {
+  /** Construye opciones de filtro desde los datos cargados según la pestaña activa. */
+  private buildFilterOptions(): void {
     const companies = new Map<number, string>();
     const farms = new Map<number, string>();
     const nucleos = new Map<string, string>();
     const galpones = new Map<string, string>();
-    for (const l of this.lotes) {
-      if (l.companyId != null) companies.set(l.companyId, `Compañía ${l.companyId}`);
-      if (l.farm?.id != null) farms.set(l.farm.id, l.farm.name ?? '');
-      if (l.nucleo?.nucleoId) nucleos.set(l.nucleo.nucleoId, l.nucleo.nucleoNombre ?? l.nucleo.nucleoId);
-      if (l.galpon?.galponId) galpones.set(l.galpon.galponId, l.galpon.galponNombre ?? l.galpon.galponId);
+    if (this.activeTab === 'levante') {
+      for (const l of this.lotesLevante) {
+        if (l.companyId != null) companies.set(l.companyId, `Compañía ${l.companyId}`);
+        if (l.farm?.id != null) farms.set(l.farm.id, l.farm.name ?? '');
+        if (l.nucleo?.nucleoId) nucleos.set(l.nucleo.nucleoId, l.nucleo.nucleoNombre ?? l.nucleo.nucleoId);
+        if (l.galpon?.galponId) galpones.set(l.galpon.galponId, l.galpon.galponNombre ?? l.galpon.galponId);
+      }
+    } else if (this.activeTab === 'produccion') {
+      for (const l of this.lotesProduccion) {
+        if (l.companyId != null) companies.set(l.companyId, `Compañía ${l.companyId}`);
+        if (l.farm?.id != null) farms.set(l.farm.id, l.farm.name ?? '');
+        if (l.nucleo?.nucleoId) nucleos.set(l.nucleo.nucleoId, l.nucleo.nucleoNombre ?? l.nucleo.nucleoId);
+        if (l.galpon?.galponId) galpones.set(l.galpon.galponId, l.galpon.galponNombre ?? l.galpon.galponId);
+      }
+    } else {
+      for (const l of this.lotes) {
+        if (l.companyId != null) companies.set(l.companyId, `Compañía ${l.companyId}`);
+        if (l.farm?.id != null) farms.set(l.farm.id, l.farm.name ?? '');
+        if (l.nucleo?.nucleoId) nucleos.set(l.nucleo.nucleoId, l.nucleo.nucleoNombre ?? l.nucleo.nucleoId);
+        if (l.galpon?.galponId) galpones.set(l.galpon.galponId, l.galpon.galponNombre ?? l.galpon.galponId);
+      }
     }
     this.filterCompanyOptions = Array.from(companies.entries()).map(([id, label]) => ({ id, label }));
     this.filterFarmOptions = Array.from(farms.entries()).map(([id, name]) => ({ id, name }));
@@ -424,38 +479,118 @@ export class LoteListComponent implements OnInit {
   // ===================== Recompute (filtros + orden) ========
   recomputeList() {
     const term = this.normalize(this.filtro);
-    let res = [...this.lotes];
-
-    if (this.selectedCompanyId != null) res = res.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
-    if (this.selectedFarmId != null) res = res.filter(l => l.granjaId === this.selectedFarmId);
-    if (this.selectedNucleoId != null) res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
-    if (this.selectedGalponId != null) res = res.filter(l => (l.galponId ?? null) === this.selectedGalponId);
-
-    if (term) {
-      res = res.filter(l => {
-        const haystack = [
-          l.loteId ?? 0,
-          l.loteNombre ?? '',
-          l.farm?.name ?? '',
-          l.nucleo?.nucleoNombre ?? '',
-          l.galpon?.galponNombre ?? ''
-        ].map(s => this.normalize(String(s))).join(' ');
-        return haystack.includes(term);
-      });
+    if (this.activeTab === 'levante') {
+      let res = [...this.lotesLevante];
+      if (this.selectedCompanyId != null) res = res.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
+      if (this.selectedFarmId != null) res = res.filter(l => l.granjaId === this.selectedFarmId);
+      if (this.selectedNucleoId != null) res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
+      if (this.selectedGalponId != null) res = res.filter(l => (l.galponId ?? null) === this.selectedGalponId);
+      if (term) {
+        res = res.filter(l => {
+          const haystack = [
+            l.lotePosturaLevanteId ?? 0,
+            l.loteNombre ?? '',
+            l.farm?.name ?? '',
+            l.nucleo?.nucleoNombre ?? '',
+            l.galpon?.galponNombre ?? ''
+          ].map(s => this.normalize(String(s))).join(' ');
+          return haystack.includes(term);
+        });
+      }
+      res = this.sortLotesLevante(res);
+      this.viewLotesLevante = res;
+    } else if (this.activeTab === 'produccion') {
+      let res = [...this.lotesProduccion];
+      if (this.selectedCompanyId != null) res = res.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
+      if (this.selectedFarmId != null) res = res.filter(l => l.granjaId === this.selectedFarmId);
+      if (this.selectedNucleoId != null) res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
+      if (this.selectedGalponId != null) res = res.filter(l => (l.galponId ?? null) === this.selectedGalponId);
+      if (term) {
+        res = res.filter(l => {
+          const haystack = [
+            l.lotePosturaProduccionId ?? 0,
+            l.loteNombre ?? '',
+            l.farm?.name ?? '',
+            l.nucleo?.nucleoNombre ?? '',
+            l.galpon?.galponNombre ?? ''
+          ].map(s => this.normalize(String(s))).join(' ');
+          return haystack.includes(term);
+        });
+      }
+      res = this.sortLotesProduccion(res);
+      this.viewLotesProduccion = res;
+    } else {
+      let res = [...this.lotes];
+      if (this.selectedCompanyId != null) res = res.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
+      if (this.selectedFarmId != null) res = res.filter(l => l.granjaId === this.selectedFarmId);
+      if (this.selectedNucleoId != null) res = res.filter(l => (l.nucleoId ?? null) === this.selectedNucleoId);
+      if (this.selectedGalponId != null) res = res.filter(l => (l.galponId ?? null) === this.selectedGalponId);
+      if (term) {
+        res = res.filter(l => {
+          const haystack = [
+            l.loteId ?? 0,
+            l.loteNombre ?? '',
+            l.farm?.name ?? '',
+            l.nucleo?.nucleoNombre ?? '',
+            l.galpon?.galponNombre ?? ''
+          ].map(s => this.normalize(String(s))).join(' ');
+          return haystack.includes(term);
+        });
+      }
+      res = this.sortLotes(res);
+      this.viewLotes = res;
     }
-
-    res = this.sortLotes(res);
-    this.viewLotes = res;
   }
 
   private sortLotes(arr: LoteDto[]): LoteDto[] {
     const val = (l: LoteDto): number | null => {
       if (!l.fechaEncaset) return null;
-      if (this.sortKey === 'edad') return this.calcularEdadDias(l.fechaEncaset);
+      if (this.sortKey === 'edad') return this.calcularEdadSemanas(l.fechaEncaset);
       const t = new Date(l.fechaEncaset).getTime();
       return isNaN(t) ? null : t;
     };
+    return [...arr].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      const cmp = av - bv;
+      return this.sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
 
+  private sortLotesProduccion(arr: LotePosturaProduccionDto[]): LotePosturaProduccionDto[] {
+    const val = (l: LotePosturaProduccionDto): number | null => {
+      const edad = l.edad ?? (l.fechaEncaset ? this.calcularEdadSemanas(l.fechaEncaset) : null);
+      if (this.sortKey === 'edad' && edad != null) return edad;
+      if (l.fechaEncaset) {
+        const t = new Date(l.fechaEncaset).getTime();
+        return isNaN(t) ? null : t;
+      }
+      return null;
+    };
+    return [...arr].sort((a, b) => {
+      const av = val(a);
+      const bv = val(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      const cmp = av - bv;
+      return this.sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  private sortLotesLevante(arr: LotePosturaLevanteDto[]): LotePosturaLevanteDto[] {
+    const val = (l: LotePosturaLevanteDto): number | null => {
+      const edad = l.edad ?? (l.fechaEncaset ? this.calcularEdadSemanas(l.fechaEncaset) : null);
+      if (this.sortKey === 'edad' && edad != null) return edad;
+      if (l.fechaEncaset) {
+        const t = new Date(l.fechaEncaset).getTime();
+        return isNaN(t) ? null : t;
+      }
+      return null;
+    };
     return [...arr].sort((a, b) => {
       const av = val(a);
       const bv = val(b);
@@ -468,18 +603,50 @@ export class LoteListComponent implements OnInit {
   }
 
   // ===================== Acciones UI ========================
+  openDetailProduccion(l: LotePosturaProduccionDto): void {
+    this.selectedLoteProduccion = l;
+    this.selectedLoteLevante = null;
+    this.selectedLote = null;
+  }
+
+  openDetailLevante(l: LotePosturaLevanteDto): void {
+    this.selectedLoteLevante = l;
+    this.selectedLoteProduccion = null;
+    this.selectedLote = null;
+  }
+
   openDetail(lote: LoteDto): void {
     this.selectedLote = lote;
+    this.selectedLoteLevante = null;
+    this.selectedLoteProduccion = null;
     this.resumenSelected = null;
+    this.activeDetailTab = 'levante';
+    this.lotesLevanteAsociados = [];
+    this.lotesProduccionAsociados = [];
 
     this.loteSvc.getResumenMortalidad(lote.loteId).subscribe({
       next: (r) => this.resumenSelected = r,
       error: () => this.resumenSelected = null
     });
 
-    this.loteSvc.getReproductorasByLote(lote.loteId).subscribe(r => {
-      this.lotesReproductora = r;
+    this.loteSvc.getReproductorasByLote(lote.loteId).subscribe({
+      next: (r) => this.lotesReproductora = r ?? [],
+      error: () => this.lotesReproductora = []
     });
+
+    this.lotePosturaLevanteSvc.getByLoteId(lote.loteId).subscribe({
+      next: (r) => this.lotesLevanteAsociados = r ?? [],
+      error: () => this.lotesLevanteAsociados = []
+    });
+
+    this.lotePosturaProduccionSvc.getByLoteId(lote.loteId).subscribe({
+      next: (r) => this.lotesProduccionAsociados = r ?? [],
+      error: () => this.lotesProduccionAsociados = []
+    });
+  }
+
+  setDetailTab(tab: 'levante' | 'produccion' | 'reproductora'): void {
+    this.activeDetailTab = tab;
   }
 
   /** Carga todos los datos del modal crear/editar lote en una sola llamada (GET api/Lote/form-data). */
@@ -718,7 +885,7 @@ export class LoteListComponent implements OnInit {
           this.editing ? 'Lote actualizado correctamente.' : 'Lote registrado correctamente.',
           'Listo'
         );
-        this.loadLotes();
+        this.loadData();
       },
       error: (err) => {
         const msg = err?.error?.message || err?.message || 'Error al guardar el lote.';
@@ -752,7 +919,7 @@ export class LoteListComponent implements OnInit {
     this.loteSvc.delete(l.loteId).pipe(finalize(() => this.loading = false)).subscribe({
       next: () => {
         this.toastService.success('Lote eliminado correctamente.', 'Listo');
-        this.loadLotes();
+        this.loadData();
       },
       error: (err) => {
         const msg = err?.error?.message || err?.message || 'Error al eliminar el lote.';
@@ -781,19 +948,19 @@ export class LoteListComponent implements OnInit {
     return Math.floor((hoy.getTime() - inicio.getTime()) / msDia) + 1;
   }
 
-  /** @deprecated Usar calcularEdadDias() en su lugar */
+  /** Edad en semanas desde fechaEncaset. Día 0 = semana 1, días 7-13 = semana 2, etc. */
   calcularEdadSemanas(fechaEncaset?: string | Date | null): number {
-    if (!fechaEncaset) return 0;
+    if (!fechaEncaset) return 1;
     const inicio = new Date(fechaEncaset);
     const hoy = new Date();
     const msSem = 1000 * 60 * 60 * 24 * 7;
-    return Math.floor((hoy.getTime() - inicio.getTime()) / msSem) + 1;
+    const semanas = Math.floor((hoy.getTime() - inicio.getTime()) / msSem);
+    return Math.max(1, semanas + 1); // primera semana = 1, no 0
   }
 
   calcularFase(fechaEncaset?: string | Date | null): 'Levante' | 'Producción' | 'Desconocido' {
     if (!fechaEncaset) return 'Desconocido';
-    // Usar días en lugar de semanas: Levante < 175 días (25 semanas * 7 días)
-    return this.calcularEdadDias(fechaEncaset) < 175 ? 'Levante' : 'Producción';
+    return this.calcularEdadSemanas(fechaEncaset) < 26 ? 'Levante' : 'Producción';
   }
 
   formatNumber(value: number | null | undefined): string {
@@ -802,6 +969,18 @@ export class LoteListComponent implements OnInit {
   }
   formatOrDash(val?: number | null): string {
     return (val === null || val === undefined) ? '—' : this.formatNumber(val);
+  }
+
+  /** Normaliza estadoCierre para Levante (Abierto/Cerrado). Comparación insensible a mayúsculas. */
+  estadoCierreLevante(l: LotePosturaLevanteDto): 'Abierto' | 'Cerrado' {
+    const v = (l.estadoCierre ?? 'Abierto').toString().trim().toLowerCase();
+    return v === 'cerrado' ? 'Cerrado' : 'Abierto';
+  }
+
+  /** Normaliza estadoCierre para Producción (Abierto/Cerrado). Comparación insensible a mayúsculas. */
+  estadoCierreProduccion(l: LotePosturaProduccionDto): 'Abierto' | 'Cerrado' {
+    const v = (l.estadoCierre ?? 'Abierta').toString().trim().toLowerCase();
+    return v === 'cerrada' ? 'Cerrado' : 'Abierto';
   }
 
   // *** Helpers de vivas (faltaban y causaban el error del template) ***
@@ -857,6 +1036,8 @@ export class LoteListComponent implements OnInit {
   }
 
   trackByLote = (_: number, l: LoteDto) => l.loteId;
+  trackByLoteLevante = (_: number, l: LotePosturaLevanteDto) => l.lotePosturaLevanteId;
+  trackByLoteProduccion = (_: number, l: LotePosturaProduccionDto) => l.lotePosturaProduccionId;
 
   // ===================== MÉTODOS DE TRASLADO =====================
   
@@ -915,7 +1096,7 @@ export class LoteListComponent implements OnInit {
             `Nuevo lote: #${response.loteNuevoId} (En Transferencia)`;
           this.toastService.success(mensaje, 'Traslado Exitoso', 6000);
           this.closeTrasladoModal();
-          this.loadLotes(); // Recargar la lista de lotes
+          this.loadData(); // Recargar la lista de lotes
         } else {
           this.toastService.error(response.message, 'Error en Traslado');
         }
