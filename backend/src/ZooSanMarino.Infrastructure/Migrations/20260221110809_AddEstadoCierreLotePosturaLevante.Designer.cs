@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260221110809_AddEstadoCierreLotePosturaLevante")]
+    partial class AddEstadoCierreLotePosturaLevante
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2228,11 +2231,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("estado");
-
-                    b.Property<string>("EstadoCierre")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("estado_cierre");
 
                     b.Property<string>("EstadoTraslado")
                         .HasMaxLength(50)
@@ -4972,14 +4970,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("lote_id");
 
-                    b.Property<int?>("LotePosturaLevanteId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_postura_levante_id");
-
-                    b.Property<int?>("LotePosturaProduccionId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_postura_produccion_id");
-
                     b.Property<JsonDocument>("Metadata")
                         .HasColumnType("jsonb")
                         .HasColumnName("metadata");
@@ -5671,10 +5661,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("lote_id");
 
-                    b.Property<int?>("LotePosturaProduccionId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_postura_produccion_id");
-
                     b.Property<JsonDocument>("Metadata")
                         .HasColumnType("jsonb")
                         .HasColumnName("metadata");
@@ -5728,10 +5714,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_produccion_diaria");
-
-                    b.HasIndex("LotePosturaProduccionId")
-                        .HasDatabaseName("ix_produccion_diaria_lote_postura_produccion_id")
-                        .HasFilter("lote_postura_produccion_id IS NOT NULL");
 
                     b.HasIndex("LoteId", "Fecha")
                         .IsUnique()

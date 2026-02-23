@@ -13,6 +13,10 @@ public class SeguimientoDiario
 
     public string TipoSeguimiento { get; set; } = null!; // 'levante' | 'produccion' | 'reproductora' | 'engorde'
     public string LoteId { get; set; } = null!;
+    /// <summary>FK a lote_postura_levante. Solo aplica cuando tipo = 'levante'.</summary>
+    public int? LotePosturaLevanteId { get; set; }
+    /// <summary>FK a lote_postura_produccion. Solo aplica cuando tipo = 'produccion'.</summary>
+    public int? LotePosturaProduccionId { get; set; }
     public string? ReproductoraId { get; set; }
     public DateTime Fecha { get; set; }
 

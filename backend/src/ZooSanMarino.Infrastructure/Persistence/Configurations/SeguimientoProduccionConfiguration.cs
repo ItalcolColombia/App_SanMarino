@@ -15,10 +15,18 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .UseIdentityAlwaysColumn()
             .HasColumnName("id");
 
-        // lote_id es int FK a lotes (Opción B)
+        // lote_id es int FK a lotes (Opción B, legacy)
         builder.Property(x => x.LoteId)
             .IsRequired()
             .HasColumnName("lote_id");
+
+        builder.Property(x => x.LotePosturaProduccionId)
+            .HasColumnName("lote_postura_produccion_id")
+            .IsRequired(false);
+
+        builder.HasIndex(x => x.LotePosturaProduccionId)
+            .HasDatabaseName("ix_produccion_diaria_lote_postura_produccion_id")
+            .HasFilter("lote_postura_produccion_id IS NOT NULL");
         
         builder.Property(x => x.Fecha)
             .IsRequired()

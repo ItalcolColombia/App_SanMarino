@@ -80,6 +80,10 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();
+        public DbSet<LotePosturaLevante> LotePosturaLevante => Set<LotePosturaLevante>();
+        public DbSet<LotePosturaProduccion> LotePosturaProduccion => Set<LotePosturaProduccion>();
+        public DbSet<HistoricoLotePostura> HistoricoLotePostura => Set<HistoricoLotePostura>();
+        public DbSet<EspejoHuevoProduccion> EspejoHuevoProduccion => Set<EspejoHuevoProduccion>();
 
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote

@@ -14,7 +14,8 @@ public class TrasladoHuevos : AuditableEntity
     public string TipoOperacion { get; set; } = null!; // "Venta" o "Traslado"
     
     // Lote origen
-    public string LoteId { get; set; } = null!; // VARCHAR en BD
+    public string LoteId { get; set; } = null!; // VARCHAR en BD (legacy)
+    public int? LotePosturaProduccionId { get; set; } // LPP: cuando está presente, usar espejo para descuentos
     public int GranjaOrigenId { get; set; }
     
     // Destino (si es traslado)
