@@ -5,7 +5,6 @@ using ZooSanMarino.Application.DTOs;
 namespace ZooSanMarino.Application.DTOs.Produccion;
 
 public record CrearSeguimientoRequest(
-    [Required] int ProduccionLoteId,
     [Required] DateTime FechaRegistro,
     [Required] [Range(0, int.MaxValue)] int MortalidadH,
     [Required] [Range(0, int.MaxValue)] int MortalidadM,
@@ -56,5 +55,8 @@ public record CrearSeguimientoRequest(
     [Range(0, int.MaxValue)] int SelM = 0,
     List<ItemSeguimientoDto>? ItemsHembras = null,
     List<ItemSeguimientoDto>? ItemsMachos = null,
-    string? CreatedByUserId = null
+    string? CreatedByUserId = null,
+    int? ProduccionLoteId = null,
+    int? LotePosturaProduccionId = null
 );
+

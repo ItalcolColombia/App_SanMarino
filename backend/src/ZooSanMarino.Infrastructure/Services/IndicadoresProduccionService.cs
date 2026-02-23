@@ -68,10 +68,122 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             throw new ArgumentException(ex.Message, ex);
         }
 
-        // ─── 2) Resolver lote en producción (mismo criterio que ProduccionService.ListarSeguimientoAsync) ───
+        // ─── 2) Resolver lote en producción (LPP o legacy) ───
+        Lote? loteProd = null;
+        DateTime fechaEncaset;
+        int avesHembrasIniciales;
+        int avesMachosIniciales;
+        string raza = "";
+        int? anoTablaGenetica = null;
+
+        if (request.LotePosturaProduccionId.HasValue && request.LotePosturaProduccionId.Value > 0)
+        {
+            // ─── Flujo LPP: lote_postura_produccion ───
+            var lppId = request.LotePosturaProduccionId.Value;
+            var lpp = await _context.LotePosturaProduccion
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l =>
+                    l.LotePosturaProduccionId == lppId
+                    && l.CompanyId == companyId
+                    && l.DeletedAt == null);
+
+            if (lpp == null)
+            {
+                throw new ArgumentException(
+                    $"No se encontró lote postura producción {lppId}. " +
+                    "Verifique que pertenezca a su compañía activa.");
+            }
+
+            // Fecha base: fecha_inicio_produccion o fecha_encaset desde Levante
+            var fechaRef = lpp.FechaInicioProduccion;
+            if (!fechaRef.HasValue && lpp.LotePosturaLevanteId.HasValue)
+            {
+                var lev = await _context.LotePosturaLevante
+                    .AsNoTracking()
+                    .Where(x => x.LotePosturaLevanteId == lpp.LotePosturaLevanteId && x.DeletedAt == null)
+                    .Select(x => x.FechaEncaset)
+                    .FirstOrDefaultAsync();
+                fechaRef = lev;
+            }
+            if (!fechaRef.HasValue && lpp.FechaEncaset.HasValue)
+                fechaRef = lpp.FechaEncaset;
+
+            if (!fechaRef.HasValue)
+            {
+                throw new ArgumentException(
+                    $"El lote postura producción {lppId} no tiene fecha de inicio de producción ni fecha de encaset. " +
+                    "Necesaria para calcular semanas.");
+            }
+
+            fechaEncaset = fechaRef.Value;
+            avesHembrasIniciales = lpp.AvesHInicial ?? lpp.HembrasInicialesProd ?? 0;
+            avesMachosIniciales = lpp.AvesMInicial ?? lpp.MachosInicialesProd ?? 0;
+            raza = lpp.Raza ?? "";
+            anoTablaGenetica = lpp.AnoTablaGenetica;
+
+            var fromLpp = _context.SeguimientoDiario
+                .AsNoTracking()
+                .Where(s =>
+                    s.TipoSeguimiento == TipoProduccion
+                    && s.LotePosturaProduccionId == lppId);
+
+            if (request.FechaDesde.HasValue)
+                fromLpp = fromLpp.Where(s => s.Fecha >= request.FechaDesde.Value);
+            if (request.FechaHasta.HasValue)
+                fromLpp = fromLpp.Where(s => s.Fecha <= request.FechaHasta.Value);
+
+            var seguimientosLpp = await fromLpp
+                .OrderBy(s => s.Fecha)
+                .Select(s => new SeguimientoProduccionRegistroDto(
+                    s.Fecha,
+                    s.MortalidadHembras ?? 0,
+                    s.MortalidadMachos ?? 0,
+                    s.SelH ?? 0,
+                    s.SelM ?? 0,
+                    (decimal)(s.ConsumoKgHembras ?? 0),
+                    (decimal)(s.ConsumoKgMachos ?? 0),
+                    s.HuevoTot ?? 0,
+                    s.HuevoInc ?? 0,
+                    s.HuevoLimpio ?? 0,
+                    s.HuevoTratado ?? 0,
+                    s.HuevoSucio ?? 0,
+                    s.HuevoDeforme ?? 0,
+                    s.HuevoBlanco ?? 0,
+                    s.HuevoDobleYema ?? 0,
+                    s.HuevoPiso ?? 0,
+                    s.HuevoPequeno ?? 0,
+                    s.HuevoRoto ?? 0,
+                    s.HuevoDesecho ?? 0,
+                    s.HuevoOtro ?? 0,
+                    (decimal)(s.PesoHuevo ?? 0),
+                    s.Etapa ?? 0,
+                    s.PesoH,
+                    s.PesoM,
+                    s.Uniformidad,
+                    s.CoeficienteVariacion,
+                    s.ObservacionesPesaje))
+                .ToListAsync();
+
+            return await CalcularIndicadoresAsync(
+                seguimientosLpp,
+                fechaEncaset,
+                avesHembrasIniciales,
+                avesMachosIniciales,
+                raza,
+                anoTablaGenetica,
+                companyId,
+                request);
+        }
+
+        // ─── Flujo legacy: Lote en fase Producción ───
         var loteId = request.LoteId;
-        // Comparación exacta de Fase (EF Core no traduce string.Equals con StringComparison a SQL)
-        var loteProd = await _context.Lotes
+        if (loteId <= 0)
+        {
+            throw new ArgumentException(
+                "Debe especificar LoteId (legacy) o LotePosturaProduccionId (flujo LPP) para obtener indicadores semanales.");
+        }
+
+        loteProd = await _context.Lotes
             .AsNoTracking()
             .Where(l =>
                 l.CompanyId == companyId
@@ -100,7 +212,6 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 "Verifique que: 1) El lote esté en fase Producción, 2) Pertenezca a su compañía activa, 3) Exista registro inicial de producción.");
         }
 
-        // ─── 3) Fecha de referencia para cálculo de semanas ───
         var fechaReferencia = loteProd.FechaInicioProduccion;
         if (!fechaReferencia.HasValue && loteProd.LotePadreId.HasValue)
         {
@@ -118,10 +229,11 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 "Necesaria para calcular semanas.");
         }
 
-        var fechaEncaset = fechaReferencia.Value;
+        fechaEncaset = fechaReferencia.Value;
+        avesHembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
+        avesMachosIniciales = loteProd.MachosInicialesProd ?? 0;
         var loteIdStr = loteProd.LoteId!.Value.ToString();
 
-        // ─── 4) Seguimientos desde tabla unificada (misma fuente que listado y modal Seguimiento Diario) ───
         var fromUnificado = _context.SeguimientoDiario
             .AsNoTracking()
             .Where(s => s.TipoSeguimiento == TipoProduccion && s.LoteId == loteIdStr);
@@ -131,7 +243,6 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         if (request.FechaHasta.HasValue)
             fromUnificado = fromUnificado.Where(s => s.Fecha <= request.FechaHasta.Value);
 
-        // OrderBy sobre la entidad (s.Fecha) para que EF traduzca a SQL; luego proyectar a DTO
         var seguimientos = await fromUnificado
             .OrderBy(s => s.Fecha)
             .Select(s => new SeguimientoProduccionRegistroDto(
@@ -174,27 +285,51 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 false);
         }
 
-        // ─── 5) Lote de referencia para guía genética (padre si el de producción no tiene Raza/Ano) ───
-        Lote loteParaGuia = loteProd;
-        if ((string.IsNullOrWhiteSpace(loteProd.Raza) || !loteProd.AnoTablaGenetica.HasValue) && loteProd.LotePadreId.HasValue)
+        raza = loteProd.Raza ?? "";
+        anoTablaGenetica = loteProd.AnoTablaGenetica;
+        if ((string.IsNullOrWhiteSpace(raza) || !anoTablaGenetica.HasValue) && loteProd.LotePadreId.HasValue)
         {
             var padre = await _context.Lotes
                 .AsNoTracking()
                 .FirstOrDefaultAsync(l => l.LoteId == loteProd.LotePadreId && l.DeletedAt == null);
             if (padre != null)
-                loteParaGuia = padre;
+            {
+                raza = padre.Raza ?? "";
+                anoTablaGenetica = padre.AnoTablaGenetica;
+            }
         }
 
-        var tieneGuiaGenetica = !string.IsNullOrWhiteSpace(loteParaGuia.Raza) && loteParaGuia.AnoTablaGenetica.HasValue;
+        return await CalcularIndicadoresAsync(
+            seguimientos,
+            fechaEncaset,
+            avesHembrasIniciales,
+            avesMachosIniciales,
+            raza,
+            anoTablaGenetica,
+            companyId,
+            request);
+    }
+
+    private async Task<IndicadoresProduccionResponse> CalcularIndicadoresAsync(
+        List<SeguimientoProduccionRegistroDto> seguimientos,
+        DateTime fechaEncaset,
+        int avesHembrasIniciales,
+        int avesMachosIniciales,
+        string raza,
+        int? anoTablaGenetica,
+        int companyId,
+        IndicadoresProduccionRequest request)
+    {
+        var tieneGuiaGenetica = !string.IsNullOrWhiteSpace(raza) && anoTablaGenetica.HasValue;
         var guias = new List<ZooSanMarino.Application.DTOs.GuiaGeneticaDto>();
 
-        if (tieneGuiaGenetica && loteParaGuia.AnoTablaGenetica.HasValue)
+        if (tieneGuiaGenetica && anoTablaGenetica.HasValue)
         {
             try
             {
                 guias = (await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(
-                    loteParaGuia.Raza!,
-                    loteParaGuia.AnoTablaGenetica.Value)).ToList();
+                    raza!,
+                    anoTablaGenetica.Value)).ToList();
             }
             catch
             {
@@ -204,10 +339,10 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
 
         // ─── 6) Guía raw (ProduccionAvicolaRaw) para comparativos de huevos ───
         var guiaRawBySemana = new Dictionary<int, ProduccionAvicolaRaw>();
-        if (tieneGuiaGenetica && loteParaGuia.AnoTablaGenetica.HasValue)
+        if (tieneGuiaGenetica && anoTablaGenetica.HasValue)
         {
-            var razaNorm = loteParaGuia.Raza!.Trim().ToLowerInvariant();
-            var ano = loteParaGuia.AnoTablaGenetica.Value.ToString(CultureInfo.InvariantCulture);
+            var razaNorm = raza!.Trim().ToLowerInvariant();
+            var ano = anoTablaGenetica.Value.ToString(CultureInfo.InvariantCulture);
             var raw = await _context.ProduccionAvicolaRaw
                 .AsNoTracking()
                 .Where(p =>
@@ -244,8 +379,8 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
 
         // ─── 8) Calcular indicadores por semana (con comparativos cuando hay guía) ───
         var indicadores = new List<IndicadorProduccionSemanalDto>();
-        var avesHembrasActuales = loteProd.HembrasInicialesProd ?? 0;
-        var avesMachosActuales = loteProd.MachosInicialesProd ?? 0;
+        var avesHembrasActuales = avesHembrasIniciales;
+        var avesMachosActuales = avesMachosIniciales;
 
         foreach (var grupoSemana in semanasFiltradas)
         {
@@ -414,7 +549,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         var tieneDatosGuia = tieneGuiaGenetica && guias.Any();
         string? mensajeGuia = null;
         if (tieneGuiaGenetica && !guias.Any())
-            mensajeGuia = $"El lote tiene Raza ({loteParaGuia.Raza}) y Año genético ({loteParaGuia.AnoTablaGenetica}) pero no hay datos de guía cargados para esa combinación en su compañía. Cargue la guía genética (produccion_avicola_raw) para Raza/Ano correspondiente.";
+            mensajeGuia = $"El lote tiene Raza ({raza}) y Año genético ({anoTablaGenetica}) pero no hay datos de guía cargados para esa combinación en su compañía. Cargue la guía genética (produccion_avicola_raw) para Raza/Ano correspondiente.";
 
         return new IndicadoresProduccionResponse(
             indicadores,

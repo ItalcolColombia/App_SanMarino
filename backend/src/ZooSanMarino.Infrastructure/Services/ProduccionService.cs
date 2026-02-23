@@ -186,25 +186,43 @@ public class ProduccionService : IProduccionService
 
     public async Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request)
     {
-        // Validar que el lote en producción existe (lote hijo con Fase = Produccion)
-        var loteProd = await _context.Lotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+        if (!request.LotePosturaProduccionId.HasValue && !request.ProduccionLoteId.HasValue)
+            throw new ArgumentException("Debe especificar ProduccionLoteId o LotePosturaProduccionId.");
+        if (request.LotePosturaProduccionId.HasValue && request.ProduccionLoteId.HasValue)
+            throw new ArgumentException("Especifique solo ProduccionLoteId o LotePosturaProduccionId, no ambos.");
 
-        if (loteProd == null)
-            throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
+        string loteId;
+        int? lotePosturaProduccionId = request.LotePosturaProduccionId;
 
-        var loteId = loteProd.LoteId?.ToString() ?? request.ProduccionLoteId.ToString();
-
-        // Validar que no existe ya un seguimiento para esta fecha y lote (tabla unificada seguimiento_diario)
-        var existeSeguimiento = await _context.SeguimientoDiario
-            .AsNoTracking()
-            .AnyAsync(s => s.TipoSeguimiento == TipoProduccion && s.LoteId == loteId &&
-                          s.Fecha.Date == request.FechaRegistro.Date);
-
-        if (existeSeguimiento)
+        if (lotePosturaProduccionId.HasValue)
         {
-            throw new InvalidOperationException("Ya existe un seguimiento para esta fecha.");
+            var lpp = await _context.LotePosturaProduccion
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == lotePosturaProduccionId.Value
+                    && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
+            if (lpp == null)
+                throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
+            loteId = lpp.LoteId?.ToString() ?? lpp.LotePosturaProduccionId?.ToString() ?? lpp.LoteNombre ?? lotePosturaProduccionId.Value.ToString();
+
+            var existeSeguimientoLpp = await _context.SeguimientoDiario.AsNoTracking()
+                .AnyAsync(s => s.TipoSeguimiento == TipoProduccion && s.LotePosturaProduccionId == lotePosturaProduccionId
+                    && s.Fecha.Date == request.FechaRegistro.Date);
+            if (existeSeguimientoLpp)
+                throw new InvalidOperationException("Ya existe un seguimiento para esta fecha y lote.");
+        }
+        else
+        {
+            var loteProd = await _context.Lotes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+            if (loteProd == null)
+                throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
+            loteId = loteProd.LoteId?.ToString() ?? request.ProduccionLoteId!.Value.ToString();
+
+            var existeSeguimiento = await _context.SeguimientoDiario.AsNoTracking()
+                .AnyAsync(s => s.TipoSeguimiento == TipoProduccion && s.LoteId == loteId && s.Fecha.Date == request.FechaRegistro.Date);
+            if (existeSeguimiento)
+                throw new InvalidOperationException("Ya existe un seguimiento para esta fecha.");
         }
 
         // Validar que la fecha no sea en el futuro
@@ -269,6 +287,8 @@ public class ProduccionService : IProduccionService
         var dto = new CreateSeguimientoDiarioDto(
             TipoSeguimiento: TipoProduccion,
             LoteId: loteId,
+            LotePosturaLevanteId: null,
+            LotePosturaProduccionId: lotePosturaProduccionId,
             ReproductoraId: null,
             Fecha: request.FechaRegistro,
             MortalidadHembras: request.MortalidadH,
@@ -329,14 +349,31 @@ public class ProduccionService : IProduccionService
 
     public async Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request)
     {
-        var loteProd = await _context.Lotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+        if (!request.LotePosturaProduccionId.HasValue && !request.ProduccionLoteId.HasValue)
+            throw new ArgumentException("Debe especificar ProduccionLoteId o LotePosturaProduccionId.");
+        if (request.LotePosturaProduccionId.HasValue && request.ProduccionLoteId.HasValue)
+            throw new ArgumentException("Especifique solo ProduccionLoteId o LotePosturaProduccionId, no ambos.");
 
-        if (loteProd == null)
-            throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
+        string loteId;
+        int? lotePosturaProduccionId = request.LotePosturaProduccionId;
 
-        var loteId = loteProd.LoteId?.ToString() ?? request.ProduccionLoteId.ToString();
+        if (lotePosturaProduccionId.HasValue)
+        {
+            var lpp = await _context.LotePosturaProduccion.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == lotePosturaProduccionId.Value
+                    && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
+            if (lpp == null)
+                throw new ArgumentException("El lote postura producción especificado no existe o no pertenece a la empresa.");
+            loteId = lpp.LoteId?.ToString() ?? lpp.LotePosturaProduccionId?.ToString() ?? lpp.LoteNombre ?? lotePosturaProduccionId.Value.ToString();
+        }
+        else
+        {
+            var loteProd = await _context.Lotes.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == request.ProduccionLoteId && l.Fase == "Produccion" && l.DeletedAt == null);
+            if (loteProd == null)
+                throw new ArgumentException("El registro de producción (lote en fase Producción) especificado no existe.");
+            loteId = loteProd.LoteId?.ToString() ?? request.ProduccionLoteId!.Value.ToString();
+        }
 
         if (request.FechaRegistro.Date > DateTime.Today)
             throw new ArgumentException("La fecha de registro no puede ser en el futuro.");
@@ -394,6 +431,8 @@ public class ProduccionService : IProduccionService
             Id: id,
             TipoSeguimiento: TipoProduccion,
             LoteId: loteId,
+            LotePosturaLevanteId: null,
+            LotePosturaProduccionId: lotePosturaProduccionId,
             ReproductoraId: null,
             Fecha: request.FechaRegistro,
             MortalidadHembras: request.MortalidadH,
@@ -452,39 +491,63 @@ public class ProduccionService : IProduccionService
             throw new InvalidOperationException("No se encontró el registro o no tiene permisos para actualizarlo.");
     }
 
-    public async Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int loteId, DateTime? desde, DateTime? hasta, int page, int size)
+    public async Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta, int page, int size)
     {
-        var companyId = _currentUser.CompanyId;
-        // loteId del request suele ser el padre (filtro); buscar lote en producción (hijo o mismo) para listar seguimientos
-        Lote? loteProd = await _context.Lotes.AsNoTracking()
-            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LotePadreId == loteId)
-            .OrderBy(l => l.LoteId)
-            .FirstOrDefaultAsync();
-        if (loteProd == null)
-            loteProd = await _context.Lotes.AsNoTracking()
-                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LoteId == loteId)
-                .FirstOrDefaultAsync();
-        var loteIdStr = loteProd?.LoteId?.ToString() ?? loteId.ToString();
-        var produccionLoteId = loteProd?.LoteId ?? loteId;
+        if (!lotePosturaProduccionId.HasValue && !loteId.HasValue)
+            throw new ArgumentException("Debe especificar loteId o lotePosturaProduccionId.");
 
-        var filter = new SeguimientoDiarioFilterRequest
+        SeguimientoDiarioFilterRequest filter;
+        int produccionLoteId;
+
+        if (lotePosturaProduccionId.HasValue)
         {
-            TipoSeguimiento = TipoProduccion,
-            LoteId = loteIdStr,
-            FechaDesde = desde,
-            FechaHasta = hasta,
-            Page = page,
-            PageSize = size,
-            OrderBy = "Fecha",
-            OrderAsc = false
-        };
+            filter = new SeguimientoDiarioFilterRequest
+            {
+                TipoSeguimiento = TipoProduccion,
+                LotePosturaProduccionId = lotePosturaProduccionId.Value,
+                FechaDesde = desde,
+                FechaHasta = hasta,
+                Page = page,
+                PageSize = size,
+                OrderBy = "Fecha",
+                OrderAsc = false
+            };
+            produccionLoteId = 0;
+        }
+        else
+        {
+            var companyId = _currentUser.CompanyId;
+            var lid = loteId!.Value;
+            Lote? loteProd = await _context.Lotes.AsNoTracking()
+                .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LotePadreId == lid)
+                .OrderBy(l => l.LoteId)
+                .FirstOrDefaultAsync();
+            if (loteProd == null)
+                loteProd = await _context.Lotes.AsNoTracking()
+                    .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.Fase == "Produccion" && l.LoteId == lid)
+                    .FirstOrDefaultAsync();
+            var loteIdStr = loteProd?.LoteId?.ToString() ?? lid.ToString();
+            produccionLoteId = loteProd?.LoteId ?? lid;
+
+            filter = new SeguimientoDiarioFilterRequest
+            {
+                TipoSeguimiento = TipoProduccion,
+                LoteId = loteIdStr,
+                FechaDesde = desde,
+                FechaHasta = hasta,
+                Page = page,
+                PageSize = size,
+                OrderBy = "Fecha",
+                OrderAsc = false
+            };
+        }
 
         var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
-        var items = paged.Items.Select(u => MapToSeguimientoItemDto(u, produccionLoteId)).ToList();
+        var items = paged.Items.Select(u => MapToSeguimientoItemDto(u, produccionLoteId, u.LotePosturaProduccionId)).ToList();
         return new ListaSeguimientoResponse(items, (int)paged.Total);
     }
 
-    private static SeguimientoItemDto MapToSeguimientoItemDto(SeguimientoDiarioDto u, int produccionLoteId)
+    private static SeguimientoItemDto MapToSeguimientoItemDto(SeguimientoDiarioDto u, int produccionLoteId, int? lotePosturaProduccionId = null)
     {
         var consKgH = (decimal)(u.ConsumoKgHembras ?? 0);
         var consKgM = (decimal)(u.ConsumoKgMachos ?? 0);
@@ -526,7 +589,8 @@ public class ProduccionService : IProduccionService
             u.ConsumoAguaDiario,
             u.ConsumoAguaPh,
             u.ConsumoAguaOrp,
-            u.ConsumoAguaTemperatura
+            u.ConsumoAguaTemperatura,
+            lotePosturaProduccionId ?? u.LotePosturaProduccionId
         );
     }
 

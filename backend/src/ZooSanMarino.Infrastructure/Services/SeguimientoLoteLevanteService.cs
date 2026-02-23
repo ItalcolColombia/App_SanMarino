@@ -40,6 +40,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         return new SeguimientoLoteLevanteDto(
             Id: (int)u.Id,
             LoteId: int.Parse(u.LoteId),
+            LotePosturaLevanteId: u.LotePosturaLevanteId,
             FechaRegistro: u.Fecha,
             MortalidadHembras: u.MortalidadHembras ?? 0,
             MortalidadMachos: u.MortalidadMachos ?? 0,
@@ -77,6 +78,8 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         return new CreateSeguimientoDiarioDto(
             TipoSeguimiento: TipoLevante,
             LoteId: dto.LoteId.ToString(),
+            LotePosturaLevanteId: dto.LotePosturaLevanteId,
+            LotePosturaProduccionId: null,
             ReproductoraId: null,
             Fecha: dto.FechaRegistro,
             MortalidadHembras: dto.MortalidadHembras,
@@ -139,6 +142,8 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             Id: (long)dto.Id,
             TipoSeguimiento: TipoLevante,
             LoteId: dto.LoteId.ToString(),
+            LotePosturaLevanteId: dto.LotePosturaLevanteId,
+            LotePosturaProduccionId: null,
             ReproductoraId: null,
             Fecha: dto.FechaRegistro,
             MortalidadHembras: dto.MortalidadHembras,
@@ -267,21 +272,15 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         var createDto = MapToCreateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
         var created = await _seguimientoDiarioService.CreateAsync(createDto);
 
-        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
-        if (totalRetiradas > 0)
+        var hembrasRetiro = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
+        var machosRetiro = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
+        if (hembrasRetiro > 0 || machosRetiro > 0)
         {
             try
             {
-                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                    loteId: dto.LoteId,
-                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
-                    machosRetirados: dto.MortalidadMachos + dto.SelM,
-                    mixtasRetiradas: 0,
-                    fechaMovimiento: dto.FechaRegistro,
-                    fuenteSeguimiento: "Levante",
-                    observaciones: $"Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | Observaciones: {dto.Observaciones}");
+                await DescontarAvesEnLotePosturaLevanteAsync(dto.LoteId, dto.LotePosturaLevanteId, hembrasRetiro, machosRetiro);
             }
-            catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento levante: {ex.Message}"); }
+            catch (Exception ex) { Console.WriteLine($"Error al descontar aves en lote postura levante: {ex.Message}"); }
         }
 
         return MapToLevanteDto(created);
@@ -317,26 +316,26 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             }
         }
 
+        var oldRec = await _seguimientoDiarioService.GetByIdAsync((long)dto.Id);
+        var oldH = (oldRec?.MortalidadHembras ?? 0) + (oldRec?.SelH ?? 0) + (oldRec?.ErrorSexajeHembras ?? 0);
+        var oldM = (oldRec?.MortalidadMachos ?? 0) + (oldRec?.SelM ?? 0) + (oldRec?.ErrorSexajeMachos ?? 0);
+
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
         var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
         if (updated is null) return null;
 
-        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
-        if (totalRetiradas > 0)
+        var newH = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
+        var newM = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
+        var deltaH = oldH - newH;
+        var deltaM = oldM - newM;
+        if (deltaH != 0 || deltaM != 0)
         {
             try
             {
-                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                    loteId: dto.LoteId,
-                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
-                    machosRetirados: dto.MortalidadMachos + dto.SelM,
-                    mixtasRetiradas: 0,
-                    fechaMovimiento: dto.FechaRegistro,
-                    fuenteSeguimiento: "Levante",
-                    observaciones: $"Actualización - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM}");
+                await AjustarAvesEnLotePosturaLevanteAsync(dto.LoteId, dto.LotePosturaLevanteId, deltaH, deltaM);
             }
-            catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento levante (actualización): {ex.Message}"); }
+            catch (Exception ex) { Console.WriteLine($"Error al ajustar aves en lote postura levante (actualización): {ex.Message}"); }
         }
 
         return MapToLevanteDto(updated);
@@ -344,6 +343,20 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
     public async Task<bool> DeleteAsync(int id)
     {
+        var rec = await _seguimientoDiarioService.GetByIdAsync((long)id);
+        if (rec != null && rec.TipoSeguimiento == TipoLevante)
+        {
+            var hembras = (rec.MortalidadHembras ?? 0) + (rec.SelH ?? 0) + (rec.ErrorSexajeHembras ?? 0);
+            var machos = (rec.MortalidadMachos ?? 0) + (rec.SelM ?? 0) + (rec.ErrorSexajeMachos ?? 0);
+            if (hembras > 0 || machos > 0)
+            {
+                try
+                {
+                    await AjustarAvesEnLotePosturaLevanteAsync(int.Parse(rec.LoteId), rec.LotePosturaLevanteId, hembras, machos);
+                }
+                catch (Exception ex) { Console.WriteLine($"Error al restaurar aves al eliminar seguimiento levante: {ex.Message}"); }
+            }
+        }
         return await _seguimientoDiarioService.DeleteAsync((long)id);
     }
 
@@ -404,6 +417,35 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
     {
         var dias = (fechaRegistro.Date - fechaEncaset.Date).TotalDays;
         return Math.Max(1, (int)Math.Floor(dias / 7.0) + 1);
+    }
+
+    /// <summary>
+    /// Descuenta aves de lote_postura_levante (aves_h_actual, aves_m_actual).
+    /// Busca por lote_postura_levante_id o por lote_id.
+    /// </summary>
+    private async Task DescontarAvesEnLotePosturaLevanteAsync(int loteId, int? lotePosturaLevanteId, int hembras, int machos)
+    {
+        await AjustarAvesEnLotePosturaLevanteAsync(loteId, lotePosturaLevanteId, -hembras, -machos);
+    }
+
+    /// <summary>
+    /// Ajusta aves en lote_postura_levante. deltaH/deltaM positivos = sumar, negativos = restar.
+    /// </summary>
+    private async Task AjustarAvesEnLotePosturaLevanteAsync(int loteId, int? lotePosturaLevanteId, int deltaH, int deltaM)
+    {
+        if (deltaH == 0 && deltaM == 0) return;
+
+        var lev = lotePosturaLevanteId.HasValue
+            ? await _ctx.LotePosturaLevante.FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId.Value && l.DeletedAt == null)
+            : await _ctx.LotePosturaLevante.FirstOrDefaultAsync(l => l.LoteId == loteId && l.DeletedAt == null);
+        if (lev == null) return;
+
+        var avesH = (lev.AvesHActual ?? 0) + deltaH;
+        var avesM = (lev.AvesMActual ?? 0) + deltaM;
+        lev.AvesHActual = Math.Max(0, avesH);
+        lev.AvesMActual = Math.Max(0, avesM);
+        lev.UpdatedAt = DateTime.UtcNow;
+        await _ctx.SaveChangesAsync();
     }
 
     /// <summary>

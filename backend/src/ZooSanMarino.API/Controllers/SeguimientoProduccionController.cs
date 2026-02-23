@@ -19,10 +19,10 @@ public class SeguimientoProduccionController : ControllerBase
         _scopeFactory = scopeFactory;
     }
 
-    /// <summary>Datos para filtros en cascada (Granja → Núcleo → Galpón → Lote) con solo lotes de producción.</summary>
+    /// <summary>Datos para filtros en cascada (Granja → Núcleo → Galpón → Lote) con lotes desde lote_postura_produccion.</summary>
     [HttpGet("filter-data")]
-    [ProducesResponseType(typeof(LoteReproductoraFilterDataDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<LoteReproductoraFilterDataDto>> GetFilterData(CancellationToken ct = default)
+    [ProducesResponseType(typeof(SeguimientoProduccionFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<SeguimientoProduccionFilterDataDto>> GetFilterData(CancellationToken ct = default)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteProduccionFilterDataService>();

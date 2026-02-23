@@ -25,11 +25,18 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
 
     public async Task<LiquidacionTecnicaProduccionDto> CalcularLiquidacionProduccionAsync(LiquidacionTecnicaProduccionRequest request)
     {
-        // 1. Obtener lote padre y lote de producción (Opción B: lote hijo con Fase = Produccion)
-        var lote = await ObtenerLoteAsync(request.LoteId);
+        // Priorizar LotePosturaProduccionId (flujo LPP) cuando esté presente
+        if (request.LotePosturaProduccionId.HasValue && request.LotePosturaProduccionId.Value > 0)
+            return await CalcularLiquidacionPorLPPAsync(request.LotePosturaProduccionId.Value, request.FechaHasta ?? DateTime.Today);
+
+        if (!request.LoteId.HasValue || request.LoteId.Value == 0)
+            throw new ArgumentException("Debe especificar LoteId o LotePosturaProduccionId.");
+
+        var loteId = request.LoteId.Value;
+        var lote = await ObtenerLoteAsync(loteId);
         var loteProd = await ObtenerLoteProduccionAsync(lote);
         if (loteProd == null)
-            throw new InvalidOperationException($"No se encontró lote en producción para el lote {request.LoteId}. Cree el registro inicial desde el módulo de producción.");
+            throw new InvalidOperationException($"No se encontró lote en producción para el lote {loteId}. Cree el registro inicial desde el módulo de producción.");
 
         // 2. Calcular semana actual y fecha límite
         var fechaHasta = request.FechaHasta ?? DateTime.Today;
@@ -112,6 +119,97 @@ public class LiquidacionTecnicaProduccionService : ILiquidacionTecnicaProduccion
             3 => await CalcularEtapaAsync(seguimientosProduccion, lote, loteProd, 3, 51, null),
             _ => null
         };
+    }
+
+    private async Task<LiquidacionTecnicaProduccionDto> CalcularLiquidacionPorLPPAsync(int lotePosturaProduccionId, DateTime fechaHasta)
+    {
+        var lpp = await _context.LotePosturaProduccion
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l =>
+                l.LotePosturaProduccionId == lotePosturaProduccionId
+                && l.CompanyId == _currentUser.CompanyId
+                && l.DeletedAt == null);
+
+        if (lpp == null)
+            throw new ArgumentException($"Lote Postura Producción {lotePosturaProduccionId} no encontrado");
+
+        var fechaEncaset = lpp.FechaEncaset ?? lpp.FechaInicioProduccion;
+        if (!fechaEncaset.HasValue)
+            throw new InvalidOperationException($"El lote {lpp.LoteNombre} no tiene fecha de encasetamiento para calcular la liquidación.");
+
+        var seguimientos = await ObtenerSeguimientosPorLPPAsync(lotePosturaProduccionId, fechaHasta);
+        var seguimientosProduccion = seguimientos
+            .Where(s => CalcularSemana(fechaEncaset, s.Fecha) >= 26)
+            .OrderBy(s => s.Fecha)
+            .ToList();
+
+        var hembrasIniciales = lpp.HembrasInicialesProd ?? lpp.AvesHInicial ?? 0;
+        var machosIniciales = lpp.MachosInicialesProd ?? lpp.AvesMInicial ?? 0;
+
+        var loteVirtual = new Lote
+        {
+            LoteId = lpp.LotePosturaProduccionId ?? 0,
+            FechaEncaset = fechaEncaset,
+            Raza = lpp.Raza,
+            AnoTablaGenetica = lpp.AnoTablaGenetica,
+            LoteNombre = lpp.LoteNombre ?? ""
+        };
+        var loteProdVirtual = new Lote
+        {
+            HembrasInicialesProd = hembrasIniciales,
+            MachosInicialesProd = machosIniciales,
+            HuevosIniciales = lpp.HuevosIniciales ?? 0
+        };
+
+        var semanaActual = CalcularSemana(fechaEncaset, fechaHasta);
+
+        var etapa1 = await CalcularEtapaAsync(seguimientosProduccion, loteVirtual, loteProdVirtual, 1, 25, 33);
+        var etapa2 = await CalcularEtapaAsync(seguimientosProduccion, loteVirtual, loteProdVirtual, 2, 34, 50);
+        var etapa3 = await CalcularEtapaAsync(seguimientosProduccion, loteVirtual, loteProdVirtual, 3, 51, null);
+
+        var totales = CalcularMetricasAcumuladas(loteProdVirtual, seguimientosProduccion, loteVirtual);
+        var comparacionGuia = await CalcularComparacionConGuiaAsync(loteVirtual, seguimientosProduccion, semanaActual, totales);
+
+        return new LiquidacionTecnicaProduccionDto(
+            lpp.LotePosturaProduccionId?.ToString() ?? "0",
+            lpp.LoteNombre ?? "LPP",
+            fechaEncaset.Value,
+            lpp.Raza,
+            lpp.AnoTablaGenetica,
+            hembrasIniciales,
+            machosIniciales,
+            lpp.HuevosIniciales ?? 0,
+            etapa1,
+            etapa2,
+            etapa3,
+            totales,
+            comparacionGuia,
+            DateTime.UtcNow,
+            seguimientosProduccion.Count,
+            seguimientosProduccion.LastOrDefault()?.Fecha,
+            semanaActual
+        );
+    }
+
+    private async Task<List<SeguimientoProduccionRegistroDto>> ObtenerSeguimientosPorLPPAsync(int lotePosturaProduccionId, DateTime fechaHasta)
+    {
+        return await _context.SeguimientoDiario
+            .AsNoTracking()
+            .Where(s =>
+                s.TipoSeguimiento == "produccion"
+                && s.LotePosturaProduccionId == lotePosturaProduccionId
+                && s.Fecha <= fechaHasta)
+            .OrderBy(s => s.Fecha)
+            .Select(s => new SeguimientoProduccionRegistroDto(
+                s.Fecha,
+                s.MortalidadHembras ?? 0, s.MortalidadMachos ?? 0, s.SelH ?? 0, s.SelM ?? 0,
+                (decimal)(s.ConsumoKgHembras ?? 0), (decimal)(s.ConsumoKgMachos ?? 0),
+                s.HuevoTot ?? 0, s.HuevoInc ?? 0,
+                s.HuevoLimpio ?? 0, s.HuevoTratado ?? 0, s.HuevoSucio ?? 0, s.HuevoDeforme ?? 0, s.HuevoBlanco ?? 0,
+                s.HuevoDobleYema ?? 0, s.HuevoPiso ?? 0, s.HuevoPequeno ?? 0, s.HuevoRoto ?? 0, s.HuevoDesecho ?? 0, s.HuevoOtro ?? 0,
+                (decimal)(s.PesoHuevo ?? 0), s.Etapa ?? 0, s.PesoH, s.PesoM, s.Uniformidad, s.CoeficienteVariacion, s.ObservacionesPesaje
+            ))
+            .ToListAsync();
     }
 
     #region Métodos Privados

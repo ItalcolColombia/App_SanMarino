@@ -24,6 +24,17 @@ public interface IDisponibilidadLoteService
     /// Valida si hay suficientes huevos disponibles para un traslado
     /// </summary>
     Task<bool> ValidarDisponibilidadHuevosAsync(string loteId, Dictionary<string, int> cantidadesPorTipo);
+
+    /// <summary>
+    /// Obtiene disponibilidad de huevos desde espejo_huevo_produccion (flujo LPP).
+    /// Usa huevo_*_dinamico como saldo disponible.
+    /// </summary>
+    Task<DisponibilidadLoteDto?> ObtenerDisponibilidadLoteLPPAsync(int lotePosturaProduccionId);
+
+    /// <summary>
+    /// Valida disponibilidad de huevos para un lote LPP (desde espejo).
+    /// </summary>
+    Task<bool> ValidarDisponibilidadHuevosLPPAsync(int lotePosturaProduccionId, Dictionary<string, int> cantidadesPorTipo);
 }
 
 

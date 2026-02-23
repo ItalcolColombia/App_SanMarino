@@ -90,10 +90,12 @@ public record IndicadorProduccionSemanalDto(
 );
 
 /// <summary>
-/// Request para obtener indicadores semanales
+/// Request para obtener indicadores semanales.
+/// Usar LoteId (legacy) o LotePosturaProduccionId (flujo LPP). Se debe especificar uno.
 /// </summary>
 public record IndicadoresProduccionRequest(
-    int LoteId,
+    int LoteId = 0,
+    int? LotePosturaProduccionId = null,
     DateTime? FechaDesde = null,
     DateTime? FechaHasta = null,
     int? SemanaDesde = null,

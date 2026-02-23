@@ -73,6 +73,8 @@ public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
         return new CreateSeguimientoDiarioDto(
             TipoSeguimiento: TipoReproductora,
             LoteId: loteIdStr,
+            LotePosturaLevanteId: null,
+            LotePosturaProduccionId: null,
             ReproductoraId: dto.ReproductoraId?.Trim(),
             Fecha: dto.Fecha,
             MortalidadHembras: dto.MortalidadH,
@@ -135,6 +137,8 @@ public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
             Id: dto.Id,
             TipoSeguimiento: TipoReproductora,
             LoteId: loteIdStr,
+            LotePosturaLevanteId: null,
+            LotePosturaProduccionId: null,
             ReproductoraId: dto.ReproductoraId?.Trim(),
             Fecha: dto.Fecha,
             MortalidadHembras: dto.MortalidadH,

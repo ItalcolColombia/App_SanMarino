@@ -10,6 +10,8 @@ public record SeguimientoDiarioDto(
     long Id,
     string TipoSeguimiento,
     string LoteId,
+    int? LotePosturaLevanteId,
+    int? LotePosturaProduccionId,
     string? ReproductoraId,
     DateTime Fecha,
     // Comunes
@@ -77,6 +79,8 @@ public record SeguimientoDiarioDto(
 public record CreateSeguimientoDiarioDto(
     string TipoSeguimiento,
     string LoteId,
+    int? LotePosturaLevanteId,
+    int? LotePosturaProduccionId,
     string? ReproductoraId,
     DateTime Fecha,
     int? MortalidadHembras,
@@ -138,6 +142,8 @@ public record UpdateSeguimientoDiarioDto(
     long Id,
     string TipoSeguimiento,
     string LoteId,
+    int? LotePosturaLevanteId,
+    int? LotePosturaProduccionId,
     string? ReproductoraId,
     DateTime Fecha,
     int? MortalidadHembras,

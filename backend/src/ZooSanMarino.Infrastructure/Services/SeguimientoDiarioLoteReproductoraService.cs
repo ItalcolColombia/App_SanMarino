@@ -24,6 +24,7 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         return new SeguimientoLoteLevanteDto(
             Id: (int)e.Id,
             LoteId: e.LoteReproductoraAveEngordeId,
+            LotePosturaLevanteId: null,
             FechaRegistro: e.Fecha,
             MortalidadHembras: e.MortalidadHembras ?? 0,
             MortalidadMachos: e.MortalidadMachos ?? 0,

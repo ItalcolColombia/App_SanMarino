@@ -12,6 +12,9 @@ public record SeguimientoDiarioFilterRequest
     /// <summary>Filtrar por lote_id (string).</summary>
     public string? LoteId { get; init; }
 
+    /// <summary>Filtrar por lote_postura_produccion_id (para tipo produccion con LPP).</summary>
+    public int? LotePosturaProduccionId { get; init; }
+
     /// <summary>Filtrar por reproductora_id (solo aplica si tipo = reproductora).</summary>
     public string? ReproductoraId { get; init; }
 

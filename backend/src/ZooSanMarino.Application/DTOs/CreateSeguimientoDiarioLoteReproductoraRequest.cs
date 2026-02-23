@@ -105,6 +105,7 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
         return new SeguimientoLoteLevanteDto(
             Id: id ?? 0,
             LoteId: LoteId,
+            LotePosturaLevanteId: null,
             FechaRegistro: FechaRegistro,
             MortalidadHembras: MortalidadHembras,
             MortalidadMachos: MortalidadMachos,

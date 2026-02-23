@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Application/DTOs/Produccion/LiquidacionTecnicaProduccionDto.cs
+using System.Text.Json.Serialization;
+
 namespace ZooSanMarino.Application.DTOs.Produccion;
 
 /// <summary>
@@ -190,11 +192,13 @@ public record ComparacionGuiaProduccionDto(
 );
 
 /// <summary>
-/// Request para calcular liquidación técnica de producción
+/// Request para calcular liquidación técnica de producción.
+/// Usar LoteId (legacy) o LotePosturaProduccionId (flujo LPP).
 /// </summary>
 public record LiquidacionTecnicaProduccionRequest(
-    int LoteId,
-    DateTime? FechaHasta = null, // Si no se especifica, usa la fecha actual
-    int? EtapaFiltro = null // Opcional: filtrar solo una etapa (1, 2 o 3)
+    [property: JsonPropertyName("loteId")] int? LoteId = null,
+    [property: JsonPropertyName("lotePosturaProduccionId")] int? LotePosturaProduccionId = null,
+    [property: JsonPropertyName("fechaHasta")] DateTime? FechaHasta = null,
+    [property: JsonPropertyName("etapaFiltro")] int? EtapaFiltro = null
 );
 

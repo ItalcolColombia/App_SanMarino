@@ -65,9 +65,10 @@ public class FarmInventoryService : IFarmInventoryService
         }
 
         // 👇 Declarar como IQueryable para evitar el conflicto con Include/Where
+        // company_id > 0 excluye NULL en SQL (evita InvalidCastException al materializar)
         IQueryable<FarmProductInventory> query = _db.FarmProductInventory
             .AsNoTracking()
-            .Where(x => x.FarmId == farmId);
+            .Where(x => x.FarmId == farmId && x.CompanyId > 0);
 
         // Filtrar por empresa y país del usuario actual (si está disponible)
         if (_current != null && _current.CompanyId > 0)
@@ -150,7 +151,7 @@ public class FarmInventoryService : IFarmInventoryService
         var query = _db.FarmProductInventory
             .AsNoTracking()
             .Include(p => p.CatalogItem)
-            .Where(p => p.Id == id && p.FarmId == farmId);
+            .Where(p => p.Id == id && p.FarmId == farmId && p.CompanyId > 0);
 
         // Filtrar por empresa y país del usuario actual
         if (_current != null && _current.CompanyId > 0)
@@ -194,6 +195,7 @@ public class FarmInventoryService : IFarmInventoryService
         var x = await _db.FarmProductInventory
             .AsNoTracking()
             .Include(p => p.CatalogItem)
+            .Where(p => p.CompanyId > 0)
             .FirstOrDefaultAsync(p => p.FarmId == farmId && p.CatalogItemId == catalogItemId && p.Active, ct);
 
         if (x == null) return null;
