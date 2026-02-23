@@ -442,7 +442,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
     private const string TipoLevante = "levante";
 
-    /// <summary>Obtiene todos los seguimientos de levante del lote desde la tabla unificada seguimiento_diario (fase levante).</summary>
+    /// <summary>Obtiene todos los seguimientos de levante del lote desde la tabla unificada seguimiento_diario (fase levante), por lote_id (legacy).</summary>
     private async Task<List<SegLevanteParaReporte>> ObtenerSeguimientosLevanteUnificadoAsync(int loteId, CancellationToken ct)
     {
         var loteIdStr = loteId.ToString();
@@ -454,6 +454,42 @@ public class ReporteTecnicoService : IReporteTecnicoService
             {
                 Id = (int)s.Id,
                 LoteId = loteId,
+                FechaRegistro = s.Fecha,
+                MortalidadHembras = s.MortalidadHembras ?? 0,
+                MortalidadMachos = s.MortalidadMachos ?? 0,
+                SelH = s.SelH ?? 0,
+                SelM = s.SelM ?? 0,
+                ErrorSexajeHembras = s.ErrorSexajeHembras ?? 0,
+                ErrorSexajeMachos = s.ErrorSexajeMachos ?? 0,
+                ConsumoKgHembras = (double)(s.ConsumoKgHembras ?? 0),
+                ConsumoKgMachos = s.ConsumoKgMachos.HasValue ? (double)s.ConsumoKgMachos.Value : null,
+                PesoPromH = s.PesoPromHembras,
+                PesoPromM = s.PesoPromMachos,
+                UniformidadH = s.UniformidadHembras,
+                UniformidadM = s.UniformidadMachos,
+                CvH = s.CvHembras,
+                CvM = s.CvMachos,
+                KcalAlH = s.KcalAlH,
+                ProtAlH = s.ProtAlH,
+                KcalAveH = s.KcalAveH,
+                ProtAveH = s.ProtAveH,
+                Observaciones = s.Observaciones
+            })
+            .ToListAsync(ct);
+        return list;
+    }
+
+    /// <summary>Obtiene seguimientos de levante por lote_postura_levante_id (seguimiento_diario.lote_postura_levante_id).</summary>
+    private async Task<List<SegLevanteParaReporte>> ObtenerSeguimientosLevantePorLPLAsync(int lotePosturaLevanteId, CancellationToken ct)
+    {
+        var list = await _ctx.SeguimientoDiario
+            .AsNoTracking()
+            .Where(s => s.TipoSeguimiento == TipoLevante && s.LotePosturaLevanteId == lotePosturaLevanteId)
+            .OrderBy(s => s.Fecha)
+            .Select(s => new SegLevanteParaReporte
+            {
+                Id = (int)s.Id,
+                LoteId = lotePosturaLevanteId,
                 FechaRegistro = s.Fecha,
                 MortalidadHembras = s.MortalidadHembras ?? 0,
                 MortalidadMachos = s.MortalidadMachos ?? 0,
@@ -1087,6 +1123,25 @@ public class ReporteTecnicoService : IReporteTecnicoService
         };
     }
 
+    private ReporteTecnicoLoteInfoDto MapearInformacionLoteFromLPL(LotePosturaLevante lpl)
+    {
+        return new ReporteTecnicoLoteInfoDto
+        {
+            LoteId = lpl.LotePosturaLevanteId ?? 0,
+            LoteNombre = lpl.LoteNombre,
+            Raza = lpl.Raza,
+            Linea = lpl.Linea,
+            Etapa = "LEVANTE",
+            FechaEncaset = lpl.FechaEncaset,
+            NumeroHembras = lpl.HembrasL,
+            NumeroMachos = lpl.MachosL,
+            Galpon = int.TryParse(lpl.GalponId, out var gid) ? gid : null,
+            Tecnico = lpl.Tecnico,
+            GranjaNombre = lpl.Farm?.Name,
+            NucleoNombre = lpl.Nucleo?.NucleoNombre
+        };
+    }
+
     private string? ExtraerSublote(string loteNombre)
     {
         // Extraer el sublote del nombre del lote
@@ -1201,49 +1256,49 @@ public class ReporteTecnicoService : IReporteTecnicoService
     }
 
     public async Task<ReporteTecnicoLevanteCompletoDto> GenerarReporteLevanteCompletoAsync(
-        int loteId,
+        int lotePosturaLevanteId,
         bool consolidarSublotes = false,
         CancellationToken ct = default)
     {
-        var lote = await _ctx.Lotes
+        var lpl = await _ctx.LotePosturaLevante
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
             .Include(l => l.Galpon)
-            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            .FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId && l.CompanyId == _currentUser.CompanyId, ct);
 
-        if (lote == null)
-            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+        if (lpl == null)
+            throw new InvalidOperationException($"Lote Postura Levante con ID {lotePosturaLevanteId} no encontrado");
 
-        if (!lote.FechaEncaset.HasValue)
-            throw new InvalidOperationException($"El lote {loteId} no tiene fecha de encaset");
+        if (!lpl.FechaEncaset.HasValue)
+            throw new InvalidOperationException($"El lote levante {lotePosturaLevanteId} no tiene fecha de encaset");
 
-        var infoLote = MapearInformacionLote(lote);
-        var sublote = ExtraerSublote(lote.LoteNombre);
+        var infoLote = MapearInformacionLoteFromLPL(lpl);
+        var sublote = ExtraerSublote(lpl.LoteNombre);
         infoLote.Sublote = sublote;
 
-        // Obtener todos los registros de seguimiento de levante desde tabla unificada (fase levante)
-        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
+        // Obtener seguimientos desde tabla unificada por lote_postura_levante_id
+        var todosSeguimientos = await ObtenerSeguimientosLevantePorLPLAsync(lotePosturaLevanteId, ct);
 
         // Filtrar solo semanas de levante (1-25)
         var seguimientos = todosSeguimientos.Where(seg =>
         {
-            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadDias = CalcularEdadDias(lpl.FechaEncaset.Value, seg.FechaRegistro);
             var edadSemanas = CalcularEdadSemanas(edadDias);
             return edadSemanas <= 25;
         }).ToList();
 
         // Obtener guía genética del lote (desde produccion_avicola_raw)
-        // El lote tiene Raza y AnoTablaGenetica que se usan para buscar la guía
+        // El lote levante tiene Raza y AnoTablaGenetica que se usan para buscar la guía
         Dictionary<int, Domain.Entities.ProduccionAvicolaRaw> guiasRaw = new();
         Dictionary<int, GuiaGeneticaDto> guiasGenetica = new();
         
-        if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+        if (!string.IsNullOrWhiteSpace(lpl.Raza) && lpl.AnoTablaGenetica.HasValue)
         {
             try
             {
-                var razaNorm = lote.Raza.Trim().ToLower();
-                var ano = lote.AnoTablaGenetica.Value.ToString();
+                var razaNorm = lpl.Raza.Trim().ToLower();
+                var ano = lpl.AnoTablaGenetica.Value.ToString();
                 
                 // Obtener datos raw directamente para tener acceso a ConsAcH, ConsAcM, etc.
                 var guiasRawList = await _ctx.ProduccionAvicolaRaw
@@ -1272,8 +1327,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 
                 // También obtener los DTOs procesados para usar los métodos de parseo
                 var guias = await _guiaGeneticaService.ObtenerGuiaGeneticaRangoAsync(
-                    lote.Raza, 
-                    lote.AnoTablaGenetica.Value, 
+                    lpl.Raza, 
+                    lpl.AnoTablaGenetica.Value, 
                     edadDesde: 1, 
                     edadHasta: 25);
                 
@@ -1286,10 +1341,11 @@ public class ReporteTecnicoService : IReporteTecnicoService
             }
         }
 
-        // Obtener traslados del lote para verificar reducciones
+        // Obtener traslados del lote para verificar reducciones (LoteOrigenId = lotes.lote_id si existe)
+        var loteIdParaTraslados = lpl.LoteId ?? lotePosturaLevanteId;
         var traslados = await _ctx.Set<Domain.Entities.MovimientoAves>()
             .AsNoTracking()
-            .Where(m => m.LoteOrigenId == loteId && 
+            .Where(m => m.LoteOrigenId == loteIdParaTraslados && 
                        m.Estado == "Completado" &&
                        m.DeletedAt == null)
             .OrderBy(m => m.FechaMovimiento)
@@ -1302,8 +1358,8 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
         // Calcular datos semanales (semanas 1-25)
         var datosSemanales = new List<ReporteTecnicoLevanteSemanalDto>();
-        var hembraIni = lote.HembrasL ?? 0;
-        var machoIni = lote.MachosL ?? 0;
+        var hembraIni = lpl.HembrasL ?? 0;
+        var machoIni = lpl.MachosL ?? 0;
 
         // Variables acumuladas
         int acMortH = 0, acSelH = 0, acErrH = 0;
@@ -1322,13 +1378,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
         for (int semana = 1; semana <= 25; semana++)
         {
             // Calcular rango de fechas para la semana
-            var fechaInicioSemana = lote.FechaEncaset.Value.AddDays((semana - 1) * 7);
+            var fechaInicioSemana = lpl.FechaEncaset!.Value.AddDays((semana - 1) * 7);
             var fechaFinSemana = fechaInicioSemana.AddDays(6);
 
             // Obtener registros de esta semana
             var registrosSemana = seguimientos.Where(s =>
             {
-                var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, s.FechaRegistro);
+                var edadDias = CalcularEdadDias(lpl.FechaEncaset!.Value, s.FechaRegistro);
                 var edadSemanas = CalcularEdadSemanas(edadDias);
                 return edadSemanas == semana;
             }).ToList();
@@ -1415,20 +1471,19 @@ public class ReporteTecnicoService : IReporteTecnicoService
             // Calcular campos según fórmulas Excel
             var dto = new ReporteTecnicoLevanteSemanalDto
             {
-                // Identificación
-                CodGuia = lote.CodigoGuiaGenetica, // Código de guía genética del lote
-                IdLoteRAP = null, // Se puede agregar si existe en el lote
-                Regional = lote.Regional,
-                Granja = lote.Farm?.Name,
-                Lote = lote.LoteNombre,
-                Raza = lote.Raza,
-                AnoG = lote.AnoTablaGenetica,
+                CodGuia = lpl.CodigoGuiaGenetica,
+                IdLoteRAP = null,
+                Regional = lpl.Regional,
+                Granja = lpl.Farm?.Name,
+                Lote = lpl.LoteNombre,
+                Raza = lpl.Raza,
+                AnoG = lpl.AnoTablaGenetica,
                 HembraIni = hembraIni,
                 MachoIni = machoIni,
-                Traslado = null, // Se puede calcular desde traslados si es necesario
-                NucleoL = lote.Nucleo?.NucleoNombre,
-                Anon = null, // Se puede agregar si existe en el lote
-                Edad = CalcularEdadDias(lote.FechaEncaset.Value, fechaInicioSemana),
+                Traslado = null,
+                NucleoL = lpl.Nucleo?.NucleoNombre,
+                Anon = null,
+                Edad = CalcularEdadDias(lpl.FechaEncaset!.Value, fechaInicioSemana),
                 Fecha = fechaInicioSemana,
                 SemAno = GetSemanaAno(fechaInicioSemana),
                 Semana = semana,
@@ -1628,43 +1683,40 @@ public class ReporteTecnicoService : IReporteTecnicoService
     }
 
     /// <summary>
-    /// Genera reporte diario específico de MACHOS desde el seguimiento diario de levante
+    /// Genera reporte diario específico de MACHOS desde el seguimiento diario de levante.
+    /// lotePosturaLevanteId = id de lote_postura_levante (seguimiento_diario.lote_postura_levante_id).
     /// </summary>
     public async Task<List<ReporteTecnicoDiarioMachosDto>> GenerarReporteDiarioMachosAsync(
-        int loteId,
+        int lotePosturaLevanteId,
         DateTime? fechaInicio = null,
         DateTime? fechaFin = null,
         CancellationToken ct = default)
     {
         try
         {
-            // Obtener lote para información inicial
-            var lote = await _ctx.Lotes
+            var lpl = await _ctx.LotePosturaLevante
                 .AsNoTracking()
                 .Include(l => l.Farm)
-                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+                .FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId && l.CompanyId == _currentUser.CompanyId, ct);
             
-            if (lote == null)
-                throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+            if (lpl == null)
+                throw new InvalidOperationException($"Lote Postura Levante con ID {lotePosturaLevanteId} no encontrado");
             
-            if (!lote.FechaEncaset.HasValue)
-                throw new InvalidOperationException($"El lote {loteId} no tiene fecha de encaset");
+            if (!lpl.FechaEncaset.HasValue)
+                throw new InvalidOperationException($"El lote levante {lotePosturaLevanteId} no tiene fecha de encaset");
             
-            var machosIniciales = lote.MachosL ?? 0;
-            var granjaId = lote.GranjaId;
+            var machosIniciales = lpl.MachosL ?? 0;
+            var granjaId = lpl.GranjaId;
         
-        // Obtener todos los registros de seguimiento desde tabla unificada (fase levante)
-        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
+        var todosSeguimientos = await ObtenerSeguimientosLevantePorLPLAsync(lotePosturaLevanteId, ct);
         
-        // Filtrar solo semanas de levante (1-25)
         todosSeguimientos = todosSeguimientos.Where(seg =>
         {
-            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadDias = CalcularEdadDias(lpl.FechaEncaset!.Value, seg.FechaRegistro);
             var edadSemanas = CalcularEdadSemanas(edadDias);
             return edadSemanas <= 25;
         }).ToList();
         
-        // Aplicar filtros de fecha
         var queryFiltrado = todosSeguimientos.AsQueryable();
         if (fechaInicio.HasValue)
             queryFiltrado = queryFiltrado.Where(s => s.FechaRegistro >= fechaInicio.Value);
@@ -1673,11 +1725,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
         
         var seguimientos = queryFiltrado.ToList();
         
-        // Procesar cada registro diario
         var datosMachos = new List<ReporteTecnicoDiarioMachosDto>();
         decimal? pesoAnterior = null;
         
-        // Variables para acumular porcentajes (según fórmulas Excel)
         decimal porcMortalidadAcumuladaAnterior = 0;
         decimal porcSeleccionAcumuladaAnterior = 0;
         decimal porcDescarteAcumuladaAnterior = 0;
@@ -1686,15 +1736,12 @@ public class ReporteTecnicoService : IReporteTecnicoService
         
         foreach (var seg in seguimientos)
         {
-            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadDias = CalcularEdadDias(lpl.FechaEncaset!.Value, seg.FechaRegistro);
             var edadSemanas = CalcularEdadSemanas(edadDias);
             
-            // Calcular acumulados hasta esta fecha (incluyendo todos los registros anteriores)
             var registrosHastaFecha = todosSeguimientos
                 .Where(s => s.FechaRegistro <= seg.FechaRegistro)
                 .ToList();
-            
-            // Calcular saldo actual de machos (aves_vivas)
             // FÓRMULA EXCEL: aves_vivas = aves_vivas_anterior - mortalidad_diaria - seleccion_diaria - descarte_diaria
             // Donde: seleccion_diaria = traslados, descarte_diaria = seleccion_normal + error_sexaje
             var machosActuales = machosIniciales;
@@ -1883,43 +1930,41 @@ public class ReporteTecnicoService : IReporteTecnicoService
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Error al generar reporte diario de machos para lote {loteId}: {ex.Message}", ex);
+            throw new InvalidOperationException($"Error al generar reporte diario de machos para lote levante {lotePosturaLevanteId}: {ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// Genera reporte diario específico de HEMBRAS desde el seguimiento diario de levante
+    /// Genera reporte diario específico de HEMBRAS desde el seguimiento diario de levante.
+    /// lotePosturaLevanteId = id de lote_postura_levante.
     /// </summary>
     public async Task<List<ReporteTecnicoDiarioHembrasDto>> GenerarReporteDiarioHembrasAsync(
-        int loteId,
+        int lotePosturaLevanteId,
         DateTime? fechaInicio = null,
         DateTime? fechaFin = null,
         CancellationToken ct = default)
     {
         try
         {
-            // Obtener lote para información inicial
-            var lote = await _ctx.Lotes
+            var lpl = await _ctx.LotePosturaLevante
                 .AsNoTracking()
                 .Include(l => l.Farm)
-                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+                .FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId && l.CompanyId == _currentUser.CompanyId, ct);
             
-            if (lote == null)
-                throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+            if (lpl == null)
+                throw new InvalidOperationException($"Lote Postura Levante con ID {lotePosturaLevanteId} no encontrado");
             
-            if (!lote.FechaEncaset.HasValue)
-                throw new InvalidOperationException($"El lote {loteId} no tiene fecha de encaset");
+            if (!lpl.FechaEncaset.HasValue)
+                throw new InvalidOperationException($"El lote levante {lotePosturaLevanteId} no tiene fecha de encaset");
             
-            var hembrasIniciales = lote.HembrasL ?? 0;
-            var granjaId = lote.GranjaId;
+            var hembrasIniciales = lpl.HembrasL ?? 0;
+            var granjaId = lpl.GranjaId;
         
-        // Obtener todos los registros de seguimiento desde tabla unificada (fase levante)
-        var todosSeguimientos = await ObtenerSeguimientosLevanteUnificadoAsync(loteId, ct);
+        var todosSeguimientos = await ObtenerSeguimientosLevantePorLPLAsync(lotePosturaLevanteId, ct);
         
-        // Filtrar solo semanas de levante (1-25)
         todosSeguimientos = todosSeguimientos.Where(seg =>
         {
-            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadDias = CalcularEdadDias(lpl.FechaEncaset!.Value, seg.FechaRegistro);
             var edadSemanas = CalcularEdadSemanas(edadDias);
             return edadSemanas <= 25;
         }).ToList();
@@ -1946,15 +1991,12 @@ public class ReporteTecnicoService : IReporteTecnicoService
         
         foreach (var seg in seguimientos)
         {
-            var edadDias = CalcularEdadDias(lote.FechaEncaset.Value, seg.FechaRegistro);
+            var edadDias = CalcularEdadDias(lpl.FechaEncaset!.Value, seg.FechaRegistro);
             var edadSemanas = CalcularEdadSemanas(edadDias);
             
-            // Calcular acumulados hasta esta fecha (incluyendo todos los registros anteriores)
             var registrosHastaFecha = todosSeguimientos
                 .Where(s => s.FechaRegistro <= seg.FechaRegistro)
                 .ToList();
-            
-            // Calcular saldo actual de hembras (aves_vivas)
             // FÓRMULA EXCEL: aves_vivas = aves_vivas_anterior - mortalidad_diaria - seleccion_diaria - descarte_diaria
             // Donde: seleccion_diaria = traslados, descarte_diaria = seleccion_normal + error_sexaje
             var hembrasActuales = hembrasIniciales;
@@ -2144,7 +2186,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Error al generar reporte diario de hembras para lote {loteId}: {ex.Message}", ex);
+            throw new InvalidOperationException($"Error al generar reporte diario de hembras para lote levante {lotePosturaLevanteId}: {ex.Message}", ex);
         }
     }
 
@@ -2153,7 +2195,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
     /// Incluye datos diarios separados (machos y hembras) y datos semanales completos
     /// </summary>
     public async Task<ReporteTecnicoLevanteConTabsDto> GenerarReporteLevanteConTabsAsync(
-        int loteId,
+        int lotePosturaLevanteId,
         DateTime? fechaInicio = null,
         DateTime? fechaFin = null,
         bool consolidarSublotes = false,
@@ -2161,26 +2203,24 @@ public class ReporteTecnicoService : IReporteTecnicoService
     {
         try
         {
-            var lote = await _ctx.Lotes
+            var lpl = await _ctx.LotePosturaLevante
                 .AsNoTracking()
                 .Include(l => l.Farm)
                 .Include(l => l.Nucleo)
-                .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+                .FirstOrDefaultAsync(l => l.LotePosturaLevanteId == lotePosturaLevanteId && l.CompanyId == _currentUser.CompanyId, ct);
             
-            if (lote == null)
-                throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+            if (lpl == null)
+                throw new InvalidOperationException($"Lote Postura Levante con ID {lotePosturaLevanteId} no encontrado");
             
-            var infoLote = MapearInformacionLote(lote);
-            var sublote = ExtraerSublote(lote.LoteNombre);
+            var infoLote = MapearInformacionLoteFromLPL(lpl);
+            var sublote = ExtraerSublote(lpl.LoteNombre);
             infoLote.Sublote = sublote;
             infoLote.Etapa = "LEVANTE";
             
-            // Generar datos para cada tab
-            var datosDiariosMachos = await GenerarReporteDiarioMachosAsync(loteId, fechaInicio, fechaFin, ct);
-            var datosDiariosHembras = await GenerarReporteDiarioHembrasAsync(loteId, fechaInicio, fechaFin, ct);
+            var datosDiariosMachos = await GenerarReporteDiarioMachosAsync(lotePosturaLevanteId, fechaInicio, fechaFin, ct);
+            var datosDiariosHembras = await GenerarReporteDiarioHembrasAsync(lotePosturaLevanteId, fechaInicio, fechaFin, ct);
             
-            // Reutilizar método existente para datos semanales
-            var reporteCompleto = await GenerarReporteLevanteCompletoAsync(loteId, consolidarSublotes, ct);
+            var reporteCompleto = await GenerarReporteLevanteCompletoAsync(lotePosturaLevanteId, consolidarSublotes, ct);
             
             return new ReporteTecnicoLevanteConTabsDto
             {
@@ -2200,7 +2240,7 @@ public class ReporteTecnicoService : IReporteTecnicoService
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Error al generar reporte con tabs para lote {loteId}: {ex.Message}", ex);
+            throw new InvalidOperationException($"Error al generar reporte con tabs para lote levante {lotePosturaLevanteId}: {ex.Message}", ex);
         }
     }
 

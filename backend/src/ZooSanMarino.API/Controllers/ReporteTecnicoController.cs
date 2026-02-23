@@ -1,5 +1,6 @@
 // src/ZooSanMarino.API/Controllers/ReporteTecnicoController.cs
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Infrastructure.Services;
@@ -13,15 +14,32 @@ public class ReporteTecnicoController : ControllerBase
     private readonly IReporteTecnicoService _service;
     private readonly ReporteTecnicoExcelService _excelService;
     private readonly ILogger<ReporteTecnicoController> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public ReporteTecnicoController(
         IReporteTecnicoService service,
         ReporteTecnicoExcelService excelService,
-        ILogger<ReporteTecnicoController> logger)
+        ILogger<ReporteTecnicoController> logger,
+        IServiceScopeFactory scopeFactory)
     {
         _service = service;
         _excelService = excelService;
         _logger = logger;
+        _scopeFactory = scopeFactory;
+    }
+
+    /// <summary>
+    /// Datos para filtros de Reporte Técnico Levante (Granja → Núcleo → Galpón → Lote LPL).
+    /// Lotes desde lote_postura_levante; LoteId en cada item = lotePosturaLevanteId.
+    /// </summary>
+    [HttpGet("levante/filter-data")]
+    [ProducesResponseType(typeof(LoteReproductoraFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoteReproductoraFilterDataDto>> GetLevanteFilterData(CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var filterDataSvc = scope.ServiceProvider.GetRequiredService<IReporteTecnicoLevanteFilterDataService>();
+        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        return Ok(data);
     }
 
     /// <summary>

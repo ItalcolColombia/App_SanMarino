@@ -41,29 +41,31 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
     }
 
     private async Task<ReporteTecnicoProduccionCompletoDto> GenerarReporteSubloteAsync(
-        int loteId,
+        int lotePosturaProduccionId,
         DateTime? fechaInicio,
         DateTime? fechaFin,
         CancellationToken ct)
     {
-        var lote = await _ctx.Lotes
+        // lotePosturaProduccionId = lote_postura_produccion.lote_postura_produccion_id
+        var lpp = await _ctx.LotePosturaProduccion
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
-            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == lotePosturaProduccionId &&
+                                     l.CompanyId == _currentUser.CompanyId &&
+                                     l.DeletedAt == null, ct);
 
-        if (lote == null)
-            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+        if (lpp == null)
+            throw new InvalidOperationException($"Lote producción con ID {lotePosturaProduccionId} no encontrado");
 
-        var loteProd = await ObtenerLoteProduccionAsync(lote, ct);
-        var fechaInicioProd = loteProd?.FechaInicioProduccion ?? lote.FechaEncaset ?? DateTime.Today;
-        var hembras = loteProd?.HembrasInicialesProd ?? lote.HembrasL ?? 0;
-        var machos = loteProd?.MachosInicialesProd ?? lote.MachosL ?? 0;
-        var loteIdSeguimiento = (loteProd ?? lote).LoteId ?? loteId;
+        var fechaInicioProd = lpp.FechaInicioProduccion ?? lpp.FechaEncaset ?? DateTime.Today;
+        var hembras = lpp.AvesHInicial ?? lpp.HembrasInicialesProd ?? lpp.HembrasL ?? 0;
+        var machos = lpp.AvesMInicial ?? lpp.MachosInicialesProd ?? lpp.MachosL ?? 0;
 
-        var loteInfo = MapearInformacionLote(lote, loteProd);
-        var datosDiarios = await ObtenerDatosDiariosAsync(
-            loteIdSeguimiento.ToString(),
+        var loteInfo = MapearInformacionLoteFromLPP(lpp);
+        var datosDiarios = await ObtenerDatosDiariosPorLPPAsync(
+            lotePosturaProduccionId,
+            lpp.LoteId,
             fechaInicioProd,
             fechaInicio,
             fechaFin,
@@ -84,42 +86,38 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         GenerarReporteTecnicoProduccionRequestDto request,
         CancellationToken ct)
     {
-        List<Lote> sublotes;
+        List<LotePosturaProduccion> sublotesLpp;
         
-        // Si se proporciona loteId, usar lógica de lote padre
         if (request.LoteId.HasValue)
         {
-            var loteSeleccionado = await _ctx.Lotes
+            // loteId = LotePosturaProduccionId
+            var lppSeleccionado = await _ctx.LotePosturaProduccion
                 .AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LoteId == request.LoteId.Value && 
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == request.LoteId.Value &&
                                          l.CompanyId == _currentUser.CompanyId &&
                                          l.DeletedAt == null, ct);
             
-            if (loteSeleccionado == null)
-                throw new InvalidOperationException($"Lote con ID {request.LoteId.Value} no encontrado");
+            if (lppSeleccionado == null)
+                throw new InvalidOperationException($"Lote producción con ID {request.LoteId.Value} no encontrado");
             
-            // Si el lote seleccionado es un lote padre, traer todos sus hijos
-            if (loteSeleccionado.LotePadreId == null)
+            if (lppSeleccionado.LotePadreId == null)
             {
-                // Es un lote padre, traer todos los lotes que tienen este como padre
-                sublotes = await _ctx.Lotes
+                // Es lote padre, traer hijos LPP
+                sublotesLpp = await _ctx.LotePosturaProduccion
                     .AsNoTracking()
                     .Where(l => l.LotePadreId == request.LoteId.Value &&
                                l.CompanyId == _currentUser.CompanyId &&
                                l.DeletedAt == null)
                     .OrderBy(l => l.LoteNombre)
                     .ToListAsync(ct);
-                
-                // Incluir también el lote padre
-                sublotes.Insert(0, loteSeleccionado);
+                sublotesLpp.Insert(0, lppSeleccionado);
             }
             else
             {
-                // Es un lote hijo, traer el padre y todos sus hermanos (incluyendo el seleccionado)
-                var padreId = loteSeleccionado.LotePadreId.Value;
-                sublotes = await _ctx.Lotes
+                var padreId = lppSeleccionado.LotePadreId.Value;
+                sublotesLpp = await _ctx.LotePosturaProduccion
                     .AsNoTracking()
-                    .Where(l => (l.LotePadreId == padreId || l.LoteId == padreId) &&
+                    .Where(l => (l.LotePadreId == padreId || l.LotePosturaProduccionId == padreId) &&
                                l.CompanyId == _currentUser.CompanyId &&
                                l.DeletedAt == null)
                     .OrderBy(l => l.LoteNombre)
@@ -128,10 +126,9 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         }
         else if (!string.IsNullOrWhiteSpace(request.LoteNombreBase))
         {
-            // Lógica antigua: buscar por nombre base (compatibilidad hacia atrás)
-            sublotes = await _ctx.Lotes
+            sublotesLpp = await _ctx.LotePosturaProduccion
                 .AsNoTracking()
-                .Where(l => l.LoteNombre.StartsWith(request.LoteNombreBase) &&
+                .Where(l => l.LoteNombre != null && l.LoteNombre.StartsWith(request.LoteNombreBase) &&
                            l.CompanyId == _currentUser.CompanyId &&
                            l.DeletedAt == null)
                 .OrderBy(l => l.LoteNombre)
@@ -142,24 +139,24 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             throw new ArgumentException("LoteId o LoteNombreBase es requerido para reporte consolidado");
         }
 
-        if (!sublotes.Any())
-            throw new InvalidOperationException($"No se encontraron sublotes para el lote {request.LoteNombreBase}");
+        if (!sublotesLpp.Any())
+            throw new InvalidOperationException($"No se encontraron sublotes para el lote seleccionado");
 
         var todosDatosDiarios = new List<ReporteTecnicoProduccionDiarioDto>();
-        var fechaInicioProduccion = sublotes
-            .Select(s => s.FechaEncaset ?? DateTime.Today)
+        var fechaInicioProduccion = sublotesLpp
+            .Select(s => s.FechaInicioProduccion ?? s.FechaEncaset ?? DateTime.Today)
             .Min();
 
-        foreach (var sublote in sublotes)
+        foreach (var sublote in sublotesLpp)
         {
-            var loteProd = await ObtenerLoteProduccionAsync(sublote, ct);
-            var fechaInicioSublote = loteProd?.FechaInicioProduccion ?? sublote.FechaEncaset ?? DateTime.Today;
-            var hembras = loteProd?.HembrasInicialesProd ?? sublote.HembrasL ?? 0;
-            var machos = loteProd?.MachosInicialesProd ?? sublote.MachosL ?? 0;
-            var idSeguimiento = (loteProd ?? sublote).LoteId ?? sublote.LoteId;
+            var lppId = sublote.LotePosturaProduccionId ?? 0;
+            var fechaInicioSublote = sublote.FechaInicioProduccion ?? sublote.FechaEncaset ?? DateTime.Today;
+            var hembras = sublote.AvesHInicial ?? sublote.HembrasInicialesProd ?? sublote.HembrasL ?? 0;
+            var machos = sublote.AvesMInicial ?? sublote.MachosInicialesProd ?? sublote.MachosL ?? 0;
 
-            var datosSublote = await ObtenerDatosDiariosAsync(
-                idSeguimiento?.ToString() ?? string.Empty,
+            var datosSublote = await ObtenerDatosDiariosPorLPPAsync(
+                lppId,
+                sublote.LoteId,
                 fechaInicioSublote,
                 request.FechaInicio,
                 request.FechaFin,
@@ -171,11 +168,9 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         }
 
         var datosConsolidados = ConsolidarDatosDiarios(todosDatosDiarios);
-        var datosSemanales = await ConsolidarSemanalesConsolidadoAsync(datosConsolidados, fechaInicioProduccion, sublotes, ct);
+        var datosSemanales = await ConsolidarSemanalesConsolidadoLPPAsync(datosConsolidados, fechaInicioProduccion, sublotesLpp, ct);
 
-        var loteBase = sublotes.First();
-        var loteProdBase = await ObtenerLoteProduccionAsync(loteBase, ct);
-        var loteInfo = MapearInformacionLote(loteBase, loteProdBase);
+        var loteInfo = MapearInformacionLoteFromLPP(sublotesLpp.First());
 
         return new ReporteTecnicoProduccionCompletoDto(
             loteInfo,
@@ -214,16 +209,16 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 
     private const string TipoProduccion = "produccion";
 
-    private async Task<List<SegProduccionParaReporte>> ObtenerSeguimientosProduccionUnificadoAsync(
-        int loteId,
+    /// <summary>Obtiene seguimientos de producción por lote_postura_produccion_id (seguimiento_diario).</summary>
+    private async Task<List<SegProduccionParaReporte>> ObtenerSeguimientosProduccionPorLPPAsync(
+        int lotePosturaProduccionId,
         DateTime? fechaInicio,
         DateTime? fechaFin,
         CancellationToken ct)
     {
-        var loteIdStr = loteId.ToString();
         var query = _ctx.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => s.TipoSeguimiento == TipoProduccion && s.LoteId == loteIdStr);
+            .Where(s => s.TipoSeguimiento == TipoProduccion && s.LotePosturaProduccionId == lotePosturaProduccionId);
 
         if (fechaInicio.HasValue)
             query = query.Where(s => s.Fecha >= fechaInicio.Value);
@@ -261,8 +256,9 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             .ToListAsync(ct);
     }
 
-    private async Task<List<ReporteTecnicoProduccionDiarioDto>> ObtenerDatosDiariosAsync(
-        string loteId,
+    private async Task<List<ReporteTecnicoProduccionDiarioDto>> ObtenerDatosDiariosPorLPPAsync(
+        int lotePosturaProduccionId,
+        int? loteOrigenId,
         DateTime fechaInicioProduccion,
         DateTime? fechaInicio,
         DateTime? fechaFin,
@@ -270,8 +266,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         int avesInicialesM,
         CancellationToken ct)
     {
-        var loteIdInt = int.Parse(loteId);
-        var seguimientos = await ObtenerSeguimientosProduccionUnificadoAsync(loteIdInt, fechaInicio, fechaFin, ct);
+        var seguimientos = await ObtenerSeguimientosProduccionPorLPPAsync(lotePosturaProduccionId, fechaInicio, fechaFin, ct);
 
         // CORRECCIÓN: Si la fechaInicioProduccion es posterior a las fechas de los registros,
         // usar la fecha del primer registro como referencia para calcular la edad correctamente
@@ -296,26 +291,26 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             var edadDias = CalcularEdadDias(fechaReferencia, seg.Fecha);
             var semana = CalcularSemana(edadDias);
 
-            // Obtener ventas y traslados del día
+            // Obtener ventas y traslados del día (MovimientoAves usa LoteOrigenId = lotes.LoteId)
             (int ventasH, int ventasM, int trasladosH, int trasladosM) = await ObtenerVentasYTrasladosAsync(
-                loteIdInt, seg.Fecha, ct);
+                loteOrigenId, seg.Fecha, ct);
 
-            // Obtener huevos enviados a planta
-            var huevosEnviadosPlanta = await ObtenerHuevosEnviadosPlantaAsync(loteId, seg.Fecha, ct);
+            // Obtener huevos enviados a planta (TrasladoHuevos usa LotePosturaProduccionId)
+            var huevosEnviadosPlanta = await ObtenerHuevosEnviadosPlantaPorLPPAsync(lotePosturaProduccionId, seg.Fecha, ct);
 
             // Obtener transferencias de huevos del día
             (int huevosTrasladadosTotal, int huevosTrasladadosLimpio, int huevosTrasladadosTratado,
              int huevosTrasladadosSucio, int huevosTrasladadosDeforme, int huevosTrasladadosBlanco,
              int huevosTrasladadosDobleYema, int huevosTrasladadosPiso, int huevosTrasladadosPequeno,
              int huevosTrasladadosRoto, int huevosTrasladadosDesecho, int huevosTrasladadosOtro) =
-                await ObtenerTransferenciasHuevosAsync(loteId, seg.Fecha, ct);
+                await ObtenerTransferenciasHuevosPorLPPAsync(lotePosturaProduccionId, seg.Fecha, ct);
 
             // Actualizar saldos
             saldoHembras = saldoHembras - seg.MortalidadH - seg.SelH - ventasH - trasladosH;
             saldoMachos = saldoMachos - seg.MortalidadM - seg.SelM - ventasM - trasladosM;
 
             // Obtener venta de huevos del día
-            var ventaHuevo = await ObtenerVentaHuevosAsync(loteId, seg.Fecha, ct);
+            var ventaHuevo = await ObtenerVentaHuevosPorLPPAsync(lotePosturaProduccionId, seg.Fecha, ct);
             
             // Obtener huevos cargados (por ahora igual a incubables, puede venir de otra fuente)
             var huevosCargados = seg.HuevoInc; // TODO: Si hay tabla de incubación, obtener de ahí
@@ -422,13 +417,16 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
     }
 
     private async Task<(int ventasH, int ventasM, int trasladosH, int trasladosM)> ObtenerVentasYTrasladosAsync(
-        int loteId,
+        int? loteOrigenId,
         DateTime fecha,
         CancellationToken ct)
     {
+        if (!loteOrigenId.HasValue)
+            return (0, 0, 0, 0);
+
         var movimientos = await _ctx.MovimientoAves
             .AsNoTracking()
-            .Where(m => m.LoteOrigenId == loteId &&
+            .Where(m => m.LoteOrigenId == loteOrigenId.Value &&
                        m.FechaMovimiento.Date == fecha.Date &&
                        m.Estado == "Completado")
             .ToListAsync(ct);
@@ -463,6 +461,19 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         return traslados.Sum(t => t.CantidadLimpio + t.CantidadTratado);
     }
 
+    private async Task<int> ObtenerHuevosEnviadosPlantaPorLPPAsync(int lotePosturaProduccionId, DateTime fecha, CancellationToken ct)
+    {
+        var traslados = await _ctx.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t => t.LotePosturaProduccionId == lotePosturaProduccionId &&
+                       t.FechaTraslado.Date == fecha.Date &&
+                       t.TipoDestino == "Planta" &&
+                       t.Estado == "Completado")
+            .ToListAsync(ct);
+
+        return traslados.Sum(t => t.CantidadLimpio + t.CantidadTratado);
+    }
+
     private async Task<int?> ObtenerVentaHuevosAsync(string loteId, DateTime fecha, CancellationToken ct)
     {
         var ventas = await _ctx.TrasladoHuevos
@@ -477,6 +488,22 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         return total > 0 ? total : null;
     }
 
+    private async Task<int?> ObtenerVentaHuevosPorLPPAsync(int lotePosturaProduccionId, DateTime fecha, CancellationToken ct)
+    {
+        var ventas = await _ctx.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t => t.LotePosturaProduccionId == lotePosturaProduccionId &&
+                       t.FechaTraslado.Date == fecha.Date &&
+                       t.TipoOperacion == "Venta" &&
+                       t.Estado == "Completado")
+            .ToListAsync(ct);
+
+        var total = ventas.Sum(t => t.CantidadLimpio + t.CantidadTratado + t.CantidadSucio + t.CantidadDeforme +
+            t.CantidadBlanco + t.CantidadDobleYema + t.CantidadPiso + t.CantidadPequeno + t.CantidadRoto +
+            t.CantidadDesecho + t.CantidadOtro);
+        return total > 0 ? total : null;
+    }
+
     private async Task<(int total, int limpio, int tratado, int sucio, int deforme, int blanco, 
                         int dobleYema, int piso, int pequeno, int roto, int desecho, int otro)> 
         ObtenerTransferenciasHuevosAsync(string loteId, DateTime fecha, CancellationToken ct)
@@ -484,6 +511,33 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         var traslados = await _ctx.TrasladoHuevos
             .AsNoTracking()
             .Where(t => t.LoteId == loteId &&
+                       t.FechaTraslado.Date == fecha.Date &&
+                       t.Estado == "Completado")
+            .ToListAsync(ct);
+
+        var total = traslados.Sum(t => t.TotalHuevos);
+        var limpio = traslados.Sum(t => t.CantidadLimpio);
+        var tratado = traslados.Sum(t => t.CantidadTratado);
+        var sucio = traslados.Sum(t => t.CantidadSucio);
+        var deforme = traslados.Sum(t => t.CantidadDeforme);
+        var blanco = traslados.Sum(t => t.CantidadBlanco);
+        var dobleYema = traslados.Sum(t => t.CantidadDobleYema);
+        var piso = traslados.Sum(t => t.CantidadPiso);
+        var pequeno = traslados.Sum(t => t.CantidadPequeno);
+        var roto = traslados.Sum(t => t.CantidadRoto);
+        var desecho = traslados.Sum(t => t.CantidadDesecho);
+        var otro = traslados.Sum(t => t.CantidadOtro);
+
+        return (total, limpio, tratado, sucio, deforme, blanco, dobleYema, piso, pequeno, roto, desecho, otro);
+    }
+
+    private async Task<(int total, int limpio, int tratado, int sucio, int deforme, int blanco,
+                        int dobleYema, int piso, int pequeno, int roto, int desecho, int otro)>
+        ObtenerTransferenciasHuevosPorLPPAsync(int lotePosturaProduccionId, DateTime fecha, CancellationToken ct)
+    {
+        var traslados = await _ctx.TrasladoHuevos
+            .AsNoTracking()
+            .Where(t => t.LotePosturaProduccionId == lotePosturaProduccionId &&
                        t.FechaTraslado.Date == fecha.Date &&
                        t.Estado == "Completado")
             .ToListAsync(ct);
@@ -778,6 +832,64 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         return true;
     }
 
+    /// <summary>Consolida semanas para reporte con sublotes LPP (lote_postura_produccion).</summary>
+    private async Task<List<ReporteTecnicoProduccionSemanalDto>> ConsolidarSemanalesConsolidadoLPPAsync(
+        List<ReporteTecnicoProduccionDiarioDto> datosConsolidados,
+        DateTime fechaInicioProduccion,
+        List<LotePosturaProduccion> sublotesLpp,
+        CancellationToken ct)
+    {
+        var semanasCompletas = new List<int>();
+        var semanasUnicas = datosConsolidados.Select(d => d.Semana).Distinct().OrderBy(s => s).ToList();
+
+        foreach (var semana in semanasUnicas)
+        {
+            var esCompleta = await EsSemanaCompletaConsolidadaLPPAsync(semana, sublotesLpp, fechaInicioProduccion, ct);
+            if (esCompleta)
+                semanasCompletas.Add(semana);
+        }
+
+        var datosFiltrados = datosConsolidados
+            .Where(d => semanasCompletas.Contains(d.Semana))
+            .ToList();
+
+        return ConsolidarSemanales(datosFiltrados, fechaInicioProduccion);
+    }
+
+    private async Task<bool> EsSemanaCompletaConsolidadaLPPAsync(
+        int semana,
+        List<LotePosturaProduccion> sublotesLpp,
+        DateTime fechaInicioProduccion,
+        CancellationToken ct)
+    {
+        foreach (var sublote in sublotesLpp)
+        {
+            var lppId = sublote.LotePosturaProduccionId ?? 0;
+            if (lppId <= 0) return false;
+
+            var fechaInicioSublote = sublote.FechaInicioProduccion ?? sublote.FechaEncaset ?? DateTime.Today;
+            var edadInicioSemana = Math.Max(0, (semana - 26) * 7);
+            var fechaInicioSemana = fechaInicioSublote.AddDays(edadInicioSemana);
+            var fechaFinSemana = fechaInicioSemana.AddDays(6);
+
+            var edadFinSemana = CalcularEdadDias(fechaInicioSublote, fechaFinSemana);
+            if (edadFinSemana < 6) return false;
+
+            var diasConDatos = await _ctx.SeguimientoDiario
+                .AsNoTracking()
+                .Where(s => s.TipoSeguimiento == TipoProduccion &&
+                            s.LotePosturaProduccionId == lppId &&
+                            s.Fecha >= fechaInicioSemana &&
+                            s.Fecha <= fechaFinSemana)
+                .CountAsync(ct);
+
+            if (diasConDatos < 7)
+                return false;
+        }
+
+        return true;
+    }
+
     /// <summary>Obtiene el lote en fase Producción (mismo lote o hijo). Opción B.</summary>
     private async Task<Lote?> ObtenerLoteProduccionAsync(Lote lote, CancellationToken ct = default)
     {
@@ -803,6 +915,24 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             Tecnico: lote.Tecnico,
             GranjaNombre: lote.Farm?.Name,
             NucleoNombre: lote.Nucleo?.NucleoNombre
+        );
+    }
+
+    /// <summary>Mapea LotePosturaProduccion a DTO de información del lote.</summary>
+    private ReporteTecnicoProduccionLoteInfoDto MapearInformacionLoteFromLPP(LotePosturaProduccion lpp)
+    {
+        return new ReporteTecnicoProduccionLoteInfoDto(
+            LoteId: lpp.LotePosturaProduccionId ?? lpp.LoteId ?? 0,
+            LoteNombre: lpp.LoteNombre ?? "",
+            Raza: lpp.Raza,
+            Linea: lpp.Linea,
+            FechaInicioProduccion: lpp.FechaInicioProduccion ?? lpp.FechaEncaset,
+            NumeroHembrasIniciales: lpp.AvesHInicial ?? lpp.HembrasInicialesProd ?? lpp.HembrasL,
+            NumeroMachosIniciales: lpp.AvesMInicial ?? lpp.MachosInicialesProd ?? lpp.MachosL,
+            Galpon: lpp.GalponId != null && int.TryParse(lpp.GalponId, out var g) ? g : null,
+            Tecnico: lpp.Tecnico,
+            GranjaNombre: lpp.Farm?.Name,
+            NucleoNombre: lpp.Nucleo?.NucleoNombre
         );
     }
 
@@ -834,16 +964,34 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 
     public async Task<List<string>> ObtenerSublotesAsync(string loteNombreBase, CancellationToken ct = default)
     {
-        var sublotes = await _ctx.Lotes
+        // Priorizar LPP (lote_postura_produccion)
+        var sublotesLpp = await _ctx.LotePosturaProduccion
             .AsNoTracking()
-            .Where(l => l.LoteNombre.StartsWith(loteNombreBase) &&
+            .Where(l => l.LoteNombre != null && l.LoteNombre.StartsWith(loteNombreBase) &&
                        l.CompanyId == _currentUser.CompanyId &&
                        l.DeletedAt == null)
-            .Select(l => l.LoteNombre)
+            .Select(l => l.LoteNombre!)
             .OrderBy(n => n)
             .ToListAsync(ct);
 
-        return sublotes
+        if (sublotesLpp.Any())
+        {
+            return sublotesLpp
+                .Select(n => ExtraerSublote(n) ?? n)
+                .Distinct()
+                .ToList();
+        }
+
+        var sublotesLegacy = await _ctx.Lotes
+            .AsNoTracking()
+            .Where(l => l.LoteNombre != null && l.LoteNombre.StartsWith(loteNombreBase) &&
+                       l.CompanyId == _currentUser.CompanyId &&
+                       l.DeletedAt == null)
+            .Select(l => l.LoteNombre!)
+            .OrderBy(n => n)
+            .ToListAsync(ct);
+
+        return sublotesLegacy
             .Select(n => ExtraerSublote(n) ?? n)
             .Distinct()
             .ToList();
@@ -906,28 +1054,28 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         bool consolidarSublotes = false,
         CancellationToken ct = default)
     {
-        // Obtener el reporte semanal completo primero
+        // Obtener el reporte semanal completo primero (loteId = LotePosturaProduccionId)
         var reporteCompleto = await GenerarReporteDiarioAsync(loteId, fechaInicio, fechaFin, consolidarSublotes, ct);
-        
-        // Obtener información del lote para guía genética
-        var lote = await _ctx.Lotes
+
+        // Obtener LPP para guía genética (loteId es LotePosturaProduccionId)
+        var lpp = await _ctx.LotePosturaProduccion
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
-            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null, ct);
 
-        if (lote == null)
-            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+        if (lpp == null)
+            throw new InvalidOperationException($"Lote producción con ID {loteId} no encontrado");
 
         // Obtener datos de guía genética si están disponibles
         var guiasProduccion = new List<GuiaGeneticaDto>();
-        if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+        if (!string.IsNullOrWhiteSpace(lpp.Raza) && lpp.AnoTablaGenetica.HasValue)
         {
             try
             {
                 var guias = await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(
-                    lote.Raza,
-                    lote.AnoTablaGenetica.Value);
+                    lpp.Raza,
+                    lpp.AnoTablaGenetica.Value);
                 guiasProduccion = guias.ToList();
             }
             catch
@@ -938,11 +1086,11 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
 
         // Obtener datos completos de ProduccionAvicolaRaw para valores adicionales
         var guiasCompletas = new List<Domain.Entities.ProduccionAvicolaRaw>();
-        if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+        if (!string.IsNullOrWhiteSpace(lpp.Raza) && lpp.AnoTablaGenetica.HasValue)
         {
-            var razaNorm = lote.Raza.Trim().ToLower();
-            var ano = lote.AnoTablaGenetica.Value.ToString();
-            
+            var razaNorm = lpp.Raza.Trim().ToLower();
+            var ano = lpp.AnoTablaGenetica.Value.ToString();
+
             guiasCompletas = await _ctx.ProduccionAvicolaRaw
                 .AsNoTracking()
                 .Where(p =>
@@ -1124,24 +1272,21 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
         bool consolidarSublotes = false,
         CancellationToken ct = default)
     {
-        // Obtener el lote
-        var lote = await _ctx.Lotes
+        // loteId = LotePosturaProduccionId (flujo LPP)
+        var lpp = await _ctx.LotePosturaProduccion
             .AsNoTracking()
             .Include(l => l.Farm)
             .Include(l => l.Nucleo)
-            .FirstOrDefaultAsync(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId, ct);
+            .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null, ct);
 
-        if (lote == null)
-            throw new InvalidOperationException($"Lote con ID {loteId} no encontrado");
+        if (lpp == null)
+            throw new InvalidOperationException($"Lote producción con ID {loteId} no encontrado");
 
-        var loteProd = await ObtenerLoteProduccionAsync(lote, ct);
-        var fechaInicioProduccion = loteProd?.FechaInicioProduccion ?? lote.FechaEncaset ?? DateTime.Today;
-        var loteIdSeguimiento = (loteProd ?? lote).LoteId ?? loteId;
+        var fechaInicioProduccion = lpp.FechaInicioProduccion ?? lpp.FechaEncaset ?? DateTime.Today;
 
-        var seguimientos = await ObtenerSeguimientosProduccionUnificadoAsync(
-            loteIdSeguimiento, fechaInicio, fechaFin, ct);
+        var seguimientos = await ObtenerSeguimientosProduccionPorLPPAsync(loteId, fechaInicio, fechaFin, ct);
 
-        var loteInfoClasificacion = MapearInformacionLote(lote, loteProd);
+        var loteInfoClasificacion = MapearInformacionLoteFromLPP(lpp);
 
         if (!seguimientos.Any())
         {
@@ -1200,17 +1345,17 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
             var guiasProduccion = new List<GuiaGeneticaDto>();
             var guiasCompletas = new List<Domain.Entities.ProduccionAvicolaRaw>();
 
-            if (!string.IsNullOrWhiteSpace(lote.Raza) && lote.AnoTablaGenetica.HasValue)
+            if (!string.IsNullOrWhiteSpace(lpp.Raza) && lpp.AnoTablaGenetica.HasValue)
             {
                 try
                 {
                     var guias = await _guiaGeneticaService.ObtenerGuiaGeneticaProduccionAsync(
-                        lote.Raza,
-                        lote.AnoTablaGenetica.Value);
+                        lpp.Raza,
+                        lpp.AnoTablaGenetica.Value);
                     guiasProduccion = guias.ToList();
 
-                    var razaNorm = lote.Raza.Trim().ToLower();
-                    var ano = lote.AnoTablaGenetica.Value.ToString();
+                    var razaNorm = lpp.Raza.Trim().ToLower();
+                    var ano = lpp.AnoTablaGenetica.Value.ToString();
 
                     guiasCompletas = await _ctx.ProduccionAvicolaRaw
                         .AsNoTracking()
@@ -1233,7 +1378,7 @@ public class ReporteTecnicoProduccionService : IReporteTecnicoProduccionService
                 Semana: semana,
                 FechaInicioSemana: fechaInicioSemana,
                 FechaFinSemana: fechaFinSemana,
-                LoteNombre: lote.LoteNombre,
+                LoteNombre: lpp.LoteNombre ?? "",
                 // Datos reales
                 IncubableLimpio: incubableLimpio,
                 HuevoTratado: huevoTratado,
