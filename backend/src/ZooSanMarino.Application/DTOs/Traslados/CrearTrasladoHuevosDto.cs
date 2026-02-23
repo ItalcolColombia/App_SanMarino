@@ -7,6 +7,8 @@ namespace ZooSanMarino.Application.DTOs.Traslados;
 public record CrearTrasladoHuevosDto
 {
     public string LoteId { get; init; } = string.Empty;
+    /// <summary>Si se envía, se usa flujo LPP (espejo) en lugar de LoteId legacy.</summary>
+    public int? LotePosturaProduccionId { get; init; }
     public DateTime FechaTraslado { get; init; }
     public string TipoOperacion { get; init; } = string.Empty; // "Venta" o "Traslado"
     

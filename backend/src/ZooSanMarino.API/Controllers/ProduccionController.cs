@@ -118,7 +118,10 @@ public class ProduccionController : ControllerBase
         try
         {
             var id = await _produccionService.CrearSeguimientoAsync(request);
-return CreatedAtAction(nameof(ListarSeguimiento), new { loteId = request.ProduccionLoteId }, id);
+            var routeValues = request.LotePosturaProduccionId.HasValue
+                ? (object)new { lotePosturaProduccionId = request.LotePosturaProduccionId }
+                : new { loteId = request.ProduccionLoteId };
+            return CreatedAtAction(nameof(ListarSeguimiento), routeValues, id);
         }
         catch (ArgumentException ex)
         {
@@ -176,7 +179,8 @@ return CreatedAtAction(nameof(ListarSeguimiento), new { loteId = request.Producc
     /// <summary>
     /// Lista los seguimientos diarios de producción de un lote
     /// </summary>
-    /// <param name="loteId">ID del lote</param>
+    /// <param name="loteId">ID del lote (legacy)</param>
+    /// <param name="lotePosturaProduccionId">ID del lote postura producción (nuevo flujo)</param>
     /// <param name="desde">Fecha desde (opcional)</param>
     /// <param name="hasta">Fecha hasta (opcional)</param>
     /// <param name="page">Número de página (por defecto 1)</param>
@@ -184,7 +188,8 @@ return CreatedAtAction(nameof(ListarSeguimiento), new { loteId = request.Producc
     /// <returns>Lista paginada de seguimientos</returns>
     [HttpGet("seguimiento")]
     public async Task<ActionResult<ListaSeguimientoResponse>> ListarSeguimiento(
-        [FromQuery] int loteId,
+        [FromQuery] int? loteId = null,
+        [FromQuery] int? lotePosturaProduccionId = null,
         [FromQuery] DateTime? desde = null,
         [FromQuery] DateTime? hasta = null,
         [FromQuery] int page = 1,
@@ -195,7 +200,7 @@ return CreatedAtAction(nameof(ListarSeguimiento), new { loteId = request.Producc
             if (page < 1) page = 1;
             if (size < 1 || size > 100) size = 10;
 
-            var resultado = await _produccionService.ListarSeguimientoAsync(loteId, desde, hasta, page, size);
+            var resultado = await _produccionService.ListarSeguimientoAsync(loteId, lotePosturaProduccionId, desde, hasta, page, size);
             return Ok(resultado);
         }
         catch (Exception)

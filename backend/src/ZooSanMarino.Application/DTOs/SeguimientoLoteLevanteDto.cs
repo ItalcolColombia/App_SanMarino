@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace ZooSanMarino.Application.DTOs;
 
 public record SeguimientoLoteLevanteDto(
-    int Id, int LoteId, DateTime FechaRegistro,
+    int Id, int LoteId, int? LotePosturaLevanteId, DateTime FechaRegistro,
     int MortalidadHembras, int MortalidadMachos,
     int SelH, int SelM,
     int ErrorSexajeHembras, int ErrorSexajeMachos,

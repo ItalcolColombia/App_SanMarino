@@ -35,6 +35,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         return new SeguimientoLoteLevanteDto(
             Id: (int)e.Id,
             LoteId: e.LoteAveEngordeId,
+            LotePosturaLevanteId: null,
             FechaRegistro: e.Fecha,
             MortalidadHembras: e.MortalidadHembras ?? 0,
             MortalidadMachos: e.MortalidadMachos ?? 0,

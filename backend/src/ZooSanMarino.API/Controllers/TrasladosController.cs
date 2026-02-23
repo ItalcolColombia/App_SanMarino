@@ -1,6 +1,7 @@
 // src/ZooSanMarino.API/Controllers/TrasladosController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
@@ -17,21 +18,50 @@ public class TrasladosController : ControllerBase
     private readonly ITrasladoHuevosService _trasladoHuevosService;
     private readonly IMovimientoAvesService _movimientoAvesService;
     private readonly ICurrentUser _currentUser;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public TrasladosController(
         IDisponibilidadLoteService disponibilidadService,
         ITrasladoHuevosService trasladoHuevosService,
         IMovimientoAvesService movimientoAvesService,
-        ICurrentUser currentUser)
+        ICurrentUser currentUser,
+        IServiceScopeFactory scopeFactory)
     {
         _disponibilidadService = disponibilidadService;
         _trasladoHuevosService = trasladoHuevosService;
         _movimientoAvesService = movimientoAvesService;
         _currentUser = currentUser;
+        _scopeFactory = scopeFactory;
     }
 
     /// <summary>
-    /// Obtiene la información completa de disponibilidad de un lote
+    /// Datos para filtros de traslado de huevos (Granja → Núcleo → Galpón → Lote LPP).
+    /// </summary>
+    [HttpGet("filter-data")]
+    [ProducesResponseType(typeof(SeguimientoProduccionFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<SeguimientoProduccionFilterDataDto>> GetFilterDataTrasladoHuevos(CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteProduccionFilterDataService>();
+        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        return Ok(data);
+    }
+
+    /// <summary>
+    /// Obtiene disponibilidad de huevos para un lote LPP (desde espejo_huevo_produccion).
+    /// </summary>
+    [HttpGet("lote-lpp/{lotePosturaProduccionId}/disponibilidad")]
+    [ProducesResponseType(typeof(DisponibilidadLoteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DisponibilidadLoteDto>> ObtenerDisponibilidadLoteLPP(int lotePosturaProduccionId)
+    {
+        var disponibilidad = await _disponibilidadService.ObtenerDisponibilidadLoteLPPAsync(lotePosturaProduccionId);
+        if (disponibilidad == null) return NotFound(new { message = $"Lote LPP {lotePosturaProduccionId} no encontrado" });
+        return Ok(disponibilidad);
+    }
+
+    /// <summary>
+    /// Obtiene la información completa de disponibilidad de un lote (legacy por LoteId)
     /// </summary>
     [HttpGet("lote/{loteId}/disponibilidad")]
     [ProducesResponseType(typeof(DisponibilidadLoteDto), StatusCodes.Status200OK)]

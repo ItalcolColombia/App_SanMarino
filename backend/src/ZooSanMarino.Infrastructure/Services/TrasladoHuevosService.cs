@@ -25,7 +25,6 @@ public class TrasladoHuevosService : ITrasladoHuevosService
 
     public async Task<TrasladoHuevosDto> CrearTrasladoHuevosAsync(CrearTrasladoHuevosDto dto, int usuarioId)
     {
-        // Validar disponibilidad de huevos
         var cantidadesPorTipo = new Dictionary<string, int>
         {
             { "Limpio", dto.CantidadLimpio },
@@ -41,34 +40,56 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             { "Otro", dto.CantidadOtro }
         };
 
-        var hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosAsync(dto.LoteId, cantidadesPorTipo);
-        if (!hayDisponibilidad)
+        int granjaOrigenId;
+        string loteIdStr;
+        int? lotePosturaProduccionId = dto.LotePosturaProduccionId;
+
+        if (lotePosturaProduccionId.HasValue)
         {
-            throw new InvalidOperationException("No hay suficientes huevos disponibles para este traslado");
+            // Flujo LPP: validar desde espejo
+            var hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosLPPAsync(lotePosturaProduccionId.Value, cantidadesPorTipo);
+            if (!hayDisponibilidad)
+                throw new InvalidOperationException("No hay suficientes huevos disponibles para este traslado");
+
+            var lpp = await _context.LotePosturaProduccion
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == lotePosturaProduccionId.Value);
+            if (lpp == null)
+                throw new InvalidOperationException($"Lote LPP {lotePosturaProduccionId} no encontrado");
+
+            granjaOrigenId = lpp.GranjaId;
+            loteIdStr = $"LPP-{lotePosturaProduccionId.Value}";
+        }
+        else
+        {
+            // Flujo legacy: LoteId
+            var hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosAsync(dto.LoteId, cantidadesPorTipo);
+            if (!hayDisponibilidad)
+                throw new InvalidOperationException("No hay suficientes huevos disponibles para este traslado");
+
+            var loteIdInt = int.TryParse(dto.LoteId, out var id) ? id : 0;
+            var lote = await _context.Lotes
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .FirstOrDefaultAsync(l =>
+                    l.LoteId == loteIdInt &&
+                    l.CompanyId == _currentUser.CompanyId &&
+                    l.DeletedAt == null);
+            if (lote == null)
+                throw new InvalidOperationException($"Lote {dto.LoteId} no encontrado");
+
+            granjaOrigenId = lote.GranjaId;
+            loteIdStr = dto.LoteId;
         }
 
-        // Obtener información del lote
-        var loteIdInt = int.TryParse(dto.LoteId, out var id) ? id : 0;
-        var lote = await _context.Lotes
-            .AsNoTracking()
-            .Include(l => l.Farm)
-            .FirstOrDefaultAsync(l => 
-                l.LoteId == loteIdInt && 
-                l.CompanyId == _currentUser.CompanyId && 
-                l.DeletedAt == null);
-
-        if (lote == null)
-        {
-            throw new InvalidOperationException($"Lote {dto.LoteId} no encontrado");
-        }
-
-        // Crear el traslado
         var traslado = new TrasladoHuevos
         {
             FechaTraslado = dto.FechaTraslado,
             TipoOperacion = dto.TipoOperacion,
-            LoteId = dto.LoteId,
-            GranjaOrigenId = lote.GranjaId,
+            LoteId = loteIdStr,
+            LotePosturaProduccionId = lotePosturaProduccionId,
+            GranjaOrigenId = granjaOrigenId,
             GranjaDestinoId = dto.GranjaDestinoId,
             LoteDestinoId = dto.LoteDestinoId,
             TipoDestino = dto.TipoDestino,
@@ -121,12 +142,13 @@ public class TrasladoHuevosService : ITrasladoHuevosService
 
         try
         {
-            // Marcar como completado
             traslado.Procesar();
             await _context.SaveChangesAsync();
 
-            // Aplicar descuento en registro diario de producción
-            await AplicarDescuentoEnProduccionDiariaAsync(traslado);
+            if (traslado.LotePosturaProduccionId.HasValue)
+                await AplicarDescuentoEnEspejoAsync(traslado);
+            else
+                await AplicarDescuentoEnProduccionDiariaAsync(traslado);
 
             // Las reducciones se calculan automáticamente en DisponibilidadLoteService
             // al restar los traslados completados de los totales acumulados
@@ -136,6 +158,71 @@ public class TrasladoHuevosService : ITrasladoHuevosService
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Aplica descuento en espejo_huevo_produccion (huevo_*_dinamico). Solo para traslados LPP.
+    /// </summary>
+    private async Task AplicarDescuentoEnEspejoAsync(TrasladoHuevos traslado)
+    {
+        if (!traslado.LotePosturaProduccionId.HasValue) return;
+
+        var espejo = await _context.EspejoHuevoProduccion
+            .FirstOrDefaultAsync(e =>
+                e.LotePosturaProduccionId == traslado.LotePosturaProduccionId.Value &&
+                e.CompanyId == _currentUser.CompanyId);
+
+        if (espejo == null)
+            throw new InvalidOperationException($"No existe registro en espejo_huevo_produccion para el lote LPP {traslado.LotePosturaProduccionId}. Ejecute el backfill si es necesario.");
+
+        espejo.HuevoTotDinamico = Math.Max(0, espejo.HuevoTotDinamico - traslado.TotalHuevos);
+        espejo.HuevoIncDinamico = Math.Max(0, espejo.HuevoIncDinamico - (traslado.CantidadLimpio + traslado.CantidadTratado));
+        espejo.HuevoLimpioDinamico = Math.Max(0, espejo.HuevoLimpioDinamico - traslado.CantidadLimpio);
+        espejo.HuevoTratadoDinamico = Math.Max(0, espejo.HuevoTratadoDinamico - traslado.CantidadTratado);
+        espejo.HuevoSucioDinamico = Math.Max(0, espejo.HuevoSucioDinamico - traslado.CantidadSucio);
+        espejo.HuevoDeformeDinamico = Math.Max(0, espejo.HuevoDeformeDinamico - traslado.CantidadDeforme);
+        espejo.HuevoBlancoDinamico = Math.Max(0, espejo.HuevoBlancoDinamico - traslado.CantidadBlanco);
+        espejo.HuevoDobleYemaDinamico = Math.Max(0, espejo.HuevoDobleYemaDinamico - traslado.CantidadDobleYema);
+        espejo.HuevoPisoDinamico = Math.Max(0, espejo.HuevoPisoDinamico - traslado.CantidadPiso);
+        espejo.HuevoPequenoDinamico = Math.Max(0, espejo.HuevoPequenoDinamico - traslado.CantidadPequeno);
+        espejo.HuevoRotoDinamico = Math.Max(0, espejo.HuevoRotoDinamico - traslado.CantidadRoto);
+        espejo.HuevoDesechoDinamico = Math.Max(0, espejo.HuevoDesechoDinamico - traslado.CantidadDesecho);
+        espejo.HuevoOtroDinamico = Math.Max(0, espejo.HuevoOtroDinamico - traslado.CantidadOtro);
+        espejo.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Revierte descuento en espejo (suma las cantidades). Solo para traslados LPP al cancelar.
+    /// </summary>
+    private async Task RevertirDescuentoEnEspejoAsync(TrasladoHuevos traslado)
+    {
+        if (!traslado.LotePosturaProduccionId.HasValue) return;
+
+        var espejo = await _context.EspejoHuevoProduccion
+            .FirstOrDefaultAsync(e =>
+                e.LotePosturaProduccionId == traslado.LotePosturaProduccionId.Value &&
+                e.CompanyId == _currentUser.CompanyId);
+
+        if (espejo == null) return;
+
+        espejo.HuevoTotDinamico += traslado.TotalHuevos;
+        espejo.HuevoIncDinamico += traslado.CantidadLimpio + traslado.CantidadTratado;
+        espejo.HuevoLimpioDinamico += traslado.CantidadLimpio;
+        espejo.HuevoTratadoDinamico += traslado.CantidadTratado;
+        espejo.HuevoSucioDinamico += traslado.CantidadSucio;
+        espejo.HuevoDeformeDinamico += traslado.CantidadDeforme;
+        espejo.HuevoBlancoDinamico += traslado.CantidadBlanco;
+        espejo.HuevoDobleYemaDinamico += traslado.CantidadDobleYema;
+        espejo.HuevoPisoDinamico += traslado.CantidadPiso;
+        espejo.HuevoPequenoDinamico += traslado.CantidadPequeno;
+        espejo.HuevoRotoDinamico += traslado.CantidadRoto;
+        espejo.HuevoDesechoDinamico += traslado.CantidadDesecho;
+        espejo.HuevoOtroDinamico += traslado.CantidadOtro;
+        espejo.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
     }
 
     /// <summary>
@@ -370,10 +457,17 @@ public class TrasladoHuevosService : ITrasladoHuevosService
     }
 
     /// <summary>
-    /// Devuelve los huevos al inventario (seguimiento diario producción) cuando se cancela un traslado.
+    /// Devuelve los huevos al inventario cuando se cancela un traslado.
+    /// Si LPP: suma en espejo. Si legacy: suma en seguimiento_diario.
     /// </summary>
     private async Task DevolverHuevosAlInventarioAsync(TrasladoHuevos traslado)
     {
+        if (traslado.LotePosturaProduccionId.HasValue)
+        {
+            await RevertirDescuentoEnEspejoAsync(traslado);
+            return;
+        }
+
         var fechaTraslado = traslado.FechaTraslado.Date;
         var loteIdStr = traslado.LoteId;
         if (string.IsNullOrEmpty(loteIdStr)) return;
@@ -532,12 +626,13 @@ public class TrasladoHuevosService : ITrasladoHuevosService
                 }
             }
 
-            // Si hay cantidades adicionales que validar, verificar disponibilidad
             if (cantidadesParaValidar.Count > 0)
             {
-                var hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosAsync(
-                    traslado.LoteId, 
-                    cantidadesParaValidar);
+                bool hayDisponibilidad;
+                if (traslado.LotePosturaProduccionId.HasValue)
+                    hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosLPPAsync(traslado.LotePosturaProduccionId.Value, cantidadesParaValidar);
+                else
+                    hayDisponibilidad = await _disponibilidadService.ValidarDisponibilidadHuevosAsync(traslado.LoteId, cantidadesParaValidar);
 
                 if (!hayDisponibilidad)
                 {
@@ -719,18 +814,35 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             .Where(l => l.LoteId.HasValue)
             .ToDictionaryAsync(l => l.LoteId!.Value, l => l.LoteNombre ?? string.Empty);
 
-        // Convertir a DTOs después de materializar
-        return traslados.Select(t => ToDtoSync(t, granjas, lotes));
+        var lppIds = traslados.Where(t => t.LotePosturaProduccionId.HasValue).Select(t => t.LotePosturaProduccionId!.Value).Distinct().ToList();
+        Dictionary<int, string>? lppNombres = null;
+        if (lppIds.Count > 0)
+        {
+            var lppList = await _context.LotePosturaProduccion.AsNoTracking().Where(l => lppIds.Contains(l.LotePosturaProduccionId ?? 0)).ToListAsync();
+            lppNombres = lppList.Where(l => l.LotePosturaProduccionId.HasValue).ToDictionary(l => l.LotePosturaProduccionId!.Value, l => l.LoteNombre ?? string.Empty);
+        }
+
+        return traslados.Select(t => ToDtoSync(t, granjas, lotes, lppNombres));
     }
 
     private async Task<TrasladoHuevosDto> ToDtoAsync(TrasladoHuevos traslado)
     {
-        // Obtener información del lote
-        var loteIdInt = int.TryParse(traslado.LoteId, out var id) ? id : 0;
-        var lote = await _context.Lotes
-            .AsNoTracking()
-            .Include(l => l.Farm)
-            .FirstOrDefaultAsync(l => l.LoteId == loteIdInt);
+        string loteNombre;
+        if (traslado.LotePosturaProduccionId.HasValue)
+        {
+            var lpp = await _context.LotePosturaProduccion
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == traslado.LotePosturaProduccionId.Value);
+            loteNombre = lpp?.LoteNombre ?? string.Empty;
+        }
+        else
+        {
+            var loteIdInt = int.TryParse(traslado.LoteId, out var id) ? id : 0;
+            var lote = await _context.Lotes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == loteIdInt);
+            loteNombre = lote?.LoteNombre ?? string.Empty;
+        }
 
         var granjaOrigen = await _context.Farms
             .AsNoTracking()
@@ -751,7 +863,8 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             FechaTraslado = traslado.FechaTraslado,
             TipoOperacion = traslado.TipoOperacion,
             LoteId = traslado.LoteId,
-            LoteNombre = lote?.LoteNombre ?? string.Empty,
+            LotePosturaProduccionId = traslado.LotePosturaProduccionId,
+            LoteNombre = loteNombre,
             GranjaOrigenId = traslado.GranjaOrigenId,
             GranjaOrigenNombre = granjaOrigen?.Name ?? string.Empty,
             GranjaDestinoId = traslado.GranjaDestinoId,
@@ -783,13 +896,16 @@ public class TrasladoHuevosService : ITrasladoHuevosService
         };
     }
 
-    private TrasladoHuevosDto ToDtoSync(TrasladoHuevos traslado, Dictionary<int, string>? granjas = null, Dictionary<int, string>? lotes = null)
+    private TrasladoHuevosDto ToDtoSync(TrasladoHuevos traslado, Dictionary<int, string>? granjas = null, Dictionary<int, string>? lotes = null, Dictionary<int, string>? lppNombres = null)
     {
-        // Obtener nombres de granjas y lotes si están disponibles
-        var loteIdInt = int.TryParse(traslado.LoteId, out var id) ? id : 0;
-        var loteNombre = lotes != null && loteIdInt > 0 && lotes.ContainsKey(loteIdInt) 
-            ? lotes[loteIdInt] 
-            : string.Empty;
+        string loteNombre;
+        if (traslado.LotePosturaProduccionId.HasValue && lppNombres != null && lppNombres.TryGetValue(traslado.LotePosturaProduccionId.Value, out var lppNom))
+            loteNombre = lppNom;
+        else
+        {
+            var loteIdInt = int.TryParse(traslado.LoteId, out var id) ? id : 0;
+            loteNombre = lotes != null && loteIdInt > 0 && lotes.ContainsKey(loteIdInt) ? lotes[loteIdInt] : string.Empty;
+        }
         
         var granjaOrigenNombre = granjas != null && granjas.ContainsKey(traslado.GranjaOrigenId)
             ? granjas[traslado.GranjaOrigenId]
@@ -807,6 +923,7 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             FechaTraslado = traslado.FechaTraslado,
             TipoOperacion = traslado.TipoOperacion,
             LoteId = traslado.LoteId,
+            LotePosturaProduccionId = traslado.LotePosturaProduccionId,
             LoteNombre = loteNombre,
             GranjaOrigenId = traslado.GranjaOrigenId,
             GranjaOrigenNombre = granjaOrigenNombre,

@@ -23,6 +23,8 @@ public class ItemSeguimientoDto
 public class CreateSeguimientoLoteLevanteRequest
 {
     public int LoteId { get; set; }
+    /// <summary>ID de lote_postura_levante. Solo aplica para seguimiento tipo levante.</summary>
+    public int? LotePosturaLevanteId { get; set; }
     public DateTime FechaRegistro { get; set; }
     
     public int MortalidadHembras { get; set; }
@@ -140,6 +142,7 @@ public class CreateSeguimientoLoteLevanteRequest
         return new SeguimientoLoteLevanteDto(
             Id: id ?? 0,
             LoteId: LoteId,
+            LotePosturaLevanteId: LotePosturaLevanteId,
             FechaRegistro: FechaRegistro,
             MortalidadHembras: MortalidadHembras,
             MortalidadMachos: MortalidadMachos,

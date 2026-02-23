@@ -43,7 +43,8 @@ public record SeguimientoItemDto(
     double? ConsumoAguaDiario, // Consumo diario de agua en litros
     double? ConsumoAguaPh, // Nivel de PH del agua
     double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
-    double? ConsumoAguaTemperatura // Temperatura del agua en °C
+    double? ConsumoAguaTemperatura, // Temperatura del agua en °C
+    int? LotePosturaProduccionId = null
 );
 
 

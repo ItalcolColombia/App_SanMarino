@@ -276,5 +276,108 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
 
         return true;
     }
+
+    /// <inheritdoc />
+    public async Task<DisponibilidadLoteDto?> ObtenerDisponibilidadLoteLPPAsync(int lotePosturaProduccionId)
+    {
+        var lpp = await _context.LotePosturaProduccion
+            .AsNoTracking()
+            .Include(l => l.Farm)
+            .Include(l => l.Nucleo)
+            .Include(l => l.Galpon)
+            .FirstOrDefaultAsync(l =>
+                l.LotePosturaProduccionId == lotePosturaProduccionId &&
+                (l.EmpresaId == null || l.EmpresaId == _currentUser.CompanyId));
+
+        if (lpp == null) return null;
+
+        var espejo = await _context.EspejoHuevoProduccion
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e =>
+                e.LotePosturaProduccionId == lotePosturaProduccionId &&
+                e.CompanyId == _currentUser.CompanyId);
+
+        if (espejo == null)
+        {
+            return new DisponibilidadLoteDto
+            {
+                LoteId = lpp.LotePosturaProduccionId ?? lotePosturaProduccionId,
+                LoteNombre = lpp.LoteNombre ?? string.Empty,
+                TipoLote = "Produccion",
+                LotePosturaProduccionId = lotePosturaProduccionId,
+                Huevos = new HuevosDisponiblesDto
+                {
+                    TotalHuevos = 0,
+                    TotalHuevosIncubables = 0,
+                    Limpio = 0, Tratado = 0, Sucio = 0, Deforme = 0, Blanco = 0,
+                    DobleYema = 0, Piso = 0, Pequeno = 0, Roto = 0, Desecho = 0, Otro = 0,
+                    DiasEnProduccion = lpp.FechaInicioProduccion.HasValue
+                        ? (int)(DateTime.Today - lpp.FechaInicioProduccion.Value.Date).TotalDays
+                        : 0
+                },
+                GranjaId = lpp.GranjaId,
+                GranjaNombre = lpp.Farm?.Name ?? string.Empty,
+                NucleoId = lpp.NucleoId,
+                NucleoNombre = lpp.Nucleo?.NucleoNombre,
+                GalponId = lpp.GalponId,
+                GalponNombre = lpp.Galpon?.GalponNombre
+            };
+        }
+
+        var huevos = new HuevosDisponiblesDto
+        {
+            TotalHuevos = espejo.HuevoTotDinamico,
+            TotalHuevosIncubables = espejo.HuevoIncDinamico,
+            Limpio = espejo.HuevoLimpioDinamico,
+            Tratado = espejo.HuevoTratadoDinamico,
+            Sucio = espejo.HuevoSucioDinamico,
+            Deforme = espejo.HuevoDeformeDinamico,
+            Blanco = espejo.HuevoBlancoDinamico,
+            DobleYema = espejo.HuevoDobleYemaDinamico,
+            Piso = espejo.HuevoPisoDinamico,
+            Pequeno = espejo.HuevoPequenoDinamico,
+            Roto = espejo.HuevoRotoDinamico,
+            Desecho = espejo.HuevoDesechoDinamico,
+            Otro = espejo.HuevoOtroDinamico,
+            DiasEnProduccion = lpp.FechaInicioProduccion.HasValue
+                ? (int)(DateTime.Today - lpp.FechaInicioProduccion.Value.Date).TotalDays
+                : 0
+        };
+
+        return new DisponibilidadLoteDto
+        {
+            LoteId = lpp.LotePosturaProduccionId ?? lotePosturaProduccionId,
+            LoteNombre = lpp.LoteNombre ?? string.Empty,
+            TipoLote = "Produccion",
+            LotePosturaProduccionId = lotePosturaProduccionId,
+            Huevos = huevos,
+            GranjaId = lpp.GranjaId,
+            GranjaNombre = lpp.Farm?.Name ?? string.Empty,
+            NucleoId = lpp.NucleoId,
+            NucleoNombre = lpp.Nucleo?.NucleoNombre,
+            GalponId = lpp.GalponId,
+                GalponNombre = lpp.Galpon?.GalponNombre
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ValidarDisponibilidadHuevosLPPAsync(int lotePosturaProduccionId, Dictionary<string, int> cantidadesPorTipo)
+    {
+        var disp = await ObtenerDisponibilidadLoteLPPAsync(lotePosturaProduccionId);
+        if (disp?.Huevos == null) return false;
+        var h = disp.Huevos;
+        if (cantidadesPorTipo.ContainsKey("Limpio") && cantidadesPorTipo["Limpio"] > h.Limpio) return false;
+        if (cantidadesPorTipo.ContainsKey("Tratado") && cantidadesPorTipo["Tratado"] > h.Tratado) return false;
+        if (cantidadesPorTipo.ContainsKey("Sucio") && cantidadesPorTipo["Sucio"] > h.Sucio) return false;
+        if (cantidadesPorTipo.ContainsKey("Deforme") && cantidadesPorTipo["Deforme"] > h.Deforme) return false;
+        if (cantidadesPorTipo.ContainsKey("Blanco") && cantidadesPorTipo["Blanco"] > h.Blanco) return false;
+        if (cantidadesPorTipo.ContainsKey("DobleYema") && cantidadesPorTipo["DobleYema"] > h.DobleYema) return false;
+        if (cantidadesPorTipo.ContainsKey("Piso") && cantidadesPorTipo["Piso"] > h.Piso) return false;
+        if (cantidadesPorTipo.ContainsKey("Pequeno") && cantidadesPorTipo["Pequeno"] > h.Pequeno) return false;
+        if (cantidadesPorTipo.ContainsKey("Roto") && cantidadesPorTipo["Roto"] > h.Roto) return false;
+        if (cantidadesPorTipo.ContainsKey("Desecho") && cantidadesPorTipo["Desecho"] > h.Desecho) return false;
+        if (cantidadesPorTipo.ContainsKey("Otro") && cantidadesPorTipo["Otro"] > h.Otro) return false;
+        return true;
+    }
 }
 

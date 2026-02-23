@@ -12,6 +12,7 @@ public record TrasladoHuevosDto
     public string TipoOperacion { get; init; } = string.Empty;
     
     public string LoteId { get; init; } = string.Empty;
+    public int? LotePosturaProduccionId { get; init; }
     public string LoteNombre { get; init; } = string.Empty;
     public int GranjaOrigenId { get; init; }
     public string GranjaOrigenNombre { get; init; } = string.Empty;

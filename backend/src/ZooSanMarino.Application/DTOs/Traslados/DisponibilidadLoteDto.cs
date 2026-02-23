@@ -9,6 +9,8 @@ public record DisponibilidadLoteDto
     public int LoteId { get; init; }
     public string LoteNombre { get; init; } = string.Empty;
     public string TipoLote { get; init; } = string.Empty; // "Levante" o "Produccion"
+    /// <summary>ID de lote_postura_produccion cuando la disponibilidad proviene del espejo LPP.</summary>
+    public int? LotePosturaProduccionId { get; init; }
     
     // Información de aves (si es levante)
     public AvesDisponiblesDto? Aves { get; init; }
