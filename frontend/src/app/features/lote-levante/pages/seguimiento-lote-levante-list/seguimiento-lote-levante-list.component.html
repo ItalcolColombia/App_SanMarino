@@ -66,8 +66,8 @@
           type="button"
           (click)="create()"
           class="btn btn--primary"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
+          [disabled]="!selectedLoteId || isLoteCerrado"
+          [title]="isLoteCerrado ? 'El lote está cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
           Nuevo registro
         </button>
       </div>
@@ -93,6 +93,8 @@
       [selectedLote]="selectedLote"
       [resumenLevante]="resumenSelected"
       [loading]="loading"
+      [disableCreateEditDelete]="isLoteCerrado"
+      [isLoteCerrado]="isLoteCerrado"
       (create)="create()"
       (edit)="edit($event)"
       (delete)="delete($event)"
@@ -107,6 +109,7 @@
   [editing]="editing"
   [lotes]="lotes"
   [selectedLoteId]="selectedLoteId"
+  [lotePosturaLevanteId]="selectedLote?.lotePosturaLevanteId ?? null"
   [loading]="loading"
   (close)="cancel()"
   (save)="onSave($event)">
@@ -126,6 +129,14 @@
   [loteNombre]="selectedLoteNombre"
   (close)="closeCalculos()">
 </app-modal-calculos>
+
+<!-- ================= MODAL: LOTE CERRADO (alerta informativa) ================= -->
+<app-confirmation-modal
+  [isOpen]="loteCerradoModalOpen"
+  [data]="loteCerradoModalData"
+  (confirmed)="loteCerradoModalOpen = false"
+  (closed)="loteCerradoModalOpen = false">
+</app-confirmation-modal>
 
 <!-- ================= MODAL: LIQUIDACIÓN TÉCNICA ================= -->
 <app-modal-liquidacion

@@ -9,6 +9,7 @@ import { MasterListService } from '../../../../core/services/master-list/master-
 import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { NucleoService, NucleoDto } from '../../../lote-produccion/services/nucleo.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-modal-traslado-huevos',
@@ -20,6 +21,8 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   @Input() isOpen: boolean = false;
   @Input() loteId: number | null = null;
+  /** Lote LPP: cuando está presente, se usa flujo LPP (espejo, filter-data) */
+  @Input() lotePosturaProduccionId: number | null = null;
   @Input() editingTraslado: TrasladoHuevosDto | null = null;
 
   @Output() close = new EventEmitter<void>();
@@ -89,6 +92,12 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   // Motivos de venta desde lista maestra
   motivosVenta = signal<string[]>([]);
 
+  /** Flag para cargar catálogos solo una vez al abrir el modal */
+  private catalogosCargados = false;
+
+  /** URL filter-data para FiltroSelect destino (evita Farm.getAll duplicado) */
+  readonly filterDataUrl = `${environment.apiUrl}/traslados/filter-data`;
+
   // Filtros para seleccionar lote destino (solo cuando tipo destino es Granja)
   selectedGranjaDestinoId: number | null = null;
   selectedNucleoDestinoId: string | null = null;
@@ -123,6 +132,13 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   }
 
   ngOnInit(): void {
+    // Catálogos se cargan al abrir el modal (ngOnChanges isOpen) para evitar llamadas múltiples
+  }
+
+  /** Carga Farm y listas maestras solo cuando se abre el modal y una sola vez */
+  private cargarCatalogosSiNecesario(): void {
+    if (this.catalogosCargados) return;
+    this.catalogosCargados = true;
     this.cargarGranjas();
     this.cargarTiposOperacion();
     this.cargarTiposDestino();
@@ -243,7 +259,11 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen) {
-      if (this.loteId) {
+      this.cargarCatalogosSiNecesario();
+      if (this.lotePosturaProduccionId) {
+        this.loteInfo.set({ loteId: this.lotePosturaProduccionId, loteNombre: 'Lote LPP', granjaId: 0 } as LoteDto);
+        this.cargarDisponibilidadLPP(this.lotePosturaProduccionId);
+      } else if (this.loteId) {
         this.cargarLoteInfo(this.loteId);
         this.cargarDisponibilidad(this.loteId.toString());
       }
@@ -258,8 +278,10 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
           this.isEditMode.set(true);
         }
         this.loadEditingData();
-        // Si estamos editando, cargar el lote desde el traslado
-        if (this.editingTraslado.loteId) {
+        if (this.editingTraslado.lotePosturaProduccionId) {
+          this.cargarDisponibilidadLPP(this.editingTraslado.lotePosturaProduccionId);
+          this.loteInfo.set({ loteId: this.editingTraslado.lotePosturaProduccionId, loteNombre: this.editingTraslado.loteNombre, granjaId: 0 } as LoteDto);
+        } else if (this.editingTraslado.loteId) {
           const loteIdNum = Number(this.editingTraslado.loteId);
           if (!isNaN(loteIdNum)) {
             this.cargarDisponibilidad(this.editingTraslado.loteId);
@@ -283,7 +305,10 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
         }
         this.loadEditingData();
         // Cargar el lote desde el traslado
-        if (this.editingTraslado.loteId) {
+        if (this.editingTraslado.lotePosturaProduccionId) {
+          this.cargarDisponibilidadLPP(this.editingTraslado.lotePosturaProduccionId);
+          this.loteInfo.set({ loteId: this.editingTraslado.lotePosturaProduccionId, loteNombre: this.editingTraslado.loteNombre, granjaId: 0 } as LoteDto);
+        } else if (this.editingTraslado.loteId) {
           const loteIdNum = Number(this.editingTraslado.loteId);
           if (!isNaN(loteIdNum)) {
             this.cargarDisponibilidad(this.editingTraslado.loteId);
@@ -295,6 +320,22 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
         this.resetForm();
       }
     }
+  }
+
+  private cargarDisponibilidadLPP(lotePosturaProduccionId: number): void {
+    this.loadingDisponibilidad.set(true);
+    this.error.set(null);
+    this.trasladosService.getDisponibilidadLoteLPP(lotePosturaProduccionId).subscribe({
+      next: (disp) => {
+        this.disponibilidad.set(disp);
+        this.loadingDisponibilidad.set(false);
+      },
+      error: () => {
+        this.error.set('Error al cargar disponibilidad del lote');
+        this.disponibilidad.set(null);
+        this.loadingDisponibilidad.set(false);
+      }
+    });
   }
 
   private cargarLoteInfo(loteId?: number): void {
@@ -429,7 +470,7 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     // Usar el primer valor de la lista maestra como valor por defecto
     const tipoOperacionDefault = this.tiposOperacion().length > 0 ? this.tiposOperacion()[0] : '';
     this.formHuevos.reset({
-      loteId: this.loteId?.toString() || '',
+      loteId: this.lotePosturaProduccionId ? `LPP-${this.lotePosturaProduccionId}` : (this.loteId?.toString() || ''),
       fechaTraslado: hoyHuevos,
       tipoOperacion: tipoOperacionDefault,
       tipoDestino: null,
@@ -589,8 +630,10 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
       ? new Date(formValue.fechaTraslado)
       : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
 
+    const lppId = this.lotePosturaProduccionId ?? (formValue.lotePosturaProduccionId ? Number(formValue.lotePosturaProduccionId) : undefined);
     const dto: CrearTrasladoHuevosDto = {
-      loteId: String(formValue.loteId || this.loteId),
+      lotePosturaProduccionId: lppId,
+      loteId: lppId ? '' : String(formValue.loteId || this.loteId),
       fechaTraslado: fechaTraslado,
       tipoOperacion: formValue.tipoOperacion,
       cantidadLimpio: formValue.cantidadLimpio || 0,
@@ -672,9 +715,10 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
         }
       });
     } else {
-      // Crear nuevo traslado
+      const lppId = this.lotePosturaProduccionId ?? (formValue.lotePosturaProduccionId ? Number(formValue.lotePosturaProduccionId) : undefined);
       const dto: CrearTrasladoHuevosDto = {
-        loteId: String(formValue.loteId || this.loteId),
+        lotePosturaProduccionId: lppId,
+        loteId: lppId ? '' : String(formValue.loteId || this.loteId),
         fechaTraslado: fechaTraslado,
         tipoOperacion: formValue.tipoOperacion,
         cantidadLimpio: formValue.cantidadLimpio || 0,

@@ -4,15 +4,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
+import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { ModalTrasladoHuevosComponent } from '../../components/modal-traslado-huevos/modal-traslado-huevos.component';
 import { TrasladosHuevosService, TrasladoHuevosDto } from '../../services/traslados-huevos.service';
-import { LoteService, LoteDto } from '../../../lote/services/lote.service';
-import { FarmService, FarmDto } from '../../../farm/services/farm.service';
-import { NucleoService, NucleoDto } from '../../../lote-produccion/services/nucleo.service';
-import { GalponService } from '../../../galpon/services/galpon.service';
-import { GalponDetailDto } from '../../../galpon/models/galpon.models';
-import { ProduccionService } from '../../../lote-produccion/services/produccion.service';
+import { FarmDto } from '../../../farm/services/farm.service';
+import { NucleoDto } from '../../../lote-produccion/services/nucleo.service';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-traslados-huevos-list',
@@ -22,13 +19,15 @@ import { ProduccionService } from '../../../lote-produccion/services/produccion.
   styleUrls: ['./traslados-huevos-list.component.scss']
 })
 export class TrasladosHuevosListComponent implements OnInit {
-  // ================== constantes / sentinelas ==================
-  readonly SIN_GALPON = '__SIN_GALPON__';
+  // ================== filter-data (igual que SeguimientoProduccion) ==================
+  /** URL para filter-data: Granja → Núcleo → Galpón → Lote LPP en una sola petición */
+  readonly filterDataUrl = `${environment.apiUrl}/traslados/filter-data`;
 
-  // ================== catálogos (otros) ==================
+  // ================== catálogos (desde filter-data) ==================
   granjas: FarmDto[] = [];
   nucleos: NucleoDto[] = [];
-  galpones: Array<{ id: string; label: string }> = [];
+  galpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }> = [];
+  lotes: Array<{ loteId: number; loteNombre: string; fechaEncaset?: string | null }> = [];
 
   // ================== selección / filtro ==================
   selectedGranjaId: number | null = null;
@@ -37,11 +36,10 @@ export class TrasladosHuevosListComponent implements OnInit {
   selectedLoteId: number | null = null;
 
   // ================== datos ==================
-  private allLotes: LoteDto[] = [];
-  lotes: LoteDto[] = [];
   traslados: TrasladoHuevosDto[] = [];
   filteredTraslados: TrasladoHuevosDto[] = [];
-  selectedLote: LoteDto | null = null;
+  /** Lote LPP seleccionado (para fechaEncaset, etc.) */
+  selectedLoteInfo: { loteNombre: string; fechaEncaset?: string | null } | null = null;
 
   // ================== Filtros de tabla ==================
   filtroBusqueda: string = '';
@@ -53,8 +51,6 @@ export class TrasladosHuevosListComponent implements OnInit {
   error: string | null = null;
   modalOpen = false;
   editingTraslado: TrasladoHuevosDto | null = null;
-
-  private galponNameById = new Map<string, string>();
 
   // ================== GETTERS ==================
   get selectedGranjaName(): string {
@@ -68,87 +64,44 @@ export class TrasladosHuevosListComponent implements OnInit {
   }
 
   get selectedGalponNombre(): string {
-    if (this.selectedGalponId === this.SIN_GALPON) return '— Sin galpón —';
-    const id = (this.selectedGalponId ?? '').trim();
-    return this.galponNameById.get(id) || id;
+    if (this.selectedGalponId === '__SIN_GALPON__') return '— Sin galpón —';
+    const g = this.galpones.find(x => String(x.galponId).trim() === String(this.selectedGalponId).trim());
+    return g?.galponNombre ?? this.selectedGalponId?.toString() ?? '—';
   }
 
   get selectedLoteNombre(): string {
     const l = this.lotes.find(x => x.loteId === this.selectedLoteId);
-    return l?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
+    return l?.loteNombre ?? this.selectedLoteInfo?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
   }
 
-  constructor(
-    private farmSvc: FarmService,
-    private nucleoSvc: NucleoService,
-    private loteSvc: LoteService,
-    private galponSvc: GalponService,
-    private produccionSvc: ProduccionService,
-    private trasladosService: TrasladosHuevosService
-  ) {}
+  constructor(private trasladosService: TrasladosHuevosService) {}
 
   // ================== INIT ==================
   ngOnInit(): void {
-    // Inicializar filteredTraslados
     this.filteredTraslados = [];
-    // cargar catálogos de granjas, etc.
-    this.farmSvc.getAll().subscribe({
-      next: fs => (this.granjas = fs || []),
-      error: () => (this.granjas = [])
-    });
   }
 
-
-  // ================== CARGA GALPONES ==================
-  private loadGalponCatalog(): void {
-    this.galponNameById.clear();
-    if (!this.selectedGranjaId) return;
-
-    if (this.selectedNucleoId) {
-      this.galponSvc.getByGranjaAndNucleo(this.selectedGranjaId, this.selectedNucleoId).subscribe({
-        next: rows => this.fillGalponMap(rows),
-        error: () => this.galponNameById.clear(),
-      });
-      return;
-    }
-
-    this.galponSvc.search({ granjaId: this.selectedGranjaId, page: 1, pageSize: 1000, soloActivos: true })
-      .subscribe({
-        next: res => this.fillGalponMap(res?.items || []),
-        error: () => this.galponNameById.clear(),
-      });
+  onFilterDataLoaded(data: FilterDataResponse): void {
+    this.granjas = data.farms ?? [];
+    this.nucleos = data.nucleos ?? [];
+    this.galpones = data.galpones ?? [];
+    const raw = data.lotes ?? [];
+    this.lotes = raw.map((l: any) => ({
+      loteId: l.lotePosturaProduccionId ?? l.loteId,
+      loteNombre: l.loteNombre ?? '',
+      fechaEncaset: l.fechaEncaset ?? null
+    }));
   }
 
-  private fillGalponMap(rows: GalponDetailDto[] | null | undefined): void {
-    for (const g of rows || []) {
-      const id = String(g.galponId).trim();
-      if (!id) continue;
-      this.galponNameById.set(id, (g.galponNombre || id).trim());
-    }
-    this.buildGalponesFromLotes();
-  }
-
-  // ================== CASCADA DE FILTROS ==================
+  // ================== CASCADA DE FILTROS (manejados por FiltroSelectComponent) ==================
   onGranjaChange(granjaId: number | null): void {
     this.selectedGranjaId = granjaId;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.traslados = [];
-    this.galpones = [];
-    this.lotes = [];
-    this.selectedLote = null;
-    this.nucleos = [];
-
-    if (!this.selectedGranjaId) return;
-
-    this.nucleoSvc.getByGranja(this.selectedGranjaId).subscribe({
-      next: rows => (this.nucleos = rows || []),
-      error: () => (this.nucleos = [])
-    });
-
-    this.reloadLotesThenApplyFilters();
-    this.loadGalponCatalog();
+    this.filteredTraslados = [];
+    this.selectedLoteInfo = null;
   }
 
   onNucleoChange(nucleoId: string | null): void {
@@ -156,113 +109,28 @@ export class TrasladosHuevosListComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.traslados = [];
-    this.selectedLote = null;
-    this.applyFiltersToLotes();
-    this.loadGalponCatalog();
+    this.filteredTraslados = [];
+    this.selectedLoteInfo = null;
   }
 
   onGalponChange(galponId: string | null): void {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
     this.traslados = [];
-    this.selectedLote = null;
-    this.applyFiltersToLotes();
+    this.filteredTraslados = [];
+    this.selectedLoteInfo = null;
   }
 
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.traslados = [];
-    this.selectedLote = null;
+    this.filteredTraslados = [];
+    const l = this.lotes.find(x => x.loteId === loteId);
+    this.selectedLoteInfo = l ? { loteNombre: l.loteNombre, fechaEncaset: l.fechaEncaset } : null;
 
     if (!this.selectedLoteId) return;
 
-    this.loading = true;
-
-    // Cargar datos del lote
-    this.loteSvc.getById(this.selectedLoteId).subscribe({
-      next: l => {
-        this.selectedLote = l || null;
-        this.loadTraslados();
-      },
-      error: () => {
-        this.selectedLote = null;
-        this.loading = false;
-      }
-    });
-  }
-
-  // ================== CARGA Y FILTRADO ==================
-  private reloadLotesThenApplyFilters(): void {
-    // Usar el endpoint que filtra lotes con semana >= 26 (producción)
-    this.loading = true;
-    this.produccionSvc.obtenerLotesProduccion()
-      .pipe(finalize(() => (this.loading = false)))
-      .subscribe({
-        next: (lotes) => {
-          this.allLotes = lotes || [];
-          this.applyFiltersToLotes();
-          this.buildGalponesFromLotes();
-        },
-        error: (err) => {
-          console.error('Error al cargar lotes de producción:', err);
-          this.allLotes = [];
-          this.applyFiltersToLotes();
-          this.buildGalponesFromLotes();
-        }
-      });
-  }
-
-  private applyFiltersToLotes(): void {
-    if (!this.selectedGranjaId) { this.lotes = []; return; }
-    const gid = String(this.selectedGranjaId);
-
-    let filtered = this.allLotes.filter(l => String(l.granjaId) === gid);
-
-    if (this.selectedNucleoId) {
-      const nid = String(this.selectedNucleoId);
-      filtered = filtered.filter(l => String(l.nucleoId) === nid);
-    }
-
-    if (!this.selectedGalponId) { this.lotes = filtered; return; }
-
-    if (this.selectedGalponId === this.SIN_GALPON) {
-      this.lotes = filtered.filter(l => !this.hasValue(l.galponId));
-      return;
-    }
-
-    const sel = this.normalizeId(this.selectedGalponId);
-    this.lotes = filtered.filter(l => this.normalizeId(l.galponId) === sel);
-  }
-
-  private buildGalponesFromLotes(): void {
-    if (!this.selectedGranjaId) {
-      this.galpones = [];
-      return;
-    }
-
-    const gid = String(this.selectedGranjaId);
-    let base = this.allLotes.filter(l => String(l.granjaId) === gid);
-
-    if (this.selectedNucleoId) {
-      const nid = String(this.selectedNucleoId);
-      base = base.filter(l => String(l.nucleoId) === nid);
-    }
-
-    const seen = new Set<string>();
-    const result: Array<{ id: string; label: string }> = [];
-
-    for (const l of base) {
-      const id = this.normalizeId(l.galponId);
-      if (!id) continue;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const label = this.galponNameById.get(id) || id;
-      result.push({ id, label });
-    }
-
-    this.galpones = result.sort((a, b) =>
-      a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' })
-    );
+    this.loadTraslados();
   }
 
   // ================== CARGA DE TRASLADOS ==================
@@ -272,7 +140,9 @@ export class TrasladosHuevosListComponent implements OnInit {
     this.loading = true;
     this.error = null;
 
-    this.trasladosService.getTrasladosHuevosPorLote(this.selectedLoteId.toString())
+    // Traslados LPP usan LoteId = "LPP-{id}"
+    const loteKey = `LPP-${this.selectedLoteId}`;
+    this.trasladosService.getTrasladosHuevosPorLote(loteKey)
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: (traslados) => {
@@ -437,10 +307,11 @@ export class TrasladosHuevosListComponent implements OnInit {
   }
 
   calcularEdadDiasDesdeEncasetamiento(): number {
-    if (!this.selectedLote?.fechaEncaset) return 0;
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
+    const fechaEncaset = this.selectedLoteInfo?.fechaEncaset;
+    if (!fechaEncaset) return 0;
+    const fecha = new Date(fechaEncaset);
     const hoy = new Date();
-    const diffTime = hoy.getTime() - fechaEncaset.getTime();
+    const diffTime = hoy.getTime() - fecha.getTime();
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   }
 }

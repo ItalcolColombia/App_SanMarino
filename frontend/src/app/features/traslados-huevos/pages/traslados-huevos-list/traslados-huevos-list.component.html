@@ -32,7 +32,7 @@
             Lote: {{ selectedLoteNombre }}
           </span>
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
+          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLoteInfo?.fechaEncaset">
             {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
           </span>
 
@@ -54,8 +54,9 @@
       </div>
     </header>
 
-    <!-- Filtros de selección -->
+    <!-- Filtros de selección (igual que SeguimientoProduccion: filter-data en una sola petición) -->
     <app-filtro-select
+      [filterDataUrl]="filterDataUrl"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -63,7 +64,8 @@
       (granjaChange)="onGranjaChange($event)"
       (nucleoChange)="onNucleoChange($event)"
       (galponChange)="onGalponChange($event)"
-      (loteChange)="onLoteChange($event)">
+      (loteChange)="onLoteChange($event)"
+      (filterDataLoaded)="onFilterDataLoaded($event)">
     </app-filtro-select>
 
     <!-- Mensaje de error -->
@@ -278,7 +280,7 @@
 <!-- Modal para crear/editar traslado -->
 <app-modal-traslado-huevos
   [isOpen]="modalOpen"
-  [loteId]="selectedLoteId"
+  [lotePosturaProduccionId]="selectedLoteId"
   [editingTraslado]="editingTraslado"
   (close)="closeModal()"
   (save)="onTrasladoSaved()">

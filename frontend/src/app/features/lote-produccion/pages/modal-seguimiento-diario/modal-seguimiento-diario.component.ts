@@ -26,6 +26,8 @@ interface CatalogItemExtended extends CatalogItemDto {
 export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   @Input() isOpen: boolean = false;
   @Input() produccionLoteId: number | null = null;
+  /** ID del lote postura producción (flujo LPP). Usar solo uno: produccionLoteId o lotePosturaProduccionId. */
+  @Input() lotePosturaProduccionId: number | null = null;
   @Input() editingSeguimiento: SeguimientoItemDto | null = null;
   @Input() loading: boolean = false;
   @Input() fechaEncaset: string | Date | null = null; // Fecha de encaset para calcular etapa
@@ -94,12 +96,16 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(): void {
-    if (this.isOpen) {
-      // Actualizar produccionLoteId en el formulario si está disponible
-      if (this.produccionLoteId && this.form) {
-        this.form.patchValue({ produccionLoteId: this.produccionLoteId });
+    if (this.isOpen && this.form) {
+      if (this.lotePosturaProduccionId != null) {
+        this.form.patchValue({ lotePosturaProduccionId: this.lotePosturaProduccionId, produccionLoteId: null });
+        this.form.get('produccionLoteId')?.clearValidators();
+      } else if (this.produccionLoteId) {
+        this.form.patchValue({ produccionLoteId: this.produccionLoteId, lotePosturaProduccionId: null });
       }
+    }
 
+    if (this.isOpen) {
       // Cargar inventario de la granja si está disponible (sin filtro inicial)
       if (this.granjaId) {
         this.cargarInventarioGranja(this.granjaId);
@@ -117,7 +123,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private initializeForm(): void {
     this.form = this.fb.group({
       fechaRegistro: [this.todayYMD(), Validators.required],
-      produccionLoteId: [null, Validators.required],
+      produccionLoteId: [null],
+      lotePosturaProduccionId: [null],
       mortalidadH: [0, [Validators.required, Validators.min(0)]],
       mortalidadM: [0, [Validators.required, Validators.min(0)]],
       selH: [0, [Validators.required, Validators.min(0)]],
@@ -288,7 +295,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     const fechaHoy = this.todayYMD();
     this.form.reset({
       fechaRegistro: fechaHoy,
-      produccionLoteId: this.produccionLoteId,
+      produccionLoteId: this.lotePosturaProduccionId != null ? null : this.produccionLoteId,
+      lotePosturaProduccionId: this.lotePosturaProduccionId,
       mortalidadH: 0,
       mortalidadM: 0,
       selH: 0,
@@ -414,7 +422,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
 
     this.form.patchValue({
       fechaRegistro: fechaRegistro,
-      produccionLoteId: this.editingSeguimiento.produccionLoteId,
+      produccionLoteId: this.editingSeguimiento.lotePosturaProduccionId ? null : this.editingSeguimiento.produccionLoteId,
+      lotePosturaProduccionId: this.editingSeguimiento.lotePosturaProduccionId ?? null,
       mortalidadH: this.editingSeguimiento.mortalidadH,
       mortalidadM: this.editingSeguimiento.mortalidadM,
       selH: this.editingSeguimiento.selH || 0,
@@ -554,8 +563,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Validación adicional: produccionLoteId es requerido
-    if (!this.produccionLoteId) {
+    if (!this.lotePosturaProduccionId && !this.produccionLoteId) {
       this.showErrorMessage('Error: No se pudo identificar el lote de producción. Por favor, intente nuevamente.');
       return;
     }
@@ -587,8 +595,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       if (nombres.length) tipoAlimentoVal = nombres.join(' / ');
     }
 
+    const useLPP = this.lotePosturaProduccionId != null;
     const request: CrearSeguimientoRequest = {
-      produccionLoteId: this.produccionLoteId,
+      produccionLoteId: useLPP ? undefined : this.produccionLoteId ?? undefined,
+      lotePosturaProduccionId: useLPP ? this.lotePosturaProduccionId ?? undefined : undefined,
       fechaRegistro: this.ymdToIsoAtNoon(ymd),
       mortalidadH: Number(raw.mortalidadH) || 0,
       mortalidadM: Number(raw.mortalidadM) || 0,

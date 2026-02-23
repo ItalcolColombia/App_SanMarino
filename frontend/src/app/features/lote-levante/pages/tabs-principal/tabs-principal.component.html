@@ -49,71 +49,56 @@
 
         <h3>Información General del Lote</h3>
 
-        <!-- Resumen de descuentos sobre el lote (historial: inicio, mortalidad, descarte, saldo) -->
-        <div class="resumen-descuentos ux-card" *ngIf="resumenLevante">
-          <h4>Descuentos sobre el lote en Levante</h4>
-          <p class="resumen-descuentos__intro">Las reducciones por mortalidad, descarte (selección) y error de sexaje se descontan del inicio del lote. El saldo es el que se usa en cálculos.</p>
-          <div class="resumen-descuentos__grid">
-            <div class="resumen-descuentos__block">
-              <span class="resumen-descuentos__label">Inicio (historial)</span>
-              <span class="resumen-descuentos__value">{{ resumenLevante.hembrasIniciales | number:'1.0-0' }} H / {{ resumenLevante.machosIniciales | number:'1.0-0' }} M</span>
-            </div>
-            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
-              <span class="resumen-descuentos__label">Mort. caja</span>
-              <span class="resumen-descuentos__value">{{ resumenLevante.mortCajaHembras | number:'1.0-0' }} H / {{ resumenLevante.mortCajaMachos | number:'1.0-0' }} M</span>
-            </div>
-            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
-              <span class="resumen-descuentos__label">Mortalidad acum.</span>
-              <span class="resumen-descuentos__value">{{ resumenLevante.mortalidadAcumHembras | number:'1.0-0' }} H / {{ resumenLevante.mortalidadAcumMachos | number:'1.0-0' }} M</span>
-            </div>
-            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
-              <span class="resumen-descuentos__label">Descarte (sel) acum.</span>
-              <span class="resumen-descuentos__value">{{ resumenLevante.selAcumHembras | number:'1.0-0' }} H / {{ resumenLevante.selAcumMachos | number:'1.0-0' }} M</span>
-            </div>
-            <div class="resumen-descuentos__block resumen-descuentos__block--resta">
-              <span class="resumen-descuentos__label">Error sexaje acum.</span>
-              <span class="resumen-descuentos__value">{{ resumenLevante.errorSexajeAcumHembras | number:'1.0-0' }} H / {{ resumenLevante.errorSexajeAcumMachos | number:'1.0-0' }} M</span>
-            </div>
-            <div class="resumen-descuentos__block resumen-descuentos__block--saldo">
-              <span class="resumen-descuentos__label">Saldo actual (aves vivas)</span>
-              <span class="resumen-descuentos__value">{{ resumenLevante.saldoHembras | number:'1.0-0' }} H / {{ resumenLevante.saldoMachos | number:'1.0-0' }} M</span>
-            </div>
-          </div>
+        <!-- Aviso cuando el lote está cerrado -->
+        <div class="info-lote-alerta info-lote-alerta--cerrado" *ngIf="isLoteCerrado" role="status">
+          <strong>Lote cerrado.</strong> Solo consulta. No se pueden agregar ni editar registros de seguimiento.
         </div>
 
-        <!-- Resumen General -->
-        <div class="resumen-grid" *ngIf="selectedLote">
-          <div class="resumen-card">
-            <div class="resumen-icon">🐔</div>
-            <div class="resumen-content">
-              <h4>Aves Iniciales</h4>
-              <p class="resumen-number">{{ selectedLote.avesEncasetadas | number:'1.0-0' }}</p>
+        <!-- Descuentos sobre el lote en Levante: hembras y machos separados -->
+        <div class="info-lote-card" *ngIf="resumenLevante">
+          <div class="info-lote__header">
+            <h4 class="info-lote__title">Descuentos sobre el lote en Levante</h4>
+            <p class="info-lote__intro">Las reducciones por mortalidad, descarte (selección) y error de sexaje se descontan del inicio del lote. El saldo es el que se usa en cálculos.</p>
+          </div>
+
+          <div class="info-lote__grid">
+            <div class="info-lote__header-row">
+              <span class="info-lote__col-label">Concepto</span>
+              <span class="info-lote__col-label">🐔 Hembras</span>
+              <span class="info-lote__col-label">🐓 Machos</span>
+            </div>
+            <div class="info-lote__row info-lote__row--inicio">
+              <label class="info-lote__label">Inicio (historial)</label>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.hembrasIniciales | number:'1.0-0'" readonly disabled>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.machosIniciales | number:'1.0-0'" readonly disabled>
+            </div>
+            <div class="info-lote__row info-lote__row--resta">
+              <label class="info-lote__label">Mort. caja</label>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaHembras | number:'1.0-0'" readonly disabled>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.mortCajaMachos | number:'1.0-0'" readonly disabled>
+            </div>
+            <div class="info-lote__row info-lote__row--resta">
+              <label class="info-lote__label">Mortalidad acum.</label>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumHembras | number:'1.0-0'" readonly disabled>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.mortalidadAcumMachos | number:'1.0-0'" readonly disabled>
+            </div>
+            <div class="info-lote__row info-lote__row--resta">
+              <label class="info-lote__label">Descarte (sel) acum.</label>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumHembras | number:'1.0-0'" readonly disabled>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.selAcumMachos | number:'1.0-0'" readonly disabled>
+            </div>
+            <div class="info-lote__row info-lote__row--resta">
+              <label class="info-lote__label">Error sexaje acum.</label>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumHembras | number:'1.0-0'" readonly disabled>
+              <input type="text" class="info-lote__input" [value]="resumenLevante.errorSexajeAcumMachos | number:'1.0-0'" readonly disabled>
+            </div>
+            <div class="info-lote__row info-lote__row--saldo">
+              <label class="info-lote__label">Saldo actual (aves vivas)</label>
+              <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoHembras | number:'1.0-0'" readonly disabled>
+              <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoMachos | number:'1.0-0'" readonly disabled>
             </div>
           </div>
 
-          <div class="resumen-card">
-            <div class="resumen-icon">📅</div>
-            <div class="resumen-content">
-              <h4>Fecha Encaset</h4>
-              <p class="resumen-number">{{ selectedLote.fechaEncaset | date:'dd/MM/yyyy' }}</p>
-            </div>
-          </div>
-
-          <div class="resumen-card">
-            <div class="resumen-icon">📊</div>
-            <div class="resumen-content">
-              <h4>Registros</h4>
-              <p class="resumen-number">{{ seguimientos.length | number:'1.0-0' }}</p>
-            </div>
-          </div>
-
-          <div class="resumen-card">
-            <div class="resumen-icon">⚖️</div>
-            <div class="resumen-content">
-              <h4>Peso Inicial</h4>
-              <p class="resumen-number">{{ selectedLote.pesoInicialH | number:'1.2-2' }}g</p>
-            </div>
-          </div>
         </div>
 
         <!-- Tabla de Registros (simplificada) -->
@@ -141,7 +126,7 @@
                   <td colspan="11" class="empty-state">
                     <div class="empty-illustration" aria-hidden="true">📄</div>
                     <p>Sin registros para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No hay aves disponibles o lote cerrado' : 'Crear el primero'">
+                    <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'El lote está cerrado o no hay aves disponibles' : 'Crear el primero'">
                       Crear el primero
                     </button>
                   </td>

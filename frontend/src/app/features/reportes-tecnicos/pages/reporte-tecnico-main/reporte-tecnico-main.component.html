@@ -32,8 +32,8 @@
             Lote: {{ selectedLoteNombre }}
           </span>
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote">
-            {{ calcularEdadDias(selectedLote.fechaEncaset) }} días
+          <span class="chip chip--muted" *ngIf="selectedLoteId && (reporteLevanteConTabs()?.informacionLote?.fechaEncaset)">
+            {{ calcularEdadDias(reporteLevanteConTabs()!.informacionLote!.fechaEncaset) }} días
           </span>
         </div>
       </div>
@@ -69,8 +69,9 @@
       </div>
     </header>
 
-    <!-- Filtros de selección -->
+    <!-- Filtros de selección (filter-data: Granja → Núcleo → Galpón → Lote LPL) -->
     <app-filtro-select
+      [filterDataUrl]="filterDataUrl"
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
       [selectedGalponId]="selectedGalponId"
@@ -78,7 +79,8 @@
       (granjaChange)="onGranjaChange($event)"
       (nucleoChange)="onNucleoChange($event)"
       (galponChange)="onGalponChange($event)"
-      (loteChange)="onLoteChange($event)">
+      (loteChange)="onLoteChange($event)"
+      (filterDataLoaded)="onFilterDataLoaded($event)">
     </app-filtro-select>
 
     <!-- Filtros de Reporte -->

@@ -9,7 +9,8 @@ import { environment } from '../../../../environments/environment';
 // =====================================================
 
 export interface CrearTrasladoHuevosDto {
-  loteId: string;
+  loteId?: string;
+  lotePosturaProduccionId?: number;
   fechaTraslado: Date;
   tipoOperacion: string; // "Venta" o "Traslado"
   cantidadLimpio: number;
@@ -59,6 +60,7 @@ export interface TrasladoHuevosDto {
   fechaTraslado: Date;
   tipoOperacion: string;
   loteId: string;
+  lotePosturaProduccionId?: number;
   loteNombre: string;
   granjaOrigenId: number;
   granjaOrigenNombre: string;
@@ -88,6 +90,14 @@ export interface TrasladoHuevosDto {
   observaciones?: string;
   createdAt: Date;
   updatedAt?: Date;
+}
+
+/** Respuesta filter-data para traslado huevos (Granja → Núcleo → Galpón → Lote LPP). */
+export interface FilterDataTrasladoHuevos {
+  farms: Array<{ id: number; name: string }>;
+  nucleos: Array<{ nucleoId: string; nucleoNombre: string; granjaId: number }>;
+  galpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }>;
+  lotes: Array<{ lotePosturaProduccionId: number; loteNombre: string; granjaId: number; nucleoId?: string; galponId?: string }>;
 }
 
 export interface DisponibilidadLoteDto {
@@ -133,9 +143,21 @@ export class TrasladosHuevosService {
   // DISPONIBILIDAD DE LOTES
   // =====================================================
 
-  // Obtener disponibilidad de un lote
+  // Obtener disponibilidad de un lote (legacy por LoteId)
   getDisponibilidadLote(loteId: string): Observable<DisponibilidadLoteDto> {
     return this.http.get<DisponibilidadLoteDto>(`${this.trasladosUrl}/lote/${loteId}/disponibilidad`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Obtener disponibilidad de un lote LPP (desde espejo_huevo_produccion)
+  getDisponibilidadLoteLPP(lotePosturaProduccionId: number): Observable<DisponibilidadLoteDto> {
+    return this.http.get<DisponibilidadLoteDto>(`${this.trasladosUrl}/lote-lpp/${lotePosturaProduccionId}/disponibilidad`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // Datos para filtros (Granja → Núcleo → Galpón → Lote LPP)
+  getFilterData(): Observable<FilterDataTrasladoHuevos> {
+    return this.http.get<FilterDataTrasladoHuevos>(`${this.trasladosUrl}/filter-data`)
       .pipe(catchError(this.handleError));
   }
 
@@ -194,7 +216,7 @@ export class TrasladosHuevosService {
     } else {
       switch (error.status) {
         case 400:
-          errorMessage = 'Datos inválidos en la solicitud';
+          errorMessage = (error.error as any)?.message ?? 'Datos inválidos en la solicitud';
           break;
         case 401:
           errorMessage = 'No autorizado. Inicie sesión nuevamente';

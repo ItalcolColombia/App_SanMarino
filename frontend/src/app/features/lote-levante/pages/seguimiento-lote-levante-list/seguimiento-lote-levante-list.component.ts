@@ -9,6 +9,7 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 
 import { LoteService, LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
+import { LotePosturaLevanteService, LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 
 import {
   SeguimientoLoteLevanteService,
@@ -25,6 +26,7 @@ import { ModalCreateEditComponent } from '../modal-create-edit/modal-create-edit
 import { ModalDetalleSeguimientoLevanteComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../filtro-select/filtro-select.component';
 import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.component';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 // ===== Importa el servicio del catálogo =====
 import {
@@ -42,7 +44,7 @@ import { environment } from '../../../../../environments/environment';
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent, ConfirmationModalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })
@@ -82,7 +84,8 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoLoteLevanteDto[] = [];
 
-  selectedLote: LoteDto | null = null;
+  /** Información del lote levante seleccionado (desde lote_postura_levante). */
+  selectedLote: LotePosturaLevanteDto | null = null;
   resumenSelected: LoteMortalidadResumenDto | null = null;
 
   // ================== UI ==================
@@ -94,12 +97,29 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   activeTab: 'principal' | 'calculos' | 'liquidacion' = 'principal';
 
+  /** Modal informativo cuando el lote levante seleccionado está cerrado */
+  loteCerradoModalOpen = false;
+  loteCerradoModalData: ConfirmationModalData = {
+    title: 'Lote cerrado',
+    message: 'El lote seleccionado está cerrado. No se podrá realizar ningún registro porque el lote está cerrado. La información mostrada es solo de consulta.',
+    type: 'warning',
+    confirmText: 'Entendido',
+    showCancel: false
+  };
+
+  /** True si el lote levante está cerrado (no se permite crear/editar/eliminar registros). */
+  get isLoteCerrado(): boolean {
+    const v = this.selectedLote?.estadoCierre ?? '';
+    return String(v).trim().toLowerCase() === 'cerrado';
+  }
+
   private galponNameById = new Map<string, string>();
 
   constructor(
     private farmSvc: FarmService,
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
+    private lotePosturaLevanteSvc: LotePosturaLevanteService,
     private segSvc: SeguimientoLoteLevanteService,
     private galponSvc: GalponService,
     // servicio de catálogo
@@ -298,8 +318,15 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
         error: () => (this.seguimientos = [])
       });
 
-    this.loteSvc.getById(this.selectedLoteId).subscribe({
-      next: l => (this.selectedLote = l || null),
+    // Cargar información del lote levante desde lote_postura_levante
+    this.lotePosturaLevanteSvc.getByLoteId(this.selectedLoteId).subscribe({
+      next: rows => {
+        this.selectedLote = (rows && rows.length > 0) ? rows[0] : null;
+        // Si el lote está cerrado, mostrar modal de aviso
+        const lev = rows?.[0];
+        const cerrado = lev && String(lev.estadoCierre ?? '').trim().toLowerCase() === 'cerrado';
+        if (cerrado) this.loteCerradoModalOpen = true;
+      },
       error: () => (this.selectedLote = null)
     });
 

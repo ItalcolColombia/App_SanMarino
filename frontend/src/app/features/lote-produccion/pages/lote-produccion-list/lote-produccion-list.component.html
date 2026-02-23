@@ -32,10 +32,6 @@
             Lote: {{ selectedLoteNombre }}
           </span>
 
-          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
-            {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
-          </span>
-
           <span class="chip chip--muted" *ngIf="selectedLoteId">
             {{ seguimientos.length || 0 }} registro(s)
           </span>
@@ -50,15 +46,6 @@
           [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
           (click)="openLiquidacion()">
           Liquidación técnica
-        </button>
-
-        <button
-          type="button"
-          class="btn btn--outline"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver análisis del lote'"
-          (click)="openAnalisis()">
-          Ver análisis
         </button>
 
         <button
@@ -134,6 +121,7 @@
       [selectedLote]="selectedLote"
       [produccionLote]="produccionLote"
       [produccionLoteId]="currentProduccionLoteId"
+      [selectedLoteLPP]="selectedLoteLPP"
       [loading]="loading"
       (create)="openDailyTrackingModal()"
       (edit)="editDailyTracking($event)"
@@ -162,6 +150,7 @@
 <app-modal-seguimiento-diario
   [isOpen]="modalSeguimientoDiarioOpen"
   [produccionLoteId]="currentProduccionLoteId"
+  [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
   [editingSeguimiento]="editingSeguimiento"
   [loading]="loading"
   [fechaEncaset]="selectedLote?.fechaEncaset || null"
@@ -181,7 +170,8 @@
 <!-- Modal de liquidación técnica -->
 <app-modal-liquidacion
   [isOpen]="liquidacionOpen"
-  [loteId]="selectedLoteId"
+  [loteId]="selectedLoteLPP ? null : selectedLoteId"
+  [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
   [loteNombre]="selectedLoteNombre"
   (close)="closeLiquidacion()">
 </app-modal-liquidacion>

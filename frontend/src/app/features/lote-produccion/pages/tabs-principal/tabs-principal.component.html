@@ -55,28 +55,43 @@
             <div class="resumen-icon">🐔</div>
             <div class="resumen-content">
               <h4>Aves Iniciales</h4>
-              <p class="resumen-number" *ngIf="produccionLote">
-                {{ (produccionLote.avesInicialesH + produccionLote.avesInicialesM) | number:'1.0-0' }}
+              <p class="resumen-number" *ngIf="selectedLoteLPP">
+                {{ (selectedLoteLPP.avesHInicial ?? 0) + (selectedLoteLPP.avesMInicial ?? 0) | number:'1.0-0' }}
               </p>
-              <p class="resumen-number" *ngIf="!produccionLote">
-                {{ ((selectedLote.hembrasL || 0) + (selectedLote.machosL || 0)) | number:'1.0-0' }}
+              <p class="resumen-number" *ngIf="!selectedLoteLPP && produccionLote">
+                {{ produccionLote.avesInicialesH + produccionLote.avesInicialesM | number:'1.0-0' }}
               </p>
-              <small *ngIf="produccionLote" class="resumen-detail">
-                H: {{ produccionLote.avesInicialesH | number:'1.0-0' }} | M: {{ produccionLote.avesInicialesM | number:'1.0-0' }}
-              </small>
+              <p class="resumen-number" *ngIf="!selectedLoteLPP && !produccionLote">
+                {{ (selectedLote.hembrasL || 0) + (selectedLote.machosL || 0) | number:'1.0-0' }}
+              </p>
+              <small class="resumen-detail" *ngIf="selectedLoteLPP">H: {{ (selectedLoteLPP.avesHInicial ?? 0) | number:'1.0-0' }} | M: {{ (selectedLoteLPP.avesMInicial ?? 0) | number:'1.0-0' }}</small>
+              <small class="resumen-detail" *ngIf="!selectedLoteLPP && produccionLote">H: {{ produccionLote.avesInicialesH | number:'1.0-0' }} | M: {{ produccionLote.avesInicialesM | number:'1.0-0' }}</small>
+            </div>
+          </div>
+
+          <div class="resumen-card" *ngIf="selectedLoteLPP">
+            <div class="resumen-icon">📊</div>
+            <div class="resumen-content">
+              <h4>Aves Actuales</h4>
+              <p class="resumen-number">{{ (selectedLoteLPP.avesHActual ?? 0) + (selectedLoteLPP.avesMActual ?? 0) | number:'1.0-0' }}</p>
+              <small class="resumen-detail">H: {{ (selectedLoteLPP.avesHActual ?? 0) | number:'1.0-0' }} | M: {{ (selectedLoteLPP.avesMActual ?? 0) | number:'1.0-0' }}</small>
             </div>
           </div>
 
           <div class="resumen-card">
-            <div class="resumen-icon">📅</div>
+            <div class="resumen-icon">📋</div>
             <div class="resumen-content">
-              <h4>Fecha Encasetamiento</h4>
-              <p class="resumen-number" *ngIf="produccionLote">
-                {{ produccionLote.fechaInicio | date:'dd/MM/yyyy' }}
-              </p>
-              <p class="resumen-number" *ngIf="!produccionLote">
-                {{ selectedLote.fechaEncaset | date:'dd/MM/yyyy' }}
-              </p>
+              <h4>Estado</h4>
+              <p class="resumen-number">{{ selectedLoteLPP ? (selectedLoteLPP.estadoCierre || 'Abierto') : '—' }}</p>
+            </div>
+          </div>
+
+          <div class="resumen-card">
+            <div class="resumen-icon">📆</div>
+            <div class="resumen-content">
+              <h4>Edad del lote (semanas)</h4>
+              <p class="resumen-number">{{ getEdadSemanas() }}</p>
+              <small class="resumen-detail" *ngIf="getFechaBaseEdad()">Desde encaset: {{ getFechaBaseEdad() | date:'dd/MM/yyyy' }}</small>
             </div>
           </div>
 
@@ -106,6 +121,7 @@
                 <tr>
                   <th>Fecha</th>
                   <th>Edad (días)</th>
+                  <th>Edad (semanas)</th>
                   <th>Mort. H</th>
                   <th>Mort. M</th>
                   <th>Consumo (kg)</th>
@@ -117,7 +133,7 @@
               </thead>
               <tbody>
                 <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)">
-                  <td colspan="9" class="empty-state">
+                  <td colspan="10" class="empty-state">
                     <div class="empty-illustration" aria-hidden="true">📄</div>
                     <p>Sin registros para este lote.</p>
                     <button type="button" class="btn btn--outline" (click)="onCreate()">
@@ -129,6 +145,7 @@
                 <tr *ngFor="let s of seguimientos" class="ux-row">
                   <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
                   <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
+                  <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
                   <td>{{ s.mortalidadH }}</td>
                   <td>{{ s.mortalidadM }}</td>
                   <td>{{ s.consumoKg | number:'1.2-2' }}</td>
@@ -161,6 +178,7 @@
           [seguimientos]="seguimientos"
           [selectedLote]="selectedLote"
           [produccionLoteId]="produccionLoteId"
+          [lotePosturaProduccionId]="lotePosturaProduccionId"
           [loading]="loading">
         </app-tabla-lista-indicadores>
       </div>

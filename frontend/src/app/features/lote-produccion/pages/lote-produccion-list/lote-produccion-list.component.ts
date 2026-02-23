@@ -1,5 +1,6 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize, map } from 'rxjs/operators';
 
@@ -21,7 +22,7 @@ import {
 
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../services/nucleo.service';
-import { FiltroSelectComponent, FilterDataResponse } from '../filtro-select/filtro-select.component';
+import { FiltroSelectComponent, FilterDataResponse, LotePosturaProduccionFilterItem } from '../filtro-select/filtro-select.component';
 import { environment } from '../../../../../environments/environment';
 import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.component';
 import { ModalRegistroInicialComponent } from '../modal-registro-inicial/modal-registro-inicial.component';
@@ -81,6 +82,8 @@ export class LoteProduccionListComponent implements OnInit {
   selectedLote: LoteDto | null = null;
   produccionLote: ProduccionLoteDetalleDto | null = null;
   currentProduccionLoteId: number | null = null;
+  /** Lote postura producción seleccionado (flujo LPP). Incluye aves, estado. */
+  selectedLoteLPP: LotePosturaProduccionFilterItem | null = null;
 
   // Datos para el modal de registro inicial
   modalLoteNombre: string = '';
@@ -103,6 +106,7 @@ export class LoteProduccionListComponent implements OnInit {
   editingSeguimiento: SeguimientoItemDto | null = null;
 
   private galponNameById = new Map<string, string>();
+  private readonly http = inject(HttpClient);
 
   constructor(
     private farmSvc: FarmService,
@@ -122,13 +126,16 @@ export class LoteProduccionListComponent implements OnInit {
     this.granjas = data.farms ?? [];
     this.allNucleos = data.nucleos ?? [];
     this.allGalpones = data.galpones ?? [];
-    this.allLotes = (data.lotes ?? []).map(l => ({
-      loteId: l.loteId,
-      loteNombre: l.loteNombre,
-      granjaId: l.granjaId,
-      nucleoId: l.nucleoId ?? undefined,
-      galponId: l.galponId ?? undefined
-    })) as LoteDto[];
+    this.allLotes = (data.lotes ?? []).map((l: any) => {
+      const lppId = l.lotePosturaProduccionId ?? l.loteId;
+      return {
+        loteId: lppId,
+        loteNombre: l.loteNombre,
+        granjaId: l.granjaId,
+        nucleoId: l.nucleoId ?? undefined,
+        galponId: l.galponId ?? undefined
+      };
+    }) as LoteDto[];
     (data.galpones ?? []).forEach(g => {
       if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());
     });
@@ -231,7 +238,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.selectedLote = null;
     this.produccionLote = null;
     this.currentProduccionLoteId = null;
-    // Limpiar filtros de fecha al cambiar de lote
+    this.selectedLoteLPP = null;
     this.filtroDesde = null;
     this.filtroHasta = null;
 
@@ -239,23 +246,37 @@ export class LoteProduccionListComponent implements OnInit {
 
     this.loading = true;
 
-    // Cargar datos del lote
+    const lppFromFilter = this.filterData?.lotes?.find((l: any) =>
+      (l.lotePosturaProduccionId ?? l.loteId) === this.selectedLoteId
+    ) as LotePosturaProduccionFilterItem | undefined;
+
+    if (lppFromFilter) {
+      this.selectedLoteLPP = lppFromFilter;
+      this.selectedLote = {
+        loteId: lppFromFilter.lotePosturaProduccionId,
+        loteNombre: lppFromFilter.loteNombre,
+        granjaId: lppFromFilter.granjaId,
+        nucleoId: lppFromFilter.nucleoId ?? undefined,
+        galponId: lppFromFilter.galponId ?? undefined
+      } as LoteDto;
+      this.currentProduccionLoteId = 0;
+      this.loadSeguimientos();
+      return;
+    }
+
     this.loteSvc.getById(this.selectedLoteId).subscribe({
       next: l => (this.selectedLote = l || null),
       error: () => (this.selectedLote = null)
     });
 
-    // Verificar si existe registro inicial de producción
     this.produccionSvc.existsProduccionLote(this.selectedLoteId).subscribe({
       next: (response: ExisteProduccionLoteResponse) => {
         this.currentProduccionLoteId = response.produccionLoteId || null;
 
         if (response.exists && this.currentProduccionLoteId) {
-          // Cargar el detalle de ProduccionLote
           this.produccionSvc.getProduccionLote(this.selectedLoteId!).subscribe({
             next: (detalle) => {
               this.produccionLote = detalle;
-              // Cargar seguimientos diarios
               this.loadSeguimientos();
             },
             error: () => {
@@ -278,16 +299,39 @@ export class LoteProduccionListComponent implements OnInit {
   private loadSeguimientos(): void {
     if (!this.selectedLoteId) return;
 
-    this.produccionSvc.listarSeguimiento({
-      loteId: this.selectedLoteId,
-      desde: this.filtroDesde || undefined,
-      hasta: this.filtroHasta || undefined,
-      page: 1,
-      size: 100
-    }).pipe(finalize(() => (this.loading = false)))
+    const query = this.selectedLoteLPP
+      ? { lotePosturaProduccionId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 100 }
+      : { loteId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 100 };
+
+    this.produccionSvc.listarSeguimiento(query).pipe(finalize(() => (this.loading = false)))
     .subscribe({
       next: response => (this.seguimientos = response.items || []),
       error: () => (this.seguimientos = [])
+    });
+  }
+
+  /** Refresca la Información General del lote (aves actuales, movimiento de aves) tras crear/editar/eliminar seguimiento. */
+  refreshLoteInfo(): void {
+    if (!this.selectedLoteId) return;
+
+    if (this.selectedLoteLPP) {
+      this.http.get<FilterDataResponse>(this.filterDataUrl).subscribe({
+        next: (data) => {
+          const lppId = this.selectedLoteId!;
+          const fresh = (data.lotes ?? []).find((l: any) =>
+            (l.lotePosturaProduccionId ?? l.loteId) === lppId
+          );
+          if (fresh) {
+            this.selectedLoteLPP = { ...fresh } as LotePosturaProduccionFilterItem;
+          }
+        }
+      });
+      return;
+    }
+
+    this.produccionSvc.getProduccionLote(this.selectedLoteId).subscribe({
+      next: (detalle) => (this.produccionLote = detalle),
+      error: () => {}
     });
   }
   
@@ -401,23 +445,23 @@ export class LoteProduccionListComponent implements OnInit {
   create(): void {
     if (!this.selectedLoteId) return;
 
-    // Verificar si existe registro inicial
+    if (this.selectedLoteLPP) {
+      this.editingSeguimiento = null;
+      this.modalSeguimientoDiarioOpen = true;
+      return;
+    }
+
     this.produccionSvc.existsProduccionLote(this.selectedLoteId).subscribe({
       next: (response: ExisteProduccionLoteResponse) => {
         if (response.exists && response.produccionLoteId) {
-          // Abrir modal de seguimiento diario
           this.currentProduccionLoteId = response.produccionLoteId;
           this.editingSeguimiento = null;
           this.modalSeguimientoDiarioOpen = true;
         } else {
-          // Abrir modal de registro inicial - cargar datos del lote
           this.loadLoteDataForModal();
         }
       },
-      error: () => {
-        // En caso de error, abrir modal de registro inicial - cargar datos del lote
-        this.loadLoteDataForModal();
-      }
+      error: () => this.loadLoteDataForModal()
     });
   }
 
@@ -562,6 +606,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
           this.editingSeguimiento = null;
           this.modalSeguimientoDiarioOpen = false;
           this.loadSeguimientos();
+          this.refreshLoteInfo();
         },
         error: (err) => {
           const errorMessage = err?.error?.message || err?.error?.detail || err?.message || 'Error desconocido al guardar el seguimiento diario.';
@@ -706,9 +751,11 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
 
   // ================== MÉTODOS DE MODALES ==================
   openDailyTrackingModal(): void {
-    if (!this.selectedLoteId || !this.produccionLote?.id) return;
-    this.editingSeguimiento = null;
-    this.modalSeguimientoDiarioOpen = true;
+    if (!this.selectedLoteId) return;
+    if (this.selectedLoteLPP || this.produccionLote?.id) {
+      this.editingSeguimiento = null;
+      this.modalSeguimientoDiarioOpen = true;
+    }
   }
 
   editDailyTracking(seguimiento: SeguimientoItemDto): void {
@@ -735,6 +782,7 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
         this.loading = false;
         // Recargar los seguimientos del lote después de eliminar
         this.onLoteChange(this.selectedLoteId);
+        this.refreshLoteInfo();
       },
       error: (err) => {
         this.loading = false;

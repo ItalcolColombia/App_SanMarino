@@ -12,6 +12,8 @@ import { LiquidacionTecnicaComponent } from '../liquidacion-tecnica/liquidacion-
 export class ModalLiquidacionComponent implements OnInit {
   @Input() isOpen: boolean = false;
   @Input() loteId: number | null = null;
+  /** Para flujo LPP: ID de lote_postura_produccion */
+  @Input() lotePosturaProduccionId: number | null = null;
   @Input() loteNombre: string = '';
 
   @Output() close = new EventEmitter<void>();

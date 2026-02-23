@@ -4,14 +4,15 @@
     <header class="ux-modal__header">
       <h2 id="liquidacion-modal-title">
         Liquidación Técnica
-        <ng-container *ngIf="loteId">— <strong>{{ loteNombre }}</strong></ng-container>
+        <ng-container *ngIf="loteId || lotePosturaProduccionId">— <strong>{{ loteNombre }}</strong></ng-container>
       </h2>
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
     <section class="liquidacion-modal-content">
       <app-liquidacion-tecnica
-        [loteId]="loteId?.toString() || ''"
+        [loteId]="lotePosturaProduccionId ? '' : (loteId?.toString() ?? '')"
+        [lotePosturaProduccionId]="lotePosturaProduccionId"
         [loteNombre]="loteNombre">
       </app-liquidacion-tecnica>
     </section>

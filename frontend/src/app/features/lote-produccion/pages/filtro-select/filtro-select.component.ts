@@ -9,12 +9,31 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { ProduccionService } from '../../services/produccion.service';
 
-/** Respuesta del endpoint filter-data (Granja → Núcleo → Galpón → Lote). */
+/** Item de lote postura producción para el filtro (Seguimiento Diario Producción). */
+export interface LotePosturaProduccionFilterItem {
+  lotePosturaProduccionId: number;
+  loteNombre: string;
+  granjaId: number;
+  nucleoId?: string | null;
+  galponId?: string | null;
+  avesHInicial?: number | null;
+  avesMInicial?: number | null;
+  avesHActual?: number | null;
+  avesMActual?: number | null;
+  estadoCierre?: string | null;
+  /** Fecha de encasetamiento (desde Lote Levante). Usada para calcular edad en días/semanas. */
+  fechaEncaset?: string | null;
+}
+
+/** Respuesta del endpoint filter-data (Granja → Núcleo → Galpón → Lote).
+ * En el flujo LPP, lotes provienen de lote_postura_produccion (lotePosturaProduccionId, aves, estado).
+ */
 export interface FilterDataResponse {
   farms: FarmDto[];
   nucleos: NucleoDto[];
   galpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }>;
-  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId: string | null; galponId: string | null }>;
+  /** Lotes LPP: tienen lotePosturaProduccionId, aves, estadoCierre. loteId se usa como alias de lotePosturaProduccionId para compatibilidad. */
+  lotes: Array<LotePosturaProduccionFilterItem & { loteId?: number }>;
 }
 
 @Component({
@@ -87,22 +106,25 @@ export class FiltroSelectComponent implements OnInit {
           nucleoIdsByGranja.get(n.granjaId)!.add(n.nucleoId);
         });
         const galponKeys = new Set((data.galpones ?? []).map(g => `${g.granjaId}|${g.nucleoId}|${String(g.galponId).trim()}`));
-        const lotesValidos = lotesRaw.filter(l => {
+        const lotesValidos = lotesRaw.filter((l: any) => {
           if (!farmIds.has(l.granjaId)) return false;
-          const nid = l.nucleoId?.trim();
+          const nid = (l.nucleoId ?? '').trim();
           if (!nid || !nucleoIdsByGranja.get(l.granjaId)?.has(nid)) return false;
-          const gid = l.galponId?.trim();
+          const gid = (l.galponId ?? '').trim();
           if (!gid) return false;
           if (!galponKeys.has(`${l.granjaId}|${nid}|${gid}`)) return false;
           return true;
         });
-        this.allLotes = lotesValidos.map(l => ({
-          loteId: l.loteId,
-          loteNombre: l.loteNombre,
-          granjaId: l.granjaId,
-          nucleoId: l.nucleoId ?? undefined,
-          galponId: l.galponId ?? undefined
-        })) as LoteDto[];
+        this.allLotes = lotesValidos.map((l: any) => {
+          const lppId = l.lotePosturaProduccionId ?? l.loteId;
+          return {
+            loteId: lppId,
+            loteNombre: l.loteNombre,
+            granjaId: l.granjaId,
+            nucleoId: l.nucleoId ?? undefined,
+            galponId: l.galponId ?? undefined
+          };
+        }) as LoteDto[];
         this.galponNameById.clear();
         (data.galpones ?? []).forEach(g => {
           if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());

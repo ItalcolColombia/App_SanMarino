@@ -27,17 +27,13 @@
       <div class="form-section">
         <h2>Información del Lote</h2>
 
-        <div class="form-group">
-          <label for="loteIdHuevos">Lote <span class="required">*</span></label>
-          <select id="loteIdHuevos" formControlName="loteId" class="form-control">
-            <option value="">Selecciona un lote</option>
-            <option *ngFor="let lote of lotes()" [value]="lote.loteId">
-              {{ lote.loteNombre }} (ID: {{ lote.loteId }})
-            </option>
-          </select>
-          <div *ngIf="formHuevos.get('loteId')?.invalid && formHuevos.get('loteId')?.touched" class="error-message">
-            El lote es requerido
-          </div>
+        <app-filtro-select
+          [filterDataUrl]="filterDataUrl"
+          [selectedLoteId]="selectedLotePosturaProduccionId"
+          (loteChange)="onLoteChange($event)">
+        </app-filtro-select>
+        <div *ngIf="formHuevos.get('lotePosturaProduccionId')?.invalid && formHuevos.get('lotePosturaProduccionId')?.touched" class="error-message">
+          Seleccione un lote de producción
         </div>
 
         <!-- Información de Disponibilidad de Huevos -->

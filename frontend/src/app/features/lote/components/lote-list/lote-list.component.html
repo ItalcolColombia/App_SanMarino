@@ -2,37 +2,48 @@
 <div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
 
   <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
-    <!-- Header -->
+    <!-- Header: Nuevo Lote solo en pestaña Lote -->
     <div class="ux-header">
-      <button (click)="openModal()" class="btn-primary">
+      <button *ngIf="activeTab === 'lote'" (click)="openModal()" class="btn-primary">
         <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
         <span>Nuevo Lote</span>
       </button>
     </div>
 
-    <!-- Pestañas Levante / Producción -->
+    <!-- Pestañas Levante (lote_postura_levante) / Lote (lotes) -->
     <div class="ux-card p-2 mb-4">
       <div class="flex gap-2 border-b border-gray-200">
         <button
           type="button"
           class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
-          [class.bg-primary]="activeFase === 'levante'"
-          [class.text-white]="activeFase === 'levante'"
-          [class.bg-gray-100]="activeFase !== 'levante'"
-          [class.text-gray-700]="activeFase !== 'levante'"
-          [class.hover:bg-gray-200]="activeFase !== 'levante'"
-          (click)="setFase('levante')">
+          [class.bg-primary]="activeTab === 'levante'"
+          [class.text-white]="activeTab === 'levante'"
+          [class.bg-gray-100]="activeTab !== 'levante'"
+          [class.text-gray-700]="activeTab !== 'levante'"
+          [class.hover:bg-gray-200]="activeTab !== 'levante'"
+          (click)="setTab('levante')">
           Levante
         </button>
         <button
           type="button"
           class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
-          [class.bg-primary]="activeFase === 'produccion'"
-          [class.text-white]="activeFase === 'produccion'"
-          [class.bg-gray-100]="activeFase !== 'produccion'"
-          [class.text-gray-700]="activeFase !== 'produccion'"
-          [class.hover:bg-gray-200]="activeFase !== 'produccion'"
-          (click)="setFase('produccion')">
+          [class.bg-primary]="activeTab === 'lote'"
+          [class.text-white]="activeTab === 'lote'"
+          [class.bg-gray-100]="activeTab !== 'lote'"
+          [class.text-gray-700]="activeTab !== 'lote'"
+          [class.hover:bg-gray-200]="activeTab !== 'lote'"
+          (click)="setTab('lote')">
+          Lote
+        </button>
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors"
+          [class.bg-primary]="activeTab === 'produccion'"
+          [class.text-white]="activeTab === 'produccion'"
+          [class.bg-gray-100]="activeTab !== 'produccion'"
+          [class.text-gray-700]="activeTab !== 'produccion'"
+          [class.hover:bg-gray-200]="activeTab !== 'produccion'"
+          (click)="setTab('produccion')">
           Producción
         </button>
       </div>
@@ -108,7 +119,7 @@
           <select id="l-sort-key" class="ux-select"
                   [ngModel]="sortKey"
                   (ngModelChange)="onSortKeyChange($event)">
-            <option [ngValue]="'edad'">Edad</option>
+            <option [ngValue]="'edad'">Edad (sem.)</option>
             <option [ngValue]="'fecha'">Fecha</option>
           </select>
         </div>
@@ -138,11 +149,11 @@
     <div class="ux-card">
       <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
         <h3 class="text-lg font-semibold text-gray-900">
-          Lotes
+          {{ activeTab === 'levante' ? 'Lotes postura levante' : (activeTab === 'produccion' ? 'Lotes postura producción' : 'Lotes') }}
           <span *ngIf="selectedFarmName" class="text-blue-600"> — {{ selectedFarmName }}</span>
         </h3>
         <p class="text-sm text-gray-600 mt-1">
-          Mostrando {{ viewLotes.length }} lote(s)
+          Mostrando {{ activeTab === 'levante' ? viewLotesLevante.length : (activeTab === 'produccion' ? viewLotesProduccion.length : viewLotes.length) }} lote(s)
         </p>
       </div>
 
@@ -151,15 +162,47 @@
           <caption class="sr-only">Listado de lotes</caption>
 
           <thead>
-            <tr>
-              <th scope="col">ID</th>
+            <!-- Levante: Estado primero, sin ID ni Fase/Etapa -->
+            <tr *ngIf="activeTab === 'levante'">
+              <th scope="col">Estado</th>
               <th scope="col">Nombre</th>
               <th scope="col">Granja</th>
               <th scope="col">Núcleo</th>
               <th scope="col">Galpón</th>
               <th scope="col">Raza</th>
-              <th scope="col">Fase</th>
-              <th scope="col">Edad (días)</th>
+              <th scope="col">Edad (sem.)</th>
+              <th scope="col">Hembras</th>
+              <th scope="col">Machos</th>
+              <th scope="col">Aves encaset.</th>
+              <th scope="col">Fecha encaset</th>
+              <th scope="col">Fecha registro</th>
+              <th scope="col" class="text-center">Acciones</th>
+            </tr>
+            <!-- Producción: Estado primero, sin ID ni Fase/Etapa -->
+            <tr *ngIf="activeTab === 'produccion'">
+              <th scope="col">Estado</th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Granja</th>
+              <th scope="col">Núcleo</th>
+              <th scope="col">Galpón</th>
+              <th scope="col">Raza</th>
+              <th scope="col">Edad (sem.)</th>
+              <th scope="col">Hembras</th>
+              <th scope="col">Machos</th>
+              <th scope="col">Aves encaset.</th>
+              <th scope="col">Fecha encaset</th>
+              <th scope="col">Fecha registro</th>
+              <th scope="col" class="text-center">Acciones</th>
+            </tr>
+            <!-- Lote: incluye Fase/Etapa, sin ID -->
+            <tr *ngIf="activeTab === 'lote'">
+              <th scope="col">Nombre</th>
+              <th scope="col">Granja</th>
+              <th scope="col">Núcleo</th>
+              <th scope="col">Galpón</th>
+              <th scope="col">Raza</th>
+              <th scope="col">Fase/Etapa</th>
+              <th scope="col">Edad (sem.)</th>
               <th scope="col">Hembras</th>
               <th scope="col">Machos</th>
               <th scope="col">Aves encaset.</th>
@@ -170,48 +213,100 @@
             </tr>
           </thead>
 
-          <tbody>
-            <tr *ngFor="let l of viewLotes; trackBy: trackByLote" class="ux-row">
-              <td>{{ l.loteId }}</td>
+          <!-- Tab Levante: lote_postura_levante -->
+          <tbody *ngIf="activeTab === 'levante'">
+            <tr *ngFor="let l of viewLotesLevante; trackBy: trackByLoteLevante" class="ux-row">
+              <td>
+                <span *ngIf="estadoCierreLevante(l) === 'Abierto'" class="ux-badge ux-badge--estado ux-badge--estado--abierto">Abierto</span>
+                <span *ngIf="estadoCierreLevante(l) === 'Cerrado'" class="ux-badge ux-badge--estado ux-badge--estado--cerrado">Cerrado</span>
+              </td>
+              <td>{{ l.loteNombre }}</td>
+              <td>{{ l.farm?.name ?? '—' }}</td>
+              <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
+              <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
+              <td>{{ l.raza ?? '—' }}</td>
+              <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
+              <td>{{ formatOrDash(l.avesHActual ?? l.hembrasL) }}</td>
+              <td>{{ formatOrDash(l.avesMActual ?? l.machosL) }}</td>
+              <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
+              <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
+              <td class="text-center">
+                <button (click)="openDetailLevante(l)" class="icon-btn" title="Ver detalle">
+                  <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="!loading && viewLotesLevante.length === 0">
+              <td colspan="13" class="empty-state">
+                <div class="empty-illustration">📦</div>
+                <p>No hay lotes levante que coincidan con los filtros.</p>
+              </td>
+            </tr>
+          </tbody>
+
+          <!-- Tab Producción: lote_postura_produccion -->
+          <tbody *ngIf="activeTab === 'produccion'">
+            <tr *ngFor="let l of viewLotesProduccion; trackBy: trackByLoteProduccion" class="ux-row">
+              <td>
+                <span *ngIf="estadoCierreProduccion(l) === 'Abierto'" class="ux-badge ux-badge--estado ux-badge--estado--abierto">Abierto</span>
+                <span *ngIf="estadoCierreProduccion(l) === 'Cerrado'" class="ux-badge ux-badge--estado ux-badge--estado--cerrado">Cerrado</span>
+              </td>
+              <td>{{ l.loteNombre }}</td>
+              <td>{{ l.farm?.name ?? '—' }}</td>
+              <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
+              <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
+              <td>{{ l.raza ?? '—' }}</td>
+              <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
+              <td>{{ formatOrDash(l.avesHActual ?? l.hembrasInicialesProd ?? l.hembrasL) }}</td>
+              <td>{{ formatOrDash(l.avesMActual ?? l.machosInicialesProd ?? l.machosL) }}</td>
+              <td>{{ formatNumber(l.avesEncasetadas ?? (l.avesHActual ?? l.hembrasL ?? 0) + (l.avesMActual ?? l.machosL ?? 0)) }}</td>
+              <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
+              <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
+              <td class="text-center">
+                <button (click)="openDetailProduccion(l)" class="icon-btn" title="Ver detalle">
+                  <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                </button>
+              </td>
+            </tr>
+            <tr *ngIf="!loading && viewLotesProduccion.length === 0">
+              <td colspan="13" class="empty-state">
+                <div class="empty-illustration">📦</div>
+                <p>No hay lotes producción que coincidan con los filtros.</p>
+              </td>
+            </tr>
+          </tbody>
+
+          <!-- Tab Lote: lotes -->
+          <tbody *ngIf="activeTab === 'lote'">
+            <tr *ngFor="let l of viewLotes; trackBy: trackByLote" class="ux-row" (dblclick)="openDetail(l)" style="cursor: pointer;">
               <td>{{ l.loteNombre }}</td>
               <td>{{ l.farm?.name ?? '—' }}</td>
               <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
               <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
               <td>{{ l.raza ?? '—' }}</td>
               <td><span class="ux-badge">{{ calcularFase(l.fechaEncaset) }}</span></td>
-              <td>{{ l.fechaEncaset ? calcularEdadDias(l.fechaEncaset) : '—' }}</td>
-
+              <td>{{ l.fechaEncaset ? calcularEdadSemanas(l.fechaEncaset) : '—' }}</td>
               <td>{{ formatOrDash(l.hembrasL) }}</td>
               <td>{{ formatOrDash(l.machosL) }}</td>
-
               <td>{{ formatNumber(l.avesEncasetadas ?? (l.hembrasL ?? 0) + (l.machosL ?? 0)) }}</td>
               <td>{{ l.fechaEncaset ? (l.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</td>
               <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
               <td>
-                <span *ngIf="l.estadoTraslado === 'trasladado'" class="ux-badge bg-yellow-100 text-yellow-800">
-                  Trasladado
-                </span>
-                <span *ngIf="l.estadoTraslado === 'en_transferencia'" class="ux-badge bg-blue-100 text-blue-800">
-                  En Transferencia
-                </span>
-                <span *ngIf="l.estadoTraslado !== 'trasladado' && l.estadoTraslado !== 'en_transferencia'" class="ux-badge bg-green-100 text-green-800">
-                  Normal
-                </span>
+                <span *ngIf="l.estadoTraslado === 'trasladado'" class="ux-badge bg-yellow-100 text-yellow-800">Trasladado</span>
+                <span *ngIf="l.estadoTraslado === 'en_transferencia'" class="ux-badge bg-blue-100 text-blue-800">En Transferencia</span>
+                <span *ngIf="l.estadoTraslado !== 'trasladado' && l.estadoTraslado !== 'en_transferencia'" class="ux-badge bg-green-100 text-green-800">Normal</span>
               </td>
               <td class="text-center">
                 <div class="inline-flex items-center gap-2">
                   <button (click)="openDetail(l)" class="icon-btn" title="Ver detalle">
                     <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
                   </button>
-                  <!-- Solo mostrar otros botones si el lote NO está trasladado -->
                   <ng-container *ngIf="l.estadoTraslado !== 'trasladado'">
                     <button (click)="openModal(l)" class="icon-btn" title="Editar">
                       <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
                     </button>
-                    <button 
-                      (click)="openTrasladoModal(l)" 
-                      class="icon-btn" 
-                      title="Trasladar lote">
+                    <button (click)="openTrasladoModal(l)" class="icon-btn" title="Trasladar lote">
                       <fa-icon [icon]="faArrowRight" aria-hidden="true"></fa-icon>
                     </button>
                     <button (click)="delete(l)" class="icon-btn danger" title="Eliminar">
@@ -221,9 +316,8 @@
                 </div>
               </td>
             </tr>
-
             <tr *ngIf="!loading && viewLotes.length === 0">
-              <td colspan="15" class="empty-state">
+              <td colspan="14" class="empty-state">
                 <div class="empty-illustration">📦</div>
                 <p>No hay lotes que coincidan con los filtros.</p>
                 <button (click)="openModal()" class="btn-secondary mt-2">
@@ -489,6 +583,124 @@
       </div>
     </div>
 
+    <!-- MODAL: Detalle lote postura producción -->
+    <div *ngIf="selectedLoteProduccion" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-produccion-title">
+      <div class="ux-modal__panel ux-modal__panel--wide">
+        <div class="ux-modal__header">
+          <h2 id="detail-produccion-title" class="ux-title">Detalle Lote Postura Producción</h2>
+          <button (click)="selectedLoteProduccion = null" class="btn-muted" type="button">Cerrar</button>
+        </div>
+        <div class="ux-modal__body">
+          <div class="ux-detail-grid">
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Nombre</label>
+              <input type="text" [value]="selectedLoteProduccion.loteNombre" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Granja</label>
+              <input type="text" [value]="selectedLoteProduccion.farm?.name ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Núcleo</label>
+              <input type="text" [value]="selectedLoteProduccion.nucleo?.nucleoNombre ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Galpón</label>
+              <input type="text" [value]="selectedLoteProduccion.galpon?.galponNombre ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Fecha encaset</label>
+              <input type="text" [value]="selectedLoteProduccion.fechaEncaset ? (selectedLoteProduccion.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Fecha inicio prod.</label>
+              <input type="text" [value]="selectedLoteProduccion.fechaInicioProduccion ? (selectedLoteProduccion.fechaInicioProduccion | date:'dd/MM/yyyy') : '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Edad (semanas)</label>
+              <input type="text" [value]="(selectedLoteProduccion.fechaEncaset ? calcularEdadSemanas(selectedLoteProduccion.fechaEncaset) : 0) + ' sem.'" readonly disabled class="ux-detail-input ux-detail-input--highlight" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Estado</label>
+              <input type="text" [value]="estadoCierreProduccion(selectedLoteProduccion)" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Raza</label>
+              <input type="text" [value]="selectedLoteProduccion.raza ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Hembras actual</label>
+              <input type="text" [value]="formatNumber(selectedLoteProduccion.avesHActual ?? selectedLoteProduccion.hembrasInicialesProd ?? selectedLoteProduccion.hembrasL ?? 0)" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Machos actual</label>
+              <input type="text" [value]="formatNumber(selectedLoteProduccion.avesMActual ?? selectedLoteProduccion.machosInicialesProd ?? selectedLoteProduccion.machosL ?? 0)" readonly disabled class="ux-detail-input" />
+            </div>
+          </div>
+          <div class="ux-actions mt-4">
+            <button (click)="selectedLoteProduccion = null" class="btn-primary" type="button">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Detalle lote postura levante -->
+    <div *ngIf="selectedLoteLevante" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-levante-title">
+      <div class="ux-modal__panel ux-modal__panel--wide">
+        <div class="ux-modal__header">
+          <h2 id="detail-levante-title" class="ux-title">Detalle Lote Postura Levante</h2>
+          <button (click)="selectedLoteLevante = null" class="btn-muted" type="button">Cerrar</button>
+        </div>
+        <div class="ux-modal__body">
+          <div class="ux-detail-grid">
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Nombre</label>
+              <input type="text" [value]="selectedLoteLevante.loteNombre" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Granja</label>
+              <input type="text" [value]="selectedLoteLevante.farm?.name ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Núcleo</label>
+              <input type="text" [value]="selectedLoteLevante.nucleo?.nucleoNombre ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Galpón</label>
+              <input type="text" [value]="selectedLoteLevante.galpon?.galponNombre ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Fecha encaset</label>
+              <input type="text" [value]="selectedLoteLevante.fechaEncaset ? (selectedLoteLevante.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Edad (semanas)</label>
+              <input type="text" [value]="(selectedLoteLevante.fechaEncaset ? calcularEdadSemanas(selectedLoteLevante.fechaEncaset) : 0) + ' sem.'" readonly disabled class="ux-detail-input ux-detail-input--highlight" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Estado</label>
+              <input type="text" [value]="estadoCierreLevante(selectedLoteLevante)" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Raza</label>
+              <input type="text" [value]="selectedLoteLevante.raza ?? '—'" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Hembras actual</label>
+              <input type="text" [value]="formatNumber(selectedLoteLevante.avesHActual ?? selectedLoteLevante.hembrasL ?? 0)" readonly disabled class="ux-detail-input" />
+            </div>
+            <div class="ux-detail-field">
+              <label class="ux-detail-label">Machos actual</label>
+              <input type="text" [value]="formatNumber(selectedLoteLevante.avesMActual ?? selectedLoteLevante.machosL ?? 0)" readonly disabled class="ux-detail-input" />
+            </div>
+          </div>
+          <div class="ux-actions mt-4">
+            <button (click)="selectedLoteLevante = null" class="btn-primary" type="button">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL: Detalle del lote -->
     <div *ngIf="selectedLote" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
       <div class="ux-modal__panel ux-modal__panel--wide">
@@ -505,7 +717,7 @@
             <div><strong class="text-warm-gray-800">📍 Núcleo:</strong> {{ getNucleoName(selectedLote.nucleoId) }}</div>
             <div><strong class="text-warm-gray-800">📅 Fecha encaset:</strong> {{ selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</div>
             <div><strong class="text-warm-gray-800">📊 Fase:</strong> {{ calcularFase(selectedLote.fechaEncaset) }}</div>
-            <div><strong class="text-warm-gray-800">⏳ Edad:</strong> {{ calcularEdadDias(selectedLote.fechaEncaset) }} días</div>
+            <div><strong class="text-warm-gray-800">⏳ Edad:</strong> {{ calcularEdadSemanas(selectedLote.fechaEncaset) }} sem.</div>
             <div><strong class="text-warm-gray-800">📄 Lote ERP:</strong> {{ selectedLote.loteErp || '—' }}</div>
             <div><strong class="text-warm-gray-800">🧬 Raza:</strong> {{ selectedLote.raza || '—' }}</div>
             <div><strong class="text-warm-gray-800">📅 Año Tabla Genética:</strong> {{ selectedLote.anoTablaGenetica || '—' }}</div>
@@ -551,31 +763,113 @@
             </div>
           </div>
 
-          <!-- Reproductoras asociadas -->
+          <!-- Tabs: Levante | Producción | Reproductoras -->
           <h3 class="text-sm font-bold text-warm-gray-800 border-b border-dashed border-warm-200 pb-1 mb-2">
-            📋 Lotes Reproductora Asociados
+            Lotes asociados
           </h3>
-          <div class="ux-card">
-            <div class="ux-scroll" style="max-height: 40vh;">
-              <table class="ux-table ux-table--sub">
+          <div class="ux-card mb-4">
+            <div class="flex gap-2 p-2 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+              <button type="button" class="px-3 py-1.5 text-sm font-medium rounded transition-colors"
+                [class.bg-primary]="activeDetailTab === 'levante'"
+                [class.text-white]="activeDetailTab === 'levante'"
+                [class.bg-gray-200]="activeDetailTab !== 'levante'"
+                (click)="setDetailTab('levante')">
+                Levante
+              </button>
+              <button type="button" class="px-3 py-1.5 text-sm font-medium rounded transition-colors"
+                [class.bg-primary]="activeDetailTab === 'produccion'"
+                [class.text-white]="activeDetailTab === 'produccion'"
+                [class.bg-gray-200]="activeDetailTab !== 'produccion'"
+                (click)="setDetailTab('produccion')">
+                Producción
+              </button>
+              <button type="button" class="px-3 py-1.5 text-sm font-medium rounded transition-colors"
+                [class.bg-primary]="activeDetailTab === 'reproductora'"
+                [class.text-white]="activeDetailTab === 'reproductora'"
+                [class.bg-gray-200]="activeDetailTab !== 'reproductora'"
+                (click)="setDetailTab('reproductora')">
+                Reproductoras
+              </button>
+            </div>
+            <div class="ux-scroll" style="max-height: 35vh;">
+              <!-- Tab Levante -->
+              <table *ngIf="activeDetailTab === 'levante'" class="ux-table ux-table--sub">
                 <thead>
                   <tr>
-                    <th>Lote Reproductora</th>
+                    <th>Nombre</th>
+                    <th>Hembras inicial</th>
+                    <th>Machos inicial</th>
+                    <th>Hembras actual</th>
+                    <th>Machos actual</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let l of lotesLevanteAsociados">
+                    <td>{{ l.loteNombre }}</td>
+                    <td>{{ formatNumber(l.avesHInicial ?? l.hembrasL ?? 0) }}</td>
+                    <td>{{ formatNumber(l.avesMInicial ?? l.machosL ?? 0) }}</td>
+                    <td>{{ formatNumber(l.avesHActual ?? l.hembrasL ?? 0) }}</td>
+                    <td>{{ formatNumber(l.avesMActual ?? l.machosL ?? 0) }}</td>
+                    <td>
+                      <span *ngIf="estadoCierreLevante(l) === 'Abierto'" class="ux-badge ux-badge--estado ux-badge--estado--abierto">Abierto</span>
+                      <span *ngIf="estadoCierreLevante(l) === 'Cerrado'" class="ux-badge ux-badge--estado ux-badge--estado--cerrado">Cerrado</span>
+                    </td>
+                  </tr>
+                  <tr *ngIf="lotesLevanteAsociados.length === 0">
+                    <td colspan="6" class="empty-state">Sin lotes levante asociados.</td>
+                  </tr>
+                </tbody>
+              </table>
+              <!-- Tab Producción -->
+              <table *ngIf="activeDetailTab === 'produccion'" class="ux-table ux-table--sub">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Hembras inicial</th>
+                    <th>Machos inicial</th>
+                    <th>Hembras actual</th>
+                    <th>Machos actual</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let l of lotesProduccionAsociados">
+                    <td>{{ l.loteNombre }}</td>
+                    <td>{{ formatNumber(l.avesHInicial ?? l.hembrasInicialesProd ?? l.hembrasL ?? 0) }}</td>
+                    <td>{{ formatNumber(l.avesMInicial ?? l.machosInicialesProd ?? l.machosL ?? 0) }}</td>
+                    <td>{{ formatNumber(l.avesHActual ?? l.hembrasInicialesProd ?? l.hembrasL ?? 0) }}</td>
+                    <td>{{ formatNumber(l.avesMActual ?? l.machosInicialesProd ?? l.machosL ?? 0) }}</td>
+                    <td>
+                      <span *ngIf="estadoCierreProduccion(l) === 'Abierto'" class="ux-badge ux-badge--estado ux-badge--estado--abierto">Abierto</span>
+                      <span *ngIf="estadoCierreProduccion(l) === 'Cerrado'" class="ux-badge ux-badge--estado ux-badge--estado--cerrado">Cerrado</span>
+                    </td>
+                  </tr>
+                  <tr *ngIf="lotesProduccionAsociados.length === 0">
+                    <td colspan="6" class="empty-state">Sin lotes producción asociados.</td>
+                  </tr>
+                </tbody>
+              </table>
+              <!-- Tab Reproductoras -->
+              <table *ngIf="activeDetailTab === 'reproductora'" class="ux-table ux-table--sub">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
                     <th>Incubadora</th>
-                    <th>Machos</th>
                     <th>Hembras</th>
-                    <th>Peso M (g)</th>
+                    <th>Machos</th>
                     <th>Peso H (g)</th>
+                    <th>Peso M (g)</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr *ngFor="let r of lotesReproductora">
                     <td>{{ r.nombreLote }}</td>
                     <td>{{ r.reproductoraId }}</td>
-                    <td>{{ formatNumber(r.m || 0) }}</td>
-                    <td>{{ formatNumber(r.h || 0) }}</td>
-                    <td>{{ formatNumber(r.pesoInicialM || 0) }}</td>
-                    <td>{{ formatNumber(r.pesoInicialH || 0) }}</td>
+                    <td>{{ formatNumber(r.h ?? 0) }}</td>
+                    <td>{{ formatNumber(r.m ?? 0) }}</td>
+                    <td>{{ formatNumber(r.pesoInicialH ?? 0) }}</td>
+                    <td>{{ formatNumber(r.pesoInicialM ?? 0) }}</td>
                   </tr>
                   <tr *ngIf="!lotesReproductora.length">
                     <td colspan="6" class="empty-state">Sin lotes reproductora asignados.</td>

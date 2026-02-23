@@ -19,16 +19,15 @@ import {
   ReporteTecnicoService, 
   ReporteTecnicoLevanteConTabsDto
 } from '../../services/reporte-tecnico.service';
-import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { TablaDatosDiariosHembrasComponent } from '../../components/tabla-datos-diarios-hembras/tabla-datos-diarios-hembras.component';
 import { TablaDatosDiariosMachosComponent } from '../../components/tabla-datos-diarios-machos/tabla-datos-diarios-machos.component';
 import { TablaLevanteSemanalHembrasComponent } from '../../components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component';
 import { TablaLevanteSemanalMachosComponent } from '../../components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component';
 import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
-import { FarmService, FarmDto } from '../../../farm/services/farm.service';
-import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
-import { GalponService } from '../../../galpon/services/galpon.service';
+import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
+import { FarmDto } from '../../../farm/services/farm.service';
+import { NucleoDto } from '../../../lote-levante/services/nucleo.service';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-reporte-tecnico-main',
@@ -63,17 +62,22 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   reporteLevanteConTabs = signal<ReporteTecnicoLevanteConTabsDto | null>(null);
   sublotes = signal<string[]>([]);
   
-  // Filtros de selección (granja, núcleo, galpón, lote)
+  // filter-data: una sola llamada para Granja → Núcleo → Galpón → Lote LPL (lote_postura_levante)
+  readonly filterDataUrl = `${environment.apiUrl}/ReporteTecnico/levante/filter-data`;
+  
+  // Filtros de selección (granja, núcleo, galpón, lote LPL)
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
+  /** ID de lote_postura_levante (LoteId en respuesta filter-data = lotePosturaLevanteId) */
   selectedLoteId: number | null = null;
   
-  // Catálogos
+  // Catálogos (desde filter-data)
   granjas: FarmDto[] = [];
   nucleos: NucleoDto[] = [];
-  private allLotes: LoteDto[] = [];
-  selectedLote: LoteDto | null = null;
+  private filterData: FilterDataResponse | null = null;
+  /** Info del lote LPL seleccionado (para display; loteNombre desde filter-data) */
+  selectedLoteInfo: { loteNombre: string } | null = null;
   
   // Tab activo interno (Diario Hembras, Diario Machos, Registro Semana Hembras, Registro Semana Machos)
   tabLevanteActivo: 'hembras' | 'machos' | 'semanal-hembras' | 'semanal-machos' = 'hembras';
@@ -91,17 +95,16 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(
-    private reporteService: ReporteTecnicoService,
-    private loteService: LoteService,
-    private farmService: FarmService,
-    private nucleoService: NucleoService,
-    private galponService: GalponService
-  ) {}
+  constructor(private reporteService: ReporteTecnicoService) {}
 
   ngOnInit(): void {
-    this.cargarGranjas();
     this.establecerFechasPorDefecto();
+  }
+
+  onFilterDataLoaded(data: FilterDataResponse): void {
+    this.granjas = data.farms ?? [];
+    this.nucleos = data.nucleos ?? [];
+    this.filterData = data;
   }
 
   ngOnDestroy(): void {
@@ -118,57 +121,33 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.fechaInicio = hace30Dias.toISOString().split('T')[0];
   }
 
-  private cargarGranjas(): void {
-    this.farmService.getAll()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (granjas) => {
-          this.granjas = granjas || [];
-        },
-        error: (err) => {
-          console.error('Error al cargar granjas:', err);
-          this.granjas = [];
-        }
-      });
-  }
-
   // ================== EVENTOS DE FILTRO ==================
   onGranjaChange(granjaId: number | null): void {
     this.selectedGranjaId = granjaId;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteInfo = null;
     this.reporteLevanteConTabs.set(null);
-    this.nucleos = [];
-
-    if (!this.selectedGranjaId) return;
-
-    this.nucleoService.getByGranja(this.selectedGranjaId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (rows) => (this.nucleos = rows || []),
-        error: () => (this.nucleos = [])
-      });
-
-    this.reloadLotes();
+    if (this.filterData) {
+      const gid = Number(granjaId);
+      this.nucleos = (this.filterData.nucleos ?? []).filter((n: any) => n.granjaId === gid);
+    }
   }
 
   onNucleoChange(nucleoId: string | null): void {
     this.selectedNucleoId = nucleoId;
     this.selectedGalponId = null;
     this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteInfo = null;
     this.reporteLevanteConTabs.set(null);
-    this.applyFiltersToLotes();
   }
 
   onGalponChange(galponId: string | null): void {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteInfo = null;
     this.reporteLevanteConTabs.set(null);
-    this.applyFiltersToLotes();
   }
 
   onLoteChange(loteId: number | null): void {
@@ -176,47 +155,17 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.reporteLevanteConTabs.set(null);
 
     if (!this.selectedLoteId) {
-      this.selectedLote = null;
+      this.selectedLoteInfo = null;
       return;
     }
 
-    this.loteService.getById(this.selectedLoteId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (lote) => {
-          this.selectedLote = lote || null;
-          if (lote) {
-            const nombreBase = this.extraerNombreBase(lote.loteNombre);
-            this.loteNombreBase = nombreBase;
-            this.cargarSublotes(nombreBase);
-          }
-        },
-        error: () => (this.selectedLote = null)
-      });
-  }
-
-  private reloadLotes(): void {
-    if (!this.selectedGranjaId) {
-      this.allLotes = [];
-      return;
+    const lote = (this.filterData?.lotes ?? []).find((l: any) => l.loteId === this.selectedLoteId);
+    this.selectedLoteInfo = lote ? { loteNombre: lote.loteNombre } : null;
+    if (lote?.loteNombre) {
+      const nombreBase = this.extraerNombreBase(lote.loteNombre);
+      this.loteNombreBase = nombreBase;
+      this.cargarSublotes(nombreBase);
     }
-
-    this.loteService.getAll()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (all) => {
-          this.allLotes = all || [];
-          this.applyFiltersToLotes();
-        },
-        error: () => {
-          this.allLotes = [];
-        }
-      });
-  }
-
-  private applyFiltersToLotes(): void {
-    // Los lotes se filtran automáticamente por el componente filtro-select
-    // Aquí solo necesitamos asegurarnos de que tenemos los datos
   }
 
   private extraerNombreBase(loteNombre: string): string {
@@ -319,7 +268,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
           link.href = url;
           
           // Generar nombre de archivo
-          const loteNombre = this.selectedLote?.loteNombre?.replace(/\s+/g, '_') || 'Lote';
+          const loteNombre = (this.selectedLoteInfo?.loteNombre ?? this.reporteLevanteConTabs()?.informacionLote?.loteNombre)?.replace(/\s+/g, '_') || 'Lote';
           const fecha = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
           link.download = `Reporte_Tecnico_Levante_${loteNombre}_${fecha}.xlsx`;
           
@@ -402,7 +351,7 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
   }
 
   get selectedLoteNombre(): string {
-    return this.selectedLote?.loteNombre ?? '';
+    return this.selectedLoteInfo?.loteNombre ?? this.reporteLevanteConTabs()?.informacionLote?.loteNombre ?? '';
   }
 
   extraerSublote(loteNombre: string): string {
