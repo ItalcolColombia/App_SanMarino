@@ -1,16 +1,15 @@
-// src/ZooSanMarino.Infrastructure/Services/LoteLevanteFilterDataService.cs
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.DTOs.Lotes;
 using ZooSanMarino.Application.DTOs.Shared;
 using ZooSanMarino.Application.Interfaces;
 
 namespace ZooSanMarino.Infrastructure.Services;
 
 /// <summary>
-/// Orquesta en una sola llamada los datos para los filtros del módulo Seguimiento Diario de Levante.
-/// Incluye lotes de lote_postura_levante (abiertos y cerrados), usando lote_id (FK a lotes) para compatibilidad con seguimiento_diario.
-/// Las granjas se filtran por las asignadas al usuario (UserFarms).
+/// Orquesta en una sola llamada los datos para los filtros del módulo Reporte Técnico Levante.
+/// Lotes provienen de lote_postura_levante. LoteId en cada item = lotePosturaLevanteId (para reportes y seguimiento_diario).
 /// </summary>
-public class LoteLevanteFilterDataService : ILoteLevanteFilterDataService
+public class ReporteTecnicoLevanteFilterDataService : IReporteTecnicoLevanteFilterDataService
 {
     private readonly IFarmService _farmService;
     private readonly INucleoService _nucleoService;
@@ -19,7 +18,7 @@ public class LoteLevanteFilterDataService : ILoteLevanteFilterDataService
     private readonly ICurrentUser _current;
     private readonly ICompanyResolver _companyResolver;
 
-    public LoteLevanteFilterDataService(
+    public ReporteTecnicoLevanteFilterDataService(
         IFarmService farmService,
         INucleoService nucleoService,
         IGalponService galponService,
@@ -57,11 +56,11 @@ public class LoteLevanteFilterDataService : ILoteLevanteFilterDataService
             .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId))
             .ToList();
 
-        // Solo incluir levantes con LoteId (FK a lotes) para que seguimiento_diario.lote_id coincida
+        // Para Reporte Técnico: LoteId = lotePosturaLevanteId (el frontend usa esto para llamar al reporte; seguimiento_diario usa lote_postura_levante_id)
         var lotes = levantesDetail
-            .Where(l => l.LoteId.HasValue)
+            .Where(l => l.LotePosturaLevanteId > 0)
             .Select(l => new LoteFilterItemDto(
-                l.LoteId!.Value,
+                l.LotePosturaLevanteId, // LoteId en respuesta = lotePosturaLevanteId
                 l.LoteNombre,
                 l.GranjaId,
                 l.NucleoId,

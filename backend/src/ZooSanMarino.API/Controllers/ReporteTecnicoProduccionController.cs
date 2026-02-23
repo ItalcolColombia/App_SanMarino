@@ -13,15 +13,32 @@ public class ReporteTecnicoProduccionController : ControllerBase
     private readonly IReporteTecnicoProduccionService _service;
     private readonly ReporteTecnicoProduccionExcelService _excelService;
     private readonly ILogger<ReporteTecnicoProduccionController> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public ReporteTecnicoProduccionController(
         IReporteTecnicoProduccionService service,
         ReporteTecnicoProduccionExcelService excelService,
-        ILogger<ReporteTecnicoProduccionController> logger)
+        ILogger<ReporteTecnicoProduccionController> logger,
+        IServiceProvider serviceProvider)
     {
         _service = service;
         _excelService = excelService;
         _logger = logger;
+        _serviceProvider = serviceProvider;
+    }
+
+    /// <summary>
+    /// Obtiene los datos para filtros (granjas, núcleos, galpones, lotes) desde lote_postura_produccion.
+    /// Una sola petición retorna toda la información necesaria para el módulo.
+    /// </summary>
+    [HttpGet("filter-data")]
+    [ProducesResponseType(typeof(SeguimientoProduccionFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<SeguimientoProduccionFilterDataDto>> GetFilterData(CancellationToken ct = default)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteProduccionFilterDataService>();
+        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        return Ok(data);
     }
 
     /// <summary>
@@ -55,7 +72,8 @@ public class ReporteTecnicoProduccionController : ControllerBase
     }
 
     /// <summary>
-    /// Genera reporte técnico diario de producción para un lote específico
+    /// Genera reporte técnico diario de producción para un lote específico.
+    /// loteId = LotePosturaProduccionId (lote_postura_produccion).
     /// </summary>
     [HttpGet("diario/{loteId}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ReporteTecnicoProduccionCompletoDto))]

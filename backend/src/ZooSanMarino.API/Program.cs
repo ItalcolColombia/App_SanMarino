@@ -177,6 +177,8 @@ builder.Services.AddScoped<IFarmService, FarmService>();
 builder.Services.AddScoped<INucleoService, NucleoService>();
 builder.Services.AddScoped<IGalponService, GalponService>();
 builder.Services.AddScoped<ILoteService, LoteService>();
+builder.Services.AddScoped<ILotePosturaLevanteService, LotePosturaLevanteService>();
+builder.Services.AddScoped<ILotePosturaProduccionService, LotePosturaProduccionService>();
 builder.Services.AddScoped<ILoteFormDataService, LoteFormDataService>();
 builder.Services.AddScoped<ILoteAveEngordeService, LoteAveEngordeService>();
 builder.Services.AddScoped<ILoteReproductoraService, LoteReproductoraService>();
@@ -185,6 +187,7 @@ builder.Services.AddScoped<ILoteReproductoraAveEngordeService, LoteReproductoraA
 builder.Services.AddScoped<ILoteReproductoraAveEngordeFilterDataService, LoteReproductoraAveEngordeFilterDataService>();
 builder.Services.AddScoped<ILoteProduccionFilterDataService, LoteProduccionFilterDataService>();
 builder.Services.AddScoped<ILoteLevanteFilterDataService, LoteLevanteFilterDataService>();
+builder.Services.AddScoped<IReporteTecnicoLevanteFilterDataService, ReporteTecnicoLevanteFilterDataService>();
 builder.Services.AddScoped<ILoteGalponService, LoteGalponService>();
 builder.Services.AddScoped<IRegionalService, RegionalService>();
 builder.Services.AddScoped<IPaisService, PaisService>();
@@ -640,14 +643,19 @@ Disallow: /api/*/secret";
     return Results.Text(robotsTxt, "text/plain");
 });
 
-// Catch-all OPTIONS (necesario para CORS preflight)
+// ─────────────────────────────────────
+// 15) Controllers (DEBE ir ANTES del catch-all OPTIONS)
+// ─────────────────────────────────────
+// El catch-all {*path} con OPTIONS devuelve 405 para otros métodos si se registra antes;
+// al registrar MapControllers primero, las rutas api/* tienen prioridad.
+app.MapControllers();
+
+// Catch-all OPTIONS (necesario para CORS preflight) - DEBE ir después de MapControllers
 // OPTIONS está habilitado intencionalmente para soportar CORS preflight requests
-// Esto es necesario para que los navegadores puedan validar permisos CORS antes de hacer requests reales
-// El método OPTIONS solo retorna headers, no procesa datos sensibles
 app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok()).RequireCors("AppCors");
 
 // ─────────────────────────────────────
-// 15) Migrar + Seed (flags)
+// 16) Migrar + Seed (flags)
 // ─────────────────────────────────────
 bool runMigrations = app.Configuration.GetValue<bool>("Database:RunMigrations");
 bool runSeed       = app.Configuration.GetValue<bool>("Database:RunSeed");
@@ -656,11 +664,6 @@ if (runMigrations || runSeed)
 {
     await app.MigrateAndSeedAsync();
 }
-
-// ─────────────────────────────────────
-// 16) Controllers
-// ─────────────────────────────────────
-app.MapControllers();
 app.Run();
 
 
