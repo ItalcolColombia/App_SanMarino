@@ -46,14 +46,18 @@ docker info &> /dev/null || error "Docker no corriendo"
 
 cd "$DEPLOY_DIR"
 
-# Login a ECR
+# Login a ECR (igual que backend: usa ECR_URI)
 log "1/7) Login a ECR..."
-aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI > /dev/null
+if ! aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI 2>&1 | grep -q "Login Succeeded"; then
+    error "Fallo en login a ECR"
+fi
 success "Login exitoso"
 
-# Build
+# Build y push (igual que backend: buildx --push)
 log "2/7) Building imagen para linux/amd64..."
-docker buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push . > /dev/null
+if ! docker buildx build --platform linux/amd64 --provenance=false --sbom=false -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
+    error "Fallo en docker buildx build/push"
+fi
 success "Imagen pusheada"
 
 # Preparar Task Definition
