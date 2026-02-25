@@ -79,8 +79,8 @@ success "Login exitoso a ECR"
 log "2/7) Building Docker image para linux/amd64..."
 cd "$DEPLOY_DIR"
 
-if ! docker buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push . 2>&1 | grep -q "pushing manifest"; then
-    error "Fallo en docker buildx build"
+if ! docker buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
+    error "Fallo en docker buildx build (p. ej. 403 en push a ECR)"
 fi
 success "Imagen construida y pusheada"
 
