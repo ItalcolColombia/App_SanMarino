@@ -56,6 +56,7 @@
               <input type="checkbox" [(ngModel)]="soloLotesCerrados" class="checkbox-input">
               <span class="checkbox-text"><span class="filter-icon">✅</span> Solo lotes cerrados (aves = 0)</span>
             </label>
+            <p class="form-hint" *ngIf="vistaIndicador === 'polloEngorde'">Con esta opción se muestran el lote padre (si está cerrado) y todos los lotes reproductores asociados que tienen 0 aves, aunque el padre aún tenga aves.</p>
           </div>
           <!-- Ocultos por ahora: variables Conv. Ajustada (default 2,7 y 4,5 en backend) -->
           <div class="filter-group" *ngIf="false">
@@ -288,13 +289,13 @@
             <p class="result-pollo-engorde__subtitle">Lote padre y reproductores · Liquidación técnica</p>
           </div>
           <div class="result-pollo-engorde__header-actions">
-            <span class="badge badge-info">{{ resultadoPolloEngorde.lotesReproductores.length + 1 }} lote(s)</span>
+            <span class="badge badge-info">{{ (resultadoPolloEngorde.indicadorLotePadre ? 1 : 0) + resultadoPolloEngorde.lotesReproductores.length }} lote(s)</span>
             <button type="button" (click)="mostrarPolloEngorde = false; resultadoPolloEngorde = null" class="btn btn-sm btn-secondary">Cerrar</button>
           </div>
         </div>
 
         <div class="result-pollo-engorde__tabs tabs-header">
-          <button type="button" class="tab-btn" [class.active]="tabPolloEngordeActivo === 'padre'" (click)="setTabPolloEngorde('padre')">
+          <button type="button" *ngIf="resultadoPolloEngorde.indicadorLotePadre" class="tab-btn" [class.active]="tabPolloEngordeActivo === 'padre'" (click)="setTabPolloEngorde('padre')">
             Lote padre
           </button>
           <button type="button" *ngFor="let r of resultadoPolloEngorde.lotesReproductores" class="tab-btn" [class.active]="tabPolloEngordeActivo === r.id" (click)="setTabPolloEngorde(r.id)">
@@ -308,10 +309,17 @@
             <span class="result-pollo-engorde__hint-text">Mortalidad = sacrificio en granja (seguimiento diario). Aves vendidas/despacho = salidas por venta o despacho. Solo se liquida cuando el lote tiene cero aves.</span>
           </div>
 
-          <!-- Tab Lote padre: KPIs + tabla organizada por bloques -->
+          <!-- Tab Lote padre: KPIs + tabla (solo si el lote padre está cerrado); si no, mensaje explicativo -->
           <ng-container *ngIf="tabPolloEngordeActivo === 'padre'">
-            <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
-            <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
+            <ng-container *ngIf="resultadoPolloEngorde.indicadorLotePadre; else padreNoCerrado">
+              <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
+              <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
+            </ng-container>
+            <ng-template #padreNoCerrado>
+              <div class="result-pollo-engorde__hint" style="margin-top: 1rem;">
+                <span class="result-pollo-engorde__hint-text">El lote padre no está cerrado (tiene aves). Con «Solo lotes cerrados (aves = 0)» se muestran únicamente los lotes reproductores asociados que ya están en cero aves. Use los tabs de arriba para ver cada reproductor.</span>
+              </div>
+            </ng-template>
           </ng-container>
           <!-- Tab reproductor -->
           <ng-container *ngFor="let r of resultadoPolloEngorde.lotesReproductores">

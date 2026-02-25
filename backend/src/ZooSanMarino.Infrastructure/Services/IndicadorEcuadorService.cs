@@ -251,8 +251,8 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         var divisorAjuste = request.DivisorAjusteVariable ?? DivisorAjusteDefault;
 
         var indicadorPadre = await CalcularIndicadorLoteAveEngordeAsync(lotePadre, request.FechaDesde, request.FechaHasta, request.SoloLotesCerrados, pesoAjuste, divisorAjuste);
-        if (indicadorPadre == null && request.SoloLotesCerrados)
-            throw new InvalidOperationException("El lote padre no está cerrado.");
+        // Cuando "Solo lotes cerrados" está activo y el lote padre no está cerrado, no lanzar: igual se devuelven los reproductores con 0 aves asociados.
+        // Así el usuario puede ver los lotes reproductores ya cerrados (AB0) aunque el padre aún tenga aves.
 
         var reproductores = await _context.LoteReproductoraAveEngorde
             .AsNoTracking()
@@ -268,10 +268,11 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
                 listReproductores.Add(new IndicadorReproductorDto(rep.Id, rep.NombreLote, indRep));
         }
 
-        return new IndicadorPolloEngordePorLotePadreDto(
-            indicadorPadre ?? throw new InvalidOperationException("Error calculando indicador del lote padre."),
-            listReproductores
-        );
+        // Si no se filtró por cerrados, el padre debe existir; si se filtró por cerrados, se permite padre null y solo se muestran reproductores con 0 aves.
+        if (indicadorPadre == null && !request.SoloLotesCerrados)
+            throw new InvalidOperationException("Error calculando indicador del lote padre.");
+
+        return new IndicadorPolloEngordePorLotePadreDto(indicadorPadre, listReproductores);
     }
 
     // ========== Métodos privados (pollo engorde) ==========

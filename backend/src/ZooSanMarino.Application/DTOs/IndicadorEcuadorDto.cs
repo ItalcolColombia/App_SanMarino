@@ -108,10 +108,11 @@ public record IndicadorPolloEngordePorLotePadreRequest(
 public record IndicadorReproductorDto(int Id, string NombreLote, IndicadorEcuadorDto Indicador);
 
 /// <summary>
-/// Respuesta: indicador del lote padre + lista de indicadores por lote reproductor
+/// Respuesta: indicador del lote padre (null si no está cerrado y se filtró por solo cerrados) + lista de indicadores por lote reproductor.
+/// Cuando SoloLotesCerrados está activo, se incluyen todos los reproductores asociados con 0 aves, aunque el lote padre aún tenga aves.
 /// </summary>
 public record IndicadorPolloEngordePorLotePadreDto(
-    IndicadorEcuadorDto IndicadorLotePadre,
+    IndicadorEcuadorDto? IndicadorLotePadre,
     IReadOnlyList<IndicadorReproductorDto> LotesReproductores
 );
 

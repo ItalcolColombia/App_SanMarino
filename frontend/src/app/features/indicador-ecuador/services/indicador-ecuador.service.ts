@@ -110,9 +110,9 @@ export interface IndicadorReproductorDto {
   indicador: IndicadorEcuadorDto;
 }
 
-/** Respuesta: indicador lote padre + lista por reproductor */
+/** Respuesta: indicador lote padre (null si no está cerrado y se filtró por solo cerrados) + lista por reproductor. Incluye reproductores con 0 aves cuando aplica. */
 export interface IndicadorPolloEngordePorLotePadreDto {
-  indicadorLotePadre: IndicadorEcuadorDto;
+  indicadorLotePadre: IndicadorEcuadorDto | null;
   lotesReproductores: IndicadorReproductorDto[];
 }
 

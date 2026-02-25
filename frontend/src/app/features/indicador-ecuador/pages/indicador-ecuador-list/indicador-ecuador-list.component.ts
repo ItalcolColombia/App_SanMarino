@@ -329,7 +329,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
       };
       this.resultadoPolloEngorde = await firstValueFrom(this.indicadorService.indicadoresPolloEngordePorLotePadre(request));
       this.mostrarPolloEngorde = true;
-      this.tabPolloEngordeActivo = 'padre';
+      // Si el lote padre no está cerrado pero hay reproductores con 0 aves, abrir el primer reproductor por defecto
+      this.tabPolloEngordeActivo = this.resultadoPolloEngorde.indicadorLotePadre ? 'padre' : (this.resultadoPolloEngorde.lotesReproductores[0]?.id ?? 'padre');
     } catch (err: any) {
       this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al cargar indicadores por lote padre.';
       this.resultadoPolloEngorde = null;
