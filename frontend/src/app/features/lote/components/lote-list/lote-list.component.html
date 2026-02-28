@@ -294,8 +294,8 @@
               <td>{{ l.createdAt ? (l.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
               <td>
                 <span *ngIf="l.estadoTraslado === 'trasladado'" class="ux-badge bg-yellow-100 text-yellow-800">Trasladado</span>
-                <span *ngIf="l.estadoTraslado === 'en_transferencia'" class="ux-badge bg-blue-100 text-blue-800">En Transferencia</span>
-                <span *ngIf="l.estadoTraslado !== 'trasladado' && l.estadoTraslado !== 'en_transferencia'" class="ux-badge bg-green-100 text-green-800">Normal</span>
+                <span *ngIf="l.estadoTraslado === 'lote_transferido' || l.estadoTraslado === 'en_transferencia'" class="ux-badge bg-blue-100 text-blue-800">Lote transferido</span>
+                <span *ngIf="l.estadoTraslado !== 'trasladado' && l.estadoTraslado !== 'en_transferencia' && l.estadoTraslado !== 'lote_transferido'" class="ux-badge bg-green-100 text-green-800">Normal</span>
               </td>
               <td class="text-center">
                 <div class="inline-flex items-center gap-2">
@@ -584,60 +584,56 @@
     </div>
 
     <!-- MODAL: Detalle lote postura producción -->
-    <div *ngIf="selectedLoteProduccion" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-produccion-title">
-      <div class="ux-modal__panel ux-modal__panel--wide">
-        <div class="ux-modal__header">
-          <h2 id="detail-produccion-title" class="ux-title">Detalle Lote Postura Producción</h2>
-          <button (click)="selectedLoteProduccion = null" class="btn-muted" type="button">Cerrar</button>
+    <div *ngIf="selectedLoteProduccion" class="ux-modal detail-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="detail-produccion-title">
+      <div class="ux-modal__panel ux-modal__panel--wide detail-modal-panel detail-modal-panel--produccion">
+        <div class="ux-modal__header detail-modal-header">
+          <div class="detail-modal-header__title">
+            <span class="detail-modal-header__icon" aria-hidden="true">🥚</span>
+            <h2 id="detail-produccion-title" class="ux-title detail-modal-title">Detalle Lote Producción</h2>
+            <p class="detail-modal-subtitle">{{ selectedLoteProduccion.loteNombre }}</p>
+          </div>
+          <button (click)="selectedLoteProduccion = null" class="btn-muted detail-modal-close" type="button" aria-label="Cerrar">Cerrar</button>
         </div>
-        <div class="ux-modal__body">
-          <div class="ux-detail-grid">
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Nombre</label>
-              <input type="text" [value]="selectedLoteProduccion.loteNombre" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Granja</label>
-              <input type="text" [value]="selectedLoteProduccion.farm?.name ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Núcleo</label>
-              <input type="text" [value]="selectedLoteProduccion.nucleo?.nucleoNombre ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Galpón</label>
-              <input type="text" [value]="selectedLoteProduccion.galpon?.galponNombre ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Fecha encaset</label>
-              <input type="text" [value]="selectedLoteProduccion.fechaEncaset ? (selectedLoteProduccion.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Fecha inicio prod.</label>
-              <input type="text" [value]="selectedLoteProduccion.fechaInicioProduccion ? (selectedLoteProduccion.fechaInicioProduccion | date:'dd/MM/yyyy') : '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Edad (semanas)</label>
-              <input type="text" [value]="(selectedLoteProduccion.fechaEncaset ? calcularEdadSemanas(selectedLoteProduccion.fechaEncaset) : 0) + ' sem.'" readonly disabled class="ux-detail-input ux-detail-input--highlight" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Estado</label>
-              <input type="text" [value]="estadoCierreProduccion(selectedLoteProduccion)" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Raza</label>
-              <input type="text" [value]="selectedLoteProduccion.raza ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Hembras actual</label>
-              <input type="text" [value]="formatNumber(selectedLoteProduccion.avesHActual ?? selectedLoteProduccion.hembrasInicialesProd ?? selectedLoteProduccion.hembrasL ?? 0)" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Machos actual</label>
-              <input type="text" [value]="formatNumber(selectedLoteProduccion.avesMActual ?? selectedLoteProduccion.machosInicialesProd ?? selectedLoteProduccion.machosL ?? 0)" readonly disabled class="ux-detail-input" />
+        <div class="ux-modal__body detail-modal-body">
+          <div class="detail-section">
+            <h3 class="detail-section__title"><span class="detail-section__icon">📍</span> Identificación</h3>
+            <div class="detail-grid">
+              <div class="detail-row"><span class="detail-row__label">Nombre</span><span class="detail-row__value">{{ selectedLoteProduccion.loteNombre }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Granja</span><span class="detail-row__value">{{ selectedLoteProduccion.farm?.name ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Núcleo</span><span class="detail-row__value">{{ selectedLoteProduccion.nucleo?.nucleoNombre ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Galpón</span><span class="detail-row__value">{{ selectedLoteProduccion.galpon?.galponNombre ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Estado</span><span class="detail-row__value"><span class="ux-badge ux-badge--estado" [class.ux-badge--estado--abierto]="estadoCierreProduccion(selectedLoteProduccion) === 'Abierto'" [class.ux-badge--estado--cerrado]="estadoCierreProduccion(selectedLoteProduccion) === 'Cerrado'">{{ estadoCierreProduccion(selectedLoteProduccion) }}</span></span></div>
+              <div class="detail-row"><span class="detail-row__label">Raza</span><span class="detail-row__value">{{ selectedLoteProduccion.raza ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Línea</span><span class="detail-row__value">{{ selectedLoteProduccion.linea ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Lote ERP</span><span class="detail-row__value">{{ selectedLoteProduccion.loteErp ?? '—' }}</span></div>
             </div>
           </div>
-          <div class="ux-actions mt-4">
+          <div class="detail-section">
+            <h3 class="detail-section__title"><span class="detail-section__icon">🐔</span> Aves</h3>
+            <div class="detail-grid detail-grid--2">
+              <div class="detail-row"><span class="detail-row__label">Aves encasetadas</span><span class="detail-row__value">{{ formatNumber(selectedLoteProduccion.avesEncasetadas ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Hembras inicial</span><span class="detail-row__value">{{ formatNumber(selectedLoteProduccion.avesHInicial ?? selectedLoteProduccion.hembrasInicialesProd ?? selectedLoteProduccion.hembrasL ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Machos inicial</span><span class="detail-row__value">{{ formatNumber(selectedLoteProduccion.avesMInicial ?? selectedLoteProduccion.machosInicialesProd ?? selectedLoteProduccion.machosL ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Hembras actual</span><span class="detail-row__value detail-row__value--emphasis">{{ formatNumber(selectedLoteProduccion.avesHActual ?? selectedLoteProduccion.hembrasInicialesProd ?? selectedLoteProduccion.hembrasL ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Machos actual</span><span class="detail-row__value detail-row__value--emphasis">{{ formatNumber(selectedLoteProduccion.avesMActual ?? selectedLoteProduccion.machosInicialesProd ?? selectedLoteProduccion.machosL ?? 0) }}</span></div>
+            </div>
+          </div>
+          <div class="detail-section detail-section--highlight">
+            <h3 class="detail-section__title"><span class="detail-section__icon">📅</span> Fechas y edad</h3>
+            <div class="detail-grid detail-grid--2">
+              <div class="detail-row"><span class="detail-row__label">Fecha encaset</span><span class="detail-row__value">{{ selectedLoteProduccion.fechaEncaset ? (selectedLoteProduccion.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Fecha inicio producción</span><span class="detail-row__value">{{ selectedLoteProduccion.fechaInicioProduccion ? (selectedLoteProduccion.fechaInicioProduccion | date:'dd/MM/yyyy') : '—' }}</span></div>
+              <div class="detail-row detail-row--feature"><span class="detail-row__label">Edad (semanas)</span><span class="detail-row__value detail-row__value--feature">{{ selectedLoteProduccion.fechaEncaset ? calcularEdadSemanas(selectedLoteProduccion.fechaEncaset) : (selectedLoteProduccion.edad ?? 0) }} sem.</span></div>
+            </div>
+          </div>
+          <div class="detail-section">
+            <h3 class="detail-section__title"><span class="detail-section__icon">📈</span> Pesos (g)</h3>
+            <div class="detail-grid detail-grid--2">
+              <div class="detail-row"><span class="detail-row__label">Peso inicial H</span><span class="detail-row__value">{{ formatNumber(selectedLoteProduccion.pesoInicialH ?? 0) }} g</span></div>
+              <div class="detail-row"><span class="detail-row__label">Peso inicial M</span><span class="detail-row__value">{{ formatNumber(selectedLoteProduccion.pesoInicialM ?? 0) }} g</span></div>
+            </div>
+          </div>
+          <div class="ux-actions detail-modal-actions">
             <button (click)="selectedLoteProduccion = null" class="btn-primary" type="button">Cerrar</button>
           </div>
         </div>
@@ -645,56 +641,56 @@
     </div>
 
     <!-- MODAL: Detalle lote postura levante -->
-    <div *ngIf="selectedLoteLevante" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-levante-title">
-      <div class="ux-modal__panel ux-modal__panel--wide">
-        <div class="ux-modal__header">
-          <h2 id="detail-levante-title" class="ux-title">Detalle Lote Postura Levante</h2>
-          <button (click)="selectedLoteLevante = null" class="btn-muted" type="button">Cerrar</button>
+    <div *ngIf="selectedLoteLevante" class="ux-modal detail-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="detail-levante-title">
+      <div class="ux-modal__panel ux-modal__panel--wide detail-modal-panel detail-modal-panel--levante">
+        <div class="ux-modal__header detail-modal-header">
+          <div class="detail-modal-header__title">
+            <span class="detail-modal-header__icon" aria-hidden="true">🐣</span>
+            <h2 id="detail-levante-title" class="ux-title detail-modal-title">Detalle Lote Levante</h2>
+            <p class="detail-modal-subtitle">{{ selectedLoteLevante.loteNombre }}</p>
+          </div>
+          <button (click)="selectedLoteLevante = null" class="btn-muted detail-modal-close" type="button" aria-label="Cerrar">Cerrar</button>
         </div>
-        <div class="ux-modal__body">
-          <div class="ux-detail-grid">
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Nombre</label>
-              <input type="text" [value]="selectedLoteLevante.loteNombre" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Granja</label>
-              <input type="text" [value]="selectedLoteLevante.farm?.name ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Núcleo</label>
-              <input type="text" [value]="selectedLoteLevante.nucleo?.nucleoNombre ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Galpón</label>
-              <input type="text" [value]="selectedLoteLevante.galpon?.galponNombre ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Fecha encaset</label>
-              <input type="text" [value]="selectedLoteLevante.fechaEncaset ? (selectedLoteLevante.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Edad (semanas)</label>
-              <input type="text" [value]="(selectedLoteLevante.fechaEncaset ? calcularEdadSemanas(selectedLoteLevante.fechaEncaset) : 0) + ' sem.'" readonly disabled class="ux-detail-input ux-detail-input--highlight" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Estado</label>
-              <input type="text" [value]="estadoCierreLevante(selectedLoteLevante)" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Raza</label>
-              <input type="text" [value]="selectedLoteLevante.raza ?? '—'" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Hembras actual</label>
-              <input type="text" [value]="formatNumber(selectedLoteLevante.avesHActual ?? selectedLoteLevante.hembrasL ?? 0)" readonly disabled class="ux-detail-input" />
-            </div>
-            <div class="ux-detail-field">
-              <label class="ux-detail-label">Machos actual</label>
-              <input type="text" [value]="formatNumber(selectedLoteLevante.avesMActual ?? selectedLoteLevante.machosL ?? 0)" readonly disabled class="ux-detail-input" />
+        <div class="ux-modal__body detail-modal-body">
+          <div class="detail-section">
+            <h3 class="detail-section__title"><span class="detail-section__icon">📍</span> Identificación</h3>
+            <div class="detail-grid">
+              <div class="detail-row"><span class="detail-row__label">Nombre</span><span class="detail-row__value">{{ selectedLoteLevante.loteNombre }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Granja</span><span class="detail-row__value">{{ selectedLoteLevante.farm?.name ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Núcleo</span><span class="detail-row__value">{{ selectedLoteLevante.nucleo?.nucleoNombre ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Galpón</span><span class="detail-row__value">{{ selectedLoteLevante.galpon?.galponNombre ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Estado</span><span class="detail-row__value"><span class="ux-badge ux-badge--estado" [class.ux-badge--estado--abierto]="estadoCierreLevante(selectedLoteLevante) === 'Abierto'" [class.ux-badge--estado--cerrado]="estadoCierreLevante(selectedLoteLevante) === 'Cerrado'">{{ estadoCierreLevante(selectedLoteLevante) }}</span></span></div>
+              <div class="detail-row"><span class="detail-row__label">Raza</span><span class="detail-row__value">{{ selectedLoteLevante.raza ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Año tabla genética</span><span class="detail-row__value">{{ selectedLoteLevante.anoTablaGenetica ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Línea</span><span class="detail-row__value">{{ selectedLoteLevante.linea ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Lote ERP</span><span class="detail-row__value">{{ selectedLoteLevante.loteErp ?? '—' }}</span></div>
             </div>
           </div>
-          <div class="ux-actions mt-4">
+          <div class="detail-section">
+            <h3 class="detail-section__title"><span class="detail-section__icon">🐔</span> Aves</h3>
+            <div class="detail-grid detail-grid--2">
+              <div class="detail-row"><span class="detail-row__label">Aves encasetadas</span><span class="detail-row__value">{{ formatNumber(selectedLoteLevante.avesEncasetadas ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Hembras inicial</span><span class="detail-row__value">{{ formatNumber(selectedLoteLevante.avesHInicial ?? selectedLoteLevante.hembrasL ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Machos inicial</span><span class="detail-row__value">{{ formatNumber(selectedLoteLevante.avesMInicial ?? selectedLoteLevante.machosL ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Hembras actual</span><span class="detail-row__value detail-row__value--emphasis">{{ formatNumber(selectedLoteLevante.avesHActual ?? selectedLoteLevante.hembrasL ?? 0) }}</span></div>
+              <div class="detail-row"><span class="detail-row__label">Machos actual</span><span class="detail-row__value detail-row__value--emphasis">{{ formatNumber(selectedLoteLevante.avesMActual ?? selectedLoteLevante.machosL ?? 0) }}</span></div>
+            </div>
+          </div>
+          <div class="detail-section detail-section--highlight">
+            <h3 class="detail-section__title"><span class="detail-section__icon">📅</span> Fechas y edad</h3>
+            <div class="detail-grid detail-grid--2">
+              <div class="detail-row"><span class="detail-row__label">Fecha encaset</span><span class="detail-row__value">{{ selectedLoteLevante.fechaEncaset ? (selectedLoteLevante.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</span></div>
+              <div class="detail-row detail-row--feature"><span class="detail-row__label">Edad (máx. registros)</span><span class="detail-row__value detail-row__value--feature">{{ (selectedLoteLevante.edadMaximaSeguimiento ?? (selectedLoteLevante.fechaEncaset ? calcularEdadSemanas(selectedLoteLevante.fechaEncaset) : 0)) }} sem.</span></div>
+            </div>
+          </div>
+          <div class="detail-section">
+            <h3 class="detail-section__title"><span class="detail-section__icon">📈</span> Pesos (g)</h3>
+            <div class="detail-grid detail-grid--2">
+              <div class="detail-row"><span class="detail-row__label">Peso inicial H</span><span class="detail-row__value">{{ formatNumber(selectedLoteLevante.pesoInicialH ?? 0) }} g</span></div>
+              <div class="detail-row"><span class="detail-row__label">Peso inicial M</span><span class="detail-row__value">{{ formatNumber(selectedLoteLevante.pesoInicialM ?? 0) }} g</span></div>
+            </div>
+          </div>
+          <div class="ux-actions detail-modal-actions">
             <button (click)="selectedLoteLevante = null" class="btn-primary" type="button">Cerrar</button>
           </div>
         </div>

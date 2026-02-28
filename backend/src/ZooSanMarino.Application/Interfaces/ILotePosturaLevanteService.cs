@@ -13,4 +13,9 @@ public interface ILotePosturaLevanteService
     /// Obtiene los lotes levante asociados a un lote (lote_id).
     /// </summary>
     Task<IEnumerable<LotePosturaLevanteDetailDto>> GetByLoteIdAsync(int loteId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Obtiene un lote levante por ID con EdadMaximaSeguimiento (máx. edad en semanas con registros en seguimiento_diario).
+    /// </summary>
+    Task<LotePosturaLevanteDetailDto?> GetByIdAsync(int id, CancellationToken ct = default);
 }

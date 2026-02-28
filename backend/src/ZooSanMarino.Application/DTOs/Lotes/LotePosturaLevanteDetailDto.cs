@@ -58,5 +58,7 @@ public sealed record LotePosturaLevanteDetailDto(
     // Relaciones
     FarmLiteDto    Farm,
     NucleoLiteDto? Nucleo,
-    GalponLiteDto? Galpon
+    GalponLiteDto? Galpon,
+    /// <summary>Máxima edad (semanas) con registros en seguimiento_diario (levante). Null si no hay registros.</summary>
+    int?      EdadMaximaSeguimiento = null
 );

@@ -65,6 +65,8 @@ export interface LotePosturaLevanteDto {
     nucleoId?: string | null;
     granjaId?: number | null;
   } | null;
+  /** Máxima edad (semanas) con registros en seguimiento (solo en detalle por ID). */
+  edadMaximaSeguimiento?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -78,5 +80,10 @@ export class LotePosturaLevanteService {
 
   getAll(): Observable<LotePosturaLevanteDto[]> {
     return this.http.get<LotePosturaLevanteDto[]>(this.baseUrl);
+  }
+
+  /** Detalle por ID (incluye edadMaximaSeguimiento). */
+  getById(id: number): Observable<LotePosturaLevanteDto> {
+    return this.http.get<LotePosturaLevanteDto>(`${this.baseUrl}/${id}`);
   }
 }

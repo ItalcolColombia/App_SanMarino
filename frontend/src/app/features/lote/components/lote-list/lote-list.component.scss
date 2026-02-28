@@ -320,3 +320,199 @@
   .ux-modal__panel--wide { width: 98vw; max-height: 94vh; }
   .ux-table { min-width: 680px; } /* permite scroll horizontal suave dentro de detalle */
 }
+
+/* ================================
+   MODALES DE DETALLE (UX mejorado)
+================================ */
+.detail-modal-overlay {
+  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.4);
+  animation: detailFadeIn 0.2s ease;
+}
+
+@keyframes detailFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.detail-modal-panel {
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  animation: detailSlideIn 0.25s ease;
+}
+
+@keyframes detailSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.detail-modal-panel--levante .detail-modal-header {
+  border-left: 4px solid #16a34a;
+  background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%);
+}
+
+.detail-modal-panel--produccion .detail-modal-header {
+  border-left: 4px solid #ea580c;
+  background: linear-gradient(135deg, #fff7ed 0%, #fff 100%);
+}
+
+.detail-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--warm-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.detail-modal-header__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-modal-header__icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  margin-bottom: 0.15rem;
+}
+
+.detail-modal-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--slate-800);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.detail-modal-subtitle {
+  font-size: 0.9rem;
+  color: var(--warm-600);
+  margin: 0;
+  font-weight: 500;
+}
+
+.detail-modal-close {
+  flex-shrink: 0;
+}
+
+.detail-modal-body {
+  padding: 1.5rem;
+  background: var(--warm-50);
+}
+
+.detail-section {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid var(--warm-200);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.detail-section--highlight {
+  background: linear-gradient(135deg, #fffbeb 0%, #fff 100%);
+  border-color: #fcd34d;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(252, 211, 77, 0.2);
+}
+
+.detail-section__title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--warm-600);
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--warm-200);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-section__icon {
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.detail-grid--2 {
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+
+@media (max-width: 520px) {
+  .detail-grid,
+  .detail-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--warm-100);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row--feature {
+  grid-column: 1 / -1;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  border: 1px solid var(--warm-200);
+}
+
+.detail-row__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--warm-600);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.detail-row__value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--slate-800);
+}
+
+.detail-row__value--emphasis {
+  color: var(--brand-red);
+  font-weight: 700;
+}
+
+.detail-row__value--feature {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #166534;
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  display: inline-block;
+  width: fit-content;
+  border: 1px solid #86efac;
+}
+
+.detail-modal-actions {
+  margin-top: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--warm-200);
+}
