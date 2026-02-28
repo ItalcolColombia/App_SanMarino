@@ -22,7 +22,19 @@ El trigger se ejecuta automáticamente en INSERT, UPDATE y DELETE de `seguimient
 | **UPDATE** | Resta OLD, suma NEW |
 | **DELETE** | Resta los huevos del registro eliminado (historico, dinamico y historico_semanal) |
 
-## 3. (Opcional) Backfill datos existentes
+## 3. Backfill y migración (datos existentes + movimientos)
+
+Para alinear el espejo con **todo** el seguimiento diario ya guardado y restar los traslados/ventas ya **Completados** (huevo disponible histórico vs actual):
+
+```bash
+psql -f sql/migracion_espejo_huevo_desde_seguimiento_y_movimientos.sql
+```
+
+Este script:
+- Llena/actualiza `espejo_huevo_produccion` desde `seguimiento_diario` (por `lote_postura_produccion_id`): `*_historico` y `*_dinamico` inicial = suma de huevos por categoría.
+- Resta de `*_dinamico` las cantidades de los traslados con estado `Completado` (por LPP; si el traslado tiene solo `lote_id`, se resuelve a LPP por `lote_id` o formato `LPP-<id>`).
+
+Alternativa solo backfill (sin restar movimientos):
 
 ```bash
 psql -f sql/backfill_espejo_huevo_produccion.sql
