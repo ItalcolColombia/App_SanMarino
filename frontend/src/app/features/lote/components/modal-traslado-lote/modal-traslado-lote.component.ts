@@ -172,19 +172,20 @@ export class ModalTrasladoLoteComponent implements OnInit, OnChanges {
   }
 
   validarFormulario(): boolean {
+    const granjaId = this.granjaDestinoId != null ? Number(this.granjaDestinoId) : null;
     // Validar que se haya seleccionado una granja destino
-    if (!this.granjaDestinoId || this.granjaDestinoId <= 0) {
+    if (granjaId == null || granjaId <= 0) {
       return false;
     }
 
-    // Validar que la granja destino existe en la lista
-    const granjaExiste = this.granjasDisponibles.some(f => f.id === this.granjaDestinoId);
+    // Validar que la granja destino existe en la lista (comparación por valor numérico)
+    const granjaExiste = this.granjasDisponibles.some(f => Number(f.id) === granjaId);
     if (!granjaExiste) {
       return false;
     }
 
     // Validar que no sea la misma granja que la actual
-    if (this.lote && this.lote.granjaId === this.granjaDestinoId) {
+    if (this.lote && Number(this.lote.granjaId) === granjaId) {
       return false;
     }
 

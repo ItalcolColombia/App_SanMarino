@@ -86,8 +86,8 @@
               class="form-select"
               required
               [disabled]="loading">
-              <option [value]="null">Selecciona una granja destino...</option>
-              <option *ngFor="let farm of granjasDisponibles" [value]="farm.id">
+              <option [ngValue]="null">Selecciona una granja destino...</option>
+              <option *ngFor="let farm of granjasDisponibles" [ngValue]="farm.id">
                 {{ farm.name }}
               </option>
             </select>
@@ -107,8 +107,8 @@
               (ngModelChange)="onNucleoDestinoChange()"
               class="form-select"
               [disabled]="loading">
-              <option [value]="null">Sin núcleo específico</option>
-              <option *ngFor="let nucleo of nucleosFiltrados" [value]="nucleo.nucleoId">
+              <option [ngValue]="null">Sin núcleo específico</option>
+              <option *ngFor="let nucleo of nucleosFiltrados" [ngValue]="nucleo.nucleoId">
                 {{ nucleo.nucleoNombre || nucleo.nucleoId }}
               </option>
             </select>
@@ -127,8 +127,8 @@
               [(ngModel)]="galponDestinoId"
               class="form-select"
               [disabled]="loading || (!nucleoDestinoId && nucleosFiltrados.length > 0)">
-              <option [value]="null">Sin galpón específico</option>
-              <option *ngFor="let galpon of galponesFiltrados" [value]="galpon.galponId">
+              <option [ngValue]="null">Sin galpón específico</option>
+              <option *ngFor="let galpon of galponesFiltrados" [ngValue]="galpon.galponId">
                 {{ galpon.galponNombre || galpon.galponId }}
               </option>
             </select>
@@ -235,7 +235,7 @@
           </div>
 
           <div class="confirm-info">
-            <p><strong>Nota:</strong> El lote original se marcará como "Trasladado" y se creará un nuevo lote en la granja destino con estado "En Transferencia".</p>
+            <p><strong>Nota:</strong> El lote se moverá a la granja destino; se actualizarán granja, núcleo y galpón. No se crea un lote nuevo: es el mismo lote cambiando de ubicación. El estado quedará como «Lote transferido».</p>
           </div>
         </div>
       </div>

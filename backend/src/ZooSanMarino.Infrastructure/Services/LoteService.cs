@@ -299,10 +299,10 @@ namespace ZooSanMarino.Infrastructure.Services
             _ctx.Lotes.Add(ent);
             await _ctx.SaveChangesAsync();
 
-            // Historial etapa Levante: aves con que inicia el lote (sin descontar nada)
             var loteIdValue = ent.LoteId ?? 0;
             if (loteIdValue > 0)
             {
+                // Historial etapa Levante: aves con que inicia el lote (sin descontar nada)
                 var etapaLevante = new LoteEtapaLevante
                 {
                     LoteId = loteIdValue,
@@ -312,6 +312,67 @@ namespace ZooSanMarino.Infrastructure.Services
                     CreatedAt = DateTime.UtcNow
                 };
                 _ctx.LoteEtapaLevante.Add(etapaLevante);
+
+                // Asegurar que LotePosturaLevante exista con la misma granja, núcleo y galpón (por si el trigger DB no creó el registro)
+                var existeLpl = await _ctx.LotePosturaLevante.AnyAsync(l => l.LoteId == loteIdValue && l.DeletedAt == null);
+                if (!existeLpl)
+                {
+                    var edadInicial = ent.EdadInicial;
+                    if (!edadInicial.HasValue && ent.FechaEncaset.HasValue)
+                    {
+                        var dias = (DateTime.UtcNow.Date - ent.FechaEncaset.Value.Date).TotalDays;
+                        edadInicial = (int)Math.Floor(dias / 7.0);
+                    }
+                    var lpl = new LotePosturaLevante
+                    {
+                        LoteNombre = ent.LoteNombre,
+                        GranjaId = ent.GranjaId,
+                        NucleoId = ent.NucleoId,
+                        GalponId = ent.GalponId,
+                        Regional = ent.Regional,
+                        FechaEncaset = ent.FechaEncaset,
+                        HembrasL = ent.HembrasL,
+                        MachosL = ent.MachosL,
+                        PesoInicialH = ent.PesoInicialH,
+                        PesoInicialM = ent.PesoInicialM,
+                        UnifH = ent.UnifH,
+                        UnifM = ent.UnifM,
+                        MortCajaH = ent.MortCajaH,
+                        MortCajaM = ent.MortCajaM,
+                        Raza = ent.Raza,
+                        AnoTablaGenetica = ent.AnoTablaGenetica,
+                        Linea = ent.Linea,
+                        TipoLinea = ent.TipoLinea,
+                        CodigoGuiaGenetica = ent.CodigoGuiaGenetica,
+                        LineaGeneticaId = ent.LineaGeneticaId,
+                        Tecnico = ent.Tecnico,
+                        Mixtas = ent.Mixtas,
+                        PesoMixto = ent.PesoMixto,
+                        AvesEncasetadas = ent.AvesEncasetadas,
+                        EdadInicial = ent.EdadInicial,
+                        LoteErp = ent.LoteErp,
+                        EstadoTraslado = ent.EstadoTraslado,
+                        PaisId = ent.PaisId,
+                        PaisNombre = ent.PaisNombre,
+                        EmpresaNombre = ent.EmpresaNombre,
+                        LoteId = loteIdValue,
+                        LotePadreId = ent.LotePadreId,
+                        AvesHInicial = ent.HembrasL,
+                        AvesMInicial = ent.MachosL,
+                        AvesHActual = ent.HembrasL,
+                        AvesMActual = ent.MachosL,
+                        EmpresaId = companyId,
+                        UsuarioId = _current.UserId,
+                        Estado = ent.Fase ?? "Levante",
+                        Etapa = ent.Fase ?? "Levante",
+                        Edad = edadInicial,
+                        EstadoCierre = "Abierto",
+                        CompanyId = companyId,
+                        CreatedByUserId = _current.UserId,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _ctx.LotePosturaLevante.Add(lpl);
+                }
                 await _ctx.SaveChangesAsync();
             }
 
@@ -722,13 +783,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 throw new InvalidOperationException("No se puede trasladar un lote a la misma granja.");
             }
 
-            // 3. Validar que el lote no esté ya trasladado
-            if (loteOriginal.EstadoTraslado == "trasladado")
-            {
-                throw new InvalidOperationException("Este lote ya ha sido trasladado anteriormente.");
-            }
-
-            // 4. Validar que la granja destino existe y pertenece a la compañía
+            // 3. Validar que la granja destino existe y pertenece a la compañía
             var granjaDestino = await _ctx.Farms
                 .AsNoTracking()
                 .SingleOrDefaultAsync(f =>
@@ -781,55 +836,68 @@ namespace ZooSanMarino.Infrastructure.Services
                 }
             }
 
-            // 7. Actualizar el lote original con estado "trasladado"
-            loteOriginal.EstadoTraslado = "trasladado";
+            var loteId = loteOriginal.LoteId ?? 0;
+            var granjaOrigenId = loteOriginal.GranjaId;
+
+            // 7. Calcular edad en semanas (desde fecha encaset) para decidir si actualizar Levante o Producción
+            int edadSemanas = 0;
+            if (loteOriginal.FechaEncaset.HasValue)
+            {
+                var dias = (DateTime.UtcNow.Date - loteOriginal.FechaEncaset.Value.Date).TotalDays;
+                edadSemanas = (int)Math.Floor(dias / 7.0);
+                if (edadSemanas < 0) edadSemanas = 0;
+            }
+
+            // 8. Actualizar el mismo lote: granja, núcleo y galpón destino; estado "lote_transferido"
+            loteOriginal.GranjaId = dto.GranjaDestinoId;
+            loteOriginal.NucleoId = dto.NucleoDestinoId ?? null;
+            loteOriginal.GalponId = dto.GalponDestinoId ?? null;
+            loteOriginal.EstadoTraslado = "lote_transferido";
             loteOriginal.UpdatedByUserId = _current.UserId;
             loteOriginal.UpdatedAt = DateTime.UtcNow;
 
-            // 8. Crear nuevo lote en la granja destino con estado "en_transferencia"
-            var nuevoLote = new Lote
+            // 9. Según fase: actualizar solo LotePosturaLevante (< 26 sem) o solo LotePosturaProducción (>= 26 sem)
+            //    - Levante (< 26): el lote sigue en levante; actualizar LPL (granja, núcleo, galpón).
+            //    - Producción (>= 26): el lote ya pasó a producción; actualizar LPP; no tocar LPL (queda en granja de origen como historial).
+            if (edadSemanas < 26)
             {
-                CompanyId = companyId,
-                LoteNombre = loteOriginal.LoteNombre,
-                GranjaId = dto.GranjaDestinoId,
-                NucleoId = dto.NucleoDestinoId ?? null,
-                GalponId = dto.GalponDestinoId ?? null,
-                Regional = loteOriginal.Regional,
-                FechaEncaset = loteOriginal.FechaEncaset,
-                HembrasL = loteOriginal.HembrasL,
-                MachosL = loteOriginal.MachosL,
-                PesoInicialH = loteOriginal.PesoInicialH,
-                PesoInicialM = loteOriginal.PesoInicialM,
-                UnifH = loteOriginal.UnifH,
-                UnifM = loteOriginal.UnifM,
-                MortCajaH = loteOriginal.MortCajaH,
-                MortCajaM = loteOriginal.MortCajaM,
-                Raza = loteOriginal.Raza,
-                AnoTablaGenetica = loteOriginal.AnoTablaGenetica,
-                Linea = loteOriginal.Linea,
-                TipoLinea = loteOriginal.TipoLinea,
-                CodigoGuiaGenetica = loteOriginal.CodigoGuiaGenetica,
-                LineaGeneticaId = loteOriginal.LineaGeneticaId,
-                Tecnico = loteOriginal.Tecnico,
-                Mixtas = loteOriginal.Mixtas,
-                PesoMixto = loteOriginal.PesoMixto,
-                AvesEncasetadas = loteOriginal.AvesEncasetadas,
-                EdadInicial = loteOriginal.EdadInicial,
-                LoteErp = loteOriginal.LoteErp,
-                EstadoTraslado = "en_transferencia",
-                CreatedByUserId = _current.UserId,
-                CreatedAt = DateTime.UtcNow
-            };
+                var lpls = await _ctx.LotePosturaLevante
+                    .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+                    .ToListAsync();
+                foreach (var lpl in lpls)
+                {
+                    lpl.GranjaId = dto.GranjaDestinoId;
+                    lpl.NucleoId = dto.NucleoDestinoId ?? null;
+                    lpl.GalponId = dto.GalponDestinoId ?? null;
+                    lpl.EstadoTraslado = "lote_transferido";
+                    lpl.UpdatedByUserId = _current.UserId;
+                    lpl.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+            else
+            {
+                var lpps = await _ctx.LotePosturaProduccion
+                    .Where(l => l.LoteId == loteId && l.DeletedAt == null)
+                    .ToListAsync();
+                foreach (var lpp in lpps)
+                {
+                    lpp.GranjaId = dto.GranjaDestinoId;
+                    lpp.NucleoId = dto.NucleoDestinoId ?? null;
+                    lpp.GalponId = dto.GalponDestinoId ?? null;
+                    lpp.EstadoTraslado = "lote_transferido";
+                    lpp.UpdatedByUserId = _current.UserId;
+                    lpp.UpdatedAt = DateTime.UtcNow;
+                }
+            }
 
-            _ctx.Lotes.Add(nuevoLote);
             await _ctx.SaveChangesAsync();
 
-            // 9. Registrar en el historial de traslados
+            // 9. Registrar en el historial de traslados (mismo lote: origen y destino es el mismo registro movido)
             var historial = new HistorialTrasladoLote
             {
-                LoteOriginalId = loteOriginal.LoteId ?? 0,
-                LoteNuevoId = nuevoLote.LoteId ?? 0,
-                GranjaOrigenId = loteOriginal.GranjaId,
+                LoteOriginalId = loteId,
+                LoteNuevoId = loteId,
+                GranjaOrigenId = granjaOrigenId,
                 GranjaDestinoId = dto.GranjaDestinoId,
                 NucleoDestinoId = dto.NucleoDestinoId,
                 GalponDestinoId = dto.GalponDestinoId,
@@ -841,15 +909,15 @@ namespace ZooSanMarino.Infrastructure.Services
             _ctx.HistorialTrasladoLote.Add(historial);
             await _ctx.SaveChangesAsync();
 
-            // 10. Obtener información de las granjas para la respuesta
+            // 10. Respuesta (origen = granja antes del cambio; destino = granja destino)
             var granjaOrigenNombre = loteOriginal.Farm?.Name ?? "N/A";
 
             return new TrasladoLoteResponseDto
             {
                 Success = true,
                 Message = $"Lote trasladado exitosamente de '{granjaOrigenNombre}' a '{granjaDestino.Name}'.",
-                LoteOriginalId = loteOriginal.LoteId,
-                LoteNuevoId = nuevoLote.LoteId,
+                LoteOriginalId = loteId,
+                LoteNuevoId = loteId,
                 LoteNombre = loteOriginal.LoteNombre,
                 GranjaOrigen = granjaOrigenNombre,
                 GranjaDestino = granjaDestino.Name

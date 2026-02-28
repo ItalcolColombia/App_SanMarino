@@ -124,8 +124,8 @@ export class LoteListComponent implements OnInit {
   loteParaTrasladar: LoteDto | null = null;
   loadingTraslado = false;
 
-  // Pestaña: Levante = lote_postura_levante, Lote = lotes, Producción = lote_postura_produccion
-  activeTab: 'levante' | 'lote' | 'produccion' = 'levante';
+  // Pestaña: Lote = lotes (primera por defecto), Levante = lote_postura_levante, Producción = lote_postura_produccion
+  activeTab: 'levante' | 'lote' | 'produccion' = 'lote';
 
   // Búsqueda y orden
   filtro = '';
@@ -613,6 +613,10 @@ export class LoteListComponent implements OnInit {
     this.selectedLoteLevante = l;
     this.selectedLoteProduccion = null;
     this.selectedLote = null;
+    this.lotePosturaLevanteSvc.getById(l.lotePosturaLevanteId).subscribe({
+      next: (detail) => { this.selectedLoteLevante = detail; },
+      error: () => { /* mantener datos de lista si falla */ }
+    });
   }
 
   openDetail(lote: LoteDto): void {
@@ -1090,11 +1094,7 @@ export class LoteListComponent implements OnInit {
       next: (response: TrasladoLoteResponse) => {
         this.loadingTraslado = false;
         if (response.success) {
-          // Mostrar mensaje de éxito con toast
-          const mensaje = `${response.message}\n\n` +
-            `Lote original: #${response.loteOriginalId} (Trasladado)\n` +
-            `Nuevo lote: #${response.loteNuevoId} (En Transferencia)`;
-          this.toastService.success(mensaje, 'Traslado Exitoso', 6000);
+          this.toastService.success(response.message, 'Traslado Exitoso', 5000);
           this.closeTrasladoModal();
           this.loadData(); // Recargar la lista de lotes
         } else {

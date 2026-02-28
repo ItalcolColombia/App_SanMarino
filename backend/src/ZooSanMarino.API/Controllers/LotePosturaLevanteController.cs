@@ -37,4 +37,17 @@ public class LotePosturaLevanteController : ControllerBase
         var items = await _svc.GetByLoteIdAsync(loteId, ct);
         return Ok(items);
     }
+
+    /// <summary>
+    /// Obtiene el detalle de un lote levante por ID (incluye EdadMaximaSeguimiento).
+    /// </summary>
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(LotePosturaLevanteDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotePosturaLevanteDetailDto>> GetById(int id, CancellationToken ct = default)
+    {
+        var item = await _svc.GetByIdAsync(id, ct);
+        if (item == null) return NotFound();
+        return Ok(item);
+    }
 }

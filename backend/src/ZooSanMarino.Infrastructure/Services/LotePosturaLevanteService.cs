@@ -86,8 +86,8 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     private const int SemanaCierre = 26;
 
     /// <summary>
-    /// Cierra lotes que llegaron a semana 26 y crea lotes producción H/M.
-    /// Ej: QLK345 → QLK345-H (hembras) y QLK345-M (machos).
+    /// Cierra lotes que llegaron a semana 26 y crea UN lote de producción (hembras + machos).
+    /// Ej: QLK345 → P-QLK345 (un solo lote con aves H y M; seguimiento diario por pestañas hembras/machos).
     /// </summary>
     private async Task ProcessarCierresPendientesAsync(CancellationToken ct = default)
     {
@@ -120,25 +120,10 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
 
             var baseNombre = (lev.LoteNombre ?? "").Trim();
             if (string.IsNullOrEmpty(baseNombre)) baseNombre = $"Lote-{lev.LotePosturaLevanteId}";
+            var nombreProduccion = $"P-{baseNombre}";
 
-            if (avesH > 0)
-            {
-                var prodH = CrearLoteProduccion(lev, $"{baseNombre}-H", avesH, 0, now, userId);
-                _ctx.LotePosturaProduccion.Add(prodH);
-            }
-            if (avesM > 0)
-            {
-                var prodM = CrearLoteProduccion(lev, $"{baseNombre}-M", 0, avesM, now, userId);
-                _ctx.LotePosturaProduccion.Add(prodM);
-            }
-
-            if (avesH == 0 && avesM == 0)
-            {
-                var prodH = CrearLoteProduccion(lev, $"{baseNombre}-H", 0, 0, now, userId);
-                var prodM = CrearLoteProduccion(lev, $"{baseNombre}-M", 0, 0, now, userId);
-                _ctx.LotePosturaProduccion.Add(prodH);
-                _ctx.LotePosturaProduccion.Add(prodM);
-            }
+            var prod = CrearLoteProduccion(lev, nombreProduccion, avesH, avesM, now, userId);
+            _ctx.LotePosturaProduccion.Add(prod);
         }
 
         await _ctx.SaveChangesAsync(ct);
@@ -320,7 +305,39 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
                         l.Galpon.GalponNombre ?? l.Galpon.GalponId,
                         l.Galpon.NucleoId ?? "",
                         l.Galpon.GranjaId
-                    )
+                    ),
+                (int?)null // EdadMaximaSeguimiento: solo se calcula en GetByIdAsync
             ));
+    }
+
+    /// <summary>
+    /// Obtiene un lote levante por ID con EdadMaximaSeguimiento (máxima edad en semanas con registros en seguimiento_diario).
+    /// </summary>
+    public async Task<LotePosturaLevanteDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        var q = _ctx.LotePosturaLevante
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LotePosturaLevanteId == id);
+        var list = await ProjectToDetail(q).ToListAsync(ct);
+        var dto = list.FirstOrDefault();
+        if (dto == null) return null;
+
+        var lpl = await _ctx.LotePosturaLevante
+            .AsNoTracking()
+            .Where(l => l.LotePosturaLevanteId == id && l.DeletedAt == null)
+            .Select(l => new { l.FechaEncaset })
+            .FirstOrDefaultAsync(ct);
+        if (lpl?.FechaEncaset == null) return dto;
+
+        var maxFecha = await _ctx.SeguimientoDiario
+            .Where(s => s.TipoSeguimiento == "levante" && s.LotePosturaLevanteId == id)
+            .MaxAsync(s => (DateTime?)s.Fecha, ct);
+        if (!maxFecha.HasValue) return dto;
+
+        var dias = (maxFecha.Value.Date - lpl.FechaEncaset.Value.Date).TotalDays;
+        var edadMaxSemanas = (int)Math.Floor(dias / 7.0);
+        if (edadMaxSemanas < 0) edadMaxSemanas = 0;
+
+        return dto with { EdadMaximaSeguimiento = edadMaxSemanas };
     }
 }

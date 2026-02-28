@@ -1,8 +1,11 @@
 -- ============================================================
--- TRIGGER: Cerrar levante y crear producción cuando edad >= 26
+-- TRIGGER: Cerrar levante y crear UN lote de producción (hembras + machos)
 -- Se ejecuta en lote_postura_levante AFTER INSERT o UPDATE.
--- Si edad (de edad o calculada por fecha_encaset) >= 26 semanas,
--- cierra el levante y crea QLK345-H y QLK345-M en lote_postura_produccion.
+-- Si edad >= 26 semanas, cierra el levante y crea UN solo registro en
+-- lote_postura_produccion con aves_h y aves_m (sin separar en -H y -M).
+-- El seguimiento diario de producción registra mortalidad, descarte y
+-- error de sexaje para hembras y machos en el mismo lote.
+-- Nombre del lote: prefijo opcional "P-" + nombre del levante (sin -H/-M).
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION trg_lote_postura_levante_cerrar_produccion()
@@ -11,7 +14,7 @@ DECLARE
   edad_semanas INT;
   aves_h INT;
   aves_m INT;
-  base_nombre TEXT;
+  nombre_produccion TEXT;
   uid INT;
   now_ts TIMESTAMPTZ;
 BEGIN
@@ -42,11 +45,12 @@ BEGIN
   now_ts := (NOW() AT TIME ZONE 'utc');
   uid := COALESCE(NEW.updated_by_user_id, NEW.created_by_user_id);
 
-  aves_h := COALESCE(NEW.aves_h_actual, NEW.aves_h_inicial, NEW.hembras_l, 0);
-  aves_m := COALESCE(NEW.aves_m_actual, NEW.aves_m_inicial, NEW.machos_l, 0);
-  base_nombre := COALESCE(TRIM(NEW.lote_nombre), 'Lote-' || NEW.lote_postura_levante_id);
+  aves_h := GREATEST(0, COALESCE(NEW.aves_h_actual, NEW.aves_h_inicial, NEW.hembras_l, 0));
+  aves_m := GREATEST(0, COALESCE(NEW.aves_m_actual, NEW.aves_m_inicial, NEW.machos_l, 0));
+  -- Nombre: prefijo "P-" (Producción) + nombre del levante (sin sufijos -H/-M)
+  nombre_produccion := 'P-' || COALESCE(TRIM(NEW.lote_nombre), 'Lote-' || NEW.lote_postura_levante_id);
 
-  -- Crear QLK345-H (hembras)
+  -- Un solo lote de producción con hembras y machos (reducciones se llevan en seguimiento_diario por sexo)
   INSERT INTO public.lote_postura_produccion (
     lote_nombre, granja_id, nucleo_id, galpon_id, regional, fecha_encaset,
     hembras_l, machos_l, peso_inicial_h, peso_inicial_m, unif_h, unif_m,
@@ -59,39 +63,14 @@ BEGIN
     empresa_id, usuario_id, estado, etapa, edad, estado_cierre,
     company_id, created_by_user_id, created_at, updated_by_user_id, updated_at, deleted_at
   ) VALUES (
-    base_nombre || '-H', NEW.granja_id, NEW.nucleo_id, NEW.galpon_id, NEW.regional, NEW.fecha_encaset,
+    nombre_produccion, NEW.granja_id, NEW.nucleo_id, NEW.galpon_id, NEW.regional, NEW.fecha_encaset,
     NEW.hembras_l, NEW.machos_l, NEW.peso_inicial_h, NEW.peso_inicial_m, NEW.unif_h, NEW.unif_m,
     NEW.mort_caja_h, NEW.mort_caja_m, NEW.raza, NEW.ano_tabla_genetica, NEW.linea, NEW.tipo_linea,
     NEW.codigo_guia_genetica, NEW.linea_genetica_id, NEW.tecnico, NEW.mixtas, NEW.peso_mixto,
     NEW.aves_encasetadas, NEW.edad_inicial, NEW.lote_erp, NEW.estado_traslado,
     NEW.pais_id, NEW.pais_nombre, NEW.empresa_nombre,
-    now_ts, aves_h, 0,
-    NEW.lote_postura_levante_id, aves_h, 0, aves_h, 0,
-    NEW.company_id, uid, 'Produccion', 'Produccion', NEW.edad, 'Abierta',
-    NEW.company_id, uid, now_ts, NEW.updated_by_user_id, now_ts, NULL
-  );
-
-  -- Crear QLK345-M (machos)
-  INSERT INTO public.lote_postura_produccion (
-    lote_nombre, granja_id, nucleo_id, galpon_id, regional, fecha_encaset,
-    hembras_l, machos_l, peso_inicial_h, peso_inicial_m, unif_h, unif_m,
-    mort_caja_h, mort_caja_m, raza, ano_tabla_genetica, linea, tipo_linea,
-    codigo_guia_genetica, linea_genetica_id, tecnico, mixtas, peso_mixto,
-    aves_encasetadas, edad_inicial, lote_erp, estado_traslado,
-    pais_id, pais_nombre, empresa_nombre,
-    fecha_inicio_produccion, hembras_iniciales_prod, machos_iniciales_prod,
-    lote_postura_levante_id, aves_h_inicial, aves_m_inicial, aves_h_actual, aves_m_actual,
-    empresa_id, usuario_id, estado, etapa, edad, estado_cierre,
-    company_id, created_by_user_id, created_at, updated_by_user_id, updated_at, deleted_at
-  ) VALUES (
-    base_nombre || '-M', NEW.granja_id, NEW.nucleo_id, NEW.galpon_id, NEW.regional, NEW.fecha_encaset,
-    NEW.hembras_l, NEW.machos_l, NEW.peso_inicial_h, NEW.peso_inicial_m, NEW.unif_h, NEW.unif_m,
-    NEW.mort_caja_h, NEW.mort_caja_m, NEW.raza, NEW.ano_tabla_genetica, NEW.linea, NEW.tipo_linea,
-    NEW.codigo_guia_genetica, NEW.linea_genetica_id, NEW.tecnico, NEW.mixtas, NEW.peso_mixto,
-    NEW.aves_encasetadas, NEW.edad_inicial, NEW.lote_erp, NEW.estado_traslado,
-    NEW.pais_id, NEW.pais_nombre, NEW.empresa_nombre,
-    now_ts, 0, aves_m,
-    NEW.lote_postura_levante_id, 0, aves_m, 0, aves_m,
+    now_ts, aves_h, aves_m,
+    NEW.lote_postura_levante_id, aves_h, aves_m, aves_h, aves_m,
     NEW.company_id, uid, 'Produccion', 'Produccion', NEW.edad, 'Abierta',
     NEW.company_id, uid, now_ts, NEW.updated_by_user_id, now_ts, NULL
   );
@@ -118,4 +97,4 @@ CREATE TRIGGER trg_lpl_cerrar_produccion
   )
   EXECUTE PROCEDURE trg_lote_postura_levante_cerrar_produccion();
 
-COMMENT ON FUNCTION trg_lote_postura_levante_cerrar_produccion() IS 'Cierra levante y crea lotes producción H/M cuando edad >= 26 semanas.';
+COMMENT ON FUNCTION trg_lote_postura_levante_cerrar_produccion() IS 'Cierra levante y crea UN lote de producción (hembras + machos) cuando edad >= 26. Nombre con prefijo P-.';
