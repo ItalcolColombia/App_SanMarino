@@ -48,6 +48,10 @@ export class SidebarComponent implements OnInit {
     }))
   );
 
+  companyLogo$ = this.auth.session$.pipe(
+    map(s => s?.activeCompanyLogoDataUrl ?? null)
+  );
+
   constructor(library: FaIconLibrary) {
     library.addIcons(
       faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,

@@ -38,6 +38,7 @@ export interface LoginPayload {
 export interface CompanyPais {
   companyId: number;
   companyName: string;
+  companyLogoDataUrl?: string | null;
   paisId: number;
   paisNombre: string;
   isDefault: boolean;
@@ -86,6 +87,7 @@ export interface AuthSession {
   activePaisId?: number;           // ID del país activo
   activePaisNombre?: string;       // Nombre del país activo
   companyIds?: number[];            // IDs de todas las empresas del usuario
+  activeCompanyLogoDataUrl?: string | null; // logo cacheado (para header del menú)
 
   // 👇 NUEVO
   menu: MenuItem[];               // árbol efectivo para construir el sidebar

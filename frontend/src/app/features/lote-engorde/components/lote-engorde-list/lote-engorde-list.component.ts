@@ -4,7 +4,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } 
 import { finalize } from 'rxjs/operators';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faTimes, faEye, faFilter } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faTimes, faEye, faFilter, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 import { ThousandSeparatorDirective } from '../../../lote/components/lote-list/lote-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
@@ -46,6 +46,7 @@ export class LoteEngordeListComponent implements OnInit {
   faTimes = faTimes;
   faEye = faEye;
   faFilter = faFilter;
+  faMagnifyingGlass = faMagnifyingGlass;
 
   loading = false;
   modalOpen = false;

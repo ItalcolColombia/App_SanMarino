@@ -15,6 +15,7 @@ public record CompanyDto(
     string? Country,
     string? State,
     string? City,
+    string? LogoDataUrl,
     bool MobileAccess,
     string[] VisualPermissions
 );

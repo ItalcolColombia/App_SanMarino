@@ -1,12 +1,20 @@
 <!-- src/app/shared/components/sidebar/sidebar.component.html -->
 <div class="flex flex-row w-full min-h-screen flex-1 min-w-0">
   <div class="flex flex-col h-screen bg-white shadow-lg sidebar-root">
-  <!-- Header / Logo -->
+  <!-- Header / Logo: logo pequeño (marca) + logo de la empresa (solo si viene de BD) -->
   <div class="menu-header">
-    <div class="brand-duo brand-duo--compact" role="img" aria-label="Logos Sanmarino y Tecnología e Innovación">
+    <div class="brand-duo brand-duo--compact" role="img" [attr.aria-label]="(companyLogo$ | async) ? 'Intalfoods Zootécnico y logo de la empresa' : 'Intalfoods Zootécnico'">
       <img
-        src="assets/brand/icono-logo.png"
-        alt="Sanmarino Logo"
+        src="assets/brand/logo_intalfoods_zootenico.png"
+        alt="Intalfoods Zootécnico"
+        class="brand-duo__img brand-duo__img--small"
+        loading="eager"
+        decoding="async"
+      />
+      <img
+        *ngIf="companyLogo$ | async as logo"
+        [src]="logo"
+        [alt]="'Logo ' + ((userBanner$ | async)?.company || 'Empresa')"
         class="brand-duo__img"
         loading="eager"
         decoding="async"

@@ -23,6 +23,109 @@
   --shadow:           0 6px 18px rgba(0,0,0,.06);
 }
 
+/* ====== Layout principal (página empresa) ====== */
+.company-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.company-sidebar {
+  flex: 0 0 16rem; /* w-64 */
+}
+
+.company-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  background: var(--warm-gray-100);
+  overflow: auto;
+}
+
+/* Header: título + acciones */
+.company-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.company-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.company-header-icon {
+  font-size: 1.75rem;
+  color: var(--brand-red);
+}
+
+.company-header-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--brand-red);
+}
+
+.company-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.company-count {
+  font-size: 0.75rem;
+  color: var(--warm-gray-600);
+  background: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--warm-gray-200);
+}
+
+/* Filtros compactos */
+.company-filters {
+  margin-bottom: 1rem;
+}
+
+.company-filters-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.company-filter-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--warm-gray-600);
+  margin: 0;
+}
+
+.company-filter-select {
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.company-filter-clear {
+  margin-left: auto;
+}
+
+.company-table-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ====== Card contenedora de tablas / contenido scroll ====== */
 .ux-card {
   background: #fff;
@@ -34,11 +137,18 @@
 
 .table-card {
   min-height: 200px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .table-wrapper {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  overflow-x: auto;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -80,6 +190,7 @@
 
 /* Columnas con ancho mínimo para evitar compresión y mejorar lectura */
 .company-table .col-name    { min-width: 140px; max-width: 200px; }
+.company-table .col-logo    { min-width: 70px; width: 70px; }
 .company-table .col-id-type { min-width: 80px; width: 80px; }
 .company-table .col-id-num  { min-width: 100px; }
 .company-table .col-contact { min-width: 100px; max-width: 160px; }
@@ -124,6 +235,42 @@
 .cell-muted {
   font-size: 12px;
   color: var(--warm-gray-400);
+}
+
+.company-logo-img {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  padding: 3px;
+}
+
+.logo-preview {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-color);
+  background: var(--warm-gray-50);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.logo-preview__placeholder {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 6px;
+  text-align: center;
 }
 
 .ux-table thead th {
@@ -461,6 +608,22 @@
 
 /* ====== Ajustes responsivos ====== */
 @media (max-width: 1024px) {
+  .company-main {
+    padding: 1rem;
+  }
+  .company-header-title {
+    font-size: 1.25rem;
+  }
+  .company-filters-inner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .company-filter-select {
+    max-width: none;
+  }
+  .company-filter-clear {
+    margin-left: 0;
+  }
   .table-wrapper {
     border-radius: 0 0 16px 16px;
   }
@@ -472,6 +635,21 @@
 }
 
 @media (max-width: 768px) {
+  .company-sidebar {
+    flex: 0 0 auto;
+  }
+  .company-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .company-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .company-count {
+    order: 1;
+    width: 100%;
+  }
   .ux-table thead th { font-size: 11px; padding: 10px 12px; }
   .ux-table tbody td { font-size: 13px; padding: 8px 12px; }
   .icon-btn { width: 32px; height: 32px; min-width: 32px; }

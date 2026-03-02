@@ -97,17 +97,33 @@
 }
 
 .tabs-nav {
-  display: flex; border-bottom: 2px solid var(--border);
-  background: var(--warm-50); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  padding: 0; margin: 0; list-style: none;
+  display: flex;
+  flex-wrap: nowrap;
+  border-bottom: 2px solid var(--border);
+  background: var(--warm-50);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .tab-button {
-  flex: 1; padding: var(--space-4) var(--space-5);
-  background: transparent; border: none; border-bottom: 3px solid transparent;
-  font-size: var(--fs-md); font-weight: 600; color: var(--text-sub);
-  cursor: pointer; transition: all var(--t-fast);
+  flex: 0 1 auto;
+  min-width: 100px;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: all var(--t-fast);
   position: relative;
+  white-space: nowrap;
 }
 
 .tab-button:hover {
@@ -125,8 +141,12 @@
 }
 
 .tabs-content {
-  flex: 1; padding: var(--space-6);
-  overflow-y: auto; max-height: 70vh;
+  flex: 1;
+  padding: var(--space-6);
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 70vh;
+  min-height: 200px;
 }
 
 .tab-panel {
@@ -179,13 +199,34 @@
   margin-top: var(--space-6);
 }
 
-.ux-scroll { 
-  max-height: 50vh; overflow: auto; 
-  border-radius: var(--radius-md); border: 1px solid var(--border);
+.table-container .ux-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 50vh;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
 }
 
-.ux-table { 
-  width: 100%; border-collapse: separate; border-spacing: 0;
+.table-container .ux-table {
+  min-width: 800px;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-sm);
+}
+
+.ux-scroll {
+  max-height: 50vh;
+  overflow: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.ux-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: var(--fs-sm);
 }
 
@@ -320,7 +361,8 @@
    🔧 Helpers
    ========================================================================== */
 .empty-state {
-  text-align: center; padding: var(--space-8);
+  text-align: center;
+  padding: 2rem var(--space-4);
   color: var(--warm-600);
 }
 
@@ -369,34 +411,56 @@
 /* ==========================================================================
    📱 Responsive
    ========================================================================== */
+@media (max-width: 960px) {
+  .resumen-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+  .table-container .ux-table {
+    min-width: 700px;
+  }
+}
+
 @media (max-width: 768px) {
   .tabs-nav {
-    flex-direction: column;
+    padding: 0 var(--space-2);
   }
-  
   .tab-button {
-    border-bottom: 1px solid var(--border);
-    border-right: 3px solid transparent;
+    min-width: 90px;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--fs-sm);
   }
-  
-  .tab-button.active {
-    border-bottom-color: var(--border);
-    border-right-color: var(--brand-red);
+  .tabs-content {
+    padding: var(--space-4);
+    max-height: 65vh;
   }
-  
   .resumen-grid {
     grid-template-columns: 1fr;
   }
-  
+  .resumen-card {
+    padding: var(--space-3);
+  }
+  .table-container {
+    margin-top: var(--space-4);
+  }
+  .table-container .ux-scroll {
+    max-height: 45vh;
+  }
+  .table-container .ux-table {
+    min-width: 650px;
+    font-size: var(--fs-xs);
+  }
+  .table-container .ux-table thead th,
+  .table-container .ux-table tbody td {
+    padding: var(--space-2) var(--space-3);
+  }
   .indicadores-table {
     font-size: 0.6rem;
   }
-  
   .indicadores-table thead th,
   .indicadores-table tbody td {
     padding: var(--space-1) var(--space-2);
   }
-  
   .acumulados-grid {
     grid-template-columns: 1fr;
   }
@@ -404,15 +468,28 @@
 
 @media (max-width: 480px) {
   .tabs-content {
-    padding: var(--space-4);
+    padding: var(--space-3);
   }
-  
   .resumen-card {
-    flex-direction: column; text-align: center;
+    flex-direction: column;
+    text-align: center;
   }
-  
   .resumen-icon {
     font-size: 1.5rem;
+  }
+  .resumen-number {
+    font-size: var(--fs-lg);
+  }
+  .table-container .ux-table {
+    min-width: 580px;
+  }
+  .btn-group {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .icon-btn {
+    width: 28px;
+    height: 28px;
   }
 }
 

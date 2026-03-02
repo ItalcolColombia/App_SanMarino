@@ -295,10 +295,18 @@ public class AuthService : IAuthService
         .ToHashSet();
     
     // Crear lista de CompanyPaisDto con información completa de país
+    static string? BuildCompanyLogoDataUrl(Company? c)
+    {
+        if (c?.LogoBytes == null || c.LogoBytes.Length == 0) return null;
+        var ct = string.IsNullOrWhiteSpace(c.LogoContentType) ? "image/png" : c.LogoContentType.Trim();
+        return $"data:{ct};base64,{Convert.ToBase64String(c.LogoBytes)}";
+    }
+
     var companyPaisesList = companyPaisesFromDb.Select(cp => new CompanyPaisDto
     {
         CompanyId = cp.CompanyId,
         CompanyName = cp.Company?.Name ?? string.Empty,
+        CompanyLogoDataUrl = BuildCompanyLogoDataUrl(cp.Company),
         PaisId = cp.PaisId,
         PaisNombre = cp.Pais?.PaisNombre ?? string.Empty,
         IsDefault = defaultCompanies.Contains(cp.CompanyId)
@@ -314,6 +322,7 @@ public class AuthService : IAuthService
             {
                 CompanyId = uc.CompanyId,
                 CompanyName = uc.Company?.Name ?? string.Empty,
+                CompanyLogoDataUrl = BuildCompanyLogoDataUrl(uc.Company),
                 PaisId = 0,
                 PaisNombre = string.Empty,
                 IsDefault = uc.IsDefault

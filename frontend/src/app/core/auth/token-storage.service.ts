@@ -89,6 +89,14 @@ export class TokenStorageService {
     this.save(updated, persistedInLocal);
   }
 
+  updateActiveCompanyLogo(logoDataUrl: string | null) {
+    const current = this.get();
+    if (!current) return;
+    const updated = { ...current, activeCompanyLogoDataUrl: logoDataUrl };
+    const persistedInLocal = !!localStorage.getItem(KEY);
+    this.save(updated, persistedInLocal);
+  }
+
   // Actualiza solo los datos del usuario en el storage manteniendo el tipo de persistencia
   updateUserData(userData: { firstName?: string; surName?: string }) {
     console.log('🔄 TokenStorageService.updateUserData() llamado con:', userData);

@@ -9,6 +9,7 @@ export interface Company {
   name: string;
   identifier: string;
   documentType: string;
+  logoDataUrl?: string | null;
   address?: string;
   phone?: string;
   email?: string;
@@ -33,6 +34,11 @@ export class CompanyService extends BaseHttpService {
   /** Trae todas las empresas */
   getAll(): Observable<Company[]> {
     return this.get<Company[]>(this.baseUrl, { context: 'CompanyService.getAll' });
+  }
+
+  /** Trae una empresa por ID (incluye logo para edición) */
+  getById(id: number): Observable<Company> {
+    return this.get<Company>(`${this.baseUrl}/${id}`, { context: 'CompanyService.getById' });
   }
 
   /** Trae TODAS las empresas sin filtro para administración */

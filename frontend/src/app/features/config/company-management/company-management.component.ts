@@ -34,6 +34,7 @@ import { switchMap, catchError, map } from 'rxjs/operators';
 
 // Servicios: company + master-list (tipos ID)
 import { CompanyService, Company } from '../../../core/services/company/company.service';
+import { TokenStorageService } from '../../../core/auth/token-storage.service';
 import { MasterListService } from '../../../core/services/master-list/master-list.service';
 
 // Servicios: geografía (IDs → nombres)
@@ -89,6 +90,9 @@ export class CompanyManagementComponent implements OnInit {
   editing = false;
   modalOpen = false;
   loading = false;
+  logoPreviewDataUrl: string | null = null;
+  logoChanged = false;
+  logoError: string | null = null;
 
   // Wizard
   step: 1 | 2 = 1;
@@ -163,6 +167,7 @@ export class CompanyManagementComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private svc: CompanyService,
+    private tokenStorage: TokenStorageService,
     private mlSvc: MasterListService,
     private countrySvc: CountryService,
     private deptSvc: DepartmentService,
@@ -401,6 +406,9 @@ export class CompanyManagementComponent implements OnInit {
   openModal(c?: Company) {
     this.editing = !!c;
     this.step = 1;
+    this.logoError = null;
+    this.logoChanged = false;
+    this.logoPreviewDataUrl = null;
 
     // Reset roles UI
     this.roleIds = [];
@@ -414,44 +422,27 @@ export class CompanyManagementComponent implements OnInit {
     const vp = this.form.get('visualPermissions') as FormGroup;
     Object.keys(vp.controls).forEach(k => vp.get(k)?.setValue(false));
 
+    if (c?.id) {
+      // Al editar, cargar empresa por ID para tener logo y datos completos
+      this.loading = true;
+      this.svc.getById(c.id)
+        .pipe(finalize(() => (this.loading = false)))
+        .subscribe({
+          next: company => {
+            this.applyCompanyToModal(company);
+            this.modalOpen = true;
+          },
+          error: err => {
+            console.error('Error cargando empresa para editar', err);
+            this.applyCompanyToModal(c);
+            this.modalOpen = true;
+          }
+        });
+      return;
+    }
+
     if (c) {
-      // Preseleccionar country/state/city desde IDs o strings antiguos
-      const codeCountry = this.resolveCountryCode(c);
-      this.onCountryChange(codeCountry); // prepara states
-      const codeDept = this.resolveDeptCode(c);
-      this.onStateChange(codeDept);      // prepara cities
-      const cityName = this.resolveCityName(c);
-
-      // Patch
-      this.form.patchValue({
-        id:           c.id ?? null,
-        name:         c.name ?? '',
-        identifier:   c.identifier ?? '',
-        documentType: c.documentType ?? '',
-        address:      c.address ?? '',
-        phone:        c.phone ?? '',
-        email:        c.email ?? '',
-        country:      codeCountry,
-        state:        codeDept,
-        city:         cityName,
-        mobileAccess: c.mobileAccess ?? false
-      });
-
-      // Visual perms existentes
-      if (Array.isArray(c.visualPermissions)) {
-        c.visualPermissions.forEach(key => vp.get(key)?.setValue(true));
-      }
-
-      // Roles existentes (si backend los envía)
-      const existingRoleIds: number[] = (c as any)?.roleIds ?? [];
-      if (Array.isArray(existingRoleIds)) {
-        this.roleIds = [...existingRoleIds];
-      }
-
-      // Cargar países asignados a esta empresa
-      if (c.id) {
-        this.loadCompanyPaises(c.id);
-      }
+      this.applyCompanyToModal(c);
     } else {
       // Nuevo
       this.form.reset({
@@ -474,8 +465,78 @@ export class CompanyManagementComponent implements OnInit {
     this.modalOpen = true;
   }
 
+  private applyCompanyToModal(c: Company) {
+    this.logoPreviewDataUrl = c?.logoDataUrl ?? null;
+
+    const codeCountry = this.resolveCountryCode(c);
+    this.onCountryChange(codeCountry);
+    const codeDept = this.resolveDeptCode(c);
+    this.onStateChange(codeDept);
+    const cityName = this.resolveCityName(c);
+
+    this.form.patchValue({
+      id:           c.id ?? null,
+      name:         c.name ?? '',
+      identifier:   c.identifier ?? '',
+      documentType: c.documentType ?? '',
+      address:      c.address ?? '',
+      phone:        c.phone ?? '',
+      email:        c.email ?? '',
+      country:      codeCountry,
+      state:        codeDept,
+      city:         cityName,
+      mobileAccess: c.mobileAccess ?? false
+    });
+
+    const vp = this.form.get('visualPermissions') as FormGroup;
+    if (Array.isArray(c.visualPermissions)) {
+      c.visualPermissions.forEach(key => vp.get(key)?.setValue(true));
+    }
+
+    const existingRoleIds: number[] = (c as any)?.roleIds ?? [];
+    if (Array.isArray(existingRoleIds)) {
+      this.roleIds = [...existingRoleIds];
+    }
+
+    if (c.id) {
+      this.loadCompanyPaises(c.id);
+    }
+  }
+
   closeModal() {
     this.modalOpen = false;
+  }
+
+  onLogoFileSelected(file: File | null): void {
+    this.logoError = null;
+    if (!file) return;
+
+    if (!file.type?.startsWith('image/')) {
+      this.logoError = 'Seleccione un archivo de imagen (PNG/JPG).';
+      return;
+    }
+    // 512 KB (alineado con backend)
+    if (file.size > 512 * 1024) {
+      this.logoError = 'El logo supera 512 KB. Use una imagen más liviana.';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      this.logoPreviewDataUrl = typeof result === 'string' ? result : null;
+      this.logoChanged = true;
+    };
+    reader.onerror = () => {
+      this.logoError = 'No se pudo leer la imagen.';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearLogo(): void {
+    this.logoPreviewDataUrl = null;
+    this.logoChanged = true; // enviará "" para borrar
+    this.logoError = null;
   }
 
   // ========= Guardado =========
@@ -521,6 +582,11 @@ export class CompanyManagementComponent implements OnInit {
       municipioId:    this.findCityIdByName(this.toNumOrNull(v.state), v.city)
     };
 
+    // Logo (opcional): solo enviar si cambió en el modal
+    if (this.logoChanged) {
+      payload.logoDataUrl = this.logoPreviewDataUrl ?? '';
+    }
+
     this.loading = true;
     const call$: Observable<any> = this.editing
       ? this.svc.update(payload)
@@ -529,6 +595,13 @@ export class CompanyManagementComponent implements OnInit {
     call$
       .pipe(
         switchMap((company: Company) => {
+          // Si se está editando la empresa activa, refrescar el logo en storage para el sidebar
+          const currentSession = this.tokenStorage.get();
+          const activeCompanyId = currentSession?.activeCompanyId ?? null;
+          if (this.logoChanged && activeCompanyId != null && company?.id === activeCompanyId) {
+            this.tokenStorage.updateActiveCompanyLogo(company.logoDataUrl ?? null);
+          }
+
           // Después de crear/actualizar la empresa, asignar países
           const companyId = company.id || payload.id;
           if (!companyId) {

@@ -90,12 +90,31 @@
 }
 
 :host .ux-toolbar {
-  display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
   margin-bottom: var(--space-4);
 }
 
 :host .ux-toolbar:last-child {
   margin-bottom: 0;
+}
+
+/* Fila de selects: distribución flexible */
+:host .ux-toolbar:first-of-type .ux-field {
+  flex: 1 1 160px;
+  min-width: 140px;
+  max-width: 280px;
+}
+
+:host .ux-toolbar:first-of-type .ux-field:last-child {
+  max-width: 320px;
+}
+
+/* Fila de chips: wrap y alineación */
+:host .ux-toolbar .chip {
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
@@ -190,18 +209,40 @@
 /* ==========================================================================
    📱 Responsive
    ========================================================================== */
+@media (max-width: 960px) {
+  :host .ux-toolbar:first-of-type .ux-field {
+    flex: 1 1 180px;
+    min-width: 160px;
+    max-width: none;
+  }
+  :host .ux-toolbar:first-of-type .ux-field:last-child {
+    max-width: none;
+  }
+}
+
 @media (max-width: 768px) {
   :host .ux-toolbar {
-    flex-direction: column; align-items: stretch;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
   }
-  
-  :host .ux-field {
+
+  :host .ux-toolbar:first-of-type .ux-field,
+  :host .ux-toolbar:first-of-type .ux-field:last-child {
     flex: none;
+    min-width: 0;
+    max-width: none;
   }
-  
+
+  :host .ux-field label {
+    margin-bottom: var(--space-1);
+  }
+
   :host .chip {
     font-size: var(--fs-xs);
     padding: var(--space-1) var(--space-2);
+    white-space: normal;
+    word-break: break-word;
   }
 }
 
@@ -209,13 +250,19 @@
   :host .ux-card {
     padding: var(--space-3);
   }
-  
+
   :host .ux-toolbar {
-    gap: var(--space-3);
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
   }
-  
+
   :host select {
     padding: var(--space-2) var(--space-3);
     font-size: var(--fs-sm);
+  }
+
+  :host .chip {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
   }
 }

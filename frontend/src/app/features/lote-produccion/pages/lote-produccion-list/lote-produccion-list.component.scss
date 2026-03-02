@@ -110,16 +110,34 @@
      🧱 Layout base
      ========================================================================== */
   :host .ux-page {
-    display: flex; height: 100vh; background: var(--bg-body);
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    min-height: 100vh;
+    width: 100%;
+    background: var(--bg-body);
   }
+  /* Sidebar: ancho fijo para que no robe espacio al contenido (app-sidebar tiene :host width 100%) */
   :host .ux-sidebar {
-    width: 16rem; flex-shrink: 0; background: var(--bg-card);
+    flex: 0 0 16rem;
+    width: 16rem !important;
+    min-width: 16rem;
+    max-width: 16rem;
+    flex-shrink: 0;
+    background: var(--bg-card);
     border-right: 1px solid var(--border);
   }
   :host .ux-main {
-    flex: 1; padding: var(--space-6); overflow: auto;
-    display: flex; flex-direction: column; gap: var(--space-4);
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    padding: var(--space-6);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
     color: var(--text);
+    background: var(--bg-body);
   }
 
   /* ==========================================================================
@@ -342,73 +360,58 @@
   :host .ux-input--readonly { background: var(--warm-50); color: var(--text-sub); }
 
   /* ==========================================================================
-     🧭 Toolbar filtros (12 col responsive)
+     🧭 Filtros de fecha (grid responsive)
      ========================================================================== */
-  /* ===== Filtros en UNA sola fila ===== */
-:host .ux-toolbar {
-  display: flex;
-  align-items: flex-end;
-  gap: .6rem;
-
-  /* Fuerza una sola línea; si no cabe, permite scroll horizontal */
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding-bottom: .25rem;
-}
-/* Cada campo con ancho fijo para mantener la fila */
-:host .ux-toolbar > .ux-field {
-  flex: 0 0 220px;       /* ancho base para Granja / Núcleo / Galpón */
-  min-width: 200px;
-}
-/* Lote un poco más ancho para el nombre + edad */
-:host .ux-toolbar > .ux-field:nth-child(4) {
-  flex-basis: 320px;
-  min-width: 260px;
-}
-/* Compactar selects y labels solo en la toolbar */
-:host .ux-toolbar .ux-label {
-  font-size: .78rem;
-  margin-bottom: .2rem;
-}
-
-:host .ux-toolbar .ux-select select {
-  min-height: 2.05rem;         /* antes 2.6rem */
-  padding: .35rem 1.8rem .35rem .55rem;
-  font-size: .82rem;
-  border-radius: .5rem;
-}
-
-/* Flecha del select un poco más chica y pegada */
-:host .ux-toolbar .ux-select::after {
-  font-size: .75rem;
-  right: .55rem;
-}
-
-/* Opcional: microgap entre cards y toolbar cuando hay scroll horizontal */
-:host section.ux-card[role="group"] { padding: .8rem 1rem; }
-:host .ux-toolbar > div { grid-column: span 4; } /* 3 por fila (desktop) */
-  @media (max-width: 960px) { :host .ux-toolbar > div { grid-column: span 6; } }  /* 2 por fila */
-  @media (max-width: 680px) { :host .ux-toolbar > div { grid-column: span 12; } } /* 1 por fila */
-
-  /* Altura consistente de selects en toolbar */
-  :host .ux-toolbar .ux-select select { min-height: 2.6rem; font-weight: 700; }
-
-  /* Aire en card de filtros si añades role="group" */
-  :host section.ux-card[role="group"] { padding: 1rem 1.1rem; }
+  :host .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+    align-items: end;
+  }
 
   /* ==========================================================================
      📱 Responsivo
      ========================================================================== */
-  @media (max-width: 1200px) { .grid-4 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-  @media (max-width: 960px)  {
-    .grid-4, .grid-3, .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (max-width: 1200px) {
+    :host .grid-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 960px) {
+    :host .grid-4,
+    :host .grid-3,
+    :host .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     :host .ux-form { padding: 1rem; }
+    :host .filter-grid { grid-template-columns: 1fr 1fr; }
   }
-  @media (max-width: 680px)  {
-    .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
-    :host .ux-header { flex-direction: column; align-items: flex-start; gap: .75rem; }
+
+  @media (max-width: 680px) {
+    :host .grid-4,
+    :host .grid-3,
+    :host .grid-2 { grid-template-columns: 1fr; }
+    :host .ux-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-4);
+      padding-bottom: var(--space-3);
+    }
+    :host .ux-header__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      width: 100%;
+    }
+    :host .ux-header__actions .btn { flex: 1; min-width: 140px; }
+    :host .ux-header__meta { max-width: 100%; }
+    :host .filter-grid { grid-template-columns: 1fr; }
   }
-  @media (max-width: 480px) { :host .ux-header__title h1 { font-size: 1.1rem; } }
+
+  @media (max-width: 480px) {
+    :host .ux-header__title h1 { font-size: 1.1rem; }
+    :host .ux-main { padding: var(--space-4); }
+    :host .ux-header__actions { flex-direction: column; }
+    :host .ux-header__actions .btn { min-width: 100%; }
+    :host .chip { font-size: .7rem; padding: .35rem .5rem; }
+  }
 
   /* ==========================================================================
      🖨️ Print
