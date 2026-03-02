@@ -12,6 +12,7 @@ public record UpdateCompanyDto(
     string?  Country,
     string?  State,
     string?  City,
+    string?  LogoDataUrl,
     string[] VisualPermissions,
     bool     MobileAccess
 );

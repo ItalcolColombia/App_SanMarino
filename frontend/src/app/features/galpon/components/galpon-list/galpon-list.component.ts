@@ -9,7 +9,7 @@ import { catchError, takeUntil } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faEye, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 
 import { GalponService } from '../../services/galpon.service';
 import { GalponDetailDto, CreateGalponDto, UpdateGalponDto } from '../../models/galpon.models';
@@ -37,7 +37,7 @@ interface NucleoOption { id: string; label: string; granjaId: number; }
 })
 export class GalponListComponent implements OnInit, OnDestroy {
   @Input() embedded = false;
-  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faEye = faEye;
+  faPlus = faPlus; faPen = faPen; faTrash = faTrash; faEye = faEye; faMagnifyingGlass = faMagnifyingGlass;
 
   loading = false;
   filtro = '';

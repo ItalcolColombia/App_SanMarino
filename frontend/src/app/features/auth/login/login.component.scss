@@ -1,9 +1,20 @@
+/* Paleta Italfoods: verde, naranja, crema (aviso inicial / login) */
 :host {
+  /* Italfoods: naranja vibrante (ital, cuadros) */
+  --brand-orange: #e85c25;
+  --brand-orange-light: rgba(232, 92, 37, 0.12);
+  --brand-orange-dark: #d14a18;
+  /* Italfoods: verde medio (foods, borde, textos) */
+  --brand-green: #2d7a3e;
+  --brand-green-light: rgba(45, 122, 62, 0.1);
+  /* Fondo crema / off-white (logo y tarjeta) */
+  --brand-cream: #faf8f5;
+  /* Compatibilidad: mantener amarillo/dorado donde se usaba */
   --brand-yellow: #f4b428;
   --brand-yellow-light: rgba(244, 180, 40, 0.15);
   --brand-yellow-dark: #e6a41c;
   --brand-red: #d62828;
-  --bg-gray: #f2f2f2;
+  --bg-gray: #f5f4f2;
   --text: #2b2b2b;
   --muted: #6b7280;
 
@@ -12,8 +23,8 @@
   --wm-blur: 6px;
 
   /* Tamaños logos */
-  --logo-h: 4rem;           /* base (~64px) */
-  --logo-h-accent: 4.75rem; /* el de assets, un poco más grande */
+  --logo-h: 4rem;
+  --logo-h-accent: 4.75rem;
 }
 
 /* ===== Fondo + WATERMARK Italcol ===== */
@@ -27,7 +38,7 @@
   overflow: hidden;
   isolation: isolate;
 
-  background: linear-gradient(135deg, var(--bg-gray) 0%, var(--brand-yellow-light) 100%);
+  background: linear-gradient(135deg, var(--brand-cream) 0%, var(--brand-orange-light) 50%, var(--bg-gray) 100%);
 }
 
 /* Marca de agua */
@@ -88,8 +99,8 @@
 
   &:focus {
     outline: none;
-    border-color: var(--brand-yellow);
-    box-shadow: 0 0 0 3px rgba(244, 180, 40, 0.25);
+    border-color: var(--brand-orange);
+    box-shadow: 0 0 0 3px var(--brand-orange-light);
   }
 }
 
@@ -186,7 +197,7 @@
   font-size: 0.85rem;
   color: var(--muted);
 }
-.remember__control { accent-color: var(--brand-yellow); }
+.remember__control { accent-color: var(--brand-orange); }
 
 /* Enlace de recuperación de contraseña */
 .forgot-password {
@@ -197,7 +208,7 @@
 .link-button {
   background: none;
   border: none;
-  color: #f4b428; /* Color naranja/amarillo corporativo */
+  color: var(--brand-orange);
   font-size: 0.9rem;
   cursor: pointer;
   text-decoration: underline;
@@ -206,7 +217,7 @@
   transition: color 0.2s ease;
 
   &:hover {
-    color: #e6a41c; /* Color naranja más oscuro al hover */
+    color: var(--brand-orange-dark);
     text-decoration: none;
   }
 }
@@ -222,9 +233,9 @@
   line-height: 1;
   letter-spacing: .2px;
 
-  background: linear-gradient(180deg, var(--brand-yellow), var(--brand-yellow-dark));
+  background: linear-gradient(180deg, var(--brand-orange), var(--brand-orange-dark));
   box-shadow:
-    0 10px 20px rgba(244, 180, 40, .22),
+    0 10px 20px rgba(232, 92, 37, .25),
     inset 0 1px 0 rgba(255,255,255,.5);
 
   color: #1a1a1a !important;
@@ -235,7 +246,7 @@
   &:hover {
     transform: translateY(-1px);
     box-shadow:
-      0 14px 28px rgba(244, 180, 40, .28),
+      0 14px 28px rgba(232, 92, 37, .3),
       inset 0 1px 0 rgba(255,255,255,.6);
     filter: saturate(1.04);
   }
@@ -247,12 +258,12 @@
   }
 }
 
-/* Banner inferior rojo */
+/* Banner inferior Italfoods (verde) */
 .site-footer {
   position: fixed;
   inset-inline: 0;
   inset-block-end: 0;
-  background: linear-gradient(180deg, #d62828, #b91c1c);
+  background: linear-gradient(180deg, var(--brand-green), #236b32);
   color: #fff;
   box-shadow: 0 -4px 10px rgba(0,0,0,.08);
   z-index: 10;
@@ -328,41 +339,50 @@
 
 /* Control global por variables */
 :host {
-  /* Ajusta estos valores por defecto */
-  --logo-height: 3.9rem;   /* alto por defecto */
-  --logo-width: 29rem;      /* o un valor como 14rem */
-  --logo-max-w: 100%;      /* no exceder el contenedor */
+  /* Logo principal: 9rem */
+  --logo-height: 9rem;
+  --logo-width: 22rem;   /* ancho máximo */
+  --logo-max-w: 100%;
+  /* Logo pequeño (v-logo): un poco más grande para verse mejor */
+  --logo-accent-height: 3.25rem; /* ~52px */
 }
 
-/* Contenedor del logo */
+/* Contenedor del logo principal */
 .logo-wrap {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 500%;           /* que pueda centrarse en el card */
+  width: 100%;
 }
 
-/* Imagen del logo con control de tamaño */
+/* Logo principal (arriba): más pequeño y cómodo */
 .logo-img {
-  height: auto;
-  width: 250rem;
-  max-width: 100%;
- //  object-fit: contain;    /* mantiene proporción */
+  height: var(--logo-height);
+  width: auto;
+  max-width: var(--logo-width);
+  object-fit: contain;
   display: block;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06)); /* opcional */
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06));
 }
 
+/* Logo pequeño (pie del formulario): más grande para verse mejor */
 .logo-img-accent {
-  height: 40px;
+  height: var(--logo-accent-height);
   width: auto;
-  margin-left: 40%;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06)); /* opcional */
+  margin-top: 0.5rem;
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06));
 }
 
 
 /* Responsivo opcional */
 @media (max-width: 480px) {
-  :host { --logo-height: 4rem; }
+  :host {
+    --logo-height: 4rem;
+    --logo-accent-height: 2.75rem;
+  }
 }
 
 // Spinner y mensaje de carga

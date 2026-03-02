@@ -22,6 +22,8 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(x => x.Country).HasMaxLength(80);
         builder.Property(x => x.State).HasMaxLength(80);
         builder.Property(x => x.City).HasMaxLength(80);
+        builder.Property(x => x.LogoBytes).HasColumnName("logo_bytes").HasColumnType("bytea");
+        builder.Property(x => x.LogoContentType).HasColumnName("logo_content_type").HasMaxLength(100);
 
         // text[] en PostgreSQL
         builder.Property(x => x.VisualPermissions).HasColumnType("text[]");

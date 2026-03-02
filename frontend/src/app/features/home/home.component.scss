@@ -98,6 +98,33 @@
   gap: 1.5rem;
 }
 
+/* Logos juntos: pequeño + principal, 9rem */
+.welcome-logos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.welcome-logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+}
+
+.welcome-logo--small {
+  height: 6rem;
+  width: auto;
+  max-width: 9rem;
+}
+
+.welcome-logo--main {
+  height: 9rem;
+  width: auto;
+  max-width: 22rem;
+}
+
 .welcome-title {
   font-size: 2.25rem;
   font-weight: 700;

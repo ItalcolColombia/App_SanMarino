@@ -1,22 +1,81 @@
 :host {
-  --brand-red:#c1121f; --chicken-yellow:#f7d24c;
-  --warm-100:#f5f5f4; --warm-200:#e7e5e4; --warm-300:#d6d3d1; --warm-600:#57534e; --white:#fff;
+  display: block;
+  --brand-red: #c1121f;
+  --chicken-yellow: #f7d24c;
+  --warm-100: #f5f5f4;
+  --warm-200: #e7e5e4;
+  --warm-300: #d6d3d1;
+  --warm-600: #57534e;
+  --white: #fff;
 }
 
-.ux-page { background: var(--warm-100); min-height: 100%; }
+/* ==========================================================================
+   Layout: menú fijo + contenido que no se enchiquita
+   ========================================================================== */
+.lote-management-layout {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar: ancho fijo para que no robe espacio (app-sidebar tiene :host width 100%) */
+:host .lote-management-sidebar {
+  flex: 0 0 16rem;
+  width: 16rem !important;
+  min-width: 16rem;
+  max-width: 16rem;
+  flex-shrink: 0;
+}
+
+/* Área principal: ocupa todo el espacio restante */
+.lote-management-main {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.5rem;
+  background: var(--warm-100);
+}
 
 /* Header con línea amarilla */
 .ux-header {
-  display:flex; align-items:center; justify-content:space-between;
-  gap:.75rem; margin-bottom:1rem; padding-bottom:.5rem; position:relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  position: relative;
 }
 .ux-header::after {
-  content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
-  background:var(--chicken-yellow); border-radius:2px;
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--chicken-yellow);
+  border-radius: 2px;
 }
-.ux-header__title { display:grid; gap:.15rem; }
-.ux-title { margin:0; font-size:1.5rem; font-weight:800; color:var(--brand-red); }
-.ux-subtitle { margin:0; font-size:.92rem; color:var(--warm-600); opacity:.9; }
+.ux-header__title {
+  display: grid;
+  gap: 0.15rem;
+}
+.ux-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--brand-red);
+}
+.ux-subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--warm-600);
+  opacity: 0.9;
+}
 
 /* Tabs */
 .ux-tabs {

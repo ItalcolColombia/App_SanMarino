@@ -22,7 +22,6 @@ export class LoginComponent implements OnInit {
   loading = false;
   errorMsg = '';
   errorType: 'database' | 'network' | 'blocked' | 'credentials' | 'encryption' | 'unknown' | null = null;
-  remember = true; // si quieres "Recordarme"
   today = new Date(); // para el {{ today | date:'yyyy' }}
   recaptchaEnabled = false;
   recaptchaSiteKey = '';
@@ -43,6 +42,7 @@ export class LoginComponent implements OnInit {
     this.loginForm = this.fb.group({
       email:    ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]],
+      remember: [true], // Recordarme
       companyId: [0], // si tu backend lo consume
       recaptchaToken: [null] // Token de reCAPTCHA
     });
@@ -104,7 +104,7 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    this.auth.login(loginData, this.remember).subscribe({
+    this.auth.login(loginData, this.loginForm.value.remember).subscribe({
       next: (session) => {
         console.log('✅ Login exitoso, redirigiendo...', {
           hasSession: !!session,

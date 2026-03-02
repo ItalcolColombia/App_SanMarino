@@ -1,56 +1,52 @@
 <!-- src/app/features/config/company-management/company-management.component.html -->
-<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
-  <!-- Sidebar -->
-  <app-sidebar class="w-64"></app-sidebar>
+<div class="company-page" [attr.aria-busy]="loading ? 'true' : null">
+  <app-sidebar class="company-sidebar"></app-sidebar>
 
-  <!-- Main -->
-  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto">
-    <!-- Header -->
-    <div class="flex items-center gap-2 mb-6">
-      <fa-icon [icon]="faBuilding" class="text-3xl text-brand-red" aria-hidden="true"></fa-icon>
-      <h1 class="text-2xl font-bold text-brand-red">Gestión de Empresas</h1>
-
-      <div class="ml-auto flex items-center gap-2">
-        <span class="text-xs text-warm-gray-600 bg-white px-2 py-1 rounded border">
+  <main class="company-main">
+    <!-- Header: título, contador y acción principal -->
+    <header class="company-header">
+      <div class="company-header-left">
+        <fa-icon [icon]="faBuilding" class="company-header-icon" aria-hidden="true"></fa-icon>
+        <h1 class="company-header-title">Gestión de Empresas</h1>
+      </div>
+      <div class="company-header-actions">
+        <span class="company-count">
           {{ filteredList.length || 0 }} de {{ list.length || 0 }} empresa(s)
         </span>
-        <button (click)="openModal()" class="btn-primary">
-          <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+        <button type="button" (click)="openModal()" class="btn-primary" aria-label="Nueva empresa">
+          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
           Nueva Empresa
         </button>
       </div>
-    </div>
+    </header>
 
-    <!-- Filtros -->
-    <div class="mb-4 bg-white rounded-lg border p-4">
-      <div class="flex flex-wrap items-center gap-4">
-        <div class="flex-1 min-w-[200px]">
-          <label class="block text-sm font-medium text-warm-gray-700 mb-1">
-            Filtrar por País
-          </label>
-          <select
-            [value]="filterPaisId === null ? '' : filterPaisId"
-            (change)="onFilterPaisChange($any($event.target).value)"
-            class="form-input">
-            <option value="">Todos los países</option>
-            <option *ngFor="let pais of availablePaises" [value]="pais.paisId">
-              {{ pais.paisNombre }}
-            </option>
-          </select>
-        </div>
-        <div class="flex items-end">
-          <button
-            *ngIf="filterPaisId !== null"
-            (click)="clearFilters()"
-            class="btn-ghost text-sm">
-            Limpiar filtros
-          </button>
-        </div>
+    <!-- Filtros compactos -->
+    <section class="company-filters" aria-label="Filtros de listado">
+      <div class="company-filters-inner">
+        <label class="company-filter-label">Filtrar por país</label>
+        <select
+          [value]="filterPaisId === null ? '' : filterPaisId"
+          (change)="onFilterPaisChange($any($event.target).value)"
+          class="form-input company-filter-select"
+          aria-label="Seleccionar país">
+          <option value="">Todos los países</option>
+          <option *ngFor="let pais of availablePaises" [value]="pais.paisId">
+            {{ pais.paisNombre }}
+          </option>
+        </select>
+        <button
+          *ngIf="filterPaisId !== null"
+          type="button"
+          (click)="clearFilters()"
+          class="btn-ghost company-filter-clear">
+          Limpiar filtros
+        </button>
       </div>
-    </div>
+    </section>
 
-    <!-- Tabla con scroll horizontal y columnas organizadas -->
-    <div class="ux-card table-card">
+    <!-- Tabla -->
+    <section class="company-table-section" aria-label="Listado de empresas">
+      <div class="ux-card table-card">
       <div class="table-wrapper">
         <div class="ux-scroll">
           <table class="ux-table company-table">
@@ -59,6 +55,7 @@
             <thead>
               <tr>
                 <th scope="col" class="col-name">Nombre</th>
+                <th scope="col" class="col-logo text-center">Logo</th>
                 <th scope="col" class="col-id-type">Tipo ID</th>
                 <th scope="col" class="col-id-num">Número ID</th>
                 <th scope="col" class="col-contact">Dirección</th>
@@ -79,6 +76,10 @@
             <tbody>
               <tr *ngFor="let c of filteredList" class="ux-row">
                 <td class="col-name"><span class="cell-text" [title]="c.name">{{ c.name }}</span></td>
+                <td class="col-logo text-center">
+                  <img *ngIf="c.logoDataUrl" [src]="c.logoDataUrl" [alt]="'Logo ' + c.name" class="company-logo-img" />
+                  <span *ngIf="!c.logoDataUrl" class="cell-muted">—</span>
+                </td>
                 <td class="col-id-type"><span class="cell-text">{{ c.documentType }}</span></td>
                 <td class="col-id-num"><span class="cell-text">{{ c.identifier }}</span></td>
                 <td class="col-contact"><span class="cell-text" [title]="c.address">{{ c.address || '—' }}</span></td>
@@ -133,8 +134,8 @@
               </td>
             </tr>
 
-            <tr *ngIf="!filteredList?.length">
-              <td colspan="15" class="empty-state">
+            <tr *ngIf="!filteredList.length">
+              <td colspan="16" class="empty-state">
                 <div class="empty-illustration">🏢</div>
                 <p *ngIf="filterPaisId === null">No hay empresas registradas.</p>
                 <p *ngIf="filterPaisId !== null">No hay empresas asignadas al país seleccionado.</p>
@@ -166,7 +167,8 @@
       <span class="toast-message">{{ toastMessage }}</span>
       <button type="button" (click)="closeToast()" class="toast-close" aria-label="Cerrar">×</button>
     </div>
-  </div>
+    </section>
+  </main>
 </div>
 
 <!-- MODAL: Confirmar eliminar empresa -->
@@ -310,6 +312,31 @@
             <input formControlName="name" class="form-input"
                    [class.form-input--invalid]="form.get('name')?.invalid && form.get('name')?.touched"/>
             <p *ngIf="form.get('name')?.invalid && form.get('name')?.touched" class="form-error">Obligatorio</p>
+          </div>
+
+          <div>
+            <label class="form-label">Logo de la empresa</label>
+            <div class="flex items-center gap-3">
+              <div class="logo-preview">
+                <img *ngIf="logoPreviewDataUrl" [src]="logoPreviewDataUrl" alt="Preview logo" />
+                <span *ngIf="!logoPreviewDataUrl" class="logo-preview__placeholder">Sin logo</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="form-input"
+                  (change)="onLogoFileSelected($any($event.target).files?.[0] || null)"
+                />
+                <div class="mt-2 flex items-center gap-2">
+                  <button type="button" class="btn-ghost text-sm" (click)="clearLogo()" [disabled]="!logoPreviewDataUrl && !logoChanged">
+                    Quitar logo
+                  </button>
+                  <span class="text-xs text-warm-gray-500">Máx. 512 KB (PNG/JPG)</span>
+                </div>
+                <p *ngIf="logoError" class="form-error mt-1">{{ logoError }}</p>
+              </div>
+            </div>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
@@ -534,8 +561,8 @@
           Siguiente
           <fa-icon [icon]="faNext" class="ml-2" aria-hidden="true"></fa-icon>
         </button>
-        <button *ngIf="step===2" type="submit" class="btn-danger">
-          <fa-icon [icon]="faBuilding" class="mr-2" aria-hidden="true"></fa-icon>
+        <button *ngIf="step===2" type="submit" class="btn-primary">
+          <fa-icon [icon]="faBuilding" aria-hidden="true"></fa-icon>
           Guardar Empresa
         </button>
       </div>

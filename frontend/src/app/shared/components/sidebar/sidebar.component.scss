@@ -52,6 +52,18 @@
   background: #f8fafc;
 }
 
+/* Cuando no se proyecta contenido (ej. Lote Postura, Seguimiento Producción), no ocupar espacio */
+.sidebar-content:empty {
+  flex: 0 0 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+
 /* Fondo decorativo muy sutil (seguro) */
 .sidebar-root::before {
   content: "";
@@ -95,6 +107,12 @@
   /* altura sugerida para compacto, ajustable */
   max-block-size: 40px;
   object-fit: contain;
+}
+/* Logo pequeño (marca) a la izquierda del logo de la empresa */
+.brand-duo__img--small {
+  max-block-size: 28px;
+  max-inline-size: 80px;
+  flex-shrink: 0;
 }
 
 /* --------- Tarjeta de bienvenida --------- */

@@ -1,18 +1,18 @@
-<div class="flex h-screen">
-  <app-sidebar class="w-64" *ngIf="!embedded"></app-sidebar>
+<div class="lote-management-layout">
+  <app-sidebar class="lote-management-sidebar" *ngIf="!embedded"></app-sidebar>
 
-  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
+  <main class="lote-management-main">
     <!-- Header con línea amarilla -->
-    <div class="ux-header">
+    <header class="ux-header">
       <div class="ux-header__title">
         <h1 class="ux-title">Gestión de Lotes</h1>
         <p class="ux-subtitle">Administra lotes comerciales.</p>
       </div>
-    </div>
+    </header>
 
     <!-- Panel de Lotes -->
     <section class="ux-tabpanel" id="panel-lotes" role="tabpanel">
       <app-lote-list></app-lote-list>
     </section>
-  </div>
+  </main>
 </div>

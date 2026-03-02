@@ -53,6 +53,7 @@ public class CompanyResolver : ICompanyResolver
                 c.Country,
                 c.State,
                 c.City,
+                null,
                 c.MobileAccess,
                 c.VisualPermissions
             ))
@@ -90,6 +91,7 @@ public class CompanyResolver : ICompanyResolver
                 uc.Company.Country,
                 uc.Company.State,
                 uc.Company.City,
+                null,
                 uc.Company.MobileAccess,
                 uc.Company.VisualPermissions
             ))

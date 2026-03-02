@@ -9,7 +9,7 @@ import { finalize } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faPen, faTrash, faTimes, faEye, faArrowRight, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
 import { ModalTrasladoLoteComponent } from '../modal-traslado-lote/modal-traslado-lote.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { ToastService } from '../../../../shared/services/toast.service';
@@ -110,6 +110,7 @@ export class ThousandSeparatorDirective {
 export class LoteListComponent implements OnInit {
   // Iconos
   faPlus = faPlus; faPen = faPen; faTrash = faTrash; faTimes = faTimes; faEye = faEye; faArrowRight = faArrowRight;
+  faMagnifyingGlass = faMagnifyingGlass;
 
   // Estado UI
   loading = false;

@@ -13,6 +13,8 @@ namespace ZooSanMarino.Domain.Entities
         public string? Country { get; set; }
         public string? State { get; set; }
         public string? City { get; set; }
+        public byte[]? LogoBytes { get; set; }
+        public string? LogoContentType { get; set; }
         public string[] VisualPermissions { get; set; } = Array.Empty<string>();
         public bool MobileAccess { get; set; }
 
