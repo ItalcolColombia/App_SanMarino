@@ -85,6 +85,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<HistoricoLotePostura> HistoricoLotePostura => Set<HistoricoLotePostura>();
         public DbSet<EspejoHuevoProduccion> EspejoHuevoProduccion => Set<EspejoHuevoProduccion>();
 
+        // Módulo Mapas (documentos de mapeo ERP/CIESA)
+        public DbSet<Mapa> Mapas => Set<Mapa>();
+        public DbSet<MapaPaso> MapaPasos => Set<MapaPaso>();
+        public DbSet<MapaEjecucion> MapaEjecuciones => Set<MapaEjecucion>();
+
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 
