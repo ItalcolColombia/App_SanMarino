@@ -352,6 +352,36 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.MovimientosPolloEngordeRoutingModule)
       },
 
+      // Módulo Mapas (configuraciones y ejecución)
+      {
+        path: 'mapas',
+        canActivate: [authGuard],
+        children: [
+          { path: '', redirectTo: 'configuraciones', pathMatch: 'full' },
+          {
+            path: 'configuraciones',
+            loadComponent: () =>
+              import('./features/mapas/pages/mapas-configuraciones-list/mapas-configuraciones-list.component')
+                .then(m => m.MapasConfiguracionesListComponent),
+            title: 'Configuraciones de Mapas'
+          },
+          {
+            path: 'configuraciones/:id',
+            loadComponent: () =>
+              import('./features/mapas/pages/mapa-configurar/mapa-configurar.component')
+                .then(m => m.MapaConfigurarComponent),
+            title: 'Configurar Mapa'
+          },
+          {
+            path: 'ejecutar/:id',
+            loadComponent: () =>
+              import('./features/mapas/pages/mapa-ejecutar-placeholder/mapa-ejecutar-placeholder.component')
+                .then(m => m.MapaEjecutarPlaceholderComponent),
+            title: 'Ejecutar Mapa'
+          }
+        ]
+      },
+
       { path: '**', redirectTo: 'login' }
     ])
   ]

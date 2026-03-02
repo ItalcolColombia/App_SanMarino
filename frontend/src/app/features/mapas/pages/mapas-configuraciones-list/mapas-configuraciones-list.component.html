@@ -1,0 +1,127 @@
+<app-sidebar>
+  <header class="mapas-page-header">
+    <div class="mapas-page-header__text">
+      <h1 class="mapas-page-header__title">Configuraciones de Mapas</h1>
+      <p class="mapas-page-header__subtitle">Documentos de mapeo para exportar datos al ERP (CIESA)</p>
+    </div>
+    <div class="mapas-page-header__action">
+      <button type="button" class="btn btn-primary btn-icon" (click)="openCreate()">
+        <span class="btn-icon__icon">+</span>
+        <span>Nuevo mapa</span>
+      </button>
+    </div>
+  </header>
+
+  @if (error) {
+    <div class="alert alert-danger" role="alert">
+      <span class="alert__text">{{ error }}</span>
+    </div>
+  }
+
+  @if (loading) {
+    <div class="mapas-loading">
+      <div class="mapas-loading__spinner"></div>
+      <p class="mapas-loading__text">Cargando mapas…</p>
+    </div>
+  } @else {
+    <div class="mapas-card">
+      @if (list.length === 0) {
+        <div class="mapas-empty">
+          <div class="mapas-empty__icon" aria-hidden="true">🗺️</div>
+          <h2 class="mapas-empty__title">No hay mapas configurados</h2>
+          <p class="mapas-empty__text">Cree su primer mapa para exportar datos al ERP.</p>
+          <button type="button" class="btn btn-primary" (click)="openCreate()">Crear mapa</button>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table class="mapas-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>Creación</th>
+                <th>Ejecuciones</th>
+                <th>Última ejecución</th>
+                <th>Estado</th>
+                <th class="mapas-table__actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of list; track m.id) {
+                <tr>
+                  <td class="mapas-table__nombre">{{ m.nombre }}</td>
+                  <td class="mapas-table__desc">{{ m.descripcion || '—' }}</td>
+                  <td>{{ formatDate(m.createdAt) }}</td>
+                  <td>{{ m.totalEjecuciones }}</td>
+                  <td>{{ formatDate(m.ultimaEjecucionAt) }}</td>
+                  <td>
+                    <span [class.badge-active]="m.isActive" [class.badge-inactive]="!m.isActive" class="badge">
+                      {{ m.isActive ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </td>
+                  <td class="mapas-table__actions">
+                    <div class="action-buttons">
+                      <a [routerLink]="['/mapas/configuraciones', m.id]" class="btn btn-sm btn-outline-primary" title="Configurar pasos">Configurar</a>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="openEdit(m)" title="Editar">Editar</button>
+                      <button type="button" class="btn btn-sm btn-outline-success" (click)="openEjecutarModal(m)" title="Ejecutar">Ejecutar</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger" (click)="deleteMapa(m, $event)" title="Eliminar">Eliminar</button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+  @if (showModal) {
+    <div class="modal-backdrop" (click)="closeModal()" role="presentation"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" [attr.aria-labelledby]="'modal-title-' + (editingId ?? 'new')">
+      <div class="modal-dialog__box" (click)="$event.stopPropagation()">
+        <header class="modal-dialog__header">
+          <h2 class="modal-dialog__title" [id]="'modal-title-' + (editingId ?? 'new')">
+            {{ editingId != null ? 'Editar mapa' : 'Nuevo mapa' }}
+          </h2>
+          <button type="button" class="modal-dialog__close" (click)="closeModal()" aria-label="Cerrar">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </header>
+        <div class="modal-dialog__body">
+          <div class="form-group">
+            <label for="mapa-nombre">Nombre <span class="required">*</span></label>
+            <input id="mapa-nombre" type="text" class="form-control" [(ngModel)]="formNombre" placeholder="Ej. Exportación CIESA mensual" autofocus />
+          </div>
+          <div class="form-group">
+            <label for="mapa-desc">Descripción</label>
+            <textarea id="mapa-desc" class="form-control" [(ngModel)]="formDescripcion" rows="2" placeholder="Descripción opcional del mapa"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="mapa-plantilla">Plantilla</label>
+            <select id="mapa-plantilla" class="form-control" [(ngModel)]="formCodigoPlantilla">
+              @for (opt of plantillas; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </select>
+            <small class="form-hint">Estructura de encabezado que usará este mapa (opcional).</small>
+          </div>
+          <div class="form-group form-check">
+            <input id="mapa-active" type="checkbox" class="form-check-input" [(ngModel)]="formIsActive" />
+            <label class="form-check-label" for="mapa-active">Activo (visible para ejecución)</label>
+          </div>
+        </div>
+        <footer class="modal-dialog__footer">
+          <button type="button" class="btn btn-secondary" (click)="closeModal()" [disabled]="saving">Cancelar</button>
+          <button type="button" class="btn btn-primary" (click)="save()" [disabled]="saving">
+            {{ saving ? 'Guardando…' : 'Guardar' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  @if (showEjecutarModal && ejecutarMapaId != null) {
+    <app-mapa-ejecutar-modal [mapaId]="ejecutarMapaId" (close)="closeEjecutarModal()"></app-mapa-ejecutar-modal>
+  }
+</app-sidebar>

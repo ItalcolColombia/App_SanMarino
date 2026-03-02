@@ -1,5 +1,6 @@
 <!-- src/app/shared/components/sidebar/sidebar.component.html -->
-<div class="flex flex-col h-screen bg-white shadow-lg sidebar-root">
+<div class="flex flex-row w-full min-h-screen flex-1 min-w-0">
+  <div class="flex flex-col h-screen bg-white shadow-lg sidebar-root">
   <!-- Header / Logo -->
   <div class="menu-header">
     <div class="brand-duo brand-duo--compact" role="img" aria-label="Logos Sanmarino y Tecnología e Innovación">
@@ -46,9 +47,9 @@
     </div>
   </div>
 
-  <!-- Menú (desde base de datos vía observable menu$) -->
-  <div class="flex-1 overflow-y-auto">
-    <nav class="mt-4">
+  <!-- Menú (desde base de datos vía observable menu$) — área con scroll independiente -->
+  <div class="menu-scroll-area flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+    <nav class="mt-4 pb-4">
       <!-- Acceso rápido: Mi Perfil -->
       <div class="px-4 mb-2">
         <a routerLink="/profile"
@@ -63,44 +64,41 @@
         </li>
       </ul>
 
-      <!-- Plantilla recursiva -->
+      <!-- Plantilla recursiva (evita desborde en Mapas y otros módulos con hijos) -->
       <ng-template #renderNode let-node let-level="level">
-        <div class="group">
+        <div class="menu-group">
           <!-- Nodo sin hijos -->
           <a *ngIf="!node.children?.length"
              [routerLink]="node.link"
              routerLinkActive="bg-gray-100 text-red-600"
              [routerLinkActiveOptions]="{ exact: true }"
-             class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+             class="menu-link flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors min-w-0"
              [ngClass]="{ 'pl-6': level === 1, 'pl-9': level >= 2 }">
-            <fa-icon *ngIf="node.icon" [icon]="node.icon" class="mr-3 text-lg text-gray-600"></fa-icon>
-            <span class="flex-1 text-sm font-medium">{{ node.label }}</span>
+            <fa-icon *ngIf="node.icon" [icon]="node.icon" class="mr-3 text-lg text-gray-600 flex-shrink-0"></fa-icon>
+            <span class="flex-1 text-sm font-medium truncate">{{ node.label }}</span>
           </a>
 
-          <!-- Nodo con hijos -->
-          <div *ngIf="node.children?.length" class="w-full" [ngClass]="{ 'pl-4': level === 1, 'pl-8': level >= 2 }">
-            <div class="flex items-center">
-              <!-- Si el nodo también navega, el texto es link -->
+          <!-- Nodo con hijos (ej. Mapas: Configuraciones, Mapa) -->
+          <div *ngIf="node.children?.length" class="menu-node-with-children w-full min-w-0" [ngClass]="{ 'pl-4': level === 1, 'pl-8': level >= 2 }">
+            <div class="flex items-center min-w-0">
               <a *ngIf="node.link"
                  [routerLink]="node.link"
                  routerLinkActive="text-red-600"
-                 class="flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600"></fa-icon>
+                 class="menu-link flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors min-w-0">
+                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600 flex-shrink-0"></fa-icon>
                 <span class="text-sm font-medium truncate">{{ node.label }}</span>
               </a>
 
-              <!-- Si no tiene link, se muestra solo como contenedor -->
               <button *ngIf="!node.link"
                       type="button"
                       (click)="toggle(node)"
-                      class="flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left">
-                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600"></fa-icon>
+                      class="menu-link flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left min-w-0">
+                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600 flex-shrink-0"></fa-icon>
                 <span class="text-sm font-medium truncate">{{ node.label }}</span>
               </button>
 
-              <!-- Caret -->
               <button type="button"
-                      class="p-2 rounded-md text-gray-500 hover:bg-gray-100 ml-1"
+                      class="menu-caret flex-shrink-0 p-2 rounded-md text-gray-500 hover:bg-gray-100 ml-1"
                       aria-label="Expandir"
                       (click)="toggle(node)">
                 <fa-icon [icon]="faChevronDown"
@@ -109,9 +107,9 @@
               </button>
             </div>
 
-            <!-- Hijos -->
-            <ul *ngIf="node.expanded" class="mt-1 space-y-1 border-l ml-4 pl-3">
-              <li *ngFor="let child of node.children">
+            <!-- Hijos (contenido con scroll dentro del área del menú) -->
+            <ul *ngIf="node.expanded" class="menu-children mt-1 space-y-1 border-l ml-4 pl-3">
+              <li *ngFor="let child of node.children" class="min-w-0">
                 <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: child, level: level + 1}"></ng-container>
               </li>
             </ul>
@@ -131,5 +129,10 @@
       <fa-icon [icon]="faSignOutAlt" class="mr-3 text-lg"></fa-icon>
       <span class="flex-1 text-sm">Cerrar Sesión</span>
     </button>
+  </div>
+  </div>
+  <!-- Contenido proyectado (Mapas, etc.): flex-1 para no desbordar el menú -->
+  <div class="sidebar-content flex-1 min-w-0 overflow-auto p-4">
+    <ng-content></ng-content>
   </div>
 </div>
