@@ -275,6 +275,7 @@ builder.Services.AddScoped<IReadOnlyQueryService, ReadOnlyQueryService>();
 
 // DB Studio Service
 builder.Services.AddScoped<IDbStudioService, DbStudioService>();
+builder.Services.AddScoped<IMapaService, MapaService>();
 
 
 // ─────────────────────────────────────
