@@ -12,22 +12,44 @@
   --text: #1f2937;   /* slate-800 */
   --muted: #6b7280;  /* gray-500 */
   --line: #e5e7eb;   /* gray-200 */
+
+  /* Layout: en páginas con contenido (Mapas) es flex row; si no, bloque 16rem */
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  min-height: 100vh;
+  min-width: 0;
+  overflow: hidden;
 }
 
-/* --------- Contenedor raíz --------- */
+/* --------- Contenedor raíz (columna del menú) --------- */
 .sidebar-root {
+  /* Ancho fijo para que el menú no desborde en Mapas/Configuraciones */
+  width: 16rem;
+  max-width: 16rem;
+  min-width: 0;
+  flex-shrink: 0;
   /* Estructura anti-desbordes */
   display: flex;
   flex-direction: column;
   inline-size: 100%;
   block-size: 100dvh;      /* dvh evita saltos en móviles */
   min-block-size: 0;       /* permite que los hijos hagan overflow-y correctamente */
+  min-height: 0;
   background: var(--bg) !important;
   color: var(--text);
   position: relative;
   isolation: isolate;
   overflow: hidden;        /* nunca se desborda el shell */
   contain: layout paint;   /* micro-opt */
+}
+
+/* Zona de contenido proyectado (Mapas, etc.): no empuja el menú */
+.sidebar-content {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  background: #f8fafc;
 }
 
 /* Fondo decorativo muy sutil (seguro) */
@@ -105,13 +127,35 @@
 /* --------- Área scroll del menú --------- */
 /* Tu HTML ya tiene: <div class="flex-1 overflow-y-auto"> */
 /* Fortalecemos para que nunca se “coma” el alto total */
+.menu-scroll-area,
 .sidebar-root > .flex-1 {
   min-block-size: 0;         /* imprescindible para scroll en contenedores flex */
+  min-height: 0;             /* compatibilidad */
   overflow-y: auto;
   overflow-x: hidden;        /* cero scroll horizontal */
   overscroll-behavior: contain;
   scroll-padding-block-start: .5rem;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Grupos y nodos con hijos (Mapas, etc.): no desbordar ancho */
+.menu-group,
+.menu-node-with-children,
+.menu-children {
+  min-inline-size: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.menu-link {
+  min-width: 0;
+}
+.menu-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-caret {
+  flex-shrink: 0;
 }
 
 /* --------- Navegación --------- */
@@ -187,17 +231,21 @@ button:focus-visible {
 }
 
 /* --------- Scrollbar (sutil) --------- */
+.menu-scroll-area,
 .sidebar-root > .flex-1 {
   scrollbar-width: thin;
   scrollbar-color: rgba(148,163,184,.6) transparent;
 }
+.menu-scroll-area::-webkit-scrollbar,
 .sidebar-root > .flex-1::-webkit-scrollbar { inline-size: 8px; }
+.menu-scroll-area::-webkit-scrollbar-thumb,
 .sidebar-root > .flex-1::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(148,163,184,.75), rgba(100,116,139,.75));
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
+.menu-scroll-area::-webkit-scrollbar-track,
 .sidebar-root > .flex-1::-webkit-scrollbar-track { background: transparent; }
 
 /* --------- Hardening anti-desbordes global --------- */

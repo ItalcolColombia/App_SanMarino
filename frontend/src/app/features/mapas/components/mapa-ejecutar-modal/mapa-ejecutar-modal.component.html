@@ -1,0 +1,167 @@
+<div class="modal-backdrop" (click)="onClose()" role="button" tabindex="0" (keydown.escape)="onClose()"></div>
+<div class="modal-box" role="dialog" aria-labelledby="modal-title">
+  <header class="modal-header">
+    <h2 id="modal-title" class="modal-title">Ejecutar: {{ mapa?.nombre ?? 'Cargando…' }}</h2>
+    <button type="button" class="modal-close" (click)="onClose()" aria-label="Cerrar">&times;</button>
+  </header>
+
+  <div class="modal-body">
+    @if (error) {
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+    }
+
+    @if (loading && !mapa) {
+      <div class="exec-loading">
+        <div class="exec-loading__spinner"></div>
+        <p class="exec-loading__text">Cargando mapa…</p>
+      </div>
+    }
+
+    @if (!mapa && !loading) {
+      <div class="exec-empty">
+        <p class="exec-empty__text">Mapa no encontrado.</p>
+        <button type="button" class="btn btn-secondary" (click)="onClose()">Cerrar</button>
+      </div>
+    }
+
+    @if (mapa && !ejecucionId) {
+      <section class="exec-section exec-section--params">
+        <div class="exec-card exec-card--params">
+          <h3 class="exec-card__title">
+            <span class="exec-card__icon">&#9881;</span>
+            Parámetros de ejecución
+          </h3>
+          <p class="exec-card__desc">Indique el rango de fechas y el formato del archivo a generar.</p>
+
+          @if (!canExecute) {
+            <div class="alert alert-warning exec-alert-config">
+              <p class="alert-title">Configuración requerida</p>
+              <p>Para ejecutar este mapa necesita al menos un paso de tipo <strong>Exportación</strong> con <strong>Script SQL</strong> definido.</p>
+              <ol class="alert-steps">
+                <li><a [routerLink]="['/mapas/configuraciones', mapa.id]" (click)="onClose()">Ir a configurar este mapa</a></li>
+                <li>Añadir paso <strong>Exportación</strong> y pegar el SQL en Script SQL.</li>
+                <li>Guardar pasos y volver a abrir Ejecutar.</li>
+              </ol>
+              <button type="button" class="btn btn-primary btn-sm" (click)="loadMapa()" [disabled]="loading">
+                {{ loading ? 'Cargando…' : 'Recargar mapa' }}
+              </button>
+            </div>
+          }
+
+          <div class="exec-form">
+            <div class="exec-form__row">
+              <div class="exec-form__group">
+                <label for="modal-fechaDesde">Fecha desde</label>
+                <input id="modal-fechaDesde" type="date" class="form-control" [(ngModel)]="fechaDesde" />
+              </div>
+              <div class="exec-form__group">
+                <label for="modal-fechaHasta">Fecha hasta</label>
+                <input id="modal-fechaHasta" type="date" class="form-control" [(ngModel)]="fechaHasta" />
+              </div>
+            </div>
+            <div class="exec-form__group">
+              <label for="modal-formatoExport">Formato de exportación</label>
+              <select id="modal-formatoExport" class="form-control" [(ngModel)]="formatoExport">
+                <option value="excel">Excel</option>
+                <option value="pdf">PDF (próximamente)</option>
+              </select>
+            </div>
+            <div class="exec-card__actions exec-card__actions--primary">
+              <button type="button" class="btn btn-primary btn-exec" (click)="ejecutar()" [disabled]="running || !canExecute">
+                {{ running ? 'Iniciando…' : 'Ejecutar' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    }
+
+    @if (ejecucionId && estadoEjecucion) {
+      <section class="exec-section exec-section--status">
+        <div class="exec-card exec-card--status">
+          <h3 class="exec-card__title">
+            <span class="exec-card__icon">&#128203;</span>
+            Estado de la ejecución
+          </h3>
+          <div class="exec-status">
+            <span class="exec-status__label">Estado</span>
+            <span class="badge" [class.badge-success]="estadoEjecucion.estado === 'completado'" [class.badge-danger]="estadoEjecucion.estado === 'error'" [class.badge-warning]="estadoEjecucion.estado === 'en_proceso'">
+              {{ estadoEjecucion.estado }}
+            </span>
+          </div>
+          @if (estadoEjecucion.estado === 'en_proceso') {
+            @if (estadoEjecucion.totalPasos != null && estadoEjecucion.totalPasos > 0) {
+              <div class="progress-wrap">
+                <div class="progress-bar" [style.width.%]="progressPercent"></div>
+              </div>
+              <p class="progress-label">{{ progressPercent }}%</p>
+            }
+            @if (estadoEjecucion.mensajeEstado) {
+              <p class="progress-msg">{{ estadoEjecucion.mensajeEstado }}</p>
+            } @else {
+              <p class="text-muted">Procesando…</p>
+            }
+          }
+          @if (estadoEjecucion.estado === 'error' && estadoEjecucion.mensajeError) {
+            <div class="alert alert-danger">{{ estadoEjecucion.mensajeError }}</div>
+          }
+          @if (estadoEjecucion.estado === 'completado' && estadoEjecucion.puedeDescargar) {
+            <div class="exec-download">
+              <button type="button" class="btn btn-success" (click)="descargar()" [disabled]="descargando">
+                {{ descargando ? 'Preparando…' : 'Descargar archivo' }}
+              </button>
+            </div>
+          }
+          <div class="exec-card__actions">
+            <button type="button" class="btn btn-secondary" (click)="reiniciar()">Nueva ejecución</button>
+          </div>
+        </div>
+      </section>
+    }
+
+    @if (mapa && historial.length > 0) {
+      <section class="exec-section exec-section--historial">
+        <div class="exec-card exec-card--historial">
+          <h3 class="exec-card__title">
+            <span class="exec-card__icon">&#128337;</span>
+            Últimas ejecuciones
+          </h3>
+          <div class="table-wrap">
+            <table class="exec-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Archivo</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (h of historial; track h.id) {
+                  <tr>
+                    <td>{{ formatDate(h.fechaEjecucion) }}</td>
+                    <td>
+                      <span class="badge" [class.badge-success]="h.estado === 'completado'" [class.badge-danger]="h.estado === 'error'" [class.badge-warning]="h.estado === 'en_proceso'">{{ h.estado }}</span>
+                    </td>
+                    <td>
+                      @if (h.puedeDescargar) {
+                        <button type="button" class="btn btn-sm btn-outline-success" (click)="descargarPorId(h.id)" [disabled]="descargandoId === h.id">
+                          {{ descargandoId === h.id ? '…' : 'Descargar' }}
+                        </button>
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    }
+  </div>
+
+  <footer class="modal-footer">
+    <button type="button" class="btn btn-secondary" (click)="onClose()">Cerrar</button>
+  </footer>
+</div>

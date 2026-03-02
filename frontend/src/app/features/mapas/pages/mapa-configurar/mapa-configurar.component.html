@@ -1,0 +1,233 @@
+<app-sidebar>
+  <header class="config-header">
+    <a routerLink="/mapas/configuraciones" class="config-header__back">← Volver a Configuraciones</a>
+    @if (mapa) {
+      <div class="config-header__main">
+        <p class="config-header__label">Configuración de pasos</p>
+        <h1 class="config-header__title">{{ mapa.nombre }}</h1>
+        @if (mapa.descripcion) {
+          <p class="config-header__subtitle">{{ mapa.descripcion }}</p>
+        }
+      </div>
+    } @else if (!loading) {
+      <div class="config-header__main">
+        <h1 class="config-header__title">Configurar mapa</h1>
+      </div>
+    }
+  </header>
+
+  @if (error) {
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+  }
+
+  @if (loading) {
+    <div class="config-loading">
+      <div class="config-loading__spinner"></div>
+      <p class="config-loading__text">Cargando mapa…</p>
+    </div>
+  } @else if (mapa) {
+    <section class="pasos-section">
+      <div class="pasos-section__header">
+        <div class="pasos-section__head">
+          <h2 class="pasos-section__title">
+            <span class="pasos-section__icon" aria-hidden="true">📋</span>
+            Pasos del mapa
+          </h2>
+          <button type="button" class="btn btn-primary btn-icon" (click)="addPaso()">
+            <span class="btn-icon__icon">+</span>
+            <span>Añadir paso</span>
+          </button>
+        </div>
+        <div class="pasos-section__hint-box">
+          <span class="pasos-section__hint-label">Orden recomendado:</span>
+          Encabezado → Extracción(es) → Transformación(es) → Ejecución → Exportación. Cada paso puede tener script SQL y etiqueta opcional.
+        </div>
+      </div>
+
+      @if (mapa.codigoPlantilla === 'entrada_ciesa') {
+        <section class="plantilla-encabezado" aria-labelledby="plantilla-encabezado-title">
+          <header class="plantilla-encabezado__header" (click)="plantillaEncabezadoExpanded = !plantillaEncabezadoExpanded" role="button" [attr.aria-expanded]="plantillaEncabezadoExpanded">
+            <h2 id="plantilla-encabezado-title" class="plantilla-encabezado__title">
+              <span class="plantilla-encabezado__icon">{{ plantillaEncabezadoExpanded ? '▼' : '▶' }}</span>
+              Estructura del encabezado (plantilla Entrada CIESA)
+            </h2>
+            <span class="plantilla-encabezado__hint">{{ plantillaEncabezadoExpanded ? 'Ocultar' : 'Ver campos' }}</span>
+          </header>
+          @if (plantillaEncabezadoExpanded) {
+            <div class="plantilla-encabezado__body">
+              <p class="plantilla-encabezado__intro">Campos que debe generar el paso de tipo <strong>Encabezado</strong> para esta plantilla. Use estos nombres técnicos y tipos en su script SQL.</p>
+              <div class="plantilla-encabezado__table-wrap">
+                <table class="plantilla-encabezado__table">
+                  <thead>
+                    <tr>
+                      <th>Campo (código)</th>
+                      <th>Nombre descriptivo</th>
+                      <th>Tipo</th>
+                      <th>Descripción</th>
+                      <th>Default</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of encabezadoEntradaCiesa; track c.codigo) {
+                      <tr>
+                        <td><code class="campo-codigo">{{ c.codigo }}</code></td>
+                        <td>{{ c.nombreDescriptivo }}</td>
+                        <td><span class="campo-tipo" [class.campo-tipo--num]="c.tipoDato === 'Numérico'">{{ c.tipoDato }}</span></td>
+                        <td>{{ c.descripcion }}</td>
+                        <td>{{ c.default ?? '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+        </section>
+
+        <section class="plantilla-encabezado plantilla-movimiento" aria-labelledby="plantilla-movimiento-title">
+          <header class="plantilla-encabezado__header" (click)="plantillaMovimientoExpanded = !plantillaMovimientoExpanded" role="button" [attr.aria-expanded]="plantillaMovimientoExpanded">
+            <h2 id="plantilla-movimiento-title" class="plantilla-encabezado__title">
+              <span class="plantilla-encabezado__icon">{{ plantillaMovimientoExpanded ? '▼' : '▶' }}</span>
+              Página de movimiento (plantilla Entrada CIESA)
+            </h2>
+            <span class="plantilla-encabezado__hint">{{ plantillaMovimientoExpanded ? 'Ocultar' : 'Ver campos' }}</span>
+          </header>
+          @if (plantillaMovimientoExpanded) {
+            <div class="plantilla-encabezado__body">
+              <p class="plantilla-encabezado__intro">Campos que debe generar el paso de <strong>Extracción</strong> o <strong>Exportación</strong> para los movimientos. Afiliado al encabezado de este mapa.</p>
+              <div class="plantilla-encabezado__table-wrap">
+                <table class="plantilla-encabezado__table">
+                  <thead>
+                    <tr>
+                      <th>Campo (código)</th>
+                      <th>Nombre descriptivo</th>
+                      <th>Tipo</th>
+                      <th>Descripción</th>
+                      <th>Default</th>
+                      <th>Oblig.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of movimientoEntradaCiesa; track c.codigo) {
+                      <tr>
+                        <td><code class="campo-codigo">{{ c.codigo }}</code></td>
+                        <td>{{ c.nombreDescriptivo }}</td>
+                        <td><span class="campo-tipo" [class.campo-tipo--num]="c.tipoDato === 'Numérico'">{{ c.tipoDato }}</span></td>
+                        <td>{{ c.descripcion }}</td>
+                        <td>{{ c.default ?? '—' }}</td>
+                        <td>{{ c.obligatorio ? 'Sí' : '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+        </section>
+      }
+
+      <div class="pasos-sequence">
+        @for (p of pasos; track $index; let i = $index) {
+          <article class="paso-card" [class.paso-card--expanded]="stepExpanded[i]">
+            <div class="paso-card__sequence">
+              <span class="paso-card__seq-num" [attr.aria-label]="'Paso ' + p.orden">{{ p.orden }}</span>
+              @if (i < pasos.length - 1) {
+                <span class="paso-card__seq-line" aria-hidden="true"></span>
+              }
+            </div>
+            <div class="paso-card__content">
+              <header
+                class="paso-card__header"
+                (click)="toggleStep(i)"
+                role="button"
+                [attr.aria-expanded]="stepExpanded[i]"
+                [attr.aria-controls]="'paso-body-' + i"
+                [id]="'paso-header-' + i"
+              >
+                <span class="paso-card__toggle" aria-hidden="true">
+                  {{ stepExpanded[i] ? '▼' : '▶' }}
+                </span>
+                <span class="paso-card__numero">Paso {{ p.orden }}</span>
+                <span class="paso-card__tipo">{{ getTipoLabel(p.tipo) }}</span>
+                <p class="paso-card__summary">{{ getStepSummary(p) }}</p>
+                <div class="paso-card__actions" (click)="$event.stopPropagation()">
+                  <button type="button" class="btn btn-sm btn-ghost" (click)="moveUp(i)" [disabled]="i === 0" title="Subir">↑</button>
+                  <button type="button" class="btn btn-sm btn-ghost" (click)="moveDown(i)" [disabled]="i === pasos.length - 1" title="Bajar">↓</button>
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removePaso(i)" title="Eliminar paso">Eliminar</button>
+                </div>
+              </header>
+              <div
+                class="paso-card__body"
+                [id]="'paso-body-' + i"
+                role="region"
+                [attr.aria-labelledby]="'paso-header-' + i"
+                [hidden]="!stepExpanded[i]"
+              >
+                <div class="form-row">
+                  <div class="form-group form-group--tipo">
+                    <label for="tipo-{{ i }}">Tipo</label>
+                    <select id="tipo-{{ i }}" [(ngModel)]="p.tipo" class="form-control">
+                      @for (t of tipos; track t.value) {
+                        <option [value]="t.value">{{ t.label }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="form-group form-group--etiqueta">
+                    <label for="etiqueta-{{ i }}">Etiqueta (opcional)</label>
+                    <input id="etiqueta-{{ i }}" type="text" class="form-control input-text" [(ngModel)]="p.nombreEtiqueta" placeholder="ej. extraction_1, transformation_1" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="sql-{{ i }}">Script SQL</label>
+                  <textarea id="sql-{{ i }}" class="form-control script-sql" [(ngModel)]="p.scriptSql" rows="6" placeholder="-- Consulta SQL para este paso&#10;SELECT ..."></textarea>
+                </div>
+                @if (p.tipo === 'export') {
+                  <div class="form-group">
+                    <label for="opciones-{{ i }}">Opciones (JSON)</label>
+                    <input id="opciones-{{ i }}" type="text" class="form-control input-code" [(ngModel)]="p.opciones" placeholder='{"formato":"excel"}' />
+                  </div>
+                }
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+
+      <section class="summary-section" aria-labelledby="summary-title">
+        <header class="summary-section__header" (click)="toggleSummary()" role="button" [attr.aria-expanded]="summaryExpanded">
+          <h2 id="summary-title" class="summary-section__title">
+            <span class="summary-section__icon">{{ summaryExpanded ? '▼' : '▶' }}</span>
+            Resumen de la secuencia SQL
+          </h2>
+          <span class="summary-section__hint">{{ summaryExpanded ? 'Ocultar' : 'Ver estructura' }}</span>
+        </header>
+        @if (summaryExpanded) {
+          <div class="summary-section__body">
+            <p class="summary-section__intro">Orden de ejecución que se aplicará al ejecutar el mapa:</p>
+            <ol class="summary-list">
+              @for (p of pasos; track $index; let i = $index) {
+                <li class="summary-list__item">
+                  <span class="summary-list__num">{{ p.orden }}</span>
+                  <div class="summary-list__content">
+                    <strong class="summary-list__tipo">{{ getTipoLabel(p.tipo) }}</strong>
+                    @if (p.nombreEtiqueta) {
+                      <span class="summary-list__etiqueta">{{ p.nombreEtiqueta }}</span>
+                    }
+                    <code class="summary-list__sql">{{ getSqlPreview(p) }}</code>
+                  </div>
+                </li>
+              }
+            </ol>
+          </div>
+        }
+      </section>
+
+      <div class="save-bar">
+        <a routerLink="/mapas/configuraciones" class="btn btn-secondary">Cancelar</a>
+        <button type="button" class="btn btn-primary btn-save" (click)="save()" [disabled]="saving">
+          {{ saving ? 'Guardando…' : 'Guardar pasos' }}
+        </button>
+      </div>
+    </section>
+  }
+</app-sidebar>
