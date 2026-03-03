@@ -25,6 +25,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Contenedor: sin altura fija para un solo scroll (app-main) */
+.galpon-list-root {
+  display: block;
+  width: 100%;
+  min-height: 0;
+}
+.galpon-list-content {
+  width: 100%;
+}
+
 /* utilidades */
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .req { color:#dc2626; }
