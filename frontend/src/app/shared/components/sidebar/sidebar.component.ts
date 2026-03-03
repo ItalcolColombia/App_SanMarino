@@ -1,18 +1,18 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Router } from '@angular/router';
+import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
   faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign,
-  faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench
+  faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench,
+  faTimes
 } from '@fortawesome/free-solid-svg-icons';
-import { map } from 'rxjs/operators';
-import { Observable } from 'rxjs';
+import { map, filter, take, takeUntil } from 'rxjs/operators';
+import { Observable, Subject } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { MenuService, UiMenuItem } from '../../services/menu.service';
-import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-sidebar',
@@ -21,14 +21,19 @@ import { take } from 'rxjs/operators';
   templateUrl: './sidebar.component.html',
   styleUrls: ['./sidebar.component.scss']
 })
-export class SidebarComponent implements OnInit {
+export class SidebarComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly menuSvc = inject(MenuService);
   private readonly router = inject(Router);
+  private readonly destroy$ = new Subject<void>();
 
-  // Íconos sueltos (para botones)
+  /** Sidebar en modo overlay: abierto/cerrado desde app (no consume espacio cuando cerrado). */
+  @Input() isOpen = false;
+  @Output() close = new EventEmitter<void>();
+
   faChevronDown = faChevronDown;
   faSignOutAlt  = faSignOutAlt;
+  faTimes       = faTimes;
 
   // Stream del árbol de menú listo para pintar
   menu$: Observable<UiMenuItem[]> = this.menuSvc.menu$;
@@ -57,13 +62,28 @@ export class SidebarComponent implements OnInit {
       faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
       faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
       faGlobe, faMapMarkerAlt, faCity, faWarehouse, faBoxesAlt, faDollarSign,
-      faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench
+      faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench,
+      faTimes
     );
   }
 
+  onClose(): void {
+    this.close.emit();
+  }
+
   ngOnInit(): void {
-    // Asegura que haya menú cargado (lee storage y, si no hay, va a la API)
-     this.menuSvc.ensureLoaded().pipe(take(1)).subscribe(); // dispara carga y completa
+    this.menuSvc.ensureLoaded().pipe(take(1)).subscribe();
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(() => this.close.emit());
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   toggle(item: UiMenuItem) {

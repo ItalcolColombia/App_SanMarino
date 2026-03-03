@@ -1,11 +1,30 @@
-
 <!-- src/app/app.component.html -->
-<div class="flex h-screen">
-    <!-- Sidebar global oculto - usando sidebars locales en cada componente -->
-    <!-- <app-sidebar *ngIf="!['/login', '/register'].includes(router.url)"></app-sidebar> -->
+<div class="app-layout">
+  <!-- Barra superior: fija, solo en rutas con menú -->
+  <header *ngIf="showSidebar" class="app-topbar" role="banner">
+    <button
+      type="button"
+      class="app-topbar__menu-btn"
+      (click)="onMenuClick($event)"
+      [attr.aria-label]="sidebarOpen ? 'Cerrar menú' : 'Abrir menú'"
+      [attr.aria-expanded]="sidebarOpen">
+      <fa-icon [icon]="faBars"></fa-icon>
+    </button>
+    <div class="app-topbar__title">
+      <img src="assets/brand/logo_intalfoods_zootenico.png" alt="Intalfoods Zootécnico" class="app-topbar__logo" />
+    </div>
+  </header>
 
-    <!-- Contenido principal -->
-    <main class="flex-1 overflow-auto">
-      <router-outlet></router-outlet>
-    </main>
-  </div>
+  <!-- Menú overlay: por encima de la barra superior (z-index mayor) -->
+  <app-sidebar
+    *ngIf="showSidebar"
+    class="app-sidebar"
+    [isOpen]="sidebarOpen"
+    (close)="closeSidebar()">
+  </app-sidebar>
+
+  <!-- Contenido principal: debajo de la barra superior -->
+  <main class="app-main" [class.app-main--with-topbar]="showSidebar">
+    <router-outlet></router-outlet>
+  </main>
+</div>
