@@ -30,13 +30,22 @@
 /* ===== Fondo + WATERMARK Italcol ===== */
 .login-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: clamp(1rem, 4vw, 2rem);
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  box-sizing: border-box;
 
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   isolation: isolate;
+  -webkit-overflow-scrolling: touch;
 
   background: linear-gradient(135deg, var(--brand-cream) 0%, var(--brand-orange-light) 50%, var(--bg-gray) 100%);
 }
@@ -64,9 +73,10 @@
 .login-card {
   background: #ffffff;
   border-radius: 14px;
-  padding: 2.5rem 2rem;
+  padding: clamp(1.25rem, 5vw, 2.5rem) clamp(1.25rem, 4vw, 2rem);
   width: 100%;
-  max-width: 380px;
+  max-width: min(380px, calc(100vw - 2rem));
+  margin: 0 auto;
 
   box-shadow:
     0 12px 24px rgba(0, 0, 0, 0.15),
@@ -74,11 +84,13 @@
 
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-.login-card:hover {
-  transform: translateY(-3px);
-  box-shadow:
-    0 16px 28px rgba(0, 0, 0, 0.18),
-    0 10px 14px rgba(0, 0, 0, 0.1);
+@media (hover: hover) {
+  .login-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 16px 28px rgba(0, 0, 0, 0.18),
+      0 10px 14px rgba(0, 0, 0, 0.1);
+  }
 }
 
 /* Logo único (si se usa en otros sitios) */
@@ -263,6 +275,7 @@
   position: fixed;
   inset-inline: 0;
   inset-block-end: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
   background: linear-gradient(180deg, var(--brand-green), #236b32);
   color: #fff;
   box-shadow: 0 -4px 10px rgba(0,0,0,.08);
@@ -272,6 +285,8 @@
   max-width: 1080px;
   margin-inline: auto;
   padding: .6rem 1rem;
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -314,15 +329,52 @@
 }
 
 /* ===== Responsividad ===== */
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .login-shell::before {
     background-size: min(90vw, 420px);
     filter: blur(5px);
     opacity: 0.10;
   }
+  .login-card {
+    padding: 1.5rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
   :host {
-    --logo-h: 20.25rem;
-    --logo-h-accent: 1.75rem;
+    --logo-height: 4rem;
+    --logo-accent-height: 2.75rem;
+  }
+  .login-card {
+    padding: 1.25rem 1rem;
+  }
+  .brand-btn {
+    min-height: 2.75rem;
+    padding: 0.75rem 1rem;
+  }
+  .brand-input {
+    min-height: 2.75rem;
+    padding: 0.75rem 0.9rem;
+  }
+  .link-button {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-shell {
+    padding: 0.75rem;
+  }
+  .login-card {
+    padding: 1rem 0.75rem;
+  }
+  :host {
+    --logo-height: 3.5rem;
+    --logo-accent-height: 2.5rem;
   }
 }
 
@@ -377,13 +429,6 @@
 }
 
 
-/* Responsivo opcional */
-@media (max-width: 480px) {
-  :host {
-    --logo-height: 4rem;
-    --logo-accent-height: 2.75rem;
-  }
-}
 
 // Spinner y mensaje de carga
 .loading-content {
