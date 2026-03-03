@@ -3,7 +3,6 @@ import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { TrasladosAvesService, DisponibilidadLoteDto, CrearTrasladoAvesDto } from '../../services/traslados-aves.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { FarmService } from '../../../farm/services/farm.service';
@@ -11,7 +10,7 @@ import { FarmService } from '../../../farm/services/farm.service';
 @Component({
   selector: 'app-traslado-aves',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './traslado-aves-huevos.component.html',
   styleUrls: ['./traslado-aves-huevos.component.scss']
 })

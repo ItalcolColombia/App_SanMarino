@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faEye, faFilter, faLayerGroup, faPlusCircle, faMinusCircle, faTimes } from '@fortawesome/free-solid-svg-icons';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import {
@@ -28,7 +27,6 @@ import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engo
     FormsModule,
     ReactiveFormsModule,
     FontAwesomeModule,
-    SidebarComponent,
     ConfirmationModalComponent
   ]
 })

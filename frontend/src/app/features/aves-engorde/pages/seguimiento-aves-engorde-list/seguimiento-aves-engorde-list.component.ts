@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { LoteService, LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
@@ -40,7 +39,6 @@ import { environment } from '../../../../../environments/environment';
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    SidebarComponent,
     ModalLiquidacionComponent,
     ModalCalculosComponent,
     ModalCreateEditComponent,

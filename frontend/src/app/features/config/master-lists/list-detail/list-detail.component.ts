@@ -17,7 +17,6 @@ import {
   faTimes,
   faSave
 } from '@fortawesome/free-solid-svg-icons';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import {
   MasterListService,
   CreateMasterListDto,
@@ -32,9 +31,7 @@ import { finalize } from 'rxjs';
     CommonModule,
     ReactiveFormsModule,
     RouterModule,
-    FontAwesomeModule,
-    SidebarComponent
-  ],
+    FontAwesomeModule, ],
   templateUrl: './list-detail.component.html',
   styleUrls: ['./list-detail.component.scss']
 })

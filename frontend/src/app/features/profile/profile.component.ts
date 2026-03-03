@@ -6,13 +6,12 @@ import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontaweso
 import { faUserCircle, faUserEdit, faLock, faSpinner, faSave, faExclamationCircle, faCheckCircle, faCircle } from '@fortawesome/free-solid-svg-icons';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { UserProfileService, UpdateUserDto, ChangePasswordDto } from '../../core/services/user/user-profile.service';
-import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../shared/components/confirmation-modal/confirmation-modal.component';
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, FontAwesomeModule, SidebarComponent, ConfirmationModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, FontAwesomeModule, ConfirmationModalComponent],
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.scss']
 })

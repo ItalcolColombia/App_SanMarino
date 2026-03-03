@@ -4,7 +4,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { IndicadorEcuadorService, IndicadorEcuadorDto, IndicadorEcuadorRequest, IndicadorEcuadorConsolidadoDto, LiquidacionPeriodoDto, IndicadorPolloEngordePorLotePadreDto, IndicadorPolloEngordePorLotePadreRequest } from '../../services/indicador-ecuador.service';
 import { environment } from '../../../../../environments/environment';
@@ -26,7 +25,7 @@ interface FilterDataPolloEngordeResponse {
 @Component({
   selector: 'app-indicador-ecuador-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './indicador-ecuador-list.component.html',
   styleUrls: ['./indicador-ecuador-list.component.scss']
 })

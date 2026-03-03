@@ -1,6 +1,5 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lote-engorde-list.component';
 
@@ -9,13 +8,11 @@ import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lot
   standalone: true,
   imports: [
     CommonModule,
-    SidebarComponent,
     FontAwesomeModule,
     LoteEngordeListComponent,
   ],
   template: `
     <div class="layout">
-      <app-sidebar class="layout__sidebar"></app-sidebar>
       <main class="layout__main">
         <app-lote-engorde-list></app-lote-engorde-list>
       </main>

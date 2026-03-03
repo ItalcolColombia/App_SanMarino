@@ -4,7 +4,6 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, A
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import {
   SeguimientoAvesEngordeService,
   CreateSeguimientoLoteLevanteDto,
@@ -16,7 +15,7 @@ import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 @Component({
   selector: 'app-seguimiento-aves-engorde-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './seguimiento-aves-engorde-form.component.html',
   styleUrls: ['./seguimiento-aves-engorde-form.component.scss']
 })

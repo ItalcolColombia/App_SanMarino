@@ -8,7 +8,6 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faSave, faArrowLeft, faSpinner, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { CreateProduccionAvicolaRawDto, GuiaGeneticaAdminService, ProduccionAvicolaRawDto, UpdateProduccionAvicolaRawDto } from '../guia-genetica-admin.service';
 
 type FieldKey = keyof CreateProduccionAvicolaRawDto;
@@ -22,7 +21,7 @@ interface FieldDef {
 @Component({
   selector: 'app-guia-genetica-form',
   standalone: true,
-  imports: [CommonModule, RouterModule, ReactiveFormsModule, FontAwesomeModule, SidebarComponent],
+  imports: [CommonModule, RouterModule, ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './guia-genetica-form.component.html',
   styleUrls: ['./guia-genetica-form.component.scss']
 })

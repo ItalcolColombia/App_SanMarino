@@ -3,7 +3,6 @@ import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { HierarchicalFilterComponent, HierarchicalFilterCriteria, HierarchicalFilterState } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { 
@@ -16,7 +15,7 @@ import {
 @Component({
   selector: 'app-traslado-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SidebarComponent, HierarchicalFilterComponent],
+  imports: [CommonModule, ReactiveFormsModule, HierarchicalFilterComponent],
   templateUrl: './traslado-form.component.html',
   styleUrls: ['./traslado-form.component.scss']
 })

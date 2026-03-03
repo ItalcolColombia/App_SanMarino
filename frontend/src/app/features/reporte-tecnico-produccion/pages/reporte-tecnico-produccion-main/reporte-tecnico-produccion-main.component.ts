@@ -17,7 +17,6 @@ import {
   ReporteTecnicoProduccionCuadroCompletoDto,
   ReporteClasificacionHuevoComercioCompletoDto
 } from '../../services/reporte-tecnico-produccion.service';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { FarmDto } from '../../../farm/services/farm.service';
 import { NucleoDto } from '../../../lote-levante/services/nucleo.service';
@@ -33,7 +32,6 @@ import { TablaClasificacionHuevoComercioComponent } from '../../components/tabla
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    SidebarComponent,
     FiltroSelectComponent,
     TablaReporteDiarioProduccionComponent,
     TablaReporteCuadroProduccionComponent,

@@ -17,7 +17,6 @@ import {
 } from '../../../reportes-tecnicos/services/reporte-tecnico.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 import { TablaLevanteCompletaComponent } from '../../../reportes-tecnicos/components/tabla-levante-completa/tabla-levante-completa.component';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
@@ -30,7 +29,6 @@ import { GalponService } from '../../../galpon/services/galpon.service';
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    SidebarComponent,
     FiltroSelectComponent,
     TablaLevanteCompletaComponent
   ],

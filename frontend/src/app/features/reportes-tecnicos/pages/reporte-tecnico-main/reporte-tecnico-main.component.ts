@@ -23,7 +23,6 @@ import { TablaDatosDiariosHembrasComponent } from '../../components/tabla-datos-
 import { TablaDatosDiariosMachosComponent } from '../../components/tabla-datos-diarios-machos/tabla-datos-diarios-machos.component';
 import { TablaLevanteSemanalHembrasComponent } from '../../components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component';
 import { TablaLevanteSemanalMachosComponent } from '../../components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { FarmDto } from '../../../farm/services/farm.service';
 import { NucleoDto } from '../../../lote-levante/services/nucleo.service';
@@ -36,7 +35,6 @@ import { environment } from '../../../../../environments/environment';
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    SidebarComponent,
     FiltroSelectComponent,
     TablaDatosDiariosHembrasComponent,
     TablaDatosDiariosMachosComponent,

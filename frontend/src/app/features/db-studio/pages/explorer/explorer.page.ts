@@ -4,12 +4,10 @@ import { CommonModule } from '@angular/common';
 import { DbStudioService, SchemaDto, TableDto, ColumnDto, QueryPageDto, IndexDto, ForeignKeyDto, TableStatsDto } from '../../data/db-studio.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-
 @Component({
   standalone: true,
   selector: 'app-db-explorer',
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule],
   templateUrl: './explorer.page.html',
   styleUrls: ['./explorer.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

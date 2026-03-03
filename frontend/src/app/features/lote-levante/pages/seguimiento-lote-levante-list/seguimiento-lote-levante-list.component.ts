@@ -3,8 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 
@@ -44,7 +42,7 @@ import { environment } from '../../../../../environments/environment';
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent, ConfirmationModalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })

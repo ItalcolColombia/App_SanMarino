@@ -10,7 +10,6 @@ import {
   Validators
 } from '@angular/forms';
 
-import { SidebarComponent } from '../../../shared/components/sidebar/sidebar.component';
 import {
   FontAwesomeModule,
   FaIconLibrary
@@ -58,7 +57,6 @@ import { MenuService, MenuItem } from '../../../core/services/menu/menu.service'
     ReactiveFormsModule,
     FormsModule,
     RouterModule,
-    SidebarComponent,
     FontAwesomeModule
   ],
   templateUrl: './company-management.component.html',

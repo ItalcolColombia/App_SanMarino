@@ -4,8 +4,6 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { finalize, map } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 
@@ -38,7 +36,6 @@ import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/m
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    SidebarComponent,
     FiltroSelectComponent,
     TabsPrincipalComponent,
     ModalRegistroInicialComponent,

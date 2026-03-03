@@ -5,7 +5,6 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom, forkJoin } from 'rxjs';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { HierarchicalFilterComponent } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
 import { ModalTrasladoLoteComponent } from '../../../lote/components/modal-traslado-lote/modal-traslado-lote.component';
 
@@ -39,7 +38,7 @@ import { LoteProduccionService, CreateLoteProduccionDto } from '../../../lote-pr
 @Component({
   selector: 'app-inventario-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, HierarchicalFilterComponent, ModalTrasladoLoteComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, HierarchicalFilterComponent, ModalTrasladoLoteComponent],
   templateUrl: './inventario-dashboard.component.html',
   styleUrls: ['./inventario-dashboard.component.scss']
 })

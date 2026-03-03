@@ -8,13 +8,12 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faList, faPlus, faEye, faPen, faTrash, faUpload, faDownload, faSpinner, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { ExcelImportResultDto, GuiaGeneticaAdminService, ProduccionAvicolaRawDto, ProduccionAvicolaRawFilterOptionsDto } from '../guia-genetica-admin.service';
 
 @Component({
   selector: 'app-guia-genetica-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, FontAwesomeModule, SidebarComponent],
+  imports: [CommonModule, RouterModule, FormsModule, FontAwesomeModule],
   templateUrl: './guia-genetica-list.component.html',
   styleUrls: ['./guia-genetica-list.component.scss']
 })

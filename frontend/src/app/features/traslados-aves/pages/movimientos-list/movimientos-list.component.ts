@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { HierarchicalFilterComponent } from '../../../../shared/components/hierarchical-filter/hierarchical-filter.component';
 import { 
   TrasladosAvesService, 
@@ -16,7 +15,7 @@ import { TrasladoNavigationService, TrasladoUnificado } from '../../../../core/s
 @Component({
   selector: 'app-movimientos-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent, HierarchicalFilterComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, HierarchicalFilterComponent],
   templateUrl: './movimientos-list.component.html',
   styleUrls: ['./movimientos-list.component.scss']
 })

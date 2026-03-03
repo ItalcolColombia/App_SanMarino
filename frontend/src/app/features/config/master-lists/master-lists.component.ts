@@ -2,7 +2,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
-import { SidebarComponent } from '../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faList,
@@ -23,7 +22,6 @@ import { finalize } from 'rxjs';
   imports: [
     CommonModule,
     RouterModule,
-    SidebarComponent,
     FontAwesomeModule
   ],
   templateUrl: './master-lists.component.html',

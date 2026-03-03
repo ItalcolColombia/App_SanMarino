@@ -7,13 +7,12 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faPen, faSpinner } from '@fortawesome/free-solid-svg-icons';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { GuiaGeneticaAdminService, ProduccionAvicolaRawDto } from '../guia-genetica-admin.service';
 
 @Component({
   selector: 'app-guia-genetica-detail',
   standalone: true,
-  imports: [CommonModule, RouterModule, FontAwesomeModule, SidebarComponent],
+  imports: [CommonModule, RouterModule, FontAwesomeModule],
   templateUrl: './guia-genetica-detail.component.html',
   styleUrls: ['./guia-genetica-detail.component.scss']
 })

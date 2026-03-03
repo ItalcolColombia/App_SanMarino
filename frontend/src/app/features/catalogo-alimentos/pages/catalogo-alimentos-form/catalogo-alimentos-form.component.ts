@@ -11,8 +11,6 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-
 import {
   CatalogoAlimentosService,
   CatalogItemCreateRequest,
@@ -26,7 +24,7 @@ type Genero = 'Hembra' | 'Macho' | 'Mixto';
 @Component({
   selector: 'app-catalogo-alimentos-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './catalogo-alimentos-form.component.html',
   styleUrls: ['./catalogo-alimentos-form.component.scss']
 })

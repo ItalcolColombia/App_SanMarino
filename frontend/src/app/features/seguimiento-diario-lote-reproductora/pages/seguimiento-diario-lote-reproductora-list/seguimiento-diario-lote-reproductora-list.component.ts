@@ -6,7 +6,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import {
   SeguimientoDiarioLoteReproductoraService,
   SeguimientoDiarioLoteReproductoraFilterDataDto,
@@ -31,7 +30,6 @@ import { faPlus, faPen, faTrash, faFilter, faEye } from '@fortawesome/free-solid
   imports: [
     CommonModule,
     FormsModule,
-    SidebarComponent,
     ModalCreateEditComponent,
     ModalDetalleSeguimientoLevanteComponent,
     ConfirmationModalComponent,

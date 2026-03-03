@@ -3,7 +3,6 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { ModalMovimientoAvesComponent } from '../../components/modal-movimiento-aves/modal-movimiento-aves.component';
 import { MovimientosAvesService, MovimientoAvesDto } from '../../services/movimientos-aves.service';
@@ -18,7 +17,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
 @Component({
   selector: 'app-movimientos-aves-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, FiltroSelectComponent, ModalMovimientoAvesComponent, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, FiltroSelectComponent, ModalMovimientoAvesComponent, ConfirmationModalComponent],
   templateUrl: './movimientos-aves-list.component.html',
   styleUrls: ['./movimientos-aves-list.component.scss']
 })

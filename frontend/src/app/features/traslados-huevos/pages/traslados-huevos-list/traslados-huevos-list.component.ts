@@ -3,7 +3,6 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { ModalTrasladoHuevosComponent } from '../../components/modal-traslado-huevos/modal-traslado-huevos.component';
 import { TrasladosHuevosService, TrasladoHuevosDto } from '../../services/traslados-huevos.service';
@@ -14,7 +13,7 @@ import { environment } from '../../../../../environments/environment';
 @Component({
   selector: 'app-traslados-huevos-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent, FiltroSelectComponent, ModalTrasladoHuevosComponent],
+  imports: [CommonModule, FormsModule, FiltroSelectComponent, ModalTrasladoHuevosComponent],
   templateUrl: './traslados-huevos-list.component.html',
   styleUrls: ['./traslados-huevos-list.component.scss']
 })

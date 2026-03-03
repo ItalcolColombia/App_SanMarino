@@ -1,60 +1,52 @@
-<div class="ux-page">
-  <!-- Sidebar -->
-  <app-sidebar class="ux-sidebar"></app-sidebar>
-
-  <!-- Main Content -->
-  <div class="ux-main">
-    <!-- Header -->
-    <header class="header" role="banner">
-      <div class="header__left">
-        <fa-icon [icon]="['fas', 'home']" class="header__icon" aria-hidden="true"></fa-icon>
-        <div>
-          <h1 class="header__title">Inicio</h1>
-          <p class="header__subtitle">Bienvenido al Sistema de Gestión Italfoods</p>
-        </div>
+<!-- Contenido de Inicio (el menú es fijo a nivel de app) -->
+<div class="home-page">
+  <header class="header" role="banner">
+    <div class="header__left">
+      <fa-icon [icon]="['fas', 'home']" class="header__icon" aria-hidden="true"></fa-icon>
+      <div>
+        <h1 class="header__title">Inicio</h1>
+        <p class="header__subtitle">Bienvenido al Sistema de Gestión Italfoods</p>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <!-- Content -->
-    <div class="content-area">
-      <!-- Loading indicator mientras se carga el menú -->
-      <div *ngIf="loadingMenu" class="loading-container">
-        <div class="loading-spinner"></div>
-        <p class="loading-text">Cargando menú...</p>
-      </div>
+  <div class="content-area">
+    <!-- Loading indicator mientras se carga el menú -->
+    <div *ngIf="loadingMenu" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Cargando menú...</p>
+    </div>
 
-      <!-- Error message si falla la carga del menú -->
-      <div *ngIf="menuError && !loadingMenu" class="error-container">
-        <p class="error-text">{{ menuError }}</p>
-        <button (click)="loadMenu()" class="retry-button">Reintentar</button>
-      </div>
+    <!-- Error message si falla la carga del menú -->
+    <div *ngIf="menuError && !loadingMenu" class="error-container">
+      <p class="error-text">{{ menuError }}</p>
+      <button (click)="loadMenu()" class="retry-button">Reintentar</button>
+    </div>
 
-      <!-- Welcome content -->
-      <div class="welcome-container" *ngIf="!loadingMenu && !menuError">
-        <div class="welcome-card">
-          <div class="welcome-content">
-            <!-- Logos Intalfoods: pequeño + principal, lado a lado, tamaño medio -->
-            <div class="welcome-logos" role="img" aria-label="Intalfoods Zootécnico">
-              <img
-                src="assets/brand/v-logo.png"
-                alt="Intalfoods"
-                class="welcome-logo welcome-logo--small"
-                loading="eager"
-              />
-              <img
-                src="assets/brand/logo_intalfoods_zootenico.png"
-                alt="Intalfoods Zootécnico"
-                class="welcome-logo welcome-logo--main"
-                loading="eager"
-              />
-            </div>
-            <h2 class="welcome-title">Bienvenido al Sistema de Gestión Italfoods</h2>
-            <p class="welcome-subtitle">Zootécnico</p>
-            <p class="welcome-description">
-              Sistema integral para la gestión y seguimiento de granjas avícolas,
-              diseñado para optimizar la producción y el control de calidad.
-            </p>
+    <!-- Welcome content -->
+    <div class="welcome-container" *ngIf="!loadingMenu && !menuError">
+      <div class="welcome-card">
+        <div class="welcome-content">
+          <div class="welcome-logos" role="img" aria-label="Intalfoods Zootécnico">
+            <img
+              src="assets/brand/v-logo.png"
+              alt="Intalfoods"
+              class="welcome-logo welcome-logo--small"
+              loading="eager"
+            />
+            <img
+              src="assets/brand/logo_intalfoods_zootenico.png"
+              alt="Intalfoods Zootécnico"
+              class="welcome-logo welcome-logo--main"
+              loading="eager"
+            />
           </div>
+          <h2 class="welcome-title">Bienvenido al Sistema de Gestión Italfoods</h2>
+          <p class="welcome-subtitle">Zootécnico</p>
+          <p class="welcome-description">
+            Sistema integral para la gestión y seguimiento de granjas avícolas,
+            diseñado para optimizar la producción y el control de calidad.
+          </p>
         </div>
       </div>
     </div>

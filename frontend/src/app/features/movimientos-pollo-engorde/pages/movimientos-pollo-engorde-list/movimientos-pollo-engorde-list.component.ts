@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { forkJoin } from 'rxjs';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
@@ -36,7 +35,6 @@ export interface LoteOption {
   imports: [
     CommonModule,
     FormsModule,
-    SidebarComponent,
     ConfirmationModalComponent,
     ModalMovimientoPolloEngordeComponent
   ],
