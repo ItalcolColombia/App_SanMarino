@@ -1,7 +1,7 @@
-<!-- src/app/features/lote/pages/lote-list/lote-list.component.html -->
-<div class="flex h-screen" [attr.aria-busy]="loading ? 'true' : null">
+<!-- src/app/features/lote/components/lote-list/lote-list.component.html -->
+<div class="lote-list-root" [attr.aria-busy]="loading ? 'true' : null">
 
-  <div class="flex-1 p-6 bg-warm-gray-100 overflow-auto ux-page">
+  <div class="lote-list-content ux-page">
     <!-- Header: Nuevo Lote solo en pestaña Lote -->
     <div class="ux-header">
       <button *ngIf="activeTab === 'lote'" (click)="openModal()" class="btn-primary">

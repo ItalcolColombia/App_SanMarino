@@ -1,6 +1,5 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faHome } from '@fortawesome/free-solid-svg-icons';
 
@@ -12,7 +11,6 @@ import { LoteListComponent } from '../../../lote/components/lote-list/lote-list.
   standalone: true,
   imports: [
     CommonModule,
-    SidebarComponent,
     FontAwesomeModule,
     LoteListComponent,
   ],
