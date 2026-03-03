@@ -22,7 +22,6 @@ import {
   ReporteMovimientosHuevosDto
 } from '../../services/reporte-contable.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
@@ -39,7 +38,6 @@ import { TablaMovimientosHuevosComponent } from '../../components/tabla-movimien
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    SidebarComponent,
     FiltroSelectComponent,
     TablaDetalleDiarioContableComponent,
     TablaAvesContableComponent,

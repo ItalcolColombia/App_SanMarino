@@ -23,7 +23,6 @@ import {
   faSave
 } from '@fortawesome/free-solid-svg-icons';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import {
   CityService,
   CityDto,
@@ -45,9 +44,7 @@ import {
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    FontAwesomeModule,
-    SidebarComponent
-  ],
+    FontAwesomeModule, ],
   templateUrl: './city-list.component.html',
   styleUrls: ['./city-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

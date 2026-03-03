@@ -12,7 +12,6 @@ import { finalize } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faEye, faFilter } from '@fortawesome/free-solid-svg-icons';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { Validators } from '@angular/forms';
@@ -38,7 +37,7 @@ interface LoteDtoExtendido {
   standalone: true,
   templateUrl: './lote-reproductora-list.component.html',
   styleUrls: ['./lote-reproductora-list.component.scss'],
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, HttpClientModule, FontAwesomeModule, SidebarComponent, ConfirmationModalComponent]
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, HttpClientModule, FontAwesomeModule, ConfirmationModalComponent]
 })
 export class LoteReproductoraListComponent implements OnInit {
   // Constantes de límites

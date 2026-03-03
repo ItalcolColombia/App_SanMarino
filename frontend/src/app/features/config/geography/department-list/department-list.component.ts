@@ -6,7 +6,6 @@ import {
   FormGroup,
   Validators
 } from '@angular/forms';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faPlus,
@@ -26,7 +25,6 @@ import { Observable } from 'rxjs/internal/Observable';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    SidebarComponent,
     FontAwesomeModule
   ],
   templateUrl: './department-list.component.html',

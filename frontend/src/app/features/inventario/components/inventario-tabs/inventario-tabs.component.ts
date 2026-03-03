@@ -1,7 +1,6 @@
 // src/app/features/inventario/components/inventario-tabs/inventario-tabs.component.ts
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faBoxesStacked, faRightLeft, faWarehouse, faScrewdriverWrench, faList, faClipboardCheck, faArrowsUpDown, faBook, faWheatAwn } from '@fortawesome/free-solid-svg-icons';
 
@@ -17,7 +16,6 @@ type TabKey = 'movimientos' | 'movimiento-alimento' | 'ajuste' | 'kardex' | 'con
   standalone: true,
   imports: [
     CommonModule,
-    SidebarComponent,
     FontAwesomeModule,
     MovimientosUnificadoFormComponent,
     InventarioListComponent,

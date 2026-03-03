@@ -27,8 +27,6 @@ import {
   faCheck,
 } from '@fortawesome/free-solid-svg-icons';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-
 import {
   CountryService,
   PaisDto,
@@ -49,7 +47,7 @@ import { Observable } from 'rxjs';
 @Component({
   selector: 'app-country-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './country-list.component.html',
   styleUrls: ['./country-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MapasService, MapaDetailDto, MapaPasoDto } from '../../services/mapas.service';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { ENCABEZADO_ENTRADA_CIESA } from '../../data/plantilla-entrada-ciesa-encabezado';
 import { MOVIMIENTO_ENTRADA_CIESA } from '../../data/plantilla-entrada-ciesa-movimiento';
 
@@ -18,7 +17,7 @@ const TIPOS = [
 @Component({
   selector: 'app-mapa-configurar',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, SidebarComponent],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './mapa-configurar.component.html',
   styleUrls: ['./mapa-configurar.component.scss']
 })

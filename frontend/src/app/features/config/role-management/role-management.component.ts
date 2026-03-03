@@ -9,8 +9,6 @@ import {
   FormGroup,
   Validators,
 } from '@angular/forms';
-import { SidebarComponent } from '../../../shared/components/sidebar/sidebar.component';
-
 import {
   FontAwesomeModule,
   FaIconLibrary
@@ -88,7 +86,6 @@ export interface MenuFlatItem {
     RouterModule,
     ReactiveFormsModule,
     FormsModule,
-    SidebarComponent,
     FontAwesomeModule,
     DragDropModule,
   ],

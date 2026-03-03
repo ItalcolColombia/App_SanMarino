@@ -1,7 +1,6 @@
 import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import { DashboardService, 
@@ -19,7 +18,7 @@ import { catchError, finalize, switchMap, takeUntil, throttleTime } from 'rxjs/o
 @Component({
   standalone: true,
   selector: 'app-dashboard',
-  imports: [CommonModule, FormsModule, SidebarComponent, NgChartsModule],
+  imports: [CommonModule, FormsModule, NgChartsModule],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss']
 })

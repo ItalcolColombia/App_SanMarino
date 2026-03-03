@@ -7,8 +7,6 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
-
 import {
   SeguimientoLoteLevanteService,
   CreateSeguimientoLoteLevanteDto,
@@ -21,7 +19,7 @@ import { LoteService, LoteDto } from '../../../lote/services/lote.service';
 @Component({
   selector: 'app-seguimiento-lote-levante-form',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './seguimiento-lote-levante-form.component.html',
   styleUrls: ['./seguimiento-lote-levante-form.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush

@@ -2,7 +2,6 @@ import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-import { SidebarComponent } from '../../../../shared/components/sidebar/sidebar.component';
 import { 
   TrasladosAvesService, 
   HistorialInventarioDto, 
@@ -14,7 +13,7 @@ import {
 @Component({
   selector: 'app-historial-trazabilidad',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule],
   templateUrl: './historial-trazabilidad.component.html',
   styleUrls: ['./historial-trazabilidad.component.scss']
 })
