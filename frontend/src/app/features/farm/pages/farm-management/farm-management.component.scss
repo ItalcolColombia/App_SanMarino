@@ -20,10 +20,12 @@
   --gestion-transition: 0.2s ease;
 }
 
-// Layout principal
+// Layout principal: un solo scroll (app-main); este módulo no fija altura
 .gestion-granjas {
   display: flex;
-  min-height: 100vh;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
   background: var(--gestion-bg);
 
   &.embedded .gestion-granjas__main {
@@ -31,19 +33,14 @@
   }
 }
 
-.gestion-granjas__sidebar {
-  flex-shrink: 0;
-  width: 16rem; // 256px
-}
-
 .gestion-granjas__main {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem;
+  padding: clamp(1rem, 4vw, 1.5rem);
   padding-bottom: 2rem;
-  overflow: auto;
+  overflow: visible;
 }
 
 // Contenedor con ancho máximo para lectura en pantallas grandes
@@ -196,15 +193,51 @@
 }
 
 .tab-panel__inner {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   padding: 0;
-  // Los hijos (farm-list, nucleo-list, galpon-list) traen su propio fondo y cards
 }
 
 // ----------------------------------------
-// Responsive: móvil
+// Responsive: móvil pequeño (< 360px)
+// ----------------------------------------
+@media (max-width: 359px) {
+  .gestion-granjas__main {
+    padding: 0.75rem;
+  }
+
+  .page-header__content {
+    padding: 0.75rem 1rem;
+  }
+
+  .page-header__title {
+    font-size: 1.125rem;
+  }
+
+  .page-header__subtitle {
+    font-size: 0.8125rem;
+  }
+
+  .tabs-nav {
+    padding: 0.25rem;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .tabs-nav__tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    min-height: 2.75rem;
+  }
+
+  .tabs-nav__icon {
+    font-size: 0.9rem;
+  }
+}
+
+// ----------------------------------------
+// Responsive: móvil (360px - 767px)
 // ----------------------------------------
 @media (max-width: 767px) {
   .gestion-granjas__main {
@@ -228,18 +261,15 @@
   .tabs-nav__tab {
     padding: 0.6rem 1rem;
     font-size: 0.8125rem;
+    min-height: 2.75rem;
   }
-
-  .tabs-nav__label {
-    // Opcional: ocultar texto en móvil y dejar solo icono para más tabs visibles
-    // display: none;
-  }
-
 }
 
-// Sidebar colapsable en tablet/móvil (opcional: si el sidebar ya tiene lógica propia, esto no pisa)
-@media (max-width: 1024px) {
-  .gestion-granjas__sidebar {
-    width: auto; // depende de tu sidebar (drawer, etc.)
+// ----------------------------------------
+// Responsive: tablet (768px - 1023px)
+// ----------------------------------------
+@media (min-width: 768px) and (max-width: 1023px) {
+  .gestion-granjas__main {
+    padding: 1.25rem;
   }
 }

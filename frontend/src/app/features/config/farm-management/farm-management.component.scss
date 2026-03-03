@@ -271,3 +271,43 @@ tbody tr:has(> td[colspan]) p {
 :host ::ng-deep td button:hover .fa-eye {
   transform: translateY(-1px);
 }
+
+/* ===================== */
+/* Layout (un solo scroll en app-main) */
+/* ===================== */
+.config-farm-root {
+  display: block;
+  width: 100%;
+  min-height: 0;
+}
+.config-farm-main {
+  flex: 1 1 auto;
+  width: 100%;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  background: var(--warm-100);
+  overflow: visible;
+}
+
+/* ===================== */
+/* Responsive             */
+/* ===================== */
+
+@media (max-width: 767px) {
+  .config-farm-main .flex.flex-col.gap-3.mb-6,
+  .config-farm-main .flex.flex-col.md\:flex-row {
+    gap: 0.75rem;
+  }
+  .config-farm-main .text-2xl.font-bold { font-size: 1.25rem; }
+  .config-farm-main .ux-card .ux-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .config-farm-main .ux-card .ux-table { min-width: 640px; }
+  .config-farm-main .inline-flex.gap-2 > * { min-height: 2.75rem; }
+}
+
+@media (max-width: 359px) {
+  .config-farm-main { padding: 0.75rem; }
+  .config-farm-main .text-2xl.font-bold { font-size: 1.125rem; }
+  .config-farm-main .ux-card .ux-table { min-width: 560px; }
+}

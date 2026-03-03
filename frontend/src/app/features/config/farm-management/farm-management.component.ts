@@ -10,7 +10,6 @@ import {
 } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil, finalize } from 'rxjs';
-import { SidebarComponent } from '../../../shared/components/sidebar/sidebar.component';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faTractor,
@@ -50,7 +49,6 @@ interface Farm {
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    SidebarComponent,
     FontAwesomeModule,
     CompanySelectorComponent,
     CompanyTestComponent,

@@ -25,6 +25,16 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Contenedor: sin altura fija para un solo scroll (app-main) */
+.farm-list-root {
+  display: block;
+  width: 100%;
+  min-height: 0;
+}
+.farm-list-content {
+  width: 100%;
+}
+
 /* utilidades */
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .req { color:#dc2626; }
@@ -290,4 +300,21 @@
   .detail-grid {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 767px) {
+  .ux-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ux-table { min-width: 680px; }
+  .ux-card.p-4 { padding: 1rem !important; }
+  .ux-modal__panel { max-width: 100%; margin: 0.5rem; }
+  .ux-modal__panel--wide { max-width: 100%; }
+}
+
+@media (max-width: 359px) {
+  .ux-header { flex-wrap: wrap; }
+  .btn-primary { min-height: 2.75rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
 }
