@@ -1,5 +1,5 @@
 /* =========================
-   Sidebar (Sanmarino) — antifugas / no overflow
+   Sidebar (Sanmarino) — overlay colapsable, no consume espacio
    ========================= */
 
 /* --------- Variables --------- */
@@ -9,39 +9,138 @@
   --brand-yellow-600: #e6a41c;
 
   --bg: #ffffff;
-  --text: #1f2937;   /* slate-800 */
-  --muted: #6b7280;  /* gray-500 */
-  --line: #e5e7eb;   /* gray-200 */
+  --text: #1f2937;
+  --muted: #6b7280;
+  --line: #e5e7eb;
 
-  /* Layout: en páginas con contenido (Mapas) es flex row; si no, bloque 16rem */
-  display: flex;
-  flex-direction: row;
+  /* No ocupa espacio en el layout; el panel es overlay */
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100vh;
+  z-index: 1000;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Solo cuando está abierto el overlay recibe clics; si no, no bloquea la barra superior */
+:host .sidebar-overlay--open {
+  pointer-events: auto;
+}
+
+/* --------- Overlay: backdrop + panel deslizable --------- */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
-  min-height: 100vh;
-  min-width: 0;
+  height: 100%;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.sidebar-overlay--open {
+  pointer-events: auto;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sidebar-overlay--open .sidebar-backdrop {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Panel: ancho adaptable por dispositivo (clamp + safe area) */
+.sidebar-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: clamp(280px, 88vw, 18rem);
+  max-width: min(18rem, 100vw);
+  height: 100vh; /* fallback */
+  height: 100dvh;
+  padding-left: env(safe-area-inset-left, 0);
+  padding-top: env(safe-area-inset-top, 0);
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+}
+
+.sidebar-overlay--open .sidebar-panel {
+  transform: translateX(0);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Botón cerrar: área de toque mínima 44px en móvil */
+.sidebar-close-btn {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top, 0.75rem));
+  right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: #f3f4f6;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-close-btn:hover {
+  background: #e5e7eb;
+  color: #111;
+}
+
+.sidebar-close-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--brand-yellow);
+}
+
+/* Contenedor del menú dentro del panel */
+.sidebar-panel .sidebar-root {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* --------- Contenedor raíz (columna del menú) --------- */
 .sidebar-root {
-  /* Ancho fijo para que el menú no desborde en Mapas/Configuraciones */
-  width: 16rem;
-  max-width: 16rem;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   flex-shrink: 0;
-  /* Estructura anti-desbordes */
   display: flex;
   flex-direction: column;
   inline-size: 100%;
-  block-size: 100dvh;      /* dvh evita saltos en móviles */
-  min-block-size: 0;       /* permite que los hijos hagan overflow-y correctamente */
+  block-size: 100%;
+  min-block-size: 0;
   min-height: 0;
   background: var(--bg) !important;
   color: var(--text);
   position: relative;
   isolation: isolate;
-  overflow: hidden;        /* nunca se desborda el shell */
-  contain: layout paint;   /* micro-opt */
+  overflow: hidden;
+  contain: layout paint;
 }
 
 /* Zona de contenido proyectado (Mapas, etc.): no empuja el menú */
@@ -84,34 +183,31 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: .75rem .75rem;
+  padding: clamp(0.5rem, 2vw, 0.75rem);
   background: #fff;
   border-bottom: 1px solid var(--line);
-  position: sticky;     /* visible al hacer scroll largo */
+  position: sticky;
   top: 0;
   z-index: 2;
-  overflow: hidden;     /* jamás desbordar */
+  overflow: hidden;
 }
 
-/* Bloque de logo */
 .brand-duo {
   display: inline-flex;
   align-items: center;
-  gap: .75rem;
+  gap: clamp(0.5rem, 2vw, 0.75rem);
   max-inline-size: 100%;
 }
 .brand-duo__img {
   display: block;
-  max-inline-size: 100%;   /* clave: no romper ancho */
+  max-inline-size: 100%;
   block-size: auto;
-  /* altura sugerida para compacto, ajustable */
-  max-block-size: 40px;
+  max-block-size: clamp(32px, 8vw, 40px);
   object-fit: contain;
 }
-/* Logo pequeño (marca) a la izquierda del logo de la empresa */
 .brand-duo__img--small {
-  max-block-size: 28px;
-  max-inline-size: 80px;
+  max-block-size: clamp(24px, 6vw, 28px);
+  max-inline-size: min(80px, 22vw);
   flex-shrink: 0;
 }
 
@@ -190,11 +286,12 @@ nav ul li > button {
   display: flex;
   align-items: center;
   inline-size: 100%;
-  padding: .5rem 1rem;
-  gap: .75rem;
+  padding: clamp(0.625rem, 2.5vw, 0.75rem) clamp(0.75rem, 3vw, 1rem);
+  min-height: 2.75rem; /* ~44px área de toque mínima */
+  gap: 0.75rem;
   transition: background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .06s ease;
-  word-break: break-word;           /* si hay etiquetas muy largas */
-  white-space: normal;              /* permite multilínea sin romper layout */
+  word-break: break-word;
+  white-space: normal;
 }
 
 nav ul li > a:hover,
@@ -242,6 +339,7 @@ button:focus-visible {
 }
 .p-4.border-t button {
   border-radius: 10px;
+  min-height: 2.75rem;
   transition: background-color .18s ease, color .18s ease;
 }
 .p-4.border-t button:hover {
@@ -276,10 +374,47 @@ button:focus-visible {
   block-size: auto;
 }
 
-/* --------- Responsive fino --------- */
-@media (max-width: 420px) {
+/* --------- Responsive: móvil pequeño --------- */
+@media (max-width: 360px) {
+  .sidebar-panel {
+    width: min(100vw - 1rem, 280px);
+  }
+  .welcome-card {
+    border-radius: 10px;
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+  .avatar {
+    inline-size: 36px;
+    block-size: 36px;
+    font-size: 0.75rem;
+  }
+  .info strong { font-size: 0.8125rem; }
+  nav { padding-inline: 0.125rem; }
+}
+
+/* --------- Responsive: móvil --------- */
+@media (min-width: 361px) and (max-width: 599px) {
+  .sidebar-panel {
+    width: min(88vw, 320px);
+  }
   .welcome-card { border-radius: 10px; }
   .avatar { inline-size: 40px; block-size: 40px; }
+}
+
+/* --------- Responsive: tablet --------- */
+@media (min-width: 600px) and (max-width: 1023px) {
+  .sidebar-panel {
+    width: min(22rem, 45vw);
+  }
+}
+
+/* --------- Responsive: desktop --------- */
+@media (min-width: 1024px) {
+  .sidebar-panel {
+    width: 18rem;
+    max-width: 18rem;
+  }
 }
 
 /* --------- Modo oscuro opcional --------- */

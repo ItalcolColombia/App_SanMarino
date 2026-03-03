@@ -1,6 +1,91 @@
 /* Asegura que toma todo el alto */
 :host {
-    display: block;
-    height: 100%;
-  }
-  
+  display: block;
+  height: 100%;
+}
+
+.app-layout {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ----- Barra superior: responsive y safe area ----- */
+.app-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.5rem, 2vw, 0.75rem);
+  min-height: 3.25rem;
+  height: 3.25rem;
+  padding: 0 clamp(0.5rem, 3vw, 0.75rem);
+  padding-top: env(safe-area-inset-top, 0);
+  padding-left: max(0.75rem, env(safe-area-inset-left, 0));
+  padding-right: max(0.75rem, env(safe-area-inset-right, 0));
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* Botón menú: área de toque mínima 44px en móvil */
+.app-topbar__menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #1f2937;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.app-topbar__menu-btn:hover {
+  background: #f3f4f6;
+  color: #d62828;
+}
+.app-topbar__menu-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(244, 180, 40, 0.6);
+}
+.app-topbar__menu-btn fa-icon {
+  font-size: clamp(1.25rem, 4vw, 1.35rem);
+}
+
+.app-topbar__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.app-topbar__logo {
+  height: clamp(1.5rem, 4.5vw, 1.75rem);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* ----- Contenido principal: padding-top con safe area ----- */
+.app-main {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.app-main--with-topbar {
+  padding-top: calc(3.25rem + env(safe-area-inset-top, 0px));
+}
