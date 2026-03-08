@@ -5,70 +5,48 @@
   display: block;
 }
 
-/* ==========================================================================
-   🎨 Design System / Tokens
-   ========================================================================== */
+/* Tema Italfoods (variables en :root desde theme-italfoods.scss) */
 :host {
-  /* Brand */
-  --brand-red:        #d32f2f;
-  --brand-red-600:    #c62828;
-  --brand-red-700:    #b71c1c;
-
-  /* Warm Gray scale */
-  --warm-25:          #fdfdfc;
-  --warm-50:          #fafaf9;
-  --warm-100:         #f5f5f4;
-  --warm-200:         #e7e5e4;
-  --warm-300:         #d6d3d1;
-  --warm-400:         #a8a29e;
-  --warm-500:         #78716c;
-  --warm-600:         #57534e;
-
-  /* Base */
+  --brand-red:        var(--ital-green);
+  --brand-red-600:    var(--ital-green-dark);
+  --brand-red-700:    var(--ital-green-dark);
+  --warm-25:          var(--ital-cream-50);
+  --warm-50:          var(--ital-cream);
+  --warm-100:         var(--ital-cream);
+  --warm-200:         var(--ital-green-100);
+  --warm-300:         var(--ital-green-50);
+  --warm-400:         var(--ital-muted);
+  --warm-500:         var(--ital-muted);
+  --warm-600:         var(--ital-orange-dark);
   --white:            #ffffff;
-  --black:            #111111;
-
-  /* Sombras */
+  --black:            var(--ital-text);
   --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
   --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
   --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
-
-  /* Espaciado & Radios */
   --space-1: .25rem;
   --space-2: .5rem;
   --space-3: .75rem;
   --space-4: 1rem;
   --space-5: 1.25rem;
   --space-6: 1.5rem;
-
   --radius-sm: .5rem;
   --radius-md: .65rem;
   --radius-lg: 1rem;
   --radius-xl: 1.25rem;
-
-  /* Tipografía */
   --fs-xs: .75rem;
   --fs-sm: .85rem;
   --fs-md: .92rem;
   --fs-lg: 1.05rem;
   --fs-xl: 1.35rem;
-
-  /* Focus ring */
-  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
-
-  /* Z-index */
+  --ring: 0 0 0 3px var(--ital-orange-100);
   --z-sticky: 10;
   --z-modal:  50;
-
-  /* Superficies */
-  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-body:    var(--ital-cream);
   --bg-card:    var(--white);
-  --bg-muted:   var(--warm-50);
-  --border:     var(--warm-200);
-  --text:       var(--black);
-  --text-sub:   #222222;
-
-  /* Transiciones */
+  --bg-muted:   var(--ital-cream);
+  --border:     var(--ital-green-100);
+  --text:       var(--ital-text);
+  --text-sub:   var(--ital-muted);
   --t-fast: .12s ease;
   --t-med:  .15s ease;
 }
@@ -132,7 +110,7 @@
   margin: 0;
   font-size: var(--fs-xl);
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 :host .ux-modal__footer {
@@ -215,12 +193,12 @@
 
 :host .ux-tab:hover {
   background: var(--white);
-  color: var(--brand-red);
+  color: var(--ital-orange);
   transform: translateY(-1px);
 }
 
 :host .ux-tab:focus-visible {
-  box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 
 :host .tab-icon {
@@ -289,11 +267,11 @@
 :host #tab-agua:checked    ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-agua    { display: block; }
 
 /* Estado visual del tab ACTIVO */
-:host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-machos:checked  ~ .ux-tabs-wrapper label[for="tab-machos"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-pesaje:checked  ~ .ux-tabs-wrapper label[for="tab-pesaje"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-agua:checked    ~ .ux-tabs-wrapper label[for="tab-agua"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+:host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"]  { background: var(--white); color: var(--ital-orange-dark); transform: translateY(1px); }
+:host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"]  { background: var(--white); color: var(--ital-orange-dark); transform: translateY(1px); }
+:host #tab-machos:checked  ~ .ux-tabs-wrapper label[for="tab-machos"]  { background: var(--white); color: var(--ital-orange-dark); transform: translateY(1px); }
+:host #tab-pesaje:checked  ~ .ux-tabs-wrapper label[for="tab-pesaje"]  { background: var(--white); color: var(--ital-orange-dark); transform: translateY(1px); }
+:host #tab-agua:checked    ~ .ux-tabs-wrapper label[for="tab-agua"]  { background: var(--white); color: var(--ital-orange-dark); transform: translateY(1px); }
 
 /* ==========================================================================
    📋 Tab Panel Headers
@@ -308,7 +286,7 @@
   margin: 0 0 .25rem 0;
   font-size: var(--fs-lg);
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 :host .tab-description {
@@ -392,7 +370,7 @@
 :host .ux-select select:focus,
 :host textarea:focus {
   outline: none;
-  border-color: var(--brand-red);
+  border-color: var(--ital-orange);
   box-shadow: var(--ring);
 }
 
@@ -405,7 +383,7 @@
 
 :host .ux-error {
   font-size: var(--fs-xs);
-  color: var(--brand-red);
+  color: var(--ital-orange);
   margin-top: 0.25rem;
   display: block;
   font-weight: 500;
@@ -414,25 +392,25 @@
 :host .form-field.has-error {
   .ux-input,
   .ux-select select {
-    border-color: var(--brand-red);
-    background: #fff7f7;
+    border-color: var(--ital-orange);
+    background: var(--ital-orange-50);
   }
   
   .ux-input:focus,
   .ux-select select:focus {
-    border-color: var(--brand-red-700);
-    box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.22);
+    border-color: var(--ital-orange-dark);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
 }
 
 :host .ux-input--error,
 :host .ux-select select.ux-input--error {
-  border-color: var(--brand-red) !important;
-  background: #fff7f7 !important;
+  border-color: var(--ital-orange) !important;
+  background: var(--ital-orange-50) !important;
   
   &:focus {
-    border-color: var(--brand-red-700) !important;
-    box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.22) !important;
+    border-color: var(--ital-orange-dark) !important;
+    box-shadow: 0 0 0 3px var(--ital-orange-100) !important;
   }
 }
 
@@ -440,9 +418,9 @@
   padding: 1rem;
   border-radius: var(--radius-sm);
   margin-bottom: 1rem;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
+  color: var(--ital-orange-dark);
   font-size: var(--fs-sm);
   line-height: 1.5;
   
@@ -458,7 +436,7 @@
 }
 
 :host .text-success {
-  color: #28a745;
+  color: var(--ital-green-dark);
 }
 
 /* ==========================================================================
@@ -534,8 +512,8 @@
 }
 
 :host .icon-btn:hover {
-  background: var(--warm-100);
-  color: var(--brand-red);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange);
 }
 
 /* ==========================================================================
@@ -608,8 +586,8 @@
 :host .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid var(--warm-200);
-  border-top: 4px solid var(--brand-red);
+  border: 4px solid var(--ital-green-50);
+  border-top: 4px solid var(--ital-orange);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

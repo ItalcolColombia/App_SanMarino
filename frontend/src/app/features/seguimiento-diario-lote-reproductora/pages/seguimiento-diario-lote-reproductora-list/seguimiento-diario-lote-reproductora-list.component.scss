@@ -3,41 +3,27 @@
    SCSS de todo el módulo
    ======================================= */
 
-/* -------------------------------
-   Tokens / Design System
--------------------------------- */
+/* Tema Italfoods (variables en :root desde theme-italfoods.scss) */
 :host {
   display: block;
-
-  /* Brand */
-  --brand-red:        #d32f2f;
-  --brand-red-600:    #c62828;
-  --brand-red-700:    #b71c1c;
-
-  /* Ink & base (texto negro por pedido) */
-  --ink:              #111827; /* near-black readable */
-  --ink-muted:        #334155;
-
-  /* Grises cálidos */
-  --warm-25:          #fdfdfc;
-  --warm-50:          #fafaf9;
-  --warm-100:         #f5f5f4;
-  --warm-200:         #e7e5e4;
-  --warm-300:         #d6d3d1;
-  --warm-400:         #a8a29e;
-  --warm-600:         #57534e;
-
-  /* Accents */
-  --amber-50:         #fffbeb;
-  --amber-100:        #fef3c7;
-  --amber-200:        #fde68a;
-
-  /* Whites & shadows */
+  --brand-red:        var(--ital-green);
+  --brand-red-600:    var(--ital-green-dark);
+  --brand-red-700:    var(--ital-green-dark);
+  --ink:              var(--ital-text);
+  --ink-muted:        var(--ital-muted);
+  --warm-25:          var(--ital-cream-50);
+  --warm-50:          var(--ital-cream);
+  --warm-100:         var(--ital-cream);
+  --warm-200:         var(--ital-green-100);
+  --warm-300:         var(--ital-green-50);
+  --warm-400:         var(--ital-muted);
+  --warm-600:         var(--ital-orange-dark);
+  --amber-50:         var(--ital-orange-50);
+  --amber-100:        var(--ital-orange-100);
+  --amber-200:        var(--ital-orange-100);
   --white:            #ffffff;
   --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
   --shadow-lg:        0 10px 25px rgba(31, 41, 55, .10);
-
-  /* Radii */
   --radius-xs: .5rem;
   --radius-md: .75rem;
   --radius-lg: 1rem;
@@ -69,7 +55,7 @@
 :host select:focus-visible,
 :host input:focus-visible,
 :host textarea:focus-visible {
-  outline: 3px solid rgba(211,47,47,.28);
+  outline: 3px solid var(--ital-orange-100);
   outline-offset: 2px;
 }
 
@@ -79,8 +65,7 @@
 :host .ux-page {
   display: flex;
   height: 100vh;
-  /* Gris claro difuminado (sin fondo oscuro) */
-  background: linear-gradient(180deg, var(--warm-50) 0%, var(--warm-100) 100%);
+  background: var(--warm-100);
   color: var(--ink);
 }
 
@@ -110,7 +95,16 @@
   justify-content: space-between;
   gap: .75rem;
   padding-bottom: .7rem;
-  border-bottom: 3px solid var(--amber-200);
+  position: relative;
+  border-bottom: none;
+}
+:host .ux-header::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: var(--ital-green);
+  border-radius: 2px;
 }
 
 :host .ux-header__title {
@@ -124,12 +118,12 @@
   margin: 0;
   font-size: 1.35rem;
   font-weight: 800;
-  color: var(--ink);
+  color: var(--ital-orange-dark);
   letter-spacing: .2px;
 }
 
 :host .ux-header__title--red {
-  color: var(--brand-red) !important;
+  color: var(--ital-orange-dark) !important;
 }
 
 :host .ux-header__subtitle {
@@ -191,7 +185,7 @@
   background: var(--amber-100);
   border-color: var(--amber-200);
 }
-:host .chip--info .chip__dot { background: var(--brand-red); }
+:host .chip--info .chip__dot { background: var(--ital-green); }
 
 :host .chip--muted {
   background: var(--warm-50);
@@ -199,11 +193,11 @@
   color: var(--ink-muted);
 }
 :host .chip--warning {
-  background: #fff7ed;
-  color: #7c2d12;
-  border-color: #fed7aa;
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border-color: var(--ital-orange-100);
 }
-:host .chip--warning .chip__dot { background: var(--brand-red); }
+:host .chip--warning .chip__dot { background: var(--ital-orange); }
 
 /* -------------------------------
    Botones
@@ -244,7 +238,7 @@
   --btn-fg: var(--brand-red);
   --btn-br: var(--brand-red);
 }
-:host .btn.btn--outline:hover { background: #fff1f2; }
+:host .btn.btn--outline:hover { background: var(--ital-orange-50); }
 
 :host .btn.btn--ghost {
   --btn-bg: var(--white);
@@ -263,9 +257,9 @@
   transition: background .15s ease, color .15s ease, transform .12s ease, border-color .12s ease;
   cursor: pointer;
 }
-:host .icon-btn:hover { background: var(--warm-100); color: var(--brand-red); transform: translateY(-1px); }
+:host .icon-btn:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); }
 :host .icon-btn:active { transform: translateY(0); }
-:host .icon-btn.icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
+:host .icon-btn.icon-btn--danger:hover { color: var(--ital-green-dark); background: var(--ital-green-50); border-color: var(--ital-green-100); }
 :host .icon-btn[disabled] { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
 /* -------------------------------
@@ -291,7 +285,7 @@
   margin-top: .2rem;
 }
 :host .ux-field-hint--warning {
-  color: #b45309;
+  color: var(--ital-orange-dark);
   font-weight: 600;
 }
 :host .ux-toolbar > .ux-field { grid-column: span 3; }
@@ -318,8 +312,8 @@
 }
 :host .ux-select select:hover { background: var(--warm-50); }
 :host .ux-select select:focus {
-  border-color: var(--brand-red);
-  box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 :host .ux-select::after {
   content: '▾';
@@ -356,7 +350,7 @@
 }
 
 :host .ux-card__title-icon {
-  color: var(--brand-red);
+  color: var(--ital-orange);
   opacity: .9;
 }
 
@@ -384,8 +378,8 @@
   height: 1.75rem;
   padding: 0 .4rem;
   border-radius: 999px;
-  background: var(--brand-red);
-  color: var(--white);
+  background: var(--ital-green);
+  color: var(--ital-cream);
   font-size: .8rem;
   font-weight: 800;
 }
@@ -417,8 +411,8 @@
 
 :host .ux-input:hover { background: var(--warm-50); }
 :host .ux-input:focus {
-  border-color: var(--brand-red);
-  box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 
 :host .ux-card.mb-4 { margin-bottom: 1rem; }
@@ -557,10 +551,10 @@
   gap: .75rem;
   padding: 1rem 1.25rem;
   margin: 1rem 1.25rem;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border: 1px solid #93c5fd;
+  background: linear-gradient(135deg, var(--ital-green-50) 0%, var(--ital-green-100) 100%);
+  border: 1px solid var(--ital-green-100);
   border-radius: var(--radius-md);
-  color: #1e40af;
+  color: var(--ital-green-dark);
 }
 
 :host .lote-info-banner__icon {
@@ -613,8 +607,8 @@
 
 :host .lote-datos-table th {
   font-weight: 700;
-  color: var(--ink-muted);
-  background: var(--warm-50);
+  color: var(--ital-muted);
+  background: var(--ital-cream);
   width: 1%;
   white-space: nowrap;
   font-size: .8rem;
@@ -623,7 +617,7 @@
 
 :host .lote-datos-table td {
   font-weight: 700;
-  color: var(--ink);
+  color: var(--ital-orange-dark);
   background: var(--white);
 }
 
@@ -689,8 +683,8 @@
   height: 1.75rem;
   padding: 0 .4rem;
   border-radius: 999px;
-  background: var(--brand-red);
-  color: var(--white);
+  background: var(--ital-green);
+  color: var(--ital-cream);
   font-size: .8rem;
   font-weight: 800;
 }
@@ -716,8 +710,8 @@
   position: sticky;
   top: 0;
   z-index: 5;
-  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
-  color: var(--white);
+  background: var(--ital-green);
+  color: var(--ital-cream);
 }
 
 :host .seguimiento-table thead th {
@@ -728,6 +722,7 @@
   letter-spacing: .05em;
   text-align: center;
   border-bottom: 1px solid rgba(255,255,255,.2);
+  color: var(--ital-cream);
 }
 
 :host .seguimiento-table thead tr:first-child th {
@@ -759,13 +754,13 @@
 }
 
 :host .seguimiento-table tbody tr:hover {
-  background: var(--amber-50);
+  background: var(--ital-orange-50);
 }
 
 :host .seguimiento-table tbody td {
   padding: .7rem .75rem;
   border-bottom: 1px solid var(--warm-200);
-  color: var(--ink);
+  color: var(--ital-orange-dark);
   text-align: center;
 }
 
@@ -860,8 +855,8 @@
 :host .spinner {
   width: 1.05rem; height: 1.05rem;
   border-radius: 999px;
-  border: 2px solid var(--warm-300);
-  border-left-color: var(--brand-red);
+  border: 2px solid var(--ital-green-50);
+  border-left-color: var(--ital-orange);
   animation: spin .9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -891,7 +886,7 @@
   border-bottom: 1px solid var(--warm-200);
 }
 :host .ux-modal__header h2 {
-  margin: 0; font-size: 1.05rem; font-weight: 900; color: var(--ink);
+  margin: 0; font-size: 1.05rem; font-weight: 900; color: var(--ital-orange-dark);
 }
 
 :host .ux-modal__footer {
@@ -937,8 +932,8 @@
 :host .form-field input:focus,
 :host .form-field textarea:focus,
 :host .form-field select:focus {
-  border-color: var(--brand-red);
-  box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 
 /* -------------------------------
@@ -1047,9 +1042,9 @@
 }
 
 :host .repro-info-estado--vigente {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #86efac;
+  background: var(--ital-green-50);
+  color: var(--ital-green-dark);
+  border: 1px solid var(--ital-green-100);
 }
 
 :host .repro-info-estado--cerrado {
@@ -1074,9 +1069,9 @@
   margin: 0 0 1rem;
   padding: 0.75rem 1rem;
   font-size: 0.9rem;
-  color: #92400e;
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
+  color: var(--ital-orange-dark);
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
   border-radius: 8px;
 }
 
