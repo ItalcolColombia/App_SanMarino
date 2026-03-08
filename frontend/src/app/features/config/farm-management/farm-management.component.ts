@@ -55,7 +55,6 @@ interface Farm {
     CompanyAdminTestComponent
   ],
   templateUrl: './farm-management.component.html',
-  styleUrls: ['./farm-management.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FarmManagementComponent implements OnInit, OnDestroy {
