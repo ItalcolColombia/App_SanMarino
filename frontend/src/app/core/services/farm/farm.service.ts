@@ -37,27 +37,20 @@ export class FarmService {
   private tokenStorage = inject(TokenStorageService);
   private readonly baseUrl = `${environment.apiUrl}/Farm`;
 
-  /** Obtener todas las granjas filtradas por usuario */
-  getAll(): Observable<Farm[]> {
+  /** Obtener todas las granjas filtradas por usuario y opcionalmente por empresa */
+  getAll(companyId?: number): Observable<Farm[]> {
     this.companyHelper.logActiveCompany('FarmService.getAll');
 
-    // Obtener el ID del usuario de la sesión actual
     const session: AuthSession | null = this.tokenStorage.get();
     const userId = session?.user?.id;
 
-    console.log('=== Core FarmService.getAll() Debug ===');
-    console.log('Session completa:', session);
-    console.log('User ID:', userId);
-
     const headers = this.companyHelper.getAuthenticatedHeaders();
     let params = new HttpParams();
-
-    // Si hay userId, agregarlo como parámetro
     if (userId && userId.trim() !== '') {
       params = params.set('id_user_session', userId.trim());
-      console.log('✅ Enviando id_user_session:', userId);
-    } else {
-      console.warn('⚠️ No hay userId disponible - devolviendo todas las granjas');
+    }
+    if (companyId != null) {
+      params = params.set('companyId', companyId.toString());
     }
 
     return this.http.get<Farm[]>(this.baseUrl, { headers, params }).pipe(
