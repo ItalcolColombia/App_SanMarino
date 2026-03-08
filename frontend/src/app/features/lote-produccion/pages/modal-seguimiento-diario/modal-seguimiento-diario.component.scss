@@ -5,78 +5,40 @@
   display: block;
 }
 
-/* ==========================================================================
-   🎨 Design System / Tokens (solo claro)
-   ========================================================================== */
+/* Tema Italfoods (variables en :root desde theme-italfoods.scss) */
 :host {
-  /* Brand */
-  --brand-red:        #d32f2f;
-  --brand-red-600:    #c62828;
-  --brand-red-700:    #b71c1c;
-
-  /* Accent */
-  --amber-25:         #fffbeb;
-  --amber-50:         #fff7ed;
-  --amber-100:        #fef3c7;
-  --amber-200:        #fde68a;
-
-  /* Warm Gray scale */
-  --warm-25:          #fdfdfc;
-  --warm-50:          #fafaf9;
-  --warm-100:         #f5f5f4;
-  --warm-200:         #e7e5e4;
-  --warm-300:         #d6d3d1;
-  --warm-400:         #a8a29e;
-  --warm-500:         #78716c;
-  --warm-600:         #57534e;
-
-  /* Base */
+  --brand-red:        var(--ital-green);
+  --brand-red-600:    var(--ital-green-dark);
+  --brand-red-700:    var(--ital-green-dark);
+  --amber-25:         var(--ital-orange-50);
+  --amber-50:         var(--ital-orange-50);
+  --amber-100:        var(--ital-orange-100);
+  --amber-200:        var(--ital-orange-100);
+  --warm-25:          var(--ital-cream-50);
+  --warm-50:          var(--ital-cream);
+  --warm-100:         var(--ital-cream);
+  --warm-200:         var(--ital-green-100);
+  --warm-300:         var(--ital-green-50);
+  --warm-400:         var(--ital-muted);
+  --warm-500:         var(--ital-muted);
+  --warm-600:         var(--ital-orange-dark);
   --white:            #ffffff;
-  --black:            #111111;
-
-  /* Sombras */
+  --black:            var(--ital-text);
   --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
   --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
   --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
-
-  /* Espaciado & Radios */
-  --space-1: .25rem;
-  --space-2: .5rem;
-  --space-3: .75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-
-  --radius-sm: .5rem;
-  --radius-md: .65rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
-
-  /* Tipografía */
-  --fs-xs: .75rem;
-  --fs-sm: .85rem;
-  --fs-md: .92rem;
-  --fs-lg: 1.05rem;
-  --fs-xl: 1.35rem;
-
-  /* Focus ring */
-  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
-
-  /* Z-index */
-  --z-sticky: 10;
-  --z-modal:  50;
-
-  /* Superficies (CLARO) */
-  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem;
+  --radius-sm: .5rem; --radius-md: .65rem; --radius-lg: 1rem; --radius-xl: 1.25rem;
+  --fs-xs: .75rem; --fs-sm: .85rem; --fs-md: .92rem; --fs-lg: 1.05rem; --fs-xl: 1.35rem;
+  --ring: 0 0 0 3px var(--ital-orange-100);
+  --z-sticky: 10; --z-modal: 50;
+  --bg-body:    var(--ital-cream);
   --bg-card:    var(--white);
-  --bg-muted:   var(--warm-50);
-  --border:     var(--warm-200);
-  --text:       var(--black);
-  --text-sub:   #222222;
-
-  /* Transiciones */
-  --t-fast: .12s ease;
-  --t-med:  .15s ease;
+  --bg-muted:   var(--ital-cream);
+  --border:     var(--ital-green-100);
+  --text:       var(--ital-text);
+  --text-sub:   var(--ital-muted);
+  --t-fast: .12s ease; --t-med: .15s ease;
 }
 
 /* ==========================================================================
@@ -100,7 +62,7 @@
 :host .btn--primary { --btn-bg: var(--brand-red); --btn-fg: var(--white); --btn-br: var(--brand-red); }
 :host .btn--primary:hover { background: var(--brand-red-600); }
 :host .btn--outline { --btn-bg: var(--bg-card); --btn-fg: var(--brand-red); --btn-br: var(--brand-red); }
-:host .btn--outline:hover { background: #fff1f2; }
+:host .btn--outline:hover { background: var(--ital-orange-50); }
 :host .btn--ghost { --btn-bg: var(--bg-card); --btn-fg: var(--text); --btn-br: var(--border); }
 :host .btn--ghost:hover { background: var(--bg-muted); }
 
@@ -110,8 +72,8 @@
   border-radius: .55rem; padding: .35rem .55rem; line-height: 1;
   transition: background var(--t-med), color var(--t-med), transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
 }
-:host .icon-btn:hover { background: var(--bg-muted); color: var(--brand-red); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-:host .icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
+:host .icon-btn:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+:host .icon-btn--danger:hover { color: var(--ital-green-dark); background: var(--ital-green-50); border-color: var(--ital-green-100); }
 
 :host .btn:focus-visible,
 :host .icon-btn:focus-visible {
@@ -141,7 +103,7 @@
   display: flex; align-items: center; justify-content: space-between; gap: .5rem;
   padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
 }
-:host .ux-modal__header h2 { margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--brand-red); }
+:host .ux-modal__header h2 { margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--ital-orange-dark); }
 :host .ux-modal__footer {
   display: flex; justify-content: flex-end; gap: .75rem; padding: 1.25rem 1.5rem; border-top: 1px solid var(--border);
 }
@@ -192,14 +154,14 @@
 :host .form-field select:hover { background: var(--bg-muted); }
 :host .form-field input:focus,
 :host .form-field textarea:focus,
-:host .form-field select:focus { border-color: var(--brand-red); box-shadow: var(--ring); }
+:host .form-field select:focus { border-color: var(--ital-orange); box-shadow: var(--ring); }
 
 /* Estados inválidos */
 :host .form-field .is-invalid,
 :host .form-field input.ng-invalid.ng-touched,
 :host .form-field select.ng-invalid.ng-touched {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, .15);
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 
 /* Inputs readonly */
@@ -256,12 +218,12 @@
   justify-content: center;
 }
 :host .ux-tab:hover {
-  background: var(--warm-50);
-  color: var(--brand-red);
+  background: var(--ital-cream);
+  color: var(--ital-orange);
   transform: translateY(-2px);
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
 }
-:host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
+:host .ux-tab:focus-visible { box-shadow: var(--ring); }
 
 :host .tab-icon {
   font-size: 1.1rem;
@@ -299,7 +261,7 @@
   margin: 0 0 .25rem 0;
   font-size: var(--fs-lg);
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 :host .tab-description {
@@ -327,7 +289,7 @@
 :host #tab-pesaje:checked ~ .ux-tabs-wrapper label[for="tab-pesaje"],
 :host #tab-agua:checked ~ .ux-tabs-wrapper label[for="tab-agua"] {
   background: var(--white);
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
   transform: translateY(-1px);
   border-bottom: 2px solid var(--white);
   border-bottom-width: 2px;
@@ -343,25 +305,25 @@
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  background: var(--amber-25);
-  border: 1px solid var(--amber-200);
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
   border-radius: var(--radius-md);
   margin-top: .75rem;
 }
 
 :host .resumen-card--hembras {
-  background: #fef3f2;
-  border-color: #fecaca;
+  background: var(--ital-orange-50);
+  border-color: var(--ital-orange-100);
 }
 
 :host .resumen-card--machos {
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  background: var(--ital-green-50);
+  border-color: var(--ital-green-100);
 }
 
 :host .resumen-card--huevos {
-  background: var(--amber-25);
-  border-color: var(--amber-200);
+  background: var(--ital-orange-50);
+  border-color: var(--ital-orange-100);
 }
 
 :host .resumen-icon {
@@ -406,19 +368,19 @@
 :host .stat-value {
   font-size: var(--fs-lg);
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 :host .stat-item--highlight .stat-value {
   font-size: var(--fs-xl);
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 :host .resumen-number {
   margin: 0;
   font-size: var(--fs-lg);
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 :host .resumen-content small {
@@ -491,7 +453,7 @@
 
 :host .spinner {
   width: 1rem; height: 1rem; border-radius: 999px;
-  border: 2px solid var(--warm-300); border-left-color: var(--brand-red);
+  border: 2px solid var(--ital-green-50); border-left-color: var(--ital-orange);
   animation: spin .9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
