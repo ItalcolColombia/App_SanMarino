@@ -16,7 +16,7 @@
   min-width: 3000px; // Mínimo ancho para todas las columnas
 
   thead {
-    background-color: #f8f9fa;
+    background-color: var(--ital-green);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -24,24 +24,26 @@
     th {
       padding: 0.5rem 0.25rem;
       text-align: center;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--ital-green-dark);
       font-weight: 600;
       font-size: 0.7rem;
       white-space: nowrap;
-      background-color: #e9ecef;
+      background-color: var(--ital-green);
+      color: var(--ital-cream);
       
       // Primera fila (headers principales)
       &:first-child {
         position: sticky;
         left: 0;
         z-index: 11;
-        background-color: #e9ecef;
+        background-color: var(--ital-green);
       }
     }
 
     // Segunda fila (subheaders)
     tr:last-child th {
-      background-color: #f8f9fa;
+      background-color: var(--ital-green-dark);
+      color: var(--ital-cream);
       font-size: 0.65rem;
     }
   }
@@ -49,19 +51,20 @@
   tbody {
     tr {
       &:nth-child(even) {
-        background-color: #f8f9fa;
+        background-color: var(--ital-cream);
       }
 
       &:hover {
-        background-color: #e9ecef;
+        background-color: var(--ital-orange-50);
       }
 
       td {
         padding: 0.4rem 0.25rem;
         text-align: right;
-        border: 1px solid #dee2e6;
+        border: 1px solid var(--ital-green-100, #e7e5e4);
         white-space: nowrap;
         font-size: 0.7rem;
+        color: var(--ital-orange-dark, #44403c);
 
         // Primera columna (semana) sticky
         &:first-child {
@@ -100,17 +103,17 @@
 
         // Columnas de hembras (destacar)
         &:nth-child(n+6):nth-child(-n+40) {
-          background-color: #fff3cd;
+          background-color: var(--ital-orange-50);
         }
 
         // Columnas de machos (destacar)
         &:nth-child(n+41):nth-child(-n+75) {
-          background-color: #d1ecf1;
+          background-color: var(--ital-green-50);
         }
 
         // Columnas nutricionales (destacar)
         &:nth-child(n+76):nth-child(-n+91) {
-          background-color: #f8d7da;
+          background-color: var(--ital-orange-100);
         }
 
         // Observaciones

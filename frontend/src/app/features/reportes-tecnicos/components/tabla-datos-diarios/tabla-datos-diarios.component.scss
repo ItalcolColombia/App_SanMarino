@@ -16,7 +16,7 @@
   min-width: 1800px; // Ancho mínimo para todas las columnas
 
   thead {
-    background: #f3f4f6;
+    background: var(--ital-green);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -26,8 +26,9 @@
       text-align: center;
       font-weight: 600;
       font-size: 0.75rem;
-      border: 1px solid #d1d5db;
-      background: #f3f4f6;
+      border: 1px solid var(--ital-green-dark);
+      background: var(--ital-green);
+      color: var(--ital-cream);
       white-space: nowrap;
 
       &:first-child {
@@ -39,36 +40,38 @@
   tbody {
     tr {
       &:nth-child(even) {
-        background: #f9fafb;
+        background: var(--ital-cream);
       }
 
       &:hover {
-        background: #f3f4f6;
+        background: var(--ital-orange-50);
       }
     }
 
     td {
       padding: 0.625rem 0.5rem;
       text-align: center;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--ital-green-100, #e5e7eb);
       white-space: nowrap;
+      color: var(--ital-orange-dark, #44403c);
 
       &:first-child {
         text-align: left;
       }
 
       &.highlight-yellow {
-        background: #fef3c7;
+        background: var(--ital-orange-50);
         font-weight: 600;
       }
 
       &.highlight-orange {
-        background: #fed7aa;
+        background: var(--ital-orange-100);
         font-weight: 600;
       }
 
       &.highlight-red {
-        background: #fee2e2;
+        background: var(--ital-orange-50);
+        color: var(--ital-orange-dark);
         font-weight: 600;
       }
     }
