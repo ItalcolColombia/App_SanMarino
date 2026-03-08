@@ -1,418 +1,302 @@
-<div class="dashboard-container">
-  <div class="main-content">
-     <!-- HEADER PRINCIPAL -->
-     <header class="main-header" role="banner">
-       <div class="header-content">
-         <div class="header-title">
-           <div class="title-icon">
-             <svg class="dashboard-icon" viewBox="0 0 24 24" focusable="false">
-               <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-             </svg>
-           </div>
-           <div class="title-text">
-             <h1>Dashboard Corporativo</h1>
-             <p>Centro de control y análisis del sistema Zootecnico Sanmarino</p>
-           </div>
-         </div>
- 
-         <div class="header-actions" role="group" aria-label="Acciones del dashboard">
-           <button
-             type="button"
-             class="btn btn-primary btn-refresh"
-             (click)="refreshData()"
-             [disabled]="loading()"
-             title="Actualizar datos del dashboard"
-           >
-             <svg class="btn-icon" viewBox="0 0 24 24">
-               <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-             </svg>
-             <span>Actualizar</span>
-           </button>
- 
-           <button
-             type="button"
-             class="btn btn-secondary btn-realtime"
-             (click)="toggleRealTime()"
-             [class.active]="isRealTimeEnabled()"
-             [attr.aria-pressed]="isRealTimeEnabled()"
-             title="Activar/Desactivar actualización en tiempo real"
-           >
-             <svg class="btn-icon" viewBox="0 0 24 24">
-               <path d="M8 5v14l11-7z"/>
-             </svg>
-             <span>{{ isRealTimeEnabled() ? 'Pausar' : 'Activar' }} Tiempo Real</span>
-           </button>
-         </div>
-       </div>
-     </header>
+<div class="min-h-screen bg-white font-sans text-slate-900">
+  <div class="flex flex-col min-h-screen">
+    <!-- HEADER + TAGLINE -->
+    <header class="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm" role="banner">
+      <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div class="flex items-center gap-3 sm:gap-4">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-brand-red to-red-800 flex items-center justify-center shadow-md">
+              <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+              </svg>
+            </div>
+            <div>
+              <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">
+                Dashboard Corporativo
+              </h1>
+              <p class="text-sm text-slate-600 mt-0.5 font-medium">
+                Centro de control y análisis del sistema zootécnico Sanmarino — Ecuador
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 sm:gap-3" role="group" aria-label="Acciones del dashboard">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm bg-brand-red text-white shadow hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+              (click)="refreshData()"
+              [disabled]="loading()"
+              title="Actualizar datos del dashboard"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+              </svg>
+              <span>Actualizar</span>
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm bg-warm-gray-500 text-white shadow hover:bg-warm-gray-700 focus:outline-none focus:ring-2 focus:ring-warm-gray-500 focus:ring-offset-2 transition-colors"
+              [class.bg-emerald-600]="isRealTimeEnabled()"
+              [class.hover:bg-emerald-700]="isRealTimeEnabled()"
+              (click)="toggleRealTime()"
+              [attr.aria-pressed]="isRealTimeEnabled()"
+              title="Activar/Desactivar actualización en tiempo real"
+            >
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+              <span>{{ isRealTimeEnabled() ? 'Pausar' : 'Activar' }} Tiempo Real</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTROS: Empresa · Granja -->
+      <div class="border-t border-slate-100 bg-warm-gray-100/60">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div class="flex flex-wrap items-center gap-3 sm:gap-4">
+            <span class="text-sm font-semibold text-slate-700">Filtros:</span>
+            <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+              <label class="flex items-center gap-2">
+                <span class="text-sm text-slate-600 whitespace-nowrap">Empresa</span>
+                <select
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red min-w-[180px]"
+                  [value]="filterCompanyId() ?? ''"
+                  (change)="onCompanyFilterChange($any($event.target).value ? +$any($event.target).value : null)"
+                >
+                  <option value="">Todas</option>
+                  <option *ngFor="let c of companiesList()" [value]="c.id">{{ c.name }}</option>
+                </select>
+              </label>
+              <label class="flex items-center gap-2">
+                <span class="text-sm text-slate-600 whitespace-nowrap">Granja</span>
+                <select
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-red focus:outline-none focus:ring-1 focus:ring-brand-red min-w-[180px]"
+                  [value]="filterFarmId() ?? ''"
+                  (change)="onFarmFilterChange($any($event.target).value ? +$any($event.target).value : null)"
+                >
+                  <option value="">Todas</option>
+                  <option *ngFor="let f of farmsList()" [value]="f.id">{{ f.name }}</option>
+                </select>
+              </label>
+            </div>
+            <span *ngIf="loadingFilters()" class="text-xs text-slate-500">Cargando opciones…</span>
+          </div>
+        </div>
+      </div>
+    </header>
 
     <!-- BANNER DE ERROR -->
     <div
-      class="error-banner"
-      role="alert"
       *ngIf="error()"
+      role="alert"
+      class="mx-4 sm:mx-6 lg:mx-8 mt-4 rounded-lg bg-red-600 text-white px-4 py-3 shadow-md flex items-center gap-3"
     >
-      <div class="error-content">
-        <span class="error-icon" aria-hidden="true">⚠️</span>
-        <span class="error-message">{{ error() }}</span>
-        <button type="button" class="btn btn-sm" (click)="error.set(null)" aria-label="Cerrar error">✕</button>
-      </div>
+      <span aria-hidden="true">⚠️</span>
+      <span class="flex-1 font-medium">{{ error() }}</span>
+      <button type="button" class="rounded px-2 py-1 hover:bg-white/20 text-sm font-medium transition-colors" (click)="error.set(null)" aria-label="Cerrar error">✕</button>
     </div>
 
     <!-- LOADING OVERLAY INICIAL -->
     <div
-      class="loading-overlay"
       *ngIf="loading() && loadedSections().size === 0"
       aria-live="polite"
       aria-busy="true"
+      class="fixed inset-0 z-30 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
     >
-      <div class="spinner loading-bounce" aria-hidden="true"></div>
-      <p class="loading-pulse">Cargando dashboard corporativo...</p>
+      <div class="w-12 h-12 border-4 border-warm-gray-200 border-t-brand-red rounded-full animate-spin" aria-hidden="true"></div>
+      <p class="mt-4 text-slate-600 font-medium">Cargando dashboard corporativo...</p>
     </div>
 
     <!-- CONTENIDO -->
-    <div class="dashboard-content" role="main">
+    <main class="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8" role="main">
       <!-- KPIs -->
-      <section class="kpis-section" aria-labelledby="kpis-title">
-        <div class="section-header">
-          <h2 id="kpis-title">Indicadores Clave de Rendimiento</h2>
-          <p>Métricas principales del sistema</p>
+      <section class="mb-10 sm:mb-12" aria-labelledby="kpis-title">
+        <div class="text-center mb-8">
+          <h2 id="kpis-title" class="text-2xl font-bold text-slate-900 mb-1">Indicadores Clave de Rendimiento</h2>
+          <p class="text-slate-600 font-medium">Métricas principales del sistema</p>
         </div>
 
-        <div class="kpis-grid" [attr.aria-busy]="loadingKPIs()">
-          <!-- Skeletons -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6" [attr.aria-busy]="loadingKPIs()">
           <ng-container *ngIf="loadingKPIs(); else kpisContent">
-            <div class="kpi-card skeleton-card" *ngFor="let i of [1,2,3,4]">
-              <div class="skeleton skeleton-title" style="width:60%;"></div>
-              <div class="skeleton skeleton-text" style="width:40%;"></div>
-              <div class="skeleton skeleton-text" style="width:80%;"></div>
+            <div *ngFor="let i of [1,2,3,4]" class="h-48 rounded-xl border border-slate-200 bg-slate-50 animate-pulse p-5">
+              <div class="h-5 bg-slate-200 rounded w-3/5 mb-3"></div>
+              <div class="h-4 bg-slate-200 rounded w-2/5 mb-2"></div>
+              <div class="h-4 bg-slate-200 rounded w-4/5"></div>
             </div>
           </ng-container>
 
-           <!-- KPIs -->
            <ng-template #kpisContent>
-             <!-- Total Usuarios -->
-             <article class="kpi-card kpi-users" (mouseenter)="onCardHover($event, 'users')" (mouseleave)="onCardLeave($event)">
-               <div class="kpi-header">
-                 <div class="kpi-icon">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H17c-.8 0-1.54.37-2.01.99L14 10.5 12.01 8.99A2.5 2.5 0 0 0 10 8H8.46c-.8 0-1.54.37-2.01.99L4 10.5V22h2v-6h2.5l2.5 2.5L11.5 16H14v6h2z"/>
-                   </svg>
+             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-blue-500">
+               <div class="flex justify-between items-start mb-3">
+                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-blue-600">
+                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H17c-.8 0-1.54.37-2.01.99L14 10.5 12.01 8.99A2.5 2.5 0 0 0 10 8H8.46c-.8 0-1.54.37-2.01.99L4 10.5V22h2v-6h2.5l2.5 2.5L11.5 16H14v6h2z"/></svg>
                  </div>
-                 <div class="kpi-trend positive">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
-                   </svg>
-                   <span>+12%</span>
-                 </div>
+                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+12%</span>
                </div>
-               <div class="kpi-content">
-                 <h3>{{ formatNumber(estadisticasGenerales()?.totalUsuarios || 0) }}</h3>
-                 <p>Total Usuarios</p>
-                 <div class="kpi-detail">
-                   <span class="detail-item">
-                     <span class="detail-value">{{ estadisticasGenerales()?.usuariosActivos || 0 }}</span>
-                     <span class="detail-label">activos</span>
-                   </span>
+               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalUsuarios || 0) }}</h3>
+               <p class="text-slate-600 font-semibold mb-2">Total Usuarios</p>
+               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ estadisticasGenerales()?.usuariosActivos || 0 }}</span> <span class="text-slate-500 text-xs">activos</span></span></div>
+             </article>
+             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-chicken-yellow">
+               <div class="flex justify-between items-start mb-3">
+                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-amber-600">
+                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                  </div>
+                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+5%</span>
+               </div>
+               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalGranjas || 0) }}</h3>
+               <p class="text-slate-600 font-semibold mb-2">Total Granjas</p>
+               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ distribucionLotes().length }}</span> <span class="text-slate-500 text-xs">con lotes activos</span></span></div>
+             </article>
+             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-warm-gray-500">
+               <div class="flex justify-between items-start mb-3">
+                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                 </div>
+                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600">0%</span>
+               </div>
+               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotes || 0) }}</h3>
+               <p class="text-slate-600 font-semibold mb-2">Total Lotes</p>
+               <div class="flex flex-wrap gap-2">
+                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesReproductora || 0) }}</span> <span class="text-slate-500 text-xs">Reproductora</span></span>
+                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesProduccion || 0) }}</span> <span class="text-slate-500 text-xs">Producción</span></span>
+                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalLotesLevante || 0) }}</span> <span class="text-slate-500 text-xs">Levante</span></span>
                </div>
              </article>
-
-             <!-- Total Granjas -->
-             <article class="kpi-card kpi-farms" (mouseenter)="onCardHover($event, 'farms')" (mouseleave)="onCardLeave($event)">
-               <div class="kpi-header">
-                 <div class="kpi-icon">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                   </svg>
+             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-emerald-500">
+               <div class="flex justify-between items-start mb-3">
+                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-emerald-600">
+                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                  </div>
-                 <div class="kpi-trend positive">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
-                   </svg>
-                   <span>+5%</span>
-                 </div>
+                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+8%</span>
                </div>
-               <div class="kpi-content">
-                 <h3>{{ formatNumber(estadisticasGenerales()?.totalGranjas || 0) }}</h3>
-                 <p>Total Granjas</p>
-                 <div class="kpi-detail">
-                   <span class="detail-item">
-                     <span class="detail-value">{{ distribucionLotes().length }}</span>
-                     <span class="detail-label">con lotes activos</span>
-                   </span>
-                 </div>
+               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(totalAves()) }}</h3>
+               <p class="text-slate-600 font-semibold mb-2">Total Aves</p>
+               <div class="flex flex-wrap gap-2">
+                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesHembras || 0) }}</span> <span class="text-slate-500 text-xs">Hembras</span></span>
+                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span> <span class="text-slate-500 text-xs">Machos</span></span>
+                 <span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasInventario()?.totalAvesMixtas || 0) }}</span> <span class="text-slate-500 text-xs">Mixtas</span></span>
                </div>
              </article>
-
-             <!-- Total Lotes -->
-             <article class="kpi-card kpi-lots" (mouseenter)="onCardHover($event, 'lots')" (mouseleave)="onCardLeave($event)">
-               <div class="kpi-header">
-                 <div class="kpi-icon">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                   </svg>
+             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-amber-500">
+               <div class="flex justify-between items-start mb-3">
+                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-amber-600">
+                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
                  </div>
-                 <div class="kpi-trend neutral">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M22 12h-2v-2h-2v2h-2v2h2v2h2v-2h2v-2z"/>
-                   </svg>
-                   <span>0%</span>
-                 </div>
+                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">-3%</span>
                </div>
-               <div class="kpi-content">
-                 <h3>{{ formatNumber(estadisticasGenerales()?.totalLotes || 0) }}</h3>
-                 <p>Total Lotes</p>
-                 <div class="kpi-detail">
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalLotesReproductora || 0) }}</span>
-                     <span class="detail-label">Reproductora</span>
-                   </span>
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalLotesProduccion || 0) }}</span>
-                     <span class="detail-label">Producción</span>
-                   </span>
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalLotesLevante || 0) }}</span>
-                     <span class="detail-label">Levante</span>
-                   </span>
-                 </div>
-               </div>
+               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalMovimientosPendientes || 0) }}</h3>
+               <p class="text-slate-600 font-semibold mb-2">Movimientos Pendientes</p>
+               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">{{ formatNumber(estadisticasGenerales()?.totalMovimientosCompletados || 0) }}</span> <span class="text-slate-500 text-xs">completados</span></span></div>
              </article>
-
-             <!-- Total Aves -->
-             <article class="kpi-card kpi-birds" (mouseenter)="onCardHover($event, 'birds')" (mouseleave)="onCardLeave($event)">
-               <div class="kpi-header">
-                 <div class="kpi-icon">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                   </svg>
+             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 border-l-brand-red">
+               <div class="flex justify-between items-start mb-3">
+                 <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-brand-red">
+                   <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
                  </div>
-                 <div class="kpi-trend positive">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
-                   </svg>
-                   <span>+8%</span>
-                 </div>
+                 <span class="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">+15%</span>
                </div>
-               <div class="kpi-content">
-                 <h3>{{ formatNumber(totalAves()) }}</h3>
-                 <p>Total Aves</p>
-                 <div class="kpi-detail">
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasInventario()?.totalAvesHembras || 0) }}</span>
-                     <span class="detail-label">Hembras</span>
-                   </span>
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasInventario()?.totalAvesMachos || 0) }}</span>
-                     <span class="detail-label">Machos</span>
-                   </span>
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasInventario()?.totalAvesMixtas || 0) }}</span>
-                     <span class="detail-label">Mixtas</span>
-                   </span>
-                 </div>
-               </div>
-             </article>
-
-             <!-- Movimientos Pendientes -->
-             <article class="kpi-card kpi-movements" (mouseenter)="onCardHover($event, 'movements')" (mouseleave)="onCardLeave($event)">
-               <div class="kpi-header">
-                 <div class="kpi-icon">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-                   </svg>
-                 </div>
-                 <div class="kpi-trend negative">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 18l2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6z"/>
-                   </svg>
-                   <span>-3%</span>
-                 </div>
-               </div>
-               <div class="kpi-content">
-                 <h3>{{ formatNumber(estadisticasGenerales()?.totalMovimientosPendientes || 0) }}</h3>
-                 <p>Movimientos Pendientes</p>
-                 <div class="kpi-detail">
-                   <span class="detail-item">
-                     <span class="detail-value">{{ formatNumber(estadisticasGenerales()?.totalMovimientosCompletados || 0) }}</span>
-                     <span class="detail-label">completados</span>
-                   </span>
-                 </div>
-               </div>
-             </article>
-
-             <!-- Eficiencia Promedio -->
-             <article class="kpi-card kpi-efficiency" (mouseenter)="onCardHover($event, 'efficiency')" (mouseleave)="onCardLeave($event)">
-               <div class="kpi-header">
-                 <div class="kpi-icon">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
-                   </svg>
-                 </div>
-                 <div class="kpi-trend positive">
-                   <svg viewBox="0 0 24 24">
-                     <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
-                   </svg>
-                   <span>+15%</span>
-                 </div>
-               </div>
-               <div class="kpi-content">
-                 <h3>{{ formatPercentage(eficienciaPromedio()) }}</h3>
-                 <p>Eficiencia Promedio</p>
-                 <div class="kpi-detail">
-                   <span class="detail-item">
-                     <span class="detail-value">Producción</span>
-                     <span class="detail-label">por granja</span>
-                   </span>
-                 </div>
-               </div>
+               <h3 class="text-2xl sm:text-3xl font-bold text-slate-900">{{ formatPercentage(eficienciaPromedio()) }}</h3>
+               <p class="text-slate-600 font-semibold mb-2">Eficiencia Promedio</p>
+               <div class="flex flex-wrap gap-2"><span class="px-2 py-1 bg-slate-100 rounded text-sm"><span class="font-bold text-slate-900">Producción</span> <span class="text-slate-500 text-xs">por granja</span></span></div>
              </article>
            </ng-template>
         </div>
       </section>
 
       <!-- GRÁFICOS -->
-      <section class="charts-section" aria-labelledby="charts-title">
-        <div class="section-header">
-          <h2 id="charts-title">Análisis Visual de Datos</h2>
-          <p>Gráficos y tendencias del sistema</p>
+      <section class="mb-10 sm:mb-12" aria-labelledby="charts-title">
+        <div class="text-center mb-8">
+          <h2 id="charts-title" class="text-2xl font-bold text-slate-900 mb-1">Análisis Visual de Datos</h2>
+          <p class="text-slate-600 font-medium">Gráficos y tendencias — huevos, traslados, mortalidad</p>
         </div>
 
-        <div class="charts-grid" [attr.aria-busy]="loadingCharts()">
-          <!-- Skeletons -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6" [attr.aria-busy]="loadingCharts()">
           <ng-container *ngIf="loadingCharts(); else chartsContent">
-            <div class="chart-card skeleton-chart" *ngFor="let i of [1,2,3,4]">
-              <div class="skeleton skeleton-title"></div>
-              <div class="skeleton" style="height: 100%; width: 100%;"></div>
+            <div *ngFor="let i of [1,2,3,4]" class="rounded-xl border border-slate-200 bg-white p-5 h-[320px] animate-pulse">
+              <div class="h-5 bg-slate-200 rounded w-1/3 mb-4"></div>
+              <div class="flex-1 bg-slate-100 rounded h-48"></div>
             </div>
           </ng-container>
 
-          <!-- Contenido de gráficos -->
           <ng-template #chartsContent>
-            <!-- Registros Diarios -->
-            <article class="chart-card corporate-chart" (intersectionObserver)="onDailyVisible()">
-              <div class="chart-header">
-                <h3>Registros Diarios</h3>
-                <p>Actividad en los últimos 7 días</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">Registros Diarios</h3>
+                <p class="text-sm text-slate-600">Actividad en los últimos 7 días</p>
               </div>
-              <div class="chart-container">
-                <canvas
-                  baseChart
-                  [data]="registrosDiariosChart"
-                  [type]="lineChartType"
-                  [options]="chartOptions"
-                  aria-label="Gráfico de registros diarios"
-                  role="img"
-                ></canvas>
+              <div class="h-[280px] relative">
+                <canvas baseChart [data]="registrosDiariosChart" [type]="lineChartType" [options]="chartOptions" aria-label="Gráfico de registros diarios" role="img"></canvas>
               </div>
             </article>
-
-            <!-- Producción por Granja -->
-            <article class="chart-card corporate-chart" (intersectionObserver)="onProductionVisible()">
-              <div class="chart-header">
-                <h3>Producción por Granja</h3>
-                <p>Rendimiento de huevos por granja</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">Producción por Granja</h3>
+                <p class="text-sm text-slate-600">Rendimiento de huevos por granja</p>
               </div>
-              <div class="chart-container">
-                <canvas
-                  baseChart
-                  [data]="produccionGranjaChart"
-                  [type]="barChartType"
-                  [options]="chartOptions"
-                  aria-label="Gráfico de barras de producción por granja"
-                  role="img"
-                ></canvas>
+              <div class="h-[280px] relative">
+                <canvas baseChart [data]="produccionGranjaChart" [type]="barChartType" [options]="chartOptions" aria-label="Gráfico de barras de producción por granja" role="img"></canvas>
               </div>
             </article>
-
-            <!-- Distribución de Lotes -->
-            <article class="chart-card corporate-chart">
-              <div class="chart-header">
-                <h3>Distribución de Lotes</h3>
-                <p>Lotes por granja</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">Distribución de Lotes</h3>
+                <p class="text-sm text-slate-600">Lotes por granja</p>
               </div>
-              <div class="chart-container">
-                <canvas
-                  baseChart
-                  [data]="distribucionLotesChart"
-                  [type]="pieChartType"
-                  [options]="doughnutOptions"
-                  aria-label="Gráfico de pastel distribución de lotes"
-                  role="img"
-                ></canvas>
+              <div class="h-[280px] relative">
+                <canvas baseChart [data]="distribucionLotesChart" [type]="pieChartType" [options]="doughnutOptions" aria-label="Gráfico de pastel distribución de lotes" role="img"></canvas>
               </div>
             </article>
-
-            <!-- Inventario de Aves -->
-            <article class="chart-card corporate-chart">
-              <div class="chart-header">
-                <h3>Inventario de Aves</h3>
-                <p>Distribución por tipo</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">Inventario de Aves</h3>
+                <p class="text-sm text-slate-600">Distribución por tipo</p>
               </div>
-              <div class="chart-container">
-                <canvas
-                  baseChart
-                  [data]="inventarioChart"
-                  [type]="doughnutChartType"
-                  [options]="doughnutOptions"
-                  aria-label="Gráfico doughnut inventario de aves"
-                  role="img"
-                ></canvas>
+              <div class="h-[280px] relative">
+                <canvas baseChart [data]="inventarioChart" [type]="doughnutChartType" [options]="doughnutOptions" aria-label="Gráfico inventario de aves" role="img"></canvas>
               </div>
             </article>
-
-            <!-- Mortalidad -->
-            <article class="chart-card corporate-chart" (intersectionObserver)="onMortalityVisible()">
-              <div class="chart-header">
-                <h3>Mortalidad</h3>
-                <p>Registros de mortalidad por fecha</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">Mortalidad</h3>
+                <p class="text-sm text-slate-600">Registros de mortalidad por fecha</p>
               </div>
-              <div class="chart-container">
-                <canvas
-                  baseChart
-                  [data]="mortalidadChart"
-                  [type]="doughnutChartType"
-                  [options]="doughnutOptions"
-                  aria-label="Gráfico de mortalidad"
-                  role="img"
-                ></canvas>
+              <div class="h-[280px] relative">
+                <canvas baseChart [data]="mortalidadChart" [type]="doughnutChartType" [options]="doughnutOptions" aria-label="Gráfico de mortalidad" role="img"></canvas>
               </div>
             </article>
-
-            <!-- Métricas de Rendimiento -->
-            <article class="chart-card corporate-chart metrics-card">
-              <div class="chart-header">
-                <h3>Métricas de Rendimiento</h3>
-                <p>Indicadores clave</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow lg:col-span-2">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">Métricas de Rendimiento</h3>
+                <p class="text-sm text-slate-600">Indicadores clave</p>
               </div>
-              <div class="metrics-grid">
-                <div class="metric-item">
-                  <div class="metric-icon" aria-hidden="true">🥚</div>
-                  <div class="metric-content">
-                    <h4>{{ formatNumber(metricasRendimiento()?.promedioProduccionDiaria || 0) }}</h4>
-                    <p>Producción Diaria Promedio</p>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="flex items-center gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                  <span class="text-2xl" aria-hidden="true">🥚</span>
+                  <div>
+                    <h4 class="text-lg font-bold text-slate-900">{{ formatNumber(metricasRendimiento()?.promedioProduccionDiaria || 0) }}</h4>
+                    <p class="text-xs text-slate-600">Producción Diaria Promedio</p>
                   </div>
                 </div>
-                <div class="metric-item">
-                  <div class="metric-icon" aria-hidden="true">⚙️</div>
-                  <div class="metric-content">
-                    <h4>{{ formatPercentage(eficienciaPromedio()) }}</h4>
-                    <p>Eficiencia Promedio</p>
+                <div class="flex items-center gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                  <span class="text-2xl" aria-hidden="true">⚙️</span>
+                  <div>
+                    <h4 class="text-lg font-bold text-slate-900">{{ formatPercentage(eficienciaPromedio()) }}</h4>
+                    <p class="text-xs text-slate-600">Eficiencia Promedio</p>
                   </div>
                 </div>
-                <div class="metric-item">
-                  <div class="metric-icon" aria-hidden="true">💀</div>
-                  <div class="metric-content">
-                    <h4>{{ formatPercentage(tasaMortalidadPromedio()) }}</h4>
-                    <p>Tasa de Mortalidad</p>
+                <div class="flex items-center gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                  <span class="text-2xl" aria-hidden="true">💀</span>
+                  <div>
+                    <h4 class="text-lg font-bold text-slate-900">{{ formatPercentage(tasaMortalidadPromedio()) }}</h4>
+                    <p class="text-xs text-slate-600">Tasa de Mortalidad</p>
                   </div>
                 </div>
-                <div class="metric-item">
-                  <div class="metric-icon" aria-hidden="true">🔁</div>
-                  <div class="metric-content">
-                    <h4>{{ formatNumber(metricasRendimiento()?.movimientosPorDia || 0) }}</h4>
-                    <p>Movimientos por Día</p>
+                <div class="flex items-center gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                  <span class="text-2xl" aria-hidden="true">🔁</span>
+                  <div>
+                    <h4 class="text-lg font-bold text-slate-900">{{ formatNumber(metricasRendimiento()?.movimientosPorDia || 0) }}</h4>
+                    <p class="text-xs text-slate-600">Movimientos por Día</p>
                   </div>
                 </div>
               </div>
@@ -422,52 +306,53 @@
       </section>
 
       <!-- REPORTES / TABLAS -->
-      <section class="reports-section" aria-labelledby="reports-title">
-        <div class="section-header">
-          <h2 id="reports-title">📋 Reportes y Tablas de Datos</h2>
-          <p>Información detallada del sistema</p>
+      <section class="mb-10 sm:mb-12" aria-labelledby="reports-title">
+        <div class="text-center mb-8">
+          <h2 id="reports-title" class="text-2xl font-bold text-slate-900 mb-1">📋 Reportes y Tablas de Datos</h2>
+          <p class="text-slate-600 font-medium">Información detallada — granjas, lotes, mortalidad</p>
         </div>
 
-        <div class="reports-grid" [attr.aria-busy]="loadingReports()">
-          <!-- Skeletons -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6" [attr.aria-busy]="loadingReports()">
           <ng-container *ngIf="loadingReports(); else reportsContent">
-            <div class="report-card corporate-card skeleton-card" *ngFor="let i of [1,2,3]">
-              <div class="skeleton skeleton-title"></div>
-              <div class="skeleton skeleton-text"></div>
-              <div class="skeleton skeleton-text"></div>
+            <div *ngFor="let i of [1,2,3]" class="rounded-xl border border-slate-200 bg-white p-5 h-64 animate-pulse">
+              <div class="h-5 bg-slate-200 rounded w-1/2 mb-3"></div>
+              <div class="h-4 bg-slate-100 rounded w-full mb-2"></div>
+              <div class="h-4 bg-slate-100 rounded w-4/5"></div>
             </div>
           </ng-container>
 
           <ng-template #reportsContent>
-            <!-- Producción por Granja -->
-            <article class="report-card corporate-card" aria-label="Tabla de producción por granja">
-              <div class="report-header">
-                <h3>🏭 Producción por Granja</h3>
-                <p>Detalle de producción por granja</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm overflow-hidden xl:col-span-2" aria-label="Tabla de producción por granja">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">🏭 Producción por Granja</h3>
+                <p class="text-sm text-slate-600">Detalle de producción por granja</p>
               </div>
-              <div class="table-container">
-                <table class="data-table" role="table">
-                  <thead>
+              <div class="overflow-x-auto rounded-lg border border-slate-200">
+                <table class="w-full text-sm text-left border-collapse" role="table">
+                  <thead class="bg-slate-50">
                     <tr>
-                      <th scope="col">Granja</th>
-                      <th scope="col">Total Lotes</th>
-                      <th scope="col">Total Huevos</th>
-                      <th scope="col">Total Aves</th>
-                      <th scope="col">Eficiencia</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Granja</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Total Lotes</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Total Huevos</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Total Aves</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Eficiencia</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let granja of produccionPorGranja()">
-                      <td>{{ granja.granjaNombre }}</td>
-                      <td>{{ formatNumber(granja.totalLotes) }}</td>
-                      <td>{{ formatNumber(granja.totalHuevos) }}</td>
-                      <td>{{ formatNumber(granja.totalAves) }}</td>
-                      <td>
+                    <tr *ngFor="let granja of produccionPorGranja()" class="border-t border-slate-100 hover:bg-slate-50">
+                      <td class="px-4 py-2 text-slate-700">{{ granja.granjaNombre }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalLotes) }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalHuevos) }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(granja.totalAves) }}</td>
+                      <td class="px-4 py-2">
                         <span
-                          class="efficiency-badge"
-                          [class.high]="granja.eficiencia > 0.8"
-                          [class.medium]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
-                          [class.low]="granja.eficiencia < 0.6"
+                          class="inline-block px-2 py-0.5 rounded text-xs font-semibold"
+                          [class.bg-emerald-100]="granja.eficiencia > 0.8"
+                          [class.text-emerald-700]="granja.eficiencia > 0.8"
+                          [class.bg-amber-100]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
+                          [class.text-amber-700]="granja.eficiencia >= 0.6 && granja.eficiencia <= 0.8"
+                          [class.bg-red-100]="granja.eficiencia < 0.6"
+                          [class.text-red-700]="granja.eficiencia < 0.6"
                         >
                           {{ formatPercentage(granja.eficiencia) }}
                         </span>
@@ -477,61 +362,57 @@
                 </table>
               </div>
             </article>
-
-            <!-- Distribución de Lotes -->
-            <article class="report-card corporate-card" aria-label="Tabla de distribución de lotes">
-              <div class="report-header">
-                <h3>🗂️ Distribución de Lotes</h3>
-                <p>Distribución de lotes por granja</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm overflow-hidden" aria-label="Tabla de distribución de lotes">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">🗂️ Distribución de Lotes</h3>
+                <p class="text-sm text-slate-600">Lotes por granja</p>
               </div>
-              <div class="table-container">
-                <table class="data-table" role="table">
-                  <thead>
+              <div class="overflow-x-auto rounded-lg border border-slate-200">
+                <table class="w-full text-sm text-left border-collapse" role="table">
+                  <thead class="bg-slate-50">
                     <tr>
-                      <th scope="col">Granja</th>
-                      <th scope="col">Reproductora</th>
-                      <th scope="col">Producción</th>
-                      <th scope="col">Levante</th>
-                      <th scope="col">Total</th>
+                      <th scope="col" class="px-3 py-2 font-semibold text-slate-900">Granja</th>
+                      <th scope="col" class="px-3 py-2 font-semibold text-slate-900">Reprod.</th>
+                      <th scope="col" class="px-3 py-2 font-semibold text-slate-900">Prod.</th>
+                      <th scope="col" class="px-3 py-2 font-semibold text-slate-900">Levante</th>
+                      <th scope="col" class="px-3 py-2 font-semibold text-slate-900">Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let distribucion of distribucionLotes()">
-                      <td>{{ distribucion.granjaNombre }}</td>
-                      <td>{{ formatNumber(distribucion.lotesReproductora) }}</td>
-                      <td>{{ formatNumber(distribucion.lotesProduccion) }}</td>
-                      <td>{{ formatNumber(distribucion.lotesLevante) }}</td>
-                      <td><strong>{{ formatNumber(distribucion.totalLotes) }}</strong></td>
+                    <tr *ngFor="let distribucion of distribucionLotes()" class="border-t border-slate-100 hover:bg-slate-50">
+                      <td class="px-3 py-2 text-slate-700">{{ distribucion.granjaNombre }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesReproductora) }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesProduccion) }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ formatNumber(distribucion.lotesLevante) }}</td>
+                      <td class="px-3 py-2 font-bold text-slate-900">{{ formatNumber(distribucion.totalLotes) }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </article>
-
-            <!-- Mortalidad -->
-            <article class="report-card corporate-card" aria-label="Tabla de registros de mortalidad">
-              <div class="report-header">
-                <h3>💀 Registros de Mortalidad</h3>
-                <p>Últimos registros de mortalidad</p>
+            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm overflow-hidden xl:col-span-3" aria-label="Tabla de registros de mortalidad">
+              <div class="mb-4">
+                <h3 class="text-lg font-semibold text-slate-900">💀 Registros de Mortalidad</h3>
+                <p class="text-sm text-slate-600">Últimos registros de mortalidad</p>
               </div>
-              <div class="table-container">
-                <table class="data-table" role="table" aria-live="polite">
-                  <thead>
+              <div class="overflow-x-auto rounded-lg border border-slate-200">
+                <table class="w-full text-sm text-left border-collapse" role="table" aria-live="polite">
+                  <thead class="bg-slate-50">
                     <tr>
-                      <th scope="col">Fecha</th>
-                      <th scope="col">Cantidad</th>
-                      <th scope="col">Lote</th>
-                      <th scope="col">Granja</th>
-                      <th scope="col">Causa</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Fecha</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Cantidad</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Lote</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Granja</th>
+                      <th scope="col" class="px-4 py-2 font-semibold text-slate-900">Causa</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let mortalidad of mortalidades().slice(0, 10)">
-                      <td>{{ formatDate(mortalidad.fecha) }}</td>
-                      <td>{{ formatNumber(mortalidad.cantidadMuertas) }}</td>
-                      <td>{{ mortalidad.loteId }}</td>
-                      <td>{{ mortalidad.granjaNombre }}</td>
-                      <td>{{ mortalidad.causaMuerte }}</td>
+                    <tr *ngFor="let mortalidad of mortalidades().slice(0, 10)" class="border-t border-slate-100 hover:bg-slate-50">
+                      <td class="px-4 py-2 text-slate-700">{{ formatDate(mortalidad.fecha) }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ formatNumber(mortalidad.cantidadMuertas) }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ mortalidad.loteId }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ mortalidad.granjaNombre }}</td>
+                      <td class="px-4 py-2 text-slate-700">{{ mortalidad.causaMuerte }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -542,52 +423,45 @@
       </section>
 
       <!-- ACTIVIDADES RECIENTES -->
-      <section class="activities-section" aria-labelledby="activities-title">
-        <div class="section-header">
-          <h2 id="activities-title">🔄 Actividades Recientes</h2>
-          <p>Últimas operaciones del sistema</p>
+      <section class="mb-10 sm:mb-12" aria-labelledby="activities-title">
+        <div class="text-center mb-8">
+          <h2 id="activities-title" class="text-2xl font-bold text-slate-900 mb-1">🔄 Actividades Recientes</h2>
+          <p class="text-slate-600 font-medium">Últimas operaciones del sistema</p>
         </div>
 
-        <div class="activities-card corporate-card" *ngIf="!loadingActivities(); else activitiesSkeleton">
-          <div class="activities-header">
+        <div *ngIf="!loadingActivities(); else activitiesSkeleton" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3 mb-6">
             <div>
-              <h3>🔄 Actividades Recientes</h3>
-              <p>Últimas operaciones del sistema</p>
+              <h3 class="text-lg font-semibold text-slate-900">🔄 Actividades Recientes</h3>
+              <p class="text-sm text-slate-600">Últimas operaciones del sistema</p>
             </div>
-            <span class="activities-count" aria-live="polite">{{ actividadesRecientes().length }} registros</span>
+            <span class="px-2 py-1 rounded bg-slate-100 text-xs font-semibold text-slate-600" aria-live="polite">{{ actividadesRecientes().length }} registros</span>
           </div>
-
-          <div class="activities-list">
-            <div class="activity-item" *ngFor="let actividad of actividadesRecientes()">
-              <div class="activity-icon" aria-hidden="true">{{ actividad.icono }}</div>
-              <div class="activity-content">
-                <h4>{{ actividad.tipo }}</h4>
-                <p>{{ actividad.descripcion }}</p>
-                <div class="activity-meta">
-                  <span class="activity-user">{{ actividad.usuario }}</span>
-                  <span class="activity-time">{{ getTimeAgo(actividad.fecha) }}</span>
+          <div class="space-y-0 divide-y divide-slate-100">
+            <div *ngFor="let actividad of actividadesRecientes()" class="flex items-center gap-4 py-4 first:pt-0 hover:bg-slate-50 -mx-5 px-5 rounded-lg transition-colors">
+              <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-lg" aria-hidden="true">{{ actividad.icono }}</div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-semibold text-slate-900 text-sm">{{ actividad.tipo }}</h4>
+                <p class="text-sm text-slate-600 truncate">{{ actividad.descripcion }}</p>
+                <div class="flex gap-3 mt-1 text-xs text-slate-500">
+                  <span>{{ actividad.usuario }}</span>
+                  <span>{{ getTimeAgo(actividad.fecha) }}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Skeleton actividades -->
         <ng-template #activitiesSkeleton>
-          <div class="activities-card">
-            <div class="activities-header">
-              <div class="skeleton skeleton-title"></div>
-              <div class="skeleton skeleton-text"></div>
-              <div class="skeleton skeleton-text" style="width: 120px;"></div>
-            </div>
-            <div class="activities-list">
-              <div class="activity-item" *ngFor="let i of [1,2,3]">
-                <div class="skeleton skeleton-text" style="width: 40px; height: 40px; border-radius: 50%;"></div>
-                <div class="activity-content" style="flex:1;">
-                  <div class="skeleton skeleton-text" style="width: 40%;"></div>
-                  <div class="skeleton skeleton-text" style="width: 80%;"></div>
-                  <div class="skeleton skeleton-text" style="width: 60%;"></div>
-                </div>
+          <div class="rounded-xl border border-slate-200 bg-white p-5 animate-pulse">
+            <div class="h-5 bg-slate-200 rounded w-1/3 mb-2"></div>
+            <div class="h-4 bg-slate-100 rounded w-1/4 mb-6"></div>
+            <div *ngFor="let i of [1,2,3]" class="flex gap-4 py-4 border-t border-slate-100">
+              <div class="w-10 h-10 rounded-lg bg-slate-200"></div>
+              <div class="flex-1 space-y-2">
+                <div class="h-4 bg-slate-100 rounded w-1/4"></div>
+                <div class="h-3 bg-slate-100 rounded w-3/4"></div>
+                <div class="h-3 bg-slate-100 rounded w-1/2"></div>
               </div>
             </div>
           </div>
@@ -595,17 +469,21 @@
       </section>
 
       <!-- INFO DE ACTUALIZACIÓN -->
-      <section class="update-info" aria-label="Información de actualización">
-        <div class="update-card corporate-card">
-          <div class="update-content">
-            <span class="update-icon" aria-hidden="true">🕒</span>
-            <span class="update-text">Última actualización: {{ formatDateTime(lastUpdated().toISOString()) }}</span>
-            <span class="update-status" [class.active]="isRealTimeEnabled()">
-              {{ isRealTimeEnabled() ? 'Tiempo Real Activo' : 'Tiempo Real Pausado' }}
-            </span>
-          </div>
+      <section aria-label="Información de actualización">
+        <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm flex flex-wrap items-center gap-3">
+          <span class="text-slate-500" aria-hidden="true">🕒</span>
+          <span class="text-sm text-slate-600 flex-1">Última actualización: {{ formatDateTime(lastUpdated().toISOString()) }}</span>
+          <span
+            class="px-2 py-1 rounded text-xs font-semibold transition-colors"
+            [class.bg-emerald-100]="isRealTimeEnabled()"
+            [class.text-emerald-700]="isRealTimeEnabled()"
+            [class.bg-slate-100]="!isRealTimeEnabled()"
+            [class.text-slate-600]="!isRealTimeEnabled()"
+          >
+            {{ isRealTimeEnabled() ? 'Tiempo Real Activo' : 'Tiempo Real Pausado' }}
+          </span>
         </div>
       </section>
-    </div>
+    </main>
   </div>
 </div>
