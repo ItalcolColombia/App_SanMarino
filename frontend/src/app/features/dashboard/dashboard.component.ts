@@ -1,9 +1,10 @@
-import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import { DashboardService, 
+         DashboardFilterParams,
          DashboardEstadisticasGeneralesDto, 
          ProduccionGranjaDto, 
          RegistroDiarioDto, 
@@ -12,8 +13,16 @@ import { DashboardService,
          DistribucionLotesDto, 
          InventarioEstadisticasDto, 
          MetricasRendimientoDto } from '../../core/services/dashboard/dashboard.service';
+import { CompanyService } from '../../core/services/company/company.service';
+import { FarmService, Farm } from '../../core/services/farm/farm.service';
+import { TokenStorageService } from '../../core/auth/token-storage.service';
 import { interval, Subscription, forkJoin, of, BehaviorSubject, debounceTime, distinctUntilChanged, fromEvent } from 'rxjs';
 import { catchError, finalize, switchMap, takeUntil, throttleTime } from 'rxjs/operators';
+
+export interface CompanyOption {
+  id: number;
+  name: string;
+}
 
 @Component({
   standalone: true,
@@ -24,7 +33,17 @@ import { catchError, finalize, switchMap, takeUntil, throttleTime } from 'rxjs/o
 })
 export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   private dashboardService = inject(DashboardService);
+  private companyService = inject(CompanyService);
+  private farmService = inject(FarmService);
+  private tokenStorage = inject(TokenStorageService);
   private elementRef = inject(ElementRef);
+
+  // ====== FILTROS (Empresa, Granja — usuario según sesión) ======
+  companiesList = signal<CompanyOption[]>([]);
+  farmsList = signal<Farm[]>([]);
+  filterCompanyId = signal<number | null>(null);
+  filterFarmId = signal<number | null>(null);
+  loadingFilters = signal<boolean>(false);
 
   // ====== ESTADO ======
   loading = signal<boolean>(true);
@@ -268,6 +287,19 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
     }]
   };
 
+  // ====== FILTROS COMPUTADOS ======
+  currentFilters = computed((): DashboardFilterParams => {
+    const companyId = this.filterCompanyId();
+    const farmId = this.filterFarmId();
+    const session = this.tokenStorage.get();
+    const userId = session?.user?.id ?? undefined;
+    return {
+      companyId: companyId ?? undefined,
+      userId,
+      farmIds: farmId != null ? [farmId] : undefined
+    };
+  });
+
   // ====== COMPUTED PROPERTIES ======
   eficienciaPromedio = computed(() => {
     const metricas = this.metricasRendimiento();
@@ -290,8 +322,42 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit(): void {
     this.setupLazyLoading();
+    this.loadFilterOptions();
     this.loadInitialData();
     this.startRealTimeUpdates();
+  }
+
+  /** Carga empresas y granjas para los filtros del dashboard */
+  loadFilterOptions(): void {
+    this.loadingFilters.set(true);
+    this.companyService.getAll().pipe(
+      catchError(() => of([])),
+      finalize(() => this.loadingFilters.set(false))
+    ).subscribe(companies => {
+      this.companiesList.set(companies.map(c => ({ id: c.id!, name: c.name })));
+      const session = this.tokenStorage.get();
+      const activeId = session?.activeCompanyId ?? null;
+      if (activeId != null) this.filterCompanyId.set(activeId);
+      this.loadFarmsByCompany(this.filterCompanyId());
+    });
+  }
+
+  onCompanyFilterChange(companyId: number | null): void {
+    this.filterCompanyId.set(companyId);
+    this.filterFarmId.set(null);
+    this.loadFarmsByCompany(companyId);
+    this.loadAllData();
+  }
+
+  onFarmFilterChange(farmId: number | null): void {
+    this.filterFarmId.set(farmId);
+    this.loadAllData();
+  }
+
+  private loadFarmsByCompany(companyId: number | null): void {
+    this.farmService.getAll(companyId ?? undefined).pipe(
+      catchError(() => of([]))
+    ).subscribe(farms => this.farmsList.set(farms));
   }
 
   ngOnDestroy(): void {
@@ -354,8 +420,8 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   // ====== CARGA POR SECCIONES ======
   private loadKPIsData(): void {
     this.loadingKPIs.set(true);
-    
-    this.dashboardService.getEstadisticasGenerales().pipe(
+    const filters = this.currentFilters();
+    this.dashboardService.getEstadisticasGenerales(filters).pipe(
       catchError(error => {
         this.error.set(this.getErrorMessage(error));
         return of(null);
@@ -373,13 +439,13 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private loadChartsData() {
     this.loadingCharts.set(true);
-    
+    const filters = this.currentFilters();
     return forkJoin({
-      produccion: this.dashboardService.getProduccionPorGranja(),
-      registros: this.dashboardService.getRegistrosDiarios(7),
-      mortalidad: this.dashboardService.getEstadisticasMortalidad(30),
-      distribucion: this.dashboardService.getDistribucionLotes(),
-      inventario: this.dashboardService.getEstadisticasInventario()
+      produccion: this.dashboardService.getProduccionPorGranja(undefined, undefined, filters),
+      registros: this.dashboardService.getRegistrosDiarios(7, filters),
+      mortalidad: this.dashboardService.getEstadisticasMortalidad(30, filters),
+      distribucion: this.dashboardService.getDistribucionLotes(filters),
+      inventario: this.dashboardService.getEstadisticasInventario(filters)
     }).pipe(
       catchError(error => {
         this.error.set(this.getErrorMessage(error));
@@ -422,8 +488,8 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private loadActivitiesData() {
     this.loadingActivities.set(true);
-    
-    this.dashboardService.getActividadesRecientes(10).pipe(
+    const filters = this.currentFilters();
+    this.dashboardService.getActividadesRecientes(10, filters).pipe(
       catchError(error => {
         this.error.set(this.getErrorMessage(error));
         return of([]);
@@ -440,8 +506,8 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private loadMetricsData() {
     this.loadingMetrics.set(true);
-    
-    this.dashboardService.getMetricasRendimiento().pipe(
+    const filters = this.currentFilters();
+    this.dashboardService.getMetricasRendimiento(filters).pipe(
       catchError(error => {
         this.error.set(this.getErrorMessage(error));
         return of(null);
@@ -674,13 +740,13 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // ====== EFECTOS VISUALES ======
   @HostListener('window:scroll', ['$event'])
-  onWindowScroll(): void {
+  onWindowScroll(_event: Event): void {
     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
     this.isScrolled.set(scrollTop > 50);
   }
 
   @HostListener('window:resize', ['$event'])
-  onWindowResize(): void {
+  onWindowResize(_event: Event): void {
     this.handleResponsiveLayout();
   }
 
