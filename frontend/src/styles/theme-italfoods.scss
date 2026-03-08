@@ -1,0 +1,402 @@
+// =============================================================================
+// TEMA UNIFICADO ITALFOODS — Tailwind 100% + colores del logo (naranja + verde + crema)
+// Tablas: verdes. Letras: naranja. Modales y botones: mezcla coherente.
+// =============================================================================
+
+// Variables globales (toda la app y componentes que usen var())
+:root {
+  --ital-orange: #e85c25;
+  --ital-orange-light: #f0a078;
+  --ital-orange-dark: #d14a18;
+  --ital-orange-50: rgba(232, 92, 37, 0.08);
+  --ital-orange-100: rgba(232, 92, 37, 0.12);
+
+  --ital-green: #2d7a3e;
+  --ital-green-light: #3d9b52;
+  --ital-green-dark: #1e5c2a;
+  --ital-green-50: rgba(45, 122, 62, 0.08);
+  --ital-green-100: rgba(45, 122, 62, 0.12);
+
+  --ital-cream: #faf8f5;
+  --ital-cream-50: #fefdfb;
+
+  --ital-text: #2b2b2b;
+  --ital-muted: #6b7280;
+}
+
+// -----------------------------------------------------------------------------
+// TABLAS — fondo verde, letras naranja
+// Uso: <table class="table-italfoods"> o clases Tailwind equivalentes
+// -----------------------------------------------------------------------------
+@layer components {
+  .table-italfoods {
+    @apply w-full text-left border-collapse rounded-lg overflow-hidden border border-ital-green-100;
+    thead {
+      @apply bg-ital-green text-white;
+      th {
+        @apply px-4 py-3 text-sm font-semibold uppercase tracking-wide text-ital-cream;
+      }
+    }
+    tbody {
+      tr {
+        @apply border-b border-ital-green-50 bg-white;
+        &:nth-child(even) {
+          @apply bg-ital-cream;
+        }
+        &:hover {
+          @apply bg-ital-orange-50;
+        }
+      }
+      td {
+        @apply px-4 py-3 text-sm font-medium text-ital-orange-dark;
+      }
+    }
+  }
+
+  // Variante: cabecera verde oscuro, celdas crema, texto naranja
+  .table-italfoods--cream {
+    @apply w-full text-left border-collapse rounded-lg overflow-hidden border border-ital-green-100;
+    thead {
+      @apply bg-ital-green-dark;
+      th {
+        @apply px-4 py-3 text-sm font-semibold text-white;
+      }
+    }
+    tbody {
+      tr {
+        @apply border-b border-ital-green-50 bg-ital-cream;
+        &:hover {
+          @apply bg-ital-orange-50;
+        }
+      }
+      td {
+        @apply px-4 py-3 text-sm text-ital-orange-dark;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // BOTONES — verde primario, naranja secundario/outline
+  // ---------------------------------------------------------------------------
+  .btn-italfoods-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    background-color: var(--ital-green);
+    color: var(--ital-cream);
+    &:hover {
+      background-color: var(--ital-green-dark);
+    }
+    &:focus {
+      @apply ring-ital-green;
+    }
+  }
+
+  .btn-italfoods-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    border-color: var(--ital-orange);
+    color: var(--ital-orange);
+    background-color: transparent;
+    &:hover {
+      background-color: var(--ital-orange-100);
+    }
+    &:focus {
+      @apply ring-ital-orange;
+    }
+  }
+
+  .btn-italfoods-orange {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    background-color: var(--ital-orange);
+    color: white;
+    &:hover {
+      background-color: var(--ital-orange-dark);
+    }
+    &:focus {
+      @apply ring-ital-orange;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // MODALES — borde verde, título naranja, cuerpo crema
+  // ---------------------------------------------------------------------------
+  .modal-italfoods {
+    @apply rounded-xl overflow-hidden shadow-xl border;
+    border-color: var(--ital-green);
+    background-color: var(--ital-cream-50);
+    .modal-italfoods__header {
+      @apply px-5 py-4 font-semibold text-lg;
+      background-color: var(--ital-green);
+      color: var(--ital-cream);
+    }
+    .modal-italfoods__body {
+      @apply px-5 py-4;
+      background-color: var(--ital-cream-50);
+      color: var(--ital-text);
+    }
+    .modal-italfoods__title {
+      color: var(--ital-orange-dark);
+    }
+    .modal-italfoods__footer {
+      @apply px-5 py-4 flex flex-wrap gap-2 justify-end border-t;
+      border-color: var(--ital-green-100);
+      background-color: var(--ital-cream);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // CARDS — borde verde suave, títulos naranja
+  // ---------------------------------------------------------------------------
+  .card-italfoods {
+    @apply rounded-xl border p-5 shadow-sm transition-shadow hover:shadow-md;
+    border-color: var(--ital-green-100);
+    background-color: white;
+    .card-italfoods__title {
+      @apply text-lg font-semibold mb-2;
+      color: var(--ital-orange-dark);
+    }
+    .card-italfoods__body {
+      @apply text-sm;
+      color: var(--ital-text);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // INPUTS / CONTROLES — focus naranja, borde verde suave
+  // ---------------------------------------------------------------------------
+  .input-italfoods {
+    @apply w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0;
+    border-color: var(--ital-green-100);
+    background-color: var(--ital-cream-50);
+    &:focus {
+      border-color: var(--ital-orange);
+      box-shadow: 0 0 0 2px var(--ital-orange-100);
+    }
+  }
+
+  // Texto de acento naranja (títulos, etiquetas)
+  .text-ital-orange {
+    color: var(--ital-orange);
+  }
+  .text-ital-orange-dark {
+    color: var(--ital-orange-dark);
+  }
+  // Fondos verdes suaves (badges, chips)
+  .bg-ital-green-soft {
+    background-color: var(--ital-green-100);
+  }
+  .bg-ital-orange-soft {
+    background-color: var(--ital-orange-100);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Gestión de Granjas y módulos que usan ux-* / config-farm-* (tema unificado)
+  // ---------------------------------------------------------------------------
+  .config-farm-root {
+    display: block;
+    width: 100%;
+    min-height: 0;
+  }
+  .config-farm-main {
+    flex: 1 1 auto;
+    width: 100%;
+    padding: clamp(1rem, 4vw, 1.5rem);
+    background: var(--ital-cream);
+    overflow: visible;
+  }
+
+  .ux-card {
+    background: #fff;
+    border: 1px solid var(--ital-green-100);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+    position: relative;
+  }
+  .ux-scroll {
+    max-height: 65vh;
+    overflow: auto;
+  }
+  .ux-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+  .ux-scroll::-webkit-scrollbar-track { background: transparent; }
+  .ux-scroll::-webkit-scrollbar-thumb {
+    background: var(--ital-green-50);
+    border-radius: 10px;
+  }
+
+  .ux-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .ux-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--ital-green);
+    color: var(--ital-cream);
+  }
+  .ux-table thead th {
+    color: var(--ital-cream);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 12px;
+    padding: 12px 16px;
+    border-bottom: 0;
+  }
+  .ux-table thead tr th:first-child { border-top-left-radius: 12px; }
+  .ux-table thead tr th:last-child { border-top-right-radius: 12px; }
+  .ux-table tbody td {
+    font-size: 13px;
+    color: var(--ital-orange-dark);
+    padding: 12px 16px;
+    vertical-align: middle;
+    background: #fff;
+    border-bottom: 1px solid var(--ital-green-50);
+  }
+  .ux-table tbody tr:nth-child(even) td { background: var(--ital-cream); }
+  .ux-table tbody tr:hover td { background: var(--ital-orange-50); }
+  .ux-table tbody td:first-child { font-weight: 600; }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+    font-weight: 700;
+    background: var(--ital-green);
+    color: var(--ital-cream);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  .btn-primary:hover { background: var(--ital-green-dark); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.6rem;
+    border: 1px dashed var(--ital-green-100);
+    background: #fff;
+    color: var(--ital-orange-dark);
+    transition: background-color 0.15s ease;
+  }
+  .btn-ghost:hover { background: var(--ital-orange-50); }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    background: var(--ital-green);
+    color: var(--ital-cream);
+    border: 1px solid var(--ital-green);
+    transition: transform 0.15s ease, background-color 0.15s ease;
+  }
+  .btn-danger:hover:not(:disabled) { background: var(--ital-green-dark); }
+  .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--ital-orange-dark);
+    margin-bottom: 0.35rem;
+  }
+  .form-input {
+    width: 100%;
+    border: 1px solid var(--ital-green-100);
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    background: var(--ital-cream-50);
+    color: var(--ital-text);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: var(--ital-orange);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
+    background: #fff;
+  }
+  .form-input--invalid,
+  .form-input.form-input--invalid {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
+  }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    color: var(--ital-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: color 0.12s ease, background-color 0.12s ease, transform 0.12s ease;
+  }
+  .icon-btn:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); }
+  .icon-btn.danger:hover { color: #dc2626; }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--ital-muted);
+  }
+  .empty-illustration { font-size: 2.5rem; line-height: 1; margin-bottom: 0.25rem; }
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+  }
+  .spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--ital-green-50);
+    border-top-color: var(--ital-orange);
+    border-radius: 50%;
+    animation: ital-spin 1s linear infinite;
+  }
+  .spinner--sm {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+  }
+  .loading-toast {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: var(--ital-orange-dark);
+    background: var(--ital-cream);
+    border: 1px solid var(--ital-green-100);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@keyframes ital-spin {
+  to { transform: rotate(360deg); }
+}
