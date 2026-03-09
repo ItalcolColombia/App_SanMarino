@@ -162,7 +162,7 @@
             <div *ngFor="let itemGroup of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemGroup)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f9f9f9;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h4 style="margin: 0; font-size: 0.9rem; color: #666;">Ítem {{ i + 1 }}</h4>
-                <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" style="color: #d32f2f;">
+                <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" >
                   🗑️ Eliminar
                 </button>
               </div>
@@ -273,7 +273,7 @@
             <div *ngFor="let itemGroup of itemsMachosArray.controls; let i = index" [formGroup]="$any(itemGroup)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f9f9f9;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <h4 style="margin: 0; font-size: 0.9rem; color: #666;">Ítem {{ i + 1 }}</h4>
-                <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(i)" style="color: #d32f2f;">
+                <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(i)" >
                   🗑️ Eliminar
                 </button>
               </div>

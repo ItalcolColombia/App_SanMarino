@@ -1,15 +1,15 @@
-// Lote Aves de Engorde — UX mejorado
+// Tema Italfoods (variables en :root desde theme-italfoods.scss)
 :host {
-  --le-red: #c1121f;
-  --le-red-600: #a50f1c;
-  --le-yellow: #f7d24c;
-  --le-warm-50: #fafaf9;
-  --le-warm-100: #f5f5f4;
-  --le-warm-200: #e7e5e4;
-  --le-warm-300: #d6d3d1;
-  --le-warm-400: #a8a29e;
-  --le-warm-600: #57534e;
-  --le-slate: #1f2937;
+  --le-red: var(--ital-green);
+  --le-red-600: var(--ital-green-dark);
+  --le-yellow: var(--ital-orange);
+  --le-warm-50: var(--ital-cream);
+  --le-warm-100: var(--ital-cream);
+  --le-warm-200: var(--ital-green-100);
+  --le-warm-300: var(--ital-green-50);
+  --le-warm-400: var(--ital-muted);
+  --le-warm-600: var(--ital-orange-dark);
+  --le-slate: var(--ital-text);
   --le-radius: 14px;
   --le-radius-sm: 10px;
   --le-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
@@ -48,6 +48,18 @@
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  position: relative;
+  padding-bottom: 0.5rem;
+}
+.le-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--ital-green);
+  border-radius: 2px;
 }
 
 .le-header__content {
@@ -57,7 +69,7 @@
 .le-header__title {
   font-size: 1.75rem;
   font-weight: 800;
-  color: var(--le-red);
+  color: var(--ital-orange-dark);
   margin: 0 0 0.25rem 0;
   letter-spacing: -0.02em;
 }
@@ -93,9 +105,9 @@
 }
 
 .le-chip--info {
-  background: rgba(193, 18, 31, 0.08);
-  color: var(--le-red-600);
-  border-color: rgba(193, 18, 31, 0.2);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border-color: var(--ital-orange-100);
 }
 
 .le-chip--muted {
@@ -136,9 +148,9 @@
 }
 
 .le-btn--secondary {
-  background: var(--le-yellow);
-  color: #2c2b28;
-  border-color: rgba(0, 0, 0, 0.06);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border-color: var(--ital-orange-100);
 }
 
 .le-btn--secondary:hover {
@@ -186,7 +198,7 @@
 }
 
 .le-card__title-icon {
-  color: var(--le-red);
+  color: var(--ital-orange);
   opacity: 0.9;
 }
 
@@ -248,13 +260,13 @@ select.le-input {
 .le-input:focus,
 .le-select:focus {
   outline: none;
-  border-color: var(--le-red);
-  box-shadow: 0 0 0 3px rgba(193, 18, 31, 0.12);
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 
 .le-input--invalid {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+  border-color: var(--ital-orange);
+  box-shadow: 0 0 0 2px var(--ital-orange-100);
 }
 
 .le-input--readonly {
@@ -287,19 +299,19 @@ select.le-input {
   padding-left: 2.25rem;
 }
 
-.le-req { color: #dc2626; }
+.le-req { color: var(--ital-orange-dark); }
 
 .le-error {
   display: block;
   font-size: 0.75rem;
-  color: #dc2626;
+  color: var(--ital-orange-dark);
   margin-top: 0.25rem;
 }
 
 .le-warning {
   display: block;
   font-size: 0.75rem;
-  color: #b45309;
+  color: var(--ital-orange-dark);
   margin-top: 0.25rem;
 }
 
@@ -310,8 +322,8 @@ select.le-input {
 
 .le-table-header {
   padding: 1rem 1.25rem;
-  background: linear-gradient(180deg, #fafafa 0%, #f5f5f4 100%);
-  border-bottom: 1px solid var(--le-warm-200);
+  background: var(--ital-cream);
+  border-bottom: 1px solid var(--ital-green-100);
 }
 
 .le-table-header__title {
@@ -343,8 +355,8 @@ select.le-input {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: linear-gradient(180deg, var(--le-red) 0%, var(--le-red-600) 100%);
-  color: #fff;
+  background: var(--ital-green);
+  color: var(--ital-cream);
 }
 
 .le-table thead th {
@@ -354,7 +366,7 @@ select.le-input {
   text-transform: uppercase;
   padding: 0.85rem 1rem;
   text-align: left;
-  color: #fff;
+  color: var(--ital-cream);
 }
 
 .le-table__actions-col {
@@ -363,20 +375,20 @@ select.le-input {
 
 .le-table tbody td {
   font-size: 0.9rem;
-  color: #2a2a2a;
+  color: var(--ital-orange-dark);
   padding: 0.75rem 1rem;
   vertical-align: middle;
   background: #fff;
-  border-bottom: 1px solid var(--le-warm-200);
+  border-bottom: 1px solid var(--ital-green-50);
   transition: background var(--le-transition);
 }
 
 .le-table tbody tr:nth-child(even) td {
-  background: var(--le-warm-50);
+  background: var(--ital-cream);
 }
 
 .le-table__row:hover td {
-  background: var(--le-warm-100);
+  background: var(--ital-orange-50);
 }
 
 .le-table__cell-name {
@@ -410,14 +422,14 @@ select.le-input {
 }
 
 .le-icon-btn:hover {
-  background: var(--le-warm-100);
-  color: var(--le-red);
-  border-color: var(--le-warm-300);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange);
+  border-color: var(--ital-orange-100);
 }
 
 .le-icon-btn--danger:hover {
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.3);
+  color: var(--ital-green-dark);
+  border-color: var(--ital-green-100);
 }
 
 // ——— Empty y loading ———
@@ -468,8 +480,8 @@ select.le-input {
 .le-spinner {
   width: 22px;
   height: 22px;
-  border: 3px solid var(--le-warm-300);
-  border-top-color: var(--le-red);
+  border: 3px solid var(--ital-green-50);
+  border-top-color: var(--ital-orange);
   border-radius: 50%;
   animation: le-spin 0.8s linear infinite;
 }
@@ -547,7 +559,7 @@ select.le-input {
 .le-modal__title {
   font-size: 1.25rem;
   font-weight: 800;
-  color: var(--le-red);
+  color: var(--ital-orange-dark);
   margin: 0;
 }
 
@@ -640,7 +652,7 @@ select.le-input {
 .le-detail-section__title {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--le-red);
+  color: var(--ital-orange-dark);
   text-transform: uppercase;
   letter-spacing: 0.03em;
   margin: 0 0 0.75rem 0;
@@ -750,13 +762,13 @@ select.le-input {
 }
 
 .le-estado--cerrado {
-  background: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border: 1px solid var(--ital-orange-100);
 }
 
 .le-estado--disponible {
-  background: #f0fdf4;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
+  background: var(--ital-green-50);
+  color: var(--ital-green-dark);
+  border: 1px solid var(--ital-green-100);
 }

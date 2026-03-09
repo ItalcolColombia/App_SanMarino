@@ -109,60 +109,86 @@ export interface KpiResumenDto {
   color: string;
 }
 
+/** Parámetros opcionales para filtrar datos del dashboard (empresa, usuario, granja) */
+export interface DashboardFilterParams {
+  companyId?: number;
+  userId?: string;
+  farmIds?: number[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class DashboardService {
   private http = inject(HttpClient);
 
+  private buildParams(filters?: DashboardFilterParams, extra?: Record<string, string | number>): Record<string, string> {
+    const params: Record<string, string> = { ...extra } as Record<string, string>;
+    if (filters?.companyId != null) params['companyId'] = String(filters.companyId);
+    if (filters?.userId) params['userId'] = filters.userId;
+    if (filters?.farmIds?.length) params['farmIds'] = filters.farmIds.join(',');
+    return params;
+  }
+
   // ====== ESTADÍSTICAS GENERALES ======
-  getEstadisticasGenerales(): Observable<DashboardEstadisticasGeneralesDto> {
-    return this.http.get<DashboardEstadisticasGeneralesDto>(`${API}/estadisticas-generales`);
+  getEstadisticasGenerales(filters?: DashboardFilterParams): Observable<DashboardEstadisticasGeneralesDto> {
+    return this.http.get<DashboardEstadisticasGeneralesDto>(`${API}/estadisticas-generales`, {
+      params: this.buildParams(filters)
+    });
   }
 
   // ====== PRODUCCIÓN POR GRANJA ======
-  getProduccionPorGranja(fechaDesde?: string, fechaHasta?: string): Observable<ProduccionGranjaDto[]> {
-    const params: any = {};
-    if (fechaDesde) params.fechaDesde = fechaDesde;
-    if (fechaHasta) params.fechaHasta = fechaHasta;
-    
+  getProduccionPorGranja(
+    fechaDesde?: string,
+    fechaHasta?: string,
+    filters?: DashboardFilterParams
+  ): Observable<ProduccionGranjaDto[]> {
+    const params = this.buildParams(filters);
+    if (fechaDesde) params['fechaDesde'] = fechaDesde;
+    if (fechaHasta) params['fechaHasta'] = fechaHasta;
     return this.http.get<ProduccionGranjaDto[]>(`${API}/produccion-por-granja`, { params });
   }
 
   // ====== REGISTROS DIARIOS ======
-  getRegistrosDiarios(dias: number = 7): Observable<RegistroDiarioDto[]> {
+  getRegistrosDiarios(dias: number = 7, filters?: DashboardFilterParams): Observable<RegistroDiarioDto[]> {
     return this.http.get<RegistroDiarioDto[]>(`${API}/registros-diarios`, {
-      params: { dias: dias.toString() }
+      params: this.buildParams(filters, { dias: dias.toString() })
     });
   }
 
   // ====== ACTIVIDADES RECIENTES ======
-  getActividadesRecientes(limite: number = 20): Observable<ActividadRecienteDto[]> {
+  getActividadesRecientes(limite: number = 20, filters?: DashboardFilterParams): Observable<ActividadRecienteDto[]> {
     return this.http.get<ActividadRecienteDto[]>(`${API}/actividades-recientes`, {
-      params: { limite: limite.toString() }
+      params: this.buildParams(filters, { limite: limite.toString() })
     });
   }
 
   // ====== ESTADÍSTICAS DE MORTALIDAD ======
-  getEstadisticasMortalidad(dias: number = 30): Observable<MortalidadDto[]> {
+  getEstadisticasMortalidad(dias: number = 30, filters?: DashboardFilterParams): Observable<MortalidadDto[]> {
     return this.http.get<MortalidadDto[]>(`${API}/estadisticas-mortalidad`, {
-      params: { dias: dias.toString() }
+      params: this.buildParams(filters, { dias: dias.toString() })
     });
   }
 
   // ====== DISTRIBUCIÓN DE LOTES ======
-  getDistribucionLotes(): Observable<DistribucionLotesDto[]> {
-    return this.http.get<DistribucionLotesDto[]>(`${API}/distribucion-lotes`);
+  getDistribucionLotes(filters?: DashboardFilterParams): Observable<DistribucionLotesDto[]> {
+    return this.http.get<DistribucionLotesDto[]>(`${API}/distribucion-lotes`, {
+      params: this.buildParams(filters)
+    });
   }
 
   // ====== ESTADÍSTICAS DE INVENTARIO ======
-  getEstadisticasInventario(): Observable<InventarioEstadisticasDto> {
-    return this.http.get<InventarioEstadisticasDto>(`${API}/estadisticas-inventario`);
+  getEstadisticasInventario(filters?: DashboardFilterParams): Observable<InventarioEstadisticasDto> {
+    return this.http.get<InventarioEstadisticasDto>(`${API}/estadisticas-inventario`, {
+      params: this.buildParams(filters)
+    });
   }
 
   // ====== MÉTRICAS DE RENDIMIENTO ======
-  getMetricasRendimiento(): Observable<MetricasRendimientoDto> {
-    return this.http.get<MetricasRendimientoDto>(`${API}/metricas-rendimiento`);
+  getMetricasRendimiento(filters?: DashboardFilterParams): Observable<MetricasRendimientoDto> {
+    return this.http.get<MetricasRendimientoDto>(`${API}/metricas-rendimiento`, {
+      params: this.buildParams(filters)
+    });
   }
 
   // ====== UTILIDADES ======

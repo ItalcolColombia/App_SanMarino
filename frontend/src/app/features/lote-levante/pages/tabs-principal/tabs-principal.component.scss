@@ -5,78 +5,40 @@
   display: block;
 }
 
-/* ==========================================================================
-   🎨 Design System / Tokens
-   ========================================================================== */
+/* Tema Italfoods (variables en :root desde theme-italfoods.scss) */
 :host {
-  /* Brand */
-  --brand-red:        #d32f2f;
-  --brand-red-600:    #c62828;
-  --brand-red-700:    #b71c1c;
-
-  /* Accent */
-  --amber-25:         #fffbeb;
-  --amber-50:         #fff7ed;
-  --amber-100:        #fef3c7;
-  --amber-200:        #fde68a;
-
-  /* Warm Gray scale */
-  --warm-25:          #fdfdfc;
-  --warm-50:          #fafaf9;
-  --warm-100:         #f5f5f4;
-  --warm-200:         #e7e5e4;
-  --warm-300:         #d6d3d1;
-  --warm-400:         #a8a29e;
-  --warm-500:         #78716c;
-  --warm-600:         #57534e;
-
-  /* Base */
+  --brand-red:        var(--ital-green);
+  --brand-red-600:    var(--ital-green-dark);
+  --brand-red-700:    var(--ital-green-dark);
+  --amber-25:         var(--ital-orange-50);
+  --amber-50:         var(--ital-orange-50);
+  --amber-100:        var(--ital-orange-100);
+  --amber-200:        var(--ital-orange-100);
+  --warm-25:          var(--ital-cream-50);
+  --warm-50:          var(--ital-cream);
+  --warm-100:         var(--ital-cream);
+  --warm-200:         var(--ital-green-100);
+  --warm-300:         var(--ital-green-50);
+  --warm-400:         var(--ital-muted);
+  --warm-500:         var(--ital-muted);
+  --warm-600:         var(--ital-orange-dark);
   --white:            #ffffff;
-  --black:            #111111;
-
-  /* Sombras */
+  --black:            var(--ital-text);
   --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
   --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
   --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
-
-  /* Espaciado & Radios */
-  --space-1: .25rem;
-  --space-2: .5rem;
-  --space-3: .75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-
-  --radius-sm: .5rem;
-  --radius-md: .65rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.25rem;
-
-  /* Tipografía */
-  --fs-xs: .75rem;
-  --fs-sm: .85rem;
-  --fs-md: .92rem;
-  --fs-lg: 1.05rem;
-  --fs-xl: 1.35rem;
-
-  /* Focus ring */
-  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
-
-  /* Z-index */
-  --z-sticky: 10;
-  --z-modal:  50;
-
-  /* Superficies (CLARO) */
-  --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem;
+  --radius-sm: .5rem; --radius-md: .65rem; --radius-lg: 1rem; --radius-xl: 1.25rem;
+  --fs-xs: .75rem; --fs-sm: .85rem; --fs-md: .92rem; --fs-lg: 1.05rem; --fs-xl: 1.35rem;
+  --ring: 0 0 0 3px var(--ital-orange-100);
+  --z-sticky: 10; --z-modal: 50;
+  --bg-body:    var(--ital-cream);
   --bg-card:    var(--white);
-  --bg-muted:   var(--warm-50);
-  --border:     var(--warm-200);
-  --text:       var(--black);
-  --text-sub:   #222222;
-
-  /* Transiciones */
-  --t-fast: .12s ease;
-  --t-med:  .15s ease;
+  --bg-muted:   var(--ital-cream);
+  --border:     var(--ital-green-100);
+  --text:       var(--ital-text);
+  --text-sub:   var(--ital-muted);
+  --t-fast: .12s ease; --t-med: .15s ease;
 }
 
 /* ==========================================================================
@@ -115,9 +77,9 @@
 }
 
 .tab-button.active {
-  background: var(--white); color: var(--brand-red);
-  border-bottom-color: var(--brand-red);
-  box-shadow: 0 -2px 8px rgba(0,0,0,.1);
+  background: var(--white); color: var(--ital-orange-dark);
+  border-bottom-color: var(--ital-green);
+  box-shadow: 0 -2px 8px rgba(0,0,0,.08);
 }
 
 .tab-button:focus {
@@ -154,7 +116,7 @@
 }
 
 .resumen-card:hover {
-  background: var(--amber-25); border-color: var(--amber-200);
+  background: var(--ital-orange-50); border-color: var(--ital-orange-100);
   transform: translateY(-2px); box-shadow: var(--shadow-sm);
 }
 
@@ -169,7 +131,7 @@
 
 .resumen-number {
   margin: 0; font-size: var(--fs-xl); font-weight: 700;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 /* ==========================================================================
@@ -183,9 +145,9 @@
 }
 
 .info-lote-alerta--cerrado {
-  background: var(--amber-100);
-  border: 1px solid var(--amber-200);
-  color: var(--brand-red-700);
+  background: var(--ital-orange-50);
+  border: 1px solid var(--ital-orange-100);
+  color: var(--ital-orange-dark);
 }
 
 /* ==========================================================================
@@ -232,8 +194,8 @@
   grid-template-columns: 2fr 1fr 1fr;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
-  color: var(--white);
+  background: var(--ital-green);
+  color: var(--ital-cream);
   font-size: var(--fs-xs);
   font-weight: 700;
   text-transform: uppercase;
@@ -272,8 +234,8 @@
 }
 
 .info-lote__row--saldo {
-  background: var(--amber-25);
-  border-left: 3px solid var(--brand-red);
+  background: var(--ital-orange-50);
+  border-left: 3px solid var(--ital-orange);
   font-weight: 600;
 }
 
@@ -306,14 +268,14 @@
 }
 
 .info-lote__input--saldo {
-  background: var(--amber-100);
-  color: var(--brand-red);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
   font-weight: 700;
 }
 
 .info-lote__row--saldo .info-lote__input--saldo:disabled {
-  background: var(--amber-100);
-  color: var(--brand-red);
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
 }
 
 /* ==========================================================================
@@ -335,14 +297,15 @@
 
 .ux-table thead {
   position: sticky; top: 0; z-index: var(--z-sticky);
-  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
-  color: var(--white);
+  background: var(--ital-green);
+  color: var(--ital-cream);
 }
 
 .ux-table thead th {
-  text-align: left; font-size: var(--fs-xs); font-weight: 800; 
+  text-align: left; font-size: var(--fs-xs); font-weight: 800;
   text-transform: uppercase; letter-spacing: .06em;
-  padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--brand-red-700);
+  padding: var(--space-3) var(--space-4); border-bottom: 2px solid rgba(0,0,0,.1);
+  color: var(--ital-cream);
 }
 
 .ux-table thead th:first-child { border-top-left-radius: var(--radius-md); }
@@ -353,12 +316,12 @@
   border-bottom: 1px solid var(--border);
 }
 
-.ux-table tbody tr:nth-child(even) { background: var(--warm-50); }
-.ux-table tbody tr:hover { background: var(--amber-25); }
+.ux-table tbody tr:nth-child(even) { background: var(--ital-cream); }
+.ux-table tbody tr:hover { background: var(--ital-orange-50); }
 
 .ux-table tbody td {
-  padding: var(--space-3) var(--space-4); 
-  color: var(--text); vertical-align: middle;
+  padding: var(--space-3) var(--space-4);
+  color: var(--ital-orange-dark); vertical-align: middle;
 }
 
 /* ==========================================================================
@@ -378,8 +341,8 @@
 }
 
 .semana-cell {
-  font-weight: 700; color: var(--brand-red);
-  background: var(--amber-25);
+  font-weight: 700; color: var(--ital-orange-dark);
+  background: var(--ital-orange-50);
 }
 
 .periodo-cell {
@@ -393,7 +356,7 @@
 }
 
 .piso-termico .badge.visible {
-  background: var(--amber-200); color: var(--brand-red-700);
+  background: var(--ital-orange-100); color: var(--ital-orange-dark);
 }
 
 /* ==========================================================================
@@ -422,7 +385,7 @@
 
 .acumulado-card p {
   margin: 0; font-size: var(--fs-lg); font-weight: 700;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
 }
 
 /* ==========================================================================
@@ -487,11 +450,11 @@
 }
 
 .icon-btn:hover {
-  background: var(--amber-200); color: var(--brand-red);
+  background: var(--ital-orange-50); color: var(--ital-orange);
 }
 
 .icon-btn--danger:hover {
-  background: var(--brand-red); color: var(--white);
+  background: var(--ital-green); color: var(--ital-cream);
 }
 
 .btn {
@@ -502,12 +465,12 @@
 }
 
 .btn--outline {
-  background: transparent; border-color: var(--brand-red);
-  color: var(--brand-red);
+  background: transparent; border-color: var(--ital-orange);
+  color: var(--ital-orange-dark);
 }
 
 .btn--outline:hover {
-  background: var(--brand-red); color: var(--white);
+  background: var(--ital-orange); color: var(--white);
 }
 
 /* ==========================================================================
@@ -525,7 +488,7 @@
   
   .tab-button.active {
     border-bottom-color: var(--border);
-    border-right-color: var(--brand-red);
+    border-right-color: var(--ital-green);
   }
   
   .resumen-grid {

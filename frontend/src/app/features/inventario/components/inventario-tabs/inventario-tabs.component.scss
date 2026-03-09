@@ -1,23 +1,21 @@
-/* Design System - Inventario Module */
+/* Tema Italfoods - Inventario */
 :host {
   display: block;
-
-  /* Brand Colors */
-  --brand-red: #d32f2f;
-  --brand-red-600: #c62828;
-  --amber-200: #fde68a;
-  --warm-50: #fafaf9;
-  --warm-200: #e7e5e4;
-  --warm-300: #d6d3d1;
+  --brand-red: var(--ital-green);
+  --brand-red-600: var(--ital-green-dark);
+  --amber-200: var(--ital-orange-100);
+  --warm-50: var(--ital-cream);
+  --warm-200: var(--ital-green-100);
+  --warm-300: var(--ital-green-50);
   --white: #ffffff;
-  --black: #111111;
-  --text: var(--black);
-  --text-sub: #222222;
+  --black: var(--ital-text);
+  --text: var(--ital-text);
+  --text-sub: var(--ital-muted);
   --shadow-sm: 0 4px 12px rgba(31, 41, 55, .08);
-  --bg-body: linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+  --bg-body: var(--ital-cream);
   --bg-card: var(--white);
-  --bg-muted: var(--warm-50);
-  --border: var(--warm-200);
+  --bg-muted: var(--ital-cream);
+  --border: var(--ital-green-100);
   --space-2: .5rem;
   --space-3: .75rem;
   --space-4: 1rem;
@@ -63,7 +61,16 @@
   justify-content: space-between;
   gap: .75rem;
   padding-bottom: .5rem;
-  border-bottom: 3px solid var(--amber-200);
+  position: relative;
+  border-bottom: none;
+}
+:host .ux-header::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: var(--ital-green);
+  border-radius: 2px;
 }
 
 :host .ux-header__title {
@@ -76,7 +83,7 @@
   margin: 0;
   font-size: var(--fs-xl);
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
   letter-spacing: .2px;
 }
 
@@ -123,8 +130,8 @@
 }
 
 :host .btn--outline:hover:not(:disabled) {
-  background: var(--bg-muted);
-  border-color: var(--warm-300);
+  background: var(--ital-orange-50);
+  border-color: var(--ital-orange);
 }
 
 :host .btn--sm {
@@ -170,15 +177,15 @@
   box-shadow: var(--shadow-sm);
 }
 
-.tab-btn.active {
+:host .tab-btn.active {
   background: var(--bg-card);
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
 }
 
-.tab-btn.active fa-icon {
-  color: var(--brand-red);
+:host .tab-btn.active fa-icon {
+  color: var(--ital-orange);
 }
 
 .tab-btn fa-icon {

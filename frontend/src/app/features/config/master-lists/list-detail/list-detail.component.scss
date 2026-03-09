@@ -1,15 +1,15 @@
 /* src/app/features/config/master-lists/master-lists.component.scss */
 
-/* ======= Tokens locales (usa tus colores si ya tienes Tailwind vars) ======= */
+/* ======= Italfoods ======= */
 :host {
-  --brand-red:       #d3302f;
-  --brand-red-600:   #b12524;
-  --warm-50:         #faf9f7;
-  --warm-100:        #f3f2ef;
-  --warm-200:        #e7e5e4;
+  --brand-red:       var(--ital-green);
+  --brand-red-600:   var(--ital-green-dark);
+  --warm-50:         var(--ital-cream-50);
+  --warm-100:        var(--ital-cream);
+  --warm-200:        var(--ital-green-100, #e7e5e4);
   --warm-300:        #d6d3d1;
-  --warm-600:        #57534e;
-  --text-900:        #1f2937;
+  --warm-600:        var(--ital-muted);
+  --text-900:        var(--ital-text, #1f2937);
   --white:           #fff;
   --shadow:          0 8px 30px rgba(0,0,0,.06), 0 2px 10px rgba(0,0,0,.04);
 }
@@ -22,12 +22,12 @@
 .mls-toolbar .title {
   font-size: 1.6rem;
   font-weight: 800;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
   line-height: 1;
 }
 .mls-toolbar .title-icon {
   font-size: 1.9rem;
-  color: var(--brand-red);
+  color: var(--ital-green);
 }
 .counter-pill {
   margin-left: .5rem;
@@ -45,21 +45,21 @@
   align-items: center;
   padding: .6rem 1rem;
   border-radius: .8rem;
-  background: #f7c948; /* chicken-yellow */
-  color: #2b2b2b;
+  background: var(--ital-green);
+  color: var(--ital-cream);
   font-weight: 600;
   transition: transform .12s ease, box-shadow .12s ease;
   box-shadow: 0 2px 0 rgba(0,0,0,.06);
-  border: 1px solid rgba(0,0,0,.05);
+  border: 1px solid var(--ital-green-dark);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+.btn-primary:hover { background: var(--ital-green-dark); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
 .btn-subtle {
   display: inline-flex; align-items: center;
   padding: .5rem .9rem; border-radius: .7rem;
-  color: var(--brand-red); background: #fff4f4; font-weight: 600;
-  border: 1px solid #ffe3e3; transition: background .15s;
+  color: var(--ital-orange-dark); background: var(--ital-orange-50); font-weight: 600;
+  border: 1px solid var(--ital-orange-100); transition: background .15s;
 }
-.btn-subtle:hover { background: #ffe9e9; }
+.btn-subtle:hover { background: var(--ital-orange-100); }
 
 /* ======= Card / tabla ======= */
 .mls-card {
@@ -69,6 +69,7 @@
   box-shadow: var(--shadow);
   overflow: hidden;
   border: 1px solid var(--warm-200);
+  border-left: 3px solid var(--ital-green-100);
 }
 .table-scroll { max-height: 70vh; overflow: auto; }
 
@@ -80,18 +81,18 @@
 
   thead th {
     position: sticky; top: 0; z-index: 1;
-    background: var(--warm-100);
-    color: var(--warm-600);
+    background: var(--ital-green);
+    color: var(--ital-cream);
     text-transform: uppercase;
     font-size: .72rem; letter-spacing: .04em; font-weight: 700;
     text-align: left;
     padding: .9rem 1rem;
-    border-bottom: 1px solid var(--warm-200);
+    border-bottom: 1px solid var(--ital-green-dark);
   }
 
   tbody td {
     padding: .85rem 1rem;
-    color: var(--text-900);
+    color: var(--ital-orange-dark);
     vertical-align: middle;
     border-bottom: 1px solid var(--warm-100);
   }
@@ -105,7 +106,7 @@
   transition: background .12s ease;
 }
 .mls-row:hover {
-  background: rgba(0,0,0,.02);
+  background: var(--ital-orange-50);
 }
 
 /* celdas utilitarias */
@@ -169,9 +170,9 @@
   border: 1px solid transparent;
   transition: transform .08s ease, background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
 }
-.icon-btn:hover { background: #ffffff; border-color: var(--warm-200); box-shadow: 0 2px 10px var(--ring); color: var(--brand-red); transform: translateY(-1px); }
+.icon-btn:hover { background: var(--ital-orange-50); border-color: var(--ital-orange-100); box-shadow: 0 2px 10px var(--ring); color: var(--ital-orange-dark); transform: translateY(-1px); }
 .icon-btn:active { transform: translateY(0); }
-.icon-btn.danger:hover { color: #dc2626; }
+.icon-btn.danger:hover { color: var(--ital-orange-dark); background: var(--ital-orange-50); border-color: var(--ital-orange-100); }
 
 /* contenedor de acciones */
 .actions { display: inline-flex; gap: .4rem; }
@@ -189,8 +190,8 @@
 .spinner {
   width: 22px; height: 22px;
   border-radius: 50%;
-  border: 3px solid #e5e7eb;
-  border-top-color: var(--brand-red);
+  border: 3px solid var(--ital-green-50);
+  border-top-color: var(--ital-orange);
   animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -1,26 +1,19 @@
-/* ================================
-   TOKENS / BASE
-==================================*/
+/* Tema Italfoods (variables globales en :root desde theme-italfoods.scss) */
 :host {
-  --brand-red:        #c1121f;
-  --brand-red-600:    #a50f1c;
-  --brand-red-700:    #8d0e18;
-  --chicken-yellow:   #f7d24c;
-
-  --warm-25:          #fdfdfc;
-  --warm-50:          #fafaf9;
-  --warm-100:         #f5f5f4;
-  --warm-200:         #e7e5e4;
-  --warm-300:         #d6d3d1;
-  --warm-400:         #a8a29e;
-  --warm-500:         #78716c;
-  --warm-600:         #57534e;
-
-  --slate-800:        #1f2937;
+  --brand-red:        var(--ital-green);
+  --brand-red-600:    var(--ital-green-dark);
+  --chicken-yellow:   var(--ital-orange);
+  --warm-25:          var(--ital-cream-50);
+  --warm-50:          var(--ital-cream);
+  --warm-100:         var(--ital-cream);
+  --warm-200:         var(--ital-green-100);
+  --warm-300:         var(--ital-green-50);
+  --warm-400:         var(--ital-muted);
+  --warm-500:         var(--ital-muted);
+  --warm-600:         var(--ital-orange-dark);
+  --slate-800:        var(--ital-text);
   --white:            #ffffff;
-
   --radius:           14px;
-
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -53,7 +46,7 @@
 }
 .ux-header::after {
   content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
-  background: var(--chicken-yellow); border-radius:2px;
+  background: var(--ital-green); border-radius:2px;
 }
 
 /* ================================
@@ -96,7 +89,7 @@
   transition: box-shadow .15s ease, border-color .15s ease, background-color .15s ease; appearance:none;
 }
 .ux-input:focus, .ux-select:focus, select.ux-input:focus {
-  outline:none; border-color: var(--brand-red); box-shadow: 0 0 0 3px rgba(193,18,31,.15);
+  outline:none; border-color: var(--ital-orange); box-shadow: 0 0 0 3px var(--ital-orange-100);
 }
 .ux-input--readonly { background: var(--warm-100); color: var(--warm-600); }
 .is-invalid { border-color:#dc2626 !important; box-shadow: 0 0 0 3px rgba(220,38,38,.15) !important; }
@@ -125,21 +118,21 @@
 .ux-table caption { text-align:left; padding:.5rem 1rem; color:var(--warm-600); }
 .ux-table thead {
   position:sticky; top:0; z-index:5;
-  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%); color:#fff;
+  background: var(--ital-green); color: var(--ital-cream);
 }
 .ux-table thead th {
-  color:#fff; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  color: var(--ital-cream); font-weight:800; letter-spacing:.06em; text-transform:uppercase;
   font-size:.75rem; padding:12px 16px; border-bottom:0;
 }
 .ux-table thead tr th:first-child { border-top-left-radius:12px; }
 .ux-table thead tr th:last-child  { border-top-right-radius:12px; }
 
 .ux-table tbody td {
-  font-size:.85rem; color:var(--warm-600); padding:12px 16px; vertical-align:middle;
-  background:#fff; border-bottom:1px solid var(--warm-200);
+  font-size:.85rem; color: var(--ital-orange-dark); padding:12px 16px; vertical-align:middle;
+  background:#fff; border-bottom:1px solid var(--ital-green-50);
 }
-.ux-table tbody tr:nth-child(even) td { background: var(--warm-50); }
-.ux-table tbody tr:hover td { background: var(--warm-100); }
+.ux-table tbody tr:nth-child(even) td { background: var(--ital-cream); }
+.ux-table tbody tr:hover td { background: var(--ital-orange-50); }
 
 /* acciones en tabla */
 .icon-btn {
@@ -148,7 +141,7 @@
   color: var(--warm-600); background: transparent; border:1px solid transparent;
   transition: color .12s ease, background-color .12s ease, transform .12s ease, box-shadow .12s ease;
 }
-.icon-btn:hover { background: var(--warm-100); color: var(--brand-red); transform: translateY(-1px); }
+.icon-btn:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); }
 .icon-btn.danger:hover { color:#dc2626; }
 
 /* estados vacíos y carga */
@@ -159,7 +152,7 @@
   display:flex; align-items:center; justify-content:center; border-radius:var(--radius);
 }
 .spinner {
-  width:24px; height:24px; border:3px solid var(--warm-300); border-top-color: var(--brand-red);
+  width:24px; height:24px; border:3px solid var(--ital-green-50); border-top-color: var(--ital-orange);
   border-radius:50%; animation: spin 1s linear infinite; margin-right:.5rem;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -185,7 +178,7 @@
 .ux-actions {
   display:flex; align-items:center; justify-content:flex-end; gap:.5rem; margin-top:.75rem;
 }
-.ux-title { font-size:1.1rem; font-weight:800; color: var(--brand-red); }
+.ux-title { font-size:1.1rem; font-weight:800; color: var(--ital-orange-dark); }
 
 /* bloques meta */
 .ux-meta {

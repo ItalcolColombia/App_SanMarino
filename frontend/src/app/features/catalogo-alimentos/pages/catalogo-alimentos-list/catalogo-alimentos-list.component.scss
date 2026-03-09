@@ -1,23 +1,17 @@
-/* ===========================
-   Tokens del componente
-   =========================== */
+/* Tema Italfoods */
    :host {
     display: block;
-
-    --brand-red:         #d32f2f;
-    --brand-red-600:     #c62828;
-    --brand-red-700:     #b71c1c;
-
-    --chicken-yellow:    #f6d860;
-    --chicken-yellow-200:#fde68a;
-
-    --warm-gray-50:      #fafaf9;
-    --warm-gray-100:     #f5f5f4;
-    --warm-gray-200:     #e7e5e4;
-    --warm-gray-300:     #d6d3d1;
-    --warm-gray-400:     #a8a29e;
-    --warm-gray-600:     #57534e;
-
+    --brand-red:         var(--ital-green);
+    --brand-red-600:     var(--ital-green-dark);
+    --brand-red-700:     var(--ital-green-dark);
+    --chicken-yellow:    var(--ital-orange);
+    --chicken-yellow-200: var(--ital-orange-100);
+    --warm-gray-50:      var(--ital-cream);
+    --warm-gray-100:     var(--ital-cream);
+    --warm-gray-200:     var(--ital-green-100);
+    --warm-gray-300:     var(--ital-green-50);
+    --warm-gray-400:     var(--ital-muted);
+    --warm-gray-600:     var(--ital-orange-dark);
     --white:             #ffffff;
     --shadow-lg:         0 10px 25px rgba(31, 41, 55, .10);
   }
@@ -66,7 +60,16 @@
     justify-content: space-between;
     gap: .75rem;
     padding-bottom: .5rem;
-    border-bottom: 3px solid var(--chicken-yellow);
+    position: relative;
+    border-bottom: none;
+  }
+  :host .ux-header::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: var(--ital-green);
+    border-radius: 2px;
   }
   :host .ux-header__title {
     display: flex;
@@ -77,7 +80,7 @@
     margin: 0;
     font-size: 1.35rem;
     font-weight: 800;
-    color: var(--brand-red);
+    color: var(--ital-orange-dark);
     letter-spacing: .2px;
   }
   :host .ux-subtitle {
@@ -115,32 +118,32 @@
     border-radius: 999px; display: inline-block;
   }
   :host .chip--info {
-    background: var(--chicken-yellow-200);
-    color: var(--warm-gray-600);
-    border-color: #f6e3a8;
+    background: var(--ital-orange-100);
+    color: var(--ital-orange-dark);
+    border-color: var(--ital-orange-100);
   }
-  :host .chip--info .chip__dot { background: var(--brand-red); }
+  :host .chip--info .chip__dot { background: var(--ital-green); }
   :host .chip--muted {
-    background: var(--warm-gray-100);
-    color: var(--warm-gray-600);
-    border-color: var(--warm-gray-200);
+    background: var(--ital-cream);
+    color: var(--ital-muted);
+    border-color: var(--ital-green-100);
   }
-  :host .chip--muted .chip__dot { background: var(--warm-gray-400); }
+  :host .chip--muted .chip__dot { background: var(--ital-muted); }
   :host .chip--warning {
-    background: #fff7ed;
-    color: #7c2d12;
-    border-color: #fed7aa;
+    background: var(--ital-orange-50);
+    color: var(--ital-orange-dark);
+    border-color: var(--ital-orange-100);
   }
-  :host .chip--warning .chip__dot { background: var(--brand-red); }
+  :host .chip--warning .chip__dot { background: var(--ital-orange); }
   :host .chip--success {
-    background: #ecfdf5;
-    color: #065f46;
-    border-color: #a7f3d0;
+    background: var(--ital-green-50);
+    color: var(--ital-green-dark);
+    border-color: var(--ital-green-100);
   }
   :host .chip--danger {
-    background: #fef2f2;
-    color: #991b1b;
-    border-color: #fecaca;
+    background: var(--ital-orange-50);
+    color: var(--ital-orange-dark);
+    border-color: var(--ital-orange-100);
   }
 
   /* ===========================
@@ -164,7 +167,7 @@
   }
   :host .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
   :host .btn:active { transform: translateY(0); box-shadow: none; }
-  :host .btn:focus-visible { outline: 3px solid rgba(211,47,47,.25); outline-offset: 2px; }
+  :host .btn:focus-visible { outline: 3px solid var(--ital-orange-100); outline-offset: 2px; }
   :host .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
   :host .btn--primary {
     --btn-bg: var(--brand-red);
@@ -177,7 +180,7 @@
     --btn-fg: var(--brand-red);
     --btn-br: var(--brand-red);
   }
-  :host .btn--outline:hover { background: #fff1f2; }
+  :host .btn--outline:hover { background: var(--ital-orange-50); }
   :host .btn--ghost {
     --btn-bg: var(--white);
     --btn-fg: var(--warm-gray-600);
@@ -199,9 +202,9 @@
     line-height: 1;
     transition: background .15s ease, color .15s ease, transform .12s ease, box-shadow .15s ease;
   }
-  :host .icon-btn:hover { background: var(--warm-gray-100); color: var(--brand-red); transform: translateY(-1px); }
-  :host .icon-btn:focus-visible { outline: 3px solid rgba(211,47,47,.25); outline-offset: 2px; }
-  :host .icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
+  :host .icon-btn:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); }
+  :host .icon-btn:focus-visible { outline: 3px solid var(--ital-orange-100); outline-offset: 2px; }
+  :host .icon-btn--danger:hover { color: var(--ital-green-dark); background: var(--ital-green-50); border-color: var(--ital-green-100); }
 
   /* ===========================
      Toolbar (buscador + filtros)
@@ -227,8 +230,8 @@
   }
   :host .ux-input-icon input::placeholder { color: var(--warm-gray-400); }
   :host .ux-input-icon input:focus {
-    border-color: var(--brand-red);
-    box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+    border-color: var(--ital-orange);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
   :host .ux-input-icon fa-icon {
     position: absolute; left: .6rem; color: var(--warm-gray-400);
@@ -245,8 +248,8 @@
     transition: border-color .15s ease, box-shadow .15s ease;
   }
   :host .ux-toolbar select:focus {
-    border-color: var(--brand-red);
-    box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+    border-color: var(--ital-orange);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
 
   /* ===========================
@@ -287,22 +290,23 @@
   :host .ux-table { width: 100%; border-collapse: separate; border-spacing: 0; }
   :host .ux-table thead {
     position: sticky; top: 0; z-index: 10;
-    background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
-    color: var(--white);
+    background: var(--ital-green);
+    color: var(--ital-cream);
   }
   :host .ux-table thead th {
     text-align: left; font-size: .72rem; font-weight: 800;
     text-transform: uppercase; letter-spacing: .06em;
-    padding: .8rem 1rem; border-bottom: 2px solid var(--brand-red-700);
+    padding: .8rem 1rem; border-bottom: 2px solid rgba(255,255,255,.2);
+    color: var(--ital-cream);
   }
   :host .ux-table thead th:first-child { border-top-left-radius: 1rem; }
   :host .ux-table thead th:last-child  { border-top-right-radius: 1rem; text-align: right; }
 
   :host .ux-table tbody tr { transition: background-color .12s ease; }
-  :host .ux-table tbody tr:nth-child(even) { background: var(--warm-gray-50); }
-  :host .ux-table tbody tr:hover { background: #fff7ed; }
+  :host .ux-table tbody tr:nth-child(even) { background: var(--ital-cream); }
+  :host .ux-table tbody tr:hover { background: var(--ital-orange-50); }
   :host .ux-table tbody td {
-    padding: .7rem 1rem; font-size: .9rem; color: var(--warm-gray-600);
+    padding: .7rem 1rem; font-size: .9rem; color: var(--ital-orange-dark);
     border-bottom: 1px solid var(--warm-gray-200);
   }
   :host .text-right { text-align: right; }
@@ -348,8 +352,8 @@
   }
   :host .spinner {
     width: 1rem; height: 1rem; border-radius: 999px;
-    border: 2px solid var(--warm-gray-300);
-    border-left-color: var(--brand-red);
+    border: 2px solid var(--ital-green-50);
+    border-left-color: var(--ital-orange);
     animation: spin 0.9s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -381,7 +385,7 @@
     gap: .5rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--warm-gray-200);
   }
   :host .ux-modal__header h2 {
-    margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--brand-red);
+    margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--ital-orange-dark);
   }
   :host .ux-modal__footer {
     display: flex; justify-content: flex-end; gap: .5rem;
@@ -435,8 +439,8 @@
   :host .ux-form .form-field input:focus,
   :host .ux-form .form-field textarea:focus,
   :host .ux-form .form-field select:focus {
-    border-color: var(--brand-red);
-    box-shadow: 0 0 0 3px rgba(211,47,47,.15);
+    border-color: var(--ital-orange);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
 
   /* Meta Editor (clave/valor) */
@@ -460,8 +464,8 @@
     transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
   }
   :host .meta-editor .meta-row input:focus {
-    border-color: var(--brand-red);
-    box-shadow: 0 0 0 3px rgba(211,47,47,.12);
+    border-color: var(--ital-orange);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
   :host .meta-empty {
     padding: 1rem;
@@ -486,9 +490,9 @@
     border: 1px solid transparent;
   }
   :host .note--info {
-    background: #eff6ff;
-    color: #1e3a8a;
-    border-color: #bfdbfe;
+    background: var(--ital-green-50);
+    color: var(--ital-green-dark);
+    border-color: var(--ital-green-100);
   }
 
   /* Secciones del formulario */
@@ -506,7 +510,7 @@
     margin: 0 0 1rem 0;
     font-size: .95rem;
     font-weight: 800;
-    color: var(--brand-red);
+    color: var(--ital-orange-dark);
     text-transform: uppercase;
     letter-spacing: .05em;
     display: flex;
@@ -517,7 +521,7 @@
     content: '';
     width: 4px;
     height: 1.2rem;
-    background: var(--brand-red);
+    background: var(--ital-orange);
     border-radius: 2px;
   }
 

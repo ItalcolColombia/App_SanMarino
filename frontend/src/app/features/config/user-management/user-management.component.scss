@@ -3,7 +3,7 @@
 .user-management-container {
   display: flex;
   height: 100vh;
-  background: #f8fafc;
+  background: var(--ital-cream);
   overflow: hidden;
 }
 
@@ -11,7 +11,7 @@
   flex-shrink: 0;
   width: 280px;
   background: white;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid var(--ital-green-100, #e2e8f0);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -30,7 +30,7 @@
   justify-content: space-between;
   padding: 1rem 1.5rem;
   background: white;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 2px solid var(--ital-green);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   min-height: 64px;
 }
@@ -42,14 +42,14 @@
 }
 
 .header-icon {
-  color: #dc2626;
+  color: var(--ital-green);
   font-size: 1.5rem;
 }
 
 .header-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ital-orange-dark);
   margin: 0;
 }
 
@@ -58,8 +58,8 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: #dc2626;
-  color: white;
+  background: var(--ital-green);
+  color: var(--ital-cream);
   border: none;
   border-radius: 8px;
   font-size: 0.875rem;
@@ -69,7 +69,7 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 
   &:hover {
-    background: #b91c1c;
+    background: var(--ital-green-dark);
     transform: translateY(-1px);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
@@ -80,7 +80,7 @@
 
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
 }
 
@@ -117,12 +117,12 @@
   justify-content: space-between;
   padding: 1rem 1.5rem;
   background: white;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 2px solid var(--ital-green-100);
 
   h2 {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--ital-orange-dark);
     margin: 0;
   }
 }
@@ -159,8 +159,8 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: #f8fafc;
-  color: #64748b;
+  background: var(--ital-cream);
+  color: var(--ital-muted);
   text-align: center;
 
   p {

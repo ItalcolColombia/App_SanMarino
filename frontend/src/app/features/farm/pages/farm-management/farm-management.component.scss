@@ -2,17 +2,17 @@
 // Gestión de Granjas – Diseño moderno y responsive
 // ============================================================
 
+// Tema Italfoods (variables globales en :root desde theme-italfoods.scss)
 :host {
-  // Design tokens
-  --gestion-brand: #c1121f;
-  --gestion-brand-hover: #a50f1c;
-  --gestion-accent: #f7d24c;
-  --gestion-bg: #f8f9fa;
+  --gestion-brand: var(--ital-orange-dark);
+  --gestion-brand-hover: var(--ital-orange);
+  --gestion-accent: var(--ital-green);
+  --gestion-bg: var(--ital-cream);
   --gestion-surface: #ffffff;
-  --gestion-border: #e9ecef;
-  --gestion-border-strong: #dee2e6;
-  --gestion-text: #212529;
-  --gestion-text-muted: #6c757d;
+  --gestion-border: var(--ital-green-100);
+  --gestion-border-strong: var(--ital-green-50);
+  --gestion-text: var(--ital-text);
+  --gestion-text-muted: var(--ital-muted);
   --gestion-radius: 12px;
   --gestion-radius-sm: 8px;
   --gestion-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -98,7 +98,7 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--gestion-accent) 0%, #f0c23a 100%);
+  background: linear-gradient(90deg, var(--ital-green) 0%, var(--ital-green-light) 100%);
   border-radius: 0 0 var(--gestion-radius) var(--gestion-radius);
 }
 
@@ -150,19 +150,19 @@
 
 .tabs-nav__tab:hover {
   color: var(--gestion-brand);
-  background: rgba(193, 18, 31, 0.06);
+  background: var(--ital-orange-50);
 }
 
 .tabs-nav__tab:focus-visible {
-  outline: 2px solid var(--gestion-brand);
+  outline: 2px solid var(--ital-orange);
   outline-offset: 2px;
 }
 
 .tabs-nav__tab--active,
 .tabs-nav__tab[aria-selected="true"] {
-  color: var(--gestion-brand);
-  background: rgba(193, 18, 31, 0.1);
-  box-shadow: 0 0 0 1px rgba(193, 18, 31, 0.2);
+  color: var(--ital-orange-dark);
+  background: var(--ital-orange-100);
+  box-shadow: 0 0 0 1px var(--ital-orange-50);
 }
 
 .tabs-nav__icon {
