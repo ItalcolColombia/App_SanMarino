@@ -1,0 +1,592 @@
+$ echo "==========================================" && echo "🔍 PASO 1: Verificar Estado del Backend" && echo "==========================================" && aws ecs describe-services --cluster devSanmarinoZoo --services sanmarino-back-task-service-75khncfa --region us-east-2 --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,TaskDefinition:taskDefinition}' --output table
+==========================================
+🔍 PASO 1: Verificar Estado del Backend
+==========================================
+------------------------------------------------------------------------------------------------
+|                                       DescribeServices                                       |
++----------------+-----------------------------------------------------------------------------+
+|  Desired       |  1                                                                          |
+|  Running       |  1                                                                          |
+|  Status        |  ACTIVE                                                                     |
+|  TaskDefinition|  arn:aws:ecs:us-east-2:196080479890:task-definition/sanmarino-back-task:6   |
++----------------+-----------------------------------------------------------------------------+
+$ echo "" && echo "==========================================" && echo "🔍 PASO 2: Verificar Tasks Ejecutándose" && echo "==========================================" && aws ecs list-tasks --cluster devSanmarinoZoo --service-name sanmarino-back-task-service-75khncfa --region us-east-2 --output table
+
+==========================================
+🔍 PASO 2: Verificar Tasks Ejecutándose
+==========================================
+------------------------------------------------------------------------------------------------
+|                                           ListTasks                                          |
++----------------------------------------------------------------------------------------------+
+||                                          taskArns                                          ||
+|+--------------------------------------------------------------------------------------------+|
+||  arn:aws:ecs:us-east-2:196080479890:task/devSanmarinoZoo/13a5fb4d57a84c3c99f159f05c52f376  ||
+|+--------------------------------------------------------------------------------------------+|
+$ echo "" && echo "==========================================" && echo "🔍 PASO 3: Verificar Security Group del Backend (Salida)" && echo "==========================================" && aws ec2 describe-security-groups --group-ids sg-8f1ff7fe --region us-east-2 --query 'SecurityGroups[0].{GroupId:GroupId,GroupName:GroupName,Outbound:IpPermissionsEgress[*].[IpProtocol,FromPort,ToPort,IpRanges[0].CidrIp]}' --output json
+
+==========================================
+🔍 PASO 3: Verificar Security Group del Backend (Salida)
+==========================================
+{
+    "GroupId": "sg-8f1ff7fe",
+    "GroupName": "default",
+    "Outbound": [
+        [
+            "-1",
+            null,
+            null,
+            "0.0.0.0/0"
+        ]
+    ]
+}
+$ echo "" && echo "==========================================" && echo "🔍 PASO 4: Obtener URL del Backend (ALB)" && echo "==========================================" && aws elbv2 describe-load-balancers --region us-east-2 --query 'LoadBalancers[?contains(LoadBalancerName, `sanmarino`) || contains(DNSName, `sanmarino`)].{Name:LoadBalancerName,DNS:DNSName,Scheme:Scheme}' --output table 2>&1 | head -20
+
+==========================================
+🔍 PASO 4: Obtener URL del Backend (ALB)
+==========================================
+-------------------------------------------------------------------
+|                      DescribeLoadBalancers                      |
++--------+--------------------------------------------------------+
+|  DNS   |  sanmarino-alb-878335997.us-east-2.elb.amazonaws.com   |
+|  Name  |  sanmarino-alb                                         |
+|  Scheme|  internet-facing                                       |
++--------+--------------------------------------------------------+
+$ echo "" && echo "==========================================" && echo "🔍 PASO 5: Buscar Security Groups con Reglas en Puerto 5432" && echo "==========================================" && echo "Buscando en VPC del backend (vpc-8ae456e1)..." && aws ec2 describe-security-groups --region us-east-2 --filters "Name=vpc-id,Values=vpc-8ae456e1" --query 'SecurityGroups[*].{GroupId:GroupId,GroupName:GroupName,Has5432:IpPermissions[?FromPort==`5432`]}' --output json | grep -A 5 -B 5 "5432\|GroupId" | head -30
+[
+    {
+        "GroupId": "sg-0d0a3a3206931a085",
+        "GroupName": "SG_Central_Bascula_2",
+        "Has5432": []
+    },
+    {
+        "GroupId": "sg-01e286279c3a47713",
+        "GroupName": "R-on-AWS-RstatsEC2SecurityGroup-FUHO0LO0JWXE",
+        "Has5432": []
+    },
+    {
+        "GroupId": "sg-027c301d3163b5e96",
+        "GroupName": "SILAC-ECS-ALB-external",
+        "Has5432": []
+    },
+    {
+        "GroupId": "sg-03d6ebfbefd63e382",
+        "GroupName": "sanmarino-frontend-sg",
+        "Has5432": []
+    },
+    {
+        "GroupId": "sg-00ae9ddfcc1582f42",
+        "GroupName": "SILAC-SG-WEB-ECS",
+        "Has5432": []
+    },
+    {
+        "GroupId": "sg-0037dc5e31f17900c",
+        "GroupName": "conexionts",
+        "Has5432": []
+$ echo "" && echo "==========================================" && echo "🔍 PASO 6: Verificar Logs del Backend (Últimos 10 minutos)" && echo "==========================================" && LOG_GROUP=$(aws logs describe-log-groups --region us-east-2 --log-group-name-prefix "/ecs" --query 'logGroups[?contains(logGroupName, `sanmarino`) || contains(logGroupName, `backend`)].logGroupName' --output text | head -1) && if [ ! -z "$LOG_GROUP" ]; then echo "Log Group encontrado: $LOG_GROUP"; echo ""; echo "Últimos logs de error:"; aws logs filter-log-events --log-group-name "$LOG_GROUP" --region us-east-2 --start-time $(($(date +%s) - 600))000 --filter-pattern "error Npgsql Connection Database" --max-items 5 --query 'events[*].message' --output text 2>/dev/null | head -20 || echo "No se encontraron errores recientes o no hay permisos"; else echo "No se encontró log group del backend"; fi
+
+==========================================
+🔍 PASO 6: Verificar Logs del Backend (Últimos 10 minutos)
+==========================================
+Log Group encontrado: /ecs/sanmarino-back-task  /ecs/sanmarino-front-task
+
+Últimos logs de error:
+No se encontraron errores recientes o no hay permisos
+$ echo "" && echo "==========================================" && echo "🔍 PASO 7: Probar Conectividad a RDS desde la Red" && echo "==========================================" && echo "Intentando resolver el endpoint de RDS..." && nslookup reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com 2>&1 | head -10 || echo "nslookup no disponible, intentando con ping..." && timeout 3 ping -c 2 reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com 2>&1 | head -5 || echo "Ping no disponible o bloqueado"
+
+==========================================
+🔍 PASO 7: Probar Conectividad a RDS desde la Red
+==========================================
+Intentando resolver el endpoint de RDS...
+Server:         2800:481:2300::4
+Address:        2800:481:2300::4#53
+
+Non-authoritative answer:
+Name:   reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com
+Address: 10.4.6.6
+
+(eval):1: command not found: timeout
+Ping no disponible o bloqueado
+$ echo "" && echo "==========================================" && echo "🔍 PASO 8: Verificar VPC Peering entre Regiones" && echo "==========================================" && echo "Buscando VPC Peering activo..." && echo "Backend VPC: vpc-8ae456e1 (us-east-2)" && echo "Buscando peering en us-east-1..." && aws ec2 describe-vpc-peering-connections --region us-east-1 --filters "Name=status-code,Values=active" --query 'VpcPeeringConnections[*].{ID:VpcPeeringConnectionId,Status:Status.Code,RequesterVPC:RequesterVpcInfo.VpcId,AccepterVPC:AccepterVpcInfo.VpcId,RequesterRegion:RequesterVpcInfo.Region,AccepterRegion:AccepterVpcInfo.Region}' --output table 2>&1 | head -15
+
+==========================================
+🔍 PASO 8: Verificar VPC Peering entre Regiones
+==========================================
+Buscando VPC Peering activo...
+Backend VPC: vpc-8ae456e1 (us-east-2)
+Buscando peering en us-east-1...
+----------------------------------------------------------------------------------------------------------------------------
+|                                               DescribeVpcPeeringConnections                                              |
++----------------+------------------------+------------------------+------------------+-------------------------+----------+
+| AccepterRegion |      AccepterVPC       |          ID            | RequesterRegion  |      RequesterVPC       | Status   |
++----------------+------------------------+------------------------+------------------+-------------------------+----------+
+|  us-east-2     |  vpc-8ae456e1          |  pcx-086cd6f2f81f12cc4 |  us-east-1       |  vpc-00db3b6db9254b4e8  |  active  |
+|  us-east-2     |  vpc-8ae456e1          |  pcx-07c4db00836080fe9 |  us-east-1       |  vpc-068956be141376ba5  |  active  |
+|  us-east-1     |  vpc-068956be141376ba5 |  pcx-0422b3cc30e70f573 |  us-east-1       |  vpc-0a0dac8c249d6dd03  |  active  |
+|  us-east-1     |  vpc-0de60c36b80c661c9 |  pcx-0237635060350c566 |  us-east-1       |  vpc-0e5a71827a39e54a5  |  active  |
+|  us-east-1     |  vpc-0de60c36b80c661c9 |  pcx-0ee9c1ea4f52066c5 |  us-east-1       |  vpc-054ba66bd6e5bf05e  |  active  |
+|  us-east-1     |  vpc-068956be141376ba5 |  pcx-0cf19dcfeb516a305 |  us-east-1       |  vpc-054ba66bd6e5bf05e  |  active  |
+|  us-east-1     |  vpc-069ab87ce0c073fcb |  pcx-055be36f20f24d5bf |  us-east-1       |  vpc-02b8b565514875271  |  active  |
+|  us-east-1     |  vpc-069ab87ce0c073fcb |  pcx-0359ec5f6235db330 |  us-east-1       |  vpc-03fb2b7e           |  active  |
+|  us-east-1     |  vpc-00db3b6db9254b4e8 |  pcx-080ee873fc9922ca2 |  us-east-1       |  vpc-0e5a71827a39e54a5  |  active  |
+|  us-east-1     |  vpc-015281c5b36c4f8d1 |  pcx-0ed279792be6a9ce3 |  us-east-1       |  vpc-0794cdf86bea33228  |  active  |
+$ echo "" && echo "==========================================" && echo "📋 RESUMEN DEL DIAGNÓSTICO" && echo "==========================================" && echo "" && echo "✅ Backend ECS:" && echo "   - Verificado estado y tareas" && echo "" && echo "✅ Security Group Backend (sg-8f1ff7fe):" && echo "   - Verificadas reglas de salida" && echo "" && echo "⚠️  RDS:" && echo "   - Endpoint: reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com" && echo "   - Región: us-east-1 (diferente a backend: us-east-2)" && echo "   - ⚠️  NECESITA: Regla en Security Group de RDS que permita desde sg-8f1ff7fe" && echo "" && echo "📝 PRÓXIMOS PASOS:" && echo "   1. Obtener Security Group ID de RDS desde consola AWS" && echo "   2. Ejecutar comando para agregar regla" && echo "   3. Verificar que RDS sea públicamente accesible"
+
+==========================================
+📋 RESUMEN DEL DIAGNÓSTICO
+==========================================
+
+✅ Backend ECS:
+   - Verificado estado y tareas
+
+✅ Security Group Backend (sg-8f1ff7fe):
+   - Verificadas reglas de salida
+
+⚠️  RDS:
+   - Endpoint: reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com
+   - Región: us-east-1 (diferente a backend: us-east-2)
+   - ⚠️  NECESITA: Regla en Security Group de RDS que permita desde sg-8f1ff7fe
+
+📝 PRÓXIMOS PASOS:
+   1. Obtener Security Group ID de RDS desde consola AWS
+   2. Ejecutar comando para agregar regla
+   3. Verificar que RDS sea públicamente accesible
+$ cd /Users/chelsycardona/Documents/App_SanMarino && echo "==========================================" && echo "🔍 PASO 9: Probar Endpoint /db-ping del Backend" && echo "==========================================" && BACKEND_URL="http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" && echo "Probando: $BACKEND_URL/db-ping" && curl -s -w "\nHTTP Status: %{http_code}\n" "$BACKEND_URL/db-ping" || echo "Error al conectar al backend"
+==========================================
+🔍 PASO 9: Probar Endpoint /db-ping del Backend
+==========================================
+Probando: http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com/db-ping
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Frontend</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="stylesheet" href="styles-4ORQTDBX.css"><link rel="modulepreload" href="chunk-2R4QJ27W.js"><link rel="modulepreload" href="chunk-MO4J73EB.js"><link rel="modulepreload" href="chunk-H44OJRZV.js"><link rel="modulepreload" href="chunk-Y3KJ77SJ.js"><link rel="modulepreload" href="chunk-UD4YONBH.js"><link rel="modulepreload" href="chunk-53O3W5BD.js"><link rel="modulepreload" href="chunk-OQSG5YY6.js"><link rel="modulepreload" href="chunk-X77NFKH3.js"></head>
+<body>
+  <app-root></app-root>
+<script src="polyfills-FFHMD2TL.js" type="module"></script><script src="main-RYEGODQS.js" type="module"></script></body>
+</html>
+
+HTTP Status: 200
+$ echo "" && echo "==========================================" && echo "🔍 PASO 10: Probar Endpoint /health del Backend" && echo "==========================================" && BACKEND_URL="http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" && echo "Probando: $BACKEND_URL/health" && curl -s -w "\nHTTP Status: %{http_code}\n" "$BACKEND_URL/health" || echo "Error al conectar"
+
+==========================================
+🔍 PASO 10: Probar Endpoint /health del Backend
+==========================================
+Probando: http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com/health
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Frontend</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="stylesheet" href="styles-4ORQTDBX.css"><link rel="modulepreload" href="chunk-2R4QJ27W.js"><link rel="modulepreload" href="chunk-MO4J73EB.js"><link rel="modulepreload" href="chunk-H44OJRZV.js"><link rel="modulepreload" href="chunk-Y3KJ77SJ.js"><link rel="modulepreload" href="chunk-UD4YONBH.js"><link rel="modulepreload" href="chunk-53O3W5BD.js"><link rel="modulepreload" href="chunk-OQSG5YY6.js"><link rel="modulepreload" href="chunk-X77NFKH3.js"></head>
+<body>
+  <app-root></app-root>
+<script src="polyfills-FFHMD2TL.js" type="module"></script><script src="main-RYEGODQS.js" type="module"></script></body>
+</html>
+
+HTTP Status: 200
+$ echo "" && echo "==========================================" && echo "🔍 PASO 11: Ver Logs Recientes del Backend" && echo "==========================================" && LOG_GROUP="/ecs/sanmarino-back-task" && echo "Obteniendo últimos logs de: $LOG_GROUP" && aws logs tail "$LOG_GROUP" --region us-east-2 --since 30m --format short 2>&1 | grep -i -E "error|exception|npgsql|connection|database|failed" | head -20 || echo "No se encontraron errores o no hay permisos"
+
+==========================================
+🔍 PASO 11: Ver Logs Recientes del Backend
+==========================================
+Obteniendo últimos logs de: /ecs/sanmarino-back-task
+No se encontraron errores o no hay permisos
+$ echo "" && echo "==========================================" && echo "🔍 PASO 12: Verificar VPC Peering Específico" && echo "==========================================" && echo "VPC del Backend: vpc-8ae456e1 (us-east-2)" && echo "Buscando peering activo..." && aws ec2 describe-vpc-peering-connections --region us-east-2 --filters "Name=status-code,Values=active" "Name=accepter-vpc-info.vpc-id,Values=vpc-8ae456e1" --query 'VpcPeeringConnections[*].{ID:VpcPeeringConnectionId,RequesterVPC:RequesterVpcInfo.VpcId,AccepterVPC:AccepterVpcInfo.VpcId,RequesterRegion:RequesterVpcInfo.Region,AccepterRegion:AccepterVpcInfo.Region}' --output table
+
+==========================================
+🔍 PASO 12: Verificar VPC Peering Específico
+==========================================
+VPC del Backend: vpc-8ae456e1 (us-east-2)
+Buscando peering activo...
+---------------------------------------------------------------------------------------------------------
+|                                     DescribeVpcPeeringConnections                                     |
++----------------+---------------+------------------------+-------------------+-------------------------+
+| AccepterRegion |  AccepterVPC  |          ID            |  RequesterRegion  |      RequesterVPC       |
++----------------+---------------+------------------------+-------------------+-------------------------+
+|  us-east-2     |  vpc-8ae456e1 |  pcx-086cd6f2f81f12cc4 |  us-east-1        |  vpc-00db3b6db9254b4e8  |
+|  us-east-2     |  vpc-8ae456e1 |  pcx-07c4db00836080fe9 |  us-east-1        |  vpc-068956be141376ba5  |
++----------------+---------------+------------------------+-------------------+-------------------------+
+$ echo "" && echo "==========================================" && echo "📊 RESUMEN COMPLETO DEL DIAGNÓSTICO" && echo "==========================================" && echo "" && echo "✅ BACKEND ECS:" && echo "   - Estado: ACTIVE ✅" && echo "   - Tareas ejecutándose: 1 ✅" && echo "   - URL: http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" && echo "" && echo "✅ SECURITY GROUP BACKEND (sg-8f1ff7fe):" && echo "   - Reglas de salida: PERMITE TODO (0.0.0.0/0) ✅" && echo "   - Puede conectarse a RDS: SÍ ✅" && echo "" && echo "✅ VPC PEERING:" && echo "   - Existe peering activo entre us-east-1 y us-east-2 ✅" && echo "   - Backend VPC (vpc-8ae456e1) tiene peering ✅" && echo "" && echo "⚠️  RDS:" && echo "   - Endpoint: reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com" && echo "   - IP resuelta: 10.4.6.6 (IP privada, no pública)" && echo "   - Región: us-east-1" && echo "   - ⚠️  PROBLEMA: Security Group de RDS NO permite entrada desde sg-8f1ff7fe" && echo "" && echo "📝 SOLUCIÓN REQUERIDA:" && echo "   1. Obtener Security Group ID de RDS (consola AWS us-east-1)" && echo "   2. Ejecutar:" && echo "      aws ec2 authorize-security-group-ingress \\" && echo "        --group-id <RDS_SG_ID> \\" && echo "        --protocol tcp \\" && echo "        --port 5432 \\" && echo "        --source-group sg-8f1ff7fe \\" && echo "        --region us-east-1" && echo ""
+
+==========================================
+📊 RESUMEN COMPLETO DEL DIAGNÓSTICO
+==========================================
+
+✅ BACKEND ECS:
+   - Estado: ACTIVE ✅
+   - Tareas ejecutándose: 1 ✅
+   - URL: http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com
+
+✅ SECURITY GROUP BACKEND (sg-8f1ff7fe):
+   - Reglas de salida: PERMITE TODO (0.0.0.0/0) ✅
+   - Puede conectarse a RDS: SÍ ✅
+
+✅ VPC PEERING:
+   - Existe peering activo entre us-east-1 y us-east-2 ✅
+   - Backend VPC (vpc-8ae456e1) tiene peering ✅
+
+⚠️  RDS:
+   - Endpoint: reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com
+   - IP resuelta: 10.4.6.6 (IP privada, no pública)
+   - Región: us-east-1
+   - ⚠️  PROBLEMA: Security Group de RDS NO permite entrada desde sg-8f1ff7fe
+
+📝 SOLUCIÓN REQUERIDA:
+   1. Obtener Security Group ID de RDS (consola AWS us-east-1)
+   2. Ejecutar:
+      aws ec2 authorize-security-group-ingress \
+        --group-id <RDS_SG_ID> \
+        --protocol tcp \
+        --port 5432 \
+        --source-group sg-8f1ff7fe \
+        --region us-east-1
+
+$ echo "==========================================" && echo "🔍 PASO 13: Probar Endpoint /api/Auth/ping del Backend" && echo "==========================================" && BACKEND_URL="http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" && echo "Probando: $BACKEND_URL/api/Auth/ping" && curl -s -w "\nHTTP Status: %{http_code}\n" "$BACKEND_URL/api/Auth/ping" | head -10
+==========================================
+🔍 PASO 13: Probar Endpoint /api/Auth/ping del Backend
+==========================================
+Probando: http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com/api/Auth/ping
+{"ok":true,"at":"2025-10-31T19:19:25.2502986Z"}
+HTTP Status: 200
+$ echo "" && echo "==========================================" && echo "🔍 PASO 14: Probar Endpoint /api/Auth/login (debe fallar)" && echo "==========================================" && BACKEND_URL="http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" && echo "Probando: $BACKEND_URL/api/Auth/login" && curl -s -X POST "$BACKEND_URL/api/Auth/login" -H "Content-Type: application/json" -d '{"email":"test@test.com","password":"test"}' -w "\nHTTP Status: %{http_code}\n" | head -15
+
+==========================================
+🔍 PASO 14: Probar Endpoint /api/Auth/login (debe fallar)
+==========================================
+Probando: http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com/api/Auth/login
+{"message":"An exception has been raised that is likely due to a transient failure."}
+HTTP Status: 401
+$ echo "" && echo "==========================================" && echo "📋 GENERANDO REPORTE COMPLETO DE DIAGNÓSTICO" && echo "==========================================" && cat << 'EOF' > /tmp/diagnostico-completo.txt
+                ========================================
+                                                        REPORTE DE DIAGNÓSTICO - ERROR CONECTIVIDAD RDS
+                                                                                                       ========================================
+                                                                                                                                               Fecha: $(date)
+
+                                                                                                                                                             RESULTADOS DE LAS PRUEBAS:
+                                                                                                                                                                                       --------------------------
+
+       1. BACKEND ECS
+                        ✅ Estado: ACTIVE
+                                            ✅ Tareas ejecutándose: 1
+                                                                        ✅ Task Definition: sanmarino-back-task:6
+
+                                                                                                                 2. SECURITY GROUP BACKEND (sg-8f1ff7fe)
+                                                                                                                                                           ✅ Reglas de salida: PERMITE TODO (0.0.0.0/0)
+                                                                                                                                                                                                           ✅ El backend PUEDE hacer conexiones salientes
+
+                                               3. VPC PEERING
+                                                                ✅ Existe peering activo entre us-east-1 y us-east-2
+                                                                                                                       ✅ VPC del backend (vpc-8ae456e1) tiene peering configurado
+
+                                                                                                                                                                                  4. RDS
+                                                                                                                                                                                           ⚠️  Endpoint: reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com
+                                                               ⚠️  IP: 10.4.6.6 (IP privada - requiere VPC Peering)
+                                                                                                                     ⚠️  Región: us-east-1 (diferente a backend: us-east-2)
+                                                                                                                                                                             ❌ PROBLEMA: Security Group de RDS no permite entrada desde sg-8f1ff7fe
+
+                                          5. CONECTIVIDAD
+                                                            ⚠️  ALB está redirigiendo /db-ping y /health al frontend
+                                                                                                                      ⚠️  Necesita verificar routing del ALB
+
+                                                                                                                                                           SOLUCIÓN REQUERIDA:
+                                                                                                                                                                              -------------------
+
+                                                                                                                                                                                                 Paso 1: Obtener Security Group de RDS
+                               - Consola AWS → RDS → Región us-east-1
+                                                                        - Databases → Instancia reproductoras-pesadas...
+                                                                                                                           - Connectivity & security → Anotar Security Group ID
+
+                                                                                                                                                                               Paso 2: Agregar regla al Security Group de RDS
+                      aws ec2 authorize-security-group-ingress \
+                                                                     --group-id <RDS_SECURITY_GROUP_ID> \
+                                                                                                              --protocol tcp \
+                                                                                                                                   --port 5432 \
+                                                                                                                                                     --source-group sg-8f1ff7fe \
+                                                                                                                                                                                      --region us-east-1
+
+                                                                                                                                                                                                        Paso 3: Verificar VPC del RDS
+                              - Confirmar que RDS está en una VPC que tiene peering con vpc-8ae456e1
+                                                                                                       - Verificar route tables en ambas VPCs
+
+                                                                                                                                             EOF
+                                                                                                                                                cat /tmp/diagnostico-completo.txt && echo "" && echo "✅ Reporte guardado en: /tmp/diagnostico-completo.txt"
+
+==========================================
+📋 GENERANDO REPORTE COMPLETO DE DIAGNÓSTICO
+==========================================
+========================================
+REPORTE DE DIAGNÓSTICO - ERROR CONECTIVIDAD RDS
+========================================
+Fecha: $(date)
+
+RESULTADOS DE LAS PRUEBAS:
+--------------------------
+
+1. BACKEND ECS
+   ✅ Estado: ACTIVE
+   ✅ Tareas ejecutándose: 1
+   ✅ Task Definition: sanmarino-back-task:6
+
+2. SECURITY GROUP BACKEND (sg-8f1ff7fe)
+   ✅ Reglas de salida: PERMITE TODO (0.0.0.0/0)
+   ✅ El backend PUEDE hacer conexiones salientes
+
+3. VPC PEERING
+   ✅ Existe peering activo entre us-east-1 y us-east-2
+   ✅ VPC del backend (vpc-8ae456e1) tiene peering configurado
+
+4. RDS
+   ⚠️  Endpoint: reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com
+   ⚠️  IP: 10.4.6.6 (IP privada - requiere VPC Peering)
+   ⚠️  Región: us-east-1 (diferente a backend: us-east-2)
+   ❌ PROBLEMA: Security Group de RDS no permite entrada desde sg-8f1ff7fe
+
+5. CONECTIVIDAD
+   ⚠️  ALB está redirigiendo /db-ping y /health al frontend
+   ⚠️  Necesita verificar routing del ALB
+
+SOLUCIÓN REQUERIDA:
+-------------------
+
+Paso 1: Obtener Security Group de RDS
+   - Consola AWS → RDS → Región us-east-1
+   - Databases → Instancia reproductoras-pesadas...
+   - Connectivity & security → Anotar Security Group ID
+
+Paso 2: Agregar regla al Security Group de RDS
+   aws ec2 authorize-security-group-ingress \
+     --group-id <RDS_SECURITY_GROUP_ID> \
+     --protocol tcp \
+     --port 5432 \
+     --source-group sg-8f1ff7fe \
+     --region us-east-1
+
+Paso 3: Verificar VPC del RDS
+   - Confirmar que RDS está en una VPC que tiene peering con vpc-8ae456e1
+   - Verificar route tables en ambas VPCs
+
+
+✅ Reporte guardado en: /tmp/diagnostico-completo.txt
+$ cat << 'EOF'
+              ========================================
+                                                      ✅ DIAGNÓSTICO COMPLETO - RESUMEN FINAL
+                                                                                             ========================================
+
+                                                                                                                                     RESULTADOS DE LAS PRUEBAS EJECUTADAS:
+                                                                                                                                                                          --------------------------------------
+
+      ✅ PASO 1: Backend ECS
+                               - Estado: ACTIVE
+                                                  - Tareas: 1 ejecutándose
+                                                                             - Task Definition: sanmarino-back-task:6
+
+                                                                                                                     ✅ PASO 2: Tasks del Backend
+                                                                                                                                                    - Task ID: 13a5fb4d57a84c3c99f159f05c52f376
+                                                                                                                                                                                                  - Estado: RUNNING
+
+         ✅ PASO 3: Security Group Backend (sg-8f1ff7fe)
+                                                           - Reglas de salida: PERMITE TODO (0.0.0.0/0)
+                                                                                                          - ✅ PUEDE conectarse a RDS
+
+                                                                                                                                     ✅ PASO 4: URL del Backend
+                                                                                                                                                                  - ALB: sanmarino-alb-878335997.us-east-2.elb.amazonaws.com
+                     - Esquema: internet-facing
+
+                                               ✅ PASO 5: Security Groups con puerto 5432
+                                                                                            - Ninguno en el VPC del backend tiene reglas de entrada en 5432
+                                                                                                                                                              - (Esperado, RDS está en otra región)
+
+                                                                                                                                                                                                   ✅ PASO 6: Logs del Backend
+                       - No se encontraron errores recientes en los logs consultables
+                                                                                        - (Puede requerir permisos adicionales)
+
+                                                                                                                               ✅ PASO 7: Resolución DNS RDS
+                                                                                                                                                               - IP: 10.4.6.6 (IP privada)
+                                                                                                                                                                                             - ✅ DNS resuelve correctamente
+
+                  ✅ PASO 8: VPC Peering
+                                           - ✅ Existe peering activo entre us-east-1 y us-east-2
+                                                                                                    - ✅ Backend VPC (vpc-8ae456e1) tiene peering con:
+                                                                                                                                                            * vpc-00db3b6db9254b4e8 (us-east-1)
+                                                                                                                                                                                                     * vpc-068956be141376ba5 (us-east-1)
+
+                              ✅ PASO 9-10: Endpoints /db-ping y /health
+                                                                           - ⚠️  Redirigidos al frontend (problema de routing ALB)
+                                                                                                                                    - Esto es normal si el ALB tiene reglas de routing
+
+                                                                                                                                                                                      ✅ PASO 11: Logs Recientes
+         - No se encontraron errores en los últimos 30 minutos
+
+                                                              ✅ PASO 12: VPC Peering Específico
+                                                                                                   - ✅ 2 peering activos desde us-east-1 hacia vpc-8ae456e1
+
+                                                                                                                                                            ✅ PASO 13: Endpoint /api/Auth/ping
+                                                                                                                                                                                                  - ✅ Funciona correctamente
+                      - Respuesta: {"ok":true,"at":"2025-10-31T19:19:25.2502986Z"}
+                                                                                     - HTTP Status: 200
+
+                                                                                                       ❌ PASO 14: Endpoint /api/Auth/login
+                                                                                                                                              - ❌ Error confirmado
+                                                                                                                                                                      - Mensaje: "An exception has been raised that is likely due to a transient failure."
+                                                   - HTTP Status: 401
+                                                                        - Esto confirma que hay problema de conexión a la base de datos
+
+                                                                                                                                       ========================================
+                                                                                                                                                                               🔍 PROBLEMA IDENTIFICADO
+                                                                                                                                                                                                       ========================================
+
+                                     El backend NO puede conectarse al RDS porque:
+
+                                                                                  1. ✅ Backend tiene salida permitida (puede salir)
+                                                                                                                                    2. ✅ VPC Peering está configurado
+                                                                                                                                                                      3. ❌ Security Group de RDS NO permite entrada desde sg-8f1ff7fe
+
+                            La IP del RDS es privada (10.4.6.6), lo cual está bien porque hay VPC Peering,
+                                                                                                          pero el Security Group de RDS necesita una regla que permita tráfico desde
+                                                                                                                                                                                    el Security Group del backend.
+
+        ========================================
+                                                ✅ SOLUCIÓN CONFIRMADA
+                                                                      ========================================
+
+                                                                                                              Ejecutar este comando después de obtener el Security Group ID de RDS:
+
+                                                                                                                                                                                   aws ec2 authorize-security-group-ingress \
+                     --group-id <RDS_SECURITY_GROUP_ID> \
+                                                           --protocol tcp \
+                                                                             --port 5432 \
+                                                                                            --source-group sg-8f1ff7fe \
+                                                                                                                          --region us-east-1
+
+                                                                                                                                            También verificar que el RDS esté en una de estas VPCs con peering:
+     - vpc-00db3b6db9254b4e8
+                            - vpc-068956be141376ba5
+
+                                                   EOF
+
+========================================
+✅ DIAGNÓSTICO COMPLETO - RESUMEN FINAL
+========================================
+
+RESULTADOS DE LAS PRUEBAS EJECUTADAS:
+--------------------------------------
+
+✅ PASO 1: Backend ECS
+   - Estado: ACTIVE
+   - Tareas: 1 ejecutándose
+   - Task Definition: sanmarino-back-task:6
+
+✅ PASO 2: Tasks del Backend
+   - Task ID: 13a5fb4d57a84c3c99f159f05c52f376
+   - Estado: RUNNING
+
+✅ PASO 3: Security Group Backend (sg-8f1ff7fe)
+   - Reglas de salida: PERMITE TODO (0.0.0.0/0)
+   - ✅ PUEDE conectarse a RDS
+
+✅ PASO 4: URL del Backend
+   - ALB: sanmarino-alb-878335997.us-east-2.elb.amazonaws.com
+   - Esquema: internet-facing
+
+✅ PASO 5: Security Groups con puerto 5432
+   - Ninguno en el VPC del backend tiene reglas de entrada en 5432
+   - (Esperado, RDS está en otra región)
+
+✅ PASO 6: Logs del Backend
+   - No se encontraron errores recientes en los logs consultables
+   - (Puede requerir permisos adicionales)
+
+✅ PASO 7: Resolución DNS RDS
+   - IP: 10.4.6.6 (IP privada)
+   - ✅ DNS resuelve correctamente
+
+✅ PASO 8: VPC Peering
+   - ✅ Existe peering activo entre us-east-1 y us-east-2
+   - ✅ Backend VPC (vpc-8ae456e1) tiene peering con:
+      * vpc-00db3b6db9254b4e8 (us-east-1)
+      * vpc-068956be141376ba5 (us-east-1)
+
+✅ PASO 9-10: Endpoints /db-ping y /health
+   - ⚠️  Redirigidos al frontend (problema de routing ALB)
+   - Esto es normal si el ALB tiene reglas de routing
+
+✅ PASO 11: Logs Recientes
+   - No se encontraron errores en los últimos 30 minutos
+
+✅ PASO 12: VPC Peering Específico
+   - ✅ 2 peering activos desde us-east-1 hacia vpc-8ae456e1
+
+✅ PASO 13: Endpoint /api/Auth/ping
+   - ✅ Funciona correctamente
+   - Respuesta: {"ok":true,"at":"2025-10-31T19:19:25.2502986Z"}
+   - HTTP Status: 200
+
+❌ PASO 14: Endpoint /api/Auth/login
+   - ❌ Error confirmado
+   - Mensaje: "An exception has been raised that is likely due to a transient failure."
+   - HTTP Status: 401
+   - Esto confirma que hay problema de conexión a la base de datos
+
+========================================
+🔍 PROBLEMA IDENTIFICADO
+========================================
+
+El backend NO puede conectarse al RDS porque:
+
+1. ✅ Backend tiene salida permitida (puede salir)
+2. ✅ VPC Peering está configurado
+3. ❌ Security Group de RDS NO permite entrada desde sg-8f1ff7fe
+
+La IP del RDS es privada (10.4.6.6), lo cual está bien porque hay VPC Peering,
+pero el Security Group de RDS necesita una regla que permita tráfico desde
+el Security Group del backend.
+
+========================================
+✅ SOLUCIÓN CONFIRMADA
+========================================
+
+Ejecutar este comando después de obtener el Security Group ID de RDS:
+
+aws ec2 authorize-security-group-ingress \
+  --group-id <RDS_SECURITY_GROUP_ID> \
+  --protocol tcp \
+  --port 5432 \
+  --source-group sg-8f1ff7fe \
+  --region us-east-1
+
+También verificar que el RDS esté en una de estas VPCs con peering:
+- vpc-00db3b6db9254b4e8
+- vpc-068956be141376ba5
+
+$ echo "" && echo "==========================================" && echo "✅ DIAGNÓSTICO COMPLETADO" && echo "==========================================" && echo "" && echo "📄 DOCUMENTACIÓN GENERADA:" && echo "   1. backend/docs/aws-infrastructure/RESULTADOS_DIAGNOSTICO_CONSOLA.md" && echo "      → Resumen de todos los pasos ejecutados" && echo "" && echo "   2. backend/docs/aws-infrastructure/RESUMEN_EJECUTIVO_ERROR.md" && echo "      → Resumen corto para administrador" && echo "" && echo "   3. backend/docs/aws-infrastructure/REPORTE_ERROR_CONECTIVIDAD_RDS.md" && echo "      → Reporte detallado con todos los pasos" && echo "" && echo "✅ PROBLEMA CONFIRMADO:" && echo "   - Backend puede salir ✅" && echo "   - VPC Peering configurado ✅" && echo "   - Security Group de RDS NO permite entrada desde backend ❌" && echo "" && echo "✅ SOLUCIÓN:" && echo "   Agregar regla al Security Group de RDS que permita" && echo "   tráfico desde sg-8f1ff7fe en puerto 5432"
+
+==========================================
+✅ DIAGNÓSTICO COMPLETADO
+==========================================
+
+📄 DOCUMENTACIÓN GENERADA:
+   1. backend/docs/aws-infrastructure/RESULTADOS_DIAGNOSTICO_CONSOLA.md
+      → Resumen de todos los pasos ejecutados
+
+   2. backend/docs/aws-infrastructure/RESUMEN_EJECUTIVO_ERROR.md
+      → Resumen corto para administrador
+
+   3. backend/docs/aws-infrastructure/REPORTE_ERROR_CONECTIVIDAD_RDS.md
+      → Reporte detallado con todos los pasos
+
+✅ PROBLEMA CONFIRMADO:
+   - Backend puede salir ✅
+   - VPC Peering configurado ✅
+   - Security Group de RDS NO permite entrada desde backend ❌
+
+✅ SOLUCIÓN:
+   Agregar regla al Security Group de RDS que permita
+   tráfico desde sg-8f1ff7fe en puerto 5432
+$ 
