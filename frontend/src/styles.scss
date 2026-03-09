@@ -1,3 +1,8 @@
+// @use debe ir antes que cualquier otra regla (Sass)
+@use 'styles/theme-italfoods' as *;
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+// Tema Italfoods ya cargado arriba. Clases: .table-italfoods, .btn-italfoods-*, .modal-italfoods, etc.

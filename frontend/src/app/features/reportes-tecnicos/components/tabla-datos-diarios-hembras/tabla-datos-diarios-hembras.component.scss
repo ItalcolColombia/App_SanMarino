@@ -4,8 +4,8 @@
 }
 
 .reporte-encabezado {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--ital-cream);
+  border: 1px solid var(--ital-green-100);
   border-radius: 4px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -25,16 +25,16 @@
       .info-label {
         font-weight: 700;
         font-size: 1rem;
-        color: #212529;
+        color: var(--ital-orange-dark);
       }
 
       .info-value {
         font-size: 0.875rem;
-        color: #495057;
+        color: var(--ital-text, #2b2b2b);
       }
 
       .info-separator {
-        color: #adb5bd;
+        color: var(--ital-muted, #6b7280);
         font-weight: 300;
       }
     }
@@ -55,7 +55,7 @@
   min-width: 1800px; // Ancho mínimo para todas las columnas
 
   thead {
-    background: #f3f4f6;
+    background: var(--ital-green);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -65,8 +65,9 @@
       text-align: center;
       font-weight: 600;
       font-size: 0.75rem;
-      border: 1px solid #d1d5db;
-      background: #f3f4f6;
+      border: 1px solid var(--ital-green-dark);
+      background: var(--ital-green);
+      color: var(--ital-cream);
       white-space: nowrap;
       vertical-align: middle;
 
@@ -79,20 +80,21 @@
   tbody {
     tr {
       &:nth-child(even) {
-        background: #f9fafb;
+        background: var(--ital-cream);
       }
 
       &:hover {
-        background: #f3f4f6;
+        background: var(--ital-orange-50);
       }
     }
 
     td {
       padding: 0.625rem 0.5rem;
       text-align: center;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--ital-green-100, #e5e7eb);
       white-space: nowrap;
       font-size: 0.8125rem;
+      color: var(--ital-orange-dark, #44403c);
 
       &.text-left {
         text-align: left;
@@ -103,26 +105,26 @@
       }
 
       &.highlight-yellow {
-        background: #fef3c7;
+        background: var(--ital-orange-50);
         font-weight: 600;
-        color: #92400e;
+        color: var(--ital-orange-dark);
       }
 
       &.highlight-orange {
-        background: #fed7aa;
+        background: var(--ital-orange-100);
         font-weight: 600;
-        color: #9a3412;
+        color: var(--ital-orange-dark);
       }
 
       &.highlight-red {
-        background: #fee2e2;
+        background: var(--ital-orange-50);
         font-weight: 600;
-        color: #991b1b;
+        color: var(--ital-orange-dark);
       }
 
       strong {
         font-weight: 700;
-        color: #1f2937;
+        color: var(--ital-orange-dark);
       }
     }
   }

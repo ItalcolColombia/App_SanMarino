@@ -4,16 +4,16 @@
 :host {
   display: block;
 
-  /* Brand */
-  --brand-red:        #d32f2f;
-  --brand-red-600:    #c62828;
-  --brand-red-700:    #b71c1c;
+  /* Brand → Italfoods */
+  --brand-red:        var(--ital-green);
+  --brand-red-600:    var(--ital-green-dark);
+  --brand-red-700:    var(--ital-green-dark);
 
-  /* Accent */
-  --amber-25:         #fffbeb;
-  --amber-50:         #fff7ed;
-  --amber-100:        #fef3c7;
-  --amber-200:         #fde68a;
+  /* Accent → Italfoods orange */
+  --amber-25:         var(--ital-orange-50);
+  --amber-50:         var(--ital-orange-50);
+  --amber-100:        var(--ital-orange-100);
+  --amber-200:        var(--ital-orange-100);
 
   /* Warm Gray scale */
   --warm-25:          #fdfdfc;
@@ -55,7 +55,7 @@
   --fs-xl: 1.35rem;
 
   /* Focus ring */
-  --ring: 0 0 0 3px rgba(211, 47, 47, .18);
+  --ring: 0 0 0 3px var(--ital-orange-100);
 
   /* Z-index */
   --z-sticky: 10;
@@ -96,13 +96,13 @@
 :host .ux-header {
   display: flex; align-items: center; justify-content: space-between;
   gap: .75rem; padding-bottom: .5rem;
-  border-bottom: 3px solid var(--amber-200);
+  border-bottom: 3px solid var(--ital-green);
 }
 
 :host .ux-header__title h1 {
   font-size: var(--fs-xl);
   font-weight: 700;
-  color: var(--brand-red);
+  color: var(--ital-orange-dark);
   margin: 0 0 var(--space-2) 0;
 }
 
@@ -118,11 +118,11 @@
 }
 
 :host .chip--info {
-  background: #e0f2fe; color: #0369a1;
+  background: var(--ital-green-50); color: var(--ital-green-dark);
 }
 
 :host .chip--warning {
-  background: var(--amber-100); color: #92400e;
+  background: var(--ital-orange-50); color: var(--ital-orange-dark);
 }
 
 :host .chip--muted {
@@ -149,11 +149,11 @@
 }
 
 :host .btn--primary {
-  background: var(--brand-red); color: white;
+  background: var(--ital-green); color: white;
 }
 
 :host .btn--primary:hover:not(:disabled) {
-  background: var(--brand-red-600);
+  background: var(--ital-green-dark);
 }
 
 :host .btn--primary:disabled {
@@ -161,12 +161,12 @@
 }
 
 :host .btn--outline {
-  background: transparent; color: var(--brand-red);
-  border: 2px solid var(--brand-red);
+  background: transparent; color: var(--ital-orange-dark);
+  border: 2px solid var(--ital-orange);
 }
 
 :host .btn--outline:hover:not(:disabled) {
-  background: var(--brand-red); color: white;
+  background: var(--ital-orange-50); color: var(--ital-orange-dark);
 }
 
 :host .btn--outline:disabled {
@@ -189,6 +189,7 @@
   background: var(--bg-card); border-radius: var(--radius-md);
   padding: var(--space-5); box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--ital-green-100);
 }
 
 :host .datos-section {
@@ -198,7 +199,7 @@
 :host .datos-section h3 {
   font-size: var(--fs-md);
   font-weight: 600;
-  color: var(--text);
+  color: var(--ital-orange-dark);
   margin: 0 0 var(--space-3) 0;
 }
 
@@ -216,8 +217,8 @@
 }
 
 :host .alert-danger {
-  background: #fee2e2; border-color: #dc2626;
-  color: #991b1b;
+  background: var(--ital-orange-50); border-color: var(--ital-orange);
+  color: var(--ital-orange-dark);
 }
 
 /* ==========================================================================
@@ -254,7 +255,7 @@
 }
 
 :host .ux-input:focus {
-  outline: none; border-color: var(--brand-red);
+  outline: none; border-color: var(--ital-orange);
   box-shadow: var(--ring);
 }
 
@@ -308,16 +309,16 @@
 }
 
 :host .tabs-container label.ux-tab:hover {
-  color: var(--brand-red);
-  background: var(--warm-50);
+  color: var(--ital-orange-dark);
+  background: var(--ital-orange-50);
 }
 
 :host #tab-diario:checked + label.ux-tab,
 :host #tab-cuadro:checked + label.ux-tab,
 :host #tab-clasificacion:checked + label.ux-tab {
-  color: var(--brand-red);
-  border-bottom-color: var(--brand-red);
-  background: var(--warm-50);
+  color: var(--ital-orange-dark);
+  border-bottom-color: var(--ital-orange);
+  background: var(--ital-cream);
 }
 
 :host .tab-content {

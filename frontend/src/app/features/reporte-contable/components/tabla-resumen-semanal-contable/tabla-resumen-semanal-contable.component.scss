@@ -22,27 +22,31 @@
   font-size: var(--fs-sm);
 
   thead {
-    background-color: var(--warm-50);
-    border-bottom: 2px solid var(--warm-200);
+    background-color: var(--ital-green);
+    border-bottom: 2px solid var(--ital-green-dark);
   }
 
   th {
     padding: var(--space-3) var(--space-4);
     text-align: left;
     font-weight: 700;
-    color: var(--text);
+    color: var(--ital-cream);
     white-space: nowrap;
-    border-bottom: 2px solid var(--warm-200);
+    border-bottom: 2px solid var(--ital-green-dark);
   }
 
   td {
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--warm-200);
-    color: var(--text-sub);
+    color: var(--ital-orange-dark);
+  }
+
+  tbody tr:nth-child(even) {
+    background-color: var(--ital-cream);
   }
 
   tbody tr:hover {
-    background-color: var(--warm-25);
+    background-color: var(--ital-orange-50);
   }
 
   .text-right {
@@ -51,18 +55,18 @@
 
   .font-bold {
     font-weight: 700;
-    color: var(--text);
+    color: var(--ital-orange-dark);
   }
 }
 
 .total-row {
-  background-color: #d1fae5 !important;
-  border-top: 2px solid #10b981;
+  background-color: var(--ital-green-50) !important;
+  border-top: 2px solid var(--ital-green);
 
   td {
     padding: var(--space-4) var(--space-4);
     font-weight: 700;
-    color: #065f46;
+    color: var(--ital-green-dark);
   }
 }
 

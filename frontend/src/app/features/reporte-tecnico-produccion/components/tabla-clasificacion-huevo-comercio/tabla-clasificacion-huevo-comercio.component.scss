@@ -4,8 +4,8 @@
 }
 
 .reporte-encabezado {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--ital-cream);
+  border: 1px solid var(--ital-green-100);
   border-radius: 4px;
   padding: 1rem;
   margin-bottom: 1rem;
@@ -25,16 +25,16 @@
       .info-label {
         font-weight: 700;
         font-size: 1rem;
-        color: #212529;
+        color: var(--ital-orange-dark);
       }
 
       .info-value {
         font-size: 0.875rem;
-        color: #495057;
+        color: var(--ital-text, #2b2b2b);
       }
 
       .info-separator {
-        color: #adb5bd;
+        color: var(--ital-muted, #6b7280);
         font-weight: 300;
       }
     }
@@ -45,14 +45,15 @@
   margin: 2rem 0 1rem 0;
   text-align: center;
   padding: 0.75rem;
-  background: #e9ecef;
+  background: var(--ital-green-50);
   border-radius: 4px;
+  border: 1px solid var(--ital-green-100);
 
   h3 {
     margin: 0;
     font-size: 1rem;
     font-weight: 700;
-    color: #212529;
+    color: var(--ital-orange-dark);
   }
 }
 
@@ -72,7 +73,7 @@
   margin-bottom: 1rem;
 
   thead {
-    background: #f3f4f6;
+    background: var(--ital-green);
     position: sticky;
     top: 0;
     z-index: 10;
@@ -82,8 +83,9 @@
       text-align: center;
       font-weight: 600;
       font-size: 0.7rem;
-      border: 1px solid #d1d5db;
-      background: #f3f4f6;
+      border: 1px solid var(--ital-green-dark);
+      background: var(--ital-green);
+      color: var(--ital-cream);
       white-space: nowrap;
       vertical-align: middle;
       line-height: 1.2;
@@ -93,7 +95,7 @@
   tbody {
     tr {
       &:nth-child(even) {
-        background: #f9fafb;
+        background: var(--ital-cream);
       }
 
       &.fila-datos-reales {
@@ -102,23 +104,24 @@
       }
 
       &.fila-guia-genetica {
-        background: #fef3c7 !important; // Amarillo claro
+        background: var(--ital-orange-50) !important;
         font-weight: 600;
-        color: #92400e;
+        color: var(--ital-orange-dark);
       }
 
       &:hover {
-        background: #f3f4f6;
+        background: var(--ital-orange-50);
       }
     }
 
     td {
       padding: 0.5rem 0.375rem;
       text-align: center;
-      border: 1px solid #e5e7eb;
+      border: 1px solid var(--ital-green-100, #e5e7eb);
       white-space: nowrap;
       font-size: 0.75rem;
       line-height: 1.2;
+      color: var(--ital-orange-dark);
 
       &.text-left {
         text-align: left;
@@ -133,14 +136,14 @@
       }
 
       &.highlight-yellow {
-        background: #fef3c7 !important;
+        background: var(--ital-orange-50) !important;
         font-weight: 600;
-        color: #92400e;
+        color: var(--ital-orange-dark);
       }
 
       strong {
         font-weight: 700;
-        color: #1f2937;
+        color: var(--ital-orange-dark);
       }
     }
   }

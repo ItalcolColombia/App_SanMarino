@@ -1,75 +1,52 @@
-/* ==========================================================================
-   🎨 Design System / Tokens (solo claro)
-   ========================================================================== */
+/* Tema Italfoods */
    :host {
     display: block;
-
-    /* Brand */
-    --brand-red:        #d32f2f;
-    --brand-red-600:    #c62828;
-    --brand-red-700:    #b71c1c;
-
-    /* Accent */
-    --amber-25:         #fffbeb;
-    --amber-50:         #fff7ed;
-    --amber-100:        #fef3c7;
-    --amber-200:        #fde68a;
-
-    /* Warm Gray scale */
-    --warm-25:          #fdfdfc;
-    --warm-50:          #fafaf9;
-    --warm-100:         #f5f5f4;
-    --warm-200:         #e7e5e4;
-    --warm-300:         #d6d3d1;
-    --warm-400:         #a8a29e;
-    --warm-500:         #78716c;
-    --warm-600:         #57534e;
-
-    /* Base */
+    --brand-red:        var(--ital-green);
+    --brand-red-600:    var(--ital-green-dark);
+    --brand-red-700:    var(--ital-green-dark);
+    --brand-red-50:     var(--ital-green-50);
+    --brand-red-100:    var(--ital-green-100);
+    --amber-25:         var(--ital-orange-50);
+    --amber-50:         var(--ital-orange-50);
+    --amber-100:        var(--ital-orange-100);
+    --amber-200:        var(--ital-orange-100);
+    --warm-25:          var(--ital-cream-50);
+    --warm-50:          var(--ital-cream);
+    --warm-100:         var(--ital-cream);
+    --warm-200:         var(--ital-green-100);
+    --warm-300:         var(--ital-green-50);
+    --warm-400:         var(--ital-muted);
+    --warm-500:         var(--ital-muted);
+    --warm-600:         var(--ital-orange-dark);
     --white:            #ffffff;
-    --black:            #111111;
-
-    /* Sombras */
+    --black:            var(--ital-text);
     --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
     --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
     --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
-
-    /* Espaciado & Radios */
     --space-1: .25rem;
     --space-2: .5rem;
     --space-3: .75rem;
     --space-4: 1rem;
     --space-5: 1.25rem;
     --space-6: 1.5rem;
-
     --radius-sm: .5rem;
     --radius-md: .65rem;
     --radius-lg: 1rem;
     --radius-xl: 1.25rem;
-
-    /* Tipografía */
     --fs-xs: .75rem;
     --fs-sm: .85rem;
     --fs-md: .92rem;
     --fs-lg: 1.05rem;
     --fs-xl: 1.35rem;
-
-    /* Focus ring */
-    --ring: 0 0 0 3px rgba(211, 47, 47, .18);
-
-    /* Z-index */
+    --ring: 0 0 0 3px var(--ital-orange-100);
     --z-sticky: 10;
     --z-modal:  50;
-
-    /* Superficies (CLARO) */
-    --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+    --bg-body:    var(--ital-cream);
     --bg-card:    var(--white);
-    --bg-muted:   var(--warm-50);
-    --border:     var(--warm-200);
-    --text:       var(--black);
-    --text-sub:   #222222;
-
-    /* Transiciones */
+    --bg-muted:   var(--ital-cream);
+    --border:     var(--ital-green-100);
+    --text:       var(--ital-text);
+    --text-sub:   var(--ital-muted);
     --t-fast: .12s ease;
     --t-med:  .15s ease;
   }
@@ -107,41 +84,49 @@
   /* ==========================================================================
      📋 Header
      ========================================================================== */
-  .ux-header {
+  :host .ux-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: var(--space-4);
     gap: var(--space-4);
     padding-bottom: var(--space-3);
-    border-bottom: 3px solid var(--brand-red);
+    position: relative;
+    border-bottom: none;
     flex-shrink: 0;
+  }
+  :host .ux-header::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: var(--ital-green);
+    border-radius: 2px;
+  }
+  :host .ux-header__title {
+    flex: 1;
+    min-width: 0;
 
-    &__title {
-      flex: 1;
-      min-width: 0;
-
-      h1 {
-        font-size: var(--fs-xl);
-        font-weight: 800;
-        color: var(--brand-red);
-        margin: 0 0 var(--space-2) 0;
-        letter-spacing: 0.2px;
-      }
+    h1 {
+      font-size: var(--fs-xl);
+      font-weight: 800;
+      color: var(--ital-orange-dark);
+      margin: 0 0 var(--space-2) 0;
+      letter-spacing: 0.2px;
     }
+  }
 
-    &__meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-      margin-top: var(--space-2);
-    }
+  :host .ux-header__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
 
-    &__actions {
-      display: flex;
-      gap: var(--space-3);
-      flex-shrink: 0;
-    }
+  :host .ux-header__actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-shrink: 0;
   }
 
   /* ==========================================================================
@@ -165,20 +150,20 @@
     }
 
     &--info {
-      background: #e3f2fd;
-      color: #1565c0;
+      background: var(--ital-green-50);
+      color: var(--ital-green-dark);
 
       .chip__dot {
-        background: #1565c0;
+        background: var(--ital-green);
       }
     }
 
     &--warning {
-      background: var(--amber-100);
-      color: #b45309;
+      background: var(--ital-orange-100);
+      color: var(--ital-orange-dark);
 
       .chip__dot {
-        background: #b45309;
+        background: var(--ital-orange);
       }
     }
 
@@ -247,7 +232,7 @@
 
     &__header {
       padding: var(--space-4) var(--space-5);
-      border-bottom: 3px solid var(--brand-red);
+      border-bottom: 3px solid var(--ital-green);
       background: linear-gradient(135deg, var(--warm-50) 0%, white 100%);
       flex-shrink: 0;
 
@@ -255,7 +240,7 @@
         margin: 0;
         font-size: var(--fs-lg);
         font-weight: 800;
-        color: var(--brand-red);
+        color: var(--ital-orange-dark);
         letter-spacing: 0.5px;
       }
     }
@@ -307,8 +292,8 @@
 
     &:focus {
       outline: none;
-      border-color: var(--brand-red);
-      box-shadow: 0 0 0 3px rgba(211, 47, 47, 0.15);
+      border-color: var(--ital-orange);
+      box-shadow: 0 0 0 3px var(--ital-orange-100);
     }
 
     &:hover {
@@ -319,15 +304,15 @@
   /* ==========================================================================
      ⚠️ Alertas
      ========================================================================== */
-  .alert {
+  :host .alert {
     padding: var(--space-4);
     border-radius: var(--radius-sm);
     margin-bottom: var(--space-4);
 
     &-error {
-      background: #fee;
-      color: #c33;
-      border: 1px solid #fcc;
+      background: var(--ital-orange-50);
+      color: var(--ital-orange-dark);
+      border: 1px solid var(--ital-orange-100);
     }
   }
 
@@ -356,8 +341,8 @@
     font-size: var(--fs-sm);
 
     thead {
-      background: var(--brand-red);
-      color: var(--white);
+      background: var(--ital-green);
+      color: var(--ital-cream);
       position: sticky;
       top: 0;
       z-index: var(--z-sticky);
@@ -370,6 +355,7 @@
         font-size: var(--fs-sm);
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        color: var(--ital-cream);
       }
     }
 
@@ -379,21 +365,21 @@
         transition: background-color var(--t-fast);
 
         &:hover {
-          background: var(--bg-muted);
+          background: var(--ital-orange-50);
         }
 
         &:nth-child(even) {
-          background: var(--warm-50);
+          background: var(--ital-cream);
         }
 
         &:nth-child(even):hover {
-          background: var(--amber-25);
+          background: var(--ital-orange-50);
         }
       }
 
       td {
         padding: var(--space-3) var(--space-4);
-        color: var(--text);
+        color: var(--ital-orange-dark);
         white-space: nowrap;
       }
     }
@@ -428,23 +414,23 @@
     font-weight: 600;
 
     &--info {
-      background: #e3f2fd;
-      color: #1565c0;
+      background: var(--ital-green-50);
+      color: var(--ital-green-dark);
     }
 
     &--warning {
-      background: var(--amber-100);
-      color: #b45309;
+      background: var(--ital-orange-100);
+      color: var(--ital-orange-dark);
     }
 
     &--success {
-      background: #e8f5e8;
-      color: #2e7d32;
+      background: var(--ital-green-50);
+      color: var(--ital-green-dark);
     }
 
     &--danger {
-      background: #fee;
-      color: #c33;
+      background: var(--ital-orange-50);
+      color: var(--ital-orange-dark);
     }
   }
 
@@ -498,38 +484,38 @@
     }
 
     &--edit {
-      border-color: #2196f3;
-      color: #2196f3;
-      background: #e3f2fd;
+      border-color: var(--ital-orange);
+      color: var(--ital-orange);
+      background: var(--ital-orange-50);
 
       &:hover:not(:disabled) {
-        background: #bbdefb;
-        border-color: #1976d2;
-        color: #1565c0;
+        background: var(--ital-orange-100);
+        border-color: var(--ital-orange-dark);
+        color: var(--ital-orange-dark);
       }
     }
 
     &--delete {
-      border-color: var(--brand-red);
-      color: var(--brand-red);
-      background: var(--brand-red-50);
+      border-color: var(--ital-green);
+      color: var(--ital-green-dark);
+      background: var(--ital-green-50);
 
       &:hover:not(:disabled) {
-        background: var(--brand-red-100);
-        border-color: var(--brand-red-600);
-        color: var(--brand-red-700);
+        background: var(--ital-green-100);
+        border-color: var(--ital-green-dark);
+        color: var(--ital-green-dark);
       }
     }
 
     &--view {
-      border-color: #2196f3;
-      color: #2196f3;
-      background: #e3f2fd;
+      border-color: var(--ital-orange);
+      color: var(--ital-orange);
+      background: var(--ital-orange-50);
 
       &:hover:not(:disabled) {
-        background: #bbdefb;
-        border-color: #1976d2;
-        color: #1565c0;
+        background: var(--ital-orange-100);
+        border-color: var(--ital-orange-dark);
+        color: var(--ital-orange-dark);
       }
     }
   }
@@ -553,10 +539,10 @@
     }
 
     &--danger {
-      color: var(--brand-red);
+      color: var(--ital-orange);
 
       &:hover:not(:disabled) {
-        background: #fee;
+        background: var(--ital-orange-50);
       }
     }
   }

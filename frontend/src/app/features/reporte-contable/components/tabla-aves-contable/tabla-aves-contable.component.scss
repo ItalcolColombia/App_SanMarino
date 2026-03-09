@@ -8,9 +8,9 @@
   font-size: 1.2rem;
   font-weight: 700;
   margin-bottom: 1rem;
-  color: #1a1a1a;
+  color: var(--ital-orange-dark);
   padding-bottom: 0.5rem;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--ital-green-100);
 }
 
 .table-wrapper {
@@ -33,80 +33,93 @@
   }
 
   th {
-    background: #f9fafb;
+    background: var(--ital-green);
     font-weight: 600;
-    color: #374151;
+    color: var(--ital-cream);
     position: sticky;
     top: 0;
     z-index: 10;
+  }
+
+  td {
+    color: var(--ital-orange-dark);
   }
 }
 
 // Encabezados principales
 .header-row--main {
   th {
-    background: linear-gradient(to bottom, #f3f4f6, #e5e7eb);
+    background: var(--ital-green);
+    color: var(--ital-cream);
     font-weight: 700;
     text-align: center;
     font-size: 0.8rem;
     padding: 0.5rem;
-    border-bottom: 2px solid #d1d5db;
+    border-bottom: 2px solid var(--ital-green-dark);
   }
 }
 
 // Encabezados secundarios
 .header-row--sub {
   th {
-    background: #f9fafb;
+    background: var(--ital-green-dark);
+    color: var(--ital-cream);
     font-weight: 600;
     text-align: center;
     font-size: 0.75rem;
     padding: 0.5rem;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--ital-green-100);
   }
 }
 
-// Grupos de encabezados con colores
+// Grupos de encabezados con colores Italfoods
 .header-group {
   &--saldo {
-    background: linear-gradient(to bottom, #fef3c7, #fde68a) !important;
+    background: linear-gradient(to bottom, var(--ital-orange-50), var(--ital-orange-100)) !important;
+    color: var(--ital-orange-dark);
   }
   &--entradas {
-    background: linear-gradient(to bottom, #d1fae5, #a7f3d0) !important;
+    background: linear-gradient(to bottom, var(--ital-green-50), var(--ital-green-100)) !important;
+    color: var(--ital-green-dark);
   }
   &--mortalidad {
-    background: linear-gradient(to bottom, #fee2e2, #fecaca) !important;
+    background: linear-gradient(to bottom, var(--ital-orange-50), var(--ital-orange-100)) !important;
+    color: var(--ital-orange-dark);
   }
   &--seleccion {
-    background: linear-gradient(to bottom, #fce7f3, #fbcfe8) !important;
+    background: linear-gradient(to bottom, var(--ital-orange-50), var(--ital-orange-100)) !important;
+    color: var(--ital-orange-dark);
   }
   &--ventas {
-    background: linear-gradient(to bottom, #dbeafe, #bfdbfe) !important;
+    background: linear-gradient(to bottom, var(--ital-green-50), var(--ital-green-100)) !important;
+    color: var(--ital-green-dark);
   }
   &--traslados {
-    background: linear-gradient(to bottom, #e0e7ff, #c7d2fe) !important;
+    background: linear-gradient(to bottom, var(--ital-green-50), var(--ital-green-100)) !important;
+    color: var(--ital-green-dark);
   }
   &--saldo-final {
-    background: linear-gradient(to bottom, #dcfce7, #bbf7d0) !important;
+    background: linear-gradient(to bottom, var(--ital-green-50), var(--ital-green-100)) !important;
+    color: var(--ital-green-dark);
   }
 }
 
 // Columnas diferenciadas por sexo
 .col-hembra {
-  background-color: #fef2f2;
+  background-color: var(--ital-orange-50);
   font-weight: 500;
   
   &:hover {
-    background-color: #fee2e2;
+    background-color: var(--ital-orange-100);
   }
 }
 
 .col-macho {
-  background-color: #eff6ff;
+  background-color: var(--ital-green-50);
   font-weight: 500;
   
   &:hover {
-    background-color: #dbeafe;
+    background-color: var(--ital-green-100);
   }
 }
 
@@ -121,14 +134,14 @@
   transition: background-color 0.15s ease;
   
   &:hover {
-    background-color: #f9fafb;
+    background-color: var(--ital-orange-50);
   }
   
   &:nth-child(even) {
-    background-color: #fafafa;
+    background-color: var(--ital-cream);
     
     &:hover {
-      background-color: #f3f4f6;
+      background-color: var(--ital-orange-50);
     }
   }
 }
@@ -145,49 +158,50 @@
 }
 
 .saldo-anterior-row {
-  background-color: #fffbeb;
-  border-top: 2px solid #fbbf24;
+  background-color: var(--ital-orange-50);
+  border-top: 2px solid var(--ital-orange);
   
   .info-label {
-    background: #fef3c7;
+    background: var(--ital-orange-100);
   }
 }
 
 .entradas-row {
-  background-color: #f0fdf4;
-  border-top: 1px solid #86efac;
+  background-color: var(--ital-green-50);
+  border-top: 1px solid var(--ital-green-100);
   
   .info-label {
-    background: #d1fae5;
+    background: var(--ital-green-100);
   }
 }
 
 .total-row {
-  background: linear-gradient(to right, #dbeafe, #bfdbfe);
-  border-top: 3px solid #3b82f6;
+  background: linear-gradient(to right, var(--ital-green-50), var(--ital-green-100));
+  border-top: 3px solid var(--ital-green);
   font-weight: 700;
   
   .info-label {
-    background: #bfdbfe;
-    color: #1e40af;
+    background: var(--ital-green-100);
+    color: var(--ital-green-dark);
   }
   
   td {
-    border-top: 2px solid #3b82f6;
+    border-top: 2px solid var(--ital-green);
+    color: var(--ital-orange-dark);
   }
 }
 
 // Resaltados
 .highlight-yellow {
-  background-color: #fef3c7 !important;
+  background-color: var(--ital-orange-50) !important;
   font-weight: 700;
-  color: #92400e;
+  color: var(--ital-orange-dark);
 }
 
 .highlight-green {
-  background-color: #d1fae5 !important;
+  background-color: var(--ital-green-50) !important;
   font-weight: 700;
-  color: #065f46;
+  color: var(--ital-green-dark);
 }
 
 // Celdas vacías

@@ -1,78 +1,39 @@
-/* ==========================================================================
-   🎨 Design System / Tokens (solo claro)
-   ========================================================================== */
+/* Tema Italfoods (variables en :root desde theme-italfoods.scss) */
    :host {
     display: block;
 
-    /* Brand */
-    --brand-red:        #d32f2f;
-    --brand-red-600:    #c62828;
-    --brand-red-700:    #b71c1c;
-
-    /* Accent */
-    --amber-25:         #fffbeb;
-    --amber-50:         #fff7ed;
-    --amber-100:        #fef3c7;
-    --amber-200:        #fde68a;
-
-    /* Warm Gray scale */
-    --warm-25:          #fdfdfc;
-    --warm-50:          #fafaf9;
-    --warm-100:         #f5f5f4;
-    --warm-200:         #e7e5e4;
-    --warm-300:         #d6d3d1;
-    --warm-400:         #a8a29e;
-    --warm-500:         #78716c;
-    --warm-600:         #57534e;
-
-    /* Base */
+    --brand-red:        var(--ital-green);
+    --brand-red-600:    var(--ital-green-dark);
+    --brand-red-700:    var(--ital-green-dark);
+    --amber-25:         var(--ital-orange-50);
+    --amber-50:         var(--ital-orange-50);
+    --amber-100:        var(--ital-orange-100);
+    --amber-200:        var(--ital-orange-100);
+    --warm-25:          var(--ital-cream-50);
+    --warm-50:          var(--ital-cream);
+    --warm-100:         var(--ital-cream);
+    --warm-200:         var(--ital-green-100);
+    --warm-300:         var(--ital-green-50);
+    --warm-400:         var(--ital-muted);
+    --warm-500:         var(--ital-muted);
+    --warm-600:         var(--ital-orange-dark);
     --white:            #ffffff;
-    --black:            #111111; /* texto principal negro */
-
-    /* Sombras */
+    --black:            var(--ital-text);
     --shadow-sm:        0 4px 12px rgba(31, 41, 55, .08);
     --shadow-md:        0 6px 18px rgba(31, 41, 55, .10);
     --shadow-lg:        0 10px 25px rgba(31, 41, 55, .12);
-
-    /* Espaciado & Radios */
-    --space-1: .25rem;
-    --space-2: .5rem;
-    --space-3: .75rem;
-    --space-4: 1rem;
-    --space-5: 1.25rem;
-    --space-6: 1.5rem;
-
-    --radius-sm: .5rem;
-    --radius-md: .65rem;
-    --radius-lg: 1rem;
-    --radius-xl: 1.25rem;
-
-    /* Tipografía */
-    --fs-xs: .75rem;
-    --fs-sm: .85rem;
-    --fs-md: .92rem;
-    --fs-lg: 1.05rem;
-    --fs-xl: 1.35rem;
-
-    /* Focus ring */
-    --ring: 0 0 0 3px rgba(211, 47, 47, .18);
-
-    /* Z-index */
-    --z-sticky: 10;
-    --z-modal:  50;
-
-    /* Superficies (CLARO) */
-    /* ⬇️ Fondo gris claro difuminado (degradado suave) */
-    --bg-body:    linear-gradient(180deg, #fafafa 0%, #f3f4f6 35%, #eef2f7 100%);
+    --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem;
+    --radius-sm: .5rem; --radius-md: .65rem; --radius-lg: 1rem; --radius-xl: 1.25rem;
+    --fs-xs: .75rem; --fs-sm: .85rem; --fs-md: .92rem; --fs-lg: 1.05rem; --fs-xl: 1.35rem;
+    --ring: 0 0 0 3px var(--ital-orange-100);
+    --z-sticky: 10; --z-modal: 50;
+    --bg-body:    var(--ital-cream);
     --bg-card:    var(--white);
-    --bg-muted:   var(--warm-50);
-    --border:     var(--warm-200);
-    --text:       var(--black);         /* texto negro */
-    --text-sub:   #222222;              /* gris muy oscuro para secundarios */
-
-    /* Transiciones */
-    --t-fast: .12s ease;
-    --t-med:  .15s ease;
+    --bg-muted:   var(--ital-cream);
+    --border:     var(--ital-green-100);
+    --text:       var(--ital-text);
+    --text-sub:   var(--ital-muted);
+    --t-fast: .12s ease; --t-med: .15s ease;
   }
 
   /* (Sin modo oscuro) */
@@ -127,12 +88,16 @@
      ========================================================================== */
   :host .ux-header {
     display: flex; align-items: center; justify-content: space-between;
-    gap: .75rem; padding-bottom: .5rem;
-    border-bottom: 3px solid var(--amber-200);
+    gap: .75rem; padding-bottom: .5rem; position: relative;
+    border-bottom: none;
+  }
+  :host .ux-header::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: var(--ital-green); border-radius: 2px;
   }
   :host .ux-header__title { display: flex; flex-direction: column; gap: .35rem; }
   :host .ux-header__title h1 {
-    margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--brand-red); letter-spacing: .2px;
+    margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--ital-orange-dark); letter-spacing: .2px;
   }
   :host .ux-header__meta {
     display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
@@ -150,8 +115,8 @@
   }
   :host .chip--info { background: var(--amber-100); border-color: var(--amber-200); }
   :host .chip--info .chip__dot { background: var(--brand-red); }
-  :host .chip--warning { background: var(--amber-50); color: #7c2d12; border-color: #fed7aa; }
-  :host .chip--warning .chip__dot { background: var(--brand-red); }
+  :host .chip--warning { background: var(--ital-orange-50); color: var(--ital-orange-dark); border-color: var(--ital-orange-100); }
+  :host .chip--warning .chip__dot { background: var(--ital-orange); }
 
   /* ==========================================================================
      🔘 Botones
@@ -174,7 +139,7 @@
   :host .btn--primary { --btn-bg: var(--brand-red); --btn-fg: var(--white); --btn-br: var(--brand-red); }
   :host .btn--primary:hover { background: var(--brand-red-600); }
   :host .btn--outline { --btn-bg: var(--bg-card); --btn-fg: var(--brand-red); --btn-br: var(--brand-red); }
-  :host .btn--outline:hover { background: #fff1f2; }
+  :host .btn--outline:hover { background: var(--ital-orange-50); }
   :host .btn--ghost { --btn-bg: var(--bg-card); --btn-fg: var(--text); --btn-br: var(--border); }
   :host .btn--ghost:hover { background: var(--bg-muted); }
 
@@ -184,8 +149,8 @@
     border-radius: .55rem; padding: .35rem .55rem; line-height: 1;
     transition: background var(--t-med), color var(--t-med), transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   }
-  :host .icon-btn:hover { background: var(--bg-muted); color: var(--brand-red); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
-  :host .icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
+  :host .icon-btn:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  :host .icon-btn--danger:hover { color: var(--ital-green-dark); background: var(--ital-green-50); border-color: var(--ital-green-100); }
 
   :host .btn:focus-visible,
   :host .icon-btn:focus-visible,
@@ -208,7 +173,7 @@
     font-weight: 600; outline: none; transition: border-color var(--t-med), box-shadow var(--t-med), background var(--t-med);
   }
   :host .ux-select select:hover { background: var(--bg-muted); }
-  :host .ux-select select:focus { border-color: var(--brand-red); box-shadow: var(--ring); }
+  :host .ux-select select:focus { border-color: var(--ital-orange); box-shadow: var(--ring); }
   :host .ux-select::after {
     content: '▾'; position: absolute; right: .65rem; top: 50%;
     transform: translateY(-50%); font-size: .8rem; color: var(--warm-400); pointer-events: none;
@@ -231,21 +196,22 @@
   :host .ux-table { width: 100%; border-collapse: separate; border-spacing: 0; }
   :host .ux-table thead {
     position: sticky; top: 0; z-index: var(--z-sticky);
-    background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%);
-    color: var(--white);
+    background: var(--ital-green);
+    color: var(--ital-cream);
   }
   :host .ux-table thead th {
     text-align: left; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
-    padding: .8rem 1rem; border-bottom: 2px solid var(--brand-red-700);
+    padding: .8rem 1rem; border-bottom: 2px solid rgba(0,0,0,.1);
+    color: var(--ital-cream);
   }
   :host .ux-table thead th:first-child { border-top-left-radius: .75rem; }
   :host .ux-table thead th:last-child  { border-top-right-radius: .75rem; text-align: right; }
 
   :host .ux-table tbody tr { transition: background-color var(--t-fast); }
-  :host .ux-table tbody tr:nth-child(even) { background: var(--warm-50); }
-  :host .ux-table tbody tr:hover { background: var(--amber-25); }
+  :host .ux-table tbody tr:nth-child(even) { background: var(--ital-cream); }
+  :host .ux-table tbody tr:hover { background: var(--ital-orange-50); }
   :host .ux-table tbody td {
-    padding: .7rem 1rem; font-size: var(--fs-md); color: var(--text); border-bottom: 1px solid var(--border);
+    padding: .7rem 1rem; font-size: var(--fs-md); color: var(--ital-orange-dark); border-bottom: 1px solid var(--border);
   }
   :host .btn-group { display: inline-flex; align-items: center; gap: .25rem; }
 
@@ -266,7 +232,7 @@
   }
   :host .spinner {
     width: 1rem; height: 1rem; border-radius: 999px;
-    border: 2px solid var(--warm-300); border-left-color: var(--brand-red);
+    border: 2px solid var(--ital-green-50); border-left-color: var(--ital-orange);
     animation: spin .9s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -297,7 +263,7 @@
     display: flex; align-items: center; justify-content: space-between; gap: .5rem;
     padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
   }
-  :host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--brand-red); }
+  :host .ux-modal__header h2 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--ital-orange-dark); }
   :host .ux-modal__footer {
     display: flex; justify-content: flex-end; gap: .5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border);
   }
@@ -328,14 +294,14 @@
   :host .form-field select:hover { background: var(--bg-muted); }
   :host .form-field input:focus,
   :host .form-field textarea:focus,
-  :host .form-field select:focus { border-color: var(--brand-red); box-shadow: var(--ring); }
+  :host .form-field select:focus { border-color: var(--ital-orange); box-shadow: var(--ring); }
 
   /* Estados inválidos */
   :host .form-field .is-invalid,
   :host .form-field input.ng-invalid.ng-touched,
   :host .form-field select.ng-invalid.ng-touched {
-    border-color: #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, .15);
+    border-color: var(--ital-orange);
+    box-shadow: 0 0 0 3px var(--ital-orange-100);
   }
 
   /* Inputs readonly */
@@ -420,207 +386,16 @@
     :host .ux-table thead { background: #333 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 
-  /* ===========================
-   Tokens del componente
-   =========================== */
-:host {
-  display: block;
+  /* Tokens ya definidos arriba (Italfoods) */
 
-  --brand-red:         #d32f2f;
-  --brand-red-600:     #c62828;
-  --brand-red-700:     #b71c1c;
-
-  --chicken-yellow:    #f6d860;
-  --chicken-yellow-200:#fde68a;
-
-  --warm-gray-50:      #fafaf9;
-  --warm-gray-100:     #f5f5f4;
-  --warm-gray-200:     #e7e5e4;
-  --warm-gray-300:     #d6d3d1;
-  --warm-gray-400:     #a8a29e;
-  --warm-gray-600:     #57534e;
-
-  --white:             #ffffff;
-  --shadow-lg:         0 10px 25px rgba(31, 41, 55, .10);
-}
-
-/* ===========================
-   Layout base (por si no existe)
-   =========================== */
-:host .ux-page { display: flex; height: 100vh; background: var(--warm-gray-100); }
-:host .ux-sidebar {
-  width: 16rem; flex-shrink: 0; background: var(--white);
-  border-right: 1px solid var(--warm-gray-200);
-}
-:host .ux-main { flex: 1; padding: 1.5rem; overflow: auto; display: flex; flex-direction: column; gap: 1rem; }
-
-/* ===========================
-   Header
-   =========================== */
-:host .ux-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding-bottom: .5rem; border-bottom: 3px solid var(--chicken-yellow); }
-:host .ux-header__title { display: flex; flex-direction: column; gap: .35rem; }
-:host .ux-header__title h1 { margin: 0; font-size: 1.35rem; font-weight: 800; color: var(--brand-red); letter-spacing: .2px; }
-:host .ux-header__meta { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-
-/* ===========================
-   Chips
-   =========================== */
-:host .chip { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; line-height: 1; padding: .45rem .6rem; border-radius: 999px; border: 1px solid transparent; font-weight: 600; }
-:host .chip__dot { width: .5rem; height: .5rem; border-radius: 999px; display: inline-block; }
-:host .chip--info { background: var(--chicken-yellow-200); color: var(--warm-gray-600); border-color: #f6e3a8; }
-:host .chip--info .chip__dot { background: var(--brand-red); }
-:host .chip--muted { background: var(--warm-gray-100); color: var(--warm-gray-600); border-color: var(--warm-gray-200); }
-:host .chip--muted .chip__dot { background: var(--warm-gray-400); }
-:host .chip--warning { background: #fff7ed; color: #7c2d12; border-color: #fed7aa; }
-:host .chip--warning .chip__dot { background: var(--brand-red); }
-
-/* ===========================
-   Botones
-   =========================== */
-:host .btn {
-  --btn-bg: var(--warm-gray-100);
-  --btn-fg: var(--warm-gray-600);
-  --btn-br: var(--warm-gray-200);
-  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  padding: .55rem .9rem; border-radius: .65rem; background: var(--btn-bg); color: var(--btn-fg);
-  border: 1px solid var(--btn-br); font-weight: 700; transition: transform .15s, box-shadow .15s, background .15s, color .15s;
-  text-decoration: none; cursor: pointer;
-}
-:host .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
-:host .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
-
-:host .btn--primary { --btn-bg: var(--brand-red); --btn-fg: var(--white); --btn-br: var(--brand-red); }
-:host .btn--primary:hover { background: var(--brand-red-600); }
-:host .btn--outline { --btn-bg: var(--white); --btn-fg: var(--brand-red); --btn-br: var(--brand-red); }
-:host .btn--outline:hover { background: #fff1f2; }
-:host .btn--ghost { --btn-bg: var(--white); --btn-fg: var(--warm-gray-600); --btn-br: var(--warm-gray-200); }
-:host .btn--ghost:hover { background: var(--warm-gray-100); }
-
-:host .icon-btn {
-  border: 1px solid var(--warm-gray-200); background: var(--white); color: var(--warm-gray-600);
-  border-radius: .55rem; padding: .35rem .55rem; line-height: 1;
-  transition: background .15s, color .15s, transform .12s;
-}
-:host .icon-btn:hover { background: var(--warm-gray-100); color: var(--brand-red); transform: translateY(-1px); }
-:host .icon-btn--danger:hover { color: var(--brand-red-700); background: #fff1f2; border-color: #fecaca; }
-
-/* ===========================
-   Selects / inputs
-   =========================== */
-:host .ux-label { font-size: .85rem; color: var(--warm-gray-600); font-weight: 700; }
-:host .ux-select select,
-:host .ux-input,
-:host .ux-form .form-field input,
-:host .ux-form .form-field textarea,
-:host .ux-form .form-field select {
-  appearance: none; padding: .55rem .75rem; border: 1px solid var(--warm-gray-300);
-  border-radius: .65rem; background: var(--white); color: var(--warm-gray-600); font-weight: 600;
-  outline: none; transition: border-color .15s, box-shadow .15s; width: 100%;
-}
-:host .ux-select select:focus,
-:host .ux-form .form-field input:focus,
-:host .ux-form .form-field textarea:focus,
-:host .ux-form .form-field select:focus { border-color: var(--brand-red); box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
-
-/* ===========================
-   Card + Tabla
-   =========================== */
-:host .ux-card { position: relative; background: var(--white); border: 1px solid var(--warm-gray-200); border-radius: 1rem; box-shadow: var(--shadow-lg); }
-:host .ux-scroll { max-height: 65vh; overflow: auto; }
-
-:host .ux-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-:host .ux-table thead {
-  position: sticky; top: 0; z-index: 10;
-  background: linear-gradient(180deg, var(--brand-red) 0%, var(--brand-red-600) 100%); color: var(--white);
-}
-:host .ux-table thead th {
-  text-align: left; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
-  padding: .8rem 1rem; border-bottom: 2px solid var(--brand-red-700);
-}
-:host .ux-table thead th:first-child { border-top-left-radius: 1rem; }
-:host .ux-table thead th:last-child  { border-top-right-radius: 1rem; text-align: right; }
-:host .ux-table tbody tr { transition: background-color .12s; }
-:host .ux-table tbody tr:nth-child(even) { background: var(--warm-gray-50); }
-:host .ux-table tbody tr:hover { background: #fff7ed; }
-:host .ux-table tbody td { padding: .7rem 1rem; font-size: .9rem; color: var(--warm-gray-600); border-bottom: 1px solid var(--warm-gray-200); }
-:host .text-right { text-align: right; }
-:host .btn-group { display: inline-flex; align-items: center; gap: .25rem; }
-
-/* ===========================
-   Form
-   =========================== */
-:host .ux-form { padding: 1.25rem; }
-:host .ux-form .grid { display: grid; gap: .9rem; }
-:host .ux-form .grid.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-:host .form-field { display: flex; flex-direction: column; gap: .35rem; }
-:host .form-field--full { grid-column: 1 / -1; }
-:host .ux-hint { font-size: .8rem; color: var(--warm-gray-400); margin-bottom: .5rem; }
-
-/* ===========================
-   Tabs del modal (CSS-only)
-   =========================== */
-/* ===========================
-   Tabs del modal (CSS-only, accesible)
-   =========================== */
-:host .ux-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, max-content) 1fr;
-  align-items: end;
-  gap: .35rem;
-  border-bottom: 1px solid var(--warm-gray-200);
-  margin-bottom: 1rem;
-  position: relative;
-}
-
-:host .ux-tabs input[type="radio"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-:host .ux-tab {
-  display: inline-flex;
-  align-items: center;
-  padding: .55rem .8rem;
-  border: 1px solid var(--warm-gray-200);
-  border-bottom: none;
-  border-top-left-radius: .6rem;
-  border-top-right-radius: .6rem;
-  background: var(--warm-gray-100);
-  color: var(--warm-gray-600);
-  font-weight: 700;
-  cursor: pointer;
-  user-select: none;
-  transition: background .15s, color .15s, transform .12s;
-  outline: none;
-}
-:host .ux-tab:hover { background: var(--white); color: var(--brand-red); }
-:host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
-
-:host .ux-tab-panels {
-  grid-column: 1 / -1;
-  background: var(--white);
-  border: 1px solid var(--warm-gray-200);
-  border-radius: .6rem;
-  box-shadow: var(--shadow-lg);
-  padding: 1rem;
-}
-
-:host .ux-tab-panel { display: none; }
-
-/* Mostrar el panel correspondiente */
-:host #tab-general:checked ~ .ux-tab-panels #panel-general { display: block; }
-:host #tab-hembras:checked ~ .ux-tab-panels #panel-hembras { display: block; }
-:host #tab-machos:checked  ~ .ux-tab-panels #panel-machos  { display: block; }
-:host #tab-opcional:checked ~ .ux-tab-panels #panel-opcional { display: block; }
-
-/* Estado visual del tab ACTIVO (corregido) */
-:host #tab-general:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-hembras:checked + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-machos:checked  + label.ux-tab  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-opcional:checked + label.ux-tab { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
+/* Layout/base/chips/botones/tabla/form/tabs ya cubiertos por el bloque Design System arriba (Italfoods) */
+:host .ux-page { background: var(--bg-body); }
+:host .ux-tab:hover { color: var(--ital-orange); }
+:host .ux-tab:focus-visible { box-shadow: var(--ring); }
+:host #tab-general:checked + label.ux-tab,
+:host #tab-hembras:checked + label.ux-tab,
+:host #tab-machos:checked + label.ux-tab,
+:host #tab-opcional:checked + label.ux-tab { color: var(--ital-orange-dark); }
 
 
 
