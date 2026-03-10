@@ -180,3 +180,12 @@
   [seguimientoId]="seguimientoIdParaDetalle"
   (close)="closeDetailModal()">
 </app-modal-detalle-seguimiento>
+
+<!-- Modal de confirmación para eliminar registro de seguimiento diario -->
+<app-confirmation-modal
+  [isOpen]="showDeleteConfirmModal"
+  [data]="deleteConfirmModalData"
+  (confirmed)="confirmDelete()"
+  (closed)="closeDeleteConfirmModal()"
+  (cancelled)="closeDeleteConfirmModal()">
+</app-confirmation-modal>
