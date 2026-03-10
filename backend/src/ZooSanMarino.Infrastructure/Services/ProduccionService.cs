@@ -547,6 +547,19 @@ public class ProduccionService : IProduccionService
         return new ListaSeguimientoResponse(items, (int)paged.Total);
     }
 
+    private static object? MetadataFromJsonDocument(System.Text.Json.JsonDocument? doc)
+    {
+        if (doc == null) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText());
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static SeguimientoItemDto MapToSeguimientoItemDto(SeguimientoDiarioDto u, int produccionLoteId, int? lotePosturaProduccionId = null)
     {
         var consKgH = (decimal)(u.ConsumoKgHembras ?? 0);
@@ -590,7 +603,8 @@ public class ProduccionService : IProduccionService
             u.ConsumoAguaPh,
             u.ConsumoAguaOrp,
             u.ConsumoAguaTemperatura,
-            lotePosturaProduccionId ?? u.LotePosturaProduccionId
+            lotePosturaProduccionId ?? u.LotePosturaProduccionId,
+            Metadata: MetadataFromJsonDocument(u.Metadata)
         );
     }
 
@@ -606,19 +620,16 @@ public class ProduccionService : IProduccionService
 
     /// <summary>
     /// Elimina un seguimiento diario de producción (tabla unificada seguimiento_diario).
+    /// SeguimientoDiarioService.DeleteAsync valida con BaseQuery() que el registro pertenece a la compañía
+    /// (por LoteId o por LotePosturaProduccionId), por lo que no se duplica la validación aquí.
     /// </summary>
     public async Task<bool> EliminarSeguimientoAsync(int seguimientoId)
     {
         var u = await _seguimientoDiarioService.GetByIdAsync((long)seguimientoId);
-        if (u == null || u.TipoSeguimiento != TipoProduccion) return false;
+        if (u == null || u.TipoSeguimiento != TipoProduccion)
+            return false;
 
-        var lote = await _context.Lotes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.LoteId.ToString() == u.LoteId &&
-                                      l.CompanyId == _currentUser.CompanyId &&
-                                      l.DeletedAt == null);
-        if (lote == null) return false;
-
+        // DeleteAsync comprueba permisos (lote o LPP de la compañía) y elimina
         return await _seguimientoDiarioService.DeleteAsync((long)seguimientoId);
     }
 

@@ -177,15 +177,16 @@ public class ProduccionController : ControllerBase
     }
 
     /// <summary>
-    /// Lista los seguimientos diarios de producción de un lote
+    /// Lista los seguimientos diarios de producción de un lote.
+    /// Requiere loteId o lotePosturaProduccionId.
     /// </summary>
     /// <param name="loteId">ID del lote (legacy)</param>
     /// <param name="lotePosturaProduccionId">ID del lote postura producción (nuevo flujo)</param>
     /// <param name="desde">Fecha desde (opcional)</param>
     /// <param name="hasta">Fecha hasta (opcional)</param>
     /// <param name="page">Número de página (por defecto 1)</param>
-    /// <param name="size">Tamaño de página (por defecto 10)</param>
-    /// <returns>Lista paginada de seguimientos</returns>
+    /// <param name="size">Tamaño de página (1-100, por defecto 100)</param>
+    /// <returns>Lista paginada de seguimientos (cada ítem incluye metadata si existe)</returns>
     [HttpGet("seguimiento")]
     public async Task<ActionResult<ListaSeguimientoResponse>> ListarSeguimiento(
         [FromQuery] int? loteId = null,
@@ -193,12 +194,12 @@ public class ProduccionController : ControllerBase
         [FromQuery] DateTime? desde = null,
         [FromQuery] DateTime? hasta = null,
         [FromQuery] int page = 1,
-        [FromQuery] int size = 10)
+        [FromQuery] int size = 100)
     {
         try
         {
             if (page < 1) page = 1;
-            if (size < 1 || size > 100) size = 10;
+            if (size < 1 || size > 100) size = 100;
 
             var resultado = await _produccionService.ListarSeguimientoAsync(loteId, lotePosturaProduccionId, desde, hasta, page, size);
             return Ok(resultado);
@@ -210,10 +211,12 @@ public class ProduccionController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene el detalle completo de un seguimiento diario por su ID
+    /// Obtiene el detalle completo de un seguimiento diario por su ID.
+    /// Incluye todos los campos del registro y la metadata (itemsHembras, itemsMachos, consumos originales, etc.)
+    /// para poder editar el formulario en el frontend con todos los datos guardados.
     /// </summary>
     /// <param name="id">ID del seguimiento</param>
-    /// <returns>Detalle completo del seguimiento</returns>
+    /// <returns>Registro completo (id, fechaRegistro, mortalidad, consumo, huevos, tipoAlimento, metadata, etc.)</returns>
     [HttpGet("seguimiento/{id}")]
     public async Task<ActionResult<SeguimientoItemDto>> ObtenerSeguimientoPorId(int id)
     {
