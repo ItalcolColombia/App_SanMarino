@@ -104,6 +104,7 @@
   padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
 }
 :host .ux-modal__header h2 { margin: 0; font-size: var(--fs-xl); font-weight: 800; color: var(--ital-orange-dark); }
+:host .ux-modal__record-id { margin: .35rem 0 0; font-size: var(--fs-sm); color: var(--text-sub); }
 :host .ux-modal__footer {
   display: flex; justify-content: flex-end; gap: .75rem; padding: 1.25rem 1.5rem; border-top: 1px solid var(--border);
 }
