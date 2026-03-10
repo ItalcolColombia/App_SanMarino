@@ -3,6 +3,7 @@
   <div class="ux-modal__dialog">
     <header class="ux-modal__header">
       <h2 id="seguimiento-diario-modal-title">{{ editingSeguimiento ? 'Editar Seguimiento Diario' : 'Nuevo Seguimiento Diario' }}</h2>
+      <p *ngIf="editingSeguimiento?.id" class="ux-modal__record-id">ID del registro: <strong>{{ editingSeguimiento?.id }}</strong></p>
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
@@ -316,6 +317,8 @@
                   <option value="Inicio">Inicio</option>
                   <option value="Postura">Postura</option>
                   <option value="Final">Final</option>
+                  <!-- Al editar, si el registro trae un tipoAlimento desde el backend que no está en la lista fija, se muestra aquí -->
+                  <option *ngIf="editingSeguimiento?.tipoAlimento && !['Standard','Premium','Inicio','Postura','Final'].includes(editingSeguimiento?.tipoAlimento ?? '')" [value]="editingSeguimiento?.tipoAlimento">{{ editingSeguimiento?.tipoAlimento }}</option>
                 </select>
                 <small class="ux-hint">Tipo de alimento utilizado</small>
               </div>
@@ -601,10 +604,11 @@
   </div>
 </div>
 
-<!-- Modal de Confirmación/Error -->
+<!-- Modal de Confirmación/Error: Aceptar o X cierran el modal -->
 <app-confirmation-modal
   [isOpen]="showMessageModal"
   [data]="messageModalData"
+  (confirmed)="onMessageModalClose()"
   (closed)="onMessageModalClose()">
 </app-confirmation-modal>
 

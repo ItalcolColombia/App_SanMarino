@@ -16,6 +16,21 @@ interface CatalogItemExtended extends CatalogItemDto {
   unidad?: string;
 }
 
+/** Metadata del seguimiento (puede venir como objeto o JSON string; soporta camelCase y snake_case). */
+export interface MetadataSeguimientoNormalizada {
+  itemsHembras: Array<{ tipoItem: string; catalogItemId: number; cantidad: number; unidad: string }>;
+  itemsMachos: Array<{ tipoItem: string; catalogItemId: number; cantidad: number; unidad: string }>;
+  consumoOriginalHembras?: number;
+  unidadConsumoOriginalHembras?: string;
+  consumoOriginalMachos?: number;
+  unidadConsumoOriginalMachos?: string;
+  tipoItemHembras?: string | null;
+  tipoItemMachos?: string | null;
+  tipoAlimentoHembras?: number | null;
+  tipoAlimentoMachos?: number | null;
+  [key: string]: unknown;
+}
+
 @Component({
   selector: 'app-modal-seguimiento-diario',
   standalone: true,
@@ -112,7 +127,8 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       }
 
       if (this.editingSeguimiento) {
-        this.populateForm();
+        // Ejecutar en el siguiente tick para que el form esté en el DOM (*ngIf="isOpen") y los valores se apliquen correctamente
+        setTimeout(() => this.populateForm(), 0);
       } else {
         this.resetForm();
       }
@@ -289,6 +305,86 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     return `${item.codigo} — ${item.nombre}`;
   }
 
+  /**
+   * Obtiene la metadata del registro normalizada: si viene como string JSON la parsea,
+   * mapea snake_case a camelCase y asegura itemsHembras/itemsMachos como arrays.
+   */
+  private getNormalizedMetadata(): MetadataSeguimientoNormalizada {
+    const raw = this.editingSeguimiento?.metadata;
+    let obj: Record<string, unknown> = {};
+    if (typeof raw === 'string') {
+      try {
+        obj = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        return this.emptyMetadata();
+      }
+    } else if (raw && typeof raw === 'object') {
+      obj = { ...raw } as Record<string, unknown>;
+    } else {
+      return this.emptyMetadata();
+    }
+    const get = (key: string): unknown => obj[key] ?? obj[this.snakeCase(key)];
+    const getNum = (key: string): number | undefined => {
+      const v = get(key);
+      if (v === null || v === undefined) return undefined;
+      const n = Number(v);
+      return isNaN(n) ? undefined : n;
+    };
+    const getStr = (key: string): string | undefined => {
+      const v = get(key);
+      return v != null ? String(v) : undefined;
+    };
+    const toItem = (x: unknown): { tipoItem: string; catalogItemId: number; cantidad: number; unidad: string } => {
+      if (x && typeof x === 'object') {
+        const o = x as Record<string, unknown>;
+        const catalogItemId = Number(o['catalogItemId'] ?? o['catalog_item_id'] ?? o['catalogItem_id']) || 0;
+        const cantidad = Number(o['cantidad']) || 0;
+        const unidad = String(o['unidad'] ?? 'kg').trim() || 'kg';
+        const tipoItem = String(o['tipoItem'] ?? o['tipo_item'] ?? 'alimento').trim() || 'alimento';
+        return { tipoItem, catalogItemId, cantidad, unidad };
+      }
+      return { tipoItem: 'alimento', catalogItemId: 0, cantidad: 0, unidad: 'kg' };
+    };
+    const toItems = (arr: unknown): Array<{ tipoItem: string; catalogItemId: number; cantidad: number; unidad: string }> => {
+      if (Array.isArray(arr)) return arr.map(toItem).filter(i => i.catalogItemId > 0 || i.cantidad > 0);
+      return [];
+    };
+    const itemsH = toItems(get('itemsHembras') ?? get('items_hembras'));
+    const itemsM = toItems(get('itemsMachos') ?? get('items_machos'));
+    return {
+      itemsHembras: itemsH,
+      itemsMachos: itemsM,
+      consumoOriginalHembras: getNum('consumoOriginalHembras') ?? getNum('consumo_original_hembras'),
+      unidadConsumoOriginalHembras: getStr('unidadConsumoOriginalHembras') ?? getStr('unidad_consumo_original_hembras') ?? 'kg',
+      consumoOriginalMachos: getNum('consumoOriginalMachos') ?? getNum('consumo_original_machos'),
+      unidadConsumoOriginalMachos: getStr('unidadConsumoOriginalMachos') ?? getStr('unidad_consumo_original_machos') ?? 'kg',
+      tipoItemHembras: getStr('tipoItemHembras') ?? getStr('tipo_item_hembras') ?? null,
+      tipoItemMachos: getStr('tipoItemMachos') ?? getStr('tipo_item_machos') ?? null,
+      tipoAlimentoHembras: getNum('tipoAlimentoHembras') ?? getNum('tipo_alimento_hembras') ?? null,
+      tipoAlimentoMachos: getNum('tipoAlimentoMachos') ?? getNum('tipo_alimento_machos') ?? null,
+      ...obj
+    } as MetadataSeguimientoNormalizada;
+  }
+
+  private snakeCase(key: string): string {
+    return key.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+  }
+
+  private emptyMetadata(): MetadataSeguimientoNormalizada {
+    return {
+      itemsHembras: [],
+      itemsMachos: [],
+      consumoOriginalHembras: undefined,
+      unidadConsumoOriginalHembras: 'kg',
+      consumoOriginalMachos: undefined,
+      unidadConsumoOriginalMachos: 'kg',
+      tipoItemHembras: null,
+      tipoItemMachos: null,
+      tipoAlimentoHembras: null,
+      tipoAlimentoMachos: null
+    };
+  }
+
   private resetForm(): void {
     while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
     while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
@@ -350,15 +446,17 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   private populateForm(): void {
-    if (!this.editingSeguimiento) return;
+    const seg = this.editingSeguimiento;
+    if (!seg) return;
 
     while (this.itemsHembrasArray.length) this.itemsHembrasArray.removeAt(0);
     while (this.itemsMachosArray.length) this.itemsMachosArray.removeAt(0);
 
-    const metadata: any = this.editingSeguimiento.metadata || {};
-    const itemsHembras = metadata?.itemsHembras ?? [];
-    const itemsMachos = metadata?.itemsMachos ?? [];
-    (itemsHembras as any[]).forEach((item: any) => {
+    // Metadata completa normalizada (soporta JSON string, objeto, camelCase y snake_case)
+    const metadata = this.getNormalizedMetadata();
+    const itemsHembras = metadata.itemsHembras ?? [];
+    const itemsMachos = metadata.itemsMachos ?? [];
+    itemsHembras.forEach((item) => {
       this.itemsHembrasArray.push(this.fb.group({
         tipoItem: [item.tipoItem ?? 'alimento', Validators.required],
         catalogItemId: [item.catalogItemId ?? null, Validators.required],
@@ -366,7 +464,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
         unidad: [item.unidad ?? 'kg', Validators.required]
       }));
     });
-    (itemsMachos as any[]).forEach((item: any) => {
+    itemsMachos.forEach((item) => {
       this.itemsMachosArray.push(this.fb.group({
         tipoItem: [item.tipoItem ?? 'alimento', Validators.required],
         catalogItemId: [item.catalogItemId ?? null, Validators.required],
@@ -375,12 +473,12 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       }));
     });
     if (itemsHembras.length === 0 && itemsMachos.length === 0) {
-      const consH = metadata?.consumoOriginalHembras ?? this.editingSeguimiento.consKgH ?? 0;
-      const unidH = metadata?.unidadConsumoOriginalHembras ?? 'kg';
-      const consM = metadata?.consumoOriginalMachos ?? this.editingSeguimiento.consKgM ?? 0;
-      const unidM = metadata?.unidadConsumoOriginalMachos ?? 'kg';
-      const tipoAlimentoH = metadata?.tipoAlimentoHembras ?? null;
-      const tipoAlimentoM = metadata?.tipoAlimentoMachos ?? null;
+      const consH = metadata.consumoOriginalHembras ?? (seg as any).consKgH ?? 0;
+      const unidH = metadata.unidadConsumoOriginalHembras ?? 'kg';
+      const consM = metadata.consumoOriginalMachos ?? (seg as any).consKgM ?? 0;
+      const unidM = metadata.unidadConsumoOriginalMachos ?? 'kg';
+      const tipoAlimentoH = metadata.tipoAlimentoHembras ?? null;
+      const tipoAlimentoM = metadata.tipoAlimentoMachos ?? null;
       if (tipoAlimentoH || consH > 0) {
         this.itemsHembrasArray.push(this.fb.group({
           tipoItem: ['alimento', Validators.required],
@@ -399,38 +497,38 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       }
     }
 
-    const fechaRegistro = this.toYMD(this.editingSeguimiento.fechaRegistro);
-    const consumoOriginalHembras = metadata?.consumoOriginalHembras ?? this.editingSeguimiento.consKgH;
-    const unidadConsumoOriginalHembras = metadata?.unidadConsumoOriginalHembras ?? 'kg';
-    const consumoOriginalMachos = metadata?.consumoOriginalMachos ?? this.editingSeguimiento.consKgM;
-    const unidadConsumoOriginalMachos = metadata?.unidadConsumoOriginalMachos ?? 'kg';
-    const tipoItemHembras = metadata?.tipoItemHembras ?? null;
-    const tipoItemMachos = metadata?.tipoItemMachos ?? null;
-    const tipoAlimentoHembras = metadata?.tipoAlimentoHembras ?? null;
-    const tipoAlimentoMachos = metadata?.tipoAlimentoMachos ?? null;
+    const fechaRegistro = this.toYMD(seg.fechaRegistro);
+    const consumoOriginalHembras = metadata.consumoOriginalHembras ?? (seg as any).consKgH ?? 0;
+    const unidadConsumoOriginalHembras = metadata.unidadConsumoOriginalHembras ?? 'kg';
+    const consumoOriginalMachos = metadata.consumoOriginalMachos ?? (seg as any).consKgM ?? 0;
+    const unidadConsumoOriginalMachos = metadata.unidadConsumoOriginalMachos ?? 'kg';
+    const tipoItemHembras = metadata.tipoItemHembras ?? null;
+    const tipoItemMachos = metadata.tipoItemMachos ?? null;
+    const tipoAlimentoHembras = metadata.tipoAlimentoHembras ?? null;
+    const tipoAlimentoMachos = metadata.tipoAlimentoMachos ?? null;
 
     // Convertir a gramos si la unidad original es kg y el valor es pequeño (para mejor UX)
     let consumoHembrasDisplay = consumoOriginalHembras;
     if (unidadConsumoOriginalHembras === 'kg' && consumoOriginalHembras < 1) {
       consumoHembrasDisplay = consumoOriginalHembras * 1000;
     }
-    
     let consumoMachosDisplay = consumoOriginalMachos;
     if (unidadConsumoOriginalMachos === 'kg' && consumoOriginalMachos < 1) {
       consumoMachosDisplay = consumoOriginalMachos * 1000;
     }
 
+    // Mapeo explícito de cada campo del payload del servicio al formulario de edición
     this.form.patchValue({
-      fechaRegistro: fechaRegistro,
-      produccionLoteId: this.editingSeguimiento.lotePosturaProduccionId ? null : this.editingSeguimiento.produccionLoteId,
-      lotePosturaProduccionId: this.editingSeguimiento.lotePosturaProduccionId ?? null,
-      mortalidadH: this.editingSeguimiento.mortalidadH,
-      mortalidadM: this.editingSeguimiento.mortalidadM,
-      selH: this.editingSeguimiento.selH || 0,
-      selM: (this.editingSeguimiento as any).selM || 0,
-      errorSexajeHembras: (this.editingSeguimiento as any).errorSexajeHembras ?? 0,
-      errorSexajeMachos: (this.editingSeguimiento as any).errorSexajeMachos ?? 0,
-      ciclo: (this.editingSeguimiento as any).ciclo || 'Normal',
+      fechaRegistro: fechaRegistro ?? this.todayYMD(),
+      produccionLoteId: seg.lotePosturaProduccionId ? null : (seg as any).produccionLoteId ?? null,
+      lotePosturaProduccionId: seg.lotePosturaProduccionId ?? (seg as any).lotePosturaProduccionId ?? null,
+      mortalidadH: seg.mortalidadH ?? 0,
+      mortalidadM: seg.mortalidadM ?? 0,
+      selH: (seg as any).selH ?? 0,
+      selM: (seg as any).selM ?? 0,
+      errorSexajeHembras: (seg as any).errorSexajeHembras ?? 0,
+      errorSexajeMachos: (seg as any).errorSexajeMachos ?? 0,
+      ciclo: (seg as any).ciclo || 'Normal',
       consumoHembras: consumoHembrasDisplay,
       unidadConsumoHembras: unidadConsumoOriginalHembras === 'kg' && consumoOriginalHembras < 1 ? 'g' : unidadConsumoOriginalHembras,
       consumoMachos: consumoMachosDisplay,
@@ -439,38 +537,36 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       tipoItemMachos: tipoItemMachos,
       tipoAlimentoHembras: tipoAlimentoHembras,
       tipoAlimentoMachos: tipoAlimentoMachos,
-      huevosTotales: this.editingSeguimiento.huevosTotales,
-      huevosIncubables: this.editingSeguimiento.huevosIncubables,
-      huevoLimpio: (this.editingSeguimiento as any).huevoLimpio || 0,
-      huevoTratado: (this.editingSeguimiento as any).huevoTratado || 0,
-      huevoSucio: (this.editingSeguimiento as any).huevoSucio || 0,
-      huevoDeforme: (this.editingSeguimiento as any).huevoDeforme || 0,
-      huevoBlanco: (this.editingSeguimiento as any).huevoBlanco || 0,
-      huevoDobleYema: (this.editingSeguimiento as any).huevoDobleYema || 0,
-      huevoPiso: (this.editingSeguimiento as any).huevoPiso || 0,
-      huevoPequeno: (this.editingSeguimiento as any).huevoPequeno || 0,
-      huevoRoto: (this.editingSeguimiento as any).huevoRoto || 0,
-      huevoDesecho: (this.editingSeguimiento as any).huevoDesecho || 0,
-      huevoOtro: (this.editingSeguimiento as any).huevoOtro || 0,
-      tipoAlimento: this.editingSeguimiento.tipoAlimento || 'Standard',
-      pesoHuevo: this.editingSeguimiento.pesoHuevo,
-      etapa: this.editingSeguimiento.etapa || this.calcularEtapa(fechaRegistro || this.todayYMD()),
-      observaciones: this.editingSeguimiento.observaciones || '',
-      // Campos de Pesaje Semanal / por sexo
-      pesoH: (this.editingSeguimiento as any).pesoH || null,
-      pesoM: (this.editingSeguimiento as any).pesoM || null,
-      uniformidad: (this.editingSeguimiento as any).uniformidad || null,
-      coeficienteVariacion: (this.editingSeguimiento as any).coeficienteVariacion || null,
-      uniformidadHembras: (this.editingSeguimiento as any).uniformidadHembras ?? null,
-      uniformidadMachos: (this.editingSeguimiento as any).uniformidadMachos ?? null,
-      cvHembras: (this.editingSeguimiento as any).cvHembras ?? null,
-      cvMachos: (this.editingSeguimiento as any).cvMachos ?? null,
-      observacionesPesaje: (this.editingSeguimiento as any).observacionesPesaje || '',
-      // Campos de agua (solo para Ecuador y Panamá)
-      consumoAguaDiario: (this.editingSeguimiento as any).consumoAguaDiario ?? null,
-      consumoAguaPh: (this.editingSeguimiento as any).consumoAguaPh ?? null,
-      consumoAguaOrp: (this.editingSeguimiento as any).consumoAguaOrp ?? null,
-      consumoAguaTemperatura: (this.editingSeguimiento as any).consumoAguaTemperatura ?? null
+      huevosTotales: seg.huevosTotales ?? 0,
+      huevosIncubables: seg.huevosIncubables ?? 0,
+      huevoLimpio: (seg as any).huevoLimpio ?? 0,
+      huevoTratado: (seg as any).huevoTratado ?? 0,
+      huevoSucio: (seg as any).huevoSucio ?? 0,
+      huevoDeforme: (seg as any).huevoDeforme ?? 0,
+      huevoBlanco: (seg as any).huevoBlanco ?? 0,
+      huevoDobleYema: (seg as any).huevoDobleYema ?? 0,
+      huevoPiso: (seg as any).huevoPiso ?? 0,
+      huevoPequeno: (seg as any).huevoPequeno ?? 0,
+      huevoRoto: (seg as any).huevoRoto ?? 0,
+      huevoDesecho: (seg as any).huevoDesecho ?? 0,
+      huevoOtro: (seg as any).huevoOtro ?? 0,
+      tipoAlimento: seg.tipoAlimento || 'Standard',
+      pesoHuevo: seg.pesoHuevo ?? 0,
+      etapa: seg.etapa ?? this.calcularEtapa(fechaRegistro || this.todayYMD()),
+      observaciones: seg.observaciones ?? '',
+      pesoH: (seg as any).pesoH ?? null,
+      pesoM: (seg as any).pesoM ?? null,
+      uniformidad: (seg as any).uniformidad ?? null,
+      coeficienteVariacion: (seg as any).coeficienteVariacion ?? null,
+      uniformidadHembras: (seg as any).uniformidadHembras ?? null,
+      uniformidadMachos: (seg as any).uniformidadMachos ?? null,
+      cvHembras: (seg as any).cvHembras ?? null,
+      cvMachos: (seg as any).cvMachos ?? null,
+      observacionesPesaje: (seg as any).observacionesPesaje ?? '',
+      consumoAguaDiario: (seg as any).consumoAguaDiario ?? null,
+      consumoAguaPh: (seg as any).consumoAguaPh ?? null,
+      consumoAguaOrp: (seg as any).consumoAguaOrp ?? null,
+      consumoAguaTemperatura: (seg as any).consumoAguaTemperatura ?? null
     });
 
     // Cargar inventario y alimentos si hay tipo de ítem seleccionado
