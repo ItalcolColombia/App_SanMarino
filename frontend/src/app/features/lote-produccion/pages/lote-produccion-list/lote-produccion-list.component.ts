@@ -28,6 +28,7 @@ import { ModalSeguimientoDiarioComponent } from '../modal-seguimiento-diario/mod
 import { ModalAnalisisComponent } from '../modal-analisis/modal-analisis.component';
 import { ModalLiquidacionComponent } from '../../components/modal-liquidacion/modal-liquidacion.component';
 import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
+import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 @Component({
   selector: 'app-lote-produccion-list',
@@ -42,7 +43,8 @@ import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/m
     ModalSeguimientoDiarioComponent,
     ModalAnalisisComponent,
     ModalLiquidacionComponent,
-    ModalDetalleSeguimientoComponent
+    ModalDetalleSeguimientoComponent,
+    ConfirmationModalComponent
   ],
   templateUrl: './lote-produccion-list.component.html',
   styleUrls: ['./lote-produccion-list.component.scss']
@@ -101,6 +103,18 @@ export class LoteProduccionListComponent implements OnInit {
   modalDetalleSeguimientoOpen = false;
   seguimientoIdParaDetalle: number | null = null;
   editingSeguimiento: SeguimientoItemDto | null = null;
+
+  /** Modal de confirmación de eliminación de seguimiento diario */
+  showDeleteConfirmModal = false;
+  deleteConfirmId: number | null = null;
+  deleteConfirmModalData: ConfirmationModalData = {
+    title: 'Confirmar eliminación',
+    message: '¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.',
+    type: 'warning',
+    confirmText: 'Eliminar',
+    cancelText: 'Cancelar',
+    showCancel: true
+  };
 
   private galponNameById = new Map<string, string>();
   private readonly http = inject(HttpClient);
@@ -755,9 +769,25 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
     }
   }
 
+  /**
+   * Al editar, se obtiene el registro completo desde el backend (GET por id)
+   * para que el modal muestre todos los campos (id, tipoAlimento, metadata items, etc.).
+   */
   editDailyTracking(seguimiento: SeguimientoItemDto): void {
-    this.editingSeguimiento = seguimiento;
-    this.modalSeguimientoDiarioOpen = true;
+    this.loading = true;
+    this.produccionSvc.obtenerSeguimientoPorId(seguimiento.id)
+      .pipe(finalize(() => (this.loading = false)))
+      .subscribe({
+        next: (fullRecord) => {
+          this.editingSeguimiento = fullRecord;
+          this.modalSeguimientoDiarioOpen = true;
+        },
+        error: (err) => {
+          console.error('Error al cargar seguimiento para editar:', err);
+          const msg = err?.error?.message || err?.message || 'No se pudo cargar el registro. Intente de nuevo.';
+          alert(msg);
+        }
+      });
   }
 
   openDetailModal(seguimiento: SeguimientoItemDto): void {
@@ -770,14 +800,28 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
     this.seguimientoIdParaDetalle = null;
   }
 
+  /** Abre el modal de confirmación para eliminar un registro de seguimiento diario */
   deleteDailyTracking(id: number): void {
-    if (!confirm('¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.')) return;
+    this.deleteConfirmId = id;
+    this.showDeleteConfirmModal = true;
+  }
+
+  /** Cierra el modal de confirmación de eliminación sin eliminar */
+  closeDeleteConfirmModal(): void {
+    this.showDeleteConfirmModal = false;
+    this.deleteConfirmId = null;
+  }
+
+  /** Confirma la eliminación (llamado al pulsar "Eliminar" en el modal) */
+  confirmDelete(): void {
+    const id = this.deleteConfirmId;
+    this.closeDeleteConfirmModal();
+    if (id == null) return;
 
     this.loading = true;
     this.produccionSvc.eliminarSeguimiento(id).subscribe({
       next: () => {
         this.loading = false;
-        // Recargar los seguimientos del lote después de eliminar
         this.onLoteChange(this.selectedLoteId);
         this.refreshLoteInfo();
       },
@@ -786,7 +830,6 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
         alert(errorMessage);
-        // Recargar los seguimientos incluso si hay error para mantener consistencia
         this.onLoteChange(this.selectedLoteId);
       }
     });
