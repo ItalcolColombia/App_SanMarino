@@ -44,7 +44,9 @@ public record SeguimientoItemDto(
     double? ConsumoAguaPh, // Nivel de PH del agua
     double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
     double? ConsumoAguaTemperatura, // Temperatura del agua en °C
-    int? LotePosturaProduccionId = null
+    int? LotePosturaProduccionId = null,
+    /// <summary>Metadata JSON (itemsHembras, itemsMachos, consumo original, etc.). Se serializa como objeto en la API.</summary>
+    object? Metadata = null
 );
 
 
