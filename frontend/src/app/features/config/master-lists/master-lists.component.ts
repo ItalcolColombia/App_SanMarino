@@ -8,12 +8,14 @@ import {
   faEye,
   faPen,
   faTrash,
-  faPlus
+  faPlus,
+  faTimes
 } from '@fortawesome/free-solid-svg-icons';
 import {
   MasterListService,
   MasterListDto
 } from '../../../core/services/master-list/master-list.service';
+import { ModalEditMasterListComponent } from './modal-edit-master-list/modal-edit-master-list.component';
 import { finalize } from 'rxjs';
 
 @Component({
@@ -22,7 +24,8 @@ import { finalize } from 'rxjs';
   imports: [
     CommonModule,
     RouterModule,
-    FontAwesomeModule
+    FontAwesomeModule,
+    ModalEditMasterListComponent
   ],
   templateUrl: './master-lists.component.html',
   styleUrls: ['./master-lists.component.scss']
@@ -34,20 +37,24 @@ export class MasterListsComponent implements OnInit {
   faPen   = faPen;
   faTrash = faTrash;
   faPlus  = faPlus;
+  faTimes = faTimes;
 
   // Data
   lists: MasterListDto[] = [];
   loading = false;
 
-  // Estado de expansión por id (coincide con el HTML)
-  expandedIds = new Set<number>();
+  // Modal de edición (null = cerrado)
+  editListId: number | null = null;
+
+  // Modal ver opciones (lista seleccionada o null = cerrado)
+  viewList: MasterListDto | null = null;
 
   constructor(
     private svc: MasterListService,
     private router: Router,
     library: FaIconLibrary
   ) {
-    library.addIcons(faList, faEye, faPen, faTrash, faPlus);
+    library.addIcons(faList, faEye, faPen, faTrash, faPlus, faTimes);
   }
 
   ngOnInit(): void {
@@ -72,9 +79,18 @@ export class MasterListsComponent implements OnInit {
     this.router.navigate(['/config/master-lists', 'new']);
   }
 
-  // Navega al formulario de edición
+  // Abre el modal de edición
   edit(list: MasterListDto): void {
-    this.router.navigate(['/config/master-lists', list.id]);
+    this.editListId = list.id;
+  }
+
+  closeEditModal(): void {
+    this.editListId = null;
+  }
+
+  onEditSaved(): void {
+    this.editListId = null;
+    this.loadLists();
   }
 
   // Elimina una lista y recarga
@@ -89,17 +105,20 @@ export class MasterListsComponent implements OnInit {
       });
   }
 
-  // Expande/colapsa opciones (coincide con el HTML)
-  toggleOptions(list: MasterListDto): void {
-    if (this.expandedIds.has(list.id)) {
-      this.expandedIds.delete(list.id);
-    } else {
-      this.expandedIds.add(list.id);
-    }
+  // Abre el modal de ver opciones
+  openViewModal(list: MasterListDto): void {
+    this.viewList = list;
   }
 
-  // trackBy para <li *ngFor="let opt of list.options; trackBy: trackByIndex">
+  closeViewModal(): void {
+    this.viewList = null;
+  }
+
   trackByIndex(index: number): number {
     return index;
+  }
+
+  trackByOptionId(_index: number, opt: { id: number; value: string }): number {
+    return opt.id;
   }
 }

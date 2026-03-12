@@ -67,8 +67,7 @@
                   <button
                     type="button"
                     class="icon-btn"
-                    (click)="toggleOptions(list)"
-                    [attr.aria-expanded]="expandedIds.has(list.id) ? 'true' : 'false'"
+                    (click)="openViewModal(list)"
                     [attr.aria-label]="'Ver opciones de ' + list.name"
                     title="Ver opciones"
                   >
@@ -99,21 +98,6 @@
                   </div>
                 </td>
               </tr>
-
-              <!-- Opciones expandibles -->
-              <tr *ngIf="expandedIds.has(list.id)">
-                <td colspan="5" class="options-cell">
-                  <div class="options-grid">
-                    <span
-                      class="tag"
-                      *ngFor="let opt of list.options; trackBy: trackByIndex"
-                      [title]="opt"
-                    >
-                      {{ opt }}
-                    </span>
-                  </div>
-                </td>
-              </tr>
             </ng-container>
           </tbody>
         </table>
@@ -123,6 +107,52 @@
       <div class="loading-overlay" *ngIf="loading" aria-live="polite">
         <div class="spinner"></div>
         <span>Cargando…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar lista maestra -->
+  <app-modal-edit-master-list
+    [listId]="editListId"
+    (closed)="closeEditModal()"
+    (saved)="onEditSaved()"
+  />
+
+  <!-- Modal ver opciones -->
+  <div
+    *ngIf="viewList"
+    class="view-modal-overlay"
+    (click)="closeViewModal()"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-labelledby]="'view-modal-title-' + viewList.id"
+  >
+    <div class="view-modal-content" (click)="$event.stopPropagation()">
+      <div class="view-modal-header">
+        <fa-icon [icon]="faEye" class="view-modal-icon" aria-hidden="true"></fa-icon>
+        <h2 [id]="'view-modal-title-' + viewList.id" class="view-modal-title">
+          Opciones de {{ viewList.name }}
+        </h2>
+        <button type="button" class="view-modal-close" (click)="closeViewModal()" aria-label="Cerrar">
+          <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+        </button>
+      </div>
+      <div class="view-modal-body">
+        <p class="view-modal-key">
+          <span class="key-badge">{{ viewList.key }}</span>
+        </p>
+        <div class="options-grid">
+          <span
+            class="tag"
+            *ngFor="let opt of viewList.options; trackBy: trackByOptionId"
+            [title]="opt.value"
+          >
+            {{ opt.value }}
+          </span>
+        </div>
+      </div>
+      <div class="view-modal-footer">
+        <button type="button" class="btn-subtle" (click)="closeViewModal()">Cerrar</button>
       </div>
     </div>
   </div>
