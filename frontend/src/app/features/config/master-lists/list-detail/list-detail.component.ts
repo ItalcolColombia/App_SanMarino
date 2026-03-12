@@ -20,7 +20,8 @@ import {
 import {
   MasterListService,
   CreateMasterListDto,
-  UpdateMasterListDto
+  UpdateMasterListDto,
+  MasterListOptionItemDto
 } from '../../../../core/services/master-list/master-list.service';
 import { finalize } from 'rxjs';
 
@@ -96,9 +97,14 @@ export class ListDetailComponent implements OnInit {
           const fa = this.options;
           fa.clear();
           if (dto.options?.length) {
-            dto.options.forEach(opt =>
-              fa.push(this.fb.control(opt, Validators.required))
-            );
+            dto.options.forEach((opt: MasterListOptionItemDto | string) => {
+              const value = typeof opt === 'object' && opt != null && 'value' in opt
+                ? (opt as MasterListOptionItemDto).value
+                : typeof opt === 'string'
+                  ? opt
+                  : '';
+              fa.push(this.fb.control(value, Validators.required));
+            });
           } else {
             fa.push(this.fb.control('', Validators.required));
           }
