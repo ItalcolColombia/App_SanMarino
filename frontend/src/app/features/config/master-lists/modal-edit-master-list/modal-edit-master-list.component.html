@@ -1,0 +1,106 @@
+<!-- Modal editar lista maestra: altura fija y scroll solo en el cuerpo -->
+<div
+  *ngIf="isOpen"
+  class="modal-overlay"
+  (click)="onBackdropClick($event)"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modal-edit-ml-title"
+>
+  <div
+    class="modal-content"
+    (click)="$event.stopPropagation()"
+    [attr.aria-busy]="loading ? 'true' : null"
+  >
+    <div class="modal-header">
+      <div class="header-content">
+        <fa-icon [icon]="faList" class="header-icon" aria-hidden="true"></fa-icon>
+        <h2 id="modal-edit-ml-title" class="modal-title">Editar lista maestra</h2>
+      </div>
+      <button type="button" class="modal-close-btn" (click)="close()" aria-label="Cerrar">
+        <fa-icon [icon]="faTimes" aria-hidden="true"></fa-icon>
+      </button>
+    </div>
+
+    <div *ngIf="loading && !listForm.get('name')?.value" class="modal-loading">
+      <div class="spinner"></div>
+      <span>Cargando…</span>
+    </div>
+
+    <div *ngIf="loadError && !loading" class="modal-error">
+      <p>{{ loadError }}</p>
+      <button type="button" class="btn-subtle" (click)="close()">Cerrar</button>
+    </div>
+
+    <div *ngIf="!loading || listForm.get('name')?.value" class="modal-body">
+      <form [formGroup]="listForm" (ngSubmit)="save()" class="edit-form" novalidate>
+        <div class="form-row">
+          <div class="field">
+            <label class="label">Identificador (key) <span class="required">*</span></label>
+            <input formControlName="key" class="input input--disabled" aria-describedby="key-hint" />
+            <p id="key-hint" class="hint">Solo lectura en edición.</p>
+          </div>
+          <div class="field">
+            <label class="label">Nombre de la lista <span class="required">*</span></label>
+            <input
+              formControlName="name"
+              placeholder="p.ej. Tipos de identificación"
+              class="input"
+              [class.input--error]="listForm.get('name')?.invalid && listForm.get('name')?.touched"
+              [attr.aria-invalid]="listForm.get('name')?.invalid && listForm.get('name')?.touched ? 'true' : null"
+            />
+            <p *ngIf="listForm.get('name')?.touched && listForm.get('name')?.invalid" class="error-msg">
+              Campo obligatorio.
+            </p>
+          </div>
+        </div>
+
+        <div formArrayName="options" class="options-section">
+          <div class="options-header">
+            <label class="label">Valores de la lista <span class="required">*</span></label>
+            <button type="button" class="btn-add" (click)="addOption()">
+              <fa-icon [icon]="faPlus" class="mr-2" aria-hidden="true"></fa-icon>
+              Añadir valor
+            </button>
+          </div>
+          <div class="options-list">
+            <div
+              *ngFor="let ctrl of options.controls; let i = index; trackBy: trackByIndex"
+              class="option-row"
+            >
+              <input
+                [formControlName]="i"
+                [attr.aria-label]="'Valor ' + (i + 1)"
+                [placeholder]="'Valor ' + (i + 1)"
+                class="input option-input"
+                [class.input--error]="ctrl.touched && ctrl.invalid"
+                [attr.aria-invalid]="ctrl.touched && ctrl.invalid ? 'true' : null"
+              />
+              <button
+                type="button"
+                class="btn-remove"
+                (click)="removeOption(i)"
+                [disabled]="options.length <= 1"
+                [attr.aria-label]="'Eliminar valor ' + (i + 1)"
+                title="Eliminar"
+              >
+                <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div *ngIf="!loading || listForm.get('name')?.value" class="modal-footer">
+      <button type="button" class="btn-secondary" (click)="close()">
+        <fa-icon [icon]="faTimes" class="mr-2" aria-hidden="true"></fa-icon>
+        Cancelar
+      </button>
+      <button type="button" class="btn-primary" [disabled]="listForm.invalid || loading" (click)="save()">
+        <fa-icon [icon]="faSave" class="mr-2" aria-hidden="true"></fa-icon>
+        Guardar
+      </button>
+    </div>
+  </div>
+</div>
