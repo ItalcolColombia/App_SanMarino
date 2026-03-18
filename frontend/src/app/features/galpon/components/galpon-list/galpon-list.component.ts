@@ -94,16 +94,21 @@ export class GalponListComponent implements OnInit, OnDestroy {
     this.form = this.fb.group({
       galponId:     ['', Validators.required],
       galponNombre: ['', Validators.required],
-      nucleoId:     ['', Validators.required],
       granjaId:     [null, Validators.required],
+      nucleoId:     ['', Validators.required],
       ancho:        [''],
       largo:        [''],
       tipoGalpon:   ['']
     });
 
-    this.form.get('nucleoId')!.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((id: string) => {
-      const sel = this.allNucleos.find(x => x.nucleoId === id);
-      this.form.patchValue({ granjaId: sel?.granjaId ?? null }, { emitEvent: false });
+    this.form.get('granjaId')!.valueChanges.pipe(takeUntil(this.destroy$)).subscribe((granjaId: number | null) => {
+      const normalized = this.normalizeGranjaId(granjaId);
+      const currentNucleoId = this.form.get('nucleoId')?.value;
+      const currentNucleo = this.allNucleos.find(x => x.nucleoId === currentNucleoId);
+
+      if (currentNucleoId && currentNucleo && (normalized === null || Number(currentNucleo.granjaId) !== normalized)) {
+        this.form.patchValue({ nucleoId: '' }, { emitEvent: false });
+      }
     });
 
     this.loadGalpones();
@@ -320,12 +325,12 @@ export class GalponListComponent implements OnInit, OnDestroy {
       this.form.reset({
         galponId: g.galponId,
         galponNombre: g.galponNombre,
-        nucleoId: g.nucleoId,
         granjaId: g.granjaId,
+        nucleoId: g.nucleoId,
         ancho: g.ancho ?? '',
         largo: g.largo ?? '',
         tipoGalpon: g.tipoGalpon ?? ''
-      });
+      }, { emitEvent: false });
       this.form.get('galponId')?.disable();
     } else {
       const lastNum = this.allGalpones
@@ -336,14 +341,20 @@ export class GalponListComponent implements OnInit, OnDestroy {
       this.form.reset({
         galponId: newId,
         galponNombre: '',
-        nucleoId: '',
         granjaId: null,
+        nucleoId: '',
         ancho: '',
         largo: '',
         tipoGalpon: ''
-      });
+      }, { emitEvent: false });
       this.form.get('galponId')?.enable();
     }
+  }
+
+  get nucleoOptionsFiltrados(): NucleoOption[] {
+    const granjaId = this.normalizeGranjaId(this.form?.get('granjaId')?.value);
+    if (granjaId === null) return [];
+    return this.nucleoOptions.filter(opt => Number(opt.granjaId) === granjaId);
   }
 
   save(): void {
@@ -402,5 +413,17 @@ export class GalponListComponent implements OnInit, OnDestroy {
     const n = this.allNucleos.find(x => x.nucleoId === nucleoId);
     const f = this.farms.find(y => y.id === n?.granjaId);
     return f?.name ?? (n ? `#${n.granjaId}` : '–');
+  }
+
+  getGranjaNombreById(granjaId: number | string | null | undefined): string {
+    const normalized = this.normalizeGranjaId(granjaId);
+    if (normalized === null) return '–';
+    return this.farms.find(f => Number(f.id) === normalized)?.name ?? `#${normalized}`;
+  }
+
+  private normalizeGranjaId(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 }
