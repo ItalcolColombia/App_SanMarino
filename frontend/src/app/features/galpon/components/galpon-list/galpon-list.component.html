@@ -150,6 +150,25 @@
         </div>
 
         <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body grid grid-cols-1 md:grid-cols-2 gap-4" [class.hidden]="loadingModal" novalidate>
+          <div>
+            <label class="ux-label">Granja <span class="req">*</span></label>
+            <select formControlName="granjaId" class="ux-input"
+                    [class.is-invalid]="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">
+              <option [ngValue]="null">Seleccione una granja…</option>
+              <option *ngFor="let farm of farms" [ngValue]="farm.id">{{ farm.name }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="ux-label">Núcleo <span class="req">*</span></label>
+            <select formControlName="nucleoId" class="ux-input"
+                    [disabled]="!form.get('granjaId')?.value || loadingModal"
+                    [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
+              <option value=""> {{ form.get('granjaId')?.value ? 'Seleccione…' : 'Seleccione una granja primero' }} </option>
+              <option *ngFor="let opt of nucleoOptionsFiltrados" [value]="opt.id">{{ opt.label }}</option>
+            </select>
+          </div>
+
           <!-- ID (solo lectura en edición) -->
           <div>
             <label class="ux-label">ID Galpón</label>
@@ -163,20 +182,8 @@
           </div>
 
           <div>
-            <label class="ux-label">Núcleo <span class="req">*</span></label>
-            <select formControlName="nucleoId" class="ux-input"
-                    [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
-              <option value="">Seleccione…</option>
-              <option *ngFor="let opt of nucleoOptions" [value]="opt.id">{{ opt.label }}</option>
-            </select>
-          </div>
-
-          <!-- Hidden para enviar la granjaId (se llena automático al elegir núcleo) -->
-          <input type="hidden" formControlName="granjaId" />
-
-          <div>
-            <label class="ux-label">Granja</label>
-            <input type="text" [value]="getGranjaNombreByNucleoId(form.get('nucleoId')?.value)" readonly class="ux-input ux-input--readonly" />
+            <label class="ux-label">Granja seleccionada</label>
+            <input type="text" [value]="getGranjaNombreById(form.get('granjaId')?.value)" readonly class="ux-input ux-input--readonly" />
           </div>
 
           <div>
