@@ -57,6 +57,10 @@ public record CrearSeguimientoRequest(
     List<ItemSeguimientoDto>? ItemsMachos = null,
     string? CreatedByUserId = null,
     int? ProduccionLoteId = null,
-    int? LotePosturaProduccionId = null
+    int? LotePosturaProduccionId = null,
+    // Ecuador/Panamá: ubicación para aplicar consumo en inventario-gestion (opcional)
+    int? GranjaId = null,
+    string? NucleoId = null,
+    string? GalponId = null
 );
 

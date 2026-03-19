@@ -85,7 +85,7 @@
                     <div class="ux-select">
                       <select [id]="'f-tipo-item-h-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
                         <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let tipo of tiposItem" [ngValue]="tipo">
+                        <option *ngFor="let tipo of tiposItemDisplay" [ngValue]="tipo">
                           {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
                         </option>
                       </select>
@@ -212,7 +212,7 @@
                     <div class="ux-select">
                       <select [id]="'f-tipo-item-m-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
                         <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let tipo of tiposItem" [ngValue]="tipo">
+                        <option *ngFor="let tipo of tiposItemDisplay" [ngValue]="tipo">
                           {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
                         </option>
                       </select>
