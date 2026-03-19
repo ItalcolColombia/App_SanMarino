@@ -55,10 +55,17 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<SystemConfiguration> SystemConfigurations { get; set; } = null!;
         public DbSet<FarmProductInventory> FarmProductInventory => Set<FarmProductInventory>();
         public DbSet<FarmInventoryMovement> FarmInventoryMovements => Set<FarmInventoryMovement>();
+        public DbSet<InventarioGestionStock> InventarioGestionStock => Set<InventarioGestionStock>();
+        public DbSet<InventarioGestionMovimiento> InventarioGestionMovimientos => Set<InventarioGestionMovimiento>();
+        public DbSet<ItemInventarioEcuador> ItemInventarioEcuador => Set<ItemInventarioEcuador>();
         public DbSet<ProduccionResultadoLevante> ProduccionResultadoLevante => Set<ProduccionResultadoLevante>();
         public DbSet<RoleMenu> RoleMenus => Set<RoleMenu>();
         public DbSet<CompanyMenu> CompanyMenus => Set<CompanyMenu>();
         public DbSet<ProduccionAvicolaRaw> ProduccionAvicolaRaw => Set<ProduccionAvicolaRaw>();
+
+        // Guía genética Ecuador (tablas mixto/hembra/macho por empresa + raza + año)
+        public DbSet<GuiaGeneticaEcuadorHeader> GuiaGeneticaEcuadorHeader => Set<GuiaGeneticaEcuadorHeader>();
+        public DbSet<GuiaGeneticaEcuadorDetalle> GuiaGeneticaEcuadorDetalle => Set<GuiaGeneticaEcuadorDetalle>();
         
         // Sistema de Inventario de Aves
         public DbSet<InventarioAves> InventarioAves => Set<InventarioAves>();

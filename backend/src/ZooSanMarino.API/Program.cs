@@ -7,6 +7,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -99,12 +100,26 @@ builder.WebHost.ConfigureKestrel(options =>
 
 // ─────────────────────────────────────
 // 3) Conexión a BD (con fallbacks)
+// En Development se prioriza appsettings.*.json para que la conexión local no sea sobrescrita por env vars (ZOO_CONN / ConnectionStrings__ZooSanMarinoContext).
 // ─────────────────────────────────────
 var conn =
     builder.Configuration.GetConnectionString("ZooSanMarinoContext")
     ?? builder.Configuration["ConnectionStrings:ZooSanMarinoContext"]
     ?? builder.Configuration["ZOO_CONN"]
     ?? Environment.GetEnvironmentVariable("ZOO_CONN");
+
+if (builder.Environment.EnvironmentName == "Development")
+{
+    var devOnlyConfig = new ConfigurationBuilder()
+        .SetBasePath(builder.Environment.ContentRootPath)
+        .AddJsonFile("appsettings.json", optional: false)
+        .AddJsonFile("appsettings.Development.json", optional: true)
+        .Build();
+    var devConn = devOnlyConfig.GetConnectionString("ZooSanMarinoContext")
+        ?? devOnlyConfig["ConnectionStrings:ZooSanMarinoContext"];
+    if (!string.IsNullOrWhiteSpace(devConn))
+        conn = devConn;
+}
 
 if (string.IsNullOrWhiteSpace(conn))
     throw new InvalidOperationException("ConnectionStrings:ZooSanMarinoContext no está configurada (revisa .env y/o appsettings).");
@@ -220,6 +235,8 @@ builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
 // builder.Services.AddSecureConfiguration(builder.Configuration);
 builder.Services.AddScoped<IFarmInventoryMovementService, FarmInventoryMovementService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
+builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
+builder.Services.AddScoped<IItemInventarioEcuadorService, ItemInventarioEcuadorService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>(); 
 
 // ✅ Servicio orquestador único de roles/permissions/menús
@@ -259,6 +276,7 @@ builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableE
 
 // Guía Genética Service
 builder.Services.AddScoped<IGuiaGeneticaService, GuiaGeneticaService>();
+builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorService>();
 
 // Servicios de Traslados
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
@@ -426,7 +444,26 @@ var app = builder.Build();
 /* 14) Pipeline HTTP */
 // ─────────────────────────────────────
 
-// 14.0 Routing y CORS (deben ir primero para manejar preflight OPTIONS)
+// 14.0 Manejo de excepciones: 401 para sesión inválida/expirada (evita 500 y obliga a re-login)
+app.UseExceptionHandler(errApp =>
+{
+    errApp.Run(async ctx =>
+    {
+        var ex = ctx.Features.Get<IExceptionHandlerFeature>()?.Error;
+        if (ex is UnauthorizedAccessException uex)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.WriteAsJsonAsync(new { message = uex.Message });
+            return;
+        }
+        ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsJsonAsync(new { message = ex?.Message ?? "Error interno del servidor." });
+    });
+});
+
+// 14.0b Routing y CORS (deben ir primero para manejar preflight OPTIONS)
 app.UseRouting();
 app.UseCors("AppCors");
 
