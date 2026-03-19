@@ -1,0 +1,94 @@
+<div class="item-inv-ecuador-form config-farm-root">
+  <div class="config-farm-main">
+    <header class="page-header">
+      <div class="header-title">
+        <h1 class="title text-ital-orange-dark">{{ editingId ? 'Editar ítem' : 'Nuevo ítem de inventario' }}</h1>
+      </div>
+      <a routerLink="../" class="btn-italfoods-secondary">Volver al listado</a>
+    </header>
+
+    <section class="card-italfoods" *ngIf="!loading || editingId">
+      <div class="card-italfoods__body">
+        <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+
+        <div class="form-grid">
+          <div class="field">
+            <label class="form-label" for="codigo">Código *</label>
+            <input id="codigo" class="form-input" type="text" [(ngModel)]="codigo" [readonly]="!!editingId" maxlength="50" placeholder="Ej: SM0177" />
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="nombre">Nombre *</label>
+            <input id="nombre" class="form-input" type="text" [(ngModel)]="nombre" maxlength="200" placeholder="Nombre del ítem" />
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="grupo">Grupo</label>
+            <input id="grupo" class="form-input" type="text" [(ngModel)]="grupo" maxlength="100" placeholder="Grupo del ítem" />
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="tipoInventarioCodigo">Tipo inventario (código)</label>
+            <input id="tipoInventarioCodigo" class="form-input" type="text" [(ngModel)]="tipoInventarioCodigo" maxlength="50" placeholder="Código" />
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="descripcionTipoInventario">Desc. tipo inventario</label>
+            <input id="descripcionTipoInventario" class="form-input" type="text" [(ngModel)]="descripcionTipoInventario" maxlength="200" placeholder="Descripción" />
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="tipoItem">Tipo ítem</label>
+            <select id="tipoItem" class="form-input" [(ngModel)]="tipoItem">
+              <option *ngFor="let t of tipos" [value]="t">{{ t }}</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="unidad">Unidad de medida</label>
+            <select id="unidad" class="form-input" [(ngModel)]="unidad">
+              <option *ngFor="let u of unidades" [value]="u">{{ u }}</option>
+            </select>
+            <div class="hint">Seleccione la unidad para ítems que la requieran.</div>
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="referencia">Referencia</label>
+            <input id="referencia" class="form-input" type="text" [(ngModel)]="referencia" maxlength="100" placeholder="Referencia / SKU" />
+          </div>
+
+          <div class="field field-full">
+            <label class="form-label" for="descripcionItem">Desc. ítem</label>
+            <input id="descripcionItem" class="form-input" type="text" [(ngModel)]="descripcionItem" maxlength="500" placeholder="Descripción del ítem" />
+          </div>
+
+          <div class="field">
+            <label class="form-label" for="concepto">Concepto</label>
+            <input id="concepto" class="form-input" type="text" [(ngModel)]="concepto" maxlength="200" placeholder="Concepto" />
+          </div>
+
+          <div class="field field-full">
+            <label class="form-label" for="descripcion">Descripción (general)</label>
+            <textarea id="descripcion" class="form-input" [(ngModel)]="descripcion" rows="3" maxlength="500" placeholder="Opcional"></textarea>
+          </div>
+
+          <div class="field field-full">
+            <label class="form-label">
+              <input type="checkbox" [(ngModel)]="activo" />
+              Activo
+            </label>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-italfoods-secondary" (click)="goBack()" [disabled]="loading">Cancelar</button>
+          <button type="button" class="btn-italfoods-primary" (click)="save()" [disabled]="loading">
+            {{ loading ? 'Guardando…' : (editingId ? 'Guardar cambios' : 'Crear ítem') }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <p *ngIf="loading && !editingId">Cargando…</p>
+  </div>
+</div>
