@@ -1,0 +1,458 @@
+<div class="gestion-inventario config-farm-root">
+  <div class="config-farm-main">
+    <header class="page-header">
+      <h1 class="title text-ital-orange-dark">Gestión de Inventario</h1>
+      <p class="subtitle">Panama / Ecuador — Ingresos y traslados. <strong>Alimento</strong>: inventario dentro del galpón (Granja → Núcleo → Galpón). <strong>Otros conceptos</strong>: solo a nivel Granja.</p>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Gestión de Inventario">
+      <button type="button" class="tab" [class.active]="activeTab === 'stock'" (click)="setTab('stock')" role="tab">
+        <fa-icon [icon]="faStock"></fa-icon> Stock
+      </button>
+      <button type="button" class="tab" [class.active]="activeTab === 'ingresos'" (click)="setTab('ingresos')" role="tab">
+        <fa-icon [icon]="faIngreso"></fa-icon> Ingresos
+      </button>
+      <button type="button" class="tab" [class.active]="activeTab === 'traslados'" (click)="setTab('traslados')" role="tab">
+        <fa-icon [icon]="faTraslado"></fa-icon> Traslados
+      </button>
+      <button type="button" class="tab" [class.active]="activeTab === 'historico'" (click)="setTab('historico')" role="tab">
+        <fa-icon [icon]="faHistorico"></fa-icon> Histórico
+      </button>
+      <button type="button" class="tab" [class.active]="activeTab === 'items'" (click)="setTab('items')" role="tab">
+        <fa-icon [icon]="faBook"></fa-icon> Catálogo ítems
+      </button>
+    </nav>
+
+  <!-- TAB STOCK -->
+  <section *ngIf="activeTab === 'stock'" class="tab-content">
+    <div class="card-italfoods filters">
+      <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
+      <div class="card-italfoods__body filters-grid">
+        <div class="field">
+          <label class="form-label">Concepto (Tipo ítem)</label>
+          <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
+            <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Granja</label>
+          <select class="form-input" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChange()">
+          <option [ngValue]="null">Todas</option>
+          <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+      <ng-container *ngIf="showNucleoGalpon">
+        <div class="field">
+          <label class="form-label">Núcleo</label>
+          <select class="form-input" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChange()">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let n of nucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Galpón</label>
+          <select class="form-input" [(ngModel)]="selectedGalponId">
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let g of galponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+          </select>
+        </div>
+      </ng-container>
+        <div class="field field-full">
+          <label class="form-label">Buscar</label>
+          <input class="form-input" type="text" [(ngModel)]="searchTerm" placeholder="Código o nombre" />
+        </div>
+        <div class="field actions">
+          <button type="button" class="btn-italfoods-secondary" (click)="loadStock()" [disabled]="loading">Consultar</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-italfoods">
+      <div class="card-italfoods__title">Stock</div>
+      <div class="card-italfoods__body">
+        <p *ngIf="loading">Cargando…</p>
+        <div class="table-wrap" *ngIf="!loading && stockList.length">
+          <table class="table-italfoods">
+        <thead>
+          <tr>
+            <th>Granja</th>
+            <th *ngIf="showNucleoGalpon">Núcleo</th>
+            <th *ngIf="showNucleoGalpon">Galpón</th>
+            <th>Código</th>
+            <th>Producto</th>
+            <th>Tipo</th>
+            <th>Cantidad</th>
+            <th>Unidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of stockList">
+            <td>{{ s.granjaNombre ?? s.farmId }}</td>
+            <td *ngIf="showNucleoGalpon">{{ s.nucleoNombre ?? s.nucleoId ?? '-' }}</td>
+            <td *ngIf="showNucleoGalpon">{{ s.galponNombre ?? s.galponId ?? '-' }}</td>
+            <td>{{ s.itemCodigo }}</td>
+            <td>{{ s.itemNombre }}</td>
+            <td>{{ s.itemType }}</td>
+            <td>{{ s.quantity }}</td>
+            <td>{{ s.unit }}</td>
+          </tr>
+        </tbody>
+          </table>
+        </div>
+        <p *ngIf="!loading && !stockList.length" class="empty-state">No hay stock con los filtros seleccionados.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB INGRESOS -->
+  <section *ngIf="activeTab === 'ingresos'" class="tab-content">
+    <div class="card-italfoods form-card">
+      <div class="card-italfoods__title">Registrar ingreso</div>
+      <div class="card-italfoods__body form-grid">
+        <div class="field">
+          <label class="form-label">Concepto (Tipo ítem) *</label>
+          <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
+            <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Origen del ingreso</label>
+          <select class="form-input" [(ngModel)]="ingresoOrigenTipo">
+            <option value="planta">Planta</option>
+            <option value="granja">Granja</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Granja (destino) *</label>
+          <select class="form-input" [(ngModel)]="ingresoFarmId">
+            <option [ngValue]="null">Seleccione…</option>
+            <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+        <ng-container *ngIf="ingresoOrigenTipo === 'granja'">
+          <div class="field">
+            <label class="form-label">Origen Granja</label>
+            <select class="form-input" [(ngModel)]="ingresoOrigenFarmId">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+            </select>
+          </div>
+        </ng-container>
+        <ng-container *ngIf="showNucleoGalpon">
+          <div class="field">
+            <label class="form-label">Núcleo *</label>
+            <select class="form-input" [(ngModel)]="ingresoNucleoId">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let n of ingresoNucleosFiltered()" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Galpón *</label>
+            <select class="form-input" [(ngModel)]="ingresoGalponId">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let g of ingresoGalponesFiltered()" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+        </ng-container>
+        <div class="field field-full">
+          <label class="form-label">Ítem *</label>
+          <select class="form-input" [(ngModel)]="ingresoItemInventarioEcuadorId">
+            <option [ngValue]="null">Seleccione…</option>
+            <option *ngFor="let i of ingresoItems" [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Cantidad *</label>
+          <input class="form-input" type="number" [(ngModel)]="ingresoQuantity" min="0.01" step="0.01" />
+        </div>
+        <div class="field">
+          <label class="form-label">Unidad de medida</label>
+          <div class="form-input form-input--readonly" aria-readonly="true">{{ ingresoSelectedUnit }}</div>
+        </div>
+        <div class="field">
+          <label class="form-label">Código Bien</label>
+          <input class="form-input" type="text" [(ngModel)]="ingresoReference" placeholder="Referencia" />
+        </div>
+        <div class="field" *ngIf="ingresoOrigenTipo === 'planta'">
+          <label class="form-label">Motivo</label>
+          <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
+        </div>
+        <div class="field" *ngIf="ingresoOrigenTipo === 'granja'">
+          <label class="form-label">Motivo</label>
+          <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Ej. Ingreso desde otra granja" />
+        </div>
+        <div class="field actions">
+          <button type="button" class="btn-italfoods-primary" (click)="submitIngreso()" [disabled]="submittingIngreso">
+            {{ submittingIngreso ? 'Guardando…' : 'Registrar ingreso' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB TRASLADOS -->
+  <section *ngIf="activeTab === 'traslados'" class="tab-content">
+    <div class="card-italfoods form-card">
+      <div class="card-italfoods__title">Registrar traslado</div>
+      <div class="card-italfoods__body form-grid">
+        <div class="field field-full">
+          <label class="form-label">Concepto (Tipo ítem) *</label>
+          <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
+            <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+
+        <div class="section-label field-full">Origen</div>
+        <div class="field">
+          <label class="form-label">Granja origen *</label>
+          <select class="form-input" [(ngModel)]="fromFarmId" (ngModelChange)="loadOriginStock()">
+            <option [ngValue]="null">Seleccione…</option>
+            <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+        <ng-container *ngIf="showNucleoGalpon">
+          <div class="field">
+            <label class="form-label">Núcleo origen *</label>
+            <select class="form-input" [(ngModel)]="fromNucleoId" (ngModelChange)="loadOriginStock()">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let n of fromNucleosFiltered()" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Galpón origen *</label>
+            <select class="form-input" [(ngModel)]="fromGalponId" (ngModelChange)="loadOriginStock()">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let g of fromGalponesFiltered()" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+        </ng-container>
+
+        <div class="section-label field-full">Destino</div>
+        <div class="field">
+          <label class="form-label">Tipo destino (para histórico)</label>
+          <select class="form-input" [(ngModel)]="trasladoDestinoTipo">
+            <option value="granja">Transferencia a granja</option>
+            <option value="planta">Transferencia a planta</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Granja destino *</label>
+          <select class="form-input" [(ngModel)]="toFarmId">
+            <option [ngValue]="null">Seleccione…</option>
+            <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+        <ng-container *ngIf="showNucleoGalpon">
+          <div class="field">
+            <label class="form-label">Núcleo destino *</label>
+            <select class="form-input" [(ngModel)]="toNucleoId">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let n of toNucleosFiltered()" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Galpón destino *</label>
+            <select class="form-input" [(ngModel)]="toGalponId">
+              <option [ngValue]="null">Seleccione…</option>
+              <option *ngFor="let g of toGalponesFiltered()" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+        </ng-container>
+
+        <div class="field field-full">
+          <label class="form-label">Ítem (catálogo inventario) *</label>
+          <select class="form-input" [(ngModel)]="trasladoItemInventarioEcuadorId" (ngModelChange)="loadOriginStock()">
+            <option [ngValue]="null">Seleccione…</option>
+            <option *ngFor="let i of trasladoItems" [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Cantidad *</label>
+          <input class="form-input" type="number" [(ngModel)]="trasladoQuantity" min="0.01" step="0.01" />
+        </div>
+        <div class="field">
+          <label class="form-label">Unidad de medida</label>
+          <div class="form-input form-input--readonly" aria-readonly="true">{{ trasladoSelectedUnit }}</div>
+        </div>
+        <div class="field field-full" *ngIf="originStockQuantity !== null && !loadingOriginStock">
+          <span class="hint">Stock disponible en origen: <strong>{{ originStockQuantity }} {{ trasladoSelectedUnit }}</strong></span>
+        </div>
+        <div class="field">
+          <label class="form-label">Código Bien</label>
+          <input class="form-input" type="text" [(ngModel)]="trasladoReference" placeholder="Referencia" />
+        </div>
+        <div class="field">
+          <label class="form-label">Motivo</label>
+          <input class="form-input" type="text" [(ngModel)]="trasladoReason" />
+        </div>
+        <div class="field actions">
+          <button type="button" class="btn-italfoods-primary" (click)="submitTraslado()" [disabled]="submittingTraslado || loadingOriginStock">
+            {{ submittingTraslado ? 'Guardando…' : 'Registrar traslado' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB HISTÓRICO (entradas y salidas con estado) -->
+  <section *ngIf="activeTab === 'historico'" class="tab-content">
+    <div class="card-italfoods filters">
+      <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
+      <div class="card-italfoods__body filters-grid">
+        <div class="field">
+          <label class="form-label">Granja</label>
+          <select class="form-input" [(ngModel)]="historicoFarmId">
+            <option [ngValue]="null">Todas</option>
+            <option *ngFor="let f of farms" [ngValue]="f.id">{{ f.name }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Fecha desde</label>
+          <input class="form-input" type="date" [(ngModel)]="historicoFechaDesde" />
+        </div>
+        <div class="field">
+          <label class="form-label">Fecha hasta</label>
+          <input class="form-input" type="date" [(ngModel)]="historicoFechaHasta" />
+        </div>
+        <div class="field">
+          <label class="form-label">Estado</label>
+          <select class="form-input" [(ngModel)]="historicoEstado">
+            <option value="">Todos</option>
+            <option *ngFor="let e of estadosHistorial" [value]="e">{{ e }}</option>
+          </select>
+        </div>
+        <div class="field actions">
+          <button type="button" class="btn-italfoods-secondary" (click)="loadMovimientos()" [disabled]="loading">Consultar</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-italfoods">
+      <div class="card-italfoods__title">Histórico de entradas y salidas</div>
+      <div class="card-italfoods__body">
+        <p *ngIf="loading">Cargando…</p>
+        <div class="table-wrap" *ngIf="!loading && movimientosList.length">
+          <table class="table-italfoods">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Tipo</th>
+                <th>Cantidad</th>
+                <th>Unidad</th>
+                <th>Granja</th>
+                <th>Núcleo</th>
+                <th>Galpón</th>
+                <th>Referencia / Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let m of movimientosList">
+                <td>{{ formatFechaMovimiento(m.createdAt) }}</td>
+                <td><strong>{{ m.estado ?? m.movementType }}</strong></td>
+                <td>{{ m.itemCodigo }}</td>
+                <td>{{ m.itemNombre }}</td>
+                <td>{{ m.itemType }}</td>
+                <td>{{ m.quantity }}</td>
+                <td>{{ m.unit }}</td>
+                <td>{{ m.granjaNombre ?? m.farmId }}</td>
+                <td>{{ m.nucleoNombre ?? m.nucleoId ?? '—' }}</td>
+                <td>{{ m.galponNombre ?? m.galponId ?? '—' }}</td>
+                <td>{{ m.reference || m.reason || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p *ngIf="!loading && !movimientosList.length" class="empty-state">No hay movimientos con los filtros seleccionados.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB ITEMS (desde Config > Ítems inventario Ecuador) -->
+  <section *ngIf="activeTab === 'items'" class="tab-content">
+    <div class="card-italfoods">
+      <div class="card-italfoods__title">Ítems de inventario (Ecuador)</div>
+      <div class="card-italfoods__body">
+        <p class="hint">Estos ítems se gestionan en <strong>Configuración → Ítems inventario Ecuador</strong>.</p>
+        <div class="items-filters">
+          <div class="field">
+            <label class="form-label">Concepto</label>
+            <select class="form-input" [(ngModel)]="itemsFilterType" (ngModelChange)="loadItemsList()">
+              <option value="">Todos</option>
+              <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Buscar</label>
+            <input class="form-input" type="text" [(ngModel)]="itemsSearch" (ngModelChange)="loadItemsList()" placeholder="Buscar…" />
+          </div>
+          <div class="field actions">
+            <button type="button" class="btn-italfoods-secondary" (click)="loadItemsList()">Buscar</button>
+          </div>
+        </div>
+
+        <div class="table-wrap" *ngIf="itemsList.length">
+          <table class="table-italfoods">
+        <thead>
+          <tr>
+            <th>Id</th>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Unidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let i of itemsList">
+            <td>{{ i.id }}</td>
+            <td>{{ i.codigo }}</td>
+            <td>{{ i.nombre }}</td>
+            <td>{{ i.tipoItem }}</td>
+            <td>{{ i.unidad }}</td>
+          </tr>
+        </tbody>
+          </table>
+        </div>
+        <p *ngIf="!itemsList.length" class="empty-state">No hay ítems o cambie el filtro. Cree ítems en Configuración → Ítems inventario Ecuador.</p>
+      </div>
+    </div>
+  </section>
+  </div>
+</div>
+
+<!-- MODAL: Confirmación -->
+<div class="modal-backdrop" *ngIf="showConfirmModal" (click)="closeConfirmModal()" aria-hidden="true"></div>
+<div class="modal-shell" *ngIf="showConfirmModal" role="dialog" aria-modal="true" aria-label="Confirmación">
+  <div class="modal-italfoods">
+    <div class="modal-italfoods__header">
+      <div>{{ confirmTitle }}</div>
+      <button type="button" class="icon-btn" (click)="closeConfirmModal()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-italfoods__body">
+      <p>{{ confirmText }}</p>
+    </div>
+    <div class="modal-italfoods__footer">
+      <button type="button" class="btn-italfoods-secondary" (click)="closeConfirmModal()">Cancelar</button>
+      <button type="button" class="btn-italfoods-primary" (click)="confirm()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Alertas (éxito/error) -->
+<div class="modal-backdrop" *ngIf="showAlertModal" (click)="closeAlertModal()" aria-hidden="true"></div>
+<div class="modal-shell" *ngIf="showAlertModal" role="dialog" aria-modal="true" aria-label="Mensaje">
+  <div class="modal-italfoods">
+    <div class="modal-italfoods__header">
+      <div>{{ alertTitle }}</div>
+      <button type="button" class="icon-btn" (click)="closeAlertModal()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-italfoods__body">
+      <p [class.text-ital-orange-dark]="alertType === 'success'" [style.color]="alertType === 'error' ? '#c62828' : null">
+        {{ alertText }}
+      </p>
+    </div>
+    <div class="modal-italfoods__footer">
+      <button type="button" class="btn-italfoods-primary" (click)="closeAlertModal()">Aceptar</button>
+    </div>
+  </div>
+</div>
