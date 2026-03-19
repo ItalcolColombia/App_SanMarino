@@ -153,6 +153,8 @@
   [loading]="loading"
   [fechaEncaset]="selectedLote?.fechaEncaset || null"
   [granjaId]="selectedLote?.granjaId || null"
+  [nucleoId]="selectedLote?.nucleoId || null"
+  [galponId]="selectedLote?.galponId || null"
   (close)="cancelSeguimientoDiario()"
   (save)="onSaveSeguimientoDiario($event)">
 </app-modal-seguimiento-diario>

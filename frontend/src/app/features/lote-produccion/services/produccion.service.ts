@@ -99,11 +99,19 @@ export interface CrearSeguimientoRequest {
   itemsHembras?: ItemSeguimientoDto[] | null;
   /** Múltiples ítems por machos (alimento, medicamento, etc.). Se guarda en metadata. */
   itemsMachos?: ItemSeguimientoDto[] | null;
+  /** Ecuador/Panamá: granja para aplicar consumo en inventario-gestion. */
+  granjaId?: number | null;
+  /** Ecuador/Panamá: núcleo (obligatorio para alimento). */
+  nucleoId?: string | null;
+  /** Ecuador/Panamá: galpón (obligatorio para alimento). */
+  galponId?: string | null;
 }
 
 export interface ItemSeguimientoDto {
   tipoItem: string;
   catalogItemId: number;
+  /** Ecuador/Panamá: ID de item_inventario_ecuador para aplicar consumo. */
+  itemInventarioEcuadorId?: number | null;
   cantidad: number;
   unidad: string;
 }

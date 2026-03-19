@@ -10,7 +10,9 @@ namespace ZooSanMarino.Application.DTOs;
 public class ItemSeguimientoDto
 {
     public string TipoItem { get; set; } = string.Empty; // "alimento", "vacuna", "medicamento", etc.
-    public int CatalogItemId { get; set; } // ID del ítem del inventario
+    public int CatalogItemId { get; set; } // ID del ítem del inventario (catálogo legacy)
+    /// <summary>ID de item_inventario_ecuador (Ecuador/Panamá). Cuando está presente, se aplica consumo en inventario-gestion.</summary>
+    public int? ItemInventarioEcuadorId { get; set; }
     public double Cantidad { get; set; } // Cantidad utilizada
     public string Unidad { get; set; } = "kg"; // "kg", "g", "unidades", etc.
 }
@@ -325,6 +327,7 @@ public class CreateSeguimientoLoteLevanteRequest
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
+                itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();
@@ -336,6 +339,7 @@ public class CreateSeguimientoLoteLevanteRequest
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
+                itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
                 cantidad = i.Cantidad,
                 unidad = i.Unidad
             }).ToList();

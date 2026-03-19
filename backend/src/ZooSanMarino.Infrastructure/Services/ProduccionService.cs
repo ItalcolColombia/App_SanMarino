@@ -22,6 +22,10 @@ public class ProduccionService : IProduccionService
     private readonly ISeguimientoDiarioService _seguimientoDiarioService;
     private readonly ILoteService _loteService;
 
+    /// <summary>
+    /// Seguimiento diario postura (producción) no aplica consumo/devolución sobre inventario-gestion.
+    /// El inventario nuevo (inventario-gestion / item_inventario_ecuador) es exclusivo del módulo Seguimiento diario pollo de engorde.
+    /// </summary>
     public ProduccionService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
@@ -344,6 +348,7 @@ public class ProduccionService : IProduccionService
         );
 
         var created = await _seguimientoDiarioService.CreateAsync(dto);
+        if (created == null) throw new InvalidOperationException("No se pudo crear el seguimiento.");
         return (int)created.Id;
     }
 
@@ -620,16 +625,13 @@ public class ProduccionService : IProduccionService
 
     /// <summary>
     /// Elimina un seguimiento diario de producción (tabla unificada seguimiento_diario).
-    /// SeguimientoDiarioService.DeleteAsync valida con BaseQuery() que el registro pertenece a la compañía
-    /// (por LoteId o por LotePosturaProduccionId), por lo que no se duplica la validación aquí.
+    /// El inventario nuevo (inventario-gestion) no se usa en este módulo; solo en Seguimiento diario pollo de engorde.
     /// </summary>
     public async Task<bool> EliminarSeguimientoAsync(int seguimientoId)
     {
         var u = await _seguimientoDiarioService.GetByIdAsync((long)seguimientoId);
         if (u == null || u.TipoSeguimiento != TipoProduccion)
             return false;
-
-        // DeleteAsync comprueba permisos (lote o LPP de la compañía) y elimina
         return await _seguimientoDiarioService.DeleteAsync((long)seguimientoId);
     }
 
@@ -840,9 +842,9 @@ public class ProduccionService : IProduccionService
     {
         var metadata = new Dictionary<string, object?>();
         if (itemsHembras != null && itemsHembras.Count > 0)
-            metadata["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+            metadata["itemsHembras"] = itemsHembras.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, itemInventarioEcuadorId = i.ItemInventarioEcuadorId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
         if (itemsMachos != null && itemsMachos.Count > 0)
-            metadata["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
+            metadata["itemsMachos"] = itemsMachos.Select(i => new { tipoItem = i.TipoItem, catalogItemId = i.CatalogItemId, itemInventarioEcuadorId = i.ItemInventarioEcuadorId, cantidad = i.Cantidad, unidad = i.Unidad }).ToList();
         if ((itemsHembras == null || itemsHembras.Count == 0) && consumoH.HasValue) { metadata["consumoOriginalHembras"] = consumoH.Value; metadata["unidadConsumoOriginalHembras"] = unidadH ?? "kg"; }
         if ((itemsMachos == null || itemsMachos.Count == 0) && consumoM.HasValue) { metadata["consumoOriginalMachos"] = consumoM.Value; metadata["unidadConsumoOriginalMachos"] = unidadM ?? "kg"; }
         if (!string.IsNullOrWhiteSpace(tipoItemHembras)) metadata["tipoItemHembras"] = tipoItemHembras;
@@ -851,5 +853,12 @@ public class ProduccionService : IProduccionService
         if (tipoAlimentoMachos.HasValue) metadata["tipoAlimentoMachos"] = tipoAlimentoMachos.Value;
         if (metadata.Count == 0) return null;
         return JsonDocument.Parse(JsonSerializer.Serialize(metadata));
+    }
+
+    private static decimal ToKg(double cantidad, string unidad)
+    {
+        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
+        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
+        return (decimal)cantidad;
     }
 }

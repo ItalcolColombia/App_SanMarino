@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Va
 import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
 import { CatalogoAlimentosService, CatalogItemDto, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
+import { GestionInventarioService, ItemInventarioEcuadorDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import { EMPTY, forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -18,8 +19,8 @@ interface CatalogItemExtended extends CatalogItemDto {
 
 /** Metadata del seguimiento (puede venir como objeto o JSON string; soporta camelCase y snake_case). */
 export interface MetadataSeguimientoNormalizada {
-  itemsHembras: Array<{ tipoItem: string; catalogItemId: number; cantidad: number; unidad: string }>;
-  itemsMachos: Array<{ tipoItem: string; catalogItemId: number; cantidad: number; unidad: string }>;
+  itemsHembras: Array<{ tipoItem: string; catalogItemId: number; itemInventarioEcuadorId?: number; cantidad: number; unidad: string }>;
+  itemsMachos: Array<{ tipoItem: string; catalogItemId: number; itemInventarioEcuadorId?: number; cantidad: number; unidad: string }>;
   consumoOriginalHembras?: number;
   unidadConsumoOriginalHembras?: string;
   consumoOriginalMachos?: number;
@@ -47,6 +48,10 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   @Input() loading: boolean = false;
   @Input() fechaEncaset: string | Date | null = null; // Fecha de encaset para calcular etapa
   @Input() granjaId: number | null = null; // ID de la granja para cargar inventario
+  /** Ecuador/Panamá: núcleo para inventario-gestion (obligatorio para alimento). */
+  @Input() nucleoId: string | null = null;
+  /** Ecuador/Panamá: galpón para inventario-gestion (obligatorio para alimento). */
+  @Input() galponId: string | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<CrearSeguimientoRequest>();
@@ -65,8 +70,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   private alimentosByName = new Map<string, CatalogItemExtended>();
   private inventarioPorItem = new Map<number, { quantity: number; unit: string }>();
 
-  // Tipos de ítem
-  tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
+  // Tipos de ítem (fijos para no-EC/PA; dinámicos conceptos para Ecuador/Panamá)
+  tiposItem: string[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
+  /** Ecuador/Panamá: catálogo item_inventario_ecuador y conceptos únicos. */
+  itemsEcuadorPanama: ItemInventarioEcuadorDto[] = [];
+  conceptosEcuadorPanama: string[] = [];
 
   // Inventario
   inventarioDisponibleHembras: number | null = null;
@@ -97,6 +105,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     private fb: FormBuilder,
     private catalogSvc: CatalogoAlimentosService,
     private inventarioSvc: InventarioService,
+    private gestionInventarioSvc: GestionInventarioService,
     private countryFilter: CountryFilterService,
     private storage: TokenStorageService
   ) { }
@@ -121,8 +130,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     }
 
     if (this.isOpen) {
-      // Cargar inventario de la granja si está disponible (sin filtro inicial)
-      if (this.granjaId) {
+      if (this.isEcuadorOrPanama && this.granjaId) {
+        this.cargarCatalogEcuadorPanama();
+      } else if (this.granjaId) {
         this.cargarInventarioGranja(this.granjaId);
       }
 
@@ -287,11 +297,30 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemExtended[] {
+    if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+      const c = (tipoItem ?? '').trim().toLowerCase();
+      if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToExtended(i));
+      return this.itemsEcuadorPanama
+        .filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c))
+        .map(i => this.itemEcuadorToExtended(i));
+    }
     if (!tipoItem) return this.alimentosCatalog;
     return this.alimentosCatalog.filter(a => {
       const t = a.tipoItem || (a as any).metadata?.type_item || (a as any).metadata?.itemType;
       return t === tipoItem;
     });
+  }
+
+  private itemEcuadorToExtended(i: ItemInventarioEcuadorDto): CatalogItemExtended {
+    return {
+      id: i.id,
+      codigo: i.codigo,
+      nombre: i.nombre,
+      tipoItem: (i.concepto ?? i.tipoItem ?? '').trim() || i.tipoItem,
+      unidad: (i.unidad ?? 'kg').trim() || 'kg',
+      activo: i.activo,
+      metadata: { type_item: i.tipoItem, concepto: i.concepto }
+    };
   }
 
   getCantidadDisponible(catalogItemId: number | null | undefined): { quantity: number; unit: string } | null {
@@ -334,18 +363,20 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       const v = get(key);
       return v != null ? String(v) : undefined;
     };
-    const toItem = (x: unknown): { tipoItem: string; catalogItemId: number; cantidad: number; unidad: string } => {
+    const toItem = (x: unknown): MetadataSeguimientoNormalizada['itemsHembras'][0] => {
       if (x && typeof x === 'object') {
         const o = x as Record<string, unknown>;
         const catalogItemId = Number(o['catalogItemId'] ?? o['catalog_item_id'] ?? o['catalogItem_id']) || 0;
+        const itemInventarioEcuadorId = Number(o['itemInventarioEcuadorId'] ?? o['item_inventario_ecuador_id']) || undefined;
+        const id = itemInventarioEcuadorId || catalogItemId;
         const cantidad = Number(o['cantidad']) || 0;
         const unidad = String(o['unidad'] ?? 'kg').trim() || 'kg';
         const tipoItem = String(o['tipoItem'] ?? o['tipo_item'] ?? 'alimento').trim() || 'alimento';
-        return { tipoItem, catalogItemId, cantidad, unidad };
+        return { tipoItem, catalogItemId: id || 0, itemInventarioEcuadorId: itemInventarioEcuadorId || (this.isEcuadorOrPanama ? id : undefined), cantidad, unidad };
       }
       return { tipoItem: 'alimento', catalogItemId: 0, cantidad: 0, unidad: 'kg' };
     };
-    const toItems = (arr: unknown): Array<{ tipoItem: string; catalogItemId: number; cantidad: number; unidad: string }> => {
+    const toItems = (arr: unknown): MetadataSeguimientoNormalizada['itemsHembras'] => {
       if (Array.isArray(arr)) return arr.map(toItem).filter(i => i.catalogItemId > 0 || i.cantidad > 0);
       return [];
     };
@@ -673,20 +704,33 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     }
 
     const itemsHembras = this.itemsHembrasArray.controls
-      .map(c => ({ tipoItem: c.get('tipoItem')?.value, catalogItemId: c.get('catalogItemId')?.value, cantidad: Number(c.get('cantidad')?.value) || 0, unidad: c.get('unidad')?.value || 'kg' }))
-      .filter((x: any) => x.tipoItem && x.catalogItemId);
+      .map(c => ({
+        tipoItem: c.get('tipoItem')?.value,
+        catalogItemId: c.get('catalogItemId')?.value ?? 0,
+        itemInventarioEcuadorId: this.isEcuadorOrPanama ? (c.get('catalogItemId')?.value ?? null) : null,
+        cantidad: Number(c.get('cantidad')?.value) || 0,
+        unidad: c.get('unidad')?.value || 'kg'
+      }))
+      .filter((x: any) => x.tipoItem && (x.catalogItemId || x.itemInventarioEcuadorId));
     const itemsMachos = this.itemsMachosArray.controls
-      .map(c => ({ tipoItem: c.get('tipoItem')?.value, catalogItemId: c.get('catalogItemId')?.value, cantidad: Number(c.get('cantidad')?.value) || 0, unidad: c.get('unidad')?.value || 'kg' }))
-      .filter((x: any) => x.tipoItem && x.catalogItemId);
+      .map(c => ({
+        tipoItem: c.get('tipoItem')?.value,
+        catalogItemId: c.get('catalogItemId')?.value ?? 0,
+        itemInventarioEcuadorId: this.isEcuadorOrPanama ? (c.get('catalogItemId')?.value ?? null) : null,
+        cantidad: Number(c.get('cantidad')?.value) || 0,
+        unidad: c.get('unidad')?.value || 'kg'
+      }))
+      .filter((x: any) => x.tipoItem && (x.catalogItemId || x.itemInventarioEcuadorId));
     const useItems = itemsHembras.length > 0 || itemsMachos.length > 0;
     let tipoAlimentoVal = raw.tipoAlimento || 'Standard';
     if (useItems) {
       const nombres: string[] = [];
       [...itemsHembras, ...itemsMachos].forEach((it: any) => {
-        if (it.tipoItem === 'alimento') {
-          const a = this.alimentosById.get(it.catalogItemId);
-          if (a?.nombre) nombres.push(a.nombre);
-        }
+        const id = it.itemInventarioEcuadorId ?? it.catalogItemId;
+        const a = this.alimentosById.get(id);
+        const ecuadorItem = this.isEcuadorOrPanama && this.itemsEcuadorPanama.length ? this.itemsEcuadorPanama.find(i => i.id === id) : null;
+        const name = a?.nombre ?? ecuadorItem?.nombre;
+        if (name) nombres.push(name);
       });
       if (nombres.length) tipoAlimentoVal = nombres.join(' / ');
     }
@@ -727,6 +771,9 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       tipoAlimento: tipoAlimentoVal,
       itemsHembras: useItems ? itemsHembras : undefined,
       itemsMachos: useItems ? itemsMachos : undefined,
+      granjaId: this.isEcuadorOrPanama && useItems && this.granjaId ? this.granjaId : undefined,
+      nucleoId: this.isEcuadorOrPanama && useItems ? (this.nucleoId || undefined) : undefined,
+      galponId: this.isEcuadorOrPanama && useItems ? (this.galponId || undefined) : undefined,
       pesoHuevo: Number(raw.pesoHuevo) || 0,
       etapa: Number(raw.etapa) || this.calcularEtapa(ymd),
       observaciones: raw.observaciones?.trim() || undefined,
@@ -892,7 +939,51 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
   }
 
   // ================== INVENTARIO Y ALIMENTOS ==================
-  
+
+  /** Ecuador/Panamá: carga catálogo item_inventario_ecuador y conceptos; luego stock por granja. */
+  private cargarCatalogEcuadorPanama(): void {
+    if (!this.granjaId) return;
+    this.gestionInventarioSvc.getItemsByType(null, null, true).pipe(
+      catchError(err => { console.error('Error al cargar ítems inventario Ecuador:', err); return of([]); })
+    ).subscribe((list: ItemInventarioEcuadorDto[]) => {
+      this.itemsEcuadorPanama = list ?? [];
+      this.conceptosEcuadorPanama = Array.from(
+        new Set(
+          this.itemsEcuadorPanama
+            .map(i => (i.concepto ?? i.tipoItem ?? '').trim())
+            .filter(x => !!x)
+        )
+      ).sort((a, b) => a.localeCompare(b));
+      if (this.conceptosEcuadorPanama.length > 0) {
+        this.tiposItem = this.conceptosEcuadorPanama;
+      }
+      this.cargarStockEcuadorPanama();
+    });
+  }
+
+  /** Ecuador/Panamá: carga stock inventario-gestion y llena inventarioPorItem por item id. */
+  private cargarStockEcuadorPanama(): void {
+    if (!this.granjaId) return;
+    const params: { farmId: number; nucleoId?: string; galponId?: string; itemType?: string } = { farmId: this.granjaId };
+    if (this.nucleoId) params.nucleoId = this.nucleoId;
+    if (this.galponId) params.galponId = this.galponId;
+    this.gestionInventarioSvc.getStock(params).pipe(
+      catchError(err => { console.error('Error al cargar stock:', err); return of([]); })
+    ).subscribe((rows: InventarioGestionStockDto[]) => {
+      this.inventarioPorItem.clear();
+      rows.forEach(r => {
+        const prev = this.inventarioPorItem.get(r.itemInventarioEcuadorId);
+        const q = prev ? prev.quantity + r.quantity : r.quantity;
+        this.inventarioPorItem.set(r.itemInventarioEcuadorId, { quantity: q, unit: r.unit });
+      });
+      this.alimentosCatalog = this.itemsEcuadorPanama.map(i => this.itemEcuadorToExtended(i));
+      this.alimentosFiltradosHembras = this.alimentosCatalog;
+      this.alimentosFiltradosMachos = this.alimentosCatalog;
+      this.alimentosById.clear();
+      this.alimentosCatalog.forEach(a => { if (a.id != null) this.alimentosById.set(a.id, a); });
+    });
+  }
+
   /**
    * Carga el inventario de la granja filtrado por tipo de item desde el backend
    * El backend filtra por empresa, país, granja y tipo de item
