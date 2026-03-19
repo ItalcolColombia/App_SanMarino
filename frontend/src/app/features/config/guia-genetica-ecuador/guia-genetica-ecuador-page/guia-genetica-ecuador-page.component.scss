@@ -1,0 +1,239 @@
+@use '../../guia-genetica-admin/guia-genetica-list/guia-genetica-list.component.scss' as *;
+
+.gge-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gge-main {
+  flex: 1;
+  padding: 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gge-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.gge-head .subtitle {
+  margin: 0.25rem 0 1rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.gge-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.gge-head .title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.invisible {
+  visibility: hidden;
+  display: block;
+  height: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  border-bottom: 2px solid var(--ital-green-100, #d1fae5);
+  flex-wrap: wrap;
+  button {
+    border: none;
+    background: transparent;
+    padding: 0.5rem 1rem;
+    font-weight: 700;
+    color: var(--ital-orange-dark, #9a3412);
+    cursor: pointer;
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+  button.active {
+    background: var(--ital-green-50, #ecfdf5);
+    color: var(--ital-green, #047857);
+  }
+}
+
+.table-wrap {
+  overflow: auto;
+  margin-top: 0.75rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.alert {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.muted {
+  color: #6b7280;
+}
+.muted.small {
+  font-size: 0.85rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1000;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  background: #fff;
+  border-radius: 0.9rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  width: min(760px, 100%);
+  max-width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  border: 1px solid var(--ital-green-100, #d1fae5);
+}
+.modal.wide {
+  width: min(980px, 98vw);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--ital-orange-dark, #9a3412);
+  }
+}
+
+.icon-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.modal-body {
+  padding: 1rem;
+}
+
+.modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.import-result {
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+}
+.import-result.ok {
+  background: #ecfdf5;
+  color: #065f46;
+}
+.import-result.err {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 0.75rem;
+}
+
+.import-file input[type='file'] {
+  width: 100%;
+}
+
+.manual-table-wrap {
+  overflow: auto;
+  max-height: 40vh;
+  margin: 0.5rem 0;
+}
+
+.gg-table.compact .input.sm {
+  width: 4.5rem;
+  padding: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.link {
+  border: none;
+  background: none;
+  color: var(--ital-orange, #ea580c);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.8rem;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin: 0.5rem 0 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .gge-main {
+    padding: 0.85rem;
+  }
+
+  .gge-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .tabs {
+    margin: 0.75rem 0;
+  }
+
+  .tabs button {
+    flex: 1 1 auto;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-table-wrap {
+    max-height: 50vh;
+  }
+}
