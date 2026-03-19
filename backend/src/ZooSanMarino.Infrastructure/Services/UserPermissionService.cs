@@ -19,6 +19,13 @@ public class UserPermissionService : IUserPermissionService
 
     public async Task<IEnumerable<PaisDto>> GetAssignedCountriesAsync(int userId)
     {
+        // Sin Guid no podemos resolver permisos (token expirado o sesión inválida)
+        var userIdGuid = _currentUser.UserGuid;
+        if (!userIdGuid.HasValue)
+        {
+            throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
+        }
+
         // Verificar si es el super admin
         if (await IsSuperAdminAsync(userId))
         {
@@ -28,26 +35,14 @@ public class UserPermissionService : IUserPermissionService
                 .Select(p => new PaisDto(p.PaisId, p.PaisNombre))
                 .ToListAsync();
         }
-
-        // Obtener el Guid del usuario desde ICurrentUser (preferido) o convertir desde int
-        // Nota: En el contexto de permisos, userId es siempre del usuario actual
-        var userIdGuid = _currentUser.UserGuid;
-        
-        // Si no tenemos el Guid del usuario actual, intentar obtenerlo de otra manera
-        // Esto puede ocurrir si el método se llama con un userId diferente al usuario actual
-        if (!userIdGuid.HasValue)
-        {
-            // Intentar buscar el usuario por su hash (no es ideal, pero necesario para compatibilidad)
-            // Nota: Esta conversión no es reversible, pero se usa en otros lugares del código
-            userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
-        }
         
         var paisIds = new HashSet<int>();
-        
+        var guid = userIdGuid.Value;
+
         // 1. Obtener países de las granjas asignadas al usuario
         var farmCountries = await _context.UserFarms
             .AsNoTracking()
-            .Where(uf => uf.UserId == userIdGuid.Value)
+            .Where(uf => uf.UserId == guid)
             .Join(_context.Set<Departamento>(),
                 uf => uf.Farm.DepartamentoId,
                 d => d.DepartamentoId,
@@ -64,7 +59,7 @@ public class UserPermissionService : IUserPermissionService
         // Esto permite que usuarios sin granjas asignadas puedan crear granjas en países de sus empresas
         var userCompanyIds = await _context.UserCompanies
             .AsNoTracking()
-            .Where(uc => uc.UserId == userIdGuid.Value)
+            .Where(uc => uc.UserId == guid)
             .Select(uc => uc.CompanyId)
             .Distinct()
             .ToListAsync();
@@ -108,12 +103,10 @@ public class UserPermissionService : IUserPermissionService
             return true; // Super admin puede crear granjas en cualquier país
         }
 
-        // Obtener el Guid del usuario
         var userIdGuid = _currentUser.UserGuid;
         if (!userIdGuid.HasValue)
         {
-            // Fallback: intentar convertir desde int (no ideal, pero necesario)
-            userIdGuid = new Guid(userId.ToString("D32").PadLeft(32, '0'));
+            throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
         }
 
         // Obtener empresas asignadas al usuario
@@ -187,14 +180,16 @@ public class UserPermissionService : IUserPermissionService
                 .ToListAsync();
         }
 
-        // Obtener el Guid del usuario desde ICurrentUser (preferido)
-        var userIdGuid = _currentUser.UserGuid ?? 
-            throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
-        
+        var userIdGuid = _currentUser.UserGuid;
+        if (!userIdGuid.HasValue)
+        {
+            throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
+        }
+
         // Obtener las empresas asignadas al usuario actual
         var userCompanies = await _context.UserCompanies
             .AsNoTracking()
-            .Where(uc => uc.UserId == userIdGuid)
+            .Where(uc => uc.UserId == userIdGuid.Value)
             .Select(uc => uc.CompanyId)
             .ToListAsync();
 
@@ -235,14 +230,16 @@ public class UserPermissionService : IUserPermissionService
             return true; // Super admin puede asignar cualquier usuario
         }
 
-        // Obtener el Guid del usuario desde ICurrentUser (preferido)
-        var currentUserIdGuid = _currentUser.UserGuid ?? 
-            throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
-        
+        var currentUserIdGuid = _currentUser.UserGuid;
+        if (!currentUserIdGuid.HasValue)
+        {
+            throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
+        }
+
         // Verificar que ambos usuarios pertenecen a las mismas empresas
         var currentUserCompanies = await _context.UserCompanies
             .AsNoTracking()
-            .Where(uc => uc.UserId == currentUserIdGuid)
+            .Where(uc => uc.UserId == currentUserIdGuid.Value)
             .Select(uc => uc.CompanyId)
             .ToListAsync();
 
@@ -264,14 +261,16 @@ public class UserPermissionService : IUserPermissionService
     /// </summary>
     private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)
     {
-        // Obtener el Guid del usuario desde ICurrentUser (preferido)
-        var userIdGuid = _currentUser.UserGuid ?? 
-            throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
-        
+        var userIdGuid = _currentUser.UserGuid;
+        if (!userIdGuid.HasValue)
+        {
+            throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
+        }
+
         var userRoles = await _context.UserRoles
             .AsNoTracking()
             .Include(ur => ur.Role)
-            .Where(ur => ur.UserId == userIdGuid)
+            .Where(ur => ur.UserId == userIdGuid.Value)
             .Select(ur => ur.Role.Name)
             .ToListAsync();
 
@@ -285,15 +284,18 @@ public class UserPermissionService : IUserPermissionService
 
     private async Task<bool> IsSuperAdminAsync(int userId)
     {
-        // Obtener el Guid del usuario desde ICurrentUser (preferido)
-        var userIdGuid = _currentUser.UserGuid ?? 
-            throw new InvalidOperationException("No se pudo obtener el Guid del usuario autenticado");
-        
+        // Sin Guid la sesión es inválida (token expirado o sin claim sub)
+        var userIdGuid = _currentUser.UserGuid;
+        if (!userIdGuid.HasValue)
+        {
+            throw new UnauthorizedAccessException("Sesión expirada o inválida. Inicie sesión de nuevo.");
+        }
+
         // Buscar el email del usuario
         var userEmail = await _context.UserLogins
             .AsNoTracking()
             .Include(ul => ul.Login)
-            .Where(ul => ul.UserId == userIdGuid)
+            .Where(ul => ul.UserId == userIdGuid.Value)
             .Select(ul => ul.Login.email)
             .FirstOrDefaultAsync();
 
