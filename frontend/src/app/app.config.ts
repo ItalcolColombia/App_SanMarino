@@ -44,6 +44,7 @@ import { LoteListComponent }   from './features/lote/components/lote-list/lote-l
 import { GuiaGeneticaListComponent } from './features/config/guia-genetica-admin/guia-genetica-list/guia-genetica-list.component';
 import { GuiaGeneticaFormComponent } from './features/config/guia-genetica-admin/guia-genetica-form/guia-genetica-form.component';
 import { GuiaGeneticaDetailComponent } from './features/config/guia-genetica-admin/guia-genetica-detail/guia-genetica-detail.component';
+import { GuiaGeneticaEcuadorPageComponent } from './features/config/guia-genetica-ecuador/guia-genetica-ecuador-page/guia-genetica-ecuador-page.component';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -192,12 +193,21 @@ export const appConfig: ApplicationConfig = {
           { path: 'guia-genetica/:id', component: GuiaGeneticaDetailComponent },
           { path: 'guia-genetica/:id/edit', component: GuiaGeneticaFormComponent },
 
+          { path: 'guia-genetica-ecuador', component: GuiaGeneticaEcuadorPageComponent },
+
           // Catálogo de Alimentos (lazy)
           {
             path: 'catalogo-alimentos',
             loadChildren: () =>
               import('./features/catalogo-alimentos/catalogo-alimentos.module')
                 .then(m => m.CatalogoAlimentosModule)
+          },
+          // Ítems de inventario Ecuador (catálogo para Gestión de Inventario)
+          {
+            path: 'item-inventario-ecuador',
+            loadChildren: () =>
+              import('./features/config/item-inventario-ecuador/item-inventario-ecuador.module')
+                .then(m => m.ItemInventarioEcuadorModule)
           }
         ]
       },
@@ -218,6 +228,14 @@ export const appConfig: ApplicationConfig = {
         loadChildren: () =>
           import('./features/inventario/inventario.module')
             .then(m => m.InventarioModule)
+      },
+      // Gestión de Inventario (Panama/Ecuador): ingresos y traslados; alimento → Granja/Núcleo/Galpón; otros → Granja
+      {
+        path: 'gestion-inventario',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/gestion-inventario/gestion-inventario.module')
+            .then(m => m.GestionInventarioModule)
       },
       
       // Ruta alternativa para inventario (también protegida)
