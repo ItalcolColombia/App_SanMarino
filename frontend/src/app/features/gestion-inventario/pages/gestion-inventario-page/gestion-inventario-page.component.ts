@@ -56,7 +56,7 @@ export class GestionInventarioPageComponent implements OnInit {
   showConfirmModal = false;
   confirmTitle = '';
   confirmText = '';
-  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | 'rechazoTransito' | null = null;
+  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | null = null;
   showAlertModal = false;
   alertType: 'success' | 'error' = 'success';
   alertTitle = '';
@@ -66,8 +66,10 @@ export class GestionInventarioPageComponent implements OnInit {
   selectedFarmId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
-  // Concepto dinámico (desde item_inventario_ecuador.concepto)
+  // Concepto dinámico (desde item_inventario_ecuador.concepto) — ingresos/traslados/catálogo
   selectedConcept: string = '';
+  /** Filtro de concepto solo en pestaña Stock (vacío = todos los conceptos). */
+  stockConceptFilter = '';
   conceptos: string[] = [];
   searchTerm = '';
 
@@ -120,9 +122,6 @@ export class GestionInventarioPageComponent implements OnInit {
   recepcionToNucleoId: string | null = null;
   recepcionToGalponId: string | null = null;
   submittingRecepcion = false;
-  /** Fila para confirmar rechazo de solicitud inter-granja. */
-  pendingRejectRow: InventarioGestionTransitoPendienteDto | null = null;
-  submittingRechazo = false;
 
   // Histórico tab
   historicoFarmId: number | null = null;
@@ -281,6 +280,7 @@ export class GestionInventarioPageComponent implements OnInit {
           if (this.transitoFarmFilter == null) this.transitoFarmFilter = only;
         }
         this.loading = false;
+        if (this.activeTab === 'stock') this.loadStock();
       },
       error: () => {
         this.loading = false;
@@ -296,8 +296,10 @@ export class GestionInventarioPageComponent implements OnInit {
     if (this.selectedFarmId != null) params.farmId = this.selectedFarmId;
     if (this.selectedNucleoId) params.nucleoId = this.selectedNucleoId;
     if (this.selectedGalponId) params.galponId = this.selectedGalponId;
-    if (this.selectedConcept) params.itemType = this.selectedConcept;
-    if (this.searchTerm) params.search = this.searchTerm;
+    const conceptoFiltro = (this.stockConceptFilter ?? '').trim();
+    if (conceptoFiltro) params.itemType = conceptoFiltro;
+    const q = (this.searchTerm ?? '').trim();
+    if (q) params.search = q;
     this.svc.getStock(params).subscribe({
       next: (list) => {
         this.stockList = list;
@@ -369,12 +371,27 @@ export class GestionInventarioPageComponent implements OnInit {
     return this.isAlimentoConcept(this.selectedConcept);
   }
 
+  /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
+  get stockShowNucleoGalpon(): boolean {
+    const c = (this.stockConceptFilter ?? '').trim();
+    if (!c) return true;
+    return this.isAlimentoConcept(c);
+  }
+
   onFarmChange(): void {
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
   }
   onNucleoChange(): void {
     this.selectedGalponId = null;
+  }
+
+  onStockConceptFilterChange(): void {
+    const c = (this.stockConceptFilter ?? '').trim();
+    if (c && !this.isAlimentoConcept(c)) {
+      this.selectedNucleoId = null;
+      this.selectedGalponId = null;
+    }
   }
 
   private applyConceptToIngresoTrasladoLists(): void {
@@ -659,7 +676,7 @@ export class GestionInventarioPageComponent implements OnInit {
   openConfirmModal(
     title: string,
     text: string,
-    action: 'ingreso' | 'traslado' | 'recepcionTransito' | 'rechazoTransito'
+    action: 'ingreso' | 'traslado' | 'recepcionTransito'
   ): void {
     this.confirmTitle = title;
     this.confirmText = text;
@@ -675,7 +692,6 @@ export class GestionInventarioPageComponent implements OnInit {
     this.closeConfirmModal();
     if (action === 'ingreso') this.doIngreso();
     if (action === 'traslado') this.doTraslado();
-    if (action === 'rechazoTransito') this.doRechazoTransito();
     if (action === 'recepcionTransito') this.doRecepcionTransito();
   }
 
@@ -763,6 +779,11 @@ export class GestionInventarioPageComponent implements OnInit {
     this.recepcionPendiente = row;
     this.recepcionToNucleoId = row.destinoNucleoIdHint;
     this.recepcionToGalponId = row.destinoGalponIdHint;
+    // Tras pintar el formulario inline en la tarjeta, acercar la vista (listas largas).
+    setTimeout(() => {
+      const id = `transito-recepcion-${row.transferGroupId}`;
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 0);
   }
 
   cancelRecepcion(): void {
@@ -790,51 +811,14 @@ export class GestionInventarioPageComponent implements OnInit {
       return;
     }
     const detalle =
-      row.pendienteDespachoOrigen === false
-        ? ' El origen ya fue descontado con el envío anterior; solo se suma stock en destino.'
-        : ' Se descontará el stock en la granja origen y se ingresará en destino.';
+      row.pendienteDespachoOrigen === true
+        ? ' (Solicitud antigua) Se descontará origen si aún no se hizo y se sumará en destino.'
+        : ' El origen ya fue descontado al enviar el traslado; solo se sumará el stock en destino.';
     this.openConfirmModal(
       'Confirmar recepción',
       `¿Registrar ingreso en ${row.toGranjaNombre ?? 'granja destino'} por la cantidad indicada?${detalle}`,
       'recepcionTransito'
     );
-  }
-
-  /** Rechazo solo aplica a solicitudes nuevas (aún no descontadas en origen). */
-  solicitarRechazoTransito(row: InventarioGestionTransitoPendienteDto): void {
-    if (row.pendienteDespachoOrigen === false) {
-      this.openAlertModal(
-        'error',
-        'No aplica',
-        'Este envío ya descontó stock en origen. Use recepción para completar el ingreso en destino.'
-      );
-      return;
-    }
-    this.pendingRejectRow = row;
-    this.openConfirmModal(
-      'Rechazar solicitud',
-      'No se descontará stock en la granja origen. ¿Rechazar esta solicitud de traslado?',
-      'rechazoTransito'
-    );
-  }
-
-  private doRechazoTransito(): void {
-    const row = this.pendingRejectRow;
-    this.pendingRejectRow = null;
-    if (!row?.transferGroupId) return;
-    this.submittingRechazo = true;
-    this.svc.rechazarTransito({ transferGroupId: row.transferGroupId, reason: null }).subscribe({
-      next: () => {
-        this.submittingRechazo = false;
-        this.openAlertModal('success', 'Listo', 'Solicitud rechazada. El inventario en origen no se modificó.');
-        this.loadTransitos();
-        if (this.recepcionPendiente?.transferGroupId === row.transferGroupId) this.cancelRecepcion();
-      },
-      error: (err) => {
-        this.submittingRechazo = false;
-        this.openAlertModal('error', 'Error', err.error?.message || 'No se pudo rechazar.');
-      }
-    });
   }
 
   private doRecepcionTransito(): void {
@@ -914,7 +898,7 @@ export class GestionInventarioPageComponent implements OnInit {
         this.submittingTraslado = false;
         const ok =
           this.trasladoModo === 'interGranja'
-            ? 'Solicitud enviada. El stock en origen no se descuenta hasta que la granja destino confirme en la pestaña Tránsito.'
+            ? 'Traslado enviado a tránsito. El stock ya se descontó en origen; la granja destino debe confirmar en la pestaña Tránsito para sumar el ítem allí.'
             : 'Traslado registrado correctamente.';
         this.openAlertModal('success', 'Listo', ok);
         this.trasladoQuantity = 0;
