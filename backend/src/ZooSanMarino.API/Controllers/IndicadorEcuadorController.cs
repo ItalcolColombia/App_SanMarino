@@ -88,20 +88,23 @@ public class IndicadorEcuadorController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene lotes cerrados (aves = 0) en un rango de fechas
+    /// soloCerrados=true (default): lotes con aves=0 cuya fecha de cierre está entre fechaDesde y fechaHasta.
+    /// soloCerrados=false: lotes cuyo encaset está en el rango (incluye abiertos).
     /// </summary>
     [HttpGet("lotes-cerrados")]
     public async Task<ActionResult<IEnumerable<IndicadorEcuadorDto>>> ObtenerLotesCerrados(
         [FromQuery] DateTime fechaDesde,
         [FromQuery] DateTime fechaHasta,
-        [FromQuery] int? granjaId = null)
+        [FromQuery] int? granjaId = null,
+        [FromQuery] bool soloCerrados = true)
     {
         try
         {
             var resultados = await _indicadorService.ObtenerLotesCerradosAsync(
                 fechaDesde,
                 fechaHasta,
-                granjaId);
+                granjaId,
+                soloCerrados);
             return Ok(resultados);
         }
         catch (Exception ex)
@@ -135,6 +138,34 @@ public class IndicadorEcuadorController : ControllerBase
         {
             _logger.LogError(ex, "Error al calcular indicadores pollo engorde por lote padre");
             return StatusCode(500, new { error = "Error interno al calcular indicadores." });
+        }
+    }
+
+    /// <summary>
+    /// Liquidación técnica Pollo Engorde (solo lote padre liquidado, sin reproductoras).
+    /// Modo UnLote: body con loteAveEngordeId. Modo Rango: fechas + alcance (TodasLasGranjas / Granja / Nucleo).
+    /// </summary>
+    [HttpPost("liquidacion-pollo-engorde-reporte")]
+    public async Task<ActionResult<LiquidacionPolloEngordeReporteDto>> LiquidacionPolloEngordeReporte(
+        [FromBody] LiquidacionPolloEngordeReporteRequest request,
+        CancellationToken ct)
+    {
+        if (request == null)
+            return BadRequest(new { error = "Request requerido." });
+        try
+        {
+            var resultado = await _indicadorService.LiquidacionPolloEngordeReporteAsync(request, ct);
+            return Ok(resultado);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Liquidación pollo engorde: {Message}", ex.Message);
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al generar liquidación pollo engorde");
+            return StatusCode(500, new { error = "Error interno al generar el reporte." });
         }
     }
 }

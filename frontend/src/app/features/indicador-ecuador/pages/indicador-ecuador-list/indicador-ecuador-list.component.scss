@@ -723,3 +723,36 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Pollo Engorde – filtros modo / rango */
+.filters-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: center;
+}
+
+.radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.liquidacion-lote-title {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--ital-green-100);
+}
+
+.liquidacion-lote-title__name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--ital-orange-dark);
+}
