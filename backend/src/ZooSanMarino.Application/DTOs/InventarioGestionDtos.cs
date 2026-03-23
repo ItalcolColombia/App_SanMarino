@@ -118,7 +118,7 @@ public sealed record InventarioGestionRechazoTransitoRequest(
     string? Reason
 );
 
-/// <summary>Salida inter-granja pendiente de recepción (inventario en tránsito hacia ToFarmId).</summary>
+/// <summary>Envío inter-granja pendiente de recepción en destino (origen ya descontado en envíos nuevos).</summary>
 public sealed record InventarioGestionTransitoPendienteDto(
     Guid TransferGroupId,
     int SalidaMovimientoId,
@@ -136,7 +136,7 @@ public sealed record InventarioGestionTransitoPendienteDto(
     decimal Quantity,
     string Unit,
     DateTimeOffset CreatedAt,
-    /// <summary>True: la solicitud aún no descontó stock en origen; al confirmar recepción se descuenta. False: registro previo (stock ya descontado al enviar).</summary>
+    /// <summary>True: movimiento antiguo TrasladoInterGranjaPendiente (origen se descuenta al recibir). False: TrasladoInterGranjaSalida (origen ya descontado al registrar el traslado).</summary>
     bool PendienteDespachoOrigen = true
 );
 
