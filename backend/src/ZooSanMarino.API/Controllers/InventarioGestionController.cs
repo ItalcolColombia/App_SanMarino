@@ -106,4 +106,47 @@ public class InventarioGestionController : ControllerBase
         var list = await _service.GetMovimientosAsync(farmId, fechaDesde, fechaHasta, estado, movementType, ct);
         return Ok(list);
     }
+
+    /// <summary>Traslados inter-granja pendientes de recepción (inventario en tránsito). Opcional: granja destino.</summary>
+    [HttpGet("transito/pendientes")]
+    [ProducesResponseType(typeof(IEnumerable<InventarioGestionTransitoPendienteDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTransitosPendientes([FromQuery] int? farmIdDestino = null, CancellationToken ct = default)
+    {
+        var list = await _service.GetTransitosPendientesAsync(farmIdDestino, ct);
+        return Ok(list);
+    }
+
+    /// <summary>Recepción en granja destino de un traslado inter-granja (cierra el tránsito).</summary>
+    [HttpPost("transito/recepcion")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RegistrarRecepcionTransito([FromBody] InventarioGestionRecepcionTransitoRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var (destino, movimiento) = await _service.RegistrarRecepcionTransitoAsync(req, ct);
+            return Ok(new { destino, movimiento });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Rechaza una solicitud inter-granja pendiente; no descuenta stock en origen.</summary>
+    [HttpPost("transito/rechazo")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RechazarTransito([FromBody] InventarioGestionRechazoTransitoRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            await _service.RechazarTransitoPendienteAsync(req, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
