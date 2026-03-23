@@ -117,6 +117,30 @@ public record IndicadorPolloEngordePorLotePadreDto(
 );
 
 /// <summary>
+/// Reporte de liquidación Pollo Engorde (Ecuador): solo lote padre liquidado (aves = 0), sin reproductoras.
+/// </summary>
+public record LiquidacionPolloEngordeReporteRequest(
+    string Modo,
+    int? LoteAveEngordeId,
+    DateTime? FechaDesde,
+    DateTime? FechaHasta,
+    string Alcance,
+    int? GranjaId,
+    string? NucleoId
+);
+
+public record LiquidacionPolloEngordeItemDto(
+    int LoteAveEngordeId,
+    string LoteNombre,
+    IndicadorEcuadorDto Indicador
+);
+
+public record LiquidacionPolloEngordeReporteDto(
+    string Modo,
+    IReadOnlyList<LiquidacionPolloEngordeItemDto> Items
+);
+
+/// <summary>
 /// DTO para resumen consolidado de todas las granjas
 /// </summary>
 public record IndicadorEcuadorConsolidadoDto(

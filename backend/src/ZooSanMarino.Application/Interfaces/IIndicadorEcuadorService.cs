@@ -29,12 +29,14 @@ public interface IIndicadorEcuadorService
     );
     
     /// <summary>
-    /// Obtiene lotes cerrados (aves = 0) en un rango de fechas
+    /// Si <paramref name="soloCerrados"/> es true: solo lotes con aves = 0 cuya <b>fecha de cierre</b> cae en [fechaDesde, fechaHasta].
+    /// Si es false: lotes (abiertos y cerrados) cuyo <b>encaset</b> cae en el mismo rango.
     /// </summary>
     Task<IEnumerable<IndicadorEcuadorDto>> ObtenerLotesCerradosAsync(
         DateTime fechaDesde,
         DateTime fechaHasta,
-        int? granjaId = null
+        int? granjaId = null,
+        bool soloCerrados = true
     );
 
     /// <summary>
@@ -45,4 +47,13 @@ public interface IIndicadorEcuadorService
     Task<IndicadorPolloEngordePorLotePadreDto> CalcularIndicadoresPolloEngordePorLotePadreAsync(
         IndicadorPolloEngordePorLotePadreRequest request
     );
+
+    /// <summary>
+    /// Liquidación Pollo Engorde: solo lotes padre liquidados (sin reproductoras).
+    /// Modo UnLote: <paramref name="request"/>.LoteAveEngordeId obligatorio.
+    /// Modo Rango: fechas obligatorias; franja por fecha de cierre; alcance TodasLasGranjas / Granja / Nucleo.
+    /// </summary>
+    Task<LiquidacionPolloEngordeReporteDto> LiquidacionPolloEngordeReporteAsync(
+        LiquidacionPolloEngordeReporteRequest request,
+        CancellationToken ct = default);
 }

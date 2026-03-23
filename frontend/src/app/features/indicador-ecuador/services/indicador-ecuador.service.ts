@@ -47,6 +47,7 @@ export interface IndicadorEcuadorDto {
   gananciaDia: number;
   fechaInicioLote: string | null;
   fechaCierreLote: string | null; // Fecha último despacho (cierre de lote)
+  /** true si aves actuales = 0 (según reglas del backend) */
   loteCerrado: boolean;
 }
 
@@ -116,6 +117,29 @@ export interface IndicadorPolloEngordePorLotePadreDto {
   lotesReproductores: IndicadorReproductorDto[];
 }
 
+/** POST liquidacion-pollo-engorde-reporte: solo lote padre liquidado (sin reproductoras). */
+export interface LiquidacionPolloEngordeReporteRequest {
+  modo: 'UnLote' | 'Rango';
+  loteAveEngordeId?: number | null;
+  fechaDesde?: string | null;
+  fechaHasta?: string | null;
+  /** TodasLasGranjas | Granja | Nucleo (solo modo Rango) */
+  alcance: string;
+  granjaId?: number | null;
+  nucleoId?: string | null;
+}
+
+export interface LiquidacionPolloEngordeItemDto {
+  loteAveEngordeId: number;
+  loteNombre: string;
+  indicador: IndicadorEcuadorDto;
+}
+
+export interface LiquidacionPolloEngordeReporteDto {
+  modo: string;
+  items: LiquidacionPolloEngordeItemDto[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class IndicadorEcuadorService {
   private readonly baseUrl = `${environment.apiUrl}/IndicadorEcuador`;
@@ -134,11 +158,18 @@ export class IndicadorEcuadorService {
     return this.http.post<LiquidacionPeriodoDto>(`${this.baseUrl}/liquidacion-periodo`, request);
   }
 
-  obtenerLotesCerrados(fechaDesde: string, fechaHasta: string, granjaId?: number): Observable<IndicadorEcuadorDto[]> {
+  obtenerLotesCerrados(
+    fechaDesde: string,
+    fechaHasta: string,
+    granjaId?: number,
+    /** true = cerrados con fecha de cierre en el rango; false = encaset en el rango (incluye abiertos) */
+    soloCerrados?: boolean
+  ): Observable<IndicadorEcuadorDto[]> {
     let params = new HttpParams()
       .set('fechaDesde', fechaDesde)
-      .set('fechaHasta', fechaHasta);
-    
+      .set('fechaHasta', fechaHasta)
+      .set('soloCerrados', String(soloCerrados ?? true));
+
     if (granjaId) {
       params = params.set('granjaId', granjaId.toString());
     }
@@ -149,5 +180,10 @@ export class IndicadorEcuadorService {
   /** Indicadores de pollo engorde por lote padre (LoteAveEngorde) y sus lotes reproductores */
   indicadoresPolloEngordePorLotePadre(request: IndicadorPolloEngordePorLotePadreRequest): Observable<IndicadorPolloEngordePorLotePadreDto> {
     return this.http.post<IndicadorPolloEngordePorLotePadreDto>(`${this.baseUrl}/indicadores-pollo-engorde-por-lote-padre`, request);
+  }
+
+  /** Liquidación técnica: solo lotes padre liquidados (aves = 0), sin reproductoras. */
+  liquidacionPolloEngordeReporte(request: LiquidacionPolloEngordeReporteRequest): Observable<LiquidacionPolloEngordeReporteDto> {
+    return this.http.post<LiquidacionPolloEngordeReporteDto>(`${this.baseUrl}/liquidacion-pollo-engorde-reporte`, request);
   }
 }

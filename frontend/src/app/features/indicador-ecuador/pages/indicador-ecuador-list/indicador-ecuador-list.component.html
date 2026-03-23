@@ -4,7 +4,7 @@
     <div class="ux-header">
       <div class="ux-header__title">
         <h1 class="ux-title">📊 Indicador Ecuador</h1>
-        <p class="ux-subtitle" *ngIf="vistaIndicador === 'polloEngorde'">Liquidación Técnica – Pollo Engorde (Lote padre y Lotes reproductores). Solo se liquida cuando el lote tiene cero aves.</p>
+        <p class="ux-subtitle" *ngIf="vistaIndicador === 'polloEngorde'">Liquidación técnica – Pollo Engorde: solo lotes padre liquidados (aves = 0). Un lote por cascada o varios lotes por rango de fechas (cierre).</p>
         <p class="ux-subtitle" *ngIf="vistaIndicador === 'general'">Liquidación Técnica de Cierre de Mes de Granja – Conglomerado de Todas las Granjas (Lotes Levante/Producción)</p>
       </div>
     </div>
@@ -16,7 +16,7 @@
           <label class="filter-label">Vista</label>
           <select [(ngModel)]="vistaIndicador" class="ux-input" style="max-width: 320px;" [disabled]="vistaSelectDisabled" [attr.aria-readonly]="vistaSelectDisabled">
             <option value="general">Indicadores generales (Lotes Levante/Producción)</option>
-            <option value="polloEngorde">Pollo Engorde – Lote padre + Lotes reproductores</option>
+            <option value="polloEngorde">Pollo Engorde – Liquidación de lote</option>
           </select>
           <p class="form-hint" *ngIf="vistaSelectDisabled">Vista fijada en Pollo Engorde para Ecuador.</p>
         </div>
@@ -32,42 +32,94 @@
         <div class="filters-grid" *ngIf="loadingFilterData && vistaIndicador === 'general'">
           <p class="filter-loading">Cargando filtros…</p>
         </div>
-        <!-- Filtros Pollo Engorde (según doc LIQUIDACION_TECNICA_POLLO_ENGORDE): Lote + fechas + solo cerrados + variables Conv. Ajustada -->
-        <div class="filters-grid pollo-engorde-filtros mb-4" *ngIf="!loadingFilterData && vistaIndicador === 'polloEngorde'">
-          <div class="filter-group">
-            <label class="filter-label"><span class="filter-icon">📋</span> Lote (Ave Engorde)</label>
-            <select [(ngModel)]="selectedLoteAveEngordeId" class="ux-input">
-              <option [ngValue]="null">Seleccione lote padre</option>
-              <option *ngFor="let l of lotesAveEngorde" [ngValue]="l.loteAveEngordeId">{{ l.loteNombre || ('Lote ' + l.loteAveEngordeId) }}</option>
-            </select>
+        <div *ngIf="loadingFilterDataPollo && vistaIndicador === 'polloEngorde'" class="filters-grid">
+          <p class="filter-loading">Cargando filtros (Pollo Engorde)…</p>
+        </div>
+        <!-- Pollo Engorde: un lote (cascada) o rango por fecha de cierre -->
+        <div class="filters-grid pollo-engorde-filtros mb-4" *ngIf="!loadingFilterDataPollo && vistaIndicador === 'polloEngorde'">
+          <div class="filter-group span-2">
+            <label class="filter-label">Modo de reporte</label>
+            <div class="radio-row">
+              <label class="radio-label">
+                <input type="radio" name="polloModo" [(ngModel)]="polloModo" value="unLote" (ngModelChange)="onPolloModoChange()">
+                Un lote (granja → núcleo → galpón → lote)
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="polloModo" [(ngModel)]="polloModo" value="rango" (ngModelChange)="onPolloModoChange()">
+                Varios lotes por fechas (cierre)
+              </label>
+            </div>
           </div>
-          <div class="filter-group">
-            <label class="filter-label"><span class="filter-icon">📅</span> Fecha Desde</label>
-            <input type="date" [(ngModel)]="fechaDesde" class="ux-input">
-          </div>
-          <div class="filter-group">
-            <label class="filter-label"><span class="filter-icon">📅</span> Fecha Hasta</label>
-            <input type="date" [(ngModel)]="fechaHasta" class="ux-input">
-          </div>
-          <div class="filter-group checkbox-group">
-            <label class="checkbox-label">
-              <input type="checkbox" [(ngModel)]="soloLotesCerrados" class="checkbox-input">
-              <span class="checkbox-text"><span class="filter-icon">✅</span> Solo lotes cerrados (aves = 0)</span>
-            </label>
-            <p class="form-hint" *ngIf="vistaIndicador === 'polloEngorde'">Con esta opción se muestran el lote padre (si está cerrado) y todos los lotes reproductores asociados que tienen 0 aves, aunque el padre aún tenga aves.</p>
-          </div>
-          <!-- Ocultos por ahora: variables Conv. Ajustada (default 2,7 y 4,5 en backend) -->
-          <div class="filter-group" *ngIf="false">
-            <label class="filter-label">Conv. Ajustada – Peso (variable, default 2,7)</label>
-            <input type="number" [(ngModel)]="pesoAjusteVariable" step="0.1" min="0" class="ux-input" placeholder="2.7">
-          </div>
-          <div class="filter-group" *ngIf="false">
-            <label class="filter-label">Conv. Ajustada – Divisor (variable, default 4,5)</label>
-            <input type="number" [(ngModel)]="divisorAjusteVariable" step="0.1" min="0.1" class="ux-input" placeholder="4.5">
-          </div>
+
+          <ng-container *ngIf="polloModo === 'unLote'">
+            <div class="filter-group">
+              <label class="filter-label"><span class="filter-icon">🏭</span> Granja</label>
+              <select [(ngModel)]="peGranjaId" (ngModelChange)="onPeGranjaChange()" class="ux-input">
+                <option [ngValue]="null">Seleccione granja</option>
+                <option *ngFor="let f of peFarms" [ngValue]="f.id">{{ f.name }}</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label"><span class="filter-icon">📍</span> Núcleo</label>
+              <select [(ngModel)]="peNucleoId" (ngModelChange)="onPeNucleoChange()" class="ux-input" [disabled]="!peGranjaId">
+                <option [ngValue]="null">Todos / seleccione</option>
+                <option *ngFor="let n of peNucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label"><span class="filter-icon">🐔</span> Galpón</label>
+              <select [(ngModel)]="peGalponId" (ngModelChange)="onPeGalponChange()" class="ux-input" [disabled]="!peGranjaId">
+                <option [ngValue]="null">Todos / seleccione</option>
+                <option *ngFor="let g of peGalpones" [ngValue]="g.galponId">{{ g.galponNombre || g.galponId }}</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label"><span class="filter-icon">📋</span> Lote (liquidado)</label>
+              <select [(ngModel)]="peLoteAveEngordeId" class="ux-input" [disabled]="!peGranjaId">
+                <option [ngValue]="null">Seleccione lote</option>
+                <option *ngFor="let l of peLotesAveEngorde" [ngValue]="l.loteAveEngordeId">{{ l.loteNombre || ('Lote ' + l.loteAveEngordeId) }}</option>
+              </select>
+            </div>
+            <p class="form-hint span-2">Solo se muestran lotes ya liquidados (aves = 0). No requiere fechas: el lote trae su propio período.</p>
+          </ng-container>
+
+          <ng-container *ngIf="polloModo === 'rango'">
+            <div class="filter-group span-2">
+              <label class="filter-label">Alcance</label>
+              <select [(ngModel)]="polloAlcance" (ngModelChange)="onPolloAlcanceChange()" class="ux-input" style="max-width: 420px;">
+                <option value="TodasLasGranjas">Todas las granjas</option>
+                <option value="Granja">Una granja</option>
+                <option value="Nucleo">Un núcleo</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label class="filter-label"><span class="filter-icon">📅</span> Fecha desde (cierre)</label>
+              <input type="date" [(ngModel)]="peFechaDesde" class="ux-input">
+            </div>
+            <div class="filter-group">
+              <label class="filter-label"><span class="filter-icon">📅</span> Fecha hasta (cierre)</label>
+              <input type="date" [(ngModel)]="peFechaHasta" class="ux-input">
+            </div>
+            <div class="filter-group" *ngIf="polloAlcance === 'Granja' || polloAlcance === 'Nucleo'">
+              <label class="filter-label"><span class="filter-icon">🏭</span> Granja</label>
+              <select [(ngModel)]="rangoGranjaId" class="ux-input">
+                <option [ngValue]="null">Seleccione</option>
+                <option *ngFor="let f of peFarms" [ngValue]="f.id">{{ f.name }}</option>
+              </select>
+            </div>
+            <div class="filter-group" *ngIf="polloAlcance === 'Nucleo'">
+              <label class="filter-label"><span class="filter-icon">📍</span> Núcleo</label>
+              <select [(ngModel)]="rangoNucleoId" class="ux-input" [disabled]="!rangoGranjaId">
+                <option [ngValue]="null">Seleccione</option>
+                <option *ngFor="let n of rangoNucleosLista" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
+              </select>
+            </div>
+            <p class="form-hint span-2">El rango filtra por <strong>fecha de cierre</strong> del lote (último despacho). Solo lotes liquidados.</p>
+          </ng-container>
+
           <div class="filter-group filter-group-action">
-            <button (click)="verIndicadoresPolloEngordePorLotePadre()" [disabled]="loading || !selectedLoteAveEngordeId" class="btn btn-primary">
-              <span class="btn-icon">📊</span> Ver indicadores por lote padre
+            <button type="button" (click)="generarLiquidacionPolloEngorde()" [disabled]="loading" class="btn btn-primary">
+              <span class="btn-icon">📊</span> Generar liquidación
             </button>
           </div>
         </div>
@@ -187,6 +239,10 @@
                 Solo lotes cerrados (aves = 0)
               </span>
             </label>
+            <p class="form-hint" *ngIf="vistaIndicador === 'general'">
+              <strong>Calcular / Consolidado:</strong> Fecha desde/hasta = <strong>encaset</strong>. Con checkbox marcado solo se incluyen lotes ya cerrados en ese universo.<br>
+              <strong>Ver lotes (botón amarillo):</strong> Con checkbox marcado la franja es <strong>fecha de cierre</strong> (último despacho). Sin marcar: franja = <strong>encaset</strong> e incluye abiertos.
+            </p>
           </div>
         </div>
 
@@ -209,9 +265,10 @@
           <button 
             (click)="verLotesCerrados()"
             [disabled]="loading"
-            class="btn btn-warning">
+            class="btn btn-warning"
+            [title]="soloLotesCerrados ? 'Lotes cerrados cuya fecha de cierre está entre Fecha desde y Fecha hasta' : 'Lotes cuyo encaset está en el rango (incluye abiertos)'">
             <span class="btn-icon">✅</span>
-            Ver Lotes Cerrados (aves = 0)
+            {{ soloLotesCerrados ? 'Ver lotes cerrados (cierre en rango)' : 'Ver lotes por encaset en rango' }}
           </button>
           <button 
             (click)="limpiarFiltros()"
@@ -278,54 +335,41 @@
       <p class="loading-text">Calculando indicadores...</p>
     </div>
 
-    <!-- Resultado Pollo Engorde: Lote padre + tabs por reproductor (UX mejorado) -->
-    <div *ngIf="!loading && mostrarPolloEngorde && resultadoPolloEngorde" class="result-pollo-engorde">
+    <!-- Resultado Pollo Engorde: liquidación solo lote padre; tabs si hay varios -->
+    <div *ngIf="!loading && mostrarLiquidacionPollo && resultadoLiquidacionPollo" class="result-pollo-engorde">
       <div class="result-pollo-engorde__card ux-card">
         <div class="result-pollo-engorde__header card-header">
           <div class="result-pollo-engorde__title-wrap">
-            <h2 class="card-title">Indicadores Pollo Engorde</h2>
-            <p class="result-pollo-engorde__subtitle">Lote padre y reproductores · Liquidación técnica</p>
+            <h2 class="card-title">Liquidación técnica – Pollo Engorde</h2>
+            <p class="result-pollo-engorde__subtitle">Solo lote padre liquidado (sin reproductoras)</p>
           </div>
           <div class="result-pollo-engorde__header-actions">
-            <span class="badge badge-info">{{ (resultadoPolloEngorde.indicadorLotePadre ? 1 : 0) + resultadoPolloEngorde.lotesReproductores.length }} lote(s)</span>
-            <button type="button" (click)="mostrarPolloEngorde = false; resultadoPolloEngorde = null" class="btn btn-sm btn-secondary">Cerrar</button>
+            <span class="badge badge-info">{{ resultadoLiquidacionPollo.items.length || 0 }} lote(s)</span>
+            <button type="button" (click)="mostrarLiquidacionPollo = false; resultadoLiquidacionPollo = null" class="btn btn-sm btn-secondary">Cerrar</button>
           </div>
         </div>
 
-        <div class="result-pollo-engorde__tabs tabs-header">
-          <button type="button" *ngIf="resultadoPolloEngorde.indicadorLotePadre" class="tab-btn" [class.active]="tabPolloEngordeActivo === 'padre'" (click)="setTabPolloEngorde('padre')">
-            Lote padre
-          </button>
-          <button type="button" *ngFor="let r of resultadoPolloEngorde.lotesReproductores" class="tab-btn" [class.active]="tabPolloEngordeActivo === r.id" (click)="setTabPolloEngorde(r.id)">
-            {{ r.nombreLote }}
+        <div class="result-pollo-engorde__tabs tabs-header" *ngIf="resultadoLiquidacionPollo.items && resultadoLiquidacionPollo.items.length > 1">
+          <button type="button" *ngFor="let it of resultadoLiquidacionPollo.items; let i = index" class="tab-btn" [class.active]="tabLiquidacionIdx === i" (click)="setTabLiquidacion(i)">
+            {{ it.loteNombre || ('Lote ' + it.loteAveEngordeId) }}
           </button>
         </div>
 
-        <div class="result-pollo-engorde__body card-body">
-          <!-- Hint colapsable -->
+        <div class="result-pollo-engorde__body card-body" *ngIf="liquidacionItemActivo() as item">
+          <div class="liquidacion-lote-title" *ngIf="resultadoLiquidacionPollo.items && resultadoLiquidacionPollo.items.length === 1">
+            <h3 class="liquidacion-lote-title__name">{{ item.loteNombre || ('Lote ' + item.loteAveEngordeId) }}</h3>
+          </div>
+
           <div class="result-pollo-engorde__hint">
-            <span class="result-pollo-engorde__hint-text">Mortalidad = sacrificio en granja (seguimiento diario). Aves vendidas/despacho = salidas por venta o despacho. Solo se liquida cuando el lote tiene cero aves.</span>
+            <span class="result-pollo-engorde__hint-text">Mortalidad = sacrificio en granja (seguimiento diario). Aves vendidas/despacho = salidas por venta o despacho. Solo lotes con aves en cero.</span>
           </div>
 
-          <!-- Tab Lote padre: KPIs + tabla (solo si el lote padre está cerrado); si no, mensaje explicativo -->
-          <ng-container *ngIf="tabPolloEngordeActivo === 'padre'">
-            <ng-container *ngIf="resultadoPolloEngorde.indicadorLotePadre; else padreNoCerrado">
-              <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
-              <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: resultadoPolloEngorde.indicadorLotePadre }"></ng-container>
-            </ng-container>
-            <ng-template #padreNoCerrado>
-              <div class="result-pollo-engorde__hint" style="margin-top: 1rem;">
-                <span class="result-pollo-engorde__hint-text">El lote padre no está cerrado (tiene aves). Con «Solo lotes cerrados (aves = 0)» se muestran únicamente los lotes reproductores asociados que ya están en cero aves. Use los tabs de arriba para ver cada reproductor.</span>
-              </div>
-            </ng-template>
-          </ng-container>
-          <!-- Tab reproductor -->
-          <ng-container *ngFor="let r of resultadoPolloEngorde.lotesReproductores">
-            <ng-container *ngIf="tabPolloEngordeActivo === r.id">
-              <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: r.indicador }"></ng-container>
-              <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: r.indicador }"></ng-container>
-            </ng-container>
-          </ng-container>
+          <ng-container *ngTemplateOutlet="kpiSummary; context: { $implicit: item.indicador }"></ng-container>
+          <ng-container *ngTemplateOutlet="tablaIndicadoresPollo; context: { $implicit: item.indicador }"></ng-container>
+        </div>
+
+        <div class="card-body empty-state" *ngIf="resultadoLiquidacionPollo.items && resultadoLiquidacionPollo.items.length === 0">
+          <p class="empty-message">No hay lotes liquidados que cumplan los filtros (fecha de cierre o lote seleccionado).</p>
         </div>
       </div>
 
@@ -415,7 +459,7 @@
     </div>
 
     <!-- Tabla de Indicadores -->
-    <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarPolloEngorde && indicadores.length > 0" class="ux-card">
+    <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarLiquidacionPollo && indicadores.length > 0" class="ux-card">
       <div class="card-header">
         <h2 class="card-title">📋 Resultados de Indicadores</h2>
         <span class="badge badge-info">{{ indicadores.length }} registro(s)</span>
@@ -476,10 +520,10 @@
       </div>
     </div>
 
-    <!-- Tabla Lotes Cerrados (aves = 0) -->
+    <!-- Tabla lotes en rango (cerrados o todos según checkbox) -->
     <div *ngIf="!loading && mostrarLotesCerrados" class="ux-card">
       <div class="card-header">
-        <h2 class="card-title">✅ Lotes cerrados (aves = 0)</h2>
+        <h2 class="card-title">{{ soloLotesCerrados ? '✅ Lotes cerrados (cierre en el rango)' : '📋 Lotes en rango de fechas (encaset)' }}</h2>
         <div class="header-actions">
           <span class="badge badge-info">{{ lotesCerrados.length }} lote(s)</span>
           <button (click)="mostrarLotesCerrados = false" class="btn btn-sm btn-secondary">Cerrar</button>
@@ -491,6 +535,7 @@
             <tr>
               <th>Granja</th>
               <th>Lote</th>
+              <th>Estado</th>
               <th class="text-right">Aves Encaset.</th>
               <th class="text-right">Aves Sacrif.</th>
               <th class="text-right">Mortalidad</th>
@@ -507,6 +552,7 @@
             <tr *ngFor="let ind of lotesCerrados">
               <td class="font-semibold">{{ ind.granjaNombre }}</td>
               <td>{{ ind.loteNombre || '-' }}</td>
+              <td>{{ ind.loteCerrado ? 'Cerrado' : 'Abierto' }}</td>
               <td class="text-right">{{ ind.avesEncasetadas | number:'1.0-0' }}</td>
               <td class="text-right">{{ ind.avesSacrificadas | number:'1.0-0' }}</td>
               <td class="text-right">{{ ind.mortalidad | number:'1.0-0' }}</td>
@@ -522,7 +568,9 @@
         </table>
       </div>
       <div *ngIf="lotesCerrados.length === 0" class="empty-state">
-        <p class="empty-message">No hay lotes cerrados en el rango de fechas (encaset).</p>
+        <p class="empty-message">
+          {{ soloLotesCerrados ? 'No hay lotes cerrados con fecha de cierre en el rango seleccionado.' : 'No hay lotes con fecha de encaset en el rango seleccionado.' }}
+        </p>
       </div>
     </div>
 
@@ -713,7 +761,7 @@
     </div>
 
     <!-- Estado Vacío -->
-    <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarPolloEngorde && indicadores.length === 0" class="empty-state">
+    <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarLiquidacionPollo && indicadores.length === 0" class="empty-state">
       <div class="empty-icon">📊</div>
       <h3 class="empty-title">No se encontraron indicadores</h3>
       <p class="empty-message">Ajuste los filtros y calcule nuevamente para ver los resultados.</p>

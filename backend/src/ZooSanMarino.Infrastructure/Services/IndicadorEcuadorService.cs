@@ -216,16 +216,125 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
     public async Task<IEnumerable<IndicadorEcuadorDto>> ObtenerLotesCerradosAsync(
         DateTime fechaDesde,
         DateTime fechaHasta,
-        int? granjaId = null)
+        int? granjaId = null,
+        bool soloCerrados = true)
     {
-        var request = new IndicadorEcuadorRequest(
+        if (soloCerrados)
+        {
+            // Solo lotes cerrados (aves = 0). La franja fecha inicio/fin aplica a FECHA DE CIERRE (último despacho),
+            // no a fecha de encaset (misma idea que liquidación por período).
+            var request = new IndicadorEcuadorRequest(
+                GranjaId: granjaId,
+                FechaDesde: null,
+                FechaHasta: null,
+                SoloLotesCerrados: true
+            );
+
+            var indicadores = (await CalcularIndicadoresAsync(request).ConfigureAwait(false)).ToList();
+            var fechaFinInclusive = fechaHasta.Date.AddDays(1).AddTicks(-1);
+            return indicadores.Where(i =>
+                i.FechaCierreLote.HasValue &&
+                i.FechaCierreLote.Value >= fechaDesde.Date &&
+                i.FechaCierreLote.Value <= fechaFinInclusive);
+        }
+
+        // Franja por fecha de encaset; incluye lotes abiertos en ese rango
+        var requestAbierto = new IndicadorEcuadorRequest(
             GranjaId: granjaId,
             FechaDesde: fechaDesde,
             FechaHasta: fechaHasta,
-            SoloLotesCerrados: true
+            SoloLotesCerrados: false
         );
 
-        return await CalcularIndicadoresAsync(request);
+        return await CalcularIndicadoresAsync(requestAbierto).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<LiquidacionPolloEngordeReporteDto> LiquidacionPolloEngordeReporteAsync(
+        LiquidacionPolloEngordeReporteRequest request,
+        CancellationToken ct = default)
+    {
+        var pesoAjuste = PesoAjusteDefault;
+        var divisorAjuste = DivisorAjusteDefault;
+        var items = new List<LiquidacionPolloEngordeItemDto>();
+
+        if (string.Equals(request.Modo, "UnLote", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!request.LoteAveEngordeId.HasValue || request.LoteAveEngordeId.Value <= 0)
+                throw new InvalidOperationException("Debe indicar LoteAveEngordeId para el modo UnLote.");
+
+            var lote = await _context.LoteAveEngorde
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .Include(l => l.Galpon)
+                .Where(l => l.LoteAveEngordeId == request.LoteAveEngordeId.Value &&
+                            l.CompanyId == _currentUser.CompanyId &&
+                            l.DeletedAt == null)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+
+            if (lote == null)
+                throw new InvalidOperationException($"No se encontró el lote de ave engorde {request.LoteAveEngordeId}.");
+
+            var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+            if (ind == null)
+                throw new InvalidOperationException("El lote no está liquidado (aún tiene aves o no cumple criterios de liquidación). Solo se muestran lotes con aves en cero.");
+
+            var id = lote.LoteAveEngordeId ?? 0;
+            items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
+            return new LiquidacionPolloEngordeReporteDto("UnLote", items);
+        }
+
+        if (string.Equals(request.Modo, "Rango", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!request.FechaDesde.HasValue || !request.FechaHasta.HasValue)
+                throw new InvalidOperationException("FechaDesde y FechaHasta son obligatorias en modo Rango.");
+
+            var fechaFinInclusive = request.FechaHasta.Value.Date.AddDays(1).AddTicks(-1);
+            var alcance = string.IsNullOrWhiteSpace(request.Alcance) ? "TodasLasGranjas" : request.Alcance.Trim();
+
+            var query = _context.LoteAveEngorde
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .Include(l => l.Galpon)
+                .Where(l => l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
+
+            if (string.Equals(alcance, "Granja", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(alcance, "Nucleo", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!request.GranjaId.HasValue)
+                    throw new InvalidOperationException("GranjaId es obligatorio para alcance Granja o Nucleo.");
+                query = query.Where(l => l.GranjaId == request.GranjaId.Value);
+            }
+
+            if (string.Equals(alcance, "Nucleo", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(request.NucleoId))
+                    throw new InvalidOperationException("NucleoId es obligatorio para alcance Nucleo.");
+                query = query.Where(l => l.NucleoId == request.NucleoId);
+            }
+
+            var lotes = await query.OrderBy(l => l.LoteNombre).ToListAsync(ct).ConfigureAwait(false);
+
+            foreach (var lote in lotes)
+            {
+                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                if (ind == null)
+                    continue;
+                if (!ind.FechaCierreLote.HasValue)
+                    continue;
+                if (ind.FechaCierreLote.Value < request.FechaDesde.Value.Date ||
+                    ind.FechaCierreLote.Value > fechaFinInclusive)
+                    continue;
+
+                var id = lote.LoteAveEngordeId ?? 0;
+                items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
+            }
+
+            return new LiquidacionPolloEngordeReporteDto("Rango", items);
+        }
+
+        throw new InvalidOperationException("Modo debe ser UnLote o Rango.");
     }
 
     /// <summary>
@@ -322,6 +431,9 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         if (soloLotesCerrados && !loteCerrado) return null;
 
         var fechaCierre = await FechaCierrePolloEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
+        // Sin Venta/Despacho/Retiro la fecha puede ser null aunque el lote esté en cero (p. ej. solo mortalidad/seguimiento).
+        if (!fechaCierre.HasValue && loteCerrado)
+            fechaCierre = await FechaUltimaActividadLotePadreAveEngordeAsync(loteId, lote.FechaEncaset);
 
         return new IndicadorEcuadorDto(
             lote.GranjaId,
@@ -553,7 +665,38 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             q = q.Where(m => m.LoteReproductoraAveEngordeOrigenId == loteReproductoraId.Value);
         else
             return null;
-        return await q.MaxAsync(m => (DateTime?)m.FechaMovimiento);
+        // MaxAsync sobre vacío lanza; FirstOrDefault devuelve null si no hay ventas/despachos/retiros.
+        return await q
+            .OrderByDescending(m => m.FechaMovimiento)
+            .Select(m => (DateTime?)m.FechaMovimiento)
+            .FirstOrDefaultAsync();
+    }
+
+    /// <summary>
+    /// Última fecha útil para reporte/filtro cuando no hay fecha de último despacho:
+    /// último seguimiento diario, o último movimiento de pollo engorde, o fecha de encaset.
+    /// </summary>
+    private async Task<DateTime?> FechaUltimaActividadLotePadreAveEngordeAsync(int loteAveEngordeId, DateTime? fechaEncaset)
+    {
+        var ultSeg = await _context.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteAveEngordeId)
+            .OrderByDescending(s => s.Fecha)
+            .Select(s => (DateTime?)s.Fecha)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+
+        if (ultSeg.HasValue) return ultSeg;
+
+        var ultMov = await _context.MovimientoPolloEngorde.AsNoTracking()
+            .Where(m => m.LoteAveEngordeOrigenId == loteAveEngordeId && m.Estado != "Cancelado" && m.DeletedAt == null)
+            .OrderByDescending(m => m.FechaMovimiento)
+            .Select(m => (DateTime?)m.FechaMovimiento)
+            .FirstOrDefaultAsync()
+            .ConfigureAwait(false);
+
+        if (ultMov.HasValue) return ultMov;
+
+        return fechaEncaset;
     }
 
     // ========== Métodos privados ==========
