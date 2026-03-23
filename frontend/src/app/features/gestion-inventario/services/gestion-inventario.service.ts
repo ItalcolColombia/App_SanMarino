@@ -23,9 +23,14 @@ export interface GalponLiteDto {
 }
 
 export interface InventarioGestionFilterDataDto {
-  farms: FarmDto[];
-  nucleos: NucleoDto[];
-  galpones: GalponLiteDto[];
+  /** Granjas asignadas al usuario (origen / donde gestiona). */
+  farmsOrigen: FarmDto[];
+  /** Todas las granjas de la empresa (destino inter-granja, procedencia en ingreso). */
+  farmsDestino: FarmDto[];
+  nucleosOrigen: NucleoDto[];
+  nucleosDestino: NucleoDto[];
+  galponesOrigen: GalponLiteDto[];
+  galponesDestino: GalponLiteDto[];
 }
 
 export interface InventarioGestionStockDto {
@@ -53,8 +58,12 @@ export interface InventarioGestionIngresoRequest {
   unit: string;
   reference?: string | null;
   reason?: string | null;
-  /** Origen para estado en histórico: "planta" | "granja" */
+  /** Origen para estado en histórico: "planta" | "granja" | "bodega" */
   origenTipo?: string | null;
+  /** Si origen es granja: granja de procedencia (distinta a farmId). Si es bodega: granja a la que pertenece la bodega. */
+  origenFarmId?: number | null;
+  /** Si origen es bodega: nombre o referencia de la bodega (opcional). */
+  origenBodegaDescripcion?: string | null;
 }
 
 export interface InventarioGestionTrasladoRequest {
@@ -96,6 +105,43 @@ export interface InventarioGestionMovimientoDto {
   granjaNombre?: string | null;
   nucleoNombre?: string | null;
   galponNombre?: string | null;
+  /** Agrupa salida/entrada del mismo traslado (inter-granja en tránsito). */
+  transferGroupId?: string | null;
+  /** Nombre granja en el otro extremo (origen/destino según tipo de movimiento). */
+  fromGranjaNombre?: string | null;
+  fromNucleoNombre?: string | null;
+  fromGalponNombre?: string | null;
+  /** Etiqueta legible: Ingreso, Consumo, Traslado entre granjas, etc. */
+  tipoOperacion?: string | null;
+}
+
+/** Salida inter-granja pendiente de recepción en destino. */
+export interface InventarioGestionTransitoPendienteDto {
+  transferGroupId: string;
+  salidaMovimientoId: number;
+  fromFarmId: number;
+  fromGranjaNombre: string | null;
+  toFarmId: number;
+  toGranjaNombre: string | null;
+  fromNucleoId: string | null;
+  fromGalponId: string | null;
+  destinoNucleoIdHint: string | null;
+  destinoGalponIdHint: string | null;
+  itemInventarioEcuadorId: number;
+  itemCodigo: string;
+  itemNombre: string;
+  quantity: number;
+  unit: string;
+  createdAt: string;
+  /** true: al confirmar recepción se descuenta origen. false: registro antiguo (ya descontado). */
+  pendienteDespachoOrigen?: boolean;
+}
+
+export interface InventarioGestionRecepcionTransitoRequest {
+  transferGroupId: string;
+  toFarmId: number;
+  toNucleoId: string | null;
+  toGalponId: string | null;
 }
 
 /** Ítem del catálogo item_inventario_ecuador (Config > Ítems inventario Ecuador). */
@@ -159,6 +205,30 @@ export class GestionInventarioService {
     if (params.estado) httpParams = httpParams.set('estado', params.estado);
     if (params.movementType) httpParams = httpParams.set('movementType', params.movementType);
     return this.http.get<InventarioGestionMovimientoDto[]>(`${this.api}/inventario-gestion/movimientos`, { params: httpParams });
+  }
+
+  /** Traslados inter-granja en tránsito (pendientes de recepción en destino). */
+  getTransitosPendientes(farmIdDestino?: number | null): Observable<InventarioGestionTransitoPendienteDto[]> {
+    let httpParams = new HttpParams();
+    if (farmIdDestino != null) httpParams = httpParams.set('farmIdDestino', farmIdDestino);
+    return this.http.get<InventarioGestionTransitoPendienteDto[]>(`${this.api}/inventario-gestion/transito/pendientes`, {
+      params: httpParams
+    });
+  }
+
+  /** Completa el ingreso en granja destino (cierra el tránsito). */
+  registrarRecepcionTransito(
+    payload: InventarioGestionRecepcionTransitoRequest
+  ): Observable<{ destino: InventarioGestionStockDto; movimiento: InventarioGestionMovimientoDto }> {
+    return this.http.post<{ destino: InventarioGestionStockDto; movimiento: InventarioGestionMovimientoDto }>(
+      `${this.api}/inventario-gestion/transito/recepcion`,
+      payload
+    );
+  }
+
+  /** Rechaza solicitud inter-granja pendiente (no descuenta origen). */
+  rechazarTransito(payload: { transferGroupId: string; reason?: string | null }): Observable<void> {
+    return this.http.post<void>(`${this.api}/inventario-gestion/transito/rechazo`, payload);
   }
 
   /** Ítems desde Config > Ítems inventario Ecuador (item_inventario_ecuador). */
