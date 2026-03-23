@@ -106,7 +106,7 @@
               type="text"
               [(ngModel)]="filtro"
               (ngModelChange)="recomputeList()"
-              placeholder="Buscar por lote, núcleo, granja…"
+              placeholder="Buscar por lote, ERP lot, núcleo, granja…"
               class="ux-input"
               aria-label="Buscar lote"
             />
@@ -166,6 +166,7 @@
             <tr *ngIf="activeTab === 'levante'">
               <th scope="col">Estado</th>
               <th scope="col">Nombre</th>
+              <th scope="col">ERP lot</th>
               <th scope="col">Granja</th>
               <th scope="col">Núcleo</th>
               <th scope="col">Galpón</th>
@@ -182,6 +183,7 @@
             <tr *ngIf="activeTab === 'produccion'">
               <th scope="col">Estado</th>
               <th scope="col">Nombre</th>
+              <th scope="col">ERP lot</th>
               <th scope="col">Granja</th>
               <th scope="col">Núcleo</th>
               <th scope="col">Galpón</th>
@@ -197,6 +199,7 @@
             <!-- Lote: incluye Fase/Etapa, sin ID -->
             <tr *ngIf="activeTab === 'lote'">
               <th scope="col">Nombre</th>
+              <th scope="col">ERP lot</th>
               <th scope="col">Granja</th>
               <th scope="col">Núcleo</th>
               <th scope="col">Galpón</th>
@@ -221,6 +224,7 @@
                 <span *ngIf="estadoCierreLevante(l) === 'Cerrado'" class="ux-badge ux-badge--estado ux-badge--estado--cerrado">Cerrado</span>
               </td>
               <td>{{ l.loteNombre }}</td>
+              <td>{{ l.loteErp || '—' }}</td>
               <td>{{ l.farm?.name ?? '—' }}</td>
               <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
               <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
@@ -238,7 +242,7 @@
               </td>
             </tr>
             <tr *ngIf="!loading && viewLotesLevante.length === 0">
-              <td colspan="13" class="empty-state">
+              <td colspan="14" class="empty-state">
                 <div class="empty-illustration">📦</div>
                 <p>No hay lotes levante que coincidan con los filtros.</p>
               </td>
@@ -253,6 +257,7 @@
                 <span *ngIf="estadoCierreProduccion(l) === 'Cerrado'" class="ux-badge ux-badge--estado ux-badge--estado--cerrado">Cerrado</span>
               </td>
               <td>{{ l.loteNombre }}</td>
+              <td>{{ l.loteErp || '—' }}</td>
               <td>{{ l.farm?.name ?? '—' }}</td>
               <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
               <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
@@ -270,7 +275,7 @@
               </td>
             </tr>
             <tr *ngIf="!loading && viewLotesProduccion.length === 0">
-              <td colspan="13" class="empty-state">
+              <td colspan="14" class="empty-state">
                 <div class="empty-illustration">📦</div>
                 <p>No hay lotes producción que coincidan con los filtros.</p>
               </td>
@@ -281,6 +286,7 @@
           <tbody *ngIf="activeTab === 'lote'">
             <tr *ngFor="let l of viewLotes; trackBy: trackByLote" class="ux-row" (dblclick)="openDetail(l)" style="cursor: pointer;">
               <td>{{ l.loteNombre }}</td>
+              <td>{{ l.loteErp || '—' }}</td>
               <td>{{ l.farm?.name ?? '—' }}</td>
               <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
               <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
@@ -317,7 +323,7 @@
               </td>
             </tr>
             <tr *ngIf="!loading && viewLotes.length === 0">
-              <td colspan="14" class="empty-state">
+              <td colspan="15" class="empty-state">
                 <div class="empty-illustration">📦</div>
                 <p>No hay lotes que coincidan con los filtros.</p>
                 <button (click)="openModal()" class="btn-secondary mt-2">

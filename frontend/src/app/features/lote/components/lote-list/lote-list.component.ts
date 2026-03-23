@@ -491,6 +491,7 @@ export class LoteListComponent implements OnInit {
           const haystack = [
             l.lotePosturaLevanteId ?? 0,
             l.loteNombre ?? '',
+            l.loteErp ?? '',
             l.farm?.name ?? '',
             l.nucleo?.nucleoNombre ?? '',
             l.galpon?.galponNombre ?? ''
@@ -511,6 +512,7 @@ export class LoteListComponent implements OnInit {
           const haystack = [
             l.lotePosturaProduccionId ?? 0,
             l.loteNombre ?? '',
+            l.loteErp ?? '',
             l.farm?.name ?? '',
             l.nucleo?.nucleoNombre ?? '',
             l.galpon?.galponNombre ?? ''
@@ -531,6 +533,7 @@ export class LoteListComponent implements OnInit {
           const haystack = [
             l.loteId ?? 0,
             l.loteNombre ?? '',
+            l.loteErp ?? '',
             l.farm?.name ?? '',
             l.nucleo?.nucleoNombre ?? '',
             l.galpon?.galponNombre ?? ''

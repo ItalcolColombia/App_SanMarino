@@ -18,12 +18,18 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     private readonly ZooSanMarinoContext _ctx;
     private readonly AppInterfaces.ICurrentUser _current;
     private readonly AppInterfaces.ICompanyResolver _companyResolver;
+    private readonly AppInterfaces.IFarmService _farmService;
 
-    public LoteAveEngordeService(ZooSanMarinoContext ctx, AppInterfaces.ICurrentUser current, AppInterfaces.ICompanyResolver companyResolver)
+    public LoteAveEngordeService(
+        ZooSanMarinoContext ctx,
+        AppInterfaces.ICurrentUser current,
+        AppInterfaces.ICompanyResolver companyResolver,
+        AppInterfaces.IFarmService farmService)
     {
         _ctx = ctx;
         _current = current;
         _companyResolver = companyResolver;
+        _farmService = farmService;
     }
 
     private async Task<int> GetEffectiveCompanyIdAsync()
@@ -36,12 +42,27 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         return _current.CompanyId;
     }
 
+    /// <summary>
+    /// Granjas donde el usuario puede operar: mismas reglas que <see cref="FarmService.GetAllAsync"/> con UserGuid
+    /// (solo <c>UserFarms</c> asignadas + empresa activa). Sin asignaciones → conjunto vacío.
+    /// </summary>
+    private async Task<HashSet<int>> GetAllowedGranjaIdsForCurrentUserAsync(int companyId)
+    {
+        if (!_current.UserGuid.HasValue)
+            throw new UnauthorizedAccessException("Sesión inválida. Inicie sesión de nuevo.");
+        var farms = await _farmService.GetAllAsync(_current.UserGuid, companyId);
+        return farms.Select(f => f.Id).ToHashSet();
+    }
+
     public async Task<IEnumerable<LoteAveEngordeDetailDto>> GetAllAsync()
     {
         var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0)
+            return Array.Empty<LoteAveEngordeDetailDto>();
         var q = _ctx.LoteAveEngorde
             .AsNoTracking()
-            .Where(l => l.CompanyId == companyId && l.DeletedAt == null)
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && allowed.Contains(l.GranjaId))
             .OrderBy(l => l.LoteAveEngordeId);
         return await ProjectToDetail(q).ToListAsync();
     }
@@ -52,9 +73,32 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         var page = req.Page <= 0 ? 1 : req.Page;
         var pageSize = req.PageSize <= 0 ? 50 : req.PageSize;
 
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0)
+        {
+            return new CommonDtos.PagedResult<LoteAveEngordeDetailDto>
+            {
+                Page = page,
+                PageSize = pageSize,
+                Total = 0,
+                Items = Array.Empty<LoteAveEngordeDetailDto>()
+            };
+        }
+
+        if (req.GranjaId.HasValue && !allowed.Contains(req.GranjaId.Value))
+        {
+            return new CommonDtos.PagedResult<LoteAveEngordeDetailDto>
+            {
+                Page = page,
+                PageSize = pageSize,
+                Total = 0,
+                Items = Array.Empty<LoteAveEngordeDetailDto>()
+            };
+        }
+
         var q = _ctx.LoteAveEngorde
             .AsNoTracking()
-            .Where(l => l.CompanyId == companyId);
+            .Where(l => l.CompanyId == companyId && allowed.Contains(l.GranjaId));
 
         if (req.SoloActivos)
             q = q.Where(l => l.DeletedAt == null);
@@ -96,9 +140,15 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     public async Task<LoteAveEngordeDetailDto?> GetByIdAsync(int loteAveEngordeId)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return null;
         var q = _ctx.LoteAveEngorde
             .AsNoTracking()
-            .Where(l => l.CompanyId == companyId && l.LoteAveEngordeId == loteAveEngordeId && l.DeletedAt == null);
+            .Where(l =>
+                l.CompanyId == companyId &&
+                l.LoteAveEngordeId == loteAveEngordeId &&
+                l.DeletedAt == null &&
+                allowed.Contains(l.GranjaId));
         return await ProjectToDetail(q).SingleOrDefaultAsync();
     }
 
@@ -106,6 +156,9 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     {
         var companyId = await GetEffectiveCompanyIdAsync();
         await EnsureFarmExists(dto.GranjaId, companyId);
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (!allowed.Contains(dto.GranjaId))
+            throw new InvalidOperationException("No tiene permiso para registrar lotes en esta granja (no está asignada a su usuario).");
 
         // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual (misma lógica que Lote)
         if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
@@ -231,15 +284,20 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     public async Task<LoteAveEngordeDetailDto?> UpdateAsync(UpdateLoteAveEngordeDto dto)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return null;
         var ent = await _ctx.LoteAveEngorde
             .SingleOrDefaultAsync(x =>
                 x.LoteAveEngordeId == dto.LoteAveEngordeId &&
                 x.CompanyId == companyId &&
-                x.DeletedAt == null);
+                x.DeletedAt == null &&
+                allowed.Contains(x.GranjaId));
 
         if (ent is null) return null;
 
         await EnsureFarmExists(dto.GranjaId, companyId);
+        if (!allowed.Contains(dto.GranjaId))
+            throw new InvalidOperationException("No tiene permiso para usar esta granja (no está asignada a su usuario).");
 
         // Validar que (Raza, Año tabla) exista en guía genética (misma lógica que Lote)
         if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
@@ -335,8 +393,13 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     public async Task<bool> DeleteAsync(int loteAveEngordeId)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return false;
         var ent = await _ctx.LoteAveEngorde
-            .SingleOrDefaultAsync(x => x.LoteAveEngordeId == loteAveEngordeId && x.CompanyId == companyId);
+            .SingleOrDefaultAsync(x =>
+                x.LoteAveEngordeId == loteAveEngordeId &&
+                x.CompanyId == companyId &&
+                allowed.Contains(x.GranjaId));
         if (ent is null || ent.DeletedAt != null) return false;
 
         ent.DeletedAt = DateTime.UtcNow;
@@ -349,8 +412,13 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
     public async Task<bool> HardDeleteAsync(int loteAveEngordeId)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return false;
         var ent = await _ctx.LoteAveEngorde
-            .SingleOrDefaultAsync(x => x.LoteAveEngordeId == loteAveEngordeId && x.CompanyId == companyId);
+            .SingleOrDefaultAsync(x =>
+                x.LoteAveEngordeId == loteAveEngordeId &&
+                x.CompanyId == companyId &&
+                allowed.Contains(x.GranjaId));
         if (ent is null) return false;
 
         _ctx.LoteAveEngorde.Remove(ent);

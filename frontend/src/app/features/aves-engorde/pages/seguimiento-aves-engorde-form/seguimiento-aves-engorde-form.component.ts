@@ -162,6 +162,19 @@ export class SeguimientoAvesEngordeFormComponent implements OnInit {
     return id ? (this.lotesById[id]?.loteNombre ?? id) : '—';
   }
 
+  loteLabel(id: string | null | undefined): string {
+    if (!id) return '—';
+    const lote = this.lotesById[id];
+    if (!lote) return String(id);
+    const erp = (lote.loteErp ?? '').trim();
+    return erp ? `${lote.loteNombre} - ERP: ${erp}` : lote.loteNombre;
+  }
+
+  loteErp(id: string | null | undefined): string {
+    if (!id) return '';
+    return (this.lotesById[id]?.loteErp ?? '').trim();
+  }
+
   todayISO(): string {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

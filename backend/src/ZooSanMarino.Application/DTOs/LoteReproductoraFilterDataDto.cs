@@ -13,7 +13,8 @@ public sealed record LoteFilterItemDto(
     string LoteNombre,
     int GranjaId,
     string? NucleoId,
-    string? GalponId
+    string? GalponId,
+    string? LoteErp = null
 );
 
 /// <summary>

@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/LoteFormDataService.cs
+using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.DTOs.Galpones;
 using ZooSanMarino.Application.DTOs.Lotes;
 using ZooSanMarino.Application.Interfaces;
 
@@ -51,15 +53,33 @@ public class LoteFormDataService : ILoteFormDataService
 
     /// <summary>
     /// Carga secuencial para evitar uso concurrente del mismo DbContext (EF Core no permite varias operaciones simultáneas en una misma instancia).
-    /// Granjas: solo las asignadas al usuario (UserFarms) y de la empresa activa.
-    /// Núcleos y galpones: ya vienen filtrados por el servicio según permisos del usuario.
+    /// Granjas: solo las asignadas al usuario (<see cref="UserFarm"/>) y empresa activa vía <see cref="IFarmService.GetAssignedFarmsForCompanyAsync"/>.
+    /// Núcleos y galpones: se cargan solo para esas granjas vía consultas acotadas (no se usa <c>GetAllAsync</c> de admin que trae todo el país).
     /// </summary>
     public async Task<LoteFormDataDto> GetFormDataAsync(CancellationToken ct = default)
     {
+        if (!_current.UserGuid.HasValue)
+            throw new UnauthorizedAccessException("Sesión inválida. Inicie sesión de nuevo.");
+
         var companyId = await GetEffectiveCompanyIdAsync(ct);
-        var farms = (await _farmService.GetAllAsync(userId: _current.UserGuid, companyId: companyId).ConfigureAwait(false)).ToList();
-        var nucleos = (await _nucleoService.GetAllAsync().ConfigureAwait(false)).ToList();
-        var galpones = (await _galponService.GetAllAsync().ConfigureAwait(false)).ToList();
+        var farms = (await _farmService
+            .GetAssignedFarmsForCompanyAsync(_current.UserGuid.Value, companyId, _current.PaisId)
+            .ConfigureAwait(false)).ToList();
+
+        var farmIdList = farms.Select(f => f.Id).ToList();
+        List<NucleoDto> nucleos;
+        List<GalponDetailDto> galpones;
+        if (farmIdList.Count == 0)
+        {
+            nucleos = [];
+            galpones = [];
+        }
+        else
+        {
+            nucleos = (await _nucleoService.GetByFarmIdsForCompanyAsync(farmIdList, companyId, ct).ConfigureAwait(false)).ToList();
+            galpones = (await _galponService.GetByFarmIdsForCompanyAsync(farmIdList, companyId, ct).ConfigureAwait(false)).ToList();
+        }
+
         var tecnicos = await _userService.GetUsersAsync().ConfigureAwait(false);
         var companies = (await _companyService.GetAllAsync().ConfigureAwait(false)).ToList();
         var razas = (await _guiaGeneticaService.ObtenerRazasDisponiblesAsync().ConfigureAwait(false)).ToList();

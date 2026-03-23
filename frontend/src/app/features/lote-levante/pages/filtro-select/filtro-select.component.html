@@ -57,7 +57,7 @@
         (ngModelChange)="selectedLoteId = $event; onLoteChange()">
         <option [ngValue]="null" disabled>— Seleccione lote —</option>
         <option *ngFor="let l of lotes; trackBy: trackByLote" [ngValue]="l.loteId">
-          {{ l.loteNombre || l.loteId }}
+          {{ formatLoteLabel(l) }}
         </option>
       </select>
     </div>

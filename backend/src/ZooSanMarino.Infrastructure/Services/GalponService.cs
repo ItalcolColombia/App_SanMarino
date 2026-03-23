@@ -266,6 +266,19 @@ public class GalponService : AppInterfaces.IGalponService
     // ─────────────────────────────────────────────────────────────────────────────
     // CRUD / LISTADOS QUE USA EL CONTROLLER (DETALLE CONSISTENTE)
     // ─────────────────────────────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetByFarmIdsForCompanyAsync(IReadOnlyList<int> farmIds, int companyId, CancellationToken ct = default)
+    {
+        if (farmIds == null || farmIds.Count == 0)
+            return Array.Empty<GalponDtos.GalponDetailDto>();
+
+        IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking()
+            .Where(g => g.DeletedAt == null && g.CompanyId == companyId && farmIds.Contains(g.GranjaId));
+
+        return await ProjectToDetail(q).ToListAsync(ct);
+    }
+
     public async Task<IEnumerable<GalponDtos.GalponDetailDto>> GetAllAsync()
     {
         IQueryable<Galpon> q = _ctx.Galpones.AsNoTracking().Where(g => g.DeletedAt == null);

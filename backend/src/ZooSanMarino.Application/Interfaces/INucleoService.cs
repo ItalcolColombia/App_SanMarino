@@ -7,6 +7,11 @@ namespace ZooSanMarino.Application.Interfaces;
 
 public interface INucleoService
 {
+    /// <summary>
+    /// Núcleos de la empresa y solo de las granjas indicadas (sin bypass de admin / todo el país).
+    /// </summary>
+    Task<IEnumerable<NucleoDto>> GetByFarmIdsForCompanyAsync(IReadOnlyList<int> farmIds, int companyId, CancellationToken ct = default);
+
     // Compat
     Task<IEnumerable<NucleoDto>> GetAllAsync();
     Task<NucleoDto?>             GetByIdAsync(string nucleoId, int granjaId);

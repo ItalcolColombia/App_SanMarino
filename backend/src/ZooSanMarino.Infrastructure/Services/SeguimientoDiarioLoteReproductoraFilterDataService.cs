@@ -14,28 +14,51 @@ public class SeguimientoDiarioLoteReproductoraFilterDataService : ISeguimientoDi
     private readonly IGalponService _galponService;
     private readonly ILoteAveEngordeService _loteAveEngordeService;
     private readonly ILoteReproductoraAveEngordeService _loteReproductoraService;
+    private readonly ICurrentUser _current;
+    private readonly ICompanyResolver _companyResolver;
 
     public SeguimientoDiarioLoteReproductoraFilterDataService(
         IFarmService farmService,
         INucleoService nucleoService,
         IGalponService galponService,
         ILoteAveEngordeService loteAveEngordeService,
-        ILoteReproductoraAveEngordeService loteReproductoraService)
+        ILoteReproductoraAveEngordeService loteReproductoraService,
+        ICurrentUser current,
+        ICompanyResolver companyResolver)
     {
         _farmService = farmService;
         _nucleoService = nucleoService;
         _galponService = galponService;
         _loteAveEngordeService = loteAveEngordeService;
         _loteReproductoraService = loteReproductoraService;
+        _current = current;
+        _companyResolver = companyResolver;
+    }
+
+    private async Task<int> GetEffectiveCompanyIdAsync(CancellationToken ct = default)
+    {
+        if (!string.IsNullOrWhiteSpace(_current.ActiveCompanyName))
+        {
+            var byName = await _companyResolver.GetCompanyIdByNameAsync(_current.ActiveCompanyName.Trim());
+            if (byName.HasValue) return byName.Value;
+        }
+        return _current.CompanyId;
     }
 
     public async Task<SeguimientoDiarioLoteReproductoraFilterDataDto> GetFilterDataAsync(CancellationToken ct = default)
     {
-        var farms = (await _farmService.GetAllAsync(userId: null, companyId: null).ConfigureAwait(false)).ToList();
-        var nucleos = (await _nucleoService.GetAllAsync().ConfigureAwait(false)).ToList();
-        var galponesDetail = (await _galponService.GetAllAsync().ConfigureAwait(false)).ToList();
+        if (!_current.UserGuid.HasValue)
+            throw new UnauthorizedAccessException("Sesión inválida. Inicie sesión de nuevo.");
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        var farms = (await _farmService.GetAllAsync(_current.UserGuid, companyId).ConfigureAwait(false)).ToList();
+        var allowedFarmIds = farms.Select(f => f.Id).ToHashSet();
+        var nucleos = (await _nucleoService.GetAllAsync().ConfigureAwait(false)).Where(n => allowedFarmIds.Contains(n.GranjaId)).ToList();
+        var galponesDetail = (await _galponService.GetAllAsync().ConfigureAwait(false)).Where(g => allowedFarmIds.Contains(g.GranjaId)).ToList();
         var lotesAveEngordeDetail = (await _loteAveEngordeService.GetAllAsync().ConfigureAwait(false)).ToList();
-        var lotesReproductora = (await _loteReproductoraService.GetAllAsync(null).ConfigureAwait(false)).ToList();
+        var allowedLoteAveIds = new HashSet<int>(lotesAveEngordeDetail.Select(l => l.LoteAveEngordeId));
+        var lotesReproductora = (await _loteReproductoraService.GetAllAsync(null).ConfigureAwait(false))
+            .Where(l => allowedLoteAveIds.Contains(l.LoteAveEngordeId))
+            .ToList();
 
         var galpones = galponesDetail
             .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId))

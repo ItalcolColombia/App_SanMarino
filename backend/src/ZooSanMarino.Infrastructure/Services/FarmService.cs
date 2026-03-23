@@ -199,6 +199,100 @@ namespace ZooSanMarino.Infrastructure.Services
         // ======================================================
         // CRUD BÁSICO (compat)
         // ======================================================
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<int>> GetAssignedFarmIdsForUserAsync(Guid userId, CancellationToken ct = default)
+        {
+            return await _ctx.UserFarms
+                .AsNoTracking()
+                .Where(uf => uf.UserId == userId)
+                .Select(uf => uf.FarmId)
+                .Distinct()
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+        }
+
+        /// <inheritdoc />
+        public async Task<IReadOnlyList<FarmDto>> GetFarmDtosByIdsInCompanyAsync(IReadOnlyCollection<int> farmIds, int companyId, CancellationToken ct = default)
+        {
+            if (farmIds == null || farmIds.Count == 0)
+                return Array.Empty<FarmDto>();
+
+            IQueryable<Farm> query = _ctx.Farms.AsNoTracking()
+                .Where(f => f.DeletedAt == null && f.CompanyId == companyId && farmIds.Contains(f.Id));
+
+            return await ToFarmDtoListAsync(query).ConfigureAwait(false);
+        }
+
+        /// <inheritdoc />
+        public async Task<IEnumerable<FarmDto>> GetAssignedFarmsForCompanyAsync(Guid userId, int companyId, int? paisId = null)
+        {
+            var userFarmIds = await _ctx.UserFarms
+                .AsNoTracking()
+                .Where(uf => uf.UserId == userId)
+                .Select(uf => uf.FarmId)
+                .Distinct()
+                .ToListAsync();
+
+            IQueryable<Farm> query = _ctx.Farms.AsNoTracking()
+                .Where(f => f.DeletedAt == null && f.CompanyId == companyId);
+
+            if (paisId.HasValue)
+            {
+                var pid = paisId.Value;
+                query = query.Where(f =>
+                    _ctx.Set<Departamento>().Any(d => d.DepartamentoId == f.DepartamentoId && d.PaisId == pid));
+            }
+
+            if (userFarmIds.Count == 0)
+                query = query.Where(f => f.Id == -1);
+            else
+                query = query.Where(f => userFarmIds.Contains(f.Id));
+
+            return await ToFarmDtoListAsync(query);
+        }
+
+        /// <summary>
+        /// Proyección a <see cref="FarmDto"/> + resolución de nombre regional desde lista maestra si aplica.
+        /// </summary>
+        private async Task<List<FarmDto>> ToFarmDtoListAsync(IQueryable<Farm> query)
+        {
+            var result = await query
+                .OrderBy(f => f.Name)
+                .Select(f => new FarmDto(
+                    f.Id,
+                    f.CompanyId,
+                    f.Name,
+                    f.RegionalId,
+                    f.Status,
+                    f.DepartamentoId,
+                    f.MunicipioId,
+                    _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
+                    _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
+                    f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
+                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault()
+                ))
+                .ToListAsync();
+
+            var idsSinNombre = result.Where(x => x.RegionalNombre == null && x.RegionalId.HasValue).Select(x => x.RegionalId!.Value).Distinct().ToList();
+            if (idsSinNombre.Count > 0)
+            {
+                var nombresOpcion = await _ctx.MasterListOptions
+                    .AsNoTracking()
+                    .Where(o => idsSinNombre.Contains(o.Id))
+                    .ToDictionaryAsync(o => o.Id, o => o.Value ?? "");
+                result = result.Select(f =>
+                {
+                    if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
+                    if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
+                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre);
+                    return f;
+                }).ToList();
+            }
+
+            return result;
+        }
+
         public async Task<IEnumerable<FarmDto>> GetAllAsync(Guid? userId = null, int? companyId = null)
         {
             IQueryable<Farm> query = _ctx.Farms.AsNoTracking().Where(f => f.DeletedAt == null);
@@ -268,39 +362,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 Console.WriteLine("=== FarmService.GetAllAsync - Sin filtro de usuario ===");
             }
 
-            var result = await query
-                .OrderBy(f => f.Name)
-                .Select(f => new FarmDto(
-                    f.Id,
-                    f.CompanyId,
-                    f.Name,
-                    f.RegionalId,
-                    f.Status,
-                    f.DepartamentoId,
-                    f.MunicipioId,
-                    _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
-                    _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
-                    f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
-                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault()
-                ))
-                .ToListAsync();
-
-            // Si regionalNombre sigue null, puede ser id de opción de lista maestra (master_list_options)
-            var idsSinNombre = result.Where(x => x.RegionalNombre == null && x.RegionalId.HasValue).Select(x => x.RegionalId!.Value).Distinct().ToList();
-            if (idsSinNombre.Count > 0)
-            {
-                var nombresOpcion = await _ctx.MasterListOptions
-                    .AsNoTracking()
-                    .Where(o => idsSinNombre.Contains(o.Id))
-                    .ToDictionaryAsync(o => o.Id, o => o.Value ?? "");
-                result = result.Select(f =>
-                {
-                    if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
-                    if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
-                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre);
-                    return f;
-                }).ToList();
-            }
+            var result = await ToFarmDtoListAsync(query);
 
             Console.WriteLine($"=== FarmService.GetAllAsync - Devolviendo {result.Count} granjas ===");
             return result;

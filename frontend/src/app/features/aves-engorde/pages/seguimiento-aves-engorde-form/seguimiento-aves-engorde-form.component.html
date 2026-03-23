@@ -7,10 +7,13 @@
           <ng-container *ngIf="form.get('loteId')?.value as lid; else noLoteChip">
             <span class="chip chip--info">
               <span class="chip__dot"></span>
-              Lote: {{ loteNombre(lid) }}
+              Lote: {{ loteLabel(lid) }}
             </span>
             <span class="chip chip--muted">
               {{ calcularEdadDias(lotesById[lid]?.fechaEncaset) }} días
+            </span>
+            <span class="chip chip--muted" *ngIf="loteErp(lid)">
+              ERP: {{ loteErp(lid) }}
             </span>
           </ng-container>
           <ng-template #noLoteChip>
@@ -40,7 +43,7 @@
               <select id="loteId" formControlName="loteId" [attr.aria-invalid]="f['loteId'].invalid && f['loteId'].touched ? 'true' : null">
                 <option value="" disabled>— Selecciona un lote —</option>
                 <option *ngFor="let l of lotes" [ngValue]="l.loteId">
-                  {{ l.loteNombre }} ({{ calcularEdadDias(l.fechaEncaset) }} días)
+                  {{ l.loteNombre }} - ERP: {{ l.loteErp || '—' }} ({{ calcularEdadDias(l.fechaEncaset) }} días)
                 </option>
               </select>
             </div>
