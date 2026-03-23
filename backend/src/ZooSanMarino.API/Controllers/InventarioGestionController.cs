@@ -26,7 +26,7 @@ public class InventarioGestionController : ControllerBase
         return Ok(data);
     }
 
-    /// <summary>Stock con filtros opcionales por granja, núcleo, galpón, tipo de ítem.</summary>
+    /// <summary>Stock solo en granjas asignadas al usuario; filtros opcionales: granja, núcleo, galpón, concepto/tipo ítem, búsqueda código/nombre.</summary>
     [HttpGet("stock")]
     [ProducesResponseType(typeof(IEnumerable<InventarioGestionStockDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStock(
