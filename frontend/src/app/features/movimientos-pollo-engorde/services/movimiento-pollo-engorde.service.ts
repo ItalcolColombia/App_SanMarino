@@ -3,6 +3,17 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
+import { FarmDto } from '../../farm/services/farm.service';
+import { GalponDetailDto } from '../../galpon/models/galpon.models';
+import { LoteAveEngordeDto } from '../../lote-engorde/services/lote-engorde.service';
+
+/** Catálogo único para filtros (granja → núcleo → galpón → lote Ave Engorde), alineado con GET /api/MovimientoPolloEngorde/filter-data */
+export interface MovimientoPolloEngordeFilterDataDto {
+  farms: FarmDto[];
+  nucleos: Array<{ nucleoId: string; granjaId: number; nucleoNombre: string }>;
+  galpones: GalponDetailDto[];
+  lotesAveEngorde: LoteAveEngordeDto[];
+}
 
 export interface MovimientoPolloEngordeDto {
   id: number;
@@ -142,6 +153,11 @@ export class MovimientoPolloEngordeService {
 
   getAll(): Observable<MovimientoPolloEngordeDto[]> {
     return this.http.get<MovimientoPolloEngordeDto[]>(this.base).pipe(catchError(this.handleError));
+  }
+
+  /** Granjas asignadas, núcleos, galpones y lotes Ave Engorde en una sola petición. */
+  getFilterData(): Observable<MovimientoPolloEngordeFilterDataDto> {
+    return this.http.get<MovimientoPolloEngordeFilterDataDto>(`${this.base}/filter-data`).pipe(catchError(this.handleError));
   }
 
   search(params: {

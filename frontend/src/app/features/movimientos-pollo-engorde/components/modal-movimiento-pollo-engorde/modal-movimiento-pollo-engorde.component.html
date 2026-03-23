@@ -1,6 +1,10 @@
 <div class="modal-backdrop" *ngIf="isOpen" (click)="onClose()" role="button" tabindex="-1" aria-label="Cerrar"></div>
 <div class="modal-wrap" *ngIf="isOpen" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-  <div class="modal" [class.modal--detail]="isReadOnly" [class.modal--form]="!isReadOnly" (click)="$event.stopPropagation()">
+  <div
+    class="modal mpe-modal"
+    [class.modal--detail]="isReadOnly"
+    [class.modal--form]="!isReadOnly"
+    (click)="$event.stopPropagation()">
     <div class="modal__header">
       <div class="modal__header-content">
         <h2 id="modal-title">{{ modalTitle }}</h2>
@@ -67,7 +71,7 @@
         <p class="detail-text" *ngIf="editingMovimiento.observaciones">{{ editingMovimiento.observaciones }}</p>
       </div>
       <div class="modal__actions">
-        <button type="button" class="btn btn--primary" (click)="onClose()">Cerrar</button>
+        <button type="button" class="btn-italfoods-primary" (click)="onClose()">Cerrar</button>
       </div>
     </div>
 
@@ -229,8 +233,8 @@
       </section>
 
       <div class="modal__actions">
-        <button type="button" class="btn btn--outline" (click)="onClose()">Cancelar</button>
-        <button type="submit" class="btn btn--primary" [disabled]="form.invalid || loading">
+        <button type="button" class="btn-italfoods-secondary" (click)="onClose()">Cancelar</button>
+        <button type="submit" class="btn-italfoods-primary" [disabled]="form.invalid || loading">
           <span *ngIf="loading">Guardando…</span>
           <span *ngIf="!loading">{{ editingMovimiento ? 'Actualizar' : 'Guardar' }}</span>
         </button>

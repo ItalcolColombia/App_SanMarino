@@ -2,29 +2,23 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { forkJoin } from 'rxjs';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
   ResumenAvesLoteDto
 } from '../../services/movimiento-pollo-engorde.service';
-import { FarmService, FarmDto } from '../../../farm/services/farm.service';
-import { NucleoService, NucleoDto } from '../../../lote-produccion/services/nucleo.service';
-import { GalponService } from '../../../galpon/services/galpon.service';
+import { FarmDto } from '../../../farm/services/farm.service';
+import { NucleoDto } from '../../../lote-produccion/services/nucleo.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { LoteEngordeService, LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
-import {
-  LoteReproductoraAveEngordeService,
-  LoteReproductoraAveEngordeDto
-} from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ModalMovimientoPolloEngordeComponent } from '../../components/modal-movimiento-pollo-engorde/modal-movimiento-pollo-engorde.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
-/** Opción combinada para dropdown Lote (Ave Engorde o Reproductora). */
+/** Opción del dropdown Lote (solo Ave Engorde). */
 export interface LoteOption {
-  value: string; // "ae-123" | "rae-456"
-  tipo: 'ae' | 'rae';
+  value: string; // "ae-123"
+  tipo: 'ae';
   id: number;
   label: string;
 }
@@ -52,17 +46,18 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
-  selectedLoteValue: string | null = null; // "ae-123" | "rae-456"
+  selectedLoteValue: string | null = null; // "ae-123"
 
   allLoteAveEngorde: LoteAveEngordeDto[] = [];
-  allLoteReproductora: LoteReproductoraAveEngordeDto[] = [];
+  /** Catálogo completo desde filter-data (se filtra en cliente al elegir granja/núcleo). */
+  private allNucleosFull: NucleoDto[] = [];
+  private allGalponesFull: GalponDetailDto[] = [];
 
   movimientos: MovimientoPolloEngordeDto[] = [];
   filteredMovimientos: MovimientoPolloEngordeDto[] = [];
 
-  /** Detalle del lote seleccionado (Ave Engorde o Reproductora) para mostrar en la tabla informativa. */
+  /** Detalle del lote Ave Engorde seleccionado para la tabla informativa. */
   loteDetalleAveEngorde: LoteAveEngordeDto | null = null;
-  loteDetalleReproductora: LoteReproductoraAveEngordeDto | null = null;
   loadingLoteDetalle = false;
   /** Resumen de aves del lote (inicio, salidas, vendidas, actuales) para reporte. */
   resumenAvesLote: ResumenAvesLoteDto | null = null;
@@ -122,28 +117,33 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     return isNaN(id) ? null : id;
   }
 
-  get loteReproductoraOrigenId(): number | null {
-    if (!this.selectedLoteValue || !this.selectedLoteValue.startsWith('rae-')) return null;
-    const id = parseInt(this.selectedLoteValue.replace('rae-', ''), 10);
-    return isNaN(id) ? null : id;
-  }
-
   constructor(
-    private farmSvc: FarmService,
-    private nucleoSvc: NucleoService,
-    private galponSvc: GalponService,
     private loteEngordeSvc: LoteEngordeService,
-    private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private movimientoSvc: MovimientoPolloEngordeService,
     private toastService: ToastService
   ) {}
 
   ngOnInit(): void {
     this.filteredMovimientos = [];
-    this.farmSvc.getAll().subscribe({
-      next: (fs) => (this.granjas = fs || []),
-      error: () => (this.granjas = [])
-    });
+    this.loading = true;
+    this.movimientoSvc
+      .getFilterData()
+      .pipe(finalize(() => (this.loading = false)))
+      .subscribe({
+        next: (data) => {
+          this.granjas = data.farms ?? [];
+          this.allNucleosFull = data.nucleos ?? [];
+          this.allGalponesFull = data.galpones ?? [];
+          this.allLoteAveEngorde = data.lotesAveEngorde ?? [];
+        },
+        error: () => {
+          this.granjas = [];
+          this.allNucleosFull = [];
+          this.allGalponesFull = [];
+          this.allLoteAveEngorde = [];
+          this.toastService.error('No se pudieron cargar los filtros. Revise la sesión o intente de nuevo.');
+        }
+      });
   }
 
   onGranjaChange(granjaId: number | null): void {
@@ -159,12 +159,9 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
     if (!this.selectedGranjaId) return;
 
-    this.nucleoSvc.getByGranja(this.selectedGranjaId).subscribe({
-      next: (rows) => (this.nucleos = rows || []),
-      error: () => (this.nucleos = [])
-    });
-    this.loadGalponCatalog();
-    this.loadLotesAndBuildOptions();
+    this.nucleos = this.allNucleosFull.filter((n) => n.granjaId === this.selectedGranjaId);
+    this.fillGalponMapFromCache();
+    this.buildLotesOpciones();
   }
 
   onNucleoChange(nucleoId: string | null): void {
@@ -175,7 +172,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.filteredMovimientos = [];
     this.selectedLoteValue = null;
     this.buildLotesOpciones();
-    this.loadGalponCatalog();
+    this.fillGalponMapFromCache();
   }
 
   onGalponChange(galponId: string | null): void {
@@ -191,29 +188,22 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.movimientos = [];
     this.filteredMovimientos = [];
     this.loteDetalleAveEngorde = null;
-    this.loteDetalleReproductora = null;
     if (!this.selectedLoteValue) return;
     this.resumenAvesLote = null;
     this.loadLoteDetalle();
     this.loadMovimientos();
   }
 
-  private loadGalponCatalog(): void {
+  /** Nombres de galpón desde el catálogo precargado (misma lógica que por API, sin peticiones extra). */
+  private fillGalponMapFromCache(): void {
     this.galponNameById.clear();
     if (!this.selectedGranjaId) return;
+    let rows = this.allGalponesFull.filter((g) => g.granjaId === this.selectedGranjaId);
     if (this.selectedNucleoId) {
-      this.galponSvc
-        .getByGranjaAndNucleo(this.selectedGranjaId, this.selectedNucleoId)
-        .subscribe({
-          next: (rows) => this.fillGalponMap(rows),
-          error: () => this.galponNameById.clear()
-        });
-    } else {
-      this.galponSvc.getByGranja(this.selectedGranjaId).subscribe({
-        next: (rows) => this.fillGalponMap(rows),
-        error: () => this.galponNameById.clear()
-      });
+      const nid = String(this.selectedNucleoId);
+      rows = rows.filter((g) => String(g.nucleoId) === nid);
     }
+    this.fillGalponMap(rows);
   }
 
   private fillGalponMap(rows: GalponDetailDto[] | null | undefined): void {
@@ -249,28 +239,6 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.galpones = result.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
   }
 
-  private loadLotesAndBuildOptions(): void {
-    this.loading = true;
-    forkJoin({
-      ae: this.loteEngordeSvc.getAll(),
-      rae: this.loteReproductoraSvc.getAll()
-    })
-      .pipe(finalize(() => (this.loading = false)))
-      .subscribe({
-        next: ({ ae, rae }) => {
-          this.allLoteAveEngorde = ae ? [...ae] : [];
-          this.allLoteReproductora = rae ? [...rae] : [];
-          this.buildLotesOpciones();
-          this.buildGalponesFromLotes();
-        },
-        error: () => {
-          this.allLoteAveEngorde = [];
-          this.allLoteReproductora = [];
-          this.lotesOpciones = [];
-        }
-      });
-  }
-
   private buildLotesOpciones(): void {
     if (!this.selectedGranjaId) {
       this.lotesOpciones = [];
@@ -288,9 +256,6 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       filteredAE = filteredAE.filter((l) => !this.hasValue(l.galponId));
     }
 
-    const aeIds = new Set((filteredAE || []).map((l) => l.loteAveEngordeId).filter((id): id is number => id != null));
-    const filteredRAE = (this.allLoteReproductora || []).filter((r) => aeIds.has(r.loteAveEngordeId));
-
     const options: LoteOption[] = [];
     for (const l of filteredAE) {
       const id = l.loteAveEngordeId;
@@ -302,54 +267,29 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
         label: `Ave Engorde: ${l.loteNombre || id}`
       });
     }
-    for (const r of filteredRAE) {
-      options.push({
-        value: `rae-${r.id}`,
-        tipo: 'rae',
-        id: r.id,
-        label: `Reproductora: ${r.nombreLote || r.id}`
-      });
-    }
     this.lotesOpciones = options.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
   }
 
-  /** Carga el detalle del lote seleccionado (Ave Engorde o Reproductora) para la tabla informativa. */
+  /** Carga el detalle del lote Ave Engorde seleccionado para la tabla informativa. */
   private loadLoteDetalle(): void {
     const aeId = this.loteAveEngordeOrigenId;
-    const raeId = this.loteReproductoraOrigenId;
     this.loteDetalleAveEngorde = null;
-    this.loteDetalleReproductora = null;
-    if (aeId == null && raeId == null) return;
+    if (aeId == null) return;
 
     this.loadingLoteDetalle = true;
-    if (aeId != null) {
-      this.loteEngordeSvc
-        .getById(aeId)
-        .pipe(finalize(() => (this.loadingLoteDetalle = false)))
-        .subscribe({
-          next: (dto) => {
-            this.loteDetalleAveEngorde = dto;
-            this.loadResumenAvesLote('LoteAveEngorde', aeId);
-          },
-          error: () => (this.loadingLoteDetalle = false)
-        });
-    } else if (raeId != null) {
-      this.loteReproductoraSvc
-        .getById(raeId)
-        .pipe(finalize(() => (this.loadingLoteDetalle = false)))
-        .subscribe({
-          next: (dto) => {
-            this.loteDetalleReproductora = dto;
-            this.loadResumenAvesLote('LoteReproductoraAveEngorde', raeId);
-          },
-          error: () => (this.loadingLoteDetalle = false)
-        });
-    } else {
-      this.loadingLoteDetalle = false;
-    }
+    this.loteEngordeSvc
+      .getById(aeId)
+      .pipe(finalize(() => (this.loadingLoteDetalle = false)))
+      .subscribe({
+        next: (dto) => {
+          this.loteDetalleAveEngorde = dto;
+          this.loadResumenAvesLote('LoteAveEngorde', aeId);
+        },
+        error: () => (this.loadingLoteDetalle = false)
+      });
   }
 
-  private loadResumenAvesLote(tipo: 'LoteAveEngorde' | 'LoteReproductoraAveEngorde', id: number): void {
+  private loadResumenAvesLote(tipo: 'LoteAveEngorde', id: number): void {
     this.loadingResumen = true;
     this.movimientoSvc
       .getResumenAvesLote(tipo, id)
@@ -362,13 +302,12 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   private loadMovimientos(): void {
     const aeId = this.loteAveEngordeOrigenId;
-    const raeId = this.loteReproductoraOrigenId;
-    if (aeId == null && raeId == null) return;
+    if (aeId == null) return;
 
     this.loading = true;
     this.error = null;
     this.movimientoSvc
-      .getByLoteOrigen(aeId ?? undefined, raeId ?? undefined)
+      .getByLoteOrigen(aeId, undefined)
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: (list) => {
@@ -469,9 +408,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   private refreshResumenIfLoteSelected(): void {
     if (!this.selectedLoteValue) return;
     const aeId = this.loteAveEngordeOrigenId;
-    const raeId = this.loteReproductoraOrigenId;
     if (aeId != null) this.loadResumenAvesLote('LoteAveEngorde', aeId);
-    else if (raeId != null) this.loadResumenAvesLote('LoteReproductoraAveEngorde', raeId);
   }
 
   completarMovimiento(m: MovimientoPolloEngordeDto): void {
@@ -602,12 +539,6 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     return l.avesEncasetadas ?? 0;
   }
 
-  /** Total aves en lote Reproductora (h + m + mixtas). */
-  totalAvesReproductora(r: LoteReproductoraAveEngordeDto | null): number {
-    if (!r) return 0;
-    return (r.h ?? 0) + (r.m ?? 0) + (r.mixtas ?? 0);
-  }
-
   /** Disponibilidad en lote para el modal (límite al crear movimiento). */
   get availableBirdsForModal(): { total: number; hembras?: number; machos?: number; mixtas?: number } | null {
     if (this.loteDetalleAveEngorde) {
@@ -618,40 +549,16 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       const total = h + m + x > 0 ? h + m + x : (l.avesEncasetadas ?? 0);
       return { total, hembras: h, machos: m, mixtas: x };
     }
-    if (this.loteDetalleReproductora) {
-      const r = this.loteDetalleReproductora;
-      const h = r.h ?? 0;
-      const m = r.m ?? 0;
-      const x = r.mixtas ?? 0;
-      return { total: h + m + x, hembras: h, machos: m, mixtas: x };
-    }
     return null;
   }
 
-  /** Nombre del lote Ave Engorde padre de la reproductora actual. */
-  get nombreLoteAveEngordePadre(): string {
-    const r = this.loteDetalleReproductora;
-    if (!r) return '—';
-    const ae = this.allLoteAveEngorde.find((l) => l.loteAveEngordeId === r.loteAveEngordeId);
-    return ae?.loteNombre ?? String(r.loteAveEngordeId);
-  }
-
-  /** Datos del lote seleccionado (raza, año tabla, fecha encasetamiento) para prellenar y calcular edad. Del lote normal o del lote padre si es reproductora. */
+  /** Datos del lote seleccionado (raza, año tabla, fecha encasetamiento) para prellenar y calcular edad. */
   get lotInfoForMovement(): { raza?: string | null; anoTablaGenetica?: number | null; fechaEncasetamiento?: string | null } | null {
     if (this.loteDetalleAveEngorde) {
       return {
         raza: this.loteDetalleAveEngorde.raza ?? null,
         anoTablaGenetica: this.loteDetalleAveEngorde.anoTablaGenetica ?? null,
         fechaEncasetamiento: this.loteDetalleAveEngorde.fechaEncaset ?? null
-      };
-    }
-    if (this.loteDetalleReproductora) {
-      const parent = this.allLoteAveEngorde.find((l) => l.loteAveEngordeId === this.loteDetalleReproductora!.loteAveEngordeId);
-      if (!parent) return null;
-      return {
-        raza: parent.raza ?? null,
-        anoTablaGenetica: parent.anoTablaGenetica ?? null,
-        fechaEncasetamiento: this.loteDetalleReproductora.fechaEncasetamiento ?? parent.fechaEncaset ?? null
       };
     }
     return null;

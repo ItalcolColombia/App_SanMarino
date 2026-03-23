@@ -13,10 +13,26 @@ namespace ZooSanMarino.API.Controllers;
 public class MovimientoPolloEngordeController : ControllerBase
 {
     private readonly IMovimientoPolloEngordeService _service;
+    private readonly IMovimientoPolloEngordeFilterDataService _filterDataService;
 
-    public MovimientoPolloEngordeController(IMovimientoPolloEngordeService service)
+    public MovimientoPolloEngordeController(
+        IMovimientoPolloEngordeService service,
+        IMovimientoPolloEngordeFilterDataService filterDataService)
     {
         _service = service;
+        _filterDataService = filterDataService;
+    }
+
+    /// <summary>
+    /// Granjas asignadas al usuario, núcleos, galpones y lotes (Ave Engorde + Reproductora) en una sola respuesta para filtros en cascada.
+    /// </summary>
+    [HttpGet("filter-data")]
+    [ProducesResponseType(typeof(MovimientoPolloEngordeFilterDataDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetFilterData(CancellationToken ct)
+    {
+        var data = await _filterDataService.GetFilterDataAsync(ct);
+        return Ok(data);
     }
 
     [HttpGet]
