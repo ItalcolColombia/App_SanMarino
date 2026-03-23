@@ -216,6 +216,7 @@ builder.Services.AddScoped<IInventarioAvesService, InventarioAvesService>();
 builder.Services.AddScoped<IHistorialInventarioService, HistorialInventarioService>();
 builder.Services.AddScoped<IMovimientoAvesService, MovimientoAvesService>();
 builder.Services.AddScoped<IMovimientoPolloEngordeService, MovimientoPolloEngordeService>();
+builder.Services.AddScoped<IMovimientoPolloEngordeFilterDataService, MovimientoPolloEngordeFilterDataService>();
 
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();

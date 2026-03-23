@@ -31,4 +31,13 @@ public interface IInventarioGestionService
         string? estado = null,
         string? movementType = null,
         CancellationToken ct = default);
+
+    /// <summary>Traslados inter-granja en tránsito pendientes de recepción en la granja destino (opcional).</summary>
+    Task<List<InventarioGestionTransitoPendienteDto>> GetTransitosPendientesAsync(int? farmIdDestino = null, CancellationToken ct = default);
+
+    /// <summary>Completa el ingreso en destino de un traslado inter-granja (cierra el tránsito). Si la solicitud aún no descontó origen, descuenta aquí.</summary>
+    Task<(InventarioGestionStockDto Destino, InventarioGestionMovimientoDto Movimiento)> RegistrarRecepcionTransitoAsync(InventarioGestionRecepcionTransitoRequest req, CancellationToken ct = default);
+
+    /// <summary>Rechaza una solicitud inter-granja pendiente; no modifica stock.</summary>
+    Task RechazarTransitoPendienteAsync(InventarioGestionRechazoTransitoRequest req, CancellationToken ct = default);
 }
