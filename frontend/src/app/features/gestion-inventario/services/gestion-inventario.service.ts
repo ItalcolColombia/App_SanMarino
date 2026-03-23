@@ -133,7 +133,7 @@ export interface InventarioGestionTransitoPendienteDto {
   quantity: number;
   unit: string;
   createdAt: string;
-  /** true: al confirmar recepción se descuenta origen. false: registro antiguo (ya descontado). */
+  /** true: solicitud antigua (TrasladoInterGranjaPendiente); al recibir se descuenta origen. false: envío actual (origen ya descontado al traslado). */
   pendienteDespachoOrigen?: boolean;
 }
 
@@ -224,11 +224,6 @@ export class GestionInventarioService {
       `${this.api}/inventario-gestion/transito/recepcion`,
       payload
     );
-  }
-
-  /** Rechaza solicitud inter-granja pendiente (no descuenta origen). */
-  rechazarTransito(payload: { transferGroupId: string; reason?: string | null }): Observable<void> {
-    return this.http.post<void>(`${this.api}/inventario-gestion/transito/rechazo`, payload);
   }
 
   /** Ítems desde Config > Ítems inventario Ecuador (item_inventario_ecuador). */
