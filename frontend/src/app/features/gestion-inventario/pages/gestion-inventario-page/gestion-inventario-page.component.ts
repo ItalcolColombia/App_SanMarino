@@ -3,11 +3,29 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faBoxesStacked, faArrowDown, faArrowRight, faList, faBook, faFilter, faClockRotateLeft } from '@fortawesome/free-solid-svg-icons';
+import {
+  faBoxesStacked,
+  faArrowDown,
+  faArrowRight,
+  faList,
+  faBook,
+  faFilter,
+  faClockRotateLeft,
+  faTruck,
+  faFileExport
+} from '@fortawesome/free-solid-svg-icons';
 
-import { GestionInventarioService, InventarioGestionFilterDataDto, InventarioGestionStockDto, InventarioGestionMovimientoDto, ItemInventarioEcuadorDto } from '../../services/gestion-inventario.service';
+import {
+  GestionInventarioService,
+  InventarioGestionFilterDataDto,
+  InventarioGestionStockDto,
+  InventarioGestionMovimientoDto,
+  ItemInventarioEcuadorDto,
+  InventarioGestionTransitoPendienteDto
+} from '../../services/gestion-inventario.service';
 
-type TabKey = 'stock' | 'ingresos' | 'traslados' | 'historico' | 'items';
+type TabKey = 'stock' | 'ingresos' | 'traslados' | 'transito' | 'historico' | 'items';
+type TrasladoModo = 'mismaGranja' | 'interGranja';
 
 @Component({
   selector: 'app-gestion-inventario-page',
@@ -24,6 +42,8 @@ export class GestionInventarioPageComponent implements OnInit {
   faBook = faBook;
   faFilter = faFilter;
   faHistorico = faClockRotateLeft;
+  faTransito = faTruck;
+  faExport = faFileExport;
 
   activeTab: TabKey = 'stock';
   filterData: InventarioGestionFilterDataDto | null = null;
@@ -36,7 +56,7 @@ export class GestionInventarioPageComponent implements OnInit {
   showConfirmModal = false;
   confirmTitle = '';
   confirmText = '';
-  confirmAction: 'ingreso' | 'traslado' | null = null;
+  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | 'rechazoTransito' | null = null;
   showAlertModal = false;
   alertType: 'success' | 'error' = 'success';
   alertTitle = '';
@@ -59,10 +79,12 @@ export class GestionInventarioPageComponent implements OnInit {
   ingresoQuantity = 0;
   ingresoReference = '';
   ingresoReason = '';
-  /** Origen del ingreso: Planta (motivo fijo) o Granja (origen desde otra granja). */
-  ingresoOrigenTipo: 'planta' | 'granja' = 'planta';
-  /** Granja de origen cuando ingresoOrigenTipo === 'granja'. */
+  /** Origen del ingreso (solo concepto Alimento): planta | granja | bodega. */
+  ingresoOrigenTipo: 'planta' | 'granja' | 'bodega' = 'planta';
+  /** Granja de origen (otra granja) o granja de la bodega de procedencia. */
   ingresoOrigenFarmId: number | null = null;
+  /** Texto opcional: bodega / referencia cuando origen es bodega. */
+  ingresoOrigenBodegaTexto = '';
   ingresoItems: ItemInventarioEcuadorDto[] = [];
   submittingIngreso = false;
 
@@ -85,6 +107,22 @@ export class GestionInventarioPageComponent implements OnInit {
 
   /** Destino del traslado para estado: granja | planta */
   trasladoDestinoTipo: 'granja' | 'planta' = 'granja';
+
+  /** Misma granja (solo alimento, galpones distintos) vs otra granja (stock pasa a tránsito). */
+  trasladoModo: TrasladoModo = 'mismaGranja';
+
+  // Tránsito (recepción inter-granja)
+  transitoList: InventarioGestionTransitoPendienteDto[] = [];
+  transitoFarmFilter: number | null = null;
+  loadingTransito = false;
+  /** Fila seleccionada para completar recepción en destino. */
+  recepcionPendiente: InventarioGestionTransitoPendienteDto | null = null;
+  recepcionToNucleoId: string | null = null;
+  recepcionToGalponId: string | null = null;
+  submittingRecepcion = false;
+  /** Fila para confirmar rechazo de solicitud inter-granja. */
+  pendingRejectRow: InventarioGestionTransitoPendienteDto | null = null;
+  submittingRechazo = false;
 
   // Histórico tab
   historicoFarmId: number | null = null;
@@ -111,9 +149,21 @@ export class GestionInventarioPageComponent implements OnInit {
     if (tab === 'stock') this.loadStock();
     if (tab === 'historico') this.loadMovimientos();
     if (tab === 'items') this.loadItemsList();
+    if (tab === 'transito') this.loadTransitos();
   }
 
-  readonly estadosHistorial: string[] = ['Entrada planta', 'Entrada granja', 'Transferencia a granja', 'Transferencia a planta', 'Consumo'];
+  readonly estadosHistorial: string[] = [
+    'Entrada planta',
+    'Entrada granja',
+    'Entrada bodega',
+    'Transferencia a granja',
+    'Transferencia a planta',
+    'Consumo',
+    'Pendiente destino',
+    'Tránsito',
+    'Recibido desde tránsito',
+    'Rechazado destino'
+  ];
 
   loadMovimientos(): void {
     this.loading = true;
@@ -140,11 +190,96 @@ export class GestionInventarioPageComponent implements OnInit {
     return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es', { dateStyle: 'short' }) + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   }
 
+  /** Ubicación del movimiento (granja de registro + núcleo/galpón si aplica). */
+  ubicacionRegistroMovimiento(m: InventarioGestionMovimientoDto): string {
+    const g = m.granjaNombre ?? String(m.farmId);
+    const n = m.nucleoNombre ?? m.nucleoId ?? '';
+    const gp = m.galponNombre ?? m.galponId ?? '';
+    if (!n && !gp) return g;
+    return `${g} · Núc. ${n || '—'} · Galp. ${gp || '—'}`;
+  }
+
+  /** Origen/destino según tipo: contraparte del traslado o procedencia. */
+  otroExtremoMovimiento(m: InventarioGestionMovimientoDto): string {
+    if (m.fromFarmId == null && !m.fromGranjaNombre) return '—';
+    const g = m.fromGranjaNombre ?? (m.fromFarmId != null ? String(m.fromFarmId) : '');
+    const n = m.fromNucleoNombre ?? m.fromNucleoId ?? '';
+    const gp = m.fromGalponNombre ?? m.fromGalponId ?? '';
+    if (!n && !gp) return g;
+    return `${g} · Núc. ${n || '—'} · Galp. ${gp || '—'}`;
+  }
+
+  /** Exporta el histórico cargado a CSV (abre en Excel con UTF-8). */
+  exportHistoricoCsv(): void {
+    const rows = this.movimientosList;
+    if (!rows.length) {
+      this.openAlertModal('error', 'Sin datos', 'Pulse Consultar primero para cargar movimientos.');
+      return;
+    }
+    const escape = (s: string | number | null | undefined): string => {
+      const t = (s ?? '').toString();
+      if (/[",\n\r]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
+      return t;
+    };
+    const headers = [
+      'Fecha',
+      'Tipo operación',
+      'Estado',
+      'Código ítem',
+      'Nombre ítem',
+      'Concepto',
+      'Cantidad',
+      'Unidad',
+      'Ubicación registro (granja / núcleo / galpón)',
+      'Otro extremo u origen (granja / núcleo / galpón)',
+      'Referencia',
+      'Motivo y detalle (lote / contexto)',
+      'Grupo traslado (UUID)'
+    ];
+    const lines = [headers.join(',')];
+    for (const m of rows) {
+      lines.push(
+        [
+          escape(this.formatFechaMovimiento(m.createdAt)),
+          escape(m.tipoOperacion ?? m.movementType),
+          escape(m.estado ?? ''),
+          escape(m.itemCodigo),
+          escape(m.itemNombre),
+          escape(m.itemType),
+          escape(m.quantity),
+          escape(m.unit),
+          escape(this.ubicacionRegistroMovimiento(m)),
+          escape(this.otroExtremoMovimiento(m)),
+          escape(m.reference ?? ''),
+          escape(m.reason ?? ''),
+          escape(m.transferGroupId ?? '')
+        ].join(',')
+      );
+    }
+    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `inventario-gestion-historico-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   loadFilterData(): void {
     this.loading = true;
     this.svc.getFilterData().subscribe({
       next: (data) => {
         this.filterData = data;
+        const orig = data.farmsOrigen ?? [];
+        if (orig.length === 1) {
+          const only = orig[0].id;
+          if (this.selectedFarmId == null) this.selectedFarmId = only;
+          // Destino de ingreso: todas las granjas empresa; preseleccionar si la única asignada está en catálogo destino
+          if (this.ingresoFarmId == null && (data.farmsDestino ?? []).some(f => f.id === only)) {
+            this.ingresoFarmId = only;
+          }
+          if (this.fromFarmId == null) this.fromFarmId = only;
+          if (this.transitoFarmFilter == null) this.transitoFarmFilter = only;
+        }
         this.loading = false;
       },
       error: () => {
@@ -177,52 +312,55 @@ export class GestionInventarioPageComponent implements OnInit {
 
   get nucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
     if (!this.filterData || this.selectedFarmId == null) return [];
-    return this.filterData.nucleos
+    return this.filterData.nucleosOrigen
       .filter(n => n.granjaId === this.selectedFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
   }
 
   get galponesFiltered(): { galponId: string; galponNombre: string }[] {
     if (!this.filterData || this.selectedFarmId == null) return [];
-    return this.filterData.galpones
+    return this.filterData.galponesOrigen
       .filter(g => g.granjaId === this.selectedFarmId && (!this.selectedNucleoId || g.nucleoId === this.selectedNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
   }
 
   fromNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
     if (!this.filterData || this.fromFarmId == null) return [];
-    return this.filterData.nucleos
+    return this.filterData.nucleosOrigen
       .filter(n => n.granjaId === this.fromFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
   }
   fromGalponesFiltered(): { galponId: string; galponNombre: string }[] {
     if (!this.filterData || this.fromFarmId == null) return [];
-    return this.filterData.galpones
+    return this.filterData.galponesOrigen
       .filter(g => g.granjaId === this.fromFarmId && (!this.fromNucleoId || g.nucleoId === this.fromNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
   }
+  /** Núcleos del destino del traslado: misma granja → catálogo origen; inter-granja → catálogo empresa. */
   toNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
     if (!this.filterData || this.toFarmId == null) return [];
-    return this.filterData.nucleos
+    const nucleos = this.trasladoModo === 'interGranja' ? this.filterData.nucleosDestino : this.filterData.nucleosOrigen;
+    return nucleos
       .filter(n => n.granjaId === this.toFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
   }
   toGalponesFiltered(): { galponId: string; galponNombre: string }[] {
     if (!this.filterData || this.toFarmId == null) return [];
-    return this.filterData.galpones
+    const galpones = this.trasladoModo === 'interGranja' ? this.filterData.galponesDestino : this.filterData.galponesOrigen;
+    return galpones
       .filter(g => g.granjaId === this.toFarmId && (!this.toNucleoId || g.nucleoId === this.toNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
   }
 
   ingresoNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
     if (!this.filterData || this.ingresoFarmId == null) return [];
-    return this.filterData.nucleos
+    return this.filterData.nucleosDestino
       .filter(n => n.granjaId === this.ingresoFarmId)
       .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
   }
   ingresoGalponesFiltered(): { galponId: string; galponNombre: string }[] {
     if (!this.filterData || this.ingresoFarmId == null) return [];
-    return this.filterData.galpones
+    return this.filterData.galponesDestino
       .filter(g => g.granjaId === this.ingresoFarmId && (!this.ingresoNucleoId || g.nucleoId === this.ingresoNucleoId))
       .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
   }
@@ -257,17 +395,73 @@ export class GestionInventarioPageComponent implements OnInit {
     if (!this.showNucleoGalpon) {
       this.ingresoNucleoId = null;
       this.ingresoGalponId = null;
+      this.ingresoOrigenTipo = 'planta';
+      this.ingresoOrigenFarmId = null;
+      this.ingresoOrigenBodegaTexto = '';
       this.fromNucleoId = null;
       this.fromGalponId = null;
       this.toNucleoId = null;
       this.toGalponId = null;
     }
+    if (this.trasladoModo === 'mismaGranja' && !this.showNucleoGalpon) {
+      this.trasladoModo = 'interGranja';
+    }
+  }
+
+  onTrasladoModoChange(): void {
+    this.toNucleoId = null;
+    this.toGalponId = null;
+    if (this.trasladoModo === 'mismaGranja' && this.fromFarmId != null) {
+      this.toFarmId = this.fromFarmId;
+    }
+    this.loadOriginStock();
+  }
+
+  onTrasladoFromFarmChange(): void {
+    if (this.trasladoModo === 'mismaGranja' && this.fromFarmId != null) {
+      this.toFarmId = this.fromFarmId;
+    }
+    this.loadOriginStock();
+  }
+
+  /** Cambia tipo de origen en ingreso (Alimento): limpia campos que no aplican. */
+  onIngresoOrigenTipoChange(): void {
+    this.ingresoOrigenFarmId = null;
+    this.ingresoOrigenBodegaTexto = '';
+    if (this.ingresoOrigenTipo === 'planta') {
+      this.ingresoReason = '';
+    }
+  }
+
+  onIngresoDestinoFarmChange(): void {
+    this.ingresoNucleoId = null;
+    this.ingresoGalponId = null;
+  }
+
+  onIngresoDestinoNucleoChange(): void {
+    this.ingresoGalponId = null;
   }
 
   submitIngreso(): void {
     if (this.ingresoFarmId == null || this.ingresoItemInventarioEcuadorId == null || this.ingresoQuantity <= 0) {
       this.openAlertModal('error', 'Validación', 'Complete granja, ítem y cantidad.');
       return;
+    }
+    if (this.showNucleoGalpon) {
+      if (this.ingresoOrigenTipo === 'granja') {
+        if (this.ingresoOrigenFarmId == null) {
+          this.openAlertModal('error', 'Validación', 'Indique la granja de origen del material.');
+          return;
+        }
+        if (this.ingresoOrigenFarmId === this.ingresoFarmId) {
+          this.openAlertModal('error', 'Validación', 'La granja de origen debe ser distinta a la granja de destino del ingreso.');
+          return;
+        }
+      }
+      if (this.ingresoOrigenTipo === 'bodega' && this.ingresoOrigenFarmId == null) {
+        this.openAlertModal('error', 'Validación', 'Indique la granja a la que pertenece la bodega de procedencia.');
+        return;
+      }
     }
     if (this.showNucleoGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
       this.openAlertModal('error', 'Validación', 'Para alimento debe seleccionar Núcleo y Galpón.');
@@ -285,10 +479,40 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'Complete origen, destino, ítem y cantidad.');
       return;
     }
-    if (this.showNucleoGalpon) {
+
+    if (this.trasladoModo === 'mismaGranja') {
+      if (!this.showNucleoGalpon) {
+        this.openAlertModal('error', 'Validación', 'Entre galpones de la misma granja solo aplica a concepto Alimento.');
+        return;
+      }
+      if (this.fromFarmId !== this.toFarmId) {
+        this.openAlertModal('error', 'Validación', 'En este modo origen y destino deben ser la misma granja.');
+        return;
+      }
       if (!this.fromNucleoId || !this.fromGalponId || !this.toNucleoId || !this.toGalponId) {
         this.openAlertModal('error', 'Validación', 'Para alimento debe seleccionar Núcleo y Galpón en origen y destino.');
         return;
+      }
+      if (this.fromGalponId === this.toGalponId && this.fromNucleoId === this.toNucleoId) {
+        this.openAlertModal('error', 'Validación', 'El galpón de destino debe ser distinto al de origen.');
+        return;
+      }
+    } else {
+      if (this.fromFarmId === this.toFarmId) {
+        this.openAlertModal('error', 'Validación', 'En traslado entre granjas la granja destino debe ser distinta a la de origen.');
+        return;
+      }
+      if (this.showNucleoGalpon) {
+        if (!this.fromNucleoId || !this.fromGalponId) {
+          this.openAlertModal('error', 'Validación', 'Para alimento debe indicar Núcleo y Galpón de origen.');
+          return;
+        }
+        // Destino núcleo/galpón opcional en salida (solo como referencia)
+      } else {
+        if (this.fromNucleoId || this.fromGalponId || this.toNucleoId || this.toGalponId) {
+          this.openAlertModal('error', 'Validación', 'Para ítems no alimento no use Núcleo/Galpón en traslado entre granjas.');
+          return;
+        }
       }
     }
     const available = this.originStockQuantity;
@@ -308,11 +532,11 @@ export class GestionInventarioPageComponent implements OnInit {
       );
       return;
     }
-    this.openConfirmModal(
-      'Confirmar traslado',
-      `¿Registrar traslado de ${this.trasladoQuantity} ${this.trasladoSelectedUnit}?`,
-      'traslado'
-    );
+    const msg =
+      this.trasladoModo === 'interGranja'
+        ? `¿Enviar solicitud de traslado a otra granja? No se descuenta stock en origen hasta que la granja destino confirme recepción (${this.trasladoQuantity} ${this.trasladoSelectedUnit}).`
+        : `¿Registrar traslado de ${this.trasladoQuantity} ${this.trasladoSelectedUnit}?`;
+    this.openConfirmModal('Confirmar traslado', msg, 'traslado');
   }
 
   /** Carga el stock en origen para el ítem seleccionado (para mostrar disponible y validar). */
@@ -356,8 +580,23 @@ export class GestionInventarioPageComponent implements OnInit {
       : list.filter(i => (i.codigo ?? '').toLowerCase().includes(q) || (i.nombre ?? '').toLowerCase().includes(q));
   }
 
-  get farms(): { id: number; name: string }[] {
-    return this.filterData?.farms?.map(f => ({ id: f.id, name: f.name })) ?? [];
+  get farmsOrigen(): { id: number; name: string }[] {
+    return this.filterData?.farmsOrigen?.map(f => ({ id: f.id, name: f.name })) ?? [];
+  }
+
+  get farmsDestino(): { id: number; name: string }[] {
+    return this.filterData?.farmsDestino?.map(f => ({ id: f.id, name: f.name })) ?? [];
+  }
+
+  getFarmName(farmId: number | null): string {
+    if (farmId == null) return '—';
+    const hit =
+      this.farmsOrigen.find(f => f.id === farmId) ?? this.farmsDestino.find(f => f.id === farmId);
+    return hit?.name ?? String(farmId);
+  }
+
+  onToDestinoNucleoChange(): void {
+    this.toGalponId = null;
   }
 
   /** Motivo cuando origen es Planta (solo lectura). */
@@ -417,7 +656,11 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   // ===== Modales =====
-  openConfirmModal(title: string, text: string, action: 'ingreso' | 'traslado'): void {
+  openConfirmModal(
+    title: string,
+    text: string,
+    action: 'ingreso' | 'traslado' | 'recepcionTransito' | 'rechazoTransito'
+  ): void {
     this.confirmTitle = title;
     this.confirmText = text;
     this.confirmAction = action;
@@ -432,6 +675,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.closeConfirmModal();
     if (action === 'ingreso') this.doIngreso();
     if (action === 'traslado') this.doTraslado();
+    if (action === 'rechazoTransito') this.doRechazoTransito();
+    if (action === 'recepcionTransito') this.doRecepcionTransito();
   }
 
   openAlertModal(type: 'success' | 'error', title: string, text: string): void {
@@ -445,12 +690,30 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   private doIngreso(): void {
+    const esAlimento = this.showNucleoGalpon;
+    const tipoOrigen = esAlimento ? this.ingresoOrigenTipo : 'planta';
     let reason: string | null;
-    if (this.ingresoOrigenTipo === 'planta') {
+    if (!esAlimento || tipoOrigen === 'planta') {
       reason = this.ingresoReasonPlanta;
+    } else if (tipoOrigen === 'granja') {
+      const fromFarmName =
+        this.ingresoOrigenFarmId != null ? this.farmsDestino.find(f => f.id === this.ingresoOrigenFarmId)?.name : null;
+      reason = fromFarmName
+        ? `Ingreso desde granja: ${fromFarmName}${this.ingresoReason ? '. ' + this.ingresoReason : ''}`
+        : this.ingresoReason || null;
     } else {
-      const fromFarmName = this.ingresoOrigenFarmId != null ? this.farms.find(f => f.id === this.ingresoOrigenFarmId)?.name : null;
-      reason = fromFarmName ? `Ingreso desde granja: ${fromFarmName}${this.ingresoReason ? '. ' + this.ingresoReason : ''}` : (this.ingresoReason || null);
+      const farmBodega =
+        this.ingresoOrigenFarmId != null ? this.farmsDestino.find(f => f.id === this.ingresoOrigenFarmId)?.name : null;
+      const bodegaTxt = (this.ingresoOrigenBodegaTexto ?? '').trim();
+      const extra = this.ingresoReason?.trim();
+      reason = [
+        'Ingreso desde bodega',
+        farmBodega ? `(granja ${farmBodega})` : null,
+        bodegaTxt ? `Bodega: ${bodegaTxt}` : null,
+        extra || null
+      ]
+        .filter(Boolean)
+        .join('. ');
     }
     this.submittingIngreso = true;
     this.svc.registrarIngreso({
@@ -462,7 +725,9 @@ export class GestionInventarioPageComponent implements OnInit {
       unit: this.ingresoSelectedUnit === '—' ? 'kg' : this.ingresoSelectedUnit,
       reference: this.ingresoReference || null,
       reason,
-      origenTipo: this.ingresoOrigenTipo
+      origenTipo: tipoOrigen,
+      origenFarmId: esAlimento && (tipoOrigen === 'granja' || tipoOrigen === 'bodega') ? this.ingresoOrigenFarmId : null,
+      origenBodegaDescripcion: esAlimento && tipoOrigen === 'bodega' ? (this.ingresoOrigenBodegaTexto || null) : null
     }).subscribe({
       next: () => {
         this.submittingIngreso = false;
@@ -470,6 +735,7 @@ export class GestionInventarioPageComponent implements OnInit {
         this.ingresoQuantity = 0;
         this.ingresoReference = '';
         this.ingresoReason = '';
+        this.ingresoOrigenBodegaTexto = '';
         this.loadStock();
       },
       error: (err) => {
@@ -479,15 +745,164 @@ export class GestionInventarioPageComponent implements OnInit {
     });
   }
 
+  loadTransitos(): void {
+    this.loadingTransito = true;
+    this.svc.getTransitosPendientes(this.transitoFarmFilter).subscribe({
+      next: (list) => {
+        this.transitoList = list ?? [];
+        this.loadingTransito = false;
+      },
+      error: () => {
+        this.loadingTransito = false;
+        this.openAlertModal('error', 'Error', 'No se pudo cargar el tránsito pendiente.');
+      }
+    });
+  }
+
+  beginRecepcion(row: InventarioGestionTransitoPendienteDto): void {
+    this.recepcionPendiente = row;
+    this.recepcionToNucleoId = row.destinoNucleoIdHint;
+    this.recepcionToGalponId = row.destinoGalponIdHint;
+  }
+
+  cancelRecepcion(): void {
+    this.recepcionPendiente = null;
+    this.recepcionToNucleoId = null;
+    this.recepcionToGalponId = null;
+  }
+
+  recepcionNeedsNucleoGalpon(itemId: number): boolean {
+    const item = this.allCatalogItems.find(i => i.id === itemId);
+    if (!item) return false;
+    return this.isAlimentoConcept(item.concepto ?? item.tipoItem);
+  }
+
+  submitRecepcionForm(): void {
+    const row = this.recepcionPendiente;
+    if (!row) return;
+    const needNg = this.recepcionNeedsNucleoGalpon(row.itemInventarioEcuadorId);
+    if (needNg && (!this.recepcionToNucleoId || !this.recepcionToGalponId)) {
+      this.openAlertModal('error', 'Validación', 'Para alimento indique Núcleo y Galpón de recepción en la granja destino.');
+      return;
+    }
+    if (!needNg && (this.recepcionToNucleoId || this.recepcionToGalponId)) {
+      this.openAlertModal('error', 'Validación', 'Para ítems no alimento la recepción es solo a nivel granja (sin Núcleo/Galpón).');
+      return;
+    }
+    const detalle =
+      row.pendienteDespachoOrigen === false
+        ? ' El origen ya fue descontado con el envío anterior; solo se suma stock en destino.'
+        : ' Se descontará el stock en la granja origen y se ingresará en destino.';
+    this.openConfirmModal(
+      'Confirmar recepción',
+      `¿Registrar ingreso en ${row.toGranjaNombre ?? 'granja destino'} por la cantidad indicada?${detalle}`,
+      'recepcionTransito'
+    );
+  }
+
+  /** Rechazo solo aplica a solicitudes nuevas (aún no descontadas en origen). */
+  solicitarRechazoTransito(row: InventarioGestionTransitoPendienteDto): void {
+    if (row.pendienteDespachoOrigen === false) {
+      this.openAlertModal(
+        'error',
+        'No aplica',
+        'Este envío ya descontó stock en origen. Use recepción para completar el ingreso en destino.'
+      );
+      return;
+    }
+    this.pendingRejectRow = row;
+    this.openConfirmModal(
+      'Rechazar solicitud',
+      'No se descontará stock en la granja origen. ¿Rechazar esta solicitud de traslado?',
+      'rechazoTransito'
+    );
+  }
+
+  private doRechazoTransito(): void {
+    const row = this.pendingRejectRow;
+    this.pendingRejectRow = null;
+    if (!row?.transferGroupId) return;
+    this.submittingRechazo = true;
+    this.svc.rechazarTransito({ transferGroupId: row.transferGroupId, reason: null }).subscribe({
+      next: () => {
+        this.submittingRechazo = false;
+        this.openAlertModal('success', 'Listo', 'Solicitud rechazada. El inventario en origen no se modificó.');
+        this.loadTransitos();
+        if (this.recepcionPendiente?.transferGroupId === row.transferGroupId) this.cancelRecepcion();
+      },
+      error: (err) => {
+        this.submittingRechazo = false;
+        this.openAlertModal('error', 'Error', err.error?.message || 'No se pudo rechazar.');
+      }
+    });
+  }
+
+  private doRecepcionTransito(): void {
+    const row = this.recepcionPendiente;
+    if (!row?.transferGroupId) return;
+    const needNg = this.recepcionNeedsNucleoGalpon(row.itemInventarioEcuadorId);
+    this.submittingRecepcion = true;
+    this.svc
+      .registrarRecepcionTransito({
+        transferGroupId: row.transferGroupId,
+        toFarmId: row.toFarmId,
+        toNucleoId: needNg ? this.recepcionToNucleoId : null,
+        toGalponId: needNg ? this.recepcionToGalponId : null
+      })
+      .subscribe({
+        next: () => {
+          this.submittingRecepcion = false;
+          this.cancelRecepcion();
+          this.openAlertModal('success', 'Listo', 'Recepción registrada. El inventario ya figura en destino.');
+          this.loadTransitos();
+          this.loadStock();
+        },
+        error: (err) => {
+          this.submittingRecepcion = false;
+          this.openAlertModal('error', 'Error', err.error?.message || 'Error al registrar recepción.');
+        }
+      });
+  }
+
+  recepcionNucleosForFarm(farmId: number): { nucleoId: string; nucleoNombre: string }[] {
+    if (!this.filterData) return [];
+    return this.filterData.nucleosDestino
+      .filter(n => n.granjaId === farmId)
+      .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+  }
+
+  recepcionGalponesForFarm(farmId: number): { galponId: string; galponNombre: string }[] {
+    if (!this.filterData) return [];
+    return this.filterData.galponesDestino
+      .filter(g => g.granjaId === farmId && (!this.recepcionToNucleoId || g.nucleoId === this.recepcionToNucleoId))
+      .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+  }
+
+  onRecepcionNucleoChange(): void {
+    this.recepcionToGalponId = null;
+  }
+
   private doTraslado(): void {
     this.submittingTraslado = true;
+    const inter = this.trasladoModo === 'interGranja';
+    let toNucleo: string | null = null;
+    let toGalpon: string | null = null;
+    if (this.showNucleoGalpon) {
+      if (inter) {
+        toNucleo = this.toNucleoId?.trim() ? this.toNucleoId : null;
+        toGalpon = this.toGalponId?.trim() ? this.toGalponId : null;
+      } else {
+        toNucleo = this.toNucleoId;
+        toGalpon = this.toGalponId;
+      }
+    }
     this.svc.registrarTraslado({
       fromFarmId: this.fromFarmId!,
       fromNucleoId: this.showNucleoGalpon ? this.fromNucleoId : null,
       fromGalponId: this.showNucleoGalpon ? this.fromGalponId : null,
       toFarmId: this.toFarmId!,
-      toNucleoId: this.showNucleoGalpon ? this.toNucleoId : null,
-      toGalponId: this.showNucleoGalpon ? this.toGalponId : null,
+      toNucleoId: toNucleo,
+      toGalponId: toGalpon,
       itemInventarioEcuadorId: this.trasladoItemInventarioEcuadorId!,
       quantity: this.trasladoQuantity,
       unit: this.trasladoSelectedUnit === '—' ? 'kg' : this.trasladoSelectedUnit,
@@ -497,11 +912,16 @@ export class GestionInventarioPageComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.submittingTraslado = false;
-        this.openAlertModal('success', 'Listo', 'Traslado registrado correctamente.');
+        const ok =
+          this.trasladoModo === 'interGranja'
+            ? 'Solicitud enviada. El stock en origen no se descuenta hasta que la granja destino confirme en la pestaña Tránsito.'
+            : 'Traslado registrado correctamente.';
+        this.openAlertModal('success', 'Listo', ok);
         this.trasladoQuantity = 0;
         this.trasladoReference = '';
         this.trasladoReason = '';
         this.loadStock();
+        if (this.trasladoModo === 'interGranja') this.loadTransitos();
       },
       error: (err) => {
         this.submittingTraslado = false;
