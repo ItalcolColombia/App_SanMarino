@@ -37,33 +37,83 @@
             <option *ngFor="let c of filterCompanyOptions" [ngValue]="c.id">{{ c.label }}</option>
           </select>
         </div>
-        <div class="le-field">
-          <label for="le-farm" class="le-label">Granja</label>
-          <select id="le-farm" class="le-select" [(ngModel)]="selectedFarmId" (ngModelChange)="onFarmChangeList($event)">
-            <option [ngValue]="null">Todas</option>
-            <option *ngFor="let f of filterFarmOptions" [ngValue]="f.id">{{ f.name }}</option>
-          </select>
-        </div>
-        <div class="le-field">
-          <label for="le-nucleo" class="le-label">Núcleo</label>
-          <select id="le-nucleo" class="le-select" [(ngModel)]="selectedNucleoId" (ngModelChange)="onNucleoChangeList($event)">
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let n of filterNucleoOptions" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-          </select>
-        </div>
-        <div class="le-field">
-          <label for="le-galpon" class="le-label">Galpón</label>
-          <select id="le-galpon" class="le-select" [(ngModel)]="selectedGalponId" (ngModelChange)="recomputeList()">
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let g of filterGalponOptions" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-          </select>
+
+        <!-- Ubicación en cascada: granja → núcleo → galpón -->
+        <div class="le-field le-field--cascade-block" role="group" aria-labelledby="le-cascade-title">
+          <div class="le-cascade-header">
+            <span id="le-cascade-title" class="le-label le-label--section">Ubicación</span>
+            <span class="le-cascade-badge">Paso a paso</span>
+          </div>
+          <p class="le-hint le-hint--filters" id="le-cascade-hint">
+            Elija <strong>granja</strong>; luego el <strong>núcleo</strong> de esa granja; después el <strong>galpón</strong> ligado a ese núcleo.
+          </p>
+          <div class="le-cascade-row">
+            <div class="le-field le-field--cascade">
+              <label for="le-farm" class="le-label">
+                <span class="le-cascade-step">1</span>
+                Granja
+              </label>
+              <select
+                id="le-farm"
+                class="le-select"
+                [(ngModel)]="selectedFarmId"
+                (ngModelChange)="onFarmChangeList($event)"
+                aria-describedby="le-cascade-hint"
+              >
+                <option [ngValue]="null">Todas</option>
+                <option *ngFor="let f of filterFarmOptionsScoped" [ngValue]="f.id">{{ f.name }}</option>
+              </select>
+            </div>
+            <span class="le-cascade-arrow" aria-hidden="true" title="Luego">→</span>
+            <div class="le-field le-field--cascade">
+              <label for="le-nucleo" class="le-label">
+                <span class="le-cascade-step">2</span>
+                Núcleo
+              </label>
+              <select
+                id="le-nucleo"
+                class="le-select"
+                [(ngModel)]="selectedNucleoId"
+                (ngModelChange)="onNucleoChangeList($event)"
+                [disabled]="selectedFarmId == null"
+                [attr.aria-disabled]="selectedFarmId == null"
+              >
+                <option [ngValue]="null">{{ selectedFarmId == null ? '— Seleccione granja —' : 'Todos los núcleos' }}</option>
+                <option *ngFor="let n of listFilterNucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+              </select>
+            </div>
+            <span class="le-cascade-arrow" aria-hidden="true">→</span>
+            <div class="le-field le-field--cascade">
+              <label for="le-galpon" class="le-label">
+                <span class="le-cascade-step">3</span>
+                Galpón
+              </label>
+              <select
+                id="le-galpon"
+                class="le-select"
+                [(ngModel)]="selectedGalponId"
+                (ngModelChange)="recomputeList()"
+                [disabled]="selectedFarmId == null || selectedNucleoId == null"
+                [attr.aria-disabled]="selectedFarmId == null || selectedNucleoId == null"
+              >
+                <option [ngValue]="null">{{
+                  selectedFarmId == null
+                    ? '— Primero granja —'
+                    : selectedNucleoId == null
+                      ? '— Seleccione núcleo —'
+                      : 'Todos los galpones'
+                }}</option>
+                <option *ngFor="let g of listFilterGalpones" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="le-field le-field--search">
           <label for="le-filter" class="le-label">Buscar</label>
           <div class="le-search">
             <fa-icon [icon]="faMagnifyingGlass" class="le-search__icon" aria-hidden="true"></fa-icon>
             <input id="le-filter" type="text" [(ngModel)]="filtro" (ngModelChange)="recomputeList()"
-                   placeholder="Por nombre, granja, núcleo…" class="le-input" aria-label="Buscar lote de engorde"/>
+                   placeholder="Por nombre, ERP lot, granja, núcleo…" class="le-input" aria-label="Buscar lote de engorde"/>
           </div>
         </div>
         <div class="le-field le-field--sort">
@@ -105,6 +155,7 @@
             <tr>
               <th scope="col">ID</th>
               <th scope="col">Nombre</th>
+              <th scope="col">ERP lot</th>
               <th scope="col">Granja</th>
               <th scope="col">Núcleo</th>
               <th scope="col">Galpón</th>
@@ -122,6 +173,7 @@
             <tr *ngFor="let l of viewLotes; trackBy: trackByLote" class="le-table__row">
               <td>{{ l.loteAveEngordeId }}</td>
               <td><span class="le-table__cell-name">{{ l.loteNombre }}</span></td>
+              <td>{{ l.loteErp || '—' }}</td>
               <td>{{ l.farm?.name ?? '—' }}</td>
               <td>{{ l.nucleo?.nucleoNombre ?? '—' }}</td>
               <td>{{ l.galpon?.galponNombre ?? '—' }}</td>
@@ -147,7 +199,7 @@
               </td>
             </tr>
             <tr *ngIf="!loading && viewLotes.length === 0">
-              <td colspan="13" class="le-empty">
+              <td colspan="14" class="le-empty">
                 <div class="le-empty__icon" aria-hidden="true">📦</div>
                 <p class="le-empty__text">No hay lotes de engorde que coincidan con los filtros.</p>
                 <button type="button" (click)="openModal()" class="le-btn le-btn--secondary">

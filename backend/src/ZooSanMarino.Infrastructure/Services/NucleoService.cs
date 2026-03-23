@@ -194,6 +194,27 @@ namespace ZooSanMarino.Infrastructure.Services
         // ===========================
         // COMPAT
         // ===========================
+
+        /// <inheritdoc />
+        public async Task<IEnumerable<NucleoDto>> GetByFarmIdsForCompanyAsync(IReadOnlyList<int> farmIds, int companyId, CancellationToken ct = default)
+        {
+            if (farmIds == null || farmIds.Count == 0)
+                return Array.Empty<NucleoDto>();
+
+            return await _ctx.Nucleos.AsNoTracking()
+                .Where(n => n.DeletedAt == null && n.CompanyId == companyId && farmIds.Contains(n.GranjaId))
+                .OrderBy(n => n.NucleoNombre)
+                .Select(n => new NucleoDto(
+                    n.NucleoId,
+                    n.GranjaId,
+                    n.NucleoNombre,
+                    _ctx.Farms.Where(f => f.Id == n.GranjaId).Select(f => f.Name).FirstOrDefault(),
+                    _ctx.Companies.Where(c => c.Id == n.CompanyId).Select(c => c.Name).FirstOrDefault(),
+                    n.CompanyId
+                ))
+                .ToListAsync(ct);
+        }
+
         public async Task<IEnumerable<NucleoDto>> GetAllAsync()
         {
             IQueryable<Nucleo> q = _ctx.Nucleos.AsNoTracking().Where(n => n.DeletedAt == null);

@@ -1,7 +1,7 @@
 // API para Seguimiento Diario Aves de Engorde (seguimiento_diario tipo = 'engorde'). Misma forma que SeguimientoLoteLevante.
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -10,16 +10,19 @@ namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 [Produces("application/json")]
 public class SeguimientoAvesEngordeController : ControllerBase
 {
     private readonly ISeguimientoAvesEngordeService _svc;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ISeguimientoAvesEngordeFilterDataService _filterDataSvc;
 
-    public SeguimientoAvesEngordeController(ISeguimientoAvesEngordeService svc, IServiceScopeFactory scopeFactory)
+    public SeguimientoAvesEngordeController(
+        ISeguimientoAvesEngordeService svc,
+        ISeguimientoAvesEngordeFilterDataService filterDataSvc)
     {
         _svc = svc;
-        _scopeFactory = scopeFactory;
+        _filterDataSvc = filterDataSvc;
     }
 
     /// <summary>Datos para filtros en cascada (Granja → Núcleo → Galpón → Lote). Lotes = lote_ave_engorde (no lotes levante).</summary>
@@ -27,9 +30,7 @@ public class SeguimientoAvesEngordeController : ControllerBase
     [ProducesResponseType(typeof(LoteReproductoraFilterDataDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<LoteReproductoraFilterDataDto>> GetFilterData(CancellationToken ct = default)
     {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var filterDataSvc = scope.ServiceProvider.GetRequiredService<ISeguimientoAvesEngordeFilterDataService>();
-        var data = await filterDataSvc.GetFilterDataAsync(ct);
+        var data = await _filterDataSvc.GetFilterDataAsync(ct);
         return Ok(data);
     }
 

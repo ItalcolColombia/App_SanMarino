@@ -22,7 +22,10 @@ import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lot
     .layout {
       display: flex;
       min-height: 100vh;
+      min-height: 100dvh;
+      min-height: -webkit-fill-available;
       width: 100%;
+      max-width: 100%;
       overflow: hidden;
     }
     .layout__sidebar {
@@ -32,6 +35,7 @@ import { LoteEngordeListComponent } from '../../components/lote-engorde-list/lot
     .layout__main {
       flex: 1;
       min-width: 0;
+      min-height: 0;
       overflow: auto;
     }
   `]

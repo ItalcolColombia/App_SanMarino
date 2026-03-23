@@ -212,7 +212,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       loteNombre: l.loteNombre,
       granjaId: l.granjaId,
       nucleoId: l.nucleoId ?? undefined,
-      galponId: l.galponId ?? undefined
+      galponId: l.galponId ?? undefined,
+      loteErp: l.loteErp ?? undefined
     })) as LoteDto[];
     (data.galpones ?? []).forEach(g => {
       if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());

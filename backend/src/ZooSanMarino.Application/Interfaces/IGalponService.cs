@@ -11,6 +11,11 @@ public interface IGalponService
     // ─────────────────────────────────────────────────────────────────────────────
     // CRUD / LISTADOS con detalle consistente (lo que consume el GalponController)
     // ─────────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Galpones de la empresa y solo de las granjas indicadas (sin bypass de admin / todo el país).
+    /// </summary>
+    Task<IEnumerable<GalponDetailDto>> GetByFarmIdsForCompanyAsync(IReadOnlyList<int> farmIds, int companyId, CancellationToken ct = default);
+
     Task<IEnumerable<GalponDetailDto>> GetAllAsync();
     Task<GalponDetailDto?>             GetByIdAsync(string galponId);
     Task<IEnumerable<GalponDetailDto>> GetByGranjaAsync(int granjaId);

@@ -13,7 +13,7 @@ export interface FilterDataResponse {
   farms: FarmDto[];
   nucleos: NucleoDto[];
   galpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }>;
-  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId: string | null; galponId: string | null }>;
+  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId: string | null; galponId: string | null; loteErp?: string | null }>;
 }
 
 @Component({
@@ -103,7 +103,8 @@ export class FiltroSelectComponent implements OnInit {
           loteNombre: l.loteNombre,
           granjaId: l.granjaId,
           nucleoId: l.nucleoId ?? undefined,
-          galponId: l.galponId ?? undefined
+          galponId: l.galponId ?? undefined,
+          loteErp: l.loteErp ?? undefined
         })) as LoteDto[];
         this.galponNameById.clear();
         (data.galpones ?? []).forEach(g => {
@@ -410,7 +411,13 @@ export class FiltroSelectComponent implements OnInit {
 
   get selectedLoteNombre(): string {
     const l = this.lotes.find(x => x.loteId === this.selectedLoteId);
-    return l?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
+    return this.formatLoteLabel(l);
+  }
+
+  formatLoteLabel(l?: LoteDto | null): string {
+    if (!l) return '—';
+    const erp = (l.loteErp ?? '').toString().trim();
+    return erp ? `${l.loteNombre} - ERP: ${erp}` : (l.loteNombre || String(l.loteId));
   }
 
   // ================== TRACK BY FUNCTIONS ==================

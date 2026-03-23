@@ -93,9 +93,8 @@ export class LoteEngordeListComponent implements OnInit {
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
   filterCompanyOptions: { id: number; label: string }[] = [];
+  /** Granjas que aparecen en los lotes cargados (ordenadas por nombre). */
   filterFarmOptions: { id: number; name: string }[] = [];
-  filterNucleoOptions: { nucleoId: string; nucleoNombre: string }[] = [];
-  filterGalponOptions: { galponId: string; galponNombre: string }[] = [];
 
   confirmOpen = false;
   confirmData: ConfirmationModalData = {
@@ -230,23 +229,88 @@ export class LoteEngordeListComponent implements OnInit {
   private buildFilterOptionsFromLotes(): void {
     const companies = new Map<number, string>();
     const farms = new Map<number, string>();
-    const nucleos = new Map<string, string>();
-    const galpones = new Map<string, string>();
     for (const l of this.lotes) {
       if (l.companyId != null) companies.set(l.companyId, `Compañía ${l.companyId}`);
       if (l.farm?.id != null) farms.set(l.farm.id, l.farm.name ?? '');
-      if (l.nucleo?.nucleoId) nucleos.set(l.nucleo.nucleoId, l.nucleo.nucleoNombre ?? l.nucleo.nucleoId);
-      if (l.galpon?.galponId) galpones.set(l.galpon.galponId, l.galpon.galponNombre ?? l.galpon.galponId);
     }
-    this.filterCompanyOptions = Array.from(companies.entries()).map(([id, label]) => ({ id, label }));
-    this.filterFarmOptions = Array.from(farms.entries()).map(([id, name]) => ({ id, name }));
-    this.filterNucleoOptions = Array.from(nucleos.entries()).map(([nucleoId, nucleoNombre]) => ({ nucleoId, nucleoNombre }));
-    this.filterGalponOptions = Array.from(galpones.entries()).map(([galponId, galponNombre]) => ({ galponId, galponNombre }));
+    this.filterCompanyOptions = Array.from(companies.entries())
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+    this.filterFarmOptions = Array.from(farms.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
   }
 
-  onCompanyChangeList(_val: number | null) { this.recomputeList(); }
-  onFarmChangeList(_val: number | null) { this.recomputeList(); }
-  onNucleoChangeList(_val: string | null) { this.recomputeList(); }
+  /** Lotes ya filtrados por compañía (si aplica). Núcleo/galpón en cascada se derivan de aquí. */
+  private lotesAfterCompanyFilter(): LoteAveEngordeDto[] {
+    if (this.selectedCompanyId == null) return this.lotes;
+    return this.lotes.filter(l => (l.companyId ?? null) === this.selectedCompanyId);
+  }
+
+  /** Granjas disponibles según compañía elegida. */
+  get filterFarmOptionsScoped(): { id: number; name: string }[] {
+    if (this.selectedCompanyId == null) return this.filterFarmOptions;
+    const ids = new Set<number>();
+    for (const l of this.lotes) {
+      if ((l.companyId ?? null) === this.selectedCompanyId && l.farm?.id != null) {
+        ids.add(l.farm.id);
+      }
+    }
+    return this.filterFarmOptions.filter(f => ids.has(f.id));
+  }
+
+  /** Núcleos que existen en lotes de la granja seleccionada (tras filtro de compañía). */
+  get listFilterNucleos(): { nucleoId: string; nucleoNombre: string }[] {
+    if (this.selectedFarmId == null) return [];
+    const map = new Map<string, string>();
+    for (const l of this.lotesAfterCompanyFilter()) {
+      if (l.granjaId !== this.selectedFarmId) continue;
+      const nid = (l.nucleoId ?? l.nucleo?.nucleoId)?.trim();
+      if (!nid) continue;
+      const name = (l.nucleo?.nucleoNombre ?? nid).trim();
+      map.set(nid, name);
+    }
+    return Array.from(map.entries())
+      .map(([nucleoId, nucleoNombre]) => ({ nucleoId, nucleoNombre }))
+      .sort((a, b) => (a.nucleoNombre || '').localeCompare(b.nucleoNombre || '', 'es'));
+  }
+
+  /** Galpones en lotes de granja + núcleo seleccionados. */
+  get listFilterGalpones(): { galponId: string; galponNombre: string }[] {
+    if (this.selectedFarmId == null || this.selectedNucleoId == null) return [];
+    const map = new Map<string, string>();
+    const selNucleo = String(this.selectedNucleoId);
+    for (const l of this.lotesAfterCompanyFilter()) {
+      if (l.granjaId !== this.selectedFarmId) continue;
+      const nid = String(l.nucleoId ?? l.nucleo?.nucleoId ?? '');
+      if (nid !== selNucleo) continue;
+      const gid = (l.galponId ?? l.galpon?.galponId)?.trim();
+      if (!gid) continue;
+      const name = (l.galpon?.galponNombre ?? gid).trim();
+      map.set(gid, name);
+    }
+    return Array.from(map.entries())
+      .map(([galponId, galponNombre]) => ({ galponId, galponNombre }))
+      .sort((a, b) => (a.galponNombre || '').localeCompare(b.galponNombre || '', 'es'));
+  }
+
+  onCompanyChangeList(_val: number | null): void {
+    this.selectedFarmId = null;
+    this.selectedNucleoId = null;
+    this.selectedGalponId = null;
+    this.recomputeList();
+  }
+
+  onFarmChangeList(_val: number | null): void {
+    this.selectedNucleoId = null;
+    this.selectedGalponId = null;
+    this.recomputeList();
+  }
+
+  onNucleoChangeList(_val: string | null): void {
+    this.selectedGalponId = null;
+    this.recomputeList();
+  }
   resetListFilters(): void {
     this.filtro = '';
     this.selectedCompanyId = null;
@@ -271,6 +335,7 @@ export class LoteEngordeListComponent implements OnInit {
         const haystack = [
           l.loteAveEngordeId ?? 0,
           l.loteNombre ?? '',
+          l.loteErp ?? '',
           l.farm?.name ?? '',
           l.nucleo?.nucleoNombre ?? '',
           l.galpon?.galponNombre ?? ''
