@@ -89,6 +89,10 @@ export class GestionInventarioPageComponent implements OnInit {
   ingresoOrigenBodegaTexto = '';
   ingresoItems: ItemInventarioEcuadorDto[] = [];
   submittingIngreso = false;
+  /** Fecha del ingreso (yyyy-MM-dd) para el histórico; se define en el modal. */
+  ingresoFechaMovimiento = '';
+  showIngresoFechaModal = false;
+  ingresoFechaDraft = '';
 
   // Form traslado
   fromFarmId: number | null = null;
@@ -138,6 +142,7 @@ export class GestionInventarioPageComponent implements OnInit {
   constructor(private svc: GestionInventarioService) {}
 
   ngOnInit(): void {
+    this.ingresoFechaMovimiento = this.todayYmd();
     this.loadFilterData();
     this.loadCatalogItems();
   }
@@ -187,6 +192,13 @@ export class GestionInventarioPageComponent implements OnInit {
     if (!iso) return '—';
     const d = new Date(iso);
     return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es', { dateStyle: 'short' }) + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /** Fecha de ingreso en la grilla de stock (solo fecha, sin hora). */
+  formatFechaIngresoStock(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('es', { dateStyle: 'long' });
   }
 
   /** Ubicación del movimiento (granja de registro + núcleo/galpón si aplica). */
@@ -460,6 +472,10 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   submitIngreso(): void {
+    if (!this.ingresoFechaMovimiento?.trim()) {
+      this.openAlertModal('error', 'Validación', 'Indique la fecha del movimiento.');
+      return;
+    }
     if (this.ingresoFarmId == null || this.ingresoItemInventarioEcuadorId == null || this.ingresoQuantity <= 0) {
       this.openAlertModal('error', 'Validación', 'Complete granja, ítem y cantidad.');
       return;
@@ -695,6 +711,42 @@ export class GestionInventarioPageComponent implements OnInit {
     if (action === 'recepcionTransito') this.doRecepcionTransito();
   }
 
+  private todayYmd(): string {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+
+  /** Texto legible para la fecha de ingreso seleccionada. */
+  formatIngresoFechaDisplay(): string {
+    const ymd = (this.ingresoFechaMovimiento ?? '').trim();
+    if (!ymd) return '—';
+    const [y, m, day] = ymd.split('-').map(Number);
+    if (!y || !m || !day) return ymd;
+    const dt = new Date(y, m - 1, day);
+    return isNaN(dt.getTime()) ? ymd : dt.toLocaleDateString('es', { dateStyle: 'long' });
+  }
+
+  openIngresoFechaModal(): void {
+    this.ingresoFechaDraft = this.ingresoFechaMovimiento?.trim() || this.todayYmd();
+    this.showIngresoFechaModal = true;
+  }
+
+  closeIngresoFechaModal(): void {
+    this.showIngresoFechaModal = false;
+  }
+
+  confirmIngresoFechaModal(): void {
+    const d = (this.ingresoFechaDraft ?? '').trim();
+    if (!d) {
+      this.openAlertModal('error', 'Validación', 'Seleccione una fecha.');
+      return;
+    }
+    this.ingresoFechaMovimiento = d;
+    this.showIngresoFechaModal = false;
+  }
+
   openAlertModal(type: 'success' | 'error', title: string, text: string): void {
     this.alertType = type;
     this.alertTitle = title;
@@ -743,7 +795,8 @@ export class GestionInventarioPageComponent implements OnInit {
       reason,
       origenTipo: tipoOrigen,
       origenFarmId: esAlimento && (tipoOrigen === 'granja' || tipoOrigen === 'bodega') ? this.ingresoOrigenFarmId : null,
-      origenBodegaDescripcion: esAlimento && tipoOrigen === 'bodega' ? (this.ingresoOrigenBodegaTexto || null) : null
+      origenBodegaDescripcion: esAlimento && tipoOrigen === 'bodega' ? (this.ingresoOrigenBodegaTexto || null) : null,
+      fechaMovimiento: this.ingresoFechaMovimiento?.trim() || null
     }).subscribe({
       next: () => {
         this.submittingIngreso = false;
@@ -752,6 +805,7 @@ export class GestionInventarioPageComponent implements OnInit {
         this.ingresoReference = '';
         this.ingresoReason = '';
         this.ingresoOrigenBodegaTexto = '';
+        this.ingresoFechaMovimiento = this.todayYmd();
         this.loadStock();
       },
       error: (err) => {

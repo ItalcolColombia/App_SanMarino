@@ -434,6 +434,31 @@
   overflow: auto;
 }
 
+.ingreso-fecha-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ingreso-fecha-display {
+  flex: 1;
+  min-width: 12rem;
+}
+
+button.ingreso-fecha-trigger {
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  width: auto;
+  max-width: 100%;
+}
+
+button.ingreso-fecha-trigger:hover {
+  border-color: var(--ital-orange, #e8a06a);
+}
+
 @media (max-width: 900px) {
   .filters-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid { grid-template-columns: 1fr; }

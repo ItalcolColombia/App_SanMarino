@@ -78,14 +78,48 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   }
 
   // ================== CALCULO DE EDAD ==================
+  /**
+   * Edad del lote en la fecha del registro (días de calendario desde encasetamiento).
+   * El mismo día del encasetamiento = 0; no usa ceil ni zona UTC sobre la cadena ISO.
+   */
   calcularEdadDias(fechaRegistro: string | Date): number {
     if (!this.selectedLote?.fechaEncaset) return 0;
+    const encYmd = this.toYMD(this.selectedLote.fechaEncaset);
+    const regYmd = this.toYMD(fechaRegistro);
+    if (!encYmd || !regYmd) return 0;
+    const MS_DAY = 24 * 60 * 60 * 1000;
+    const enc = this.ymdToLocalNoonDate(encYmd);
+    const reg = this.ymdToLocalNoonDate(regYmd);
+    if (!enc || !reg) return 0;
+    const diff = Math.floor((reg.getTime() - enc.getTime()) / MS_DAY);
+    return Math.max(0, diff);
+  }
 
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
-    const fechaReg = new Date(fechaRegistro);
-    const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  private toYMD(input: string | Date | null | undefined): string | null {
+    if (input == null || input === '') return null;
+    if (input instanceof Date && !isNaN(input.getTime())) {
+      return `${input.getFullYear()}-${String(input.getMonth() + 1).padStart(2, '0')}-${String(input.getDate()).padStart(2, '0')}`;
+    }
+    const s = String(input).trim();
+    const head = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (head) return `${head[1]}-${head[2]}-${head[3]}`;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return null;
+  }
 
-    return Math.max(1, diffDays);
+  private ymdToLocalNoonDate(ymd: string | null): Date | null {
+    if (!ymd) return null;
+    const d = new Date(`${ymd}T12:00:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  formatDMY(input: string | Date | null | undefined): string {
+    const ymd = this.toYMD(input);
+    if (!ymd) return '';
+    const [y, m, d] = ymd.split('-');
+    return `${d}/${m}/${y}`;
   }
 }

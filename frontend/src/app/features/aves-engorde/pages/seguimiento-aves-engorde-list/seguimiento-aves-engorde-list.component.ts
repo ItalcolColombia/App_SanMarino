@@ -529,13 +529,18 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     return this.galponNameById.get((this.selectedGalponId ?? '').trim()) || (this.selectedGalponId ?? '');
   }
 
+  /**
+   * Días transcurridos desde la fecha de encasetamiento hasta hoy (calendario local).
+   * El día del encasetamiento es edad 0; al día siguiente es 1.
+   */
   calcularEdadDias(fechaEncaset?: string | Date | null): number {
     const encYmd = this.toYMD(fechaEncaset);
     const enc = this.ymdToLocalNoonDate(encYmd);
     if (!enc) return 0;
     const MS_DAY = 24 * 60 * 60 * 1000;
-    const now = this.ymdToLocalNoonDate(this.todayYMD())!;
-    return Math.max(1, Math.floor((now.getTime() - enc.getTime()) / MS_DAY) + 1);
+    const hoy = this.ymdToLocalNoonDate(this.todayYMD())!;
+    const diff = Math.floor((hoy.getTime() - enc.getTime()) / MS_DAY);
+    return Math.max(0, diff);
   }
 
   private hasValue(v: unknown): boolean {
@@ -567,15 +572,18 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
+  /**
+   * Normaliza a YYYY-MM-DD. Para ISO con hora/Z (UTC), usa los primeros 10 caracteres
+   * para no cambiar el día al interpretar en zona local (evita mostrar un día antes/después).
+   */
   private toYMD(input: string | Date | null | undefined): string | null {
     if (!input) return null;
     if (input instanceof Date && !isNaN(input.getTime())) {
       return `${input.getFullYear()}-${String(input.getMonth() + 1).padStart(2, '0')}-${String(input.getDate()).padStart(2, '0')}`;
     }
     const s = String(input).trim();
-    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/;
-    const m1 = s.match(ymd);
-    if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
+    const head = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (head) return `${head[1]}-${head[2]}-${head[3]}`;
     const d = new Date(s);
     if (!isNaN(d.getTime())) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

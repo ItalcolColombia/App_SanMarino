@@ -41,8 +41,9 @@
   <section *ngIf="activeTab === 'stock'" class="tab-content">
     <div class="card-italfoods filters">
       <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
-      <p class="hint field-full" style="margin: 0 0 0.5rem 0">
+        <p class="hint field-full" style="margin: 0 0 0.5rem 0">
         El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
+        <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
       </p>
       <div class="card-italfoods__body filters-grid">
         <div class="field">
@@ -98,6 +99,7 @@
             <th>Código</th>
             <th>Producto</th>
             <th>Tipo</th>
+            <th>Fecha de ingreso</th>
             <th>Cantidad</th>
             <th>Unidad</th>
           </tr>
@@ -110,6 +112,7 @@
             <td>{{ s.itemCodigo }}</td>
             <td>{{ s.itemNombre }}</td>
             <td>{{ s.itemType }}</td>
+            <td>{{ formatFechaIngresoStock(s.fechaIngreso) }}</td>
             <td>{{ s.quantity }}</td>
             <td>{{ s.unit }}</td>
           </tr>
@@ -134,6 +137,20 @@
           <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
             <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
           </select>
+        </div>
+        <div class="field field-full">
+          <label class="form-label">Fecha del movimiento *</label>
+          <div class="ingreso-fecha-row">
+            <button
+              type="button"
+              class="form-input form-input--readonly ingreso-fecha-display ingreso-fecha-trigger"
+              (click)="openIngresoFechaModal()"
+            >
+              {{ formatIngresoFechaDisplay() }}
+            </button>
+            <button type="button" class="btn-italfoods-secondary" (click)="openIngresoFechaModal()">Elegir fecha</button>
+          </div>
+          <small class="hint" style="display: block; margin-top: 0.35rem">Se usa como fecha del registro en el histórico de movimientos.</small>
         </div>
         <p *ngIf="showNucleoGalpon" class="hint field-full" style="margin: 0">
           <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Los ingresos de alimento quedan a nivel galpón.
@@ -644,6 +661,25 @@
     <div class="modal-italfoods__footer">
       <button type="button" class="btn-italfoods-secondary" (click)="closeConfirmModal()">Cancelar</button>
       <button type="button" class="btn-italfoods-primary" (click)="confirm()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Fecha del ingreso -->
+<div class="modal-backdrop" *ngIf="showIngresoFechaModal" (click)="closeIngresoFechaModal()" aria-hidden="true"></div>
+<div class="modal-shell" *ngIf="showIngresoFechaModal" role="dialog" aria-modal="true" aria-label="Fecha del movimiento">
+  <div class="modal-italfoods" (click)="$event.stopPropagation()">
+    <div class="modal-italfoods__header">
+      <div>Fecha del movimiento</div>
+      <button type="button" class="icon-btn" (click)="closeIngresoFechaModal()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-italfoods__body">
+      <label class="form-label" for="ingreso-fecha-input">Fecha</label>
+      <input id="ingreso-fecha-input" class="form-input" type="date" [(ngModel)]="ingresoFechaDraft" />
+    </div>
+    <div class="modal-italfoods__footer">
+      <button type="button" class="btn-italfoods-secondary" (click)="closeIngresoFechaModal()">Cancelar</button>
+      <button type="button" class="btn-italfoods-primary" (click)="confirmIngresoFechaModal()">Aceptar</button>
     </div>
   </div>
 </div>
