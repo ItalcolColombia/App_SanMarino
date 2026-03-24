@@ -33,7 +33,9 @@ public sealed record InventarioGestionStockDto(
     string Unit,
     string? GranjaNombre = null,
     string? NucleoNombre = null,
-    string? GalponNombre = null
+    string? GalponNombre = null,
+    /// <summary>Fecha en que se creó el registro de stock en esta ubicación (primera vez que hubo existencia).</summary>
+    DateTimeOffset? FechaIngreso = null
 );
 
 /// <summary>Request para registrar un ingreso. ItemInventarioEcuadorId referencia a config/item-inventario-ecuador.</summary>
@@ -51,7 +53,9 @@ public sealed record InventarioGestionIngresoRequest(
     /// <summary>Si OrigenTipo es "granja", granja de procedencia (debe ser distinta a FarmId).</summary>
     int? OrigenFarmId = null,
     /// <summary>Si OrigenTipo es "bodega", texto opcional (nombre/referencia de la bodega de procedencia).</summary>
-    string? OrigenBodegaDescripcion = null
+    string? OrigenBodegaDescripcion = null,
+    /// <summary>Fecha del movimiento en histórico (solo día). Si es null, se usa la fecha/hora actual del servidor.</summary>
+    DateTime? FechaMovimiento = null
 );
 
 /// <summary>Request para registrar un traslado.</summary>

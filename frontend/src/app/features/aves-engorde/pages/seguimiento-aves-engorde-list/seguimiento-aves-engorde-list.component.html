@@ -93,7 +93,7 @@
             <dt>Nombre</dt>
             <dd>{{ selectedLote.loteNombre }}</dd>
             <dt>Fecha encasetamiento</dt>
-            <dd>{{ selectedLote.fechaEncaset | date:'dd/MM/yyyy' }}</dd>
+            <dd>{{ formatDMY(selectedLote.fechaEncaset) }}</dd>
             <dt>Aves encasetadas</dt>
             <dd>{{ (selectedLote.avesEncasetadas ?? 0) | number:'1.0-0' }}</dd>
           </dl>
