@@ -133,7 +133,7 @@
                 </tr>
 
                 <tr *ngFor="let s of seguimientos" class="ux-row">
-                  <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ formatDMY(s.fechaRegistro) }}</td>
                   <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
                   <td>{{ s.mortalidadHembras }}</td>
                   <td>{{ s.mortalidadMachos }}</td>

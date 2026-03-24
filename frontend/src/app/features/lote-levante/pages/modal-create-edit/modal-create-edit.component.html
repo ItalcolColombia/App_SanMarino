@@ -12,6 +12,9 @@
       <div class="ux-panel-stack">
           <!-- GENERAL -->
           <section class="ux-panel-section">
+            <p class="ux-hint" *ngIf="camposCalculoBloqueadosEnEdicion" style="margin: 0 0 1rem 0;">
+              En edición no puede modificar <strong>alimento</strong>, <strong>mortalidad</strong>, <strong>selección</strong> ni <strong>error de sexaje</strong>. Puede actualizar fecha, lote, observaciones, peso, uniformidad, agua y demás campos del registro.
+            </p>
             <div class="grid grid-2">
               <div class="form-field">
                 <label for="f-fecha">Fecha</label>
@@ -44,12 +47,12 @@
 
               <div>
                 <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 0.75rem;">
-                  <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()">+ Agregar alimento</button>
+                  <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()" [disabled]="camposCalculoBloqueadosEnEdicion">+ Agregar alimento</button>
                 </div>
                   <div *ngFor="let itemH of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemH)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; background: #fff;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                       <small style="font-weight: 700; color: #57534e;">Alimento {{ i + 1 }}</small>
-                      <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" [disabled]="itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
+                      <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" [disabled]="camposCalculoBloqueadosEnEdicion || itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
                     </div>
                     <div class="grid grid-2">
                       <div class="form-field">

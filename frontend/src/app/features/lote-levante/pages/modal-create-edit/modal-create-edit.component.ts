@@ -50,7 +50,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   private alimentosById = new Map<number, CatalogItemDto>();
   private alimentosByName = new Map<string, CatalogItemDto>();
   private granjaIdActual: number | null = null;
-  private cargandoInventarioGranja = false; // Flag para prevenir cargas múltiples
+  /** Núcleo/galpón del lote seleccionado: el stock EC/PA se consulta por esta ubicación, no agregado a toda la granja. */
+  private inventarioUbicacionActual: { nucleoId: string | null; galponId: string | null } = {
+    nucleoId: null,
+    galponId: null
+  };
+  private inventarioLoadId = 0;
+  private cargandoInventarioGranja = false;
 
   // Mapa para guardar información de inventario (cantidad disponible) por catalogItemId
   private inventarioPorItem = new Map<number, { quantity: number; unit: string }>();
@@ -166,11 +172,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
         if (lote && lote.granjaId) {
           const nuevaGranjaId = lote.granjaId;
-
-          // Si cambió la granja, cargar inventario de la nueva granja
-          if (this.granjaIdActual !== nuevaGranjaId) {
+          const u = this.getInventarioUbicacionFromLote(lote);
+          const granjaCambio = this.granjaIdActual !== nuevaGranjaId;
+          const ubicCambio =
+            this.inventarioUbicacionActual.nucleoId !== u.nucleoId ||
+            this.inventarioUbicacionActual.galponId !== u.galponId;
+          if (granjaCambio || ubicCambio) {
             this.granjaIdActual = nuevaGranjaId;
-            this.cargarInventarioGranja(nuevaGranjaId);
+            this.inventarioUbicacionActual = u;
+            this.cargarInventarioGranja(nuevaGranjaId, undefined, u);
           }
         }
 
@@ -201,6 +211,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         this.inventarioPorItem.clear();
         this.itemsEcuadorPanama = [];
         this.conceptosEcuadorPanama = [];
+        this.inventarioUbicacionActual = { nucleoId: null, galponId: null };
       }
     });
 
@@ -258,7 +269,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       const lote = this.lotes.find(l => String(l.loteId) === String(this.selectedLoteId));
       if (lote && lote.granjaId) {
         this.granjaIdActual = lote.granjaId;
-        this.cargarInventarioGranja(lote.granjaId);
+        this.inventarioUbicacionActual = this.getInventarioUbicacionFromLote(lote);
+        this.cargarInventarioGranja(lote.granjaId, undefined, this.inventarioUbicacionActual);
       }
     } else {
       this.granjaIdActual = null;
@@ -267,6 +279,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     // Pollo engorde: iniciar con al menos una fila de alimento por sexo.
     this.ensureDefaultFoodRows();
+    this.applyEditModeFieldLocks();
   }
 
   // ================== MÉTODOS PARA MANEJAR FORMARRAY DE ÍTEMS ==================
@@ -453,9 +466,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return qtyKg > maxPermitidoKg;
   }
 
-  /** Bloquea guardar si cualquier fila de alimento supera el disponible. */
+  /** Bloquea guardar si cualquier fila de alimento supera el disponible (solo en creación; en edición no aplica). */
   get hasCantidadExcedida(): boolean {
+    if (this.editing) return false;
     return this.itemsHembrasArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
+  }
+
+  /** En edición pollo engorde: alimento, mortalidad, selección y error de sexaje quedan bloqueados (solo lectura). */
+  get camposCalculoBloqueadosEnEdicion(): boolean {
+    return !!this.editing && this.hembrasSoloAlimento;
   }
 
   // Obtener texto completo del ítem con cantidad disponible para mostrar en el dropdown
@@ -683,9 +702,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     if (lote && lote.granjaId) {
       this.granjaIdActual = lote.granjaId;
+      this.inventarioUbicacionActual = this.getInventarioUbicacionFromLote(lote);
 
-      // Cargar inventario de la granja primero
-      this.cargarInventarioGranja(lote.granjaId);
+      // Cargar inventario de la granja (y núcleo/galpón del lote en EC/PA)
+      this.cargarInventarioGranja(lote.granjaId, undefined, this.inventarioUbicacionActual);
 
       // Después de cargar el inventario, establecer el tipo de ítem y alimento
       // Esto se hará en el callback de cargarInventarioGranja
@@ -696,6 +716,53 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       // Si no hay granja, intentar obtener el tipo desde el catálogo completo
       this.establecerTipoItemYAlimentoAlEditar();
     }
+
+    this.applyEditModeFieldLocks();
+  }
+
+  private setAllFormControlsEnabled(enabled: boolean): void {
+    Object.keys(this.form.controls).forEach(key => {
+      const c = this.form.get(key);
+      if (!c) return;
+      if (key === 'itemsHembras' || key === 'itemsMachos') {
+        const fa = c as FormArray;
+        fa.controls.forEach(ctrl => {
+          if (enabled) ctrl.enable({ emitEvent: false });
+          else ctrl.disable({ emitEvent: false });
+        });
+      } else {
+        if (enabled) c.enable({ emitEvent: false });
+        else c.disable({ emitEvent: false });
+      }
+    });
+  }
+
+  /**
+   * Nuevo registro: todo habilitado.
+   * Edición levante (no engorde): todo habilitado.
+   * Edición pollo engorde: solo lectura en alimento (FormArrays), mortalidad, selección y error de sexaje.
+   */
+  private applyEditModeFieldLocks(): void {
+    if (!this.editing) {
+      this.setAllFormControlsEnabled(true);
+      return;
+    }
+    if (!this.hembrasSoloAlimento) {
+      this.setAllFormControlsEnabled(true);
+      return;
+    }
+    this.setAllFormControlsEnabled(true);
+    const bloqueados = [
+      'mortalidadHembras',
+      'mortalidadMachos',
+      'selH',
+      'selM',
+      'errorSexajeHembras',
+      'errorSexajeMachos',
+    ];
+    bloqueados.forEach(k => this.form.get(k)?.disable({ emitEvent: false }));
+    this.itemsHembrasArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
+    this.itemsMachosArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
   }
 
   private establecerTipoItemYAlimentoAlEditar(): void {
@@ -792,18 +859,33 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
-  // ================== CARGA DE INVENTARIO DE LA GRANJA ==================
-  private cargarInventarioGranja(granjaId: number, itemType?: string | null): void {
-    // Prevenir cargas múltiples simultáneas
-    if (this.cargandoInventarioGranja) {
-      return;
-    }
+  private getInventarioUbicacionFromLote(lote: LoteDto | undefined | null): { nucleoId: string | null; galponId: string | null } {
+    if (!lote) return { nucleoId: null, galponId: null };
+    const n = lote.nucleoId;
+    const g = lote.galponId;
+    const nucleoId = n != null && String(n).trim() !== '' ? String(n).trim() : null;
+    const galponId = g != null && String(g).trim() !== '' ? String(g).trim() : null;
+    return { nucleoId, galponId };
+  }
 
+  // ================== CARGA DE INVENTARIO DE LA GRANJA ==================
+  private cargarInventarioGranja(
+    granjaId: number,
+    itemType?: string | null,
+    ubicacion?: { nucleoId: string | null; galponId: string | null }
+  ): void {
+    if (ubicacion !== undefined) {
+      this.inventarioUbicacionActual = {
+        nucleoId: ubicacion.nucleoId ?? null,
+        galponId: ubicacion.galponId ?? null
+      };
+    }
+    const loadId = ++this.inventarioLoadId;
     this.cargandoInventarioGranja = true;
 
     // Ecuador/Panamá: catálogo desde item_inventario_ecuador (conceptos como tipo ítem) y stock desde inventario-gestion
     if (this.isEcuadorOrPanama) {
-      this.cargarCatalogEcuadorPanama(granjaId);
+      this.cargarCatalogEcuadorPanama(granjaId, loadId, this.inventarioUbicacionActual);
       return;
     }
 
@@ -811,6 +893,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     // El backend filtra por empresa, país, granja y tipo de item
     this.inventarioSvc.getInventory(granjaId, itemType).subscribe({
       next: (inventario) => {
+        if (loadId !== this.inventarioLoadId) return;
         console.log('Inventario recibido:', inventario);
 
         // Si no viene catalogItemMetadata, necesitamos cargarlo desde el catálogo
@@ -833,6 +916,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           );
 
           forkJoin(catalogRequests).subscribe(catalogItems => {
+            if (loadId !== this.inventarioLoadId) return;
             const catalogItemsMap = new Map<number, CatalogItemDto>();
             catalogItems.forEach(item => {
               if (item && item.id) {
@@ -876,12 +960,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
               );
 
             this.actualizarMapasYFiltros();
-            this.cargandoInventarioGranja = false;
+            if (loadId === this.inventarioLoadId) this.cargandoInventarioGranja = false;
 
             // Después de cargar el inventario, actualizar los tipos de ítem de los items cargados
             this.actualizarTiposItemDesdeInventario();
           });
         } else {
+          if (loadId !== this.inventarioLoadId) return;
           // Guardar información de inventario por ítem
           this.inventarioPorItem.clear();
           inventario.forEach(item => {
@@ -917,13 +1002,14 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             );
 
           this.actualizarMapasYFiltros();
-          this.cargandoInventarioGranja = false;
+          if (loadId === this.inventarioLoadId) this.cargandoInventarioGranja = false;
 
           // Después de cargar el inventario, actualizar los tipos de ítem de los items cargados
           this.actualizarTiposItemDesdeInventario();
         }
       },
       error: (err) => {
+        if (loadId !== this.inventarioLoadId) return;
         console.error('Error al cargar inventario de la granja:', err);
         this.alimentosCatalog = [];
         this.alimentosFiltradosHembras = [];
@@ -933,11 +1019,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     });
   }
 
-  /** Ecuador/Panamá: carga catálogo item_inventario_ecuador y conceptos; luego stock por granja. */
-  private cargarCatalogEcuadorPanama(granjaId: number): void {
+  /** Ecuador/Panamá: carga catálogo item_inventario_ecuador y conceptos; luego stock por ubicación (granja y opc. núcleo/galpón del lote). */
+  private cargarCatalogEcuadorPanama(
+    granjaId: number,
+    loadId: number,
+    u: { nucleoId: string | null; galponId: string | null }
+  ): void {
     this.gestionInventarioSvc.getItemsByType(null, null, true).pipe(
       catchError(err => { console.error('Error al cargar ítems inventario Ecuador:', err); return of([]); })
     ).subscribe((list: ItemInventarioEcuadorDto[]) => {
+      if (loadId !== this.inventarioLoadId) return;
       this.itemsEcuadorPanama = list ?? [];
       this.conceptosEcuadorPanama = Array.from(
         new Set(
@@ -946,15 +1037,23 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             .filter(x => !!x)
         )
       ).sort((a, b) => a.localeCompare(b));
-      this.cargarStockEcuadorPanama(granjaId);
+      this.cargarStockEcuadorPanama(granjaId, loadId, u);
     });
   }
 
-  /** Ecuador/Panamá: carga stock inventario-gestion y llena inventarioPorItem por item id. */
-  private cargarStockEcuadorPanama(granjaId: number): void {
-    this.gestionInventarioSvc.getStock({ farmId: granjaId }).pipe(
+  /** Ecuador/Panamá: stock del galpón (y núcleo) del lote; si no hay galpón en el lote, se mantiene el total granja. */
+  private cargarStockEcuadorPanama(
+    granjaId: number,
+    loadId: number,
+    u: { nucleoId: string | null; galponId: string | null }
+  ): void {
+    const stockParams: { farmId: number; nucleoId?: string; galponId?: string } = { farmId: granjaId };
+    if (u.nucleoId) stockParams.nucleoId = u.nucleoId;
+    if (u.galponId) stockParams.galponId = u.galponId;
+    this.gestionInventarioSvc.getStock(stockParams).pipe(
       catchError(err => { console.error('Error al cargar stock:', err); return of([]); })
     ).subscribe((rows: InventarioGestionStockDto[]) => {
+      if (loadId !== this.inventarioLoadId) return;
       this.inventarioPorItem.clear();
       rows.forEach(r => {
         const prev = this.inventarioPorItem.get(r.itemInventarioEcuadorId);
@@ -1039,6 +1138,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         }
       }
     });
+
+    if (this.editing) {
+      this.applyEditModeFieldLocks();
+    }
   }
 
   /**
@@ -1544,7 +1647,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
 
-    // Hacer resta al inventario antes de guardar (solo para alimentos; inventario legacy por catalog_items)
+    // Edición: consumo/alimento no cambia en UI (engorde); no repetir salidas de inventario legacy en Colombia.
+    if (isEdit) {
+      this.save.emit({ data, isEdit: true });
+      return;
+    }
+
+    // Hacer resta al inventario antes de guardar (solo creación Colombia; inventario legacy por catalog_items)
     const restas: Promise<void>[] = [];
 
     // Procesar alimentos de hembras

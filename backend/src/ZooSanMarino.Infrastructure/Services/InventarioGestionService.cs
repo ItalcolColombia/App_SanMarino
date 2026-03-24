@@ -191,7 +191,7 @@ public class InventarioGestionService : IInventarioGestionService
             return new InventarioGestionStockDto(
                 x.Id, x.FarmId, x.NucleoId, x.GalponId, x.ItemInventarioEcuadorId,
                 x.ItemInventarioEcuador.Codigo, x.ItemInventarioEcuador.Nombre, itemTypeOut,
-                x.Quantity, x.Unit, x.Farm.Name, nucleoNombre, galponNombre);
+                x.Quantity, x.Unit, x.Farm.Name, nucleoNombre, galponNombre, x.CreatedAt);
         }).ToList();
     }
 
@@ -284,6 +284,15 @@ public class InventarioGestionService : IInventarioGestionService
             : string.Equals(origenTipoNorm, "bodega", StringComparison.OrdinalIgnoreCase)
                 ? "Entrada bodega"
                 : "Entrada granja";
+        var movCreatedAt = req.FechaMovimiento.HasValue
+            ? new DateTimeOffset(
+                req.FechaMovimiento.Value.Year,
+                req.FechaMovimiento.Value.Month,
+                req.FechaMovimiento.Value.Day,
+                12, 0, 0,
+                TimeSpan.Zero)
+            : DateTimeOffset.UtcNow;
+
         var mov = new InventarioGestionMovimiento
         {
             CompanyId = companyId,
@@ -298,7 +307,7 @@ public class InventarioGestionService : IInventarioGestionService
             Estado = estadoIngreso,
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = movCreatedAt,
             CreatedByUserId = _current?.UserId.ToString()
         };
         _db.InventarioGestionMovimientos.Add(mov);
@@ -433,8 +442,8 @@ public class InventarioGestionService : IInventarioGestionService
 
         var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
         var listDestino = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
-        var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit);
-        var dtoDestino = listDestino.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit);
+        var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
+        var dtoDestino = listDestino.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId) ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
         return (dtoOrigen, dtoDestino);
     }
 
@@ -506,7 +515,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var listOrigen = await GetStockAsync(req.FromFarmId, fromNucleoId, fromGalponId, null, null, ct);
         var dtoOrigen = listOrigen.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
-            ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit);
+            ?? new InventarioGestionStockDto(stockOrigen.Id, stockOrigen.FarmId, stockOrigen.NucleoId, stockOrigen.GalponId, stockOrigen.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stockOrigen.Quantity, stockOrigen.Unit, null, null, null, stockOrigen.CreatedAt);
         var itemTypeOut = item.Concepto ?? item.TipoItem ?? "alimento";
         var dtoDestinoPendiente = new InventarioGestionStockDto(
             0,
@@ -518,7 +527,11 @@ public class InventarioGestionService : IInventarioGestionService
             item.Nombre,
             itemTypeOut,
             0,
-            string.IsNullOrWhiteSpace(req.Unit) ? stockOrigen.Unit : req.Unit.Trim());
+            string.IsNullOrWhiteSpace(req.Unit) ? stockOrigen.Unit : req.Unit.Trim(),
+            null,
+            null,
+            null,
+            null);
         return (dtoOrigen, dtoDestinoPendiente);
     }
 
@@ -675,7 +688,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var list = await GetStockAsync(req.ToFarmId, toNucleoId, toGalponId, null, null, ct);
         var dtoStock = list.FirstOrDefault(x => x.ItemInventarioEcuadorId == salida.ItemInventarioEcuadorId)
-            ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.Concepto ?? item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit);
+            ?? new InventarioGestionStockDto(stockDestino.Id, stockDestino.FarmId, stockDestino.NucleoId, stockDestino.GalponId, stockDestino.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.Concepto ?? item.TipoItem ?? "alimento", stockDestino.Quantity, stockDestino.Unit, null, null, null, stockDestino.CreatedAt);
 
         var farmDest = await _db.Farms.AsNoTracking().FirstOrDefaultAsync(f => f.Id == movEntrada.FarmId, ct);
         string? nn = null;
@@ -791,7 +804,7 @@ public class InventarioGestionService : IInventarioGestionService
 
         var list = await GetStockAsync(req.FarmId, nucleoId, galponId, null, null, ct);
         return list.FirstOrDefault(x => x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId)
-            ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity, stock.Unit);
+            ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
     }
 
     public async Task<List<InventarioGestionMovimientoDto>> GetMovimientosAsync(
