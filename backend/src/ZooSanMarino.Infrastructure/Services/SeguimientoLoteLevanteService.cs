@@ -18,6 +18,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
     private readonly IGramajeProvider _gramaje;
     private readonly ICurrentUser _current;
     private readonly IMovimientoAvesService _movimientoAvesService;
+    private readonly IInventarioGestionService? _inventarioGestionService;
 
     public SeguimientoLoteLevanteService(
         ZooSanMarinoContext ctx,
@@ -25,7 +26,8 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         IAlimentoNutricionProvider alimentos,
         IGramajeProvider gramaje,
         ICurrentUser current,
-        IMovimientoAvesService movimientoAvesService)
+        IMovimientoAvesService movimientoAvesService,
+        IInventarioGestionService? inventarioGestionService = null)
     {
         _ctx = ctx;
         _seguimientoDiarioService = seguimientoDiarioService;
@@ -33,6 +35,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         _gramaje = gramaje;
         _current = current;
         _movimientoAvesService = movimientoAvesService;
+        _inventarioGestionService = inventarioGestionService;
     }
 
     private static SeguimientoLoteLevanteDto MapToLevanteDto(SeguimientoDiarioDto u)
@@ -272,6 +275,21 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         var createDto = MapToCreateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
         var created = await _seguimientoDiarioService.CreateAsync(createDto);
 
+        // Ecuador/Panamá: consumo por ítems en metadata (item_inventario_ecuador) → inventario_gestion
+        if (_inventarioGestionService != null && dto.Metadata != null)
+        {
+            try
+            {
+                var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
+                var refStr = $"Seguimiento lote levante #{created.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+                foreach (var kv in byItem)
+                    if (kv.Value > 0)
+                        await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                            lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null));
+            }
+            catch (Exception ex) { Console.WriteLine($"Error al registrar consumo inventario (levante): {ex.Message}"); }
+        }
+
         var hembrasRetiro = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
         var machosRetiro = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
         if (hembrasRetiro > 0 || machosRetiro > 0)
@@ -319,11 +337,39 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         var oldRec = await _seguimientoDiarioService.GetByIdAsync((long)dto.Id);
         var oldH = (oldRec?.MortalidadHembras ?? 0) + (oldRec?.SelH ?? 0) + (oldRec?.ErrorSexajeHembras ?? 0);
         var oldM = (oldRec?.MortalidadMachos ?? 0) + (oldRec?.SelM ?? 0) + (oldRec?.ErrorSexajeMachos ?? 0);
+        var oldByItemId = oldRec?.Metadata != null ? ParseMetadataItemsToKg(oldRec.Metadata.RootElement) : new Dictionary<int, decimal>();
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
         var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
         if (updated is null) return null;
+
+        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        {
+            try
+            {
+                var newByItemId = dto.Metadata != null ? ParseMetadataItemsToKg(dto.Metadata.RootElement) : new Dictionary<int, decimal>();
+                var allItemIds = new HashSet<int>(oldByItemId.Keys);
+                foreach (var k in newByItemId.Keys) allItemIds.Add(k);
+                var refStr = $"Seguimiento lote levante #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+                var farmId = lote.GranjaId;
+                var nucleoId = lote.NucleoId?.Trim();
+                var galponId = lote.GalponId?.Trim();
+                foreach (var itemId in allItemIds)
+                {
+                    var newQty = newByItemId.GetValueOrDefault(itemId);
+                    var oldQty = oldByItemId.GetValueOrDefault(itemId);
+                    var diff = newQty - oldQty;
+                    if (diff > 0)
+                        await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                            farmId, nucleoId, galponId, itemId, diff, "kg", refStr + " (ajuste)", null));
+                    else if (diff < 0)
+                        await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                            farmId, nucleoId, galponId, itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento lote levante"));
+                }
+            }
+            catch (Exception ex) { Console.WriteLine($"Error al actualizar inventario (levante): {ex.Message}"); }
+        }
 
         var newH = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
         var newM = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
@@ -346,6 +392,30 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         var rec = await _seguimientoDiarioService.GetByIdAsync((long)id);
         if (rec != null && rec.TipoSeguimiento == TipoLevante)
         {
+            if (_inventarioGestionService != null && rec.Metadata != null)
+            {
+                try
+                {
+                    if (int.TryParse(rec.LoteId, out var loteIdInt))
+                    {
+                        var loteRow = await _ctx.Lotes.AsNoTracking()
+                            .Where(l => l.LoteId == loteIdInt && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
+                            .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId })
+                            .FirstOrDefaultAsync();
+                        if (loteRow != null)
+                        {
+                            var byItem = ParseMetadataItemsToKg(rec.Metadata.RootElement);
+                            var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
+                            foreach (var kv in byItem)
+                                if (kv.Value > 0)
+                                    await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                                        loteRow.GranjaId, loteRow.NucleoId?.Trim(), loteRow.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento lote levante"));
+                        }
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine($"Error al devolver inventario al eliminar seguimiento levante: {ex.Message}"); }
+            }
+
             var hembras = (rec.MortalidadHembras ?? 0) + (rec.SelH ?? 0) + (rec.ErrorSexajeHembras ?? 0);
             var machos = (rec.MortalidadMachos ?? 0) + (rec.SelM ?? 0) + (rec.ErrorSexajeMachos ?? 0);
             if (hembras > 0 || machos > 0)
@@ -492,6 +562,48 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             .ToListAsync();
 
         return new ResultadoLevanteResponse(loteId, desde?.Date, hasta?.Date, items.Count, items);
+    }
+
+    /// <summary>
+    /// Misma lógica que SeguimientoAvesEngordeService: metadata.itemsHembras/Machos con catalogItemId o itemInventarioEcuadorId, cantidades en kg.
+    /// </summary>
+    private static decimal ToKg(double cantidad, string? unidad)
+    {
+        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
+        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
+        return (decimal)cantidad;
+    }
+
+    private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
+    {
+        var byItemId = new Dictionary<int, decimal>();
+        if (root.TryGetProperty("itemsHembras", out var arrH))
+            foreach (var e in arrH.EnumerateArray())
+            {
+                var id = 0;
+                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
+                    id = pid.GetInt32();
+                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
+                    id = cid.GetInt32();
+                if (id <= 0) continue;
+                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
+                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
+                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
+            }
+        if (root.TryGetProperty("itemsMachos", out var arrM))
+            foreach (var e in arrM.EnumerateArray())
+            {
+                var id = 0;
+                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
+                    id = pid.GetInt32();
+                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
+                    id = cid.GetInt32();
+                if (id <= 0) continue;
+                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
+                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
+                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
+            }
+        return byItemId;
     }
 }
 
