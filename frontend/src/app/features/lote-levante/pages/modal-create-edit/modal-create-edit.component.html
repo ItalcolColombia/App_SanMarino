@@ -2,37 +2,16 @@
 <div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="seguimiento-modal-title">
   <div class="ux-modal__dialog">
     <header class="ux-modal__header">
-      <h2 id="seguimiento-modal-title">{{ editing ? 'Editar Registro' : 'Nuevo Registro' }}</h2>
+      <h2 id="seguimiento-modal-title">
+        {{ loadingRecord ? 'Cargando registro…' : (editing ? 'Editar registro' : 'Nuevo registro') }}
+      </h2>
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
-      <!-- INPUTS RADIO (ocultos, controlan los tabs) -->
-      <input type="radio" name="regTab" id="tab-general" checked class="ux-tab-input" />
-      <input type="radio" name="regTab" id="tab-hembras" class="ux-tab-input" />
-      <input type="radio" name="regTab" id="tab-machos" class="ux-tab-input" />
-      <input type="radio" name="regTab" id="tab-agua" class="ux-tab-input" [hidden]="!isEcuadorOrPanama" />
-
-      <!-- TABS NAVEGACIÓN - ARRIBA -->
-      <div class="ux-tabs-wrapper">
-        <div class="ux-tabs" role="tablist" aria-label="Secciones del registro">
-          <label class="ux-tab" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" aria-selected="true">General</label>
-
-          <label class="ux-tab" id="lab-hembras" for="tab-hembras" role="tab" tabindex="0" aria-controls="panel-hembras" aria-selected="false">Hembras</label>
-
-          <label class="ux-tab" id="lab-machos" for="tab-machos" role="tab" tabindex="0" aria-controls="panel-machos" aria-selected="false">Machos</label>
-
-          <!-- Tab Agua (solo para Ecuador y Panamá) -->
-          <label class="ux-tab" id="lab-agua" for="tab-agua" role="tab" tabindex="0" aria-controls="panel-agua" aria-selected="false" [hidden]="!isEcuadorOrPanama">
-            💧 Agua
-          </label>
-        </div>
-      </div>
-
-      <!-- CONTENIDO DE TABS - DEBAJO -->
-      <div class="ux-tab-panels">
+      <div class="ux-panel-stack">
           <!-- GENERAL -->
-          <section id="panel-general" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-general">
+          <section class="ux-panel-section">
             <div class="grid grid-2">
               <div class="form-field">
                 <label for="f-fecha">Fecha</label>
@@ -56,262 +35,107 @@
             </div>
           </section>
 
-          <!-- HEMBRAS -->
-          <section id="panel-hembras" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-hembras">
-            <!-- ÍTEMS (ALIMENTOS Y OTROS) -->
+          <section class="ux-panel-section">
             <div class="data-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3 class="data-group-title">📦 Ítems Registrados</h3>
-                <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()">
-                  ➕ Agregar Ítem
-                </button>
-              </div>
-              
-              <div *ngIf="itemsHembrasArray.length === 0" class="text-muted" style="padding: 1rem; text-align: center; border: 1px dashed #ccc; border-radius: 4px;">
-                No hay ítems registrados. Haga clic en "Agregar Ítem" para comenzar.
-              </div>
-              
-              <div *ngFor="let itemGroup of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemGroup)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f9f9f9;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                  <h4 style="margin: 0; font-size: 0.9rem; color: #666;">Ítem {{ i + 1 }}</h4>
-                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" style="color: #d32f2f;">
-                    🗑️ Eliminar
-                  </button>
+              <h3 class="data-group-title">📦 Alimento</h3>
+              <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
+                Puede registrar varios alimentos por sexo. Por defecto aparece una fila.
+              </p>
+
+              <div>
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 0.75rem;">
+                  <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()">+ Agregar alimento</button>
                 </div>
-                
-                <div class="grid grid-2">
-                  <div class="form-field">
-                    <label [for]="'f-tipo-item-h-' + i">Tipo de ítem *</label>
-                    <div class="ux-select">
-                      <select [id]="'f-tipo-item-h-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
-                        <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let tipo of tiposItemDisplay" [ngValue]="tipo">
-                          {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
-                        </option>
-                      </select>
+                  <div *ngFor="let itemH of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemH)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; background: #fff;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                      <small style="font-weight: 700; color: #57534e;">Alimento {{ i + 1 }}</small>
+                      <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" [disabled]="itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
                     </div>
-                  </div>
-                  
-                  <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value">
-                    <label [for]="'f-item-h-' + i">Ítem *</label>
-                    <div class="ux-select">
-                      <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
-                        <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value)" [ngValue]="a.id">
-                          {{ getItemDisplayText(a) }}
-                        </option>
-                      </select>
-                    </div>
-                    <small class="ux-hint text-success" *ngIf="itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
-                      Disponible en inventario: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                    <div class="grid grid-2">
+                      <div class="form-field">
+                        <label [for]="'f-item-h-' + i">Ítem (alimento)</label>
+                        <div class="ux-select">
+                          <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                            <option [ngValue]="null">— Seleccione —</option>
+                            <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)))" [ngValue]="a.id">
+                              {{ getItemDisplayText(a) }}
+                            </option>
+                          </select>
+                        </div>
+                        <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
+                          Disponible actual: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
+                          <ng-container *ngIf="editing">
+                            • Máximo para editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                          </ng-container>
+                        </small>
+                      </div>
+                      <div class="form-field">
+                        <label [for]="'f-cantidad-h-' + i">Cantidad</label>
+                        <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                          <div style="flex: 1;">
+                            <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
+                          </div>
+                          <div style="width: 100px;">
+                            <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                              <option value="kg">kg</option>
+                              <option value="g">gramos</option>
+                            </select>
+                          </div>
+                        </div>
+                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemH))">
+                      La cantidad ingresada supera el máximo permitido para este ítem.
                     </small>
-                    <small class="ux-hint text-muted" *ngIf="itemGroup.get('catalogItemId')?.value && !getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
-                      No hay información de inventario disponible para este ítem
-                    </small>
-                  </div>
-                  
-                  <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value === 'alimento'">
-                    <label [for]="'f-cantidad-h-' + i">Cantidad *</label>
-                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                      <div style="flex: 1;">
-                        <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
-                      </div>
-                      <div style="width: 100px;">
-                        <select formControlName="unidad" class="ux-select" style="width: 100%;">
-                          <option value="kg">kg</option>
-                          <option value="g">gramos</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value && itemGroup.get('tipoItem')?.value !== 'alimento'">
-                    <label [for]="'f-cantidad-unidades-h-' + i">Cantidad de Unidades *</label>
-                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                      <div style="flex: 1;">
-                        <input [id]="'f-cantidad-unidades-h-' + i" type="number" step="1" min="0" formControlName="cantidad" placeholder="Ej: 100" />
-                      </div>
-                      <div style="width: 100px;">
-                        <input type="text" [value]="'unidades'" readonly class="ux-input" style="width: 100%; background: #f5f5f5;" />
                       </div>
                     </div>
                   </div>
                 </div>
+            </div>
+
+            <div class="data-group">
+              <h3 class="data-group-title">💀 Mortalidad, Selección y Error de sexaje</h3>
+              <div class="compare-grid">
+                <div class="compare-grid__row-title"></div>
+                <div class="compare-grid__col-title">Hembras</div>
+                <div class="compare-grid__col-title">Machos</div>
+
+                <div class="compare-grid__row-title">Mortalidad</div>
+                <div class="form-field"><input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" /></div>
+                <div class="form-field"><input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" /></div>
+
+                <div class="compare-grid__row-title">Selección</div>
+                <div class="form-field"><input id="f-selh" type="number" min="0" formControlName="selH" /></div>
+                <div class="form-field"><input id="f-selm" type="number" min="0" formControlName="selM" /></div>
+
+                <div class="compare-grid__row-title">Error de sexaje</div>
+                <div class="form-field"><input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" /></div>
+                <div class="form-field"><input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" /></div>
               </div>
             </div>
 
-            <!-- MORTALIDAD Y SELECCIÓN -->
-            <div class="data-group">
-              <h3 class="data-group-title">💀 Mortalidad y Selección</h3>
-              <div class="grid grid-2">
-                <div class="form-field">
-                  <label for="f-mh">Mortalidad Hembras</label>
-                  <input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" />
-                </div>
-
-                <div class="form-field">
-                  <label for="f-selh">Selección Hembras</label>
-                  <input id="f-selh" type="number" min="0" formControlName="selH" />
-                </div>
-
-                <div class="form-field">
-                  <label for="f-errh">Error Sexaje Hembras</label>
-                  <input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" />
-                </div>
-              </div>
-            </div>
-
-            <!-- PESO Y UNIFORMIDAD -->
             <div class="data-group">
               <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
-              <div class="grid grid-2">
-                <div class="form-field">
-                  <label for="f-ph">Promedio Peso Hembras (kg)</label>
-                  <input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" />
-                </div>
+              <div class="compare-grid">
+                <div class="compare-grid__row-title"></div>
+                <div class="compare-grid__col-title">Hembras</div>
+                <div class="compare-grid__col-title">Machos</div>
 
-                <div class="form-field">
-                  <label for="f-uh">Uniformidad Hembras (%)</label>
-                  <input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" />
-                </div>
+                <div class="compare-grid__row-title">Peso promedio (kg)</div>
+                <div class="form-field"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
+                <div class="form-field"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
 
-                <div class="form-field">
-                  <label for="f-cvh">Coeficiente de Variación (CV) Hembras</label>
-                  <input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" />
-                </div>
-              </div>
-            </div>
-          </section>
+                <div class="compare-grid__row-title">Uniformidad (%)</div>
+                <div class="form-field"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
+                <div class="form-field"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
 
-          <!-- MACHOS -->
-          <section id="panel-machos" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-machos">
-            <!-- ÍTEMS (ALIMENTOS Y OTROS) -->
-            <div class="data-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3 class="data-group-title">📦 Ítems Registrados</h3>
-                <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemMachos()">
-                  ➕ Agregar Ítem
-                </button>
-              </div>
-              
-              <div *ngIf="itemsMachosArray.length === 0" class="text-muted" style="padding: 1rem; text-align: center; border: 1px dashed #ccc; border-radius: 4px;">
-                No hay ítems registrados. Haga clic en "Agregar Ítem" para comenzar.
-              </div>
-              
-              <div *ngFor="let itemGroup of itemsMachosArray.controls; let i = index" [formGroup]="$any(itemGroup)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #f9f9f9;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                  <h4 style="margin: 0; font-size: 0.9rem; color: #666;">Ítem {{ i + 1 }}</h4>
-                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(i)" style="color: #d32f2f;">
-                    🗑️ Eliminar
-                  </button>
-                </div>
-                
-                <div class="grid grid-2">
-                  <div class="form-field">
-                    <label [for]="'f-tipo-item-m-' + i">Tipo de ítem *</label>
-                    <div class="ux-select">
-                      <select [id]="'f-tipo-item-m-' + i" formControlName="tipoItem" (change)="itemGroup.patchValue({ catalogItemId: null })">
-                        <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let tipo of tiposItemDisplay" [ngValue]="tipo">
-                          {{ tipo.charAt(0).toUpperCase() + tipo.slice(1) }}
-                        </option>
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value">
-                    <label [for]="'f-item-m-' + i">Ítem *</label>
-                    <div class="ux-select">
-                      <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
-                        <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value)" [ngValue]="a.id">
-                          {{ getItemDisplayText(a) }}
-                        </option>
-                      </select>
-                    </div>
-                    <small class="ux-hint text-success" *ngIf="itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
-                      Disponible en inventario: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
-                    </small>
-                    <small class="ux-hint text-muted" *ngIf="itemGroup.get('catalogItemId')?.value && !getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
-                      No hay información de inventario disponible para este ítem
-                    </small>
-                  </div>
-                  
-                  <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value === 'alimento'">
-                    <label [for]="'f-cantidad-m-' + i">Cantidad *</label>
-                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                      <div style="flex: 1;">
-                        <input [id]="'f-cantidad-m-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
-                      </div>
-                      <div style="width: 100px;">
-                        <select formControlName="unidad" class="ux-select" style="width: 100%;">
-                          <option value="kg">kg</option>
-                          <option value="g">gramos</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value && itemGroup.get('tipoItem')?.value !== 'alimento'">
-                    <label [for]="'f-cantidad-unidades-m-' + i">Cantidad de Unidades *</label>
-                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                      <div style="flex: 1;">
-                        <input [id]="'f-cantidad-unidades-m-' + i" type="number" step="1" min="0" formControlName="cantidad" placeholder="Ej: 100" />
-                      </div>
-                      <div style="width: 100px;">
-                        <input type="text" [value]="'unidades'" readonly class="ux-input" style="width: 100%; background: #f5f5f5;" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- MORTALIDAD Y SELECCIÓN -->
-            <div class="data-group">
-              <h3 class="data-group-title">💀 Mortalidad y Selección</h3>
-              <div class="grid grid-2">
-                <div class="form-field">
-                  <label for="f-mm">Mortalidad Machos</label>
-                  <input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" />
-                </div>
-
-                <div class="form-field">
-                  <label for="f-selm">Selección Machos</label>
-                  <input id="f-selm" type="number" min="0" formControlName="selM" />
-                </div>
-
-                <div class="form-field">
-                  <label for="f-errm">Error Sexaje Machos</label>
-                  <input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" />
-                </div>
-              </div>
-            </div>
-
-            <!-- PESO Y UNIFORMIDAD -->
-            <div class="data-group">
-              <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
-              <div class="grid grid-2">
-                <div class="form-field">
-                  <label for="f-pm">Promedio Peso Machos (kg)</label>
-                  <input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" />
-                </div>
-
-                <div class="form-field">
-                  <label for="f-um">Uniformidad Machos (%)</label>
-                  <input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" />
-                </div>
-
-                <div class="form-field">
-                  <label for="f-cvm">Coeficiente de Variación (CV) Machos</label>
-                  <input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" />
-                </div>
+                <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
+                <div class="form-field"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
+                <div class="form-field"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
               </div>
             </div>
           </section>
 
           <!-- AGUA (solo para Ecuador y Panamá) -->
-          <section id="panel-agua" class="ux-tab-panel" role="tabpanel" aria-labelledby="lab-agua" *appShowIfEcuadorPanama>
+          <section class="ux-panel-section" *appShowIfEcuadorPanama>
             <div class="data-group">
               <h3 class="data-group-title">💧 Información del Agua</h3>
               <div class="grid grid-2">
@@ -381,15 +205,20 @@
       </div>
 
       <footer class="ux-modal__footer">
-        <button type="button" class="btn btn--ghost" (click)="onClose()">Cancelar</button>
-        <button type="submit" class="btn btn--primary" [disabled]="loading || form.invalid">
-          {{ loading ? 'Guardando…' : 'Guardar' }}
+        <button type="button" class="btn btn--ghost" (click)="onClose()" [disabled]="loading || loadingRecord">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida">
+          <ng-container *ngIf="loadingRecord">Cargando registro…</ng-container>
+          <ng-container *ngIf="!loadingRecord && loading">{{ editing ? 'Actualizando…' : 'Guardando…' }}</ng-container>
+          <ng-container *ngIf="!loadingRecord && !loading">{{ editing ? 'Actualizar registro' : 'Guardar' }}</ng-container>
         </button>
       </footer>
     </form>
 
-    <div *ngIf="loading" class="modal-loading" role="status" aria-live="polite">
-      <div class="spinner"></div> Guardando…
+    <div *ngIf="loadingRecord" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Cargando registro…
+    </div>
+    <div *ngIf="loading && !loadingRecord" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> {{ editing ? 'Actualizando registro…' : 'Guardando…' }}
     </div>
   </div>
 </div>
