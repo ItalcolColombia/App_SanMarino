@@ -229,99 +229,20 @@
 :host .ux-input--readonly { background: var(--warm-50); color: var(--text-sub); }
 
 /* ==========================================================================
-   🧭 Tabs del modal (CSS-only, accesible)
+   🧱 Flujo único (sin tabs)
    ========================================================================== */
-/* Contenedor de tabs (wrapper) */
-:host .ux-tabs-wrapper {
-  margin-bottom: 1rem;
-  flex-shrink: 0;
-  background: var(--bg-card);
-  padding: 0 1.25rem;
-  padding-top: 0.5rem;
-}
-
-:host .ux-tabs {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: end;
-  gap: .35rem;
-  border-bottom: 1px solid var(--warm-200);
-  position: relative;
-}
-
-:host .ux-tab-input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-:host .ux-tab {
-  display: inline-flex;
-  align-items: center;
-  padding: .55rem .8rem;
-  border: 1px solid var(--warm-200);
-  border-bottom: none;
-  border-top-left-radius: .6rem;
-  border-top-right-radius: .6rem;
-  background: var(--warm-100);
-  color: var(--warm-600);
-  font-weight: 700;
-  cursor: pointer;
-  user-select: none;
-  transition: background .15s, color .15s, transform .12s;
-  outline: none;
-}
-:host .ux-tab:hover { background: var(--white); color: var(--brand-red); }
-:host .ux-tab:focus-visible { box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
-
-:host .ux-tab-panels {
+:host .ux-panel-stack {
   background: var(--white);
   border: 1px solid var(--warm-200);
   border-radius: .6rem;
   box-shadow: var(--shadow-lg);
   padding: 1rem;
   width: 100%;
-  max-height: calc(90vh - 280px); /* Altura máxima considerando header, tabs y footer */
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* Personalización de scrollbar para tab panels */
-  scrollbar-width: thin;
-  scrollbar-color: var(--warm-300) var(--warm-50);
 }
 
-:host .ux-tab-panels::-webkit-scrollbar {
-  width: 8px;
+:host .ux-panel-section + .ux-panel-section {
+  margin-top: 1rem;
 }
-
-:host .ux-tab-panels::-webkit-scrollbar-track {
-  background: var(--warm-50);
-  border-radius: 4px;
-}
-
-:host .ux-tab-panels::-webkit-scrollbar-thumb {
-  background: var(--warm-300);
-  border-radius: 4px;
-}
-
-:host .ux-tab-panels::-webkit-scrollbar-thumb:hover {
-  background: var(--warm-400);
-}
-
-:host .ux-tab-panel { display: none; }
-
-/* Mostrar el panel correspondiente */
-:host #tab-general:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-general { display: block; }
-:host #tab-hembras:checked ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-hembras { display: block; }
-:host #tab-machos:checked  ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-machos  { display: block; }
-:host #tab-agua:checked    ~ .ux-tabs-wrapper ~ .ux-tab-panels #panel-agua    { display: block; }
-
-/* Estado visual del tab ACTIVO */
-:host #tab-general:checked ~ .ux-tabs-wrapper label[for="tab-general"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-hembras:checked ~ .ux-tabs-wrapper label[for="tab-hembras"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-machos:checked  ~ .ux-tabs-wrapper label[for="tab-machos"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
-:host #tab-agua:checked    ~ .ux-tabs-wrapper label[for="tab-agua"]  { background: var(--white); color: var(--brand-red); transform: translateY(1px); }
 
 /* ==========================================================================
    ⬇️ Selects / Inputs
@@ -401,6 +322,60 @@
 }
 
 /* ==========================================================================
+   🧩 Grid comparativo (Hembras vs Machos)
+   ========================================================================== */
+:host .compare-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(120px, 1fr) minmax(120px, 1fr);
+  gap: 0;
+  border: 2px solid var(--warm-300);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--white);
+}
+
+:host .compare-grid > * {
+  border-right: 2px solid var(--warm-300);
+  border-bottom: 2px solid var(--warm-300);
+  padding: 0.6rem 0.7rem;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+}
+
+:host .compare-grid > *:nth-child(3n) {
+  border-right: 0;
+}
+
+:host .compare-grid > *:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+:host .compare-grid__col-title {
+  font-weight: 800;
+  justify-content: center;
+  color: var(--brand-red);
+  background: var(--amber-50);
+}
+
+:host .compare-grid__row-title {
+  font-weight: 800;
+  color: var(--text);
+  background: var(--warm-100);
+}
+
+:host .compare-grid .form-field {
+  width: 100%;
+  gap: 0;
+}
+
+:host .compare-grid .form-field input {
+  width: 100%;
+  background: #fffdf5;
+  border: 2px solid var(--warm-300);
+}
+
+/* ==========================================================================
    📱 Responsive
    ========================================================================== */
 @media (max-width: 960px)  {
@@ -410,9 +385,6 @@
   :host .ux-modal__dialog { 
     max-height: 95vh;
     width: 95vw;
-  }
-  :host .ux-tab-panels {
-    max-height: calc(95vh - 280px);
   }
 }
 @media (max-width: 680px)  {
@@ -425,22 +397,17 @@
   :host .ux-modal__header {
     padding: 0.75rem 1rem;
   }
-  :host .ux-tabs-wrapper {
-    padding: 0 1rem;
-    padding-top: 0.5rem;
-  }
   :host .ux-modal__footer {
     padding: 0.75rem 1rem;
   }
   :host .ux-form { 
     padding: 0.75rem; 
   }
-  :host .ux-tab-panels {
-    max-height: calc(95vh - 240px);
-    padding: 0.75rem;
-  }
   :host .data-group-title { font-size: var(--fs-sm); }
   :host .data-group { padding: var(--space-3); }
+  :host .compare-grid {
+    grid-template-columns: minmax(130px, 1fr) minmax(95px, 1fr) minmax(95px, 1fr);
+  }
 }
 @media (max-width: 480px) { 
   :host .ux-modal {
@@ -457,10 +424,6 @@
   :host .ux-modal__header h2 { 
     font-size: 1rem; 
   }
-  :host .ux-tabs-wrapper {
-    padding: 0 0.75rem;
-    padding-top: 0.5rem;
-  }
   :host .ux-modal__footer { 
     padding: 0.75rem;
     flex-wrap: wrap;
@@ -468,24 +431,9 @@
   :host .ux-form { 
     padding: 0.5rem; 
   }
-  :host .ux-tab-panels {
-    max-height: calc(98vh - 220px);
+  :host .ux-panel-stack {
     padding: 0.5rem;
     border-radius: var(--radius-md);
-  }
-  :host .ux-tabs { 
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    gap: 0.25rem;
-  }
-  :host .ux-tab { 
-    justify-content: center;
-    min-width: max-content;
-    flex-shrink: 0;
-    padding: 0.45rem 0.65rem;
-    font-size: var(--fs-sm);
   }
   :host .data-group { 
     padding: var(--space-2); 
