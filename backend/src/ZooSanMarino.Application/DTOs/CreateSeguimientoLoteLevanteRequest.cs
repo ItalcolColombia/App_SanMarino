@@ -9,11 +9,16 @@ namespace ZooSanMarino.Application.DTOs;
 /// </summary>
 public class ItemSeguimientoDto
 {
+    [JsonPropertyName("tipoItem")]
     public string TipoItem { get; set; } = string.Empty; // "alimento", "vacuna", "medicamento", etc.
+    [JsonPropertyName("catalogItemId")]
     public int CatalogItemId { get; set; } // ID del ítem del inventario (catálogo legacy)
     /// <summary>ID de item_inventario_ecuador (Ecuador/Panamá). Cuando está presente, se aplica consumo en inventario-gestion.</summary>
+    [JsonPropertyName("itemInventarioEcuadorId")]
     public int? ItemInventarioEcuadorId { get; set; }
+    [JsonPropertyName("cantidad")]
     public double Cantidad { get; set; } // Cantidad utilizada
+    [JsonPropertyName("unidad")]
     public string Unidad { get; set; } = "kg"; // "kg", "g", "unidades", etc.
 }
 
@@ -43,6 +48,11 @@ public class CreateSeguimientoLoteLevanteRequest
     public string? UnidadConsumoHembras { get; set; } // "kg" o "g" - default "kg"
     public double? ConsumoMachos { get; set; }
     public string? UnidadConsumoMachos { get; set; } // "kg" o "g" - default "kg"
+    // Compatibilidad payload frontend actual (envía consumoKgHembras/consumoKgMachos)
+    [JsonPropertyName("consumoKgHembras")]
+    public double? ConsumoKgHembrasDirecto { get; set; }
+    [JsonPropertyName("consumoKgMachos")]
+    public double? ConsumoKgMachosDirecto { get; set; }
     
     // IDs de alimentos (opcionales, para validación de inventario)
     public int? TipoAlimentoHembras { get; set; }
@@ -54,7 +64,9 @@ public class CreateSeguimientoLoteLevanteRequest
     public string? TipoItemMachos { get; set; }
     
     // NUEVO: Arrays de ítems para permitir múltiples ítems por género
+    [JsonPropertyName("itemsHembras")]
     public List<ItemSeguimientoDto>? ItemsHembras { get; set; }
+    [JsonPropertyName("itemsMachos")]
     public List<ItemSeguimientoDto>? ItemsMachos { get; set; }
     
     // Cantidad de unidades (para tipos de ítem que no sean alimento) - DEPRECATED
@@ -130,6 +142,12 @@ public class CreateSeguimientoLoteLevanteRequest
                 consumoKgMachos = ConsumoMachos.Value; // Ya está en kg
             }
         }
+
+        // Fallback directo para frontend que envía consumoKg* en lugar de consumo* con unidad.
+        if (consumoKgHembras == 0 && ConsumoKgHembrasDirecto.HasValue && ConsumoKgHembrasDirecto.Value > 0)
+            consumoKgHembras = ConsumoKgHembrasDirecto.Value;
+        if ((!consumoKgMachos.HasValue || consumoKgMachos.Value <= 0) && ConsumoKgMachosDirecto.HasValue && ConsumoKgMachosDirecto.Value > 0)
+            consumoKgMachos = ConsumoKgMachosDirecto.Value;
         
         // Construir TipoAlimento concatenando nombres de alimentos
         string tipoAlimentoStr = TipoAlimento ?? string.Empty;

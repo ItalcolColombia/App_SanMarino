@@ -200,19 +200,19 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             catch (Exception ex) { Console.WriteLine($"Error al registrar consumo inventario (aves engorde): {ex.Message}"); }
         }
 
-        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
+        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM + dto.ErrorSexajeHembras + dto.ErrorSexajeMachos;
         if (totalRetiradas > 0)
         {
             try
             {
                 await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
                     loteId: dto.LoteId,
-                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
-                    machosRetirados: dto.MortalidadMachos + dto.SelM,
+                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras,
+                    machosRetirados: dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos,
                     mixtasRetiradas: 0,
                     fechaMovimiento: dto.FechaRegistro,
                     fuenteSeguimiento: "Engorde",
-                    observaciones: $"Aves de Engorde - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | {dto.Observaciones}");
+                    observaciones: $"Aves de Engorde - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM} | Error sexaje H: {dto.ErrorSexajeHembras}, M: {dto.ErrorSexajeMachos} | {dto.Observaciones}");
             }
             catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento engorde: {ex.Message}"); }
         }
@@ -257,6 +257,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             }
         }
 
+        var oldHRet = (ent.MortalidadHembras ?? 0) + (ent.SelH ?? 0) + (ent.ErrorSexajeHembras ?? 0);
+        var oldMRet = (ent.MortalidadMachos ?? 0) + (ent.SelM ?? 0) + (ent.ErrorSexajeMachos ?? 0);
+
         ent.Fecha = dto.FechaRegistro;
         ent.MortalidadHembras = dto.MortalidadHembras;
         ent.MortalidadMachos = dto.MortalidadMachos;
@@ -281,13 +284,18 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         ent.ConsumoAguaTemperatura = dto.ConsumoAguaTemperatura;
         var oldByItemId = ent.Metadata != null ? ParseMetadataItemsToKg(ent.Metadata.RootElement) : new Dictionary<int, decimal>();
 
-        ent.Metadata = dto.Metadata;
-        ent.ItemsAdicionales = dto.ItemsAdicionales;
+        // jsonb + JsonDocument: forzar persistencia; si no, EF puede no marcar Metadata como modificado y el inventario sí aplica el diff desde dto.Metadata.
+        ent.Metadata = CloneJsonDocument(dto.Metadata);
+        ent.ItemsAdicionales = CloneJsonDocument(dto.ItemsAdicionales);
         ent.KcalAlH = kcalAlH;
         ent.ProtAlH = protAlH;
         ent.KcalAveH = kcalAlH is null ? null : Math.Round(consumoKgH * kcalAlH.Value, 3);
         ent.ProtAveH = protAlH is null ? null : Math.Round(consumoKgH * protAlH.Value, 3);
         ent.UpdatedAt = DateTime.UtcNow;
+        // Reforzar persistencia de todas las columnas escalares (además de jsonb).
+        _ctx.Entry(ent).State = EntityState.Modified;
+        _ctx.Entry(ent).Property(e => e.Metadata).IsModified = true;
+        _ctx.Entry(ent).Property(e => e.ItemsAdicionales).IsModified = true;
         await _ctx.SaveChangesAsync();
 
         if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
@@ -317,19 +325,33 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             catch (Exception ex) { Console.WriteLine($"Error al actualizar inventario (aves engorde): {ex.Message}"); }
         }
 
-        var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM;
-        if (totalRetiradas > 0)
+        var newHRet = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
+        var newMRet = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
+        var deltaHRet = newHRet - oldHRet;
+        var deltaMRet = newMRet - oldMRet;
+        if (deltaHRet != 0 || deltaMRet != 0)
         {
             try
             {
-                await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
-                    loteId: dto.LoteId,
-                    hembrasRetiradas: dto.MortalidadHembras + dto.SelH,
-                    machosRetirados: dto.MortalidadMachos + dto.SelM,
-                    mixtasRetiradas: 0,
-                    fechaMovimiento: dto.FechaRegistro,
-                    fuenteSeguimiento: "Engorde",
-                    observaciones: $"Aves de Engorde (actualización) - Mortalidad H: {dto.MortalidadHembras}, M: {dto.MortalidadMachos} | Selección H: {dto.SelH}, M: {dto.SelM}");
+                if (deltaHRet > 0 || deltaMRet > 0)
+                {
+                    await _movimientoAvesService.RegistrarRetiroDesdeSeguimientoAsync(
+                        loteId: dto.LoteId,
+                        hembrasRetiradas: Math.Max(0, deltaHRet),
+                        machosRetirados: Math.Max(0, deltaMRet),
+                        mixtasRetiradas: 0,
+                        fechaMovimiento: dto.FechaRegistro,
+                        fuenteSeguimiento: "Engorde",
+                        observaciones: $"Aves de Engorde (actualización) - ajuste retiro H:{deltaHRet}, M:{deltaMRet}");
+                }
+
+                if (deltaHRet < 0 || deltaMRet < 0)
+                {
+                    await DevolverAvesAlInventarioAsync(
+                        dto.LoteId,
+                        Math.Abs(Math.Min(0, deltaHRet)),
+                        Math.Abs(Math.Min(0, deltaMRet)));
+                }
             }
             catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento engorde (actualización): {ex.Message}"); }
         }
@@ -360,9 +382,42 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             catch (Exception ex) { Console.WriteLine($"Error al devolver inventario al eliminar seguimiento aves engorde: {ex.Message}"); }
         }
 
+        var retH = (ent.Seguimiento.MortalidadHembras ?? 0) + (ent.Seguimiento.SelH ?? 0) + (ent.Seguimiento.ErrorSexajeHembras ?? 0);
+        var retM = (ent.Seguimiento.MortalidadMachos ?? 0) + (ent.Seguimiento.SelM ?? 0) + (ent.Seguimiento.ErrorSexajeMachos ?? 0);
+        if (retH > 0 || retM > 0)
+        {
+            try { await DevolverAvesAlInventarioAsync(ent.Seguimiento.LoteAveEngordeId, retH, retM); }
+            catch (Exception ex) { Console.WriteLine($"Error al devolver aves al eliminar seguimiento engorde: {ex.Message}"); }
+        }
+
         _ctx.SeguimientoDiarioAvesEngorde.Remove(ent.Seguimiento);
         await _ctx.SaveChangesAsync();
         return true;
+    }
+
+    private async Task DevolverAvesAlInventarioAsync(int loteId, int hembras, int machos)
+    {
+        if (hembras <= 0 && machos <= 0) return;
+        var inv = await _ctx.InventarioAves
+            .Where(i => i.LoteId == loteId &&
+                        i.CompanyId == _current.CompanyId &&
+                        i.DeletedAt == null &&
+                        i.Estado == "Activo")
+            .OrderByDescending(i => i.FechaActualizacion)
+            .FirstOrDefaultAsync();
+        if (inv == null) return;
+        inv.CantidadHembras += Math.Max(0, hembras);
+        inv.CantidadMachos += Math.Max(0, machos);
+        inv.FechaActualizacion = DateTime.UtcNow;
+        inv.UpdatedAt = DateTime.UtcNow;
+        await _ctx.SaveChangesAsync();
+    }
+
+    /// <summary>Clona JsonDocument para que EF Core persista cambios en columnas jsonb (evita comparador que ignora actualizaciones).</summary>
+    private static JsonDocument? CloneJsonDocument(JsonDocument? doc)
+    {
+        if (doc is null) return null;
+        return JsonDocument.Parse(doc.RootElement.GetRawText());
     }
 
     private static decimal ToKg(double cantidad, string? unidad)

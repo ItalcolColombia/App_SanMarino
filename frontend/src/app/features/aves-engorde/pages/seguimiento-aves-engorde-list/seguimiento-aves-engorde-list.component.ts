@@ -83,6 +83,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   lotesReproductora: LoteReproductoraAveEngordeDto[] = [];
 
   loading = false;
+  /** GET por id al pulsar Editar (antes de llenar el modal). */
+  loadingEdit = false;
   modalOpen = false;
   detailModalOpen = false;
   editing: SeguimientoLoteLevanteDto | null = null;
@@ -439,8 +441,18 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
 
   edit(seg: SeguimientoLoteLevanteDto): void {
     if (this.noPuedeSeguimiento) return;
-    this.editing = seg;
-    this.modalOpen = true;
+    // Cargar registro completo (metadata + ítems) para que el modal pueda editar alimentos y el resto
+    this.loading = true;
+    this.segSvc.getById(seg.id).pipe(finalize(() => (this.loading = false))).subscribe({
+      next: full => {
+        this.editing = full;
+        this.modalOpen = true;
+      },
+      error: () => {
+        this.editing = seg;
+        this.modalOpen = true;
+      }
+    });
   }
 
   viewDetail(seg: SeguimientoLoteLevanteDto): void {
@@ -468,6 +480,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   cancel(): void {
     this.modalOpen = false;
     this.editing = null;
+    this.loadingEdit = false;
   }
 
   onSave(event: { data: CreateSeguimientoLoteLevanteDto | UpdateSeguimientoLoteLevanteDto; isEdit: boolean }): void {
@@ -479,6 +492,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       next: () => {
         this.modalOpen = false;
         this.editing = null;
+        this.loadingEdit = false;
         this.onLoteChange(this.selectedLoteId);
       },
       error: err => {
