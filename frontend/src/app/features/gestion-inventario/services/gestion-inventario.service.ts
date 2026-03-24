@@ -47,6 +47,8 @@ export interface InventarioGestionStockDto {
   granjaNombre?: string;
   nucleoNombre?: string;
   galponNombre?: string;
+  /** Fecha de creación del registro de stock en esta ubicación (primera existencia). */
+  fechaIngreso?: string | null;
 }
 
 export interface InventarioGestionIngresoRequest {
@@ -64,6 +66,8 @@ export interface InventarioGestionIngresoRequest {
   origenFarmId?: number | null;
   /** Si origen es bodega: nombre o referencia de la bodega (opcional). */
   origenBodegaDescripcion?: string | null;
+  /** Fecha del movimiento (solo día, yyyy-MM-dd). Si se omite, el backend usa fecha/hora actual. */
+  fechaMovimiento?: string | null;
 }
 
 export interface InventarioGestionTrasladoRequest {
