@@ -1,10 +1,10 @@
-/* Paleta Italfoods: verde, naranja, crema (aviso inicial / login) */
+/* Paleta corporativa: verde, naranja, crema (login) */
 :host {
-  /* Italfoods: naranja vibrante (ital, cuadros) */
+  /* Naranja vibrante */
   --brand-orange: #e85c25;
   --brand-orange-light: rgba(232, 92, 37, 0.12);
   --brand-orange-dark: #d14a18;
-  /* Italfoods: verde medio (foods, borde, textos) */
+  /* Verde medio */
   --brand-green: #2d7a3e;
   --brand-green-light: rgba(45, 122, 62, 0.1);
   /* Fondo crema / off-white (logo y tarjeta) */
@@ -407,6 +407,16 @@
   width: 100%;
 }
 
+/* Logos apilados (Italcol principal + San Marino) */
+.logo-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+}
+
 /* Logo principal (arriba): más pequeño y cómodo */
 .logo-img {
   height: var(--logo-height);
@@ -415,6 +425,17 @@
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.06));
+}
+
+.logo-img--primary {
+  height: 4.25rem;
+  max-width: min(20rem, 100%);
+}
+
+.logo-img--secondary {
+  height: 3rem;
+  max-width: min(18rem, 100%);
+  opacity: 0.98;
 }
 
 /* Logo pequeño (pie del formulario): más grande para verse mejor */
