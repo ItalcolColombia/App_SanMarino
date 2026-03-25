@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faTimes, faEye, faFilter, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons';
@@ -23,7 +24,7 @@ import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { User } from '../../../../core/services/user/user.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { Company } from '../../../../core/services/company/company.service';
-import { GuiaGeneticaService } from '../../../lote/services/guia-genetica.service';
+import { GuiaGeneticaEcuadorFiltersDto, GuiaGeneticaEcuadorService } from '../../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
 
 @Component({
   selector: 'app-lote-engorde-list',
@@ -119,7 +120,7 @@ export class LoteEngordeListComponent implements OnInit {
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private farmSvc: FarmService,
     private galponSvc: GalponService,
-    private guiaGeneticaSvc: GuiaGeneticaService,
+    private guiaEcuadorSvc: GuiaGeneticaEcuadorService,
     private toastService: ToastService
   ) {}
 
@@ -367,22 +368,27 @@ export class LoteEngordeListComponent implements OnInit {
 
   private loadModalData(): void {
     this.loadingModal = true;
-    this.loteEngordeSvc.getFormData()
-      .pipe(finalize(() => this.loadingModal = false))
+    forkJoin({
+      form: this.loteEngordeSvc.getFormData(),
+      ecuador: this.guiaEcuadorSvc.getFilters().pipe(
+        catchError(() => of({ razas: [] as string[], anos: [] as number[] } as GuiaGeneticaEcuadorFiltersDto))
+      )
+    })
+      .pipe(finalize(() => { this.loadingModal = false; }))
       .subscribe({
-        next: (data) => this.applyFormDataResponse(data),
+        next: ({ form, ecuador }) => this.applyFormDataResponse(form, ecuador),
         error: () => this.toastService.error('No se pudieron cargar los datos del formulario.', 'Error')
       });
   }
 
-  private applyFormDataResponse(data: LoteFormDataResponse): void {
+  private applyFormDataResponse(data: LoteFormDataResponse, ecuadorFilters?: GuiaGeneticaEcuadorFiltersDto | null): void {
     const raw = data as unknown as Record<string, unknown>;
     const farms = (raw['farms'] ?? raw['Farms'] ?? []) as FarmDto[];
     const nucleos = (raw['nucleos'] ?? raw['Nucleos'] ?? []) as NucleoDto[];
     const galpones = (raw['galpones'] ?? raw['Galpones'] ?? []) as GalponDetailDto[];
     const tecnicos = (raw['tecnicos'] ?? raw['Tecnicos'] ?? []) as User[];
     const companies = (raw['companies'] ?? raw['Companies'] ?? []) as Company[];
-    const razas = (raw['razas'] ?? raw['Razas'] ?? []) as string[];
+    const razasForm = (raw['razas'] ?? raw['Razas'] ?? []) as string[];
 
     this.farms = farms;
     this.farmById = {};
@@ -398,7 +404,19 @@ export class LoteEngordeListComponent implements OnInit {
     this.techMap = {};
     tecnicos.forEach(u => { if (u.id) this.techMap[u.id] = `${u.surName ?? ''} ${u.firstName ?? ''}`.trim(); });
     this.companies = companies;
-    this.razasDisponibles = Array.isArray(razas) ? [...razas] : [];
+
+    const razasEc = (ecuadorFilters?.razas ?? [])
+      .map(r => String(r).trim())
+      .filter(Boolean);
+    if (razasEc.length) {
+      this.razasDisponibles = [...new Set(razasEc)].sort((a, b) => a.localeCompare(b, 'es'));
+    } else {
+      this.razasDisponibles = Array.isArray(razasForm) ? [...razasForm] : [];
+    }
+    const razaEdit = this.editing?.raza?.trim();
+    if (razaEdit && !this.razasDisponibles.includes(razaEdit)) {
+      this.razasDisponibles = [...this.razasDisponibles, razaEdit].sort((a, b) => a.localeCompare(b, 'es'));
+    }
 
     const granjaId = this.editing?.granjaId ?? this.form.get('granjaId')?.value;
     const nucleoId = this.editing?.nucleoId ?? this.form.get('nucleoId')?.value;
@@ -660,13 +678,24 @@ export class LoteEngordeListComponent implements OnInit {
   trackByLote = (_: number, l: LoteAveEngordeDto) => l.loteAveEngordeId;
 
   private loadAnosDisponibles(raza: string): void {
-    if (!raza?.trim()) { this.anosDisponibles = []; this.loadingAnos = false; return; }
+    const r = (raza ?? '').trim();
+    if (!r) { this.anosDisponibles = []; this.loadingAnos = false; return; }
     this.loadingAnos = true;
     this.razaValida = true;
-    this.guiaGeneticaSvc.obtenerInformacionRaza(raza).subscribe({
-      next: (info) => {
-        this.anosDisponibles = info.anosDisponibles;
-        this.razaValida = info.esValida;
+    const mismoLoteEdit =
+      !!this.editing &&
+      String(this.editing.raza ?? '').trim().toLowerCase() === r.toLowerCase();
+    const anoRespaldo = mismoLoteEdit ? this.editing!.anoTablaGenetica : undefined;
+
+    this.guiaEcuadorSvc.getAnosPorRaza(r).subscribe({
+      next: (anos) => {
+        const sorted = [...new Set(anos)].sort((a, b) => b - a);
+        if (anoRespaldo != null && !sorted.includes(anoRespaldo)) {
+          sorted.push(anoRespaldo);
+          sorted.sort((a, b) => b - a);
+        }
+        this.anosDisponibles = sorted;
+        this.razaValida = sorted.length > 0;
         this.loadingAnos = false;
       },
       error: () => {

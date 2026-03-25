@@ -290,12 +290,15 @@
             </div>
           </div>
 
-          <!-- Sección: Genética -->
+          <!-- Sección: Genética (misma fuente que Configuración → Guía genética Ecuador: raza + año para indicadores y curvas) -->
           <div class="le-form-section">
-            <h3 class="le-form-section__title">Genética</h3>
-            <div class="le-form-grid">
+            <h3 class="le-form-section__title">Genética — Guía Ecuador</h3>
+            <p class="le-form-hint le-form-hint--below-title">
+              Elija <strong>raza</strong> y <strong>año de tabla</strong> según las guías cargadas en el sistema; así el seguimiento e indicadores usan los mismos datos.
+            </p>
+            <div class="le-form-grid le-form-grid--genetica-pair">
               <div class="le-field">
-                <label class="le-label">Raza <span class="le-req">*</span></label>
+                <label class="le-label">Raza (guía Ecuador) <span class="le-req">*</span></label>
                 <select formControlName="raza" class="le-input" [class.le-input--invalid]="form.get('raza')?.invalid && form.get('raza')?.touched">
                   <option value="" disabled selected>Seleccione raza…</option>
                   <option *ngFor="let raza of razasDisponibles" [value]="raza">{{ raza }}</option>
@@ -303,18 +306,18 @@
                 <small class="le-error" *ngIf="form.get('raza')?.invalid && form.get('raza')?.touched">La raza es requerida</small>
               </div>
               <div class="le-field">
-                <label class="le-label">Año Tabla Genética <span class="le-req">*</span></label>
+                <label class="le-label">Año Tabla Genética (guía Ecuador) <span class="le-req">*</span></label>
                 <select formControlName="anoTablaGenetica" class="le-input"
                         [class.le-input--invalid]="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched"
                         [disabled]="!selectedRaza || loadingAnos">
-                  <option value="" disabled selected>{{ loadingAnos ? 'Cargando…' : !selectedRaza ? 'Primero seleccione raza' : 'Seleccione año…' }}</option>
+                  <option value="" disabled selected>{{ loadingAnos ? 'Cargando años…' : !selectedRaza ? 'Primero seleccione raza' : 'Seleccione año…' }}</option>
                   <option *ngFor="let ano of anosDisponibles" [value]="ano">{{ ano }}</option>
                 </select>
                 <small class="le-error" *ngIf="form.get('anoTablaGenetica')?.invalid && form.get('anoTablaGenetica')?.touched">Año requerido</small>
-                <small class="le-error" *ngIf="selectedRaza && !loadingAnos && !razaValida">No hay años para "{{ selectedRaza }}"</small>
-                <small class="le-warning" *ngIf="selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0">La raza no tiene años de tabla</small>
+                <small class="le-error" *ngIf="selectedRaza && !loadingAnos && !razaValida">No hay años de guía Ecuador para «{{ selectedRaza }}»</small>
+                <small class="le-warning" *ngIf="selectedRaza && !loadingAnos && razaValida && anosDisponibles.length === 0">La raza no tiene años de tabla cargados</small>
               </div>
-              <div class="le-field">
+              <div class="le-field le-field--genetica-full">
                 <label class="le-label">Técnico</label>
                 <select formControlName="tecnico" class="le-input">
                   <option value="" disabled selected>Seleccione…</option>

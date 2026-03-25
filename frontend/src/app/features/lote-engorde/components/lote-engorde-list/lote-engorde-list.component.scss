@@ -780,6 +780,22 @@ select.le-input {
   grid-template-columns: 1fr;
 }
 
+/** Raza + año guía Ecuador siempre en dos columnas; técnico ocupa el ancho completo debajo. */
+.le-form-grid--genetica-pair {
+  grid-template-columns: 1fr;
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .le-field--genetica-full {
+    @media (min-width: 640px) {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
 @media (min-width: 640px) {
   .le-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -790,7 +806,7 @@ select.le-input {
 }
 
 @media (min-width: 1024px) {
-  .le-form-grid {
+  .le-form-grid:not(.le-form-grid--genetica-pair) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .le-form-grid--wide {
@@ -802,6 +818,10 @@ select.le-input {
   font-size: 0.8rem;
   color: var(--le-warm-600);
   margin: 0.5rem 0 0 0;
+}
+
+.le-form-hint--below-title {
+  margin: -0.25rem 0 0.75rem 0;
 }
 
 .le-modal__actions {
