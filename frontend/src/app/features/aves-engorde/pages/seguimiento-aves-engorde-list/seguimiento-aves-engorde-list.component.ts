@@ -330,6 +330,9 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       mortCajaH: l.mortCajaH,
       mortCajaM: l.mortCajaM,
       avesEncasetadas: l.avesEncasetadas ?? (hembras + machos + mixtas),
+      raza: l.raza,
+      anoTablaGenetica: l.anoTablaGenetica ?? undefined,
+      codigoGuiaGenetica: l.codigoGuiaGenetica,
       farm: l.farm ?? null,
       nucleo: l.nucleo ?? null,
       galpon: l.galpon ?? null
