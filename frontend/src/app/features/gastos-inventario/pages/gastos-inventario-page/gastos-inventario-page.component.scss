@@ -1,0 +1,356 @@
+.gastos-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+
+  .ux-card__header {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--ital-green-50);
+  }
+
+  .ux-card__header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--ital-orange-dark);
+  }
+
+  .ux-card__body {
+    padding: 1rem;
+  }
+}
+
+/* Encabezado del módulo (alineado a Gestión de inventario / tema Italfoods) */
+.gastos-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1.25rem;
+  padding: clamp(1rem, 2.5vw, 1.35rem) clamp(1rem, 2.5vw, 1.5rem);
+  border-radius: 14px;
+  border: 1px solid var(--ital-green-100);
+  background: linear-gradient(135deg, #fff 0%, var(--ital-cream-50) 55%, #fff 100%);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 10px 28px rgba(45, 122, 62, 0.08);
+}
+
+.gastos-page__header-text {
+  flex: 1 1 min(0, 42rem);
+  min-width: 0;
+}
+
+.gastos-page__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.gastos-page__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.65rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.module-type-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--ital-orange-50), #fff);
+  border: 1px solid var(--ital-orange);
+  color: var(--ital-orange-dark);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gastos-page__subtitle {
+  margin: 0.55rem 0 0;
+  font-size: clamp(0.875rem, 2vw, 0.95rem);
+  line-height: 1.55;
+  color: var(--ital-muted);
+  max-width: 52rem;
+}
+
+.gastos-page__subtitle strong {
+  color: var(--ital-text);
+  font-weight: 700;
+}
+
+.gastos-page__header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.gastos-page__cta {
+  min-height: 2.75rem;
+  padding-left: 1.1rem;
+  padding-right: 1.25rem;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 14px rgba(45, 122, 62, 0.22);
+}
+
+.gastos-page__cta:hover {
+  box-shadow: 0 6px 20px rgba(45, 122, 62, 0.28);
+}
+
+.ux-card__header--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.ux-card__header-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gastos-page__export-btn {
+  min-height: 2.5rem;
+}
+
+.gastos-page__cta-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .gastos-page__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gastos-page__header-actions {
+    width: 100%;
+  }
+
+  .gastos-page__cta {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.filters-extra {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.filters-extra .grow {
+  grid-column: span 2;
+}
+
+.ux-field label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  color: #475569;
+}
+
+input, select, textarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  background: #fff;
+}
+
+.ux-scroll {
+  overflow-x: auto;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.obs {
+  max-width: 22rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #e2e8f0;
+  color: #334155;
+}
+.pill--deleted {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Botones y ux-* ya vienen del tema global `theme-italfoods.scss` */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.inline {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.inline .grow {
+  flex: 1;
+}
+.unit__box {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.6rem;
+  background: #f8fafc;
+  min-width: 5rem;
+  text-align: center;
+}
+
+.mt { margin-top: 1rem; }
+
+.modal-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.9rem;
+  background: #fff;
+}
+
+.modal-section + .modal-section {
+  margin-top: 1rem;
+}
+
+.modal-section__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.modal-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-top: 0.75rem;
+}
+
+.hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.hint--error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.input--error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.ux-alert {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.ux-alert--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+/* Modal full screen (100% responsive) */
+.modal-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 71;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+}
+
+.modal-full {
+  width: 100%;
+  height: 100dvh;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modal-title {
+  font-weight: 800;
+}
+
+.modal-body-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.modal-footer-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+.confirm-modal {
+  width: min(560px, calc(100vw - 1.5rem));
+  max-height: min(90vh, 520px);
+  margin: auto;
+}
+
+@media (max-width: 900px) {
+  .grid { grid-template-columns: 1fr; }
+  .filters-extra { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters-extra .grow { grid-column: span 2; }
+  .modal-row { flex-direction: column; align-items: stretch; }
+}
+

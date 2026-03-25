@@ -237,6 +237,15 @@ export const appConfig: ApplicationConfig = {
           import('./features/gestion-inventario/gestion-inventario.module')
             .then(m => m.GestionInventarioModule)
       },
+
+      // Gastos de Inventario (Ecuador): consumos por concepto (no alimentos), stock por granja
+      {
+        path: 'inventario-gastos',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/gastos-inventario/pages/gastos-inventario-page/gastos-inventario-page.component')
+            .then(m => m.GastosInventarioPageComponent)
+      },
       
       // Ruta alternativa para inventario (también protegida)
       {
