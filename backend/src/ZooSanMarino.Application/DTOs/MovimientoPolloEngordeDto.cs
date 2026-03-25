@@ -133,6 +133,12 @@ public sealed record MovimientoPolloEngordeSearchRequest(
     string? Estado = null,
     int? LoteAveEngordeOrigenId = null,
     int? LoteReproductoraAveEngordeOrigenId = null,
+    /// <summary>Filtro por granja de origen (incluye movimientos vinculados por lote aunque GranjaOrigenId venga null en registros antiguos).</summary>
+    int? GranjaOrigenId = null,
+    string? NucleoOrigenId = null,
+    string? GalponOrigenId = null,
+    /// <summary>Solo movimientos cuyo origen no tiene galpón asignado (movimiento o lote).</summary>
+    bool? GalponOrigenSinAsignar = null,
     DateTime? FechaDesde = null,
     DateTime? FechaHasta = null,
     string SortBy = "FechaMovimiento",

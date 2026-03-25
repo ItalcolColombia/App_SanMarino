@@ -166,6 +166,11 @@ export class MovimientoPolloEngordeService {
     estado?: string;
     loteAveEngordeOrigenId?: number;
     loteReproductoraAveEngordeOrigenId?: number;
+    /** Filtro por granja de origen (todos los galpones/lotes de esa granja). */
+    granjaOrigenId?: number;
+    nucleoOrigenId?: string;
+    galponOrigenId?: string;
+    galponOrigenSinAsignar?: boolean;
     fechaDesde?: string;
     fechaHasta?: string;
     page?: number;
