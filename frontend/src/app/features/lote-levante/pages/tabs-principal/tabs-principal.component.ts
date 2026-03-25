@@ -131,8 +131,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
             : null;
 
       const edad0 = this.calcularEdadDias(seg.fechaRegistro);
-      const edadDia = edad0 + 1;
-      const semana = Math.max(1, Math.min(8, Math.ceil(edadDia / 7)));
+      /** Días de vida: el día del encasetamiento es 0 (no 1). */
+      const edadDia = edad0;
+      /** Semana de cría: misma frontera que antes (cuando edad mostrada era edad0+1). */
+      const semana = Math.max(1, Math.min(8, Math.ceil((edadDia + 1) / 7)));
 
       out.push({
         seg,

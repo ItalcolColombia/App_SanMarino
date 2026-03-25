@@ -124,15 +124,8 @@ public class TrasladosController : ControllerBase
                 UsuarioMovimientoId = _currentUser.UserId
             };
 
+            // CreateAsync ya procesa el movimiento (inventario + seguimiento); no duplicar Procesar aquí.
             var movimiento = await _movimientoAvesService.CreateAsync(movimientoDto);
-            
-            // Procesar automáticamente el movimiento
-            var procesarDto = new ProcesarMovimientoDto
-            {
-                MovimientoId = movimiento.Id,
-                AutoCrearInventarioDestino = true
-            };
-            await _movimientoAvesService.ProcesarMovimientoAsync(procesarDto);
 
             return CreatedAtAction(nameof(GetMovimientoAves), new { id = movimiento.Id }, movimiento);
         }

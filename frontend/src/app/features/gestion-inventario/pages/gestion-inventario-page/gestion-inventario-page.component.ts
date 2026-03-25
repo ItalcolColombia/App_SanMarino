@@ -14,12 +14,14 @@ import {
   faTruck,
   faFileExport,
   faPen,
-  faTrash
+  faTrash,
+  faEye
 } from '@fortawesome/free-solid-svg-icons';
 
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
+  InventarioGestionHistoricoFiltrosDto,
   InventarioGestionStockDto,
   InventarioGestionMovimientoDto,
   ItemInventarioEcuadorDto,
@@ -48,6 +50,7 @@ export class GestionInventarioPageComponent implements OnInit {
   faExport = faFileExport;
   faPen = faPen;
   faTrash = faTrash;
+  faEye = faEye;
 
   activeTab: TabKey = 'stock';
   filterData: InventarioGestionFilterDataDto | null = null;
@@ -60,7 +63,7 @@ export class GestionInventarioPageComponent implements OnInit {
   showConfirmModal = false;
   confirmTitle = '';
   confirmText = '';
-  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | 'deleteStock' | null = null;
+  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | 'deleteStock' | 'anularMovHistorico' | null = null;
   showAlertModal = false;
   alertType: 'success' | 'error' = 'success';
   alertTitle = '';
@@ -133,9 +136,24 @@ export class GestionInventarioPageComponent implements OnInit {
 
   // Histórico tab
   historicoFarmId: number | null = null;
+  /** Filtro por ubicación (inventario por granja EC/PA). */
+  historicoNucleoId: string | null = null;
+  historicoGalponId: string | null = null;
+  /** Si > 0, el API filtra por lote (y deriva granja/núcleo/galpón). */
+  historicoLoteId: number | null = null;
   historicoFechaDesde = '';
   historicoFechaHasta = '';
   historicoEstado = '';
+  /** Búsqueda por código o nombre de ítem (catálogo Ecuador). */
+  historicoItemSearch = '';
+  /** Filtro exacto por concepto del ítem (valores ya presentes en histórico). */
+  historicoConcepto = '';
+  /** Filtro exacto por tipo de ítem en catálogo (valores ya presentes en histórico). */
+  historicoTipoItem = '';
+  /** Metadatos para desplegables (lotes en granjas asignadas, conceptos/tipos/estados en movimientos). */
+  historicoMeta: InventarioGestionHistoricoFiltrosDto | null = null;
+  /** Detalle completo de una fila (modal). */
+  historicoDetalleMov: InventarioGestionMovimientoDto | null = null;
 
   // Items tab
   itemsFilterType: string = ''; // concepto
@@ -146,9 +164,12 @@ export class GestionInventarioPageComponent implements OnInit {
   stockEditRow: InventarioGestionStockDto | null = null;
   stockEditQuantity = 0;
   stockEditUnit = '';
+  /** Fecha de primer ingreso en ubicación (yyyy-MM-dd), editable en modal. */
+  stockEditFechaIngreso = '';
   stockEditReason = '';
   submittingStockEdit = false;
   pendingDeleteStock: InventarioGestionStockDto | null = null;
+  pendingAnularMovimiento: InventarioGestionMovimientoDto | null = null;
 
   private allCatalogItems: ItemInventarioEcuadorDto[] = [];
 
@@ -164,7 +185,10 @@ export class GestionInventarioPageComponent implements OnInit {
     this.activeTab = tab;
     this.closeAlertModal();
     if (tab === 'stock') this.loadStock();
-    if (tab === 'historico') this.loadMovimientos();
+    if (tab === 'historico') {
+      this.loadHistoricoMeta();
+      this.loadMovimientos();
+    }
     if (tab === 'items') this.loadItemsList();
     if (tab === 'transito') this.loadTransitos();
   }
@@ -184,13 +208,78 @@ export class GestionInventarioPageComponent implements OnInit {
     'Eliminación registro'
   ];
 
+  /** Lotes en granjas asignadas + valores distintos de concepto/tipo/estado en movimientos. */
+  private loadHistoricoMeta(): void {
+    this.svc.getHistoricoFiltros().subscribe({
+      next: (data) => {
+        this.historicoMeta = data;
+      },
+      error: () => {
+        this.historicoMeta = null;
+      }
+    });
+  }
+
+  /** Opciones de estado: valores ya guardados en BD + lista de referencia para etiquetas habituales. */
+  get historicoEstadosOptions(): string[] {
+    const api = this.historicoMeta?.estadosEnHistorico ?? [];
+    const set = new Set<string>([...api, ...this.estadosHistorial]);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  get historicoConceptosOptions(): string[] {
+    return this.historicoMeta?.conceptosEnHistorico ?? [];
+  }
+
+  get historicoTiposItemOptions(): string[] {
+    return this.historicoMeta?.tiposItemEnHistorico ?? [];
+  }
+
+  /** Lotes: si hay granja elegida, solo esa; si no, todos los de tus granjas (con etiqueta en el desplegable). */
+  get historicoLotesFiltered() {
+    const list = this.historicoMeta?.lotes ?? [];
+    if (this.historicoFarmId == null) return list;
+    return list.filter(l => l.granjaId === this.historicoFarmId);
+  }
+
+  openHistoricoDetalle(m: InventarioGestionMovimientoDto): void {
+    this.historicoDetalleMov = m;
+  }
+
+  closeHistoricoDetalle(): void {
+    this.historicoDetalleMov = null;
+  }
+
   loadMovimientos(): void {
     this.loading = true;
-    const params: { farmId?: number; fechaDesde?: string; fechaHasta?: string; estado?: string } = {};
+    const params: {
+      farmId?: number;
+      fechaDesde?: string;
+      fechaHasta?: string;
+      estado?: string;
+      nucleoId?: string;
+      galponId?: string;
+      loteId?: number;
+      search?: string;
+      concepto?: string;
+      tipoItem?: string;
+    } = {};
     if (this.historicoFarmId != null) params.farmId = this.historicoFarmId;
     if (this.historicoFechaDesde) params.fechaDesde = this.historicoFechaDesde;
     if (this.historicoFechaHasta) params.fechaHasta = this.historicoFechaHasta;
     if (this.historicoEstado) params.estado = this.historicoEstado;
+    const qItem = (this.historicoItemSearch ?? '').trim();
+    if (qItem) params.search = qItem;
+    const c = (this.historicoConcepto ?? '').trim();
+    if (c) params.concepto = c;
+    const ti = (this.historicoTipoItem ?? '').trim();
+    if (ti) params.tipoItem = ti;
+    if (this.historicoLoteId != null && this.historicoLoteId > 0) {
+      params.loteId = this.historicoLoteId;
+    } else {
+      if (this.historicoNucleoId) params.nucleoId = this.historicoNucleoId;
+      if (this.historicoGalponId) params.galponId = this.historicoGalponId;
+    }
     this.svc.getMovimientos(params).subscribe({
       next: (list) => {
         this.movimientosList = list ?? [];
@@ -203,6 +292,52 @@ export class GestionInventarioPageComponent implements OnInit {
     });
   }
 
+  get historicoNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
+    if (!this.filterData || this.historicoFarmId == null) return [];
+    return this.filterData.nucleosOrigen
+      .filter(n => n.granjaId === this.historicoFarmId)
+      .map(n => ({ nucleoId: n.nucleoId, nucleoNombre: n.nucleoNombre }));
+  }
+
+  get historicoGalponesFiltered(): { galponId: string; galponNombre: string }[] {
+    if (!this.filterData || this.historicoFarmId == null) return [];
+    return this.filterData.galponesOrigen
+      .filter(g => g.granjaId === this.historicoFarmId && (!this.historicoNucleoId || g.nucleoId === this.historicoNucleoId))
+      .map(g => ({ galponId: g.galponId, galponNombre: g.galponNombre }));
+  }
+
+  onHistoricoFarmChange(): void {
+    this.historicoNucleoId = null;
+    this.historicoGalponId = null;
+    const lid = this.historicoLoteId;
+    if (lid != null && lid > 0) {
+      const ok = this.historicoLotesFiltered.some(l => l.loteId === lid);
+      if (!ok) this.historicoLoteId = null;
+    }
+  }
+
+  /** Texto del desplegable de lote (incluye granja cuando filtra «todas»). */
+  historicoLoteOptionLabel(l: { loteId: number; loteNombre: string; fase: string | null; granjaId: number }): string {
+    const farm = this.getFarmName(l.granjaId);
+    const phase = (l.fase ?? '').trim();
+    const phasePart = phase ? ` · ${phase}` : '';
+    return `${farm} — ${l.loteNombre}${phasePart} · #${l.loteId}`;
+  }
+
+  onHistoricoNucleoChange(): void {
+    this.historicoGalponId = null;
+  }
+
+  /** Con lote seleccionado el API usa la ubicación del lote; se ignoran núcleo/galpón manuales. */
+  onHistoricoLoteChange(): void {
+    if (this.historicoLoteId != null && this.historicoLoteId > 0) {
+      this.historicoNucleoId = null;
+      this.historicoGalponId = null;
+    }
+  }
+
+  trackByHistoricoMov = (_: number, m: InventarioGestionMovimientoDto) => m.id;
+
   formatFechaMovimiento(iso: string): string {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -214,6 +349,18 @@ export class GestionInventarioPageComponent implements OnInit {
     if (!iso) return '—';
     const d = new Date(iso);
     return isNaN(d.getTime()) ? String(iso) : d.toLocaleDateString('es', { dateStyle: 'long' });
+  }
+
+  /** Convierte fecha del API a yyyy-MM-dd para input type="date". */
+  fechaIngresoStockToYmd(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const head = String(iso).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (head) return `${head[1]}-${head[2]}-${head[3]}`;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
   /** Ubicación del movimiento (granja de registro + núcleo/galpón si aplica). */
@@ -253,7 +400,9 @@ export class GestionInventarioPageComponent implements OnInit {
       'Estado',
       'Código ítem',
       'Nombre ítem',
-      'Concepto',
+      'Concepto (mostrado)',
+      'Concepto catálogo',
+      'Tipo ítem catálogo',
       'Cantidad',
       'Unidad',
       'Ubicación registro (granja / núcleo / galpón)',
@@ -272,6 +421,8 @@ export class GestionInventarioPageComponent implements OnInit {
           escape(m.itemCodigo),
           escape(m.itemNombre),
           escape(m.itemType),
+          escape(m.itemConcepto ?? ''),
+          escape(m.itemTipoItem ?? ''),
           escape(m.quantity),
           escape(m.unit),
           escape(this.ubicacionRegistroMovimiento(m)),
@@ -707,7 +858,7 @@ export class GestionInventarioPageComponent implements OnInit {
   openConfirmModal(
     title: string,
     text: string,
-    action: 'ingreso' | 'traslado' | 'recepcionTransito' | 'deleteStock'
+    action: 'ingreso' | 'traslado' | 'recepcionTransito' | 'deleteStock' | 'anularMovHistorico'
   ): void {
     this.confirmTitle = title;
     this.confirmText = text;
@@ -718,23 +869,62 @@ export class GestionInventarioPageComponent implements OnInit {
     this.showConfirmModal = false;
     this.confirmAction = null;
     this.pendingDeleteStock = null;
+    this.pendingAnularMovimiento = null;
   }
   confirm(): void {
     const action = this.confirmAction;
     const rowToDelete = this.pendingDeleteStock;
+    const movAnular = this.pendingAnularMovimiento;
     this.showConfirmModal = false;
     this.confirmAction = null;
     this.pendingDeleteStock = null;
+    this.pendingAnularMovimiento = null;
     if (action === 'ingreso') this.doIngreso();
     if (action === 'traslado') this.doTraslado();
     if (action === 'recepcionTransito') this.doRecepcionTransito();
     if (action === 'deleteStock') this.doDeleteStock(rowToDelete);
+    if (action === 'anularMovHistorico') this.doAnularMovimientoHistorico(movAnular);
+  }
+
+  /** Solo Consumo / Ingreso: revierte stock y elimina la fila del histórico. */
+  puedeAnularMovimientoHistorico(m: InventarioGestionMovimientoDto): boolean {
+    const t = (m.movementType ?? '').trim().toLowerCase();
+    return t === 'consumo' || t === 'ingreso';
+  }
+
+  beginAnularMovimientoHistorico(m: InventarioGestionMovimientoDto): void {
+    this.pendingAnularMovimiento = m;
+    const tipo = (m.movementType ?? '').toLowerCase() === 'consumo' ? 'consumo' : 'ingreso';
+    this.openConfirmModal(
+      'Anular movimiento en histórico',
+      `¿Anular este registro (${tipo}) de ${m.quantity} ${m.unit} — ${m.itemNombre}? ` +
+        `Se revertirá el efecto en el stock de la ubicación y se eliminará la línea del histórico.`,
+      'anularMovHistorico'
+    );
+  }
+
+  private doAnularMovimientoHistorico(m: InventarioGestionMovimientoDto | null): void {
+    if (!m) return;
+    this.loading = true;
+    this.svc.anularMovimientoHistorico(m.id, 'Anulado desde histórico gestión inventario').subscribe({
+      next: () => {
+        this.loading = false;
+        this.openAlertModal('success', 'Listo', 'Movimiento anulado y stock actualizado.');
+        this.loadMovimientos();
+        if (this.activeTab === 'stock') this.loadStock();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.openAlertModal('error', 'Error', err.error?.message || 'No se pudo anular el movimiento.');
+      }
+    });
   }
 
   openStockEdit(row: InventarioGestionStockDto): void {
     this.stockEditRow = row;
     this.stockEditQuantity = Number(row.quantity);
     this.stockEditUnit = (row.unit ?? 'kg').trim() || 'kg';
+    this.stockEditFechaIngreso = this.fechaIngresoStockToYmd(row.fechaIngreso) || this.todayYmd();
     this.stockEditReason = '';
     this.showStockEditModal = true;
   }
@@ -752,13 +942,19 @@ export class GestionInventarioPageComponent implements OnInit {
       this.openAlertModal('error', 'Validación', 'La cantidad no puede ser negativa.');
       return;
     }
+    const fechaIngreso = (this.stockEditFechaIngreso ?? '').trim();
+    if (!fechaIngreso) {
+      this.openAlertModal('error', 'Validación', 'Indique la fecha de registro (ingreso en ubicación).');
+      return;
+    }
     const unit = (this.stockEditUnit ?? '').trim() || row.unit || 'kg';
     this.submittingStockEdit = true;
     this.svc
       .actualizarStock(row.id, {
         quantity: this.stockEditQuantity,
         unit,
-        reason: this.stockEditReason?.trim() || null
+        reason: this.stockEditReason?.trim() || null,
+        fechaIngreso
       })
       .subscribe({
         next: () => {

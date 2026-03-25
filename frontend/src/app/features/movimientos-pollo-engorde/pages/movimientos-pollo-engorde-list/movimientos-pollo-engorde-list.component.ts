@@ -69,6 +69,12 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   selectedLoteValue: string | null = null; // "ae-123"
 
   allLoteAveEngorde: LoteAveEngordeDto[] = [];
+  /**
+   * Lotes para venta por granja (misma lógica que antes en getter).
+   * Referencia estable: si se recalcula con getter nuevo en cada CD, el modal hijo recibe @Input distinto
+   * en cada ciclo y Angular puede re-ejecutar ngOnChanges sin parar (congelamiento).
+   */
+  lotesParaVentaGranjaList: LoteAveEngordeDto[] = [];
   /** Catálogo completo desde filter-data (se filtra en cliente al elegir granja/núcleo). */
   private allNucleosFull: NucleoDto[] = [];
   private allGalponesFull: GalponDetailDto[] = [];
@@ -139,30 +145,11 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     return !!this.selectedLoteValue;
   }
 
-  /**
-   * Lotes Ave Engorde de la granja (y núcleo si aplica) para venta por despacho;
-   * incluye todos los galpones; no filtra por el desplegable de galpón.
-   */
-  get lotesParaVentaGranja(): LoteAveEngordeDto[] {
-    if (!this.selectedGranjaId) return [];
-    const gid = String(this.selectedGranjaId);
-    let rows = this.allLoteAveEngorde.filter((l) => String(l.granjaId) === gid);
-    if (this.selectedNucleoId) {
-      const nid = String(this.selectedNucleoId);
-      rows = rows.filter((l) => (l.nucleoId ?? '') === nid);
-    }
-    return rows.sort((a, b) => {
-      const ga = (a.galponId ?? '').localeCompare(b.galponId ?? '', 'es');
-      if (ga !== 0) return ga;
-      return (a.loteNombre || '').localeCompare(b.loteNombre || '', 'es', { numeric: true });
-    });
-  }
-
   /** Nuevo registro: con lote (cualquier tipo) o sin lote solo si hay lotes en la granja (venta por granja). */
   get canOpenNuevoRegistro(): boolean {
     if (!this.selectedGranjaId) return false;
     if (this.hasLoteSelected) return true;
-    return this.lotesParaVentaGranja.length > 0;
+    return this.lotesParaVentaGranjaList.length > 0;
   }
 
   get loteAveEngordeOrigenId(): number | null {
@@ -194,12 +181,14 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
           this.allNucleosFull = data.nucleos ?? [];
           this.allGalponesFull = data.galpones ?? [];
           this.allLoteAveEngorde = data.lotesAveEngorde ?? [];
+          this.refreshLotesParaVentaGranja();
         },
         error: () => {
           this.granjas = [];
           this.allNucleosFull = [];
           this.allGalponesFull = [];
           this.allLoteAveEngorde = [];
+          this.refreshLotesParaVentaGranja();
           this.toastService.error('No se pudieron cargar los filtros. Revise la sesión o intente de nuevo.');
         }
       });
@@ -216,11 +205,15 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.lotesOpciones = [];
     this.nucleos = [];
 
-    if (!this.selectedGranjaId) return;
+    if (!this.selectedGranjaId) {
+      this.refreshLotesParaVentaGranja();
+      return;
+    }
 
     this.nucleos = this.allNucleosFull.filter((n) => n.granjaId === this.selectedGranjaId);
     this.fillGalponMapFromCache();
     this.buildLotesOpciones();
+    this.refreshLotesParaVentaGranja();
     this.loadMovimientos();
   }
 
@@ -233,6 +226,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.selectedLoteValue = null;
     this.buildLotesOpciones();
     this.fillGalponMapFromCache();
+    this.refreshLotesParaVentaGranja();
   }
 
   onGalponChange(galponId: string | null): void {
@@ -299,6 +293,28 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       result.unshift({ id: this.SIN_GALPON, label: '— Sin galpón —' });
     }
     this.galpones = result.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
+  }
+
+  /**
+   * Lotes Ave Engorde de la granja (y núcleo si aplica) para venta por despacho;
+   * incluye todos los galpones; no filtra por el desplegable de galpón.
+   */
+  private refreshLotesParaVentaGranja(): void {
+    if (!this.selectedGranjaId) {
+      this.lotesParaVentaGranjaList = [];
+      return;
+    }
+    const gid = String(this.selectedGranjaId);
+    let rows = this.allLoteAveEngorde.filter((l) => String(l.granjaId) === gid);
+    if (this.selectedNucleoId) {
+      const nid = String(this.selectedNucleoId);
+      rows = rows.filter((l) => (l.nucleoId ?? '') === nid);
+    }
+    this.lotesParaVentaGranjaList = rows.sort((a, b) => {
+      const ga = (a.galponId ?? '').localeCompare(b.galponId ?? '', 'es');
+      if (ga !== 0) return ga;
+      return (a.loteNombre || '').localeCompare(b.loteNombre || '', 'es', { numeric: true });
+    });
   }
 
   private buildLotesOpciones(): void {
@@ -468,7 +484,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   create(): void {
     if (!this.selectedGranjaId) return;
     if (!this.hasLoteSelected) {
-      if (this.lotesParaVentaGranja.length === 0) return;
+      if (this.lotesParaVentaGranjaList.length === 0) return;
       this.ventaPorGranjaMode = true;
     } else {
       this.ventaPorGranjaMode = false;
@@ -599,17 +615,19 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   deleteMovimiento(m: MovimientoPolloEngordeDto): void {
-    if (m.estado === 'Cancelado') {
-      this.showErrorMessage('No se puede cancelar un movimiento ya cancelado.');
-      return;
-    }
     this.movimientoToDeleteGroup = null;
     this.movimientoToDelete = m;
+    const extra =
+      m.estado === 'Completado'
+        ? ' Las aves registradas en la venta volverán al inventario del lote de origen (y se ajustará el destino si hubo traslado).'
+        : m.estado === 'Pendiente'
+          ? ' Aún no se había descontado inventario al completar.'
+          : '';
     this.confirmationModalData = {
-      title: 'Confirmar cancelación',
-      message: `¿Cancelar el movimiento ${m.numeroMovimiento}? Esta acción no se puede deshacer.`,
+      title: 'Eliminar movimiento',
+      message: `¿Eliminar el movimiento ${m.numeroMovimiento}? Desaparecerá del listado.${extra}`,
       type: 'warning',
-      confirmText: 'Sí, cancelar',
+      confirmText: 'Sí, eliminar',
       cancelText: 'No',
       showCancel: true
     };
@@ -627,16 +645,21 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.showConfirmationModal = false;
     this.loading = true;
     this.movimientoSvc
-      .cancel(m.id, 'Cancelado por usuario')
+      .eliminar(m.id, 'Eliminado por usuario')
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
         next: () => {
-          this.showSuccessMessage(`Movimiento ${m.numeroMovimiento} cancelado.`);
+          const msg =
+            m.estado === 'Completado'
+              ? `Movimiento ${m.numeroMovimiento} eliminado. Las aves volvieron al inventario del lote.`
+              : `Movimiento ${m.numeroMovimiento} eliminado.`;
+          this.showSuccessMessage(msg);
           this.loadMovimientos();
+          this.refreshResumenIfLoteSelected();
           this.movimientoToDelete = null;
         },
         error: (err) => {
-          this.showErrorMessage('Error al cancelar: ' + (err?.message ?? ''));
+          this.showErrorMessage('Error al eliminar: ' + (err?.message ?? ''));
           this.movimientoToDelete = null;
         }
       });
@@ -649,12 +672,13 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     const afectados = items.filter((m) => m.estado !== 'Cancelado');
     try {
       for (const m of afectados) {
-        await firstValueFrom(this.movimientoSvc.cancel(m.id, 'Cancelado por usuario'));
+        await firstValueFrom(this.movimientoSvc.eliminar(m.id, 'Eliminado por usuario (despacho)'));
       }
-      this.showSuccessMessage(`Se cancelaron ${afectados.length} movimiento(s) del despacho.`);
+      this.showSuccessMessage(`Se eliminaron ${afectados.length} movimiento(s) del despacho. Si estaban completados, el inventario se revirtió en cada lote.`);
       this.loadMovimientos();
+      this.refreshResumenIfLoteSelected();
     } catch (err: unknown) {
-      this.showErrorMessage('Error al cancelar el despacho: ' + (err instanceof Error ? err.message : String(err)));
+      this.showErrorMessage('Error al eliminar el despacho: ' + (err instanceof Error ? err.message : String(err)));
       this.loadMovimientos();
     } finally {
       this.loading = false;
@@ -820,11 +844,16 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     if (afect.length === 0) return;
     this.movimientoToDelete = null;
     this.movimientoToDeleteGroup = afect;
+    const completados = afect.filter((m) => m.estado === 'Completado').length;
+    const extra =
+      completados > 0
+        ? ` En ${completados} línea(s) ya completada(s), las aves volverán al inventario de cada lote de origen.`
+        : '';
     this.confirmationModalData = {
-      title: 'Cancelar despacho completo',
-      message: `¿Cancelar ${afect.length} movimiento(s) del despacho ${fila.numeroDespacho}? Esta acción no se puede deshacer.`,
+      title: 'Eliminar despacho completo',
+      message: `¿Eliminar ${afect.length} movimiento(s) del despacho ${fila.numeroDespacho}? Desaparecerán del listado.${extra}`,
       type: 'warning',
-      confirmText: 'Sí, cancelar todo',
+      confirmText: 'Sí, eliminar todo',
       cancelText: 'No',
       showCancel: true
     };

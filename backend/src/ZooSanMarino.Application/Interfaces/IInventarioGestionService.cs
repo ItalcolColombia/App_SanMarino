@@ -8,6 +8,9 @@ public interface IInventarioGestionService
 {
     Task<InventarioGestionFilterDataDto> GetFilterDataAsync(CancellationToken ct = default);
 
+    /// <summary>Lotes en granjas asignadas y valores distintos de concepto/tipo/estado ya presentes en movimientos (histórico).</summary>
+    Task<InventarioGestionHistoricoFiltrosDto> GetHistoricoFiltrosAsync(CancellationToken ct = default);
+
     Task<List<InventarioGestionStockDto>> GetStockAsync(
         int? farmId = null,
         string? nucleoId = null,
@@ -30,6 +33,12 @@ public interface IInventarioGestionService
         DateTime? fechaHasta = null,
         string? estado = null,
         string? movementType = null,
+        string? nucleoId = null,
+        string? galponId = null,
+        int? loteId = null,
+        string? search = null,
+        string? concepto = null,
+        string? tipoItem = null,
         CancellationToken ct = default);
 
     /// <summary>Traslados inter-granja en tránsito pendientes de recepción en la granja destino (opcional).</summary>
@@ -46,4 +55,10 @@ public interface IInventarioGestionService
 
     /// <summary>Elimina el registro de stock. Si había cantidad &gt; 0, registra salida antes de borrar.</summary>
     Task EliminarStockAsync(int stockId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Anula un registro del histórico (solo <c>Consumo</c> o <c>Ingreso</c>): revierte el efecto en <c>inventario_gestion_stock</c> y elimina la fila del movimiento.
+    /// No aplica a traslados ni tránsito inter-granja.
+    /// </summary>
+    Task AnularMovimientoHistoricoAsync(int movimientoId, string? motivo, CancellationToken ct = default);
 }

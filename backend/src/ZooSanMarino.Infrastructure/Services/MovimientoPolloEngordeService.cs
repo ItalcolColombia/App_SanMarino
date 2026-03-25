@@ -1,5 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/MovimientoPolloEngordeService.cs
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using PagedResultCommon = ZooSanMarino.Application.DTOs.Common.PagedResult<ZooSanMarino.Application.DTOs.MovimientoPolloEngordeDto>;
@@ -17,6 +19,17 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
     {
         _ctx = ctx;
         _currentUser = currentUser;
+    }
+
+    /// <summary>Must match observaciones column max length in EF configuration (1000).</summary>
+    private const int MaxObservacionesLen = 1000;
+
+    /// <summary>Appends text without exceeding DB column length (keeps suffix when truncating).</summary>
+    private static string AppendObservaciones(string? existing, string suffix)
+    {
+        var combined = (existing ?? "") + suffix;
+        if (combined.Length <= MaxObservacionesLen) return combined;
+        return combined[^MaxObservacionesLen..];
     }
 
     public async Task<MovimientoPolloEngordeDto> CreateAsync(CreateMovimientoPolloEngordeDto dto)
@@ -349,11 +362,179 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             throw new InvalidOperationException("Solo se pueden cancelar movimientos en estado Pendiente.");
         m.Estado = "Cancelado";
         m.FechaCancelacion = DateTime.UtcNow;
-        m.Observaciones = (m.Observaciones ?? "") + " | Cancelado: " + (motivo ?? "");
+        m.Observaciones = AppendObservaciones(m.Observaciones, " | Cancelado: " + (motivo ?? ""));
         m.UpdatedByUserId = _currentUser.UserId;
         m.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
         return true;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> EliminarAsync(int id, string? motivo)
+    {
+        await using var tx = await _ctx.Database.BeginTransactionAsync();
+        try
+        {
+            var m = await _ctx.MovimientoPolloEngorde
+                .Include(x => x.LoteAveEngordeOrigen)
+                .Include(x => x.LoteReproductoraAveEngordeOrigen)
+                .Include(x => x.LoteAveEngordeDestino)
+                .Include(x => x.LoteReproductoraAveEngordeDestino)
+                .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == _currentUser.CompanyId && x.DeletedAt == null);
+            if (m == null)
+            {
+                await tx.RollbackAsync();
+                return false;
+            }
+
+            if (m.Estado == "Completado")
+            {
+                await EnsureLotesCargadosParaRevertirAsync(m);
+                ValidarLotesPresentesParaRevertir(m);
+                RevertirEfectoCompletadoEnLotes(m);
+            }
+
+            var nota = string.IsNullOrWhiteSpace(motivo) ? "(sin motivo)" : motivo.Trim();
+            m.Estado = "Anulado";
+            m.Observaciones = AppendObservaciones(m.Observaciones, " | Eliminado: " + nota);
+            m.DeletedAt = DateTime.UtcNow;
+            m.UpdatedByUserId = _currentUser.UserId;
+            m.UpdatedAt = DateTime.UtcNow;
+            await _ctx.SaveChangesAsync();
+            await tx.CommitAsync();
+            return true;
+        }
+        catch (DbUpdateException ex)
+        {
+            await RollbackIfNeededAsync(tx);
+            throw MapDbUpdateToInvalidOperation(ex);
+        }
+        catch (InvalidOperationException)
+        {
+            await RollbackIfNeededAsync(tx);
+            throw;
+        }
+    }
+
+    private static async Task RollbackIfNeededAsync(IDbContextTransaction tx)
+    {
+        try
+        {
+            await tx.RollbackAsync();
+        }
+        catch
+        {
+            // Evita enmascarar la excepción original si el rollback falla.
+        }
+    }
+
+    private static InvalidOperationException MapDbUpdateToInvalidOperation(DbUpdateException ex)
+    {
+        var detail = ex.InnerException is PostgresException pg
+            ? $"{pg.SqlState}: {pg.MessageText} ({pg.ConstraintName ?? ""})"
+            : (ex.InnerException?.Message ?? ex.Message);
+        return new InvalidOperationException(
+            "No se pudo guardar la eliminación del movimiento (reversión de aves en lotes o anulación). " +
+            "Revise que el lote destino tenga aves suficientes para deshacer el traslado y que no haya restricciones en base de datos. " +
+            "Detalle: " + detail,
+            ex);
+    }
+
+    /// <summary>
+    /// Si el Include no trajo el lote (FK inconsistente o filtro), carga explícita por id para poder revertir cantidades.
+    /// </summary>
+    private async Task EnsureLotesCargadosParaRevertirAsync(MovimientoPolloEngorde m)
+    {
+        if (m.LoteAveEngordeOrigenId is { } idOae && m.LoteAveEngordeOrigen == null)
+        {
+            m.LoteAveEngordeOrigen = await _ctx.LoteAveEngorde
+                .FirstOrDefaultAsync(l => l.LoteAveEngordeId == idOae);
+        }
+
+        if (m.LoteReproductoraAveEngordeOrigenId is { } idOra && m.LoteReproductoraAveEngordeOrigen == null)
+        {
+            m.LoteReproductoraAveEngordeOrigen = await _ctx.LoteReproductoraAveEngorde
+                .FirstOrDefaultAsync(l => l.Id == idOra);
+        }
+
+        if (m.LoteAveEngordeDestinoId is { } idDae && m.LoteAveEngordeDestino == null)
+        {
+            m.LoteAveEngordeDestino = await _ctx.LoteAveEngorde
+                .FirstOrDefaultAsync(l => l.LoteAveEngordeId == idDae);
+        }
+
+        if (m.LoteReproductoraAveEngordeDestinoId is { } idDra && m.LoteReproductoraAveEngordeDestino == null)
+        {
+            m.LoteReproductoraAveEngordeDestino = await _ctx.LoteReproductoraAveEngorde
+                .FirstOrDefaultAsync(l => l.Id == idDra);
+        }
+    }
+
+    /// <summary>Evita guardar con reversión incompleta (FK sin fila en lote).</summary>
+    private static void ValidarLotesPresentesParaRevertir(MovimientoPolloEngorde m)
+    {
+        if (m.LoteAveEngordeOrigenId.HasValue && m.LoteAveEngordeOrigen == null)
+            throw new InvalidOperationException(
+                "No se puede eliminar: no existe el lote ave engorde de origen en la base de datos. Corrija el movimiento o contacte soporte.");
+        if (m.LoteReproductoraAveEngordeOrigenId.HasValue && m.LoteReproductoraAveEngordeOrigen == null)
+            throw new InvalidOperationException(
+                "No se puede eliminar: no existe el lote reproductora de origen en la base de datos.");
+        if (m.LoteAveEngordeDestinoId.HasValue && m.LoteAveEngordeDestino == null)
+            throw new InvalidOperationException(
+                "No se puede eliminar: no existe el lote ave engorde de destino en la base de datos; no se puede revertir el traslado.");
+        if (m.LoteReproductoraAveEngordeDestinoId.HasValue && m.LoteReproductoraAveEngordeDestino == null)
+            throw new InvalidOperationException(
+                "No se puede eliminar: no existe el lote reproductora de destino en la base de datos.");
+    }
+
+    /// <summary>Inverso de <see cref="CompleteAsync"/>: devuelve aves al origen y resta del destino.</summary>
+    private static void RevertirEfectoCompletadoEnLotes(MovimientoPolloEngorde m)
+    {
+        // Destino primero (restar lo que se había sumado)
+        if (m.LoteAveEngordeDestinoId.HasValue && m.LoteAveEngordeDestino != null)
+        {
+            var lote = m.LoteAveEngordeDestino;
+            var h = (lote.HembrasL ?? 0) - m.CantidadHembras;
+            var mach = (lote.MachosL ?? 0) - m.CantidadMachos;
+            var mix = (lote.Mixtas ?? 0) - m.CantidadMixtas;
+            if (h < 0 || mach < 0 || mix < 0)
+                throw new InvalidOperationException(
+                    "No se puede eliminar: el lote destino no tiene suficientes aves para revertir el movimiento (pudo haberse registrado otro movimiento).");
+            lote.HembrasL = h;
+            lote.MachosL = mach;
+            lote.Mixtas = mix;
+            if ((lote.AvesEncasetadas ?? 0) > 0 && (lote.HembrasL ?? 0) + (lote.MachosL ?? 0) + (lote.Mixtas ?? 0) == 0)
+                lote.AvesEncasetadas = 0;
+        }
+        else if (m.LoteReproductoraAveEngordeDestinoId.HasValue && m.LoteReproductoraAveEngordeDestino != null)
+        {
+            var lote = m.LoteReproductoraAveEngordeDestino;
+            var h = (lote.H ?? 0) - m.CantidadHembras;
+            var mach = (lote.M ?? 0) - m.CantidadMachos;
+            var mix = (lote.Mixtas ?? 0) - m.CantidadMixtas;
+            if (h < 0 || mach < 0 || mix < 0)
+                throw new InvalidOperationException(
+                    "No se puede eliminar: el lote destino no tiene suficientes aves para revertir el movimiento.");
+            lote.H = h;
+            lote.M = mach;
+            lote.Mixtas = mix;
+        }
+
+        // Origen: sumar de vuelta al inventario
+        if (m.LoteAveEngordeOrigenId.HasValue && m.LoteAveEngordeOrigen != null)
+        {
+            var lote = m.LoteAveEngordeOrigen;
+            lote.HembrasL = (lote.HembrasL ?? 0) + m.CantidadHembras;
+            lote.MachosL = (lote.MachosL ?? 0) + m.CantidadMachos;
+            lote.Mixtas = (lote.Mixtas ?? 0) + m.CantidadMixtas;
+        }
+        else if (m.LoteReproductoraAveEngordeOrigenId.HasValue && m.LoteReproductoraAveEngordeOrigen != null)
+        {
+            var lote = m.LoteReproductoraAveEngordeOrigen;
+            lote.H = (lote.H ?? 0) + m.CantidadHembras;
+            lote.M = (lote.M ?? 0) + m.CantidadMachos;
+            lote.Mixtas = (lote.Mixtas ?? 0) + m.CantidadMixtas;
+        }
     }
 
     public async Task<MovimientoPolloEngordeDto?> CompleteAsync(int id)

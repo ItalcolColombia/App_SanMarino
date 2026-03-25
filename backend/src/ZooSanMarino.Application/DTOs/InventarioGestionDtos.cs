@@ -19,6 +19,22 @@ public sealed record InventarioGestionFilterDataDto(
     IEnumerable<GalponLiteDto> GalponesDestino
 );
 
+/// <summary>Lote para filtrar el histórico por ubicación (tabla lotes, granjas asignadas).</summary>
+public sealed record InventarioGestionLoteFiltroDto(
+    int LoteId,
+    string LoteNombre,
+    string? Fase,
+    int GranjaId,
+    string? NucleoId,
+    string? GalponId);
+
+/// <summary>Valores distintos presentes en el histórico (misma empresa, granjas del usuario, país en sesión).</summary>
+public sealed record InventarioGestionHistoricoFiltrosDto(
+    IReadOnlyList<InventarioGestionLoteFiltroDto> Lotes,
+    IReadOnlyList<string> ConceptosEnHistorico,
+    IReadOnlyList<string> TiposItemEnHistorico,
+    IReadOnlyList<string> EstadosEnHistorico);
+
 /// <summary>Stock de un ítem en una ubicación (granja o granja+núcleo+galpón). Ítem desde item_inventario_ecuador.</summary>
 public sealed record InventarioGestionStockDto(
     int Id,
@@ -105,7 +121,9 @@ public sealed record InventarioGestionMovimientoDto(
     string? FromNucleoNombre = null,
     string? FromGalponNombre = null,
     /// <summary>Etiqueta de operación para reportes (ingreso, consumo, traslado, etc.).</summary>
-    string? TipoOperacion = null
+    string? TipoOperacion = null,
+    string? ItemConcepto = null,
+    string? ItemTipoItem = null
 );
 
 /// <summary>Recepción en granja destino de un traslado inter-granja que quedó en tránsito.</summary>
@@ -160,5 +178,7 @@ public sealed record InventarioGestionConsumoRequest(
 public sealed record InventarioGestionStockUpdateRequest(
     decimal Quantity,
     string? Unit,
-    string? Reason
+    string? Reason,
+    /// <summary>Fecha de primer ingreso en ubicación (solo día). Si se indica, actualiza <c>CreatedAt</c> del stock.</summary>
+    DateTime? FechaIngreso = null
 );
