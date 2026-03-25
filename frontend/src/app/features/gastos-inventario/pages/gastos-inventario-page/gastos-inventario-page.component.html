@@ -1,0 +1,323 @@
+<div class="gastos-page">
+  <header class="gastos-page__header" role="banner">
+    <div class="gastos-page__header-text">
+      <div class="gastos-page__title-row">
+        <h1 class="gastos-page__title text-ital-orange-dark">Gastos de inventario</h1>
+        <span class="module-type-badge" title="Consumos distintos a alimento; stock por granja">
+          No alimentos · stock granja
+        </span>
+      </div>
+      <p class="gastos-page__subtitle">
+        Registra consumos por <strong>concepto</strong> (excluye alimentos). El <strong>stock</strong> se descuenta a nivel
+        <strong>granja</strong>; núcleo, galpón y lote quedan como <strong>referencia</strong> del gasto.
+      </p>
+    </div>
+    <div class="gastos-page__header-actions">
+      <button type="button" class="btn-italfoods-primary gastos-page__cta" (click)="openCreate()">
+        <span class="gastos-page__cta-icon" aria-hidden="true">+</span>
+        Nuevo gasto
+      </button>
+    </div>
+  </header>
+
+  <section class="ux-card">
+    <div class="ux-card__header ux-card__header--row">
+      <h2>Filtros</h2>
+      <div class="ux-card__header-actions">
+        <button
+          type="button"
+          class="btn-italfoods-secondary gastos-page__export-btn"
+          (click)="exportExcel()"
+          [disabled]="loading || exporting"
+        >
+          {{ exporting ? 'Exportando…' : 'Exportar Excel' }}
+        </button>
+        <button type="button" class="btn-ghost" (click)="refresh()" [disabled]="loading">Actualizar</button>
+      </div>
+    </div>
+    <div class="ux-card__body">
+      <app-filtro-select
+        [filterDataUrl]="filterDataUrl"
+        [selectedGranjaId]="selectedFarmId"
+        [selectedNucleoId]="selectedNucleoId"
+        [selectedGalponId]="selectedGalponId"
+        [selectedLoteId]="selectedLoteId"
+        (granjaChange)="selectedFarmId = $event; refresh()"
+        (nucleoChange)="selectedNucleoId = $event; refresh()"
+        (galponChange)="selectedGalponId = $event; refresh()"
+        (loteChange)="selectedLoteId = $event; refresh()"
+        (filterDataLoaded)="onFilterDataLoaded($event)">
+      </app-filtro-select>
+
+      <div class="filters-extra">
+        <div class="ux-field">
+          <label>Desde</label>
+          <input type="date" [(ngModel)]="fechaDesde" (change)="refresh()" />
+        </div>
+        <div class="ux-field">
+          <label>Hasta</label>
+          <input type="date" [(ngModel)]="fechaHasta" (change)="refresh()" />
+        </div>
+        <div class="ux-field">
+          <label>Concepto</label>
+          <select [(ngModel)]="conceptoFilter" (change)="refresh()">
+            <option value="">— Todos —</option>
+            <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="ux-field">
+          <label>Estado</label>
+          <select [(ngModel)]="estadoFilter" (change)="refresh()">
+            <option value="">— Todos —</option>
+            <option value="Activo">Activo</option>
+            <option value="Eliminado">Eliminado</option>
+          </select>
+        </div>
+        <div class="ux-field grow">
+          <label>Búsqueda</label>
+          <input type="text" [(ngModel)]="searchTerm" (keyup.enter)="refresh()" placeholder="Observaciones..." />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div *ngIf="error" class="ux-alert ux-alert--error" role="alert">{{ error }}</div>
+  <div *ngIf="loading" class="ux-muted">Cargando…</div>
+
+  <section class="ux-card" *ngIf="!loading">
+    <div class="ux-card__header">
+      <h2>Registros</h2>
+      <span class="ux-muted">{{ list.length }} registro(s)</span>
+    </div>
+    <div class="ux-card__body ux-scroll">
+      <table class="ux-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Núcleo</th>
+            <th>Galpón</th>
+            <th>Lote</th>
+            <th>Estado</th>
+            <th class="num">Líneas</th>
+            <th class="num">Total</th>
+            <th>Obs.</th>
+            <th class="actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of list">
+            <td>{{ r.fecha | date:'yyyy-MM-dd' }}</td>
+            <td>{{ r.granjaNombre || '—' }}</td>
+            <td>{{ r.nucleoNombre || r.nucleoId || '—' }}</td>
+            <td>{{ r.galponNombre || r.galponId || '—' }}</td>
+            <td>{{ r.loteNombre || r.loteAveEngordeId || '—' }}</td>
+            <td>
+              <span class="pill" [class.pill--deleted]="r.estado === 'Eliminado'">{{ r.estado }}</span>
+            </td>
+            <td class="num">{{ r.lineas }}</td>
+            <td class="num">{{ formatNum(r.totalCantidad, 3) }} {{ r.unidad || '' }}</td>
+            <td class="obs" [title]="r.observaciones || ''">{{ r.observaciones || '—' }}</td>
+            <td class="actions">
+              <button class="btn-ghost" type="button" (click)="openDetail(r.id)">Ver</button>
+              <button
+                class="btn-danger"
+                type="button"
+                (click)="openConfirm('Confirmar eliminación', '¿Eliminar el gasto y devolver el stock al inventario?', 'delete', r)"
+                [disabled]="r.estado === 'Eliminado' || loading"
+              >
+                Eliminar
+              </button>
+            </td>
+          </tr>
+          <tr *ngIf="list.length === 0">
+            <td colspan="9" class="ux-muted">No hay registros con los filtros actuales.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Modal -->
+  <div *ngIf="modalOpen" class="modal-backdrop" (click)="closeModal()"></div>
+  <div *ngIf="modalOpen" class="modal-shell" (click)="$event.stopPropagation()">
+    <div class="modal-italfoods modal-full">
+      <div class="modal-italfoods__header modal-header-sticky">
+        <div class="modal-title">{{ modalTitle }}</div>
+        <button type="button" class="btn-ghost" (click)="closeModal()">Cerrar</button>
+      </div>
+
+      <div class="modal-italfoods__body modal-body-scroll" *ngIf="modalMode === 'create'">
+        <div *ngIf="error" class="ux-alert ux-alert--error" role="alert">{{ error }}</div>
+      <div class="modal-section">
+        <h3 class="modal-section__title">1) Ubicación y fecha</h3>
+        <app-filtro-select
+          [filterDataUrl]="filterDataUrl"
+          [selectedGranjaId]="formFarmId"
+          [selectedNucleoId]="formNucleoId"
+          [selectedGalponId]="formGalponId"
+          [selectedLoteId]="formLoteId"
+          (granjaChange)="formFarmId = $event; onConceptoChange()"
+          (nucleoChange)="formNucleoId = $event"
+          (galponChange)="formGalponId = $event"
+          (loteChange)="formLoteId = $event"
+          (filterDataLoaded)="onFilterDataLoaded($event)">
+        </app-filtro-select>
+
+        <div class="modal-row">
+          <div class="ux-field">
+            <label>Fecha</label>
+            <input type="date" [(ngModel)]="formFecha" />
+          </div>
+          <div class="ux-field grow">
+            <label>Observaciones</label>
+            <input type="text" [(ngModel)]="formObservaciones" placeholder="Opcional" />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <h3 class="modal-section__title">2) Selección de ítems</h3>
+        <div class="modal-row">
+          <div class="ux-field grow">
+            <label>Concepto</label>
+            <select [(ngModel)]="formConcepto" (change)="onConceptoChange()">
+              <option value="" disabled>— Seleccione concepto —</option>
+              <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
+            </select>
+            <p class="hint">Solo se muestran ítems con stock disponible.</p>
+          </div>
+          <div class="ux-field grow">
+            <label>Ítem (con stock)</label>
+            <select [(ngModel)]="selectedItemId" (change)="onItemChange()" [disabled]="!items.length">
+              <option [ngValue]="null" disabled>— Seleccione ítem —</option>
+              <option *ngFor="let it of items" [ngValue]="it.itemInventarioEcuadorId">
+                {{ it.codigo }} · {{ it.nombre }} (stock: {{ formatNum(it.stockCantidad, 3) }} {{ it.unidad }})
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ux-field inline">
+          <div class="grow">
+            <label>Cantidad a consumir</label>
+            <input type="number" step="0.001" [(ngModel)]="qtyToAdd" [disabled]="!selectedItem" [class.input--error]="qtyExceedsStock" />
+            <p class="hint" *ngIf="selectedItem" [class.hint--error]="qtyExceedsStock">
+              Máximo: {{ formatNum(selectedItem.stockCantidad, 3) }} {{ selectedItem.unidad }}
+              <span *ngIf="qtyExceedsStock"> — La cantidad supera el stock</span>
+            </p>
+          </div>
+          <div class="unit" *ngIf="selectedItem">
+            <label>Unidad</label>
+            <div class="unit__box">{{ selectedItem.unidad }}</div>
+          </div>
+          <button type="button" class="btn-primary" (click)="addLinea()" [disabled]="!selectedItem || !qtyToAdd || qtyExceedsStock">Agregar</button>
+        </div>
+      </div>
+
+      <div class="ux-card mt">
+        <div class="ux-card__header">
+          <h3>3) Líneas agregadas</h3>
+          <span class="ux-muted">{{ lineas.length }} ítem(s)</span>
+        </div>
+        <div class="ux-card__body ux-scroll">
+          <table class="ux-table">
+            <thead>
+              <tr>
+                <th>Ítem</th>
+                <th class="num">Stock (granja)</th>
+                <th class="num">Cantidad</th>
+                <th>Unidad</th>
+                <th class="actions"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let l of lineas">
+                <td>{{ l.codigo }} · {{ l.nombre }}</td>
+                <td class="num">{{ formatNum(l.stockCantidad, 3) }}</td>
+                <td class="num">{{ formatNum(l.cantidad, 3) }}</td>
+                <td>{{ l.unidad }}</td>
+                <td class="actions">
+                  <button type="button" class="btn-ghost" (click)="removeLinea(l.itemInventarioEcuadorId)">Quitar</button>
+                </td>
+              </tr>
+              <tr *ngIf="lineas.length === 0">
+                <td colspan="5" class="ux-muted">Agrega ítems para registrar el gasto.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-italfoods__footer modal-footer-sticky">
+        <button type="button" class="btn-ghost" (click)="closeModal()">Cancelar</button>
+        <button
+          type="button"
+          class="btn-primary"
+          (click)="openConfirm('Confirmar registro', '¿Guardar el gasto y descontar el stock de la granja?', 'save')"
+          [disabled]="loading"
+        >
+          Guardar
+        </button>
+      </div>
+    </div>
+
+      <div class="modal-italfoods__body modal-body-scroll" *ngIf="modalMode === 'detail'">
+        <div *ngIf="detail?.error" class="ux-alert ux-alert--error">{{ detail.error }}</div>
+        <div *ngIf="detail && !detail.error">
+          <p><strong>Fecha:</strong> {{ detail.fecha | date:'yyyy-MM-dd' }}</p>
+          <p><strong>Lote:</strong> {{ detail.loteNombre || detail.loteAveEngordeId || '—' }}</p>
+          <p><strong>Estado:</strong> {{ detail.estado }}</p>
+          <p><strong>Observaciones:</strong> {{ detail.observaciones || '—' }}</p>
+
+        <div class="ux-card mt">
+          <div class="ux-card__header"><h3>Detalle</h3></div>
+          <div class="ux-card__body ux-scroll">
+            <table class="ux-table">
+              <thead>
+                <tr>
+                  <th>Ítem</th>
+                  <th class="num">Cantidad</th>
+                  <th>Unidad</th>
+                  <th class="num">Stock antes</th>
+                  <th class="num">Stock después</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let d of detail.detalles">
+                  <td>{{ d.itemCodigo }} · {{ d.itemNombre }}</td>
+                  <td class="num">{{ formatNum(d.cantidad, 3) }}</td>
+                  <td>{{ d.unidad }}</td>
+                  <td class="num">{{ formatNum(d.stockAntes, 3) }}</td>
+                  <td class="num">{{ formatNum(d.stockDespues, 3) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="modal-italfoods__footer modal-footer-sticky" *ngIf="modalMode === 'detail'">
+        <button type="button" class="btn-ghost" (click)="closeModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmación -->
+<div *ngIf="confirmOpen" class="modal-backdrop" (click)="closeConfirm()"></div>
+<div *ngIf="confirmOpen" class="modal-shell" (click)="$event.stopPropagation()">
+  <div class="modal-italfoods confirm-modal">
+    <div class="modal-italfoods__header">
+      <div class="modal-title">{{ confirmTitle }}</div>
+      <button type="button" class="btn-ghost" (click)="closeConfirm()">Cerrar</button>
+    </div>
+    <div class="modal-italfoods__body">
+      <p>{{ confirmText }}</p>
+    </div>
+    <div class="modal-italfoods__footer">
+      <button type="button" class="btn-ghost" (click)="closeConfirm()">Cancelar</button>
+      <button type="button" class="btn-primary" (click)="confirmYes()" [disabled]="loading">Confirmar</button>
+    </div>
+  </div>
+</div>
