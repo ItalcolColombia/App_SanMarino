@@ -11,7 +11,7 @@
         role="tab"
         [attr.aria-selected]="activeTab === 'general'"
         aria-controls="general-panel">
-        📊 General
+        📊 Seguimiento
       </button>
 
       <button
@@ -47,7 +47,7 @@
         role="tabpanel"
         aria-labelledby="general-tab">
 
-        <h3>Información General del Lote</h3>
+        <h3>Información del lote</h3>
 
         <!-- Aviso cuando el lote está cerrado -->
         <div class="info-lote-alerta info-lote-alerta--cerrado" *ngIf="isLoteCerrado" role="status">
@@ -101,29 +101,49 @@
 
         </div>
 
-        <!-- Tabla de Registros (simplificada) -->
-        <div class="table-container">
+        <!-- Registros diarios (vista tipo libro: fechas, pérdidas, alimento, traslado, saldos) -->
+        <div class="table-container table-container--diario">
           <h4>Registros Diarios</h4>
-          <div class="ux-scroll">
-            <table class="ux-table">
+          <p class="registro-diario__hint">
+            Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − bajas acumuladas (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
+            <strong>Ingreso alimento</strong>, <strong>traslado</strong> y <strong>documento</strong> se muestran si están guardados en el registro (metadata);
+            el traslado de alimento puede consumir movimientos de traslado de inventario según corresponda.
+          </p>
+          <div class="ux-scroll ux-scroll--diario">
+            <table class="ux-table ux-table--registro-diario">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Edad (días)</th>
-                  <th>Mort. H</th>
-                  <th>Mort. M</th>
-                  <th>Sel H</th>
-                  <th>Sel M</th>
-                  <th>Cons. H (kg)</th>
-                  <th>Cons. M (kg)</th>
-                  <th>Peso H</th>
-                  <th>Peso M</th>
-                  <th>Acciones</th>
+                  <th scope="col" class="th-diario">Fecha</th>
+                  <th scope="col" class="th-diario">Semana</th>
+                  <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
+                  <th scope="col" class="th-diario">Día <span class="th-diario__sub">(calendario)</span></th>
+                  <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
+                  <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
+                  <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
+                  <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
+                  <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
+                  <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
+                  <th scope="col" class="th-diario th-diario--wide">Traslado</th>
+                  <th scope="col" class="th-diario th-diario--wide">Documento</th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
+                  <th scope="col" class="th-diario th-diario--num">% pérdidas <span class="th-diario__sub">del día</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                  <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
+                  <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)">
-                  <td colspan="11" class="empty-state">
+                <tr *ngIf="!loading && (!diarioFilas || diarioFilas.length === 0)">
+                  <td colspan="26" class="empty-state">
                     <div class="empty-illustration" aria-hidden="true">📄</div>
                     <p>Sin registros para este lote.</p>
                     <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'El lote está cerrado o no hay aves disponibles' : 'Crear el primero'">
@@ -132,22 +152,37 @@
                   </td>
                 </tr>
 
-                <tr *ngFor="let s of seguimientos" class="ux-row">
-                  <td>{{ formatDMY(s.fechaRegistro) }}</td>
-                  <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
-                  <td>{{ s.mortalidadHembras }}</td>
-                  <td>{{ s.mortalidadMachos }}</td>
-                  <td>{{ s.selH }}</td>
-                  <td>{{ s.selM }}</td>
-                  <td>{{ s.consumoKgHembras | number:'1.2-2' }}</td>
-                  <td>{{ s.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
-                  <td>{{ s.pesoPromH ?? 0 | number:'1.2-2' }}</td>
-                  <td>{{ s.pesoPromM ?? 0 | number:'1.2-2' }}</td>
+                <tr *ngFor="let f of diarioFilas; trackBy: trackByDiarioFila" class="ux-row">
+                  <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
+                  <td>{{ f.semana }}</td>
+                  <td>{{ f.edadDia }}</td>
+                  <td>{{ f.diaCorto }}</td>
+                  <td>{{ f.seg.mortalidadHembras }}</td>
+                  <td>{{ f.seg.mortalidadMachos }}</td>
+                  <td>{{ f.seg.selH }}</td>
+                  <td>{{ f.seg.selM }}</td>
+                  <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
+                  <td class="num">{{ f.despachoH != null ? (f.despachoH | number:'1.0-0') : '—' }}</td>
+                  <td class="num">{{ f.despachoM != null ? (f.despachoM | number:'1.0-0') : '—' }}</td>
+                  <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
+                  <td>{{ f.tipoAlimentoCorto }}</td>
+                  <td class="cell-text cell-text--wide" [title]="f.ingresoAlimento">{{ f.ingresoAlimento || '—' }}</td>
+                  <td class="cell-text cell-text--wide" [title]="f.traslado">{{ f.traslado || '—' }}</td>
+                  <td class="cell-text cell-text--wide" [title]="f.documento">{{ f.documento || '—' }}</td>
+                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.2-2' }}</td>
+                  <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
+                  <td class="num">{{ f.consumoDiaKg | number:'1.2-2' }}</td>
+                  <td class="num">{{ f.acumConsumoKg | number:'1.2-2' }}</td>
+                  <td class="num">{{ f.seg.consumoAguaDiario != null ? (f.seg.consumoAguaDiario | number:'1.1-1') : '—' }}</td>
+                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.2-2') + '%' : '—' }}</td>
+                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.2-2') : '—' }}</td>
+                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.2-2') : '—' }}</td>
+                  <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
                     <div class="btn-group">
-                      <button type="button" (click)="onViewDetail(s)" class="icon-btn" title="Ver detalle">👁️</button>
-                      <button type="button" (click)="onEdit(s)" class="icon-btn" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede editar' : 'Editar'">✎</button>
-                      <button type="button" (click)="onDelete(s.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar'">🗑️</button>
+                      <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
+                      <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede editar' : 'Editar'">✎</button>
+                      <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'No se puede eliminar' : 'Eliminar'">🗑️</button>
                     </div>
                   </td>
                 </tr>
@@ -161,11 +196,40 @@
       <div
         *ngIf="activeTab === 'indicadores'"
         id="indicadores-panel"
-        class="tab-panel"
+        class="tab-panel tab-panel--indicadores"
         role="tabpanel"
         aria-labelledby="indicadores-tab">
 
+        <nav class="indicadores-subnav" role="tablist" aria-label="Tipo de indicadores">
+          <button
+            type="button"
+            class="indicadores-subnav__btn"
+            [class.indicadores-subnav__btn--active]="indicadoresSubTab === 'diario'"
+            (click)="setIndicadoresSubTab('diario')"
+            role="tab"
+            [attr.aria-selected]="indicadoresSubTab === 'diario'">
+            Indicador diario
+          </button>
+          <button
+            type="button"
+            class="indicadores-subnav__btn"
+            [class.indicadores-subnav__btn--active]="indicadoresSubTab === 'semanal'"
+            (click)="setIndicadoresSubTab('semanal')"
+            role="tab"
+            [attr.aria-selected]="indicadoresSubTab === 'semanal'">
+            Semanal
+          </button>
+        </nav>
+
+        <app-tabla-indicadores-diarios
+          *ngIf="indicadoresSubTab === 'diario'"
+          [seguimientos]="seguimientos"
+          [selectedLote]="selectedLote"
+          [loading]="loading">
+        </app-tabla-indicadores-diarios>
+
         <app-tabla-lista-indicadores
+          *ngIf="indicadoresSubTab === 'semanal'"
           [seguimientos]="seguimientos"
           [selectedLote]="selectedLote"
           [loading]="loading">

@@ -1,0 +1,195 @@
+.indicadores-diarios {
+  padding: 0.25rem 0 1rem;
+}
+
+.indicadores-diarios__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.indicadores-diarios__guia-banner {
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #9a3412;
+  background: linear-gradient(90deg, #ffedd5 0%, #fff7ed 100%);
+  border: 1px solid #fdba74;
+  max-width: 56rem;
+}
+
+.indicadores-diarios__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ital-muted, #64748b);
+  max-width: 56rem;
+  line-height: 1.45;
+}
+
+.indicadores-diarios__nowrap {
+  white-space: nowrap;
+}
+
+.indicadores-diarios__kbd {
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.2rem;
+  font-size: 0.82em;
+}
+
+.indicadores-diarios__kbd--reg {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.indicadores-diarios__kbd--guia {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.indicadores-diarios__status {
+  padding: 0.75rem 0;
+  font-size: 0.9rem;
+  color: var(--ital-muted, #64748b);
+}
+
+.indicadores-diarios__alert {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.indicadores-diarios__empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--ital-muted, #64748b);
+  font-size: 0.92rem;
+}
+
+.indicadores-diarios__table {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.indicadores-diarios__table thead th {
+  background: var(--ital-cream, #faf8f5);
+  vertical-align: bottom;
+}
+
+.indicadores-diarios__table thead tr:first-child th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.indicadores-diarios__table thead tr:nth-child(2) th {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.indicadores-diarios__th-grp {
+  text-align: center;
+  background: #eef6f0;
+  color: var(--ital-text, #1e293b);
+  font-size: 0.75rem;
+  padding: 0.35rem 0.25rem;
+}
+
+.indicadores-diarios__th-sub {
+  background: var(--ital-cream, #faf8f5);
+}
+
+.indicadores-diarios__th-sub--reg {
+  background: #e0f2fe;
+  color: #0c4a6e;
+}
+
+.indicadores-diarios__th-sub--guia {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.indicadores-diarios__th-tag {
+  width: 2.5rem;
+  min-width: 2.5rem;
+}
+
+.indicadores-diarios__num {
+  text-align: right;
+}
+
+.indicadores-diarios__cell--reg {
+  background: rgba(224, 242, 254, 0.55);
+}
+
+.indicadores-diarios__cell--guia {
+  background: rgba(255, 237, 213, 0.6);
+}
+
+.indicadores-diarios__cell--tag {
+  background: rgba(248, 250, 252, 0.9);
+  text-align: center;
+  vertical-align: middle;
+}
+
+.indicadores-diarios__row--fase1 td {
+  box-shadow: inset 0 0 0 999px rgba(254, 249, 195, 0.35);
+}
+
+.indicadores-diarios__row--fase2 td {
+  box-shadow: inset 0 0 0 999px rgba(254, 202, 202, 0.28);
+}
+
+.indicadores-diarios__row--fase3 td {
+  box-shadow: inset 0 0 0 999px rgba(191, 219, 254, 0.22);
+}
+
+.cmp-tag {
+  display: inline-block;
+  min-width: 2.75rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cmp-tag--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.cmp-tag--warn {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.cmp-tag--bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.cmp-tag--na {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.indicadores-diarios__leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--ital-muted, #64748b);
+  align-items: center;
+}
+
+.ux-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

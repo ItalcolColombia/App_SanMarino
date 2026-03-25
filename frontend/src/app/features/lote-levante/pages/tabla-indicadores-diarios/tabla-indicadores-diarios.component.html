@@ -1,0 +1,113 @@
+<div class="indicadores-diarios">
+  <div class="indicadores-diarios__head">
+    <div>
+      <h3 class="indicadores-diarios__title">Indicadores diarios — comparativo</h3>
+      <p class="indicadores-diarios__guia-banner" *ngIf="guiaOk && etiquetaGuiaCargada && !errorGuia">
+        {{ etiquetaGuiaCargada }}
+      </p>
+      <p class="indicadores-diarios__hint" *ngIf="guiaOk && !errorGuia">
+        Cada fila es un día de registro. <strong class="indicadores-diarios__kbd indicadores-diarios__kbd--reg">Registro</strong>
+        = lo medido en el seguimiento (pesos, kg de alimento y, si aplica, alimento desde detalle de ítems cuando el consumo en kg va en 0).
+        <strong class="indicadores-diarios__kbd indicadores-diarios__kbd--guia">Guía</strong> = tabla Ecuador
+        <strong>mixto</strong> (no hembra/macho por separado). La ganancia comparada es solo la
+        <strong>ganancia diaria</strong> de la guía (no el “promedio ganancia” de la hoja).
+        Alimento diario (g/ave) = total kg ese día ÷ <strong>aves al inicio del día</strong>.
+        <strong>Mortalidad + selección</strong>: en Registro es el % real del día
+        <span class="indicadores-diarios__nowrap">((mort.+sel.) ÷ aves al inicio)</span>; en Guía es el
+        <strong>objetivo diario</strong> de la tabla genética.
+      </p>
+    </div>
+  </div>
+
+  <div class="indicadores-diarios__status" *ngIf="cargandoGuia" role="status">
+    Cargando curva guía Ecuador (mixto)…
+  </div>
+
+  <div class="indicadores-diarios__alert" *ngIf="errorGuia" role="alert">
+    {{ errorGuia }}
+  </div>
+
+  <div class="ux-scroll" *ngIf="!errorGuia && filas.length > 0">
+    <table class="ux-table indicadores-diarios__table">
+      <thead>
+        <tr>
+          <th rowspan="2" class="indicadores-diarios__th-fixed">Fecha</th>
+          <th rowspan="2" class="indicadores-diarios__th-fixed">Día</th>
+          <th rowspan="2" class="indicadores-diarios__th-fixed" title="Aves vivas al inicio del día (antes de mort. y selección del día)">Aves</th>
+          <th colspan="3" class="indicadores-diarios__th-grp">Peso corporal (g)</th>
+          <th colspan="3" class="indicadores-diarios__th-grp">Ganancia diaria (g)</th>
+          <th colspan="3" class="indicadores-diarios__th-grp">Alimento diario (g/ave)</th>
+          <th colspan="3" class="indicadores-diarios__th-grp">Alimento acum. (g/ave)</th>
+          <th colspan="3" class="indicadores-diarios__th-grp">Conversión (CA)</th>
+          <th colspan="3" class="indicadores-diarios__th-grp" title="Real vs objetivo tabla">Mortalidad + selección (%)</th>
+        </tr>
+        <tr>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of filas" [ngClass]="faseDiaClass(row.dia)">
+          <td>{{ formatDMY(row.fechaYmd) }}</td>
+          <td>{{ row.dia }}</td>
+          <td class="indicadores-diarios__num">{{ row.avesInicioDia | number:'1.0-0' }}</td>
+
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.pesoRealG, 0) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.pesoTablaG, 0) }}</td>
+          <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagPeso(row))">{{ tagLabel(tagPeso(row)) }}</span></td>
+
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.gananciaDiariaRealG, 1) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.gananciaDiariaTablaG, 1) }}</td>
+          <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagGanancia(row))">{{ tagLabel(tagGanancia(row)) }}</span></td>
+
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.consumoDiarioRealG, 1) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.consumoDiarioTablaG, 1) }}</td>
+          <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagConsumoDiario(row))">{{ tagLabel(tagConsumoDiario(row)) }}</span></td>
+
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.alimentoAcumRealG, 0) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.alimentoAcumTablaG, 0) }}</td>
+          <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagAlimentoAcum(row))">{{ tagLabel(tagAlimentoAcum(row)) }}</span></td>
+
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.caReal, 3) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.caTabla, 3) }}</td>
+          <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagCa(row))">{{ tagLabel(tagCa(row)) }}</span></td>
+
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg" title="% real del día sobre aves al inicio">{{ formatPct(row.mortSelRealPct, 2) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--guia" title="Objetivo diario tabla genética">{{ formatPct(row.mortSelTablaPct, 2) }}</td>
+          <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagMortSel(row))">{{ tagLabel(tagMortSel(row)) }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="indicadores-diarios__leyenda" *ngIf="guiaOk && filas.length > 0">
+    <span><span class="cmp-tag cmp-tag--ok">OK</span> cercano a guía</span>
+    <span><span class="cmp-tag cmp-tag--warn">Rev.</span> revisar</span>
+    <span><span class="cmp-tag cmp-tag--bad">Alerta</span> alejado de guía</span>
+    <span><span class="cmp-tag cmp-tag--na">—</span> sin referencia en guía</span>
+  </div>
+
+  <div class="indicadores-diarios__empty" *ngIf="!cargandoGuia && !errorGuia && filas.length === 0 && seguimientos.length">
+    <p>No se pudieron armar filas diarias. Verifique fechas y pesos en los registros.</p>
+  </div>
+
+  <div class="indicadores-diarios__empty" *ngIf="seguimientos.length === 0 && !loading">
+    <p>No hay registros de seguimiento para este lote.</p>
+  </div>
+</div>
