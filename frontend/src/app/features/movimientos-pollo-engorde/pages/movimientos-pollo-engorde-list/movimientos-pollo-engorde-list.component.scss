@@ -1,4 +1,4 @@
-// Movimiento Pollo Engorde — layout 100% + tema Intalfoods (theme-italfoods.scss global)
+// Movimiento Pollo Engorde — layout 100% + tema corporativo (theme global)
 :host {
   display: block;
   width: 100%;
@@ -128,6 +128,15 @@
   flex-shrink: 0;
 }
 
+.mpp-card__subtitle {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--ital-muted);
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
 .mpp-card--registros {
   flex: 1 1 auto;
   display: flex;
@@ -178,7 +187,118 @@
 
 /* Tabla: ancho mínimo para scroll en móvil; cabecera sticky ya viene de .ux-table global */
 .mpp-table {
-  min-width: min(1100px, 100%);
+  min-width: min(1180px, 100%);
+}
+
+.mpp-th-expand,
+.mpp-td-expand {
+  width: 2.25rem;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+  vertical-align: middle;
+}
+
+.mpp-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--ital-green-100);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ital-green-dark);
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1;
+
+  &:hover {
+    background: rgba(22, 101, 52, 0.08);
+  }
+}
+
+.mpp-row--despacho-grupo {
+  background: rgba(22, 101, 52, 0.06);
+
+  td {
+    border-bottom: 1px solid var(--ital-green-100);
+  }
+}
+
+.mpp-despacho-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.mpp-despacho-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 6px;
+  background: var(--ital-orange-100);
+  color: var(--ital-orange-dark);
+}
+
+.mpp-row--despacho-detail td {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--ital-green-100);
+  background: #fafaf8;
+}
+
+.mpp-despacho-detail {
+  padding: 0.65rem 0.85rem 0.85rem;
+}
+
+.mpp-despacho-detail__hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  color: var(--ital-muted);
+}
+
+.mpp-subtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  background: #fff;
+  border: 1px solid var(--ital-green-100);
+  border-radius: 10px;
+  overflow: hidden;
+
+  th,
+  td {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--ital-green-100);
+    text-align: left;
+  }
+
+  th {
+    background: rgba(22, 101, 52, 0.07);
+    font-weight: 700;
+  }
+
+  td.num,
+  th.num {
+    text-align: right;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.badge--partial {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.btn-group--despacho {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
 }
 
 .mpp-alert {

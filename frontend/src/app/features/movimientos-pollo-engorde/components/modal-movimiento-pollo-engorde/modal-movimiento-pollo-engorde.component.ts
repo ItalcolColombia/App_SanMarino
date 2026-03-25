@@ -7,7 +7,8 @@ import {
   SimpleChanges,
   OnDestroy
 } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin, of, firstValueFrom } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import {
   FormBuilder,
@@ -21,6 +22,7 @@ import {
   CreateMovimientoPolloEngordeDto,
   UpdateMovimientoPolloEngordeDto
 } from '../../services/movimiento-pollo-engorde.service';
+import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
@@ -34,6 +36,24 @@ export interface AvailableBirds {
   hembras?: number;
   machos?: number;
   mixtas?: number;
+}
+
+/** Una fila por lote en venta por granja (despacho multi-galpón). */
+export interface VentaLineaGranja {
+  loteId: number;
+  loteNombre: string;
+  galponId: string;
+  galponLabel: string;
+  maxH: number;
+  maxM: number;
+  maxX: number;
+  h: number;
+  m: number;
+  x: number;
+}
+
+export interface MovimientoPolloEngordeSaveDetail {
+  ventaGranjaBatchCount?: number;
 }
 
 @Component({
@@ -52,12 +72,19 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   @Input() availableBirds: AvailableBirds | null = null;
   /** Datos del lote seleccionado (raza, año, fecha encasetamiento) para prellenar y calcular edad en días. Del lote normal o del lote padre si es reproductora. */
   @Input() lotInfoFromLote: { raza?: string | null; anoTablaGenetica?: number | null; fechaEncasetamiento?: string | null } | null = null;
+  /** Venta desde granja: sin lote previo; cantidades por lote en `ventaLineasGranja`. */
+  @Input() ventaPorGranjaMode = false;
+  @Input() lotesVentaGranja: LoteAveEngordeDto[] = [];
+  @Input() granjaVentaNombre = '';
 
   @Output() close = new EventEmitter<void>();
-  @Output() save = new EventEmitter<void>();
+  @Output() save = new EventEmitter<MovimientoPolloEngordeSaveDetail>();
 
   form!: FormGroup;
   loading = false;
+  /** Carga de disponibilidad por lote (resumen) al abrir venta por granja. */
+  loadingVentaLineas = false;
+  ventaLineasGranja: VentaLineaGranja[] = [];
   error: string | null = null;
   showConfirmModal = false;
   private fechaMovimientoSub?: Subscription;
@@ -80,6 +107,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       if (this.isReadOnly) return 'Detalle de Movimiento';
       return 'Editar Movimiento';
     }
+    if (this.ventaPorGranjaMode) return 'Nueva venta por granja (despacho)';
     return 'Nuevo Movimiento de Pollo Engorde';
   }
 
@@ -91,7 +119,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   /** True si el tipo de movimiento es Venta (las aves salen a comprador externo; destino interno suele no aplicar). */
   get isTipoVenta(): boolean {
-    return this.form?.get('tipoMovimiento')?.value === 'Venta';
+    return (this.form?.getRawValue()?.tipoMovimiento ?? '') === 'Venta';
   }
 
   get availableTotal(): number {
@@ -110,14 +138,22 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     return this.availableBirds?.mixtas ?? null;
   }
 
-  /** True si el total a mover supera lo disponible (solo aplica al crear con availableBirds). */
+  /** True si el total a mover supera lo disponible (solo aplica al crear con availableBirds o líneas venta granja). */
   get exceedsAvailable(): boolean {
-    if (!this.availableBirds || this.editingMovimiento) return false;
+    if (this.editingMovimiento) return false;
+    if (this.ventaPorGranjaMode) return this.exceedsVentaGranjaLine;
+    if (!this.availableBirds) return false;
     return this.totalAves > this.availableBirds.total;
+  }
+
+  /** Alguna fila en venta por granja supera disponibles por sexo. */
+  get exceedsVentaGranjaLine(): boolean {
+    return this.ventaLineasGranja.some((l) => l.h > l.maxH || l.m > l.maxM || l.x > l.maxX);
   }
 
   /** True si Raza y Edad (días) vienen del lote y deben mostrarse deshabilitados en gris. */
   get lotFieldsReadOnly(): boolean {
+    if (this.ventaPorGranjaMode && !this.editingMovimiento) return false;
     return !!(this.lotInfoFromLote && !this.editingMovimiento);
   }
 
@@ -143,6 +179,10 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         ? `Ave Engorde #${this.editingMovimiento.loteOrigenId ?? '?'}`
         : `Reproductora #${this.editingMovimiento.loteOrigenId ?? '?'}`;
     }
+    if (this.ventaPorGranjaMode) {
+      const g = (this.granjaVentaNombre || '').trim();
+      return g ? `Granja: ${g} (varios galpones / lotes)` : 'Granja (varios galpones / lotes)';
+    }
     if (!this.loteOrigenValue) return '—';
     const opt = this.lotesDestinoOptions.find((o) => o.value === this.loteOrigenValue);
     if (opt) return opt.label;
@@ -160,6 +200,10 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['isOpen'] && !this.isOpen) {
+      this.ventaLineasGranja = [];
+      this.loadingVentaLineas = false;
+    }
     if (changes['isOpen'] && this.isOpen) {
       this.error = null;
       this.fechaMovimientoSub?.unsubscribe();
@@ -169,8 +213,15 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.form.get('edadAves')?.enable();
       } else {
         this.resetForm();
-        this.applyLotInfoToForm();
-        this.subscribeFechaMovimientoForEdad();
+        if (this.ventaPorGranjaMode) {
+          this.form.patchValue({ tipoMovimiento: 'Venta' });
+          this.form.get('tipoMovimiento')?.disable({ emitEvent: false });
+          this.loadVentaGranjaLineas();
+        } else {
+          this.form.get('tipoMovimiento')?.enable({ emitEvent: false });
+          this.applyLotInfoToForm();
+          this.subscribeFechaMovimientoForEdad();
+        }
       }
     }
   }
@@ -298,6 +349,33 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   onSubmit(): void {
+    if (this.loading) return;
+
+    if (this.ventaPorGranjaMode && !this.editingMovimiento) {
+      if (this.form.invalid || this.loadingVentaLineas) return;
+      const withQty = this.ventaLineasGranja.filter((l) => l.h + l.m + l.x > 0);
+      if (withQty.length === 0) {
+        this.error = 'Indique cantidad a vender en al menos un lote.';
+        return;
+      }
+      if (this.exceedsVentaGranjaLine) {
+        this.error =
+          'Alguna cantidad supera lo disponible en el lote (H / M / mixtas según corresponda).';
+        return;
+      }
+      this.error = null;
+      this.confirmModalData = {
+        title: 'Confirmar venta por granja',
+        message: `Se registrarán ${this.formatearNumero(withQty.length)} movimiento(s) de venta (uno por lote). El mismo despacho y datos de transporte aplican a todos.`,
+        type: 'info',
+        confirmText: 'Confirmar',
+        cancelText: 'Cancelar',
+        showCancel: true
+      };
+      this.showConfirmModal = true;
+      return;
+    }
+
     if (this.form.invalid || this.loading) return;
     if (!this.loteOrigenValue && !this.editingMovimiento) return;
     if (this.exceedsAvailable) {
@@ -331,6 +409,11 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     const session = this.tokenStorage.get();
     const userId = session?.user?.userId ?? 0;
 
+    if (this.ventaPorGranjaMode && !this.editingMovimiento) {
+      void this.doSubmitVentaGranjaAsync(userId);
+      return;
+    }
+
     this.loading = true;
 
     if (this.editingMovimiento && !this.isReadOnly) {
@@ -338,7 +421,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       this.movimientoSvc.update(this.editingMovimiento.id, updateDto).subscribe({
         next: () => {
           this.loading = false;
-          this.save.emit();
+          this.save.emit({});
         },
         error: (err) => {
           this.loading = false;
@@ -358,13 +441,151 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     this.movimientoSvc.create(dto).subscribe({
       next: () => {
         this.loading = false;
-        this.save.emit();
+        this.save.emit({});
       },
       error: (err) => {
         this.loading = false;
         this.error = err?.message ?? err?.error ?? 'Error al guardar.';
       }
     });
+  }
+
+  private async doSubmitVentaGranjaAsync(usuarioMovimientoId: number): Promise<void> {
+    const lineas = this.ventaLineasGranja.filter((l) => l.h + l.m + l.x > 0);
+    if (lineas.length === 0) {
+      this.error = 'Sin líneas con cantidad.';
+      return;
+    }
+    this.loading = true;
+    this.error = null;
+    try {
+      for (const linea of lineas) {
+        const dto = this.buildCreateDtoFromLinea(usuarioMovimientoId, linea);
+        if (!dto) throw new Error('Lote no encontrado.');
+        await firstValueFrom(this.movimientoSvc.create(dto));
+      }
+      this.loading = false;
+      this.save.emit({ ventaGranjaBatchCount: lineas.length });
+    } catch (err: unknown) {
+      this.loading = false;
+      this.error =
+        err instanceof Error ? err.message : String((err as { message?: string })?.message ?? 'Error al guardar.');
+    }
+  }
+
+  private loadVentaGranjaLineas(): void {
+    const lotes = this.lotesVentaGranja ?? [];
+    this.ventaLineasGranja = [];
+    if (lotes.length === 0) {
+      this.loadingVentaLineas = false;
+      return;
+    }
+    this.loadingVentaLineas = true;
+    this.error = null;
+    forkJoin(
+      lotes.map((l) =>
+        this.movimientoSvc.getResumenAvesLote('LoteAveEngorde', l.loteAveEngordeId).pipe(
+          catchError(() => of(null))
+        )
+      )
+    ).subscribe({
+      next: (resumenes) => {
+        this.ventaLineasGranja = lotes.map((l, i) => {
+          const r = resumenes[i];
+          const maxH = r?.avesActualesHembras ?? l.hembrasL ?? 0;
+          const maxM = r?.avesActualesMachos ?? l.machosL ?? 0;
+          const maxX = r?.avesActualesMixtas ?? l.mixtas ?? 0;
+          const galponId = (l.galponId ?? '').trim() || '__SIN_GALPON__';
+          return {
+            loteId: l.loteAveEngordeId,
+            loteNombre: l.loteNombre || `Lote ${l.loteAveEngordeId}`,
+            galponId,
+            galponLabel: this.labelGalpon(l),
+            maxH: Math.max(0, maxH),
+            maxM: Math.max(0, maxM),
+            maxX: Math.max(0, maxX),
+            h: 0,
+            m: 0,
+            x: 0
+          };
+        });
+        this.loadingVentaLineas = false;
+      },
+      error: () => {
+        this.loadingVentaLineas = false;
+        this.error = 'No se pudo cargar la disponibilidad por lote.';
+      }
+    });
+  }
+
+  private labelGalpon(l: LoteAveEngordeDto): string {
+    const n = l.galpon?.galponNombre;
+    if (n && String(n).trim()) return String(n).trim();
+    const id = (l.galponId ?? '').trim();
+    return id || '— Sin galpón —';
+  }
+
+  get gruposVentaPorGalpon(): { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }[] {
+    const map = new Map<string, { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }>();
+    for (const line of this.ventaLineasGranja) {
+      const key = line.galponId;
+      if (!map.has(key)) {
+        map.set(key, { galponId: key, galponLabel: line.galponLabel, lineas: [] });
+      }
+      map.get(key)!.lineas.push(line);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.galponLabel.localeCompare(b.galponLabel, 'es', { numeric: true })
+    );
+  }
+
+  onLineaCantidad(line: VentaLineaGranja, field: 'h' | 'm' | 'x', ev: Event): void {
+    const raw = (ev.target as HTMLInputElement).value;
+    const n = Math.max(0, parseInt(raw, 10) || 0);
+    const max = field === 'h' ? line.maxH : field === 'm' ? line.maxM : line.maxX;
+    line[field] = Math.min(n, max);
+  }
+
+  private buildCreateDtoFromLinea(
+    usuarioMovimientoId: number,
+    linea: VentaLineaGranja
+  ): CreateMovimientoPolloEngordeDto | null {
+    const lote = this.lotesVentaGranja.find((l) => l.loteAveEngordeId === linea.loteId);
+    if (!lote) return null;
+    const v = this.form.getRawValue();
+    const nid = lote.nucleoId != null && String(lote.nucleoId).trim() !== '' ? String(lote.nucleoId).trim() : null;
+    const gpid =
+      lote.galponId != null && String(lote.galponId).trim() !== '' ? String(lote.galponId).trim() : null;
+
+    return {
+      fechaMovimiento: new Date(v.fechaMovimiento).toISOString(),
+      tipoMovimiento: 'Venta',
+      loteAveEngordeOrigenId: linea.loteId,
+      loteReproductoraAveEngordeOrigenId: null,
+      granjaOrigenId: lote.granjaId ?? null,
+      nucleoOrigenId: nid,
+      galponOrigenId: gpid,
+      loteAveEngordeDestinoId: null,
+      loteReproductoraAveEngordeDestinoId: null,
+      cantidadHembras: linea.h,
+      cantidadMachos: linea.m,
+      cantidadMixtas: linea.x,
+      motivoMovimiento: v.motivoMovimiento || null,
+      observaciones: v.observaciones || null,
+      usuarioMovimientoId,
+      numeroDespacho: v.numeroDespacho || null,
+      edadAves: v.edadAves != null && v.edadAves !== '' ? Number(v.edadAves) : null,
+      totalPollosGalpon: v.totalPollosGalpon != null && v.totalPollosGalpon !== '' ? Number(v.totalPollosGalpon) : null,
+      raza: v.raza || null,
+      placa: v.placa || null,
+      horaSalida: v.horaSalida ? `${v.horaSalida}:00` : null,
+      guiaAgrocalidad: v.guiaAgrocalidad || null,
+      sellos: v.sellos || null,
+      ayuno: v.ayuno || null,
+      conductor: v.conductor || null,
+      pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null,
+      pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null
+    };
   }
 
   private buildUpdateDto(): UpdateMovimientoPolloEngordeDto {
@@ -442,6 +663,9 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   get totalAves(): number {
+    if (this.ventaPorGranjaMode && !this.editingMovimiento) {
+      return this.ventaLineasGranja.reduce((s, l) => s + l.h + l.m + l.x, 0);
+    }
     const v = this.form?.getRawValue();
     if (!v) return 0;
     return (Number(v.cantidadHembras) || 0) + (Number(v.cantidadMachos) || 0) + (Number(v.cantidadMixtas) || 0);
@@ -449,7 +673,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
 
   /** Muestra la sección de despacho (venta / salida de aves). */
   get isDespacho(): boolean {
-    return (this.form?.get('tipoMovimiento')?.value ?? '') === 'Venta';
+    if (this.ventaPorGranjaMode && !this.editingMovimiento) return true;
+    return (this.form?.getRawValue()?.tipoMovimiento ?? '') === 'Venta';
   }
 
   get pesoNeto(): number | null {

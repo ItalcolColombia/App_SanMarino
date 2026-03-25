@@ -4,6 +4,7 @@
     class="modal mpe-modal"
     [class.modal--detail]="isReadOnly"
     [class.modal--form]="!isReadOnly"
+    [class.mpe-modal--venta-granja]="ventaPorGranjaMode && !editingMovimiento"
     (click)="$event.stopPropagation()">
     <div class="modal__header">
       <div class="modal__header-content">
@@ -88,13 +89,20 @@
           </div>
           <div class="form-group">
             <label for="tipoMovimiento">Tipo movimiento</label>
-            <select id="tipoMovimiento" formControlName="tipoMovimiento" class="form-select">
+            <select
+              id="tipoMovimiento"
+              formControlName="tipoMovimiento"
+              class="form-select"
+              [attr.title]="ventaPorGranjaMode && !editingMovimiento ? 'Venta por granja: un despacho puede incluir varios galpones/lotes' : null">
               <option value="Venta">Venta</option>
               <option value="Traslado">Traslado</option>
               <option value="Ajuste">Ajuste</option>
               <option value="Liquidacion">Liquidación</option>
               <option value="Retiro">Retiro</option>
             </select>
+            <p class="form-hint" *ngIf="ventaPorGranjaMode && !editingMovimiento">
+              La venta se registra por granja: indique cantidades por lote abajo (puede usar uno o varios lotes / galpones en el mismo despacho).
+            </p>
           </div>
           <div class="form-group form-group--full">
             <label>Origen</label>
@@ -110,7 +118,7 @@
         </div>
       </section>
 
-      <section class="form-section">
+      <section class="form-section" *ngIf="!ventaPorGranjaMode || editingMovimiento">
         <h3 class="form-section__title">Cantidades a mover</h3>
         <div class="form-available" *ngIf="availableTotal > 0 && !editingMovimiento">
           <strong>Disponible en lote:</strong> {{ formatearNumero(availableTotal) }} aves
@@ -160,6 +168,84 @@
         <div class="form-group">
           <label for="motivoMovimiento">Motivo</label>
           <input id="motivoMovimiento" type="text" formControlName="motivoMovimiento" class="form-input" placeholder="Opcional" />
+        </div>
+      </section>
+
+      <!-- Venta por granja: cantidades por galpón / lote -->
+      <section class="form-section form-section--venta-granja" *ngIf="ventaPorGranjaMode && !editingMovimiento">
+        <h3 class="form-section__title">Cantidades por galpón y lote</h3>
+        <p class="form-hint form-hint--block">
+          Distribuya la venta entre los lotes de la granja. Cada fila con cantidad &gt; 0 generará un movimiento de venta enlazado al mismo número de despacho.
+        </p>
+        <div *ngIf="loadingVentaLineas" class="venta-granja-loading">Cargando disponibilidad por lote…</div>
+        <div *ngIf="!loadingVentaLineas && ventaLineasGranja.length === 0" class="alert alert-error">
+          No hay lotes Ave Engorde en esta granja (revisar filtros de núcleo en la pantalla principal).
+        </div>
+        <div class="venta-granja-wrap" *ngIf="!loadingVentaLineas && gruposVentaPorGalpon.length > 0">
+          <div class="venta-granja-galpon" *ngFor="let g of gruposVentaPorGalpon">
+            <h4 class="venta-granja-galpon__title">{{ g.galponLabel }}</h4>
+            <div class="venta-granja-table-wrap">
+              <table class="venta-granja-table">
+                <thead>
+                  <tr>
+                    <th>Lote</th>
+                    <th class="num">Disp. H</th>
+                    <th class="num">H</th>
+                    <th class="num">Disp. M</th>
+                    <th class="num">M</th>
+                    <th class="num">Disp. X</th>
+                    <th class="num">Mixtas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let line of g.lineas" [class.venta-granja-table__row-error]="line.h > line.maxH || line.m > line.maxM || line.x > line.maxX">
+                    <td>{{ line.loteNombre }}</td>
+                    <td class="num">{{ formatearNumero(line.maxH) }}</td>
+                    <td class="num">
+                      <input
+                        type="number"
+                        min="0"
+                        [attr.max]="line.maxH"
+                        class="form-input form-input--sm"
+                        [value]="line.h"
+                        (input)="onLineaCantidad(line, 'h', $event)"
+                      />
+                    </td>
+                    <td class="num">{{ formatearNumero(line.maxM) }}</td>
+                    <td class="num">
+                      <input
+                        type="number"
+                        min="0"
+                        [attr.max]="line.maxM"
+                        class="form-input form-input--sm"
+                        [value]="line.m"
+                        (input)="onLineaCantidad(line, 'm', $event)"
+                      />
+                    </td>
+                    <td class="num">{{ formatearNumero(line.maxX) }}</td>
+                    <td class="num">
+                      <input
+                        type="number"
+                        min="0"
+                        [attr.max]="line.maxX"
+                        class="form-input form-input--sm"
+                        [value]="line.x"
+                        (input)="onLineaCantidad(line, 'x', $event)"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <p class="form-hint" *ngIf="totalAves > 0 && !loadingVentaLineas">
+          Total despacho: <strong>{{ formatearNumero(totalAves) }}</strong> aves
+          <span class="form-hint--error" *ngIf="exceedsVentaGranjaLine"> — Revise que no supere lo disponible por sexo en cada lote.</span>
+        </p>
+        <div class="form-group">
+          <label for="motivoMovimientoVg">Motivo</label>
+          <input id="motivoMovimientoVg" type="text" formControlName="motivoMovimiento" class="form-input" placeholder="Opcional" />
         </div>
       </section>
 
@@ -234,7 +320,10 @@
 
       <div class="modal__actions">
         <button type="button" class="btn-italfoods-secondary" (click)="onClose()">Cancelar</button>
-        <button type="submit" class="btn-italfoods-primary" [disabled]="form.invalid || loading">
+        <button
+          type="submit"
+          class="btn-italfoods-primary"
+          [disabled]="form.invalid || loading || loadingVentaLineas || (ventaPorGranjaMode && !editingMovimiento && ventaLineasGranja.length === 0)">
           <span *ngIf="loading">Guardando…</span>
           <span *ngIf="!loading">{{ editingMovimiento ? 'Actualizar' : 'Guardar' }}</span>
         </button>

@@ -69,6 +69,8 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             CreatedAt = DateTime.UtcNow
         };
 
+        await RellenarOrigenDesdeLoteOrigenSiFaltaAsync(movimiento, dto);
+
         _ctx.MovimientoPolloEngorde.Add(movimiento);
         await _ctx.SaveChangesAsync();
 
@@ -76,6 +78,44 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         await _ctx.SaveChangesAsync();
 
         return (await GetByIdAsync(movimiento.Id))!;
+    }
+
+    /// <summary>
+    /// Si no viene granja/núcleo/galpón en el DTO, los toma del lote de origen (histórico y flujos que solo envían lote).
+    /// </summary>
+    private async Task RellenarOrigenDesdeLoteOrigenSiFaltaAsync(MovimientoPolloEngorde m, CreateMovimientoPolloEngordeDto dto)
+    {
+        if (m.GranjaOrigenId.HasValue)
+            return;
+
+        if (dto.LoteAveEngordeOrigenId is { } idAe)
+        {
+            var lae = await _ctx.LoteAveEngorde.AsNoTracking()
+                .FirstOrDefaultAsync(l =>
+                    l.LoteAveEngordeId == idAe && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
+            if (lae != null)
+            {
+                m.GranjaOrigenId = lae.GranjaId;
+                if (string.IsNullOrWhiteSpace(m.NucleoOrigenId)) m.NucleoOrigenId = lae.NucleoId;
+                if (string.IsNullOrWhiteSpace(m.GalponOrigenId)) m.GalponOrigenId = lae.GalponId;
+            }
+
+            return;
+        }
+
+        if (dto.LoteReproductoraAveEngordeOrigenId is { } idRa)
+        {
+            var lrae = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+                .Include(r => r.LoteAveEngorde)
+                .FirstOrDefaultAsync(r => r.Id == idRa);
+            var lae = lrae?.LoteAveEngorde;
+            if (lae != null && lae.CompanyId == _currentUser.CompanyId && lae.DeletedAt == null)
+            {
+                m.GranjaOrigenId = lae.GranjaId;
+                if (string.IsNullOrWhiteSpace(m.NucleoOrigenId)) m.NucleoOrigenId = lae.NucleoId;
+                if (string.IsNullOrWhiteSpace(m.GalponOrigenId)) m.GalponOrigenId = lae.GalponId;
+            }
+        }
     }
 
     public async Task<MovimientoPolloEngordeDto?> GetByIdAsync(int id)
@@ -178,6 +218,50 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             query = query.Where(x => x.LoteAveEngordeOrigenId == request.LoteAveEngordeOrigenId);
         if (request.LoteReproductoraAveEngordeOrigenId.HasValue)
             query = query.Where(x => x.LoteReproductoraAveEngordeOrigenId == request.LoteReproductoraAveEngordeOrigenId);
+
+        if (request.GranjaOrigenId.HasValue)
+        {
+            var farmId = request.GranjaOrigenId.Value;
+            query = query.Where(x =>
+                x.GranjaOrigenId == farmId
+                || (x.LoteAveEngordeOrigen != null && x.LoteAveEngordeOrigen.GranjaId == farmId)
+                || (x.LoteReproductoraAveEngordeOrigen != null
+                    && x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde != null
+                    && x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde.GranjaId == farmId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.NucleoOrigenId))
+        {
+            var nid = request.NucleoOrigenId;
+            query = query.Where(x =>
+                x.NucleoOrigenId == nid
+                || (x.LoteAveEngordeOrigen != null && x.LoteAveEngordeOrigen.NucleoId == nid)
+                || (x.LoteReproductoraAveEngordeOrigen != null
+                    && x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde != null
+                    && x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde.NucleoId == nid));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.GalponOrigenId))
+        {
+            var gpid = request.GalponOrigenId;
+            query = query.Where(x =>
+                x.GalponOrigenId == gpid
+                || (x.LoteAveEngordeOrigen != null && x.LoteAveEngordeOrigen.GalponId == gpid)
+                || (x.LoteReproductoraAveEngordeOrigen != null
+                    && x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde != null
+                    && x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde.GalponId == gpid));
+        }
+
+        if (request.GalponOrigenSinAsignar == true)
+        {
+            query = query.Where(x =>
+                string.IsNullOrEmpty(x.GalponOrigenId)
+                && (x.LoteAveEngordeOrigen == null || string.IsNullOrEmpty(x.LoteAveEngordeOrigen.GalponId))
+                && (x.LoteReproductoraAveEngordeOrigen == null
+                    || x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde == null
+                    || string.IsNullOrEmpty(x.LoteReproductoraAveEngordeOrigen.LoteAveEngorde.GalponId)));
+        }
+
         if (request.FechaDesde.HasValue)
             query = query.Where(x => x.FechaMovimiento >= request.FechaDesde.Value);
         if (request.FechaHasta.HasValue)
@@ -196,6 +280,7 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         var items = await query
             .Include(x => x.LoteAveEngordeOrigen)
             .Include(x => x.LoteReproductoraAveEngordeOrigen)
+                .ThenInclude(r => r!.LoteAveEngorde)
             .Include(x => x.LoteAveEngordeDestino)
             .Include(x => x.LoteReproductoraAveEngordeDestino)
             .Include(x => x.GranjaOrigen)
