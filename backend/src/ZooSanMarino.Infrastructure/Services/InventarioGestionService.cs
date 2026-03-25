@@ -757,6 +757,112 @@ public class InventarioGestionService : IInventarioGestionService
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Valida empresa, país y granjas asignadas; carga ítem de catálogo.</summary>
+    private async Task<InventarioGestionStock> GetStockForMutationAsync(int stockId, CancellationToken ct)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        if (companyId is null or <= 0)
+            throw new InvalidOperationException("No tiene empresa activa para esta operación.");
+
+        var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(companyId.Value, ct).ConfigureAwait(false);
+        var stock = await _db.InventarioGestionStock
+            .Include(x => x.ItemInventarioEcuador)
+            .FirstOrDefaultAsync(x => x.Id == stockId, ct);
+        if (stock == null)
+            throw new InvalidOperationException("El registro de stock no existe.");
+        if (stock.CompanyId != companyId.Value)
+            throw new InvalidOperationException("No autorizado.");
+        var effectivePais = await GetEffectivePaisIdAsync(stock.FarmId, ct);
+        if (effectivePais > 0 && stock.PaisId != effectivePais)
+            throw new InvalidOperationException("El registro no corresponde al país activo.");
+        if (!allowedFarmIds.Contains(stock.FarmId))
+            throw new InvalidOperationException("No tiene acceso a esta granja.");
+        return stock;
+    }
+
+    public async Task<InventarioGestionStockDto> ActualizarStockAsync(int stockId, InventarioGestionStockUpdateRequest req, CancellationToken ct = default)
+    {
+        if (req.Quantity < 0)
+            throw new InvalidOperationException("La cantidad no puede ser negativa.");
+
+        var stock = await GetStockForMutationAsync(stockId, ct);
+        var item = stock.ItemInventarioEcuador;
+        var oldQty = stock.Quantity;
+        var oldUnit = stock.Unit;
+        var newUnit = string.IsNullOrWhiteSpace(req.Unit) ? stock.Unit : req.Unit.Trim();
+        if (string.IsNullOrWhiteSpace(newUnit))
+            newUnit = "kg";
+
+        if (oldQty == req.Quantity &&
+            string.Equals(oldUnit.Trim(), newUnit.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("No hay cambios en cantidad ni unidad.");
+
+        var delta = req.Quantity - oldQty;
+        stock.Quantity = req.Quantity;
+        stock.Unit = newUnit;
+        stock.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var extra = string.IsNullOrWhiteSpace(req.Reason) ? null : req.Reason.Trim();
+        var reasonFull = $"Ajuste manual. Anterior: {oldQty} {oldUnit}. Nuevo: {req.Quantity} {newUnit}.";
+        if (extra != null)
+            reasonFull += $" Motivo: {extra}";
+
+        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+        {
+            CompanyId = stock.CompanyId,
+            PaisId = stock.PaisId,
+            FarmId = stock.FarmId,
+            NucleoId = stock.NucleoId,
+            GalponId = stock.GalponId,
+            ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
+            Quantity = delta != 0 ? Math.Abs(delta) : 0m,
+            Unit = newUnit,
+            MovementType = "AjusteStock",
+            Estado = "Ajuste manual",
+            Reference = null,
+            Reason = reasonFull,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedByUserId = _current?.UserId.ToString()
+        });
+
+        await _db.SaveChangesAsync(ct);
+
+        var list = await GetStockAsync(stock.FarmId, stock.NucleoId, stock.GalponId, null, null, ct);
+        return list.FirstOrDefault(x => x.Id == stockId)
+            ?? new InventarioGestionStockDto(
+                stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId,
+                item.Codigo, item.Nombre, item.Concepto ?? item.TipoItem ?? "alimento",
+                stock.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
+    }
+
+    public async Task EliminarStockAsync(int stockId, CancellationToken ct = default)
+    {
+        var stock = await GetStockForMutationAsync(stockId, ct);
+        if (stock.Quantity > 0)
+        {
+            _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+            {
+                CompanyId = stock.CompanyId,
+                PaisId = stock.PaisId,
+                FarmId = stock.FarmId,
+                NucleoId = stock.NucleoId,
+                GalponId = stock.GalponId,
+                ItemInventarioEcuadorId = stock.ItemInventarioEcuadorId,
+                Quantity = stock.Quantity,
+                Unit = stock.Unit,
+                MovementType = "EliminacionStock",
+                Estado = "Eliminación registro",
+                Reference = null,
+                Reason = "Eliminación del registro de stock desde gestión de inventario.",
+                CreatedAt = DateTimeOffset.UtcNow,
+                CreatedByUserId = _current?.UserId.ToString()
+            });
+        }
+
+        _db.InventarioGestionStock.Remove(stock);
+        await _db.SaveChangesAsync(ct);
+    }
+
     public async Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
     {
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad de consumo debe ser positiva.");
@@ -875,6 +981,8 @@ public class InventarioGestionService : IInventarioGestionService
                     "TrasladoInterGranjaEntrada" => "Recibido desde tránsito",
                     "TrasladoInterGranjaRechazado" => "Rechazado destino",
                     "Consumo" => "Consumo",
+                    "AjusteStock" => "Ajuste manual",
+                    "EliminacionStock" => "Eliminación registro",
                     _ => x.MovementType
                 };
             }
@@ -919,6 +1027,8 @@ public class InventarioGestionService : IInventarioGestionService
         "TrasladoInterGranjaSalida" => "Traslado entre granjas (en tránsito)",
         "TrasladoInterGranjaEntrada" => "Traslado entre granjas (recepción)",
         "TrasladoInterGranjaRechazado" => "Traslado entre granjas (rechazado)",
+        "AjusteStock" => "Ajuste manual de stock",
+        "EliminacionStock" => "Eliminación de registro de stock",
         _ => movementType
     };
 }

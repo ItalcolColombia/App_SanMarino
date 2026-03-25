@@ -148,6 +148,13 @@ export interface InventarioGestionRecepcionTransitoRequest {
   toGalponId: string | null;
 }
 
+/** Ajuste manual de cantidad/unidad en un registro de stock. */
+export interface InventarioGestionStockUpdateRequest {
+  quantity: number;
+  unit?: string | null;
+  reason?: string | null;
+}
+
 /** Ítem del catálogo item_inventario_ecuador (Config > Ítems inventario Ecuador). */
 export interface ItemInventarioEcuadorDto {
   id: number;
@@ -184,6 +191,17 @@ export class GestionInventarioService {
     if (params.itemType) httpParams = httpParams.set('itemType', params.itemType);
     if (params.search) httpParams = httpParams.set('search', params.search);
     return this.http.get<InventarioGestionStockDto[]>(`${this.api}/inventario-gestion/stock`, { params: httpParams });
+  }
+
+  actualizarStock(
+    stockId: number,
+    payload: InventarioGestionStockUpdateRequest
+  ): Observable<InventarioGestionStockDto> {
+    return this.http.put<InventarioGestionStockDto>(`${this.api}/inventario-gestion/stock/${stockId}`, payload);
+  }
+
+  eliminarStock(stockId: number): Observable<void> {
+    return this.http.delete<void>(`${this.api}/inventario-gestion/stock/${stockId}`);
   }
 
   registrarIngreso(payload: InventarioGestionIngresoRequest): Observable<InventarioGestionStockDto> {

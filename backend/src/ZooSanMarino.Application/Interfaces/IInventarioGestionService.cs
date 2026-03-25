@@ -40,4 +40,10 @@ public interface IInventarioGestionService
 
     /// <summary>Rechaza una solicitud inter-granja pendiente; no modifica stock.</summary>
     Task RechazarTransitoPendienteAsync(InventarioGestionRechazoTransitoRequest req, CancellationToken ct = default);
+
+    /// <summary>Ajusta cantidad (y opcionalmente unidad) de un registro de inventario_gestion_stock. Registra movimiento tipo AjusteStock.</summary>
+    Task<InventarioGestionStockDto> ActualizarStockAsync(int stockId, InventarioGestionStockUpdateRequest req, CancellationToken ct = default);
+
+    /// <summary>Elimina el registro de stock. Si había cantidad &gt; 0, registra salida antes de borrar.</summary>
+    Task EliminarStockAsync(int stockId, CancellationToken ct = default);
 }
