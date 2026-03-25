@@ -1,7 +1,15 @@
 <!-- ================= TABLA DE INDICADORES SEMANALES ================= -->
 <div class="indicadores-container">
   <div class="indicadores-header">
-    <h3>Indicadores Semanales</h3>
+    <div class="indicadores-header__titles">
+      <h3>Indicadores Semanales</h3>
+      <p class="indicadores-guia-hint" *ngIf="fuenteGuiaIndicadores === 'ecuador-mixto'">
+        Comparación con <strong>Guía genética Ecuador (mixto)</strong>, por bloques de 7 días desde encaset.
+      </p>
+      <p class="indicadores-guia-hint indicadores-guia-hint--muted" *ngIf="fuenteGuiaIndicadores === 'clasica'">
+        Comparación con <strong>guía genética clásica</strong> (tabla por semana); no hay datos mixto Ecuador para esta raza/año.
+      </p>
+    </div>
     <button 
       (click)="mostrarFormulas = !mostrarFormulas" 
       class="btn-formulas">

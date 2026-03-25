@@ -78,6 +78,9 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   private cacheGuiaRango: Map<string, Map<number, GuiaGeneticaDto>> = new Map();
   private guiaRangoKeyActual: string | null = null;
 
+  /** Origen de los valores "tabla" para comparativos: Ecuador mixto (prioritario) o guía clásica produccion_avicola. */
+  fuenteGuiaIndicadores: 'ecuador-mixto' | 'clasica' | null = null;
+
   constructor(private guiaGeneticaService: GuiaGeneticaService) { }
 
   ngOnInit(): void {
@@ -93,6 +96,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
         console.log('🔄 Lote cambiado, limpiando cache...');
         this.cacheGuiaRango.clear();
         this.guiaRangoKeyActual = null;
+        this.fuenteGuiaIndicadores = null;
       }
       
       this.calcularIndicadores().catch(error => {
@@ -105,6 +109,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   private async calcularIndicadores(): Promise<void> {
     if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
       this.indicadoresSemanales = [];
+      this.fuenteGuiaIndicadores = null;
       return;
     }
 
@@ -138,23 +143,32 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       grupos.get(semana)!.push(registro);
     });
 
-    // Ordenar registros dentro de cada semana por fecha
-    grupos.forEach((registros, semana) => {
-      registros.sort((a, b) => new Date(a.fechaRegistro).getTime() - new Date(b.fechaRegistro).getTime());
+    // Ordenar registros dentro de cada semana por fecha (calendario local, sin desfase UTC)
+    grupos.forEach((registrosSem) => {
+      registrosSem.sort((a, b) => {
+        const ya = this.toYMD(a.fechaRegistro) ?? '';
+        const yb = this.toYMD(b.fechaRegistro) ?? '';
+        return ya.localeCompare(yb);
+      });
     });
 
     return grupos;
   }
 
+  /**
+   * Semana 1 = días 0–6 desde encaset (mismo día encaset = semana 1). Alineado a calendario local (YYYY-MM-DD), no ISO UTC crudo.
+   */
   private calcularSemana(fechaRegistro: string | Date): number {
-    if (!this.selectedLote?.fechaEncaset) return 1;
-    
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
-    const fechaReg = new Date(fechaRegistro);
-    const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return Math.max(1, Math.ceil(diffDays / 7));
+    const encYmd = this.toYMD(this.selectedLote?.fechaEncaset);
+    const regYmd = this.toYMD(fechaRegistro);
+    if (!encYmd || !regYmd) return 1;
+    const MS_DAY = 24 * 60 * 60 * 1000;
+    const enc = this.ymdToLocalNoonDate(encYmd);
+    const reg = this.ymdToLocalNoonDate(regYmd);
+    if (!enc || !reg) return 1;
+    const diffDays = Math.floor((reg.getTime() - enc.getTime()) / MS_DAY);
+    const semana = Math.floor(diffDays / 7) + 1;
+    return Math.max(1, Math.min(25, semana));
   }
 
   private async calcularIndicadoresSemanales(grupos: Map<number, SeguimientoLoteLevanteDto[]>): Promise<IndicadorSemanal[]> {
@@ -519,7 +533,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     const hastaClamped = Math.max(1, Math.min(25, hasta));
     if (hastaClamped < desdeClamped) return;
 
-    if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) return;
+    if (!this.selectedLote?.raza || !this.selectedLote?.anoTablaGenetica) {
+      this.fuenteGuiaIndicadores = null;
+      return;
+    }
 
     const raza = this.selectedLote.raza;
     const ano = this.selectedLote.anoTablaGenetica;
@@ -528,21 +545,44 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     // Evitar pedir varias veces si ya tenemos el rango para ese lote
     if (this.guiaRangoKeyActual === key && this.cacheGuiaRango.has(key)) return;
 
+    const map = new Map<number, GuiaGeneticaDto>();
+
+    // 1) Prioridad: Guía genética Ecuador — curva mixto agregada por semanas de 7 días
+    try {
+      const rowsEc = await firstValueFrom(
+        this.guiaGeneticaService.obtenerGuiaGeneticaRangoEcuadorMixto(raza, ano, desdeClamped, hastaClamped)
+      );
+      if (rowsEc && rowsEc.length > 0) {
+        for (const r of rowsEc) {
+          if (typeof r?.edad === 'number') map.set(r.edad, r);
+        }
+        this.cacheGuiaRango.set(key, map);
+        this.guiaRangoKeyActual = key;
+        this.fuenteGuiaIndicadores = 'ecuador-mixto';
+        console.log(
+          `✅ Guía Ecuador (mixto) precargada: ${key} (semanas ${desdeClamped}-${hastaClamped}, ${rowsEc.length} filas)`
+        );
+        return;
+      }
+    } catch (e) {
+      console.warn('Guía Ecuador mixto no disponible, se intentará guía clásica:', e);
+    }
+
+    // 2) Fallback: produccion_avicola_raw vía /guia-genetica/rango
     try {
       const rows = await firstValueFrom(
         this.guiaGeneticaService.obtenerGuiaGeneticaRango(raza, ano, desdeClamped, hastaClamped)
       );
-
-      const map = new Map<number, GuiaGeneticaDto>();
       for (const r of rows || []) {
         if (typeof r?.edad === 'number') map.set(r.edad, r);
       }
-
+      this.fuenteGuiaIndicadores = map.size > 0 ? 'clasica' : null;
       this.cacheGuiaRango.set(key, map);
       this.guiaRangoKeyActual = key;
-      console.log(`✅ Guía genética precargada: ${key} (semanas ${desdeClamped}-${hastaClamped})`);
+      console.log(`✅ Guía genética clásica precargada: ${key} (semanas ${desdeClamped}-${hastaClamped})`);
     } catch (error) {
       console.error('❌ Error precargando guía genética por rango:', error);
+      this.fuenteGuiaIndicadores = null;
       this.cacheGuiaRango.set(key, new Map());
       this.guiaRangoKeyActual = key;
     }
@@ -796,24 +836,56 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   // ================== HELPERS DE FECHA ==================
+  /** Prefijo YYYY-MM-DD desde string ISO o Date (calendario local para Date). */
+  private toYMD(value: string | Date | null | undefined): string | null {
+    if (value == null || value === '') return null;
+    if (typeof value === 'string') {
+      const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m) return m[1];
+      const d = new Date(value);
+      if (isNaN(d.getTime())) return null;
+      const y = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${mo}-${day}`;
+    }
+    const d = value;
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
+  }
+
+  private ymdToLocalNoonDate(ymd: string | null): Date | null {
+    if (!ymd) return null;
+    const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const day = Number(m[3]);
+    return new Date(y, mo, day, 12, 0, 0, 0);
+  }
+
+  private addDaysToYmd(ymd: string, days: number): string | null {
+    const d = this.ymdToLocalNoonDate(ymd);
+    if (!d) return null;
+    d.setDate(d.getDate() + days);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
+  }
+
   private obtenerFechaInicioSemana(semana: number): string {
-    if (!this.selectedLote?.fechaEncaset) return '';
-    
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
-    const diasASumar = (semana - 1) * 7;
-    const fechaInicio = new Date(fechaEncaset.getTime() + (diasASumar * 24 * 60 * 60 * 1000));
-    
-    return fechaInicio.toISOString().split('T')[0];
+    const encYmd = this.toYMD(this.selectedLote?.fechaEncaset);
+    if (!encYmd) return '';
+    return this.addDaysToYmd(encYmd, (semana - 1) * 7) ?? '';
   }
 
   private obtenerFechaFinSemana(semana: number): string {
-    if (!this.selectedLote?.fechaEncaset) return '';
-    
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
-    const diasASumar = (semana * 7) - 1;
-    const fechaFin = new Date(fechaEncaset.getTime() + (diasASumar * 24 * 60 * 60 * 1000));
-    
-    return fechaFin.toISOString().split('T')[0];
+    const encYmd = this.toYMD(this.selectedLote?.fechaEncaset);
+    if (!encYmd) return '';
+    return this.addDaysToYmd(encYmd, semana * 7 - 1) ?? '';
   }
 
   // ================== FORMATO ==================
@@ -940,7 +1012,11 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
         formulas: [
           {
             nombre: 'Piso Térmico',
-            formula: 'Requerimiento según guía genética (generalmente semanas 1-3)'
+            formula: 'Guía clásica: según tabla. Guía Ecuador mixto (backend): true si el bloque semanal termina en día de vida ≤21 (≈ primeras 3 semanas).'
+          },
+          {
+            nombre: 'Uniformidad tabla',
+            formula: 'Guía Ecuador mixto no trae columna en la importación; el valor tabla se muestra 0 (compare uniformidad real del lote aparte).'
           }
         ]
       }

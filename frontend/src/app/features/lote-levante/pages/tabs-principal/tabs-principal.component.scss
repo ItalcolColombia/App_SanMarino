@@ -285,6 +285,90 @@
   margin-top: var(--space-6);
 }
 
+.registro-diario__hint {
+  font-size: var(--fs-xs);
+  color: var(--text-sub);
+  margin: 0 0 var(--space-4);
+  line-height: 1.45;
+  max-width: 80ch;
+}
+
+.table-container--diario .ux-scroll--diario {
+  max-height: min(70vh, 720px);
+}
+
+.ux-table--registro-diario {
+  min-width: 2800px;
+  table-layout: auto;
+}
+
+/* Encabezados legibles: sin MAYÚSCULAS forzadas, título + subtítulo */
+.ux-table--registro-diario thead th.th-diario {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  vertical-align: bottom;
+  padding: 0.75rem 0.65rem;
+  min-width: 5.5rem;
+  max-width: 11rem;
+  hyphens: auto;
+}
+
+.ux-table--registro-diario thead th .th-diario__sub {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-top: 0.2rem;
+  line-height: 1.25;
+}
+
+.ux-table--registro-diario thead th.th-diario--num {
+  text-align: right;
+  min-width: 5.75rem;
+}
+
+.ux-table--registro-diario thead th.th-diario--mort {
+  min-width: 6.5rem;
+  max-width: 9rem;
+}
+
+.ux-table--registro-diario thead th.th-diario--wide {
+  min-width: 9rem;
+  max-width: 14rem;
+}
+
+.ux-table--registro-diario thead th.th-diario--actions {
+  min-width: 7.5rem;
+  max-width: none;
+  text-align: center;
+}
+
+.ux-table--registro-diario tbody td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ux-table--registro-diario tbody td.cell-text {
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.ux-table--registro-diario tbody td.cell-text--wide {
+  min-width: 9rem;
+  max-width: 16rem;
+}
+
+.ux-table--registro-diario tbody td.cell-text--obs {
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
 .ux-scroll { 
   max-height: 50vh; overflow: auto; 
   border-radius: var(--radius-md); border: 1px solid var(--border);
@@ -521,6 +605,44 @@
   .acumulados-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Subpestañas: Indicador diario / Semanal */
+.tab-panel--indicadores {
+  padding-top: 0;
+}
+
+.indicadores-subnav {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.indicadores-subnav__btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--warm-50);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--text-sub);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+
+.indicadores-subnav__btn:hover {
+  background: var(--warm-100);
+  color: var(--text);
+}
+
+.indicadores-subnav__btn--active {
+  background: var(--white);
+  border-color: var(--ital-orange-dark);
+  color: var(--ital-orange-dark);
+  box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 480px) {

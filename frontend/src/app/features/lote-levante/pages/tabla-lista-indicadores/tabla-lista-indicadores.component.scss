@@ -89,8 +89,25 @@
 .indicadores-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: var(--space-4);
   margin-bottom: var(--space-4);
+}
+
+.indicadores-header__titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.indicadores-guia-hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--warm-600);
+  line-height: 1.4;
+}
+
+.indicadores-guia-hint--muted {
+  color: var(--warm-500);
 }
 
 .header-actions {
