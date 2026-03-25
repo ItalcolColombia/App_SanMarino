@@ -65,6 +65,24 @@ export class GuiaGeneticaService {
   }
 
   /**
+   * Guía genética Ecuador (sexo mixto), agregada por semanas de 7 días — misma forma que `obtenerGuiaGeneticaRango` para indicadores.
+   */
+  obtenerGuiaGeneticaRangoEcuadorMixto(
+    raza: string,
+    anioGuia: number,
+    semanaDesde: number,
+    semanaHasta: number
+  ): Observable<GuiaGeneticaDto[]> {
+    const baseEcuador = `${environment.apiUrl}/guia-genetica-ecuador`;
+    const params = new HttpParams()
+      .set('raza', raza)
+      .set('anioGuia', String(anioGuia))
+      .set('semanaDesde', String(semanaDesde))
+      .set('semanaHasta', String(semanaHasta));
+    return this.http.get<GuiaGeneticaDto[]>(`${baseEcuador}/indicadores-rango`, { params });
+  }
+
+  /**
    * Verifica si existe una guía genética
    */
   existeGuiaGenetica(raza: string, anoTabla: number): Observable<boolean> {

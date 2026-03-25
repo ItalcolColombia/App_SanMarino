@@ -174,6 +174,17 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         return decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out value);
     }
 
+    /// <summary>
+    /// Excel almacena porcentajes como fracción de 1 (p. ej. 0,16 % → 0,0016). En texto "0,16%" ya parseamos 0,16.
+    /// Si el valor es &gt; 0 y &lt; 0,02 se asume fracción Excel típica de mortalidad/selección diaria y se pasa a puntos porcentuales (×100).
+    /// </summary>
+    private static decimal NormalizeMortalidadSeleccionPorcentaje(decimal v)
+    {
+        if (v <= 0) return 0;
+        if (v < 0.02m) return v * 100m;
+        return v;
+    }
+
     private static bool TryParseInt(object? cell, out int value)
     {
         value = 0;
@@ -213,7 +224,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         }
 
         var diaCol = diaEntry.Key;
-        if (!TryParseInt(ws.Cells[row, diaCol].Value, out dia) || dia < 1)
+        if (!TryParseInt(ws.Cells[row, diaCol].Value, out dia) || dia < 0)
         {
             error = null;
             return false;
@@ -245,6 +256,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
                     break;
                 case "mortalidad":
                     TryParseDecimal(cell, out mortalidad);
+                    mortalidad = NormalizeMortalidadSeleccionPorcentaje(mortalidad);
                     break;
             }
         }
@@ -427,6 +439,64 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
             .ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<IEnumerable<GuiaGeneticaDto>> GetIndicadoresRangoSemanasAsync(
+        string raza,
+        int anioGuia,
+        int semanaDesde,
+        int semanaHasta,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(raza) || anioGuia <= 0)
+            return Array.Empty<GuiaGeneticaDto>();
+
+        semanaDesde = Math.Clamp(semanaDesde, 1, 25);
+        semanaHasta = Math.Clamp(semanaHasta, 1, 25);
+        if (semanaHasta < semanaDesde)
+            return Array.Empty<GuiaGeneticaDto>();
+
+        const string sexoMixto = "mixto";
+        var rows = (await GetDatosAsync(raza.Trim(), anioGuia, sexoMixto, ct)).ToList();
+        if (rows.Count == 0)
+            return Array.Empty<GuiaGeneticaDto>();
+
+        var razaTrim = raza.Trim();
+        var result = new List<GuiaGeneticaDto>();
+        for (var s = semanaDesde; s <= semanaHasta; s++)
+        {
+            var d0 = (s - 1) * 7 + 1;
+            var d1 = s * 7;
+            var weekRows = rows.Where(r => r.Dia >= d0 && r.Dia <= d1).OrderBy(r => r.Dia).ToList();
+            if (weekRows.Count == 0)
+                continue;
+
+            var avgConsumo = (double)weekRows.Average(r => r.CantidadAlimentoDiarioG);
+            var lastPeso = (double)weekRows[^1].PesoCorporalG;
+            var avgMort = (double)weekRows.Average(r => r.MortalidadSeleccionDiaria);
+
+            // Uniformidad: la plantilla Ecuador mixto no incluye columna; se expone 0 (comparar uniformidad real vs tabla solo con guía clásica).
+            // Piso térmico: cría en primeras ~3 semanas de vida (día 1–21) → semanas cuyo bloque termina en día ≤21.
+            var pisoTermico = d1 <= 21;
+
+            result.Add(new GuiaGeneticaDto(
+                Edad: s,
+                ConsumoHembras: avgConsumo,
+                ConsumoMachos: avgConsumo,
+                PesoHembras: lastPeso,
+                PesoMachos: lastPeso,
+                MortalidadHembras: avgMort,
+                MortalidadMachos: avgMort,
+                RetiroAcumuladoHembras: 0,
+                RetiroAcumuladoMachos: 0,
+                Uniformidad: 0,
+                PisoTermicoRequerido: pisoTermico,
+                Observaciones: $"Guía Ecuador mixto — {razaTrim} {anioGuia} — semana {s} (días {d0}-{d1}). Uniformidad tabla no disponible en curva mixto (0%)."
+            ));
+        }
+
+        return result;
+    }
+
     public async Task<GuiaGeneticaEcuadorImportResultDto> ImportExcelAsync(
         IFormFile file,
         string raza,
@@ -484,8 +554,9 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
                     var diasVistos = new HashSet<int>();
                     var nuevos = new List<GuiaGeneticaEcuadorDetalle>();
                     var lastRow = ws.Dimension.End.Row;
+                    var firstDataRow = headerRow + 1;
 
-                    for (var row = 2; row <= lastRow; row++)
+                    for (var row = firstDataRow; row <= lastRow; row++)
                     {
                         if (!TryReadRow(ws, row, colMap, out var dia, out var peso, out var ganancia, out var promedio,
                                 out var cantAlim, out var alimAcum, out var ca, out var mort, out var rowErr))
@@ -495,7 +566,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
                             continue;
                         }
 
-                        if (dia < 1)
+                        if (dia < 0)
                             continue;
 
                         filasProcesadas++;
@@ -583,7 +654,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
                 CantidadAlimentoDiarioG = it.CantidadAlimentoDiarioG,
                 AlimentoAcumuladoG = it.AlimentoAcumuladoG,
                 CA = it.CA,
-                MortalidadSeleccionDiaria = it.MortalidadSeleccionDiaria
+                MortalidadSeleccionDiaria = NormalizeMortalidadSeleccionPorcentaje(it.MortalidadSeleccionDiaria)
             });
         }
 

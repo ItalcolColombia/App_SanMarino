@@ -70,6 +70,24 @@ public class GuiaGeneticaEcuadorController : ControllerBase
         return Ok(data);
     }
 
+    /// <summary>
+    /// Datos para el tab Indicadores (seguimiento pollo engorde / levante): curva Ecuador <strong>mixto</strong> agrupada por semanas de 7 días, mismo shape que <c>/api/guia-genetica/rango</c>.
+    /// </summary>
+    [HttpGet("indicadores-rango")]
+    [ProducesResponseType(typeof(IEnumerable<GuiaGeneticaDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<GuiaGeneticaDto>>> GetIndicadoresRango(
+        [FromQuery] string raza,
+        [FromQuery] int anioGuia,
+        [FromQuery] int semanaDesde = 1,
+        [FromQuery] int semanaHasta = 25,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(raza) || anioGuia <= 0)
+            return BadRequest("raza y anioGuia son requeridos.");
+        var data = await _service.GetIndicadoresRangoSemanasAsync(raza, anioGuia, semanaDesde, semanaHasta, ct);
+        return Ok(data);
+    }
+
     /// <summary>Carga masiva: Excel con hojas mixto / hembra / macho + raza, año y estado en el formulario.</summary>
     [HttpPost("import")]
     [RequestSizeLimit(10 * 1024 * 1024)]
