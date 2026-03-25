@@ -155,3 +155,10 @@ public sealed record InventarioGestionConsumoRequest(
     string? Reference,
     string? Reason
 );
+
+/// <summary>Ajuste directo de cantidad/unidad en un registro de stock (misma ubicación e ítem).</summary>
+public sealed record InventarioGestionStockUpdateRequest(
+    decimal Quantity,
+    string? Unit,
+    string? Reason
+);

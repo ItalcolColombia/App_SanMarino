@@ -26,6 +26,40 @@ public class InventarioGestionController : ControllerBase
         return Ok(data);
     }
 
+    /// <summary>Actualiza cantidad/unidad de un registro de stock (ajuste manual). Mismas reglas de acceso que GET stock.</summary>
+    [HttpPut("stock/{stockId:int}")]
+    [ProducesResponseType(typeof(InventarioGestionStockDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ActualizarStock(int stockId, [FromBody] InventarioGestionStockUpdateRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _service.ActualizarStockAsync(stockId, req, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Elimina un registro de stock. Si había cantidad, se registra movimiento de salida.</summary>
+    [HttpDelete("stock/{stockId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> EliminarStock(int stockId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _service.EliminarStockAsync(stockId, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     /// <summary>Stock solo en granjas asignadas al usuario; filtros opcionales: granja, núcleo, galpón, concepto/tipo ítem, búsqueda código/nombre.</summary>
     [HttpGet("stock")]
     [ProducesResponseType(typeof(IEnumerable<InventarioGestionStockDto>), StatusCodes.Status200OK)]

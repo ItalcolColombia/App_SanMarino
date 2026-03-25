@@ -12,7 +12,9 @@ import {
   faFilter,
   faClockRotateLeft,
   faTruck,
-  faFileExport
+  faFileExport,
+  faPen,
+  faTrash
 } from '@fortawesome/free-solid-svg-icons';
 
 import {
@@ -44,6 +46,8 @@ export class GestionInventarioPageComponent implements OnInit {
   faHistorico = faClockRotateLeft;
   faTransito = faTruck;
   faExport = faFileExport;
+  faPen = faPen;
+  faTrash = faTrash;
 
   activeTab: TabKey = 'stock';
   filterData: InventarioGestionFilterDataDto | null = null;
@@ -56,7 +60,7 @@ export class GestionInventarioPageComponent implements OnInit {
   showConfirmModal = false;
   confirmTitle = '';
   confirmText = '';
-  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | null = null;
+  confirmAction: 'ingreso' | 'traslado' | 'recepcionTransito' | 'deleteStock' | null = null;
   showAlertModal = false;
   alertType: 'success' | 'error' = 'success';
   alertTitle = '';
@@ -137,6 +141,15 @@ export class GestionInventarioPageComponent implements OnInit {
   itemsFilterType: string = ''; // concepto
   itemsSearch = '';
 
+  /** Stock: edición y eliminación */
+  showStockEditModal = false;
+  stockEditRow: InventarioGestionStockDto | null = null;
+  stockEditQuantity = 0;
+  stockEditUnit = '';
+  stockEditReason = '';
+  submittingStockEdit = false;
+  pendingDeleteStock: InventarioGestionStockDto | null = null;
+
   private allCatalogItems: ItemInventarioEcuadorDto[] = [];
 
   constructor(private svc: GestionInventarioService) {}
@@ -166,7 +179,9 @@ export class GestionInventarioPageComponent implements OnInit {
     'Pendiente destino',
     'Tránsito',
     'Recibido desde tránsito',
-    'Rechazado destino'
+    'Rechazado destino',
+    'Ajuste manual',
+    'Eliminación registro'
   ];
 
   loadMovimientos(): void {
@@ -692,7 +707,7 @@ export class GestionInventarioPageComponent implements OnInit {
   openConfirmModal(
     title: string,
     text: string,
-    action: 'ingreso' | 'traslado' | 'recepcionTransito'
+    action: 'ingreso' | 'traslado' | 'recepcionTransito' | 'deleteStock'
   ): void {
     this.confirmTitle = title;
     this.confirmText = text;
@@ -702,13 +717,89 @@ export class GestionInventarioPageComponent implements OnInit {
   closeConfirmModal(): void {
     this.showConfirmModal = false;
     this.confirmAction = null;
+    this.pendingDeleteStock = null;
   }
   confirm(): void {
     const action = this.confirmAction;
-    this.closeConfirmModal();
+    const rowToDelete = this.pendingDeleteStock;
+    this.showConfirmModal = false;
+    this.confirmAction = null;
+    this.pendingDeleteStock = null;
     if (action === 'ingreso') this.doIngreso();
     if (action === 'traslado') this.doTraslado();
     if (action === 'recepcionTransito') this.doRecepcionTransito();
+    if (action === 'deleteStock') this.doDeleteStock(rowToDelete);
+  }
+
+  openStockEdit(row: InventarioGestionStockDto): void {
+    this.stockEditRow = row;
+    this.stockEditQuantity = Number(row.quantity);
+    this.stockEditUnit = (row.unit ?? 'kg').trim() || 'kg';
+    this.stockEditReason = '';
+    this.showStockEditModal = true;
+  }
+
+  closeStockEditModal(): void {
+    this.showStockEditModal = false;
+    this.stockEditRow = null;
+    this.submittingStockEdit = false;
+  }
+
+  submitStockEdit(): void {
+    const row = this.stockEditRow;
+    if (!row) return;
+    if (this.stockEditQuantity < 0) {
+      this.openAlertModal('error', 'Validación', 'La cantidad no puede ser negativa.');
+      return;
+    }
+    const unit = (this.stockEditUnit ?? '').trim() || row.unit || 'kg';
+    this.submittingStockEdit = true;
+    this.svc
+      .actualizarStock(row.id, {
+        quantity: this.stockEditQuantity,
+        unit,
+        reason: this.stockEditReason?.trim() || null
+      })
+      .subscribe({
+        next: () => {
+          this.submittingStockEdit = false;
+          this.closeStockEditModal();
+          this.openAlertModal('success', 'Listo', 'Stock actualizado. El ajuste quedó registrado en el histórico.');
+          this.loadStock();
+        },
+        error: (err) => {
+          this.submittingStockEdit = false;
+          this.openAlertModal('error', 'Error', err.error?.message || 'No se pudo actualizar el stock.');
+        }
+      });
+  }
+
+  beginDeleteStock(row: InventarioGestionStockDto): void {
+    this.pendingDeleteStock = row;
+    const q = (row.quantity ?? 0) > 0;
+    this.openConfirmModal(
+      'Eliminar registro de stock',
+      q
+        ? `¿Eliminar el stock de «${row.itemNombre}» en ${row.granjaNombre ?? row.farmId}? Se registrará una salida por ${row.quantity} ${row.unit} en el histórico.`
+        : `¿Eliminar el registro de stock de «${row.itemNombre}» en ${row.granjaNombre ?? row.farmId}? (cantidad actual: 0)`,
+      'deleteStock'
+    );
+  }
+
+  private doDeleteStock(row: InventarioGestionStockDto | null): void {
+    if (!row) return;
+    this.loading = true;
+    this.svc.eliminarStock(row.id).subscribe({
+      next: () => {
+        this.loading = false;
+        this.openAlertModal('success', 'Listo', 'Registro de stock eliminado.');
+        this.loadStock();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.openAlertModal('error', 'Error', err.error?.message || 'No se pudo eliminar el registro.');
+      }
+    });
   }
 
   private todayYmd(): string {

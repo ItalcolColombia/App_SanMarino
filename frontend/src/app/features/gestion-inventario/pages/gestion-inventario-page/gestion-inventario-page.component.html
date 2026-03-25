@@ -44,6 +44,7 @@
         <p class="hint field-full" style="margin: 0 0 0.5rem 0">
         El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
         <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
+        Puede <strong>editar cantidad/unidad</strong> (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
       </p>
       <div class="card-italfoods__body filters-grid">
         <div class="field">
@@ -102,6 +103,7 @@
             <th>Fecha de ingreso</th>
             <th>Cantidad</th>
             <th>Unidad</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -115,6 +117,24 @@
             <td>{{ formatFechaIngresoStock(s.fechaIngreso) }}</td>
             <td>{{ s.quantity }}</td>
             <td>{{ s.unit }}</td>
+            <td class="actions-cell">
+              <button
+                type="button"
+                class="btn-italfoods-secondary btn-sm"
+                (click)="openStockEdit(s)"
+                title="Editar cantidad o unidad"
+              >
+                <fa-icon [icon]="faPen"></fa-icon>
+              </button>
+              <button
+                type="button"
+                class="btn-italfoods-secondary btn-sm btn-danger-outline"
+                (click)="beginDeleteStock(s)"
+                title="Eliminar registro de stock"
+              >
+                <fa-icon [icon]="faTrash"></fa-icon>
+              </button>
+            </td>
           </tr>
         </tbody>
           </table>
@@ -644,6 +664,50 @@
       </div>
     </div>
   </section>
+  </div>
+</div>
+
+<!-- MODAL: Editar stock -->
+<div class="modal-backdrop" *ngIf="showStockEditModal" (click)="closeStockEditModal()" aria-hidden="true"></div>
+<div class="modal-shell" *ngIf="showStockEditModal" role="dialog" aria-modal="true" aria-label="Editar stock">
+  <div class="modal-italfoods" (click)="$event.stopPropagation()">
+    <div class="modal-italfoods__header">
+      <div>Editar stock</div>
+      <button type="button" class="icon-btn" (click)="closeStockEditModal()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-italfoods__body" *ngIf="stockEditRow as r">
+      <p class="hint" style="margin: 0 0 0.75rem 0">
+        {{ r.itemCodigo }} — {{ r.itemNombre }} · {{ r.granjaNombre ?? r.farmId }}
+        <span *ngIf="r.nucleoNombre || r.nucleoId"> · Núc. {{ r.nucleoNombre ?? r.nucleoId }}</span>
+        <span *ngIf="r.galponNombre || r.galponId"> · Galp. {{ r.galponNombre ?? r.galponId }}</span>
+      </p>
+      <div class="field">
+        <label class="form-label" for="stock-edit-qty">Cantidad *</label>
+        <input id="stock-edit-qty" class="form-input" type="number" step="any" min="0" [(ngModel)]="stockEditQuantity" />
+      </div>
+      <div class="field">
+        <label class="form-label" for="stock-edit-unit">Unidad</label>
+        <input id="stock-edit-unit" class="form-input" type="text" [(ngModel)]="stockEditUnit" maxlength="20" />
+      </div>
+      <div class="field">
+        <label class="form-label" for="stock-edit-reason">Motivo (opcional)</label>
+        <input
+          id="stock-edit-reason"
+          class="form-input"
+          type="text"
+          [(ngModel)]="stockEditReason"
+          placeholder="Ej. conteo físico, corrección"
+        />
+      </div>
+    </div>
+    <div class="modal-italfoods__footer">
+      <button type="button" class="btn-italfoods-secondary" (click)="closeStockEditModal()" [disabled]="submittingStockEdit">
+        Cancelar
+      </button>
+      <button type="button" class="btn-italfoods-primary" (click)="submitStockEdit()" [disabled]="submittingStockEdit">
+        Guardar
+      </button>
+    </div>
   </div>
 </div>
 
