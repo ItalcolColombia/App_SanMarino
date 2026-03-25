@@ -109,6 +109,27 @@ public class MovimientoPolloEngordeController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Elimina el movimiento (soft-delete). Si estaba completado, devuelve las aves al lote de origen y ajusta el destino si había traslado.
+    /// </summary>
+    [HttpDelete("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Eliminar(int id, [FromQuery] string? motivo = null)
+    {
+        try
+        {
+            var ok = await _service.EliminarAsync(id, motivo);
+            if (!ok) return NotFound();
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message, message = ex.Message });
+        }
+    }
+
     [HttpPost("{id:int}/cancelar")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

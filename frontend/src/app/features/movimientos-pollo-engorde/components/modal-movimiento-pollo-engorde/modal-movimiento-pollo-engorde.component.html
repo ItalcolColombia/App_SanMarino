@@ -203,34 +203,37 @@
                     <td class="num">{{ formatearNumero(line.maxH) }}</td>
                     <td class="num">
                       <input
-                        type="number"
-                        min="0"
-                        [attr.max]="line.maxH"
-                        class="form-input form-input--sm"
-                        [value]="line.h"
-                        (input)="onLineaCantidad(line, 'h', $event)"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        class="form-input form-input--sm venta-granja-qty"
+                        [ngModel]="line.hStr"
+                        (ngModelChange)="onLineaCantidadStr(line, 'h', $event)"
+                        [ngModelOptions]="{ standalone: true }"
                       />
                     </td>
                     <td class="num">{{ formatearNumero(line.maxM) }}</td>
                     <td class="num">
                       <input
-                        type="number"
-                        min="0"
-                        [attr.max]="line.maxM"
-                        class="form-input form-input--sm"
-                        [value]="line.m"
-                        (input)="onLineaCantidad(line, 'm', $event)"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        class="form-input form-input--sm venta-granja-qty"
+                        [ngModel]="line.mStr"
+                        (ngModelChange)="onLineaCantidadStr(line, 'm', $event)"
+                        [ngModelOptions]="{ standalone: true }"
                       />
                     </td>
                     <td class="num">{{ formatearNumero(line.maxX) }}</td>
                     <td class="num">
                       <input
-                        type="number"
-                        min="0"
-                        [attr.max]="line.maxX"
-                        class="form-input form-input--sm"
-                        [value]="line.x"
-                        (input)="onLineaCantidad(line, 'x', $event)"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        class="form-input form-input--sm venta-granja-qty"
+                        [ngModel]="line.xStr"
+                        (ngModelChange)="onLineaCantidadStr(line, 'x', $event)"
+                        [ngModelOptions]="{ standalone: true }"
                       />
                     </td>
                   </tr>

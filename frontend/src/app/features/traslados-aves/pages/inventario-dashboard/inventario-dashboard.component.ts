@@ -1317,8 +1317,6 @@ export class InventarioDashboardComponent implements OnInit {
   }
 
   private initTrasladoRetiroForm(): void {
-    const inventario = this.obtenerInventarioLoteSeleccionado();
-
     this.trasladoRetiroForm = this.fb.group({
       tipoOperacion: ['Venta', [Validators.required]], // Venta, Traslado
       fechaTraslado: [new Date().toISOString().split('T')[0], [Validators.required]],
@@ -1332,20 +1330,31 @@ export class InventarioDashboardComponent implements OnInit {
       observaciones: ['']
     });
 
-    // Validar máximos disponibles
-    if (inventario) {
-      this.trasladoRetiroForm.get('cantidadHembras')?.addValidators(
-        Validators.max(inventario.cantidadHembras)
-      );
-      this.trasladoRetiroForm.get('cantidadMachos')?.addValidators(
-        Validators.max(inventario.cantidadMachos)
-      );
-    }
-
     // Actualizar validadores según tipo de operación
     this.trasladoRetiroForm.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
       this.actualizarValidadoresAves(tipo);
     });
+
+    this.applyDisponibilidadValidatorsRetiro();
+  }
+
+  /** Máximos desde disponibilidad del lote (levante) o, si aún no cargó, desde inventario en pantalla. */
+  private applyDisponibilidadValidatorsRetiro(): void {
+    if (!this.trasladoRetiroForm) return;
+    const d = this.disponibilidadLote();
+    const hDisp = d?.tipoLote === 'Levante' ? d.aves?.hembrasVivas : undefined;
+    const mDisp = d?.tipoLote === 'Levante' ? d.aves?.machosVivos : undefined;
+    const inv = this.obtenerInventarioLoteSeleccionado();
+    const maxH = hDisp != null && !Number.isNaN(Number(hDisp)) ? Number(hDisp) : (inv?.cantidadHembras ?? 999999);
+    const maxM = mDisp != null && !Number.isNaN(Number(mDisp)) ? Number(mDisp) : (inv?.cantidadMachos ?? 999999);
+    const ch = this.trasladoRetiroForm.get('cantidadHembras');
+    const cm = this.trasladoRetiroForm.get('cantidadMachos');
+    ch?.clearValidators();
+    cm?.clearValidators();
+    ch?.addValidators([Validators.required, Validators.min(0), Validators.max(maxH)]);
+    cm?.addValidators([Validators.required, Validators.min(0), Validators.max(maxM)]);
+    ch?.updateValueAndValidity({ emitEvent: false });
+    cm?.updateValueAndValidity({ emitEvent: false });
   }
 
   private initTrasladoHuevosForm(): void {
@@ -1427,13 +1436,52 @@ export class InventarioDashboardComponent implements OnInit {
       next: (disponibilidad) => {
         this.disponibilidadLote.set(disponibilidad);
         this.loadingDisponibilidad.set(false);
+        this.applyDisponibilidadValidatorsRetiro();
       },
       error: (error) => {
         console.error('Error cargando disponibilidad:', error);
         this.disponibilidadLote.set(null);
         this.loadingDisponibilidad.set(false);
+        this.applyDisponibilidadValidatorsRetiro();
       }
     });
+  }
+
+  /** Anular venta/traslado de aves: devuelve cantidades al inventario del lote (backend). */
+  puedeAnularMovimientoAves(m: TrasladoUnificado): boolean {
+    if (m.tipoTraslado !== 'Aves') return false;
+    const e = (m.estado ?? '').trim().toLowerCase();
+    if (e === 'cancelado') return false;
+    return m.id > 0;
+  }
+
+  async anularMovimientoAves(m: TrasladoUnificado): Promise<void> {
+    if (!this.puedeAnularMovimientoAves(m)) return;
+    const motivo = window.prompt(
+      'Motivo de anulación (las aves vuelven al inventario del lote si el movimiento ya había sido aplicado):',
+      'Anulado por usuario'
+    );
+    if (motivo === null) return;
+    const motivoFinal = motivo.trim() || 'Anulado por usuario';
+    try {
+      const res = await firstValueFrom(this.trasladosService.cancelarMovimiento(m.id, motivoFinal));
+      if (!res?.success) {
+        alert(res?.message || res?.errores?.join?.(', ') || 'No se pudo anular.');
+        return;
+      }
+      await this.cargarInventarios();
+      await this.cargarResumen();
+      const lote = this.loteCompleto();
+      if (lote) {
+        const loteIdNum = parseInt(String(lote.loteId), 10);
+        if (!isNaN(loteIdNum)) {
+          await this.cargarMovimientosLote(loteIdNum);
+          this.cargarDisponibilidadLote(String(lote.loteId));
+        }
+      }
+    } catch (err: any) {
+      alert(err?.error?.message || err?.message || 'No se pudo anular el movimiento.');
+    }
   }
 
   // 🔴 Procesar retiro/traslado de aves
@@ -1451,6 +1499,18 @@ export class InventarioDashboardComponent implements OnInit {
     if (totalAves <= 0) {
       this.errorRetiro.set('Debe especificar al menos una ave a retirar/trasladar');
       return;
+    }
+
+    const disp = this.disponibilidadLote();
+    if (disp?.aves) {
+      if (cantidadHembras > disp.aves.hembrasVivas) {
+        this.errorRetiro.set(`Las hembras no pueden superar las disponibles (${disp.aves.hembrasVivas}).`);
+        return;
+      }
+      if (cantidadMachos > disp.aves.machosVivos) {
+        this.errorRetiro.set(`Los machos no pueden superar los disponibles (${disp.aves.machosVivos}).`);
+        return;
+      }
     }
 
     this.procesandoRetiro.set(true);

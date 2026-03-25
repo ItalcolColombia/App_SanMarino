@@ -33,6 +33,24 @@ export interface InventarioGestionFilterDataDto {
   galponesDestino: GalponLiteDto[];
 }
 
+/** Lote para filtrar histórico (granjas asignadas). */
+export interface InventarioGestionLoteFiltroDto {
+  loteId: number;
+  loteNombre: string;
+  fase: string | null;
+  granjaId: number;
+  nucleoId: string | null;
+  galponId: string | null;
+}
+
+/** Valores distintos ya presentes en movimientos + lotes en tus granjas. */
+export interface InventarioGestionHistoricoFiltrosDto {
+  lotes: InventarioGestionLoteFiltroDto[];
+  conceptosEnHistorico: string[];
+  tiposItemEnHistorico: string[];
+  estadosEnHistorico: string[];
+}
+
 export interface InventarioGestionStockDto {
   id: number;
   farmId: number;
@@ -117,6 +135,10 @@ export interface InventarioGestionMovimientoDto {
   fromGalponNombre?: string | null;
   /** Etiqueta legible: Ingreso, Consumo, Traslado entre granjas, etc. */
   tipoOperacion?: string | null;
+  /** Catálogo: concepto del ítem (puede coincidir con itemType si no hay concepto). */
+  itemConcepto?: string | null;
+  /** Catálogo: tipo de ítem (alimento, etc.). */
+  itemTipoItem?: string | null;
 }
 
 /** Salida inter-granja pendiente de recepción en destino. */
@@ -153,6 +175,8 @@ export interface InventarioGestionStockUpdateRequest {
   quantity: number;
   unit?: string | null;
   reason?: string | null;
+  /** Fecha de primer ingreso (solo día, yyyy-MM-dd). Actualiza la fecha mostrada en stock. */
+  fechaIngreso?: string | null;
 }
 
 /** Ítem del catálogo item_inventario_ecuador (Config > Ítems inventario Ecuador). */
@@ -175,6 +199,11 @@ export class GestionInventarioService {
 
   getFilterData(): Observable<InventarioGestionFilterDataDto> {
     return this.http.get<InventarioGestionFilterDataDto>(`${this.api}/inventario-gestion/filter-data`);
+  }
+
+  /** Lotes en tus granjas + conceptos/tipos/estados ya vistos en el histórico. */
+  getHistoricoFiltros(): Observable<InventarioGestionHistoricoFiltrosDto> {
+    return this.http.get<InventarioGestionHistoricoFiltrosDto>(`${this.api}/inventario-gestion/historico-filtros`);
   }
 
   getStock(params: {
@@ -219,6 +248,15 @@ export class GestionInventarioService {
     fechaHasta?: string;
     estado?: string;
     movementType?: string;
+    nucleoId?: string;
+    galponId?: string;
+    loteId?: number;
+    /** Código o nombre de ítem (item_inventario_ecuador). */
+    search?: string;
+    /** Filtro exacto por concepto del ítem (columna concepto en catálogo). */
+    concepto?: string;
+    /** Filtro exacto por tipo de ítem (columna tipo_item en catálogo). */
+    tipoItem?: string;
   } = {}): Observable<InventarioGestionMovimientoDto[]> {
     let httpParams = new HttpParams();
     if (params.farmId != null) httpParams = httpParams.set('farmId', params.farmId);
@@ -226,7 +264,22 @@ export class GestionInventarioService {
     if (params.fechaHasta) httpParams = httpParams.set('fechaHasta', params.fechaHasta);
     if (params.estado) httpParams = httpParams.set('estado', params.estado);
     if (params.movementType) httpParams = httpParams.set('movementType', params.movementType);
+    if (params.nucleoId) httpParams = httpParams.set('nucleoId', params.nucleoId);
+    if (params.galponId) httpParams = httpParams.set('galponId', params.galponId);
+    if (params.loteId != null && params.loteId > 0) httpParams = httpParams.set('loteId', String(params.loteId));
+    if (params.search?.trim()) httpParams = httpParams.set('search', params.search.trim());
+    if (params.concepto?.trim()) httpParams = httpParams.set('concepto', params.concepto.trim());
+    if (params.tipoItem?.trim()) httpParams = httpParams.set('tipoItem', params.tipoItem.trim());
     return this.http.get<InventarioGestionMovimientoDto[]>(`${this.api}/inventario-gestion/movimientos`, { params: httpParams });
+  }
+
+  /**
+   * Anula un registro del histórico (solo Consumo o Ingreso): revierte stock y elimina la fila.
+   */
+  anularMovimientoHistorico(movimientoId: number, motivo?: string | null): Observable<void> {
+    let params = new HttpParams();
+    if (motivo?.trim()) params = params.set('motivo', motivo.trim());
+    return this.http.delete<void>(`${this.api}/inventario-gestion/movimientos/${movimientoId}`, { params });
   }
 
   /** Traslados inter-granja en tránsito (pendientes de recepción en destino). */

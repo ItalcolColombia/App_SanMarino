@@ -35,7 +35,7 @@ public class MovimientoPolloEngorde : AuditableEntity
     public string? MotivoMovimiento { get; set; }
     public string? Descripcion { get; set; }
     public string? Observaciones { get; set; }
-    public string Estado { get; set; } = "Pendiente"; // Pendiente, Completado, Cancelado
+    public string Estado { get; set; } = "Pendiente"; // Pendiente, Completado, Cancelado, Anulado (eliminación con soft-delete)
 
     public int UsuarioMovimientoId { get; set; }
     public string? UsuarioNombre { get; set; }

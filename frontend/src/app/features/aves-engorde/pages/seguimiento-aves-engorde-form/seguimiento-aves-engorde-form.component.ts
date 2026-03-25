@@ -41,7 +41,8 @@ export class SeguimientoAvesEngordeFormComponent implements OnInit {
 
   ngOnInit(): void {
     this.loteSvc.getAll().subscribe((data) => {
-      this.lotes = data.filter((l) => this.calcularEdadDias(l.fechaEncaset) < 175);
+      /** Mismo corte que antes (edad 1-based < 175 equivale a edad 0-based < 174). */
+      this.lotes = data.filter((l) => this.calcularEdadDias(l.fechaEncaset) < 174);
       this.lotesById = this.lotes.reduce((acc, l) => {
         acc[l.loteId] = l;
         return acc;
@@ -150,12 +151,13 @@ export class SeguimientoAvesEngordeFormComponent implements OnInit {
     return this.form.controls;
   }
 
+  /** Días desde encasetamiento hasta hoy: el primer día cuenta como 0. */
   calcularEdadDias(fechaEncaset: string | Date | null | undefined): number {
     if (!fechaEncaset) return 0;
     const d = typeof fechaEncaset === 'string' ? new Date(fechaEncaset) : fechaEncaset;
     if (isNaN(d.getTime())) return 0;
     const MS_DAY = 24 * 60 * 60 * 1000;
-    return Math.floor((Date.now() - d.getTime()) / MS_DAY) + 1;
+    return Math.max(0, Math.floor((Date.now() - d.getTime()) / MS_DAY));
   }
 
   loteNombre(id: string | null | undefined): string {

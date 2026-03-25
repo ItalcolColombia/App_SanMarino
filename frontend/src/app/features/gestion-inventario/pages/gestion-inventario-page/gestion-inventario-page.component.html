@@ -44,7 +44,7 @@
         <p class="hint field-full" style="margin: 0 0 0.5rem 0">
         El stock mostrado es solo de las <strong>granjas asignadas</strong> a su usuario. Combine concepto, granja, ubicación (si aplica) y búsqueda por código o nombre.
         <strong>Fecha de ingreso</strong> es la fecha en que se registró por primera vez el saldo en esa ubicación para el ítem.
-        Puede <strong>editar cantidad/unidad</strong> (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
+        Puede <strong>editar cantidad, unidad y fecha de registro</strong> desde Editar (ajuste manual, queda en histórico) o <strong>eliminar</strong> el registro (si hay cantidad, se registra salida).
       </p>
       <div class="card-italfoods__body filters-grid">
         <div class="field">
@@ -525,13 +525,75 @@
   <section *ngIf="activeTab === 'historico'" class="tab-content">
     <div class="card-italfoods filters">
       <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
+      <p class="hint field-full" style="margin: 0 0 0.75rem 0">
+        <strong>Granjas</strong> mostradas: las asignadas a su usuario. Filtre por ubicación (núcleo/galpón), por <strong>lote</strong> (todas las fases en sus granjas),
+        por <strong>concepto</strong> y <strong>tipo de ítem</strong> según lo ya registrado en el histórico, fechas y estado. Si elige un <strong>lote</strong>, el sistema usa esa ubicación
+        y no aplica núcleo/galpón manual. Use <strong>Buscar ítem</strong> para código o nombre del producto.
+      </p>
       <div class="card-italfoods__body filters-grid">
         <div class="field">
           <label class="form-label">Granja</label>
-          <select class="form-input" [(ngModel)]="historicoFarmId">
+          <select class="form-input" [(ngModel)]="historicoFarmId" (ngModelChange)="onHistoricoFarmChange()">
             <option [ngValue]="null">Todas</option>
             <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
           </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Núcleo</label>
+          <select
+            class="form-input"
+            [(ngModel)]="historicoNucleoId"
+            (ngModelChange)="onHistoricoNucleoChange()"
+            [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+          >
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let n of historicoNucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Galpón</label>
+          <select
+            class="form-input"
+            [(ngModel)]="historicoGalponId"
+            [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+          >
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let g of historicoGalponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Lote</label>
+          <select
+            class="form-input"
+            [(ngModel)]="historicoLoteId"
+            (ngModelChange)="onHistoricoLoteChange()"
+          >
+            <option [ngValue]="null">Todos</option>
+            <option *ngFor="let l of historicoLotesFiltered" [ngValue]="l.loteId">{{ historicoLoteOptionLabel(l) }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Concepto (en histórico)</label>
+          <select class="form-input" [(ngModel)]="historicoConcepto">
+            <option value="">Todos</option>
+            <option *ngFor="let c of historicoConceptosOptions" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="form-label">Tipo de ítem (en histórico)</label>
+          <select class="form-input" [(ngModel)]="historicoTipoItem">
+            <option value="">Todos</option>
+            <option *ngFor="let t of historicoTiposItemOptions" [value]="t">{{ t }}</option>
+          </select>
+        </div>
+        <div class="field field-full">
+          <label class="form-label">Buscar ítem</label>
+          <input
+            class="form-input"
+            type="text"
+            [(ngModel)]="historicoItemSearch"
+            placeholder="Código o nombre del producto (catálogo)"
+          />
         </div>
         <div class="field">
           <label class="form-label">Fecha desde</label>
@@ -545,7 +607,7 @@
           <label class="form-label">Estado</label>
           <select class="form-input" [(ngModel)]="historicoEstado">
             <option value="">Todos</option>
-            <option *ngFor="let e of estadosHistorial" [value]="e">{{ e }}</option>
+            <option *ngFor="let e of historicoEstadosOptions" [value]="e">{{ e }}</option>
           </select>
         </div>
         <div class="field actions">
@@ -555,7 +617,7 @@
     </div>
     <div class="card-italfoods">
       <div class="historico-card-title-row">
-        <div class="card-italfoods__title">Histórico — detalle de movimientos</div>
+        <div class="card-italfoods__title">Histórico de movimientos</div>
         <button
           type="button"
           class="btn-italfoods-secondary historico-export-btn"
@@ -568,47 +630,74 @@
       </div>
       <div class="card-italfoods__body">
         <p class="hint field-full">
-          Vista tipo reporte: <strong>operación</strong> (ingreso, consumo, traslado…), <strong>ubicación del registro</strong> y
-          <strong>otro extremo</strong> (origen/destino del traslado). El consumo desde seguimiento de lote suele reflejarse en el motivo.
+          Tabla de movimientos: puede <strong>anular</strong> líneas de <strong>Consumo</strong> o <strong>Ingreso</strong> para revertir el stock (no aplica a traslados ni tránsito).
         </p>
         <p *ngIf="loading">Cargando…</p>
-        <div class="historico-cards" *ngIf="!loading && movimientosList.length">
-          <article class="historico-mov-card" *ngFor="let m of movimientosList">
-            <div class="historico-mov-card__top">
-              <span class="historico-mov-card__fecha">{{ formatFechaMovimiento(m.createdAt) }}</span>
-              <span class="historico-mov-card__tipo">{{ m.tipoOperacion ?? m.movementType }}</span>
-              <span class="historico-mov-card__estado">{{ m.estado ?? '—' }}</span>
-            </div>
-            <div class="historico-mov-card__product">
-              <strong>{{ m.itemCodigo }}</strong> — {{ m.itemNombre }}
-              <span class="historico-mov-card__concept">· {{ m.itemType }}</span>
-            </div>
-            <div class="historico-mov-card__qty">
-              <strong>{{ m.quantity }} {{ m.unit }}</strong>
-            </div>
-            <dl class="historico-mov-card__dl">
-              <div>
-                <dt>Ubicación (registro)</dt>
-                <dd>{{ ubicacionRegistroMovimiento(m) }}</dd>
-              </div>
-              <div>
-                <dt>Otro extremo / origen</dt>
-                <dd>{{ otroExtremoMovimiento(m) }}</dd>
-              </div>
-              <div *ngIf="m.reference">
-                <dt>Referencia</dt>
-                <dd>{{ m.reference }}</dd>
-              </div>
-              <div *ngIf="m.reason">
-                <dt>Motivo / detalle (lote, contexto)</dt>
-                <dd>{{ m.reason }}</dd>
-              </div>
-              <div *ngIf="m.transferGroupId">
-                <dt>Grupo traslado</dt>
-                <dd><code>{{ m.transferGroupId }}</code></dd>
-              </div>
-            </dl>
-          </article>
+        <div class="table-wrap historico-table-wrap" *ngIf="!loading && movimientosList.length">
+          <table class="table-italfoods historico-table">
+            <thead>
+              <tr>
+                <th>Fecha / hora</th>
+                <th>Operación</th>
+                <th>Estado</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Concepto</th>
+                <th class="th-num">Cant.</th>
+                <th>Unid.</th>
+                <th>Ubicación (registro)</th>
+                <th>Otro extremo / origen</th>
+                <th>Referencia</th>
+                <th>Motivo / detalle</th>
+                <th>Grupo traslado</th>
+                <th class="th-actions">Ver</th>
+                <th class="th-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let m of movimientosList; trackBy: trackByHistoricoMov">
+                <td class="cell-nowrap">{{ formatFechaMovimiento(m.createdAt) }}</td>
+                <td>{{ m.tipoOperacion ?? m.movementType }}</td>
+                <td>{{ m.estado ?? '—' }}</td>
+                <td class="cell-nowrap">{{ m.itemCodigo }}</td>
+                <td class="cell-clip" [title]="m.itemNombre">{{ m.itemNombre }}</td>
+                <td>{{ m.itemType }}</td>
+                <td class="th-num">{{ m.quantity }}</td>
+                <td>{{ m.unit }}</td>
+                <td class="cell-clip" [title]="ubicacionRegistroMovimiento(m)">{{ ubicacionRegistroMovimiento(m) }}</td>
+                <td class="cell-clip" [title]="otroExtremoMovimiento(m)">{{ otroExtremoMovimiento(m) }}</td>
+                <td class="cell-clip" [title]="m.reference ?? ''">{{ m.reference ?? '—' }}</td>
+                <td class="cell-clip" [title]="m.reason ?? ''">{{ m.reason ?? '—' }}</td>
+                <td class="cell-mono cell-clip">
+                  <span *ngIf="m.transferGroupId" [title]="m.transferGroupId">{{ m.transferGroupId }}</span>
+                  <span *ngIf="!m.transferGroupId">—</span>
+                </td>
+                <td class="cell-actions">
+                  <button
+                    type="button"
+                    class="btn-italfoods-secondary btn-sm"
+                    (click)="openHistoricoDetalle(m)"
+                    title="Ver detalle completo del movimiento"
+                  >
+                    <fa-icon [icon]="faEye"></fa-icon>
+                  </button>
+                </td>
+                <td class="cell-actions">
+                  <button
+                    *ngIf="puedeAnularMovimientoHistorico(m)"
+                    type="button"
+                    class="btn-italfoods-secondary btn-sm btn-danger-outline"
+                    (click)="beginAnularMovimientoHistorico(m)"
+                    [disabled]="loading"
+                    title="Revertir stock y quitar esta línea del histórico"
+                  >
+                    <fa-icon [icon]="faTrash"></fa-icon>
+                  </button>
+                  <span *ngIf="!puedeAnularMovimientoHistorico(m)" class="text-muted">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <p *ngIf="!loading && !movimientosList.length" class="empty-state">No hay movimientos con los filtros seleccionados.</p>
       </div>
@@ -690,6 +779,13 @@
         <input id="stock-edit-unit" class="form-input" type="text" [(ngModel)]="stockEditUnit" maxlength="20" />
       </div>
       <div class="field">
+        <label class="form-label" for="stock-edit-fecha">Fecha de registro (ingreso en ubicación) *</label>
+        <input id="stock-edit-fecha" class="form-input" type="date" [(ngModel)]="stockEditFechaIngreso" />
+        <small class="hint" style="display: block; margin-top: 0.35rem">
+          Es la fecha mostrada en la columna «Fecha ingreso» del stock; el sistema la guarda como fecha del primer registro en esa ubicación.
+        </small>
+      </div>
+      <div class="field">
         <label class="form-label" for="stock-edit-reason">Motivo (opcional)</label>
         <input
           id="stock-edit-reason"
@@ -763,6 +859,69 @@
     </div>
     <div class="modal-italfoods__footer">
       <button type="button" class="btn-italfoods-primary" (click)="closeAlertModal()">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Detalle movimiento histórico -->
+<div class="modal-backdrop" *ngIf="historicoDetalleMov" (click)="closeHistoricoDetalle()" aria-hidden="true"></div>
+<div class="modal-shell" *ngIf="historicoDetalleMov as d" role="dialog" aria-modal="true" aria-label="Detalle del movimiento">
+  <div class="modal-italfoods modal-italfoods--historico-detalle" (click)="$event.stopPropagation()">
+    <div class="modal-italfoods__header">
+      <div>Detalle del movimiento #{{ d.id }}</div>
+      <button type="button" class="icon-btn" (click)="closeHistoricoDetalle()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-italfoods__body historico-detalle-body">
+      <dl class="historico-detalle-dl">
+        <dt>Fecha y hora</dt>
+        <dd>{{ formatFechaMovimiento(d.createdAt) }}</dd>
+        <dt>Operación</dt>
+        <dd>{{ d.tipoOperacion ?? d.movementType }}</dd>
+        <dt>Tipo movimiento (sistema)</dt>
+        <dd class="cell-mono">{{ d.movementType }}</dd>
+        <dt>Estado</dt>
+        <dd>{{ d.estado ?? '—' }}</dd>
+        <dt>Ítem (ID catálogo)</dt>
+        <dd>{{ d.itemInventarioEcuadorId }}</dd>
+        <dt>Código</dt>
+        <dd>{{ d.itemCodigo }}</dd>
+        <dt>Nombre producto</dt>
+        <dd>{{ d.itemNombre }}</dd>
+        <dt>Concepto (catálogo)</dt>
+        <dd>{{ d.itemConcepto ?? '—' }}</dd>
+        <dt>Tipo de ítem (catálogo)</dt>
+        <dd>{{ d.itemTipoItem ?? '—' }}</dd>
+        <dt>Concepto mostrado (concepto o tipo)</dt>
+        <dd>{{ d.itemType }}</dd>
+        <dt>Cantidad</dt>
+        <dd>{{ d.quantity }} {{ d.unit }}</dd>
+        <dt>Ubicación del registro</dt>
+        <dd>{{ ubicacionRegistroMovimiento(d) }}</dd>
+        <dt>ID granja registro</dt>
+        <dd>{{ d.farmId }}</dd>
+        <dt>Núcleo / galpón (ids)</dt>
+        <dd>
+          <span class="cell-mono">{{ d.nucleoId ?? '—' }}</span> /
+          <span class="cell-mono">{{ d.galponId ?? '—' }}</span>
+        </dd>
+        <dt>Otro extremo / origen</dt>
+        <dd>{{ otroExtremoMovimiento(d) }}</dd>
+        <dt>IDs origen traslado</dt>
+        <dd>
+          Granja: {{ d.fromFarmId ?? '—' }} · Núc.
+          <span class="cell-mono">{{ d.fromNucleoId ?? '—' }}</span> · Galp.
+          <span class="cell-mono">{{ d.fromGalponId ?? '—' }}</span>
+        </dd>
+        <dt>Referencia</dt>
+        <dd>{{ d.reference ?? '—' }}</dd>
+        <dt>Motivo / detalle</dt>
+        <dd class="historico-detalle-dd-multiline">{{ d.reason ?? '—' }}</dd>
+        <dt>Grupo traslado (UUID)</dt>
+        <dd class="cell-mono">{{ d.transferGroupId ?? '—' }}</dd>
+      </dl>
+    </div>
+    <div class="modal-italfoods__footer">
+      <button type="button" class="btn-italfoods-primary" (click)="closeHistoricoDetalle()">Cerrar</button>
     </div>
   </div>
 </div>

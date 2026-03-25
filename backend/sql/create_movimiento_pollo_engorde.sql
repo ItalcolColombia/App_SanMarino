@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS movimiento_pollo_engorde (
         cantidad_hembras >= 0 AND cantidad_machos >= 0 AND cantidad_mixtas >= 0
         AND (cantidad_hembras + cantidad_machos + cantidad_mixtas) > 0
     ),
-    CONSTRAINT ck_mpe_estado CHECK (estado IN ('Pendiente', 'Completado', 'Cancelado'))
+    CONSTRAINT ck_mpe_estado CHECK (estado IN ('Pendiente', 'Completado', 'Cancelado', 'Anulado'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_movimiento_pollo_engorde_numero ON movimiento_pollo_engorde (numero_movimiento);

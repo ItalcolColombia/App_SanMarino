@@ -38,7 +38,7 @@
           [title]="
             !selectedGranjaId
               ? 'Selecciona una granja'
-              : !hasLoteSelected && lotesParaVentaGranja.length === 0
+              : !hasLoteSelected && lotesParaVentaGranjaList.length === 0
                 ? 'No hay lotes en esta granja'
                 : hasLoteSelected
                   ? 'Nuevo movimiento desde el lote seleccionado'
@@ -305,11 +305,11 @@
                           <button
                             type="button"
                             class="action-btn action-btn--delete"
-                            title="Cancelar todos los movimientos del despacho"
+                            title="Eliminar todos los movimientos del despacho (si estaban completados, el inventario se revierte en cada lote)"
                             (click)="cancelarGrupoDespacho(fila)"
                             [disabled]="!puedeCancelarGrupo(fila.movimientos)">
                             <span class="action-icon">🗑</span>
-                            <span class="action-label">Cancelar despacho</span>
+                            <span class="action-label">Eliminar despacho</span>
                           </button>
                         </div>
                       </td>
@@ -444,10 +444,9 @@
                           type="button"
                           (click)="deleteMovimiento(fila.movimiento)"
                           class="action-btn action-btn--delete"
-                          title="Cancelar"
-                          [disabled]="fila.movimiento.estado === 'Cancelado'">
+                          title="Eliminar movimiento (si estaba completado, las aves vuelven al inventario del lote)">
                           <span class="action-icon">🗑</span>
-                          <span class="action-label">Cancelar</span>
+                          <span class="action-label">Eliminar</span>
                         </button>
                       </div>
                     </td>
@@ -470,7 +469,7 @@
   [availableBirds]="availableBirdsForModal"
   [lotInfoFromLote]="lotInfoForMovement"
   [ventaPorGranjaMode]="ventaPorGranjaMode"
-  [lotesVentaGranja]="lotesParaVentaGranja"
+  [lotesVentaGranja]="lotesParaVentaGranjaList"
   [granjaVentaNombre]="selectedGranjaName"
   (close)="closeModal()"
   (save)="onMovimientoSaved($event)">

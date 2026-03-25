@@ -26,6 +26,15 @@ public class InventarioGestionController : ControllerBase
         return Ok(data);
     }
 
+    /// <summary>Lotes en granjas asignadas y valores distintos de concepto, tipo de ítem y estado en el histórico (misma empresa / país).</summary>
+    [HttpGet("historico-filtros")]
+    [ProducesResponseType(typeof(InventarioGestionHistoricoFiltrosDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetHistoricoFiltros(CancellationToken ct = default)
+    {
+        var data = await _service.GetHistoricoFiltrosAsync(ct);
+        return Ok(data);
+    }
+
     /// <summary>Actualiza cantidad/unidad de un registro de stock (ajuste manual). Mismas reglas de acceso que GET stock.</summary>
     [HttpPut("stock/{stockId:int}")]
     [ProducesResponseType(typeof(InventarioGestionStockDto), StatusCodes.Status200OK)]
@@ -135,9 +144,15 @@ public class InventarioGestionController : ControllerBase
         [FromQuery] DateTime? fechaHasta = null,
         [FromQuery] string? estado = null,
         [FromQuery] string? movementType = null,
+        [FromQuery] string? nucleoId = null,
+        [FromQuery] string? galponId = null,
+        [FromQuery] int? loteId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? concepto = null,
+        [FromQuery] string? tipoItem = null,
         CancellationToken ct = default)
     {
-        var list = await _service.GetMovimientosAsync(farmId, fechaDesde, fechaHasta, estado, movementType, ct);
+        var list = await _service.GetMovimientosAsync(farmId, fechaDesde, fechaHasta, estado, movementType, nucleoId, galponId, loteId, search, concepto, tipoItem, ct);
         return Ok(list);
     }
 
@@ -176,6 +191,25 @@ public class InventarioGestionController : ControllerBase
         try
         {
             await _service.RechazarTransitoPendienteAsync(req, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Anula un registro del histórico (solo Consumo o Ingreso): revierte stock y elimina la fila del movimiento.
+    /// </summary>
+    [HttpDelete("movimientos/{movimientoId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AnularMovimientoHistorico(int movimientoId, [FromQuery] string? motivo = null, CancellationToken ct = default)
+    {
+        try
+        {
+            await _service.AnularMovimientoHistoricoAsync(movimientoId, motivo, ct);
             return NoContent();
         }
         catch (InvalidOperationException ex)

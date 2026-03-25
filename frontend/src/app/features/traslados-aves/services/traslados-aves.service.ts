@@ -64,6 +64,16 @@ export interface UbicacionMovimientoDto {
   galponNombre?: string | null;
 }
 
+/** Respuesta de cancelar / procesar movimiento (API). */
+export interface ResultadoMovimientoDto {
+  success: boolean;
+  message: string;
+  movimientoId?: number | null;
+  numeroMovimiento?: string | null;
+  errores?: string[];
+  movimiento?: MovimientoAvesDto | null;
+}
+
 export interface MovimientoAvesDto {
   id: number;
   numeroMovimiento: string;
@@ -486,9 +496,13 @@ export class TrasladosAvesService {
       .pipe(catchError(this.handleError));
   }
 
-  // Cancelar movimiento
-  cancelarMovimiento(id: number, motivo: string): Observable<MovimientoAvesDto> {
-    return this.http.post<MovimientoAvesDto>(`${this.movimientoUrl}/${id}/cancelar`, { motivoCancelacion: motivo })
+  /** Anula el movimiento y devuelve las aves al inventario del lote cuando ya estaba procesado. */
+  cancelarMovimiento(id: number, motivo: string): Observable<ResultadoMovimientoDto> {
+    return this.http
+      .post<ResultadoMovimientoDto>(`${this.movimientoUrl}/${id}/cancelar`, {
+        motivoCancelacion: motivo,
+        motivo
+      })
       .pipe(catchError(this.handleError));
   }
 

@@ -7,20 +7,22 @@ import {
   SimpleChanges,
   OnDestroy
 } from '@angular/core';
-import { Subscription, forkJoin, of, firstValueFrom } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Subscription, from, of, firstValueFrom } from 'rxjs';
+import { catchError, mergeMap, map, toArray } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import {
   FormBuilder,
   FormGroup,
   Validators,
-  ReactiveFormsModule
+  ReactiveFormsModule,
+  FormsModule
 } from '@angular/forms';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
   CreateMovimientoPolloEngordeDto,
-  UpdateMovimientoPolloEngordeDto
+  UpdateMovimientoPolloEngordeDto,
+  ResumenAvesLoteDto
 } from '../../services/movimiento-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
@@ -50,6 +52,10 @@ export interface VentaLineaGranja {
   h: number;
   m: number;
   x: number;
+  /** Texto del input (solo dígitos); evita [value] numérico que pisa el cursor al escribir. */
+  hStr: string;
+  mStr: string;
+  xStr: string;
 }
 
 export interface MovimientoPolloEngordeSaveDetail {
@@ -59,7 +65,7 @@ export interface MovimientoPolloEngordeSaveDetail {
 @Component({
   selector: 'app-modal-movimiento-pollo-engorde',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ConfirmationModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-pollo-engorde.component.html',
   styleUrls: ['./modal-movimiento-pollo-engorde.component.scss']
 })
@@ -85,6 +91,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   /** Carga de disponibilidad por lote (resumen) al abrir venta por granja. */
   loadingVentaLineas = false;
   ventaLineasGranja: VentaLineaGranja[] = [];
+  /** Cache de grupos por galpón (no recalcular en cada CD con un getter). */
+  gruposVentaPorGalpon: { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }[] = [];
   error: string | null = null;
   showConfirmModal = false;
   private fechaMovimientoSub?: Subscription;
@@ -476,46 +484,73 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   private loadVentaGranjaLineas(): void {
     const lotes = this.lotesVentaGranja ?? [];
     this.ventaLineasGranja = [];
+    this.gruposVentaPorGalpon = [];
     if (lotes.length === 0) {
       this.loadingVentaLineas = false;
       return;
     }
     this.loadingVentaLineas = true;
     this.error = null;
-    forkJoin(
-      lotes.map((l) =>
-        this.movimientoSvc.getResumenAvesLote('LoteAveEngorde', l.loteAveEngordeId).pipe(
-          catchError(() => of(null))
-        )
+    /** Máximo peticiones HTTP en paralelo (evita miles de conexiones y bloqueo del navegador). */
+    const maxConcurrent = 8;
+    from(lotes.map((l, i) => ({ l, i })))
+      .pipe(
+        mergeMap(
+          ({ l, i }) =>
+            this.movimientoSvc.getResumenAvesLote('LoteAveEngorde', l.loteAveEngordeId).pipe(
+              map((r) => ({ l, i, r })),
+              catchError(() => of({ l, i, r: null as ResumenAvesLoteDto | null }))
+            ),
+          maxConcurrent
+        ),
+        toArray(),
+        map((rows) => rows.sort((a, b) => a.i - b.i))
       )
-    ).subscribe({
-      next: (resumenes) => {
-        this.ventaLineasGranja = lotes.map((l, i) => {
-          const r = resumenes[i];
-          const maxH = r?.avesActualesHembras ?? l.hembrasL ?? 0;
-          const maxM = r?.avesActualesMachos ?? l.machosL ?? 0;
-          const maxX = r?.avesActualesMixtas ?? l.mixtas ?? 0;
-          const galponId = (l.galponId ?? '').trim() || '__SIN_GALPON__';
-          return {
-            loteId: l.loteAveEngordeId,
-            loteNombre: l.loteNombre || `Lote ${l.loteAveEngordeId}`,
-            galponId,
-            galponLabel: this.labelGalpon(l),
-            maxH: Math.max(0, maxH),
-            maxM: Math.max(0, maxM),
-            maxX: Math.max(0, maxX),
-            h: 0,
-            m: 0,
-            x: 0
-          };
-        });
-        this.loadingVentaLineas = false;
-      },
-      error: () => {
-        this.loadingVentaLineas = false;
-        this.error = 'No se pudo cargar la disponibilidad por lote.';
+      .subscribe({
+        next: (sorted) => {
+          this.ventaLineasGranja = sorted.map(({ l, r }) => {
+            const maxH = r?.avesActualesHembras ?? l.hembrasL ?? 0;
+            const maxM = r?.avesActualesMachos ?? l.machosL ?? 0;
+            const maxX = r?.avesActualesMixtas ?? l.mixtas ?? 0;
+            const galponId = (l.galponId ?? '').trim() || '__SIN_GALPON__';
+            return {
+              loteId: l.loteAveEngordeId,
+              loteNombre: l.loteNombre || `Lote ${l.loteAveEngordeId}`,
+              galponId,
+              galponLabel: this.labelGalpon(l),
+              maxH: Math.max(0, maxH),
+              maxM: Math.max(0, maxM),
+              maxX: Math.max(0, maxX),
+              h: 0,
+              m: 0,
+              x: 0,
+              hStr: '',
+              mStr: '',
+              xStr: ''
+            };
+          });
+          this.loadingVentaLineas = false;
+          this.rebuildGruposVentaPorGalpon();
+        },
+        error: () => {
+          this.loadingVentaLineas = false;
+          this.error = 'No se pudo cargar la disponibilidad por lote.';
+        }
+      });
+  }
+
+  private rebuildGruposVentaPorGalpon(): void {
+    const map = new Map<string, { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }>();
+    for (const line of this.ventaLineasGranja) {
+      const key = line.galponId;
+      if (!map.has(key)) {
+        map.set(key, { galponId: key, galponLabel: line.galponLabel, lineas: [] });
       }
-    });
+      map.get(key)!.lineas.push(line);
+    }
+    this.gruposVentaPorGalpon = Array.from(map.values()).sort((a, b) =>
+      a.galponLabel.localeCompare(b.galponLabel, 'es', { numeric: true })
+    );
   }
 
   private labelGalpon(l: LoteAveEngordeDto): string {
@@ -525,25 +560,25 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     return id || '— Sin galpón —';
   }
 
-  get gruposVentaPorGalpon(): { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }[] {
-    const map = new Map<string, { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }>();
-    for (const line of this.ventaLineasGranja) {
-      const key = line.galponId;
-      if (!map.has(key)) {
-        map.set(key, { galponId: key, galponLabel: line.galponLabel, lineas: [] });
-      }
-      map.get(key)!.lineas.push(line);
-    }
-    return Array.from(map.values()).sort((a, b) =>
-      a.galponLabel.localeCompare(b.galponLabel, 'es', { numeric: true })
-    );
-  }
-
-  onLineaCantidad(line: VentaLineaGranja, field: 'h' | 'm' | 'x', ev: Event): void {
-    const raw = (ev.target as HTMLInputElement).value;
-    const n = Math.max(0, parseInt(raw, 10) || 0);
+  /**
+   * Solo dígitos; actualiza el número usado en totales y validación.
+   * Si supera el máximo del lote, el texto se ajusta al máximo permitido.
+   */
+  onLineaCantidadStr(line: VentaLineaGranja, field: 'h' | 'm' | 'x', value: string): void {
+    const digits = (value ?? '').replace(/\D/g, '');
     const max = field === 'h' ? line.maxH : field === 'm' ? line.maxM : line.maxX;
-    line[field] = Math.min(n, max);
+    const parsed = digits === '' ? 0 : parseInt(digits, 10) || 0;
+    const clamped = Math.min(parsed, max);
+    if (field === 'h') {
+      line.hStr = parsed > max ? String(max) : digits;
+      line.h = clamped;
+    } else if (field === 'm') {
+      line.mStr = parsed > max ? String(max) : digits;
+      line.m = clamped;
+    } else {
+      line.xStr = parsed > max ? String(max) : digits;
+      line.x = clamped;
+    }
   }
 
   private buildCreateDtoFromLinea(

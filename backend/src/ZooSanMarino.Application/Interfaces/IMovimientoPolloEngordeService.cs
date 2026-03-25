@@ -14,6 +14,12 @@ public interface IMovimientoPolloEngordeService
     Task<bool> CancelAsync(int id, string motivo);
 
     /// <summary>
+    /// Elimina el registro (soft-delete). Si estaba <c>Completado</c>, revierte el efecto en lotes
+    /// (devuelve aves al origen y resta del destino si había traslado).
+    /// </summary>
+    Task<bool> EliminarAsync(int id, string? motivo);
+
+    /// <summary>
     /// Completa el movimiento: descuenta aves del lote origen y suma al destino (si existe).
     /// El lote queda actualizado y el movimiento pasa a estado Completado.
     /// </summary>

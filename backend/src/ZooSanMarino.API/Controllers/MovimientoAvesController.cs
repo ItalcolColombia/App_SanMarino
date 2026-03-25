@@ -551,7 +551,7 @@ public class MovimientoAvesController : ControllerBase
             var cancelarDto = new CancelarMovimientoDto
             {
                 MovimientoId = id,
-                MotivoCancelacion = request.Motivo
+                MotivoCancelacion = request.MotivoEfectivo
             };
 
             var resultado = await _movimientoService.CancelarMovimientoAsync(cancelarDto);
@@ -713,7 +713,12 @@ public sealed class ProcesarMovimientoRequest
 /// </summary>
 public sealed class CancelarMovimientoRequest
 {
-    public string Motivo { get; set; } = null!;
+    /// <summary>Compatibilidad con clientes que envían <c>motivoCancelacion</c>.</summary>
+    public string? MotivoCancelacion { get; set; }
+
+    public string? Motivo { get; set; }
+
+    public string MotivoEfectivo => MotivoCancelacion?.Trim() ?? Motivo?.Trim() ?? "Cancelado por usuario";
 }
 
 /// <summary>

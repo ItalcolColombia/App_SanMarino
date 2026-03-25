@@ -612,6 +612,7 @@
                       <th>Destino</th>
                       <th>Cantidad</th>
                       <th>Estado</th>
+                      <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -650,6 +651,18 @@
                         <span class="badge" [class]="obtenerEstadoClass(mov.estado)">
                           {{ mov.estado }}
                         </span>
+                      </td>
+                      <td class="actions-cell">
+                        <button
+                          *ngIf="puedeAnularMovimientoAves(mov)"
+                          type="button"
+                          class="btn btn--outline btn--sm"
+                          (click)="anularMovimientoAves(mov)"
+                          title="Anular movimiento y devolver aves al inventario del lote"
+                        >
+                          Anular
+                        </button>
+                        <span *ngIf="!puedeAnularMovimientoAves(mov)" class="text-muted">—</span>
                       </td>
                     </tr>
                   </tbody>
@@ -1244,7 +1257,7 @@
                           </span>
                         </label>
                         <input id="aves-hembras" type="number" class="ux-input"
-                               formControlName="cantidadHembras" min="0"
+                               formControlName="cantidadHembras" min="0" step="1" inputmode="numeric"
                                [attr.max]="disponibilidadLote()?.aves?.hembrasVivas"
                                [class.error]="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)" />
                         <div class="field-error" *ngIf="trasladoRetiroForm.get('cantidadHembras')?.value > (disponibilidadLote()?.aves?.hembrasVivas || 0)">
@@ -1262,7 +1275,7 @@
                           </span>
                         </label>
                         <input id="aves-machos" type="number" class="ux-input"
-                               formControlName="cantidadMachos" min="0"
+                               formControlName="cantidadMachos" min="0" step="1" inputmode="numeric"
                                [attr.max]="disponibilidadLote()?.aves?.machosVivos"
                                [class.error]="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)" />
                         <div class="field-error" *ngIf="trasladoRetiroForm.get('cantidadMachos')?.value > (disponibilidadLote()?.aves?.machosVivos || 0)">

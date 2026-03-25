@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
@@ -211,6 +211,15 @@ export class MovimientoPolloEngordeService {
 
   cancel(id: number, motivo: string): Observable<void> {
     return this.http.post<void>(`${this.base}/${id}/cancelar`, { motivo }).pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Elimina el registro. Si el movimiento estaba completado (p. ej. venta), las aves vuelven al inventario del lote de origen.
+   */
+  eliminar(id: number, motivo?: string): Observable<void> {
+    let params = new HttpParams();
+    if (motivo?.trim()) params = params.set('motivo', motivo.trim());
+    return this.http.delete<void>(`${this.base}/${id}`, { params }).pipe(catchError(this.handleError));
   }
 
   /** Completa el movimiento: descuenta aves del lote origen y suma al destino. El movimiento pasa a Completado. */
