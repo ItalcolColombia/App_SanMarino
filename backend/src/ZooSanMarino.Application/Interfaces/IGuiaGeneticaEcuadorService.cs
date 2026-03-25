@@ -16,6 +16,12 @@ public interface IGuiaGeneticaEcuadorService
 
     Task<IEnumerable<GuiaGeneticaEcuadorDetalleDto>> GetDatosAsync(string raza, int anioGuia, string sexo, CancellationToken ct = default);
 
+    /// <summary>
+    /// Agrupa la curva diaria (sexo mixto) en semanas de 7 días y devuelve filas compatibles con <see cref="GuiaGeneticaDto"/> para el tab Indicadores.
+    /// Semana s = días [(s-1)*7+1 .. s*7]. Consumo y mortalidad: promedio del período; peso: último día del período.
+    /// </summary>
+    Task<IEnumerable<GuiaGeneticaDto>> GetIndicadoresRangoSemanasAsync(string raza, int anioGuia, int semanaDesde, int semanaHasta, CancellationToken ct = default);
+
     Task<GuiaGeneticaEcuadorImportResultDto> ImportExcelAsync(IFormFile file, string raza, int anioGuia, string estado, CancellationToken ct = default);
 
     Task<GuiaGeneticaEcuadorHeaderDto> UpsertManualAsync(GuiaGeneticaEcuadorManualRequestDto request, CancellationToken ct = default);

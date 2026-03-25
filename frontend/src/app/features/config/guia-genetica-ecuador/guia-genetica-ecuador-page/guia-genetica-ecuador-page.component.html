@@ -4,7 +4,10 @@
     <div class="gge-container card">
       <header class="gge-head">
         <h2 class="title"><fa-icon [icon]="faDna" class="title-icon"></fa-icon> Guía genética Ecuador</h2>
-        <p class="subtitle">Curvas por raza, año y sexo (hojas Excel: mixto, hembra, macho).</p>
+        <p class="subtitle">
+          Curvas por raza y año. Para <strong>pollo engorde</strong> use la hoja <strong>mixto</strong>; las pestañas Hembra/Macho solo aparecen si importó esas hojas.
+          En Excel, mortalidad+selección como porcentaje puede guardarse como fracción (0,16&nbsp;% → 0,0016); el sistema la normaliza al cargar.
+        </p>
       </header>
 
       <div class="gg-filters">
@@ -108,7 +111,7 @@
               <td>{{ r.cantidadAlimentoDiarioG | number : '1.0-3' }}</td>
               <td>{{ r.alimentoAcumuladoG | number : '1.0-3' }}</td>
               <td>{{ r.ca | number : '1.0-4' }}</td>
-              <td>{{ r.mortalidadSeleccionDiaria | number : '1.0-4' }}</td>
+              <td>{{ r.mortalidadSeleccionDiaria | number : '1.2-2' }}&nbsp;%</td>
               <td>
                 <button type="button" class="icon-btn" title="Editar" (click)="openEditRow(r)">
                   <fa-icon [icon]="faPen"></fa-icon>

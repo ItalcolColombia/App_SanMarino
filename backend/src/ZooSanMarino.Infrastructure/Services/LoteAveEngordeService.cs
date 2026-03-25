@@ -160,24 +160,14 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         if (!allowed.Contains(dto.GranjaId))
             throw new InvalidOperationException("No tiene permiso para registrar lotes en esta granja (no está asignada a su usuario).");
 
-        // Validar que (Raza, Año tabla) exista en guía genética (produccion_avicola_raw) para la compañía actual (misma lógica que Lote)
+        // Guía clásica (produccion_avicola_raw) o guía Ecuador (guia_genetica_ecuador_header), misma compañía
         if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
             throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
 
-        var razaNorm = dto.Raza!.Trim().ToLower();
-        var anio = dto.AnoTablaGenetica.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var existeGuia = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .AnyAsync(p =>
-                p.CompanyId == companyId &&
-                p.DeletedAt == null &&
-                p.Raza != null &&
-                p.AnioGuia != null &&
-                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                p.AnioGuia.Trim() == anio);
-
-        if (!existeGuia)
-            throw new InvalidOperationException($"No existe guía genética para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. Cargue la guía genética primero.");
+        if (!await ExisteGuiaGeneticaRazaAnioAsync(companyId, dto.Raza!, dto.AnoTablaGenetica.Value))
+            throw new InvalidOperationException(
+                $"No existe guía genética (clásica ni Ecuador) para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. " +
+                "Cargue la tabla en Guía genética o en Guía genética Ecuador.");
 
         string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
         string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
@@ -299,24 +289,13 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         if (!allowed.Contains(dto.GranjaId))
             throw new InvalidOperationException("No tiene permiso para usar esta granja (no está asignada a su usuario).");
 
-        // Validar que (Raza, Año tabla) exista en guía genética (misma lógica que Lote)
         if (string.IsNullOrWhiteSpace(dto.Raza) || !dto.AnoTablaGenetica.HasValue || dto.AnoTablaGenetica.Value <= 0)
             throw new InvalidOperationException("Raza y Año de tabla genética son requeridos y deben existir en la guía genética cargada.");
 
-        var razaNorm = dto.Raza!.Trim().ToLower();
-        var anio = dto.AnoTablaGenetica.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var existeGuia = await _ctx.ProduccionAvicolaRaw
-            .AsNoTracking()
-            .AnyAsync(p =>
-                p.CompanyId == companyId &&
-                p.DeletedAt == null &&
-                p.Raza != null &&
-                p.AnioGuia != null &&
-                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
-                p.AnioGuia.Trim() == anio);
-
-        if (!existeGuia)
-            throw new InvalidOperationException($"No existe guía genética para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. Cargue la guía genética primero.");
+        if (!await ExisteGuiaGeneticaRazaAnioAsync(companyId, dto.Raza!, dto.AnoTablaGenetica.Value))
+            throw new InvalidOperationException(
+                $"No existe guía genética (clásica ni Ecuador) para la raza '{dto.Raza}' y el año '{dto.AnoTablaGenetica}' en la compañía actual. " +
+                "Cargue la tabla en Guía genética o en Guía genética Ecuador.");
 
         string? nucleoId = string.IsNullOrWhiteSpace(dto.NucleoId) ? null : dto.NucleoId.Trim();
         string? galponId = string.IsNullOrWhiteSpace(dto.GalponId) ? null : dto.GalponId.Trim();
@@ -424,6 +403,41 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         _ctx.LoteAveEngorde.Remove(ent);
         await _ctx.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Acepta combinación raza+año en guía clásica (<see cref="ProduccionAvicolaRaw"/>) o en guía Ecuador activa
+    /// (<see cref="GuiaGeneticaEcuadorHeader"/>), misma compañía.
+    /// </summary>
+    private async Task<bool> ExisteGuiaGeneticaRazaAnioAsync(int companyId, string raza, int anioTabla)
+    {
+        var razaNorm = raza.Trim().ToLower();
+        var anioStr = anioTabla.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        var existeClasica = await _ctx.ProduccionAvicolaRaw
+            .AsNoTracking()
+            .AnyAsync(p =>
+                p.CompanyId == companyId &&
+                p.DeletedAt == null &&
+                p.Raza != null &&
+                p.AnioGuia != null &&
+                EF.Functions.Like(p.Raza.Trim().ToLower(), razaNorm) &&
+                p.AnioGuia.Trim() == anioStr);
+
+        if (existeClasica)
+            return true;
+
+        var razaTrim = raza.Trim();
+        var existeEcuador = await _ctx.GuiaGeneticaEcuadorHeader
+            .AsNoTracking()
+            .AnyAsync(h =>
+                h.CompanyId == companyId &&
+                h.DeletedAt == null &&
+                h.Estado == "active" &&
+                h.AnioGuia == anioTabla &&
+                EF.Functions.ILike(h.Raza, razaTrim));
+
+        return existeEcuador;
     }
 
     private async Task EnsureFarmExists(int granjaId, int companyId)
