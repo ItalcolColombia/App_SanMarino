@@ -17,25 +17,26 @@
       <fa-icon [icon]="faTimes"></fa-icon>
     </button>
     <div class="flex flex-col h-full bg-white shadow-lg sidebar-root">
-  <!-- Header / Logo: logo pequeño (marca) + logo de la empresa (solo si viene de BD) -->
+  <!-- Header / Logo: logo dinámico por empresa (storage/sesión) -->
   <div class="menu-header">
-    <div class="brand-duo brand-duo--compact" role="img" [attr.aria-label]="(companyLogo$ | async) ? 'Intalfoods Zootécnico y logo de la empresa' : 'Intalfoods Zootécnico'">
+    <ng-container *ngIf="(companyLogo$ | async) as companyLogo; else defaultLogo">
       <img
-        src="assets/brand/logo_intalfoods_zootenico.png"
-        alt="Intalfoods Zootécnico"
-        class="brand-duo__img brand-duo__img--small"
+        [src]="companyLogo"
+        [alt]="(userBanner$ | async)?.company || 'Empresa'"
+        class="menu-header__company-logo"
         loading="eager"
         decoding="async"
       />
+    </ng-container>
+    <ng-template #defaultLogo>
       <img
-        *ngIf="companyLogo$ | async as logo"
-        [src]="logo"
-        [alt]="'Logo ' + ((userBanner$ | async)?.company || 'Empresa')"
-        class="brand-duo__img"
+        src="assets/brand/italcol-naraanja.png"
+        alt="Italcol"
+        class="menu-header__company-logo"
         loading="eager"
         decoding="async"
       />
-    </div>
+    </ng-template>
   </div>
 
   <!-- Banner Bienvenida (estático a nivel de layout, datos vienen de sesión) -->
@@ -98,7 +99,6 @@
              [routerLinkActiveOptions]="{ exact: true }"
              class="menu-link flex items-center px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors min-w-0"
              [ngClass]="{ 'pl-6': level === 1, 'pl-9': level >= 2 }">
-            <fa-icon *ngIf="node.icon" [icon]="node.icon" class="mr-3 text-lg text-gray-600 flex-shrink-0"></fa-icon>
             <span class="flex-1 text-sm font-medium truncate">{{ node.label }}</span>
           </a>
 
@@ -109,7 +109,6 @@
                  [routerLink]="node.link"
                  routerLinkActive="text-red-600"
                  class="menu-link flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors min-w-0">
-                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600 flex-shrink-0"></fa-icon>
                 <span class="text-sm font-medium truncate">{{ node.label }}</span>
               </a>
 
@@ -117,7 +116,6 @@
                       type="button"
                       (click)="toggle(node)"
                       class="menu-link flex-1 flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left min-w-0">
-                <fa-icon *ngIf="node.icon" [icon]="node.icon" class="text-gray-600 flex-shrink-0"></fa-icon>
                 <span class="text-sm font-medium truncate">{{ node.label }}</span>
               </button>
 

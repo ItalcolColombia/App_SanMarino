@@ -34,7 +34,7 @@ public class EmailService : IEmailService
     {
         try
         {
-            var subject = "Recuperación de Contraseña - ZooSanMarino";
+            var subject = "Recuperación de contraseña - Sistema Zootécnico";
             var body = GeneratePasswordRecoveryEmailBody(newPassword, userName);
 
             // Crear metadata para el correo
@@ -64,7 +64,7 @@ public class EmailService : IEmailService
     {
         try
         {
-            var subject = "Bienvenido a ZooSanMarino - Tus Credenciales de Acceso";
+            var subject = "Bienvenido - Tus credenciales de acceso";
             var body = GenerateWelcomeEmailBody(userName, toEmail, password, applicationUrl);
 
             // Crear metadata para el correo
@@ -101,7 +101,7 @@ public class EmailService : IEmailService
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>Recuperación de Contraseña</title>
+    <title>Recuperación de contraseña</title>
     <style>
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -221,8 +221,8 @@ public class EmailService : IEmailService
 <body>
     <div class='container'>
         <div class='header'>
-            <div class='logo'>🐔 ZooSanMarino</div>
-            <div class='subtitle'>Sistema Zootécnico</div>
+            <div class='logo'>San Marino</div>
+            <div class='subtitle'>Sistema zootécnico · Italcol</div>
         </div>
         
         <div class='content'>
@@ -255,7 +255,7 @@ public class EmailService : IEmailService
         </div>
         
         <div class='footer'>
-            <p class='footer-text'>© {DateTime.Now.Year} Sanmarino Genética Avícola</p>
+            <p class='footer-text'>© {DateTime.Now.Year} San Marino</p>
             <p class='footer-text'>Todos los derechos reservados</p>
             <p class='footer-text'>Este es un correo automático, por favor no responder.</p>
         </div>
@@ -275,7 +275,7 @@ public class EmailService : IEmailService
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>Bienvenido a ZooSanMarino</title>
+    <title>Bienvenido</title>
     <style>
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -401,8 +401,8 @@ public class EmailService : IEmailService
 <body>
     <div class='container'>
         <div class='header'>
-            <div class='logo'>🐔 ZooSanMarino</div>
-            <div class='subtitle'>Sistema Zootécnico</div>
+            <div class='logo'>San Marino</div>
+            <div class='subtitle'>Sistema zootécnico · Italcol</div>
         </div>
         
         <div class='content'>
@@ -411,7 +411,7 @@ public class EmailService : IEmailService
             <div class='greeting'>¡Bienvenido/a, {userName}!</div>
             
             <div class='message'>
-                Tu cuenta ha sido creada exitosamente en el sistema ZooSanMarino. A continuación encontrarás tus credenciales de acceso:
+                Tu cuenta ha sido creada exitosamente. A continuación encontrarás tus credenciales de acceso:
             </div>
             
             <div class='credentials-box'>
@@ -442,7 +442,7 @@ public class EmailService : IEmailService
         </div>
         
         <div class='footer'>
-            <p class='footer-text'>© {DateTime.Now.Year} Sanmarino Genética Avícola</p>
+            <p class='footer-text'>© {DateTime.Now.Year} San Marino</p>
             <p class='footer-text'>Todos los derechos reservados</p>
             <p class='footer-text'>Este es un correo automático, por favor no responder.</p>
         </div>
