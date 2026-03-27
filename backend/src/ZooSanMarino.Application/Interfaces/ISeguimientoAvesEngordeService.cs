@@ -12,4 +12,14 @@ public interface ISeguimientoAvesEngordeService
     Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto);
     Task<bool> DeleteAsync(int id);
     Task<ResultadoLevanteResponse> GetResultadoAsync(int loteId, DateTime? desde, DateTime? hasta, bool recalcular = true);
+
+    /// <summary>
+    /// Backfill masivo de metadata (Ingreso/Traslado/Documento/Despacho) para registros existentes,
+    /// calculado desde lote_registro_historico_unificado. NO aplica consumos ni movimientos de inventario.
+    /// </summary>
+    Task<SeguimientoAvesEngordeBackfillResultDto> BackfillMetadataAsync(
+        int loteId,
+        DateTime? desde,
+        DateTime? hasta,
+        bool onlyIfMissing = true);
 }
