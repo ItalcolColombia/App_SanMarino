@@ -49,7 +49,7 @@
       </div>
     </header>
 
-    <!-- Filtros en cascada: Granja → Núcleo → Galpón → Lote -->
+    <!-- Filtro principal: solo Granja (la tabla muestra todo lo de la granja) -->
     <section class="ux-card mpp-card mpp-card--filtros" *ngIf="granjas.length">
       <div class="ux-card__header">
         <h2>Filtros</h2>
@@ -67,86 +67,7 @@
               <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
             </select>
           </div>
-          <div class="filter-group">
-            <label for="selNucleo">Núcleo</label>
-            <select
-              id="selNucleo"
-              class="filter-select input-italfoods"
-              [ngModel]="selectedNucleoId"
-              (ngModelChange)="onNucleoChange($event)"
-              [disabled]="!selectedGranjaId">
-              <option [ngValue]="null">— Todos —</option>
-              <option *ngFor="let n of nucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="selGalpon">Galpón</label>
-            <select
-              id="selGalpon"
-              class="filter-select input-italfoods"
-              [ngModel]="selectedGalponId"
-              (ngModelChange)="onGalponChange($event)"
-              [disabled]="!selectedGranjaId">
-              <option [ngValue]="null">— Todos —</option>
-              <option *ngFor="let g of galpones" [value]="g.id">{{ g.label }}</option>
-            </select>
-          </div>
-          <div class="filter-group">
-            <label for="selLote">Lote (Ave Engorde)</label>
-            <select
-              id="selLote"
-              class="filter-select input-italfoods"
-              [ngModel]="selectedLoteValue"
-              (ngModelChange)="onLoteChange($event)"
-              [disabled]="!selectedGranjaId">
-              <option [ngValue]="null">— Todos los lotes —</option>
-              <option *ngFor="let opt of lotesOpciones" [ngValue]="opt.value">{{ opt.label }}</option>
-            </select>
-          </div>
         </div>
-      </div>
-    </section>
-
-    <!-- Información del lote Ave Engorde seleccionado -->
-    <section class="ux-card mpp-card mpp-card--lote-info" *ngIf="selectedLoteValue">
-      <div class="ux-card__header">
-        <h2>Información del lote seleccionado</h2>
-      </div>
-      <div class="ux-card__body">
-        <div *ngIf="loadingLoteDetalle" class="loading-state">
-          <p>Cargando información del lote…</p>
-        </div>
-
-        <!-- Lote Ave Engorde (lote normal) -->
-        <div *ngIf="!loadingLoteDetalle && loteDetalleAveEngorde" class="lote-info-table-wrap">
-          <p class="lote-info-tipo"><strong>Tipo:</strong> Lote Ave Engorde (pollos de engorde)</p>
-          <table class="lote-info-table">
-            <tbody>
-              <tr><th>Nombre del lote</th><td>{{ loteDetalleAveEngorde.loteNombre || '—' }}</td></tr>
-              <tr><th>Granja</th><td>{{ loteDetalleAveEngorde.farm?.name || loteDetalleAveEngorde.granjaId || '—' }}</td></tr>
-              <tr><th>Núcleo</th><td>{{ loteDetalleAveEngorde.nucleo?.nucleoNombre || loteDetalleAveEngorde.nucleoId || '—' }}</td></tr>
-              <tr><th>Galpón</th><td>{{ loteDetalleAveEngorde.galpon?.galponNombre || loteDetalleAveEngorde.galponId || '—' }}</td></tr>
-              <tr><th>Fecha encasetamiento</th><td>{{ fechaCorta(loteDetalleAveEngorde.fechaEncaset) }}</td></tr>
-              <tr><th>Hembras</th><td class="number-cell">{{ formatearNumero(loteDetalleAveEngorde.hembrasL ?? 0) }}</td></tr>
-              <tr><th>Machos</th><td class="number-cell">{{ formatearNumero(loteDetalleAveEngorde.machosL ?? 0) }}</td></tr>
-              <tr><th>Mixtas</th><td class="number-cell">{{ formatearNumero(loteDetalleAveEngorde.mixtas ?? 0) }}</td></tr>
-              <tr><th>Total aves</th><td class="number-cell"><strong>{{ formatearNumero(totalAvesAveEngorde(loteDetalleAveEngorde)) }}</strong></td></tr>
-              <tr *ngIf="resumenAvesLote" class="resumen-row">
-                <th>Resumen (reporte)</th>
-                <td>
-                  <span class="resumen-text">Inicio: <strong>{{ formatearNumero(resumenAvesLote.avesInicioTotal) }}</strong></span>
-                  <span class="resumen-text"> · Salidas: <strong>{{ formatearNumero(resumenAvesLote.avesSalidasTotal) }}</strong></span>
-                  <span class="resumen-text"> · Vendidas: <strong>{{ formatearNumero(resumenAvesLote.avesVendidasTotal) }}</strong></span>
-                  <span class="resumen-text"> · Actual: <strong>{{ formatearNumero(resumenAvesLote.avesActualesTotal) }}</strong></span>
-                </td>
-              </tr>
-              <tr><th>Raza</th><td>{{ loteDetalleAveEngorde.raza || '—' }}</td></tr>
-              <tr><th>Línea</th><td>{{ loteDetalleAveEngorde.linea || '—' }}</td></tr>
-              <tr><th>Código ERP</th><td>{{ loteDetalleAveEngorde.loteErp || '—' }}</td></tr>
-            </tbody>
-          </table>
-        </div>
-
       </div>
     </section>
 
