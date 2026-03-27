@@ -142,13 +142,13 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   get hasLoteSelected(): boolean {
-    return !!this.selectedLoteValue;
+    // En este módulo solo se filtra por Granja; no se selecciona lote desde filtros.
+    return false;
   }
 
   /** Nuevo registro: con lote (cualquier tipo) o sin lote solo si hay lotes en la granja (venta por granja). */
   get canOpenNuevoRegistro(): boolean {
     if (!this.selectedGranjaId) return false;
-    if (this.hasLoteSelected) return true;
     return this.lotesParaVentaGranjaList.length > 0;
   }
 
@@ -483,12 +483,9 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   create(): void {
     if (!this.selectedGranjaId) return;
-    if (!this.hasLoteSelected) {
-      if (this.lotesParaVentaGranjaList.length === 0) return;
-      this.ventaPorGranjaMode = true;
-    } else {
-      this.ventaPorGranjaMode = false;
-    }
+    if (this.lotesParaVentaGranjaList.length === 0) return;
+    // Siempre crear venta por granja (despacho). No se filtra/selecciona por galpón/lote.
+    this.ventaPorGranjaMode = true;
     this.editingMovimiento = null;
     this.modalOpen = true;
   }
