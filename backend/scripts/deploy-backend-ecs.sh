@@ -3,6 +3,7 @@
 # Script Automatizado de Despliegue Backend San Marino
 # Para el nuevo AWS: Account 196080479890
 # Configuración validada y funcionando
+# Nota: este script debe estar en formato LF (no CRLF) para bash.
 
 set -e
 
