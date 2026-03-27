@@ -5,6 +5,7 @@
 // y devolución sobre el inventario nuevo. El módulo Seguimiento diario postura (ProduccionService) no usa
 // inventario-gestion; los dos módulos de inventario están divididos (postura → su inventario; pollo engorde → inventario-gestion).
 using System.Text.Json;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -148,6 +149,11 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
 
+        // Para que el "Registro diario" muestre Ingreso/Traslado/Documento/Despacho,
+        // llenamos campos en metadata desde el histórico unificado por lote+fecha.
+        var stockPatch = await BuildStockMetadataPatchAsync(dto.LoteId, dto.FechaRegistro.Date);
+        var metadataForEntity = MergeMetadataWithPatch(dto.Metadata, stockPatch);
+
         var ent = new SeguimientoDiarioAvesEngorde
         {
             LoteAveEngordeId = dto.LoteId,
@@ -173,7 +179,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             ConsumoAguaPh = dto.ConsumoAguaPh,
             ConsumoAguaOrp = dto.ConsumoAguaOrp,
             ConsumoAguaTemperatura = dto.ConsumoAguaTemperatura,
-            Metadata = dto.Metadata,
+            Metadata = metadataForEntity,
             ItemsAdicionales = dto.ItemsAdicionales,
             KcalAlH = kcalAlH,
             ProtAlH = protAlH,
@@ -284,8 +290,12 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         ent.ConsumoAguaTemperatura = dto.ConsumoAguaTemperatura;
         var oldByItemId = ent.Metadata != null ? ParseMetadataItemsToKg(ent.Metadata.RootElement) : new Dictionary<int, decimal>();
 
+        // Patch de metadata (Ingreso/Traslado/Documento/Despacho) desde histórico unificado.
+        var stockPatch = await BuildStockMetadataPatchAsync(dto.LoteId, dto.FechaRegistro.Date);
+        var metadataForSave = MergeMetadataWithPatch(dto.Metadata, stockPatch);
+
         // jsonb + JsonDocument: forzar persistencia; si no, EF puede no marcar Metadata como modificado y el inventario sí aplica el diff desde dto.Metadata.
-        ent.Metadata = CloneJsonDocument(dto.Metadata);
+        ent.Metadata = CloneJsonDocument(metadataForSave);
         ent.ItemsAdicionales = CloneJsonDocument(dto.ItemsAdicionales);
         ent.KcalAlH = kcalAlH;
         ent.ProtAlH = protAlH;
@@ -420,6 +430,111 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         return JsonDocument.Parse(doc.RootElement.GetRawText());
     }
 
+    private static string FormatKg(decimal kg)
+        => kg.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Calcula totales de Ingreso/Traslado (alimento) y Despacho (ventas aves)
+    /// para el lote+fecha del seguimiento, desde la tabla unificada.
+    /// </summary>
+    private async Task<Dictionary<string, object?>> BuildStockMetadataPatchAsync(int loteId, DateTime fecha)
+    {
+        var day = fecha.Date;
+
+        var agg = await _ctx.LoteRegistroHistoricoUnificados
+            .AsNoTracking()
+            .Where(x =>
+                x.CompanyId == _current.CompanyId
+                && x.LoteAveEngordeId == loteId
+                && x.FechaOperacion == day
+                && !x.Anulado
+                && (x.TipoEvento == "INV_INGRESO"
+                    || x.TipoEvento == "INV_TRASLADO_ENTRADA"
+                    || x.TipoEvento == "VENTA_AVES"))
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                IngresoKg = g.Sum(x => x.TipoEvento == "INV_INGRESO" ? (x.CantidadKg ?? 0m) : 0m),
+                TrasladoKg = g.Sum(x => x.TipoEvento == "INV_TRASLADO_ENTRADA" ? (x.CantidadKg ?? 0m) : 0m),
+                DespachoH = g.Sum(x => x.TipoEvento == "VENTA_AVES" ? (x.CantidadHembras ?? 0) : 0),
+                DespachoM = g.Sum(x => x.TipoEvento == "VENTA_AVES" ? (x.CantidadMachos ?? 0) : 0),
+                Documento = g
+                    .Where(x => x.TipoEvento == "INV_INGRESO")
+                    .Select(x => x.NumeroDocumento ?? x.Referencia)
+                    .Max()
+            })
+            .SingleOrDefaultAsync();
+
+        var patch = new Dictionary<string, object?>();
+        if (agg is null) return patch;
+
+        if (agg.IngresoKg > 0)
+        {
+            var s = FormatKg(agg.IngresoKg);
+            patch["ingresoAlimento"] = s;
+            patch["ingreso_alimento"] = s;
+            patch["ingresoAlimentoKg"] = agg.IngresoKg;
+        }
+
+        if (agg.TrasladoKg > 0)
+        {
+            var s = FormatKg(agg.TrasladoKg);
+            patch["traslado"] = s;
+            patch["notaTraslado"] = s;
+            patch["trasladoAlimento"] = s;
+        }
+
+        if (!string.IsNullOrWhiteSpace(agg.Documento))
+        {
+            var d = agg.Documento.Trim();
+            patch["documento"] = d;
+            patch["documentoAlimento"] = d;
+            patch["nroDocumento"] = d;
+            patch["numeroDocumento"] = d;
+        }
+
+        if (agg.DespachoH > 0)
+        {
+            patch["despachoHembras"] = agg.DespachoH;
+            patch["despachoH"] = agg.DespachoH;
+            patch["despacho_hembra"] = agg.DespachoH;
+        }
+
+        if (agg.DespachoM > 0)
+        {
+            patch["despachoMachos"] = agg.DespachoM;
+            patch["despachoM"] = agg.DespachoM;
+            patch["despacho_macho"] = agg.DespachoM;
+        }
+
+        return patch;
+    }
+
+    private static JsonDocument? MergeMetadataWithPatch(JsonDocument? existing, Dictionary<string, object?> patch)
+    {
+        if ((patch is null || patch.Count == 0) && existing is null)
+            return null;
+
+        if (patch is null || patch.Count == 0)
+            return existing;
+
+        Dictionary<string, object?> dict;
+        if (existing != null)
+        {
+            dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(existing.RootElement.GetRawText())
+                   ?? new Dictionary<string, object?>();
+        }
+        else
+        {
+            dict = new Dictionary<string, object?>();
+        }
+
+        foreach (var kv in patch)
+            dict[kv.Key] = kv.Value;
+
+        return JsonDocument.Parse(JsonSerializer.Serialize(dict));
+    }
+
     private static decimal ToKg(double cantidad, string? unidad)
     {
         var u = (unidad ?? "kg").Trim().ToLowerInvariant();
@@ -505,5 +620,90 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             throw new InvalidOperationException($"Lote aves de engorde '{loteId}' no existe o no pertenece a la compañía.");
 
         return await Task.FromResult(new ResultadoLevanteResponse(loteId, desde?.Date, hasta?.Date, 0, new List<ResultadoLevanteItemDto>()));
+    }
+
+    public async Task<SeguimientoAvesEngordeBackfillResultDto> BackfillMetadataAsync(
+        int loteId,
+        DateTime? desde,
+        DateTime? hasta,
+        bool onlyIfMissing = true)
+    {
+        var companyId = _current.CompanyId;
+
+        var exists = await _ctx.LoteAveEngorde.AsNoTracking()
+            .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
+        if (!exists)
+            throw new InvalidOperationException($"Lote aves de engorde '{loteId}' no existe o no pertenece a la compañía.");
+
+        var q = _ctx.SeguimientoDiarioAvesEngorde
+            .Where(s => s.LoteAveEngordeId == loteId);
+        if (desde.HasValue) q = q.Where(s => s.Fecha >= desde.Value.Date);
+        if (hasta.HasValue) q = q.Where(s => s.Fecha <= hasta.Value.Date);
+
+        var list = await q.OrderBy(s => s.Fecha).ToListAsync();
+        var total = list.Count;
+
+        var actualizados = 0;
+        var omitidos = 0;
+        var sinDatosHistorico = 0;
+
+        foreach (var s in list)
+        {
+            if (onlyIfMissing && MetadataYaTieneCamposKardex(s.Metadata))
+            {
+                omitidos++;
+                continue;
+            }
+
+            var patch = await BuildStockMetadataPatchAsync(loteId, s.Fecha.Date);
+            if (patch.Count == 0)
+            {
+                sinDatosHistorico++;
+                omitidos++;
+                continue;
+            }
+
+            s.Metadata = MergeMetadataWithPatch(s.Metadata, patch);
+            _ctx.Entry(s).Property(x => x.Metadata).IsModified = true;
+            actualizados++;
+        }
+
+        if (actualizados > 0)
+            await _ctx.SaveChangesAsync();
+
+        return new SeguimientoAvesEngordeBackfillResultDto(
+            LoteId: loteId,
+            Desde: desde?.Date,
+            Hasta: hasta?.Date,
+            TotalRegistros: total,
+            Actualizados: actualizados,
+            Omitidos: omitidos,
+            SinDatosHistorico: sinDatosHistorico);
+    }
+
+    private static bool MetadataYaTieneCamposKardex(JsonDocument? metadata)
+    {
+        if (metadata is null) return false;
+        var root = metadata.RootElement;
+        if (root.ValueKind != JsonValueKind.Object) return false;
+
+        static bool HasNonEmpty(JsonElement obj, string key)
+        {
+            if (!obj.TryGetProperty(key, out var v)) return false;
+            return v.ValueKind switch
+            {
+                JsonValueKind.String => !string.IsNullOrWhiteSpace(v.GetString()),
+                JsonValueKind.Number => v.GetDecimal() != 0m,
+                JsonValueKind.True => true,
+                _ => false
+            };
+        }
+
+        return
+            HasNonEmpty(root, "ingresoAlimento") ||
+            HasNonEmpty(root, "traslado") ||
+            HasNonEmpty(root, "documento") ||
+            HasNonEmpty(root, "despachoHembras") ||
+            HasNonEmpty(root, "despachoMachos");
     }
 }
