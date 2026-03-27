@@ -157,4 +157,40 @@ public class SeguimientoAvesEngordeController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+
+    public sealed record BackfillSeguimientoEngordeRequest(
+        int LoteId,
+        DateTime? Desde,
+        DateTime? Hasta,
+        bool OnlyIfMissing = true
+    );
+
+    /// <summary>
+    /// Backfill masivo de metadata (Ingreso/Traslado/Documento/Despacho) desde lote_registro_historico_unificado.
+    /// No aplica consumos ni movimientos de inventario; solo actualiza el jsonb metadata del seguimiento.
+    /// </summary>
+    [HttpPost("backfill-metadata")]
+    [ProducesResponseType(typeof(SeguimientoAvesEngordeBackfillResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<SeguimientoAvesEngordeBackfillResultDto>> BackfillMetadata([FromBody] BackfillSeguimientoEngordeRequest req)
+    {
+        if (req is null) return BadRequest(new { message = "Body requerido." });
+        if (req.LoteId <= 0) return BadRequest(new { message = "LoteId inválido." });
+        if (req.Desde.HasValue && req.Hasta.HasValue && req.Desde.Value.Date > req.Hasta.Value.Date)
+            return BadRequest(new { message = "Rango de fechas inválido (Desde > Hasta)." });
+
+        try
+        {
+            var result = await _svc.BackfillMetadataAsync(
+                loteId: req.LoteId,
+                desde: req.Desde,
+                hasta: req.Hasta,
+                onlyIfMissing: req.OnlyIfMissing);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
