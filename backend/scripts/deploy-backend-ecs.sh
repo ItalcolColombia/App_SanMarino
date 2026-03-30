@@ -56,22 +56,32 @@ warning() {
 }
 
 # Verificar Docker
+DOCKER_CMD="docker"
 if ! command -v docker &> /dev/null; then
-    error "Docker no está instalado o no está en el PATH"
+    if command -v docker.exe &> /dev/null; then
+        DOCKER_CMD="docker.exe"
+    else
+        error "Docker no está instalado o no está en el PATH"
+    fi
 fi
 
-if ! docker info &> /dev/null; then
+if ! $DOCKER_CMD info &> /dev/null; then
     error "Docker daemon no está corriendo. Por favor inicia Docker Desktop."
 fi
 
 # Verificar AWS CLI
+AWS_CMD="aws"
 if ! command -v aws &> /dev/null; then
-    error "AWS CLI no está instalado"
+    if command -v aws.exe &> /dev/null; then
+        AWS_CMD="aws.exe"
+    else
+        error "AWS CLI no está instalado"
+    fi
 fi
 
 # 1) Login a ECR
 log "1/7) Login a ECR..."
-if ! aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI 2>&1 | grep -q "Login Succeeded"; then
+if ! $AWS_CMD ecr get-login-password --region $REGION | $DOCKER_CMD login --username AWS --password-stdin $ECR_URI 2>&1 | grep -q "Login Succeeded"; then
     error "Fallo en login a ECR"
 fi
 success "Login exitoso a ECR"
@@ -80,7 +90,7 @@ success "Login exitoso a ECR"
 log "2/7) Building Docker image para linux/amd64..."
 cd "$DEPLOY_DIR"
 
-if ! docker buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
+if ! $DOCKER_CMD buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
     error "Fallo en docker buildx build (p. ej. 403 en push a ECR)"
 fi
 success "Imagen construida y pusheada"
@@ -96,11 +106,11 @@ sed -i.bak "s/\\(.*\"image\":.*backend:\\)[^\\\"]*\\(.*\\)/\\1${TAG}\\2/" "$DEPL
 
 # 4) Registrar Task Definition
 log "4/7) Registrando Task Definition..."
-NEW_TD_ARN=$(aws ecs register-task-definition \
+NEW_TD_ARN=$($AWS_CMD ecs register-task-definition \
     --cli-input-json file://ecs-taskdef-new-aws.json \
     --query 'taskDefinition.taskDefinitionArn' \
     --output text \
-    --region $REGION 2>&1)
+    --region $REGION 2>&1 | tr -d '\r')
 
 if [ -z "$NEW_TD_ARN" ]; then
     error "Error registrando Task Definition"
@@ -114,7 +124,7 @@ fi
 
 # 5) Actualizar servicio
 log "5/7) Actualizando servicio ECS..."
-if ! aws ecs update-service \
+if ! $AWS_CMD ecs update-service \
     --cluster $CLUSTER \
     --service $SERVICE \
     --task-definition $NEW_TD_ARN \
@@ -129,18 +139,18 @@ success "Servicio actualizado"
 # 6) Esperar estabilización
 log "6/7) Esperando a que el servicio se estabilice..."
 log "Esto puede tomar 2-3 minutos..."
-aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION 2>&1 || warning "El servicio puede tardar más en estabilizarse"
+$AWS_CMD ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION 2>&1 || warning "El servicio puede tardar más en estabilizarse"
 
 # 7) Verificación
 log "7/7) Verificación..."
 sleep 10
 
-RUNNING_COUNT=$(aws ecs describe-services \
+RUNNING_COUNT=$($AWS_CMD ecs describe-services \
     --cluster $CLUSTER \
     --services $SERVICE \
     --region $REGION \
     --query 'services[0].runningCount' \
-    --output text)
+    --output text | tr -d '\r')
 
 if [ "$RUNNING_COUNT" -eq "0" ]; then
     error "El servicio no está corriendo. Revisa los logs."
@@ -150,26 +160,26 @@ success "Servicio corriendo con ${RUNNING_COUNT} tarea(s)"
 
 # Obtener IP pública
 log "Obteniendo IP pública..."
-TASK_ARN=$(aws ecs list-tasks \
+TASK_ARN=$($AWS_CMD ecs list-tasks \
     --cluster $CLUSTER \
     --service-name $SERVICE \
     --region $REGION \
     --desired-status RUNNING \
     --query 'taskArns[0]' \
-    --output text)
+    --output text | tr -d '\r')
 
-ENI_ID=$(aws ecs describe-tasks \
+ENI_ID=$($AWS_CMD ecs describe-tasks \
     --cluster $CLUSTER \
     --tasks $TASK_ARN \
     --region $REGION \
     --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
-    --output text)
+    --output text | tr -d '\r')
 
-PUBLIC_IP=$(aws ec2 describe-network-interfaces \
+PUBLIC_IP=$($AWS_CMD ec2 describe-network-interfaces \
     --network-interface-ids $ENI_ID \
     --region $REGION \
     --query 'NetworkInterfaces[0].Association.PublicIp' \
-    --output text)
+    --output text | tr -d '\r')
 
 echo ""
 echo -e "${GREEN}========================================${NC}"

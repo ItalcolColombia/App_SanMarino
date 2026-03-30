@@ -41,22 +41,37 @@ success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
 # Verificaciones
-[ ! -x "$(command -v docker)" ] && error "Docker no instalado"
-docker info &> /dev/null || error "Docker no corriendo"
-[ ! -x "$(command -v aws)" ] && error "AWS CLI no instalado"
+DOCKER_CMD="docker"
+if ! command -v docker &> /dev/null; then
+    if command -v docker.exe &> /dev/null; then
+        DOCKER_CMD="docker.exe"
+    else
+        error "Docker no instalado"
+    fi
+fi
+$DOCKER_CMD info &> /dev/null || error "Docker no corriendo"
+
+AWS_CMD="aws"
+if ! command -v aws &> /dev/null; then
+    if command -v aws.exe &> /dev/null; then
+        AWS_CMD="aws.exe"
+    else
+        error "AWS CLI no instalado"
+    fi
+fi
 
 cd "$DEPLOY_DIR"
 
 # Login a ECR (igual que backend: usa ECR_URI)
 log "1/7) Login a ECR..."
-if ! aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI 2>&1 | grep -q "Login Succeeded"; then
+if ! $AWS_CMD ecr get-login-password --region $REGION | $DOCKER_CMD login --username AWS --password-stdin $ECR_URI 2>&1 | grep -q "Login Succeeded"; then
     error "Fallo en login a ECR"
 fi
 success "Login exitoso"
 
 # Build y push (igual que backend: buildx --push)
 log "2/7) Building imagen para linux/amd64..."
-if ! docker buildx build --platform linux/amd64 --provenance=false --sbom=false -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
+if ! $DOCKER_CMD buildx build --platform linux/amd64 --provenance=false --sbom=false -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
     error "Fallo en docker buildx build/push"
 fi
 success "Imagen pusheada"
@@ -80,34 +95,34 @@ fi
 
 # Registrar Task Definition
 log "4/7) Registrando Task Definition..."
-NEW_TD_ARN=$(aws ecs register-task-definition --cli-input-json file://ecs-taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text --region $REGION)
+NEW_TD_ARN=$($AWS_CMD ecs register-task-definition --cli-input-json file://ecs-taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text --region $REGION | tr -d '\r')
 [ -z "$NEW_TD_ARN" ] && error "Error registrando Task Definition"
 success "TD registrada: $NEW_TD_ARN"
 
 # Actualizar servicio
 log "5/7) Actualizando servicio..."
-aws ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $NEW_TD_ARN --force-new-deployment --region $REGION > /dev/null
+$AWS_CMD ecs update-service --cluster $CLUSTER --service $SERVICE --task-definition $NEW_TD_ARN --force-new-deployment --region $REGION > /dev/null
 success "Servicio actualizado"
 
 # Esperar
 log "6/7) Esperando estabilización (2-3 min)..."
-aws ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION
+$AWS_CMD ecs wait services-stable --cluster $CLUSTER --services $SERVICE --region $REGION
 
 # Verificar
 log "7/7) Verificando..."
 sleep 10
-RUNNING=$(aws ecs describe-services --cluster $CLUSTER --services $SERVICE --region $REGION --query 'services[0].runningCount' --output text)
+RUNNING=$($AWS_CMD ecs describe-services --cluster $CLUSTER --services $SERVICE --region $REGION --query 'services[0].runningCount' --output text | tr -d '\r')
 [ "$RUNNING" -eq "0" ] && error "Servicio no corriendo"
 
 success "Servicio corriendo ($RUNNING tarea)"
 
 # Obtener IP
-TASK_ARN=$(aws ecs list-tasks --cluster $CLUSTER --service-name $SERVICE --region $REGION --desired-status RUNNING --query 'taskArns[0]' --output text)
-ENI_ID=$(aws ecs describe-tasks --cluster $CLUSTER --tasks $TASK_ARN --region $REGION --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' --output text)
-PUBLIC_IP=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI_ID --region $REGION --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
+TASK_ARN=$($AWS_CMD ecs list-tasks --cluster $CLUSTER --service-name $SERVICE --region $REGION --desired-status RUNNING --query 'taskArns[0]' --output text | tr -d '\r')
+ENI_ID=$($AWS_CMD ecs describe-tasks --cluster $CLUSTER --tasks $TASK_ARN --region $REGION --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' --output text | tr -d '\r')
+PUBLIC_IP=$($AWS_CMD ec2 describe-network-interfaces --network-interface-ids $ENI_ID --region $REGION --query 'NetworkInterfaces[0].Association.PublicIp' --output text | tr -d '\r')
 
 # Obtener ALB DNS
-ALB_DNS=$(aws elbv2 describe-load-balancers --region $REGION --query 'LoadBalancers[?contains(LoadBalancerName, `sanmarino`)].DNSName' --output text | head -1)
+ALB_DNS=$($AWS_CMD elbv2 describe-load-balancers --region $REGION --query 'LoadBalancers[?contains(LoadBalancerName, `sanmarino`)].DNSName' --output text | head -1 | tr -d '\r')
 
 echo ""
 echo -e "${GREEN}✓ Despliegue exitoso${NC}"
