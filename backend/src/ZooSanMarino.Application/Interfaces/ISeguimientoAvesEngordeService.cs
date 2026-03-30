@@ -5,7 +5,8 @@ namespace ZooSanMarino.Application.Interfaces;
 
 public interface ISeguimientoAvesEngordeService
 {
-    Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId);
+    /// <summary>Incluye seguimientos diarios e historial unificado (una sola respuesta).</summary>
+    Task<SeguimientoAvesEngordePorLoteResponseDto> GetByLoteAsync(int loteId);
     Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id);
     Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta);
     Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto);
@@ -22,4 +23,9 @@ public interface ISeguimientoAvesEngordeService
         DateTime? desde,
         DateTime? hasta,
         bool onlyIfMissing = true);
+
+    /// <summary>
+    /// Historial unificado (inventario + ventas) para el lote, orden cronológico; excluye anulados.
+    /// </summary>
+    Task<IEnumerable<LoteRegistroHistoricoUnificadoDto>> GetHistoricoUnificadoPorLoteAsync(int loteId);
 }

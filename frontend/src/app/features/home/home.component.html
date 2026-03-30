@@ -5,7 +5,7 @@
       <fa-icon [icon]="['fas', 'home']" class="header__icon" aria-hidden="true"></fa-icon>
       <div>
         <h1 class="header__title">Inicio</h1>
-        <p class="header__subtitle">Bienvenido al Sistema de Gestión</p>
+        <p class="header__subtitle">Bienvenido a ItalGranja</p>
       </div>
     </div>
   </header>
@@ -27,7 +27,7 @@
     <div class="welcome-container" *ngIf="!loadingMenu && !menuError">
       <div class="welcome-card">
         <div class="welcome-content">
-          <div class="welcome-logos" role="img" aria-label="Italcol y San Marino">
+          <div class="welcome-logos" role="img" [attr.aria-label]="'Italcol, San Marino y ' + appName">
             <img
               src="assets/brand/italcol-naraanja.png"
               alt="Italcol"
@@ -40,9 +40,10 @@
               class="welcome-logo welcome-logo--secondary"
               loading="eager"
             />
+            <div class="welcome-brand-name" aria-hidden="true"></div>
           </div>
-          <h2 class="welcome-title">Bienvenido al Sistema de Gestión</h2>
-          <p class="welcome-subtitle">Zootécnico</p>
+          <h2 class="welcome-title">Bienvenido a {{ appName }}</h2>
+          <p class="welcome-subtitle">{{ appTagline }}</p>
           <p class="welcome-description">
             Sistema integral para la gestión y seguimiento de granjas avícolas,
             diseñado para optimizar la producción y el control de calidad.

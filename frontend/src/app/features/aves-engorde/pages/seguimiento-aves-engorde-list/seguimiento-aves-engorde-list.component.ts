@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
 
 import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
@@ -11,7 +12,8 @@ import {
   SeguimientoAvesEngordeService,
   SeguimientoLoteLevanteDto,
   CreateSeguimientoLoteLevanteDto,
-  UpdateSeguimientoLoteLevanteDto
+  UpdateSeguimientoLoteLevanteDto,
+  LoteRegistroHistoricoUnificadoDto
 } from '../../services/seguimiento-aves-engorde.service';
 import { LoteReproductoraAveEngordeService, AvesDisponiblesDto, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -74,6 +76,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   private allLotes: LoteDto[] = [];
   lotes: LoteDto[] = [];
   seguimientos: SeguimientoLoteLevanteDto[] = [];
+  /** Filas de lote_registro_historico_unificado (inventario + ventas) para la pestaña Seguimiento. */
+  historicoUnificado: LoteRegistroHistoricoUnificadoDto[] = [];
   selectedLote: LoteDto | null = null;
   resumenSelected: LoteMortalidadResumenDto | null = null;
 
@@ -228,6 +232,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.historicoUnificado = [];
     this.galpones = [];
     this.hasSinGalpon = false;
     this.lotes = [];
@@ -255,6 +260,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.selectedGalponId = null;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.historicoUnificado = [];
     this.selectedLote = null;
     this.resumenSelected = null;
     if (this.filterData) {
@@ -270,6 +276,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.selectedGalponId = galponId;
     this.selectedLoteId = null;
     this.seguimientos = [];
+    this.historicoUnificado = [];
     this.selectedLote = null;
     this.resumenSelected = null;
     this.applyFiltersToLotes();
@@ -278,6 +285,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   onLoteChange(loteId: number | null): void {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
+    this.historicoUnificado = [];
     this.selectedLote = null;
     this.resumenSelected = null;
     this.avesDisponibles = null;
@@ -298,11 +306,19 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       next: list => (this.lotesReproductora = list ? [...list] : []),
       error: () => (this.lotesReproductora = [])
     });
-    this.segSvc.getByLoteId(id)
-      .pipe(finalize(() => (this.loading = false)))
+    this.segSvc
+      .getByLoteId(id)
+      .pipe(
+        catchError(() =>
+          of({ seguimientos: [] as SeguimientoLoteLevanteDto[], historicoUnificado: [] as LoteRegistroHistoricoUnificadoDto[] })
+        ),
+        finalize(() => (this.loading = false))
+      )
       .subscribe({
-        next: rows => (this.seguimientos = rows || []),
-        error: () => (this.seguimientos = [])
+        next: res => {
+          this.seguimientos = res.seguimientos ?? [];
+          this.historicoUnificado = res.historicoUnificado ?? [];
+        }
       });
   }
 

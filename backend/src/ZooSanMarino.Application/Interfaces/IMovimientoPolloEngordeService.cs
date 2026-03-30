@@ -30,4 +30,13 @@ public interface IMovimientoPolloEngordeService
     /// tipoLote: "LoteAveEngorde" | "LoteReproductoraAveEngorde"; loteId: PK del lote.
     /// </summary>
     Task<ResumenAvesLoteDto?> GetResumenAvesLoteAsync(string tipoLote, int loteId);
+
+    /// <summary>Resúmenes de varios lotes en una sola llamada (una fila por id solicitado).</summary>
+    Task<ResumenAvesLotesResponse> GetResumenAvesLotesAsync(ResumenAvesLotesRequest request);
+
+    /// <summary>Venta por granja: varios movimientos Pendiente con la misma cabecera de despacho, en una transacción.</summary>
+    Task<VentaGranjaDespachoResultDto> CreateVentaGranjaDespachoAsync(CreateVentaGranjaDespachoDto dto);
+
+    /// <summary>Completa varios movimientos Pendiente en una transacción (descuenta inventario por lote).</summary>
+    Task<IReadOnlyList<MovimientoPolloEngordeDto>> CompletarBatchAsync(IReadOnlyList<int> movimientoIds);
 }

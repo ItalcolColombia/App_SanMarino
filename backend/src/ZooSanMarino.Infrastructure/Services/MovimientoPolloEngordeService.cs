@@ -599,89 +599,345 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
 
     public async Task<ResumenAvesLoteDto?> GetResumenAvesLoteAsync(string tipoLote, int loteId)
     {
-        var companyId = _currentUser.CompanyId;
-        int avesInicioH = 0, avesInicioM = 0, avesInicioX = 0;
-        int avesActualesH = 0, avesActualesM = 0, avesActualesX = 0;
-        string? nombreLote = null;
-
         if (tipoLote == "LoteAveEngorde")
         {
-            var historial = await _ctx.HistorialLotePolloEngorde
-                .AsNoTracking()
-                .Where(h => h.CompanyId == companyId && h.TipoLote == "LoteAveEngorde" && h.LoteAveEngordeId == loteId && h.TipoRegistro == "Inicio")
-                .OrderBy(h => h.FechaRegistro)
-                .FirstOrDefaultAsync();
-            if (historial != null)
-            {
-                avesInicioH = historial.AvesHembras;
-                avesInicioM = historial.AvesMachos;
-                avesInicioX = historial.AvesMixtas;
-            }
-            var lote = await _ctx.LoteAveEngorde
-                .AsNoTracking()
-                .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
-                .Select(l => new { l.LoteNombre, l.HembrasL, l.MachosL, l.Mixtas, l.AvesEncasetadas })
-                .FirstOrDefaultAsync();
-            if (lote == null) return null;
-            nombreLote = lote.LoteNombre;
-            avesActualesH = lote.HembrasL ?? 0;
-            avesActualesM = lote.MachosL ?? 0;
-            avesActualesX = lote.Mixtas ?? 0;
-            if (avesActualesH + avesActualesM + avesActualesX == 0 && (lote.AvesEncasetadas ?? 0) > 0)
-                avesActualesX = lote.AvesEncasetadas ?? 0;
+            var map = await LoadResumenAvesLoteAveEngordeBatchAsync(new[] { loteId });
+            return map.GetValueOrDefault(loteId);
         }
-        else if (tipoLote == "LoteReproductoraAveEngorde")
-        {
-            var historial = await _ctx.HistorialLotePolloEngorde
-                .AsNoTracking()
-                .Where(h => h.CompanyId == companyId && h.TipoLote == "LoteReproductoraAveEngorde" && h.LoteReproductoraAveEngordeId == loteId && h.TipoRegistro == "Inicio")
-                .OrderBy(h => h.FechaRegistro)
-                .FirstOrDefaultAsync();
-            if (historial != null)
-            {
-                avesInicioH = historial.AvesHembras;
-                avesInicioM = historial.AvesMachos;
-                avesInicioX = historial.AvesMixtas;
-            }
-            // Filtrar por compañía: el lote reproductora pertenece a un LoteAveEngorde que tiene CompanyId
-            var lote = await (from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
-                             join lae in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals lae.LoteAveEngordeId!.Value
-                             where lrae.Id == loteId && lae.CompanyId == companyId && lae.DeletedAt == null
-                             select new { lrae.NombreLote, lrae.H, lrae.M, lrae.Mixtas })
-                .FirstOrDefaultAsync();
-            if (lote == null) return null;
-            nombreLote = lote.NombreLote;
-            avesActualesH = lote.H ?? 0;
-            avesActualesM = lote.M ?? 0;
-            avesActualesX = lote.Mixtas ?? 0;
-        }
-        else
-            return null;
 
-        var movimientosCompletados = await _ctx.MovimientoPolloEngorde
+        if (tipoLote == "LoteReproductoraAveEngorde")
+        {
+            var map = await LoadResumenAvesLoteReproductoraBatchAsync(new[] { loteId });
+            return map.GetValueOrDefault(loteId);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Historial inicio + lotes actuales + movimientos completados (origen), agrupado por lote.
+    /// Tres consultas a BD en lugar de N×3 por lote.
+    /// </summary>
+    private async Task<Dictionary<int, ResumenAvesLoteDto?>> LoadResumenAvesLoteAveEngordeBatchAsync(IReadOnlyList<int> loteIds)
+    {
+        var companyId = _currentUser.CompanyId;
+        var ids = loteIds.Distinct().ToList();
+        var result = new Dictionary<int, ResumenAvesLoteDto?>();
+        if (ids.Count == 0)
+            return result;
+
+        var histRows = await _ctx.HistorialLotePolloEngorde
             .AsNoTracking()
-            .Where(x => x.CompanyId == companyId && x.DeletedAt == null && x.Estado == "Completado" &&
-                (tipoLote == "LoteAveEngorde" && x.LoteAveEngordeOrigenId == loteId || tipoLote == "LoteReproductoraAveEngorde" && x.LoteReproductoraAveEngordeOrigenId == loteId))
-            .Select(x => new { x.CantidadHembras, x.CantidadMachos, x.CantidadMixtas, x.TipoMovimiento })
+            .Where(h =>
+                h.CompanyId == companyId
+                && h.TipoLote == "LoteAveEngorde"
+                && h.TipoRegistro == "Inicio"
+                && h.LoteAveEngordeId != null
+                && ids.Contains(h.LoteAveEngordeId.Value))
+            .Select(h => new { h.LoteAveEngordeId, h.AvesHembras, h.AvesMachos, h.AvesMixtas, h.FechaRegistro })
             .ToListAsync();
 
-        var avesSalidasTotal = movimientosCompletados.Sum(x => x.CantidadHembras + x.CantidadMachos + x.CantidadMixtas);
-        var avesVendidasTotal = movimientosCompletados.Where(x => x.TipoMovimiento == "Venta").Sum(x => x.CantidadHembras + x.CantidadMachos + x.CantidadMixtas);
+        var inicioPorLote = new Dictionary<int, (int H, int M, int X)>();
+        foreach (var g in histRows.GroupBy(h => h.LoteAveEngordeId!.Value))
+        {
+            var first = g.OrderBy(h => h.FechaRegistro).First();
+            inicioPorLote[g.Key] = (first.AvesHembras, first.AvesMachos, first.AvesMixtas);
+        }
 
-        return new ResumenAvesLoteDto(
-            TipoLote: tipoLote,
-            LoteId: loteId,
-            NombreLote: nombreLote,
-            AvesInicioHembras: avesInicioH,
-            AvesInicioMachos: avesInicioM,
-            AvesInicioMixtas: avesInicioX,
-            AvesInicioTotal: avesInicioH + avesInicioM + avesInicioX,
-            AvesSalidasTotal: avesSalidasTotal,
-            AvesVendidasTotal: avesVendidasTotal,
-            AvesActualesHembras: avesActualesH,
-            AvesActualesMachos: avesActualesM,
-            AvesActualesMixtas: avesActualesX,
-            AvesActualesTotal: avesActualesH + avesActualesM + avesActualesX
-        );
+        var lotes = await _ctx.LoteAveEngorde
+            .AsNoTracking()
+            .Where(l =>
+                l.CompanyId == companyId
+                && l.DeletedAt == null
+                && l.LoteAveEngordeId != null
+                && ids.Contains(l.LoteAveEngordeId.Value))
+            .Select(l => new { l.LoteAveEngordeId, l.LoteNombre, l.HembrasL, l.MachosL, l.Mixtas, l.AvesEncasetadas })
+            .ToListAsync();
+        var lotePorId = lotes.ToDictionary(x => x.LoteAveEngordeId!.Value);
+
+        var movRows = await _ctx.MovimientoPolloEngorde
+            .AsNoTracking()
+            .Where(x =>
+                x.CompanyId == companyId
+                && x.DeletedAt == null
+                && x.Estado == "Completado"
+                && x.LoteAveEngordeOrigenId != null
+                && ids.Contains(x.LoteAveEngordeOrigenId.Value))
+            .Select(x => new { x.LoteAveEngordeOrigenId, x.CantidadHembras, x.CantidadMachos, x.CantidadMixtas, x.TipoMovimiento })
+            .ToListAsync();
+
+        var salidasPorLote = movRows
+            .GroupBy(x => x.LoteAveEngordeOrigenId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var salidas = g.Sum(x => x.CantidadHembras + x.CantidadMachos + x.CantidadMixtas);
+                    var vendidas = g.Where(x => x.TipoMovimiento == "Venta").Sum(x => x.CantidadHembras + x.CantidadMachos + x.CantidadMixtas);
+                    return (salidas, vendidas);
+                });
+
+        foreach (var id in ids)
+        {
+            if (!lotePorId.TryGetValue(id, out var lote))
+            {
+                result[id] = null;
+                continue;
+            }
+
+            inicioPorLote.TryGetValue(id, out var ini);
+            var avesInicioH = ini.H;
+            var avesInicioM = ini.M;
+            var avesInicioX = ini.X;
+
+            var avesActualesH = lote.HembrasL ?? 0;
+            var avesActualesM = lote.MachosL ?? 0;
+            var avesActualesX = lote.Mixtas ?? 0;
+            if (avesActualesH + avesActualesM + avesActualesX == 0 && (lote.AvesEncasetadas ?? 0) > 0)
+                avesActualesX = lote.AvesEncasetadas ?? 0;
+
+            salidasPorLote.TryGetValue(id, out var sal);
+            var avesSalidasTotal = sal.salidas;
+            var avesVendidasTotal = sal.vendidas;
+
+            result[id] = new ResumenAvesLoteDto(
+                TipoLote: "LoteAveEngorde",
+                LoteId: id,
+                NombreLote: lote.LoteNombre,
+                AvesInicioHembras: avesInicioH,
+                AvesInicioMachos: avesInicioM,
+                AvesInicioMixtas: avesInicioX,
+                AvesInicioTotal: avesInicioH + avesInicioM + avesInicioX,
+                AvesSalidasTotal: avesSalidasTotal,
+                AvesVendidasTotal: avesVendidasTotal,
+                AvesActualesHembras: avesActualesH,
+                AvesActualesMachos: avesActualesM,
+                AvesActualesMixtas: avesActualesX,
+                AvesActualesTotal: avesActualesH + avesActualesM + avesActualesX
+            );
+        }
+
+        return result;
+    }
+
+    private async Task<Dictionary<int, ResumenAvesLoteDto?>> LoadResumenAvesLoteReproductoraBatchAsync(IReadOnlyList<int> loteIds)
+    {
+        var companyId = _currentUser.CompanyId;
+        var ids = loteIds.Distinct().ToList();
+        var result = new Dictionary<int, ResumenAvesLoteDto?>();
+        if (ids.Count == 0)
+            return result;
+
+        var histRows = await _ctx.HistorialLotePolloEngorde
+            .AsNoTracking()
+            .Where(h =>
+                h.CompanyId == companyId
+                && h.TipoLote == "LoteReproductoraAveEngorde"
+                && h.TipoRegistro == "Inicio"
+                && h.LoteReproductoraAveEngordeId != null
+                && ids.Contains(h.LoteReproductoraAveEngordeId.Value))
+            .Select(h => new { h.LoteReproductoraAveEngordeId, h.AvesHembras, h.AvesMachos, h.AvesMixtas, h.FechaRegistro })
+            .ToListAsync();
+
+        var inicioPorLote = new Dictionary<int, (int H, int M, int X)>();
+        foreach (var g in histRows.GroupBy(h => h.LoteReproductoraAveEngordeId!.Value))
+        {
+            var first = g.OrderBy(h => h.FechaRegistro).First();
+            inicioPorLote[g.Key] = (first.AvesHembras, first.AvesMachos, first.AvesMixtas);
+        }
+
+        var lotes = await (
+            from lrae in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            join lae in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals lae.LoteAveEngordeId
+            where ids.Contains(lrae.Id) && lae.CompanyId == companyId && lae.DeletedAt == null
+            select new { lrae.Id, lrae.NombreLote, lrae.H, lrae.M, lrae.Mixtas }
+        ).ToListAsync();
+        var lotePorId = lotes.ToDictionary(x => x.Id);
+
+        var movRows = await _ctx.MovimientoPolloEngorde
+            .AsNoTracking()
+            .Where(x =>
+                x.CompanyId == companyId
+                && x.DeletedAt == null
+                && x.Estado == "Completado"
+                && x.LoteReproductoraAveEngordeOrigenId != null
+                && ids.Contains(x.LoteReproductoraAveEngordeOrigenId.Value))
+            .Select(x => new { x.LoteReproductoraAveEngordeOrigenId, x.CantidadHembras, x.CantidadMachos, x.CantidadMixtas, x.TipoMovimiento })
+            .ToListAsync();
+
+        var salidasPorLote = movRows
+            .GroupBy(x => x.LoteReproductoraAveEngordeOrigenId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var salidas = g.Sum(x => x.CantidadHembras + x.CantidadMachos + x.CantidadMixtas);
+                    var vendidas = g.Where(x => x.TipoMovimiento == "Venta").Sum(x => x.CantidadHembras + x.CantidadMachos + x.CantidadMixtas);
+                    return (salidas, vendidas);
+                });
+
+        foreach (var id in ids)
+        {
+            if (!lotePorId.TryGetValue(id, out var lote))
+            {
+                result[id] = null;
+                continue;
+            }
+
+            inicioPorLote.TryGetValue(id, out var ini);
+            var avesInicioH = ini.H;
+            var avesInicioM = ini.M;
+            var avesInicioX = ini.X;
+
+            var avesActualesH = lote.H ?? 0;
+            var avesActualesM = lote.M ?? 0;
+            var avesActualesX = lote.Mixtas ?? 0;
+
+            salidasPorLote.TryGetValue(id, out var sal);
+            var avesSalidasTotal = sal.salidas;
+            var avesVendidasTotal = sal.vendidas;
+
+            result[id] = new ResumenAvesLoteDto(
+                TipoLote: "LoteReproductoraAveEngorde",
+                LoteId: id,
+                NombreLote: lote.NombreLote,
+                AvesInicioHembras: avesInicioH,
+                AvesInicioMachos: avesInicioM,
+                AvesInicioMixtas: avesInicioX,
+                AvesInicioTotal: avesInicioH + avesInicioM + avesInicioX,
+                AvesSalidasTotal: avesSalidasTotal,
+                AvesVendidasTotal: avesVendidasTotal,
+                AvesActualesHembras: avesActualesH,
+                AvesActualesMachos: avesActualesM,
+                AvesActualesMixtas: avesActualesX,
+                AvesActualesTotal: avesActualesH + avesActualesM + avesActualesX
+            );
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<ResumenAvesLotesResponse> GetResumenAvesLotesAsync(ResumenAvesLotesRequest request)
+    {
+        var tipo = string.IsNullOrWhiteSpace(request.TipoLote) ? "LoteAveEngorde" : request.TipoLote.Trim();
+        var loteIds = request.LoteIds ?? new List<int>();
+        if (loteIds.Count == 0)
+            return new ResumenAvesLotesResponse { Items = new List<ResumenAvesLotePorIdDto>() };
+
+        Dictionary<int, ResumenAvesLoteDto?> map;
+        if (tipo == "LoteAveEngorde")
+            map = await LoadResumenAvesLoteAveEngordeBatchAsync(loteIds);
+        else if (tipo == "LoteReproductoraAveEngorde")
+            map = await LoadResumenAvesLoteReproductoraBatchAsync(loteIds);
+        else
+        {
+            var itemsInvalid = loteIds.Select(id => new ResumenAvesLotePorIdDto(id, null)).ToList();
+            return new ResumenAvesLotesResponse { Items = itemsInvalid };
+        }
+
+        var items = new List<ResumenAvesLotePorIdDto>(loteIds.Count);
+        foreach (var loteId in loteIds)
+            items.Add(new ResumenAvesLotePorIdDto(loteId, map.GetValueOrDefault(loteId)));
+
+        return new ResumenAvesLotesResponse { Items = items };
+    }
+
+    /// <inheritdoc />
+    public async Task<VentaGranjaDespachoResultDto> CreateVentaGranjaDespachoAsync(CreateVentaGranjaDespachoDto dto)
+    {
+        if (dto.Lineas == null || dto.Lineas.Count == 0)
+            throw new InvalidOperationException("Debe indicar al menos una línea.");
+
+        var lineas = dto.Lineas
+            .Where(l => l.CantidadHembras + l.CantidadMachos + l.CantidadMixtas > 0)
+            .ToList();
+        if (lineas.Count == 0)
+            throw new InvalidOperationException("Debe indicar al menos una línea con cantidades mayores a cero.");
+
+        var idsLote = lineas.Select(l => l.LoteAveEngordeOrigenId).ToList();
+        if (idsLote.Count != idsLote.Distinct().Count())
+            throw new InvalidOperationException("No puede repetirse el mismo lote en más de una línea.");
+
+        await using var tx = await _ctx.Database.BeginTransactionAsync();
+        try
+        {
+            var results = new List<MovimientoPolloEngordeDto>();
+            foreach (var linea in lineas)
+            {
+                var single = new CreateMovimientoPolloEngordeDto
+                {
+                    FechaMovimiento = dto.FechaMovimiento,
+                    TipoMovimiento = dto.TipoMovimiento,
+                    LoteAveEngordeOrigenId = linea.LoteAveEngordeOrigenId,
+                    LoteReproductoraAveEngordeOrigenId = null,
+                    GranjaOrigenId = linea.GranjaOrigenId ?? dto.GranjaOrigenId,
+                    NucleoOrigenId = linea.NucleoOrigenId,
+                    GalponOrigenId = linea.GalponOrigenId,
+                    LoteAveEngordeDestinoId = null,
+                    LoteReproductoraAveEngordeDestinoId = null,
+                    CantidadHembras = linea.CantidadHembras,
+                    CantidadMachos = linea.CantidadMachos,
+                    CantidadMixtas = linea.CantidadMixtas,
+                    MotivoMovimiento = dto.MotivoMovimiento,
+                    Descripcion = dto.Descripcion,
+                    Observaciones = dto.Observaciones,
+                    UsuarioMovimientoId = dto.UsuarioMovimientoId,
+                    NumeroDespacho = dto.NumeroDespacho,
+                    EdadAves = dto.EdadAves,
+                    TotalPollosGalpon = dto.TotalPollosGalpon.HasValue
+                        ? (int?)Math.Round(dto.TotalPollosGalpon.Value)
+                        : null,
+                    Raza = dto.Raza,
+                    Placa = dto.Placa,
+                    HoraSalida = dto.HoraSalida,
+                    GuiaAgrocalidad = dto.GuiaAgrocalidad,
+                    Sellos = dto.Sellos,
+                    Ayuno = dto.Ayuno,
+                    Conductor = dto.Conductor,
+                    PesoBruto = dto.PesoBruto,
+                    PesoTara = dto.PesoTara
+                };
+                var created = await CreateAsync(single);
+                results.Add(created);
+            }
+
+            await tx.CommitAsync();
+            return new VentaGranjaDespachoResultDto { Movimientos = results };
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<MovimientoPolloEngordeDto>> CompletarBatchAsync(IReadOnlyList<int> movimientoIds)
+    {
+        if (movimientoIds == null || movimientoIds.Count == 0)
+            throw new InvalidOperationException("Debe indicar al menos un movimiento.");
+
+        var ids = movimientoIds.Distinct().ToList();
+        await using var tx = await _ctx.Database.BeginTransactionAsync();
+        try
+        {
+            var list = new List<MovimientoPolloEngordeDto>();
+            foreach (var id in ids)
+            {
+                var dto = await CompleteAsync(id);
+                if (dto == null)
+                    throw new InvalidOperationException($"Movimiento {id} no encontrado.");
+                list.Add(dto);
+            }
+
+            await tx.CommitAsync();
+            return list;
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 }

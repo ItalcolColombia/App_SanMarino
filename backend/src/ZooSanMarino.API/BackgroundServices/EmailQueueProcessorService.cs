@@ -49,7 +49,7 @@ public class EmailQueueProcessorService : BackgroundService
         var sslStr = _configuration["Email:Smtp:EnableSsl"];
         _smtpEnableSsl = bool.TryParse(sslStr, out var ssl) ? ssl : true;
         _fromEmail = _configuration["Email:From:Address"] ?? _smtpUsername;
-        _fromName = _configuration["Email:From:Name"] ?? "ZooSanMarino - Sistema Zootécnico";
+        _fromName = _configuration["Email:From:Name"] ?? "ItalGranja";
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

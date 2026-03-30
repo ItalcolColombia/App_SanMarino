@@ -285,6 +285,22 @@
   margin-top: var(--space-6);
 }
 
+.registro-diario__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.registro-diario__toolbar h4 {
+  margin: 0;
+}
+.registro-diario__export {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .registro-diario__hint {
   font-size: var(--fs-xs);
   color: var(--text-sub);

@@ -212,13 +212,38 @@
   margin-bottom: 0.35rem;
 }
 
-.historico-card-title-row {
+/* Cabecera del histórico: fondo opaco y título siempre legible (antes parecía “transparente” sobre el cuerpo de la tarjeta). */
+.historico-movimientos-card {
+  margin-top: 1rem;
+}
+
+.historico-movimientos-card__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem 0;
+  gap: 0.75rem 1rem;
+  margin: -1.25rem -1.25rem 0 -1.25rem;
+  padding: 1rem 1.25rem;
+  background-color: #fff;
+  background-image: linear-gradient(180deg, #ffffff 0%, var(--ital-cream-50, #fefdfb) 100%);
+  border-bottom: 1px solid var(--ital-green-100, rgba(45, 122, 62, 0.12));
+  border-radius: 0.75rem 0.75rem 0 0;
+  position: relative;
+  z-index: 2;
+}
+
+.historico-movimientos-card__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--ital-orange-dark, #d14a18);
+  letter-spacing: 0.02em;
+}
+
+.historico-movimientos-card__body {
+  padding-top: 1rem;
 }
 
 .historico-export-btn {
@@ -244,13 +269,34 @@
     padding: 0.45rem 0.5rem;
   }
 
+  /* Cabecera: fondo verde sólido y texto blanco (evita crema sobre #f6faf6 heredado de .table-italfoods). */
   thead th {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: #f6faf6;
-    box-shadow: 0 1px 0 var(--ital-green-100, #dfe8df);
+    background-color: var(--ital-green-dark, #1e5c2a) !important;
+    background-image: none;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.08);
     white-space: nowrap;
+    border-bottom: 1px solid var(--ital-green, #2d7a3e);
+  }
+
+  tbody td {
+    color: var(--ital-text, #2b2b2b) !important;
+    background-color: #fff;
+  }
+
+  tbody tr:nth-child(even) td {
+    background-color: var(--ital-cream-50, #fefdfb);
+  }
+
+  tbody tr:hover td {
+    background-color: var(--ital-orange-50, rgba(232, 92, 37, 0.08)) !important;
   }
 
   .th-num {
@@ -434,6 +480,33 @@
 }
 
 .field-full { grid-column: 1 / -1; }
+
+.historico-filtros-hint {
+  margin-bottom: 0.5rem;
+}
+
+.historico-filtros-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.historico-filtros-mas-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.historico-filtros-avanzados {
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ital-orange-50, #fff3e8);
+}
+
+.historico-filtros-avanzados .section-label:first-of-type {
+  margin-top: 0;
+}
 
 .section-label {
   font-weight: 700;

@@ -49,5 +49,11 @@ public class SeguimientoDiarioAvesEngorde
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>
+    /// Saldo de alimento (kg) al cierre del día en bodega del lote, calculado desde
+    /// lote_registro_historico_unificado (ingresos + traslados entrada − traslados salida − consumos).
+    /// </summary>
+    public decimal? SaldoAlimentoKg { get; set; }
+
     public virtual LoteAveEngorde? LoteAveEngorde { get; set; }
 }

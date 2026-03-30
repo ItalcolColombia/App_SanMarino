@@ -18,6 +18,8 @@ import { InputSanitizerService } from '../../../core/services/security/input-san
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent implements OnInit {
+  readonly appName = environment.appName;
+  readonly appTagline = environment.appTagline;
   loginForm!: FormGroup;
   loading = false;
   errorMsg = '';

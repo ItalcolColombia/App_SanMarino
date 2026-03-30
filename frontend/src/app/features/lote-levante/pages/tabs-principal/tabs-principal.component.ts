@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import * as XLSX from 'xlsx';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -7,6 +8,19 @@ import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla
 import { TablaIndicadoresDiariosComponent } from '../tabla-indicadores-diarios/tabla-indicadores-diarios.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { LoteRegistroHistoricoUnificadoDto } from '../../../aves-engorde/services/seguimiento-aves-engorde.service';
+
+/** Totales del historial unificado por una fecha (YYYY-MM-DD), alineados con el backend. */
+interface AggregadoHistoricoDia {
+  ingresoKg: number;
+  trasladoEntradaKg: number;
+  trasladoSalidaKg: number;
+  consumoBodegaKg: number;
+  refsDocumento: string[];
+  ventaH: number;
+  ventaM: number;
+  ventaX: number;
+}
 
 /** Fila enriquecida para la tabla de registros diarios (libro de seguimiento / pestaña Seguimiento). */
 export interface RegistroDiarioTablaFila {
@@ -25,6 +39,10 @@ export interface RegistroDiarioTablaFila {
   documento: string;
   despachoH: number | null;
   despachoM: number | null;
+  /** Ventas mixtas (historial unificado); solo pollo engorde. */
+  despachoX: number | null;
+  /** INV_CONSUMO sumado del inventario (kg); solo pollo engorde. */
+  consumoBodegaKg: number | null;
   tipoAlimentoCorto: string;
   /** % pérdidas del día sobre aves vivas al inicio del día. */
   pctPerdidasDia: number | null;
@@ -48,6 +66,17 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() disableCreateEditDelete: boolean = false;
   /** Si true, muestra aviso "Lote cerrado" en la información del lote. */
   @Input() isLoteCerrado: boolean = false;
+  /** Solo módulo seguimiento pollo engorde: botón para exportar la tabla de registros diarios a Excel. */
+  @Input() showExportSeguimientoExcel: boolean = false;
+  /** Nombre del lote (nombre de archivo y fila de contexto en el Excel). */
+  @Input() exportSeguimientoLoteNombre: string = '';
+  /** Filas de lote_registro_historico_unificado (misma respuesta que por-lote). Solo pollo engorde. */
+  @Input() historicoUnificado: LoteRegistroHistoricoUnificadoDto[] = [];
+  /**
+   * Si true, agrupa el historial por fecha de operación y rellena Ingreso, Traslado, Documento,
+   * Despacho H/M/X y consumo bodega en la tabla principal (sin segunda tabla).
+   */
+  @Input() enriquecerTablaConHistoricoInventario = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
@@ -82,9 +111,14 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['seguimientos'] || changes['selectedLote']) {
+    if (changes['seguimientos'] || changes['selectedLote'] || changes['historicoUnificado'] || changes['enriquecerTablaConHistoricoInventario']) {
       this.diarioFilas = this.buildDiarioFilas();
     }
+  }
+
+  /** Columnas de la tabla de registros diarios (incluye despacho mixtas y consumo bodega si engorde). */
+  get colspanRegistroDiario(): number {
+    return 26 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;
@@ -98,6 +132,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       if (ya !== yb) return ya.localeCompare(yb);
       return (a.id ?? 0) - (b.id ?? 0);
     });
+
+    const histPorFecha = this.enriquecerTablaConHistoricoInventario ? this.aggregateHistoricoPorFecha() : null;
 
     const inicial = this.avesInicialesLote();
     /** Acumulado de todas las bajas (mort + sel + err. sexaje) para saldo de aves. */
@@ -136,6 +172,42 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       /** Semana de cría: misma frontera que antes (cuando edad mostrada era edad0+1). */
       const semana = Math.max(1, Math.min(8, Math.ceil((edadDia + 1) / 7)));
 
+      const ymd = this.toYMD(seg.fechaRegistro);
+      const agg = ymd && histPorFecha ? histPorFecha.get(ymd) : undefined;
+
+      const metaIng = this.metaStr(seg, 'ingresoAlimento', 'ingreso_alimento', 'ingresoAlimentoKg');
+      const metaTras = this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto');
+      const metaDoc = this.metaStr(seg, 'documento', 'documentoAlimento', 'nroDocumento', 'numeroDocumento');
+      const metaDh = this.metaNum(seg, 'despachoHembras', 'despachoH', 'despacho_hembra');
+      const metaDm = this.metaNum(seg, 'despachoMachos', 'despachoM', 'despacho_macho');
+
+      let ingresoAlimento = metaIng;
+      let traslado = metaTras;
+      let documento = metaDoc;
+      let despachoH = metaDh;
+      let despachoM = metaDm;
+      let despachoX: number | null = null;
+      let consumoBodegaKg: number | null = null;
+
+      if (agg) {
+        if (agg.ingresoKg > 0) {
+          ingresoAlimento = `${this.formatKgNumber(agg.ingresoKg)} kg`;
+        }
+        const partesTr: string[] = [];
+        if (agg.trasladoEntradaKg > 0) partesTr.push(`Entrada ${this.formatKgNumber(agg.trasladoEntradaKg)} kg`);
+        if (agg.trasladoSalidaKg > 0) partesTr.push(`Salida ${this.formatKgNumber(agg.trasladoSalidaKg)} kg`);
+        if (partesTr.length) {
+          traslado = partesTr.join(' · ');
+        }
+        if (agg.refsDocumento.length) {
+          documento = [...new Set(agg.refsDocumento)].join(', ');
+        }
+        if (agg.ventaH > 0) despachoH = agg.ventaH;
+        if (agg.ventaM > 0) despachoM = agg.ventaM;
+        despachoX = agg.ventaX > 0 ? agg.ventaX : null;
+        consumoBodegaKg = agg.consumoBodegaKg > 0 ? agg.consumoBodegaKg : null;
+      }
+
       out.push({
         seg,
         edadDia,
@@ -145,16 +217,82 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         saldoAves: saldo,
         consumoDiaKg: consDia,
         acumConsumoKg: acumCons,
-        ingresoAlimento: this.metaStr(seg, 'ingresoAlimento', 'ingreso_alimento', 'ingresoAlimentoKg'),
-        traslado: this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto'),
-        documento: this.metaStr(seg, 'documento', 'documentoAlimento', 'nroDocumento', 'numeroDocumento'),
-        despachoH: this.metaNum(seg, 'despachoHembras', 'despachoH', 'despacho_hembra'),
-        despachoM: this.metaNum(seg, 'despachoMachos', 'despachoM', 'despacho_macho'),
+        ingresoAlimento,
+        traslado,
+        documento,
+        despachoH,
+        despachoM,
+        despachoX,
+        consumoBodegaKg,
         tipoAlimentoCorto: this.tipoAlimentoCorto(seg.tipoAlimento),
         pctPerdidasDia
       });
     }
     return out;
+  }
+
+  /** Agrupa historial unificado por fecha de operación (misma lógica que el backfill de metadata). */
+  private aggregateHistoricoPorFecha(): Map<string, AggregadoHistoricoDia> {
+    const map = new Map<string, AggregadoHistoricoDia>();
+    const ensure = (ymd: string): AggregadoHistoricoDia => {
+      let a = map.get(ymd);
+      if (!a) {
+        a = {
+          ingresoKg: 0,
+          trasladoEntradaKg: 0,
+          trasladoSalidaKg: 0,
+          consumoBodegaKg: 0,
+          refsDocumento: [],
+          ventaH: 0,
+          ventaM: 0,
+          ventaX: 0
+        };
+        map.set(ymd, a);
+      }
+      return a;
+    };
+
+    const pushRef = (a: AggregadoHistoricoDia, h: LoteRegistroHistoricoUnificadoDto) => {
+      const r = (h.numeroDocumento?.trim() || h.referencia?.trim() || '').trim();
+      if (r) a.refsDocumento.push(r);
+    };
+
+    for (const h of this.historicoUnificado ?? []) {
+      const ymd = this.toYMD(h.fechaOperacion);
+      if (!ymd) continue;
+      const a = ensure(ymd);
+      const kg = Number(h.cantidadKg ?? 0);
+
+      switch (h.tipoEvento) {
+        case 'INV_INGRESO':
+          a.ingresoKg += kg;
+          pushRef(a, h);
+          break;
+        case 'INV_TRASLADO_ENTRADA':
+          a.trasladoEntradaKg += kg;
+          break;
+        case 'INV_TRASLADO_SALIDA':
+          a.trasladoSalidaKg += kg;
+          break;
+        case 'INV_CONSUMO':
+          a.consumoBodegaKg += kg;
+          break;
+        case 'VENTA_AVES':
+          a.ventaH += h.cantidadHembras ?? 0;
+          a.ventaM += h.cantidadMachos ?? 0;
+          a.ventaX += h.cantidadMixtas ?? 0;
+          pushRef(a, h);
+          break;
+        default:
+          break;
+      }
+    }
+
+    return map;
+  }
+
+  private formatKgNumber(n: number): string {
+    return Number(n.toFixed(3)).toString();
   }
 
   /** Aves al inicio del ciclo (hembras + machos del lote, o aves encasetadas). */
@@ -239,6 +377,89 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   onViewDetail(seg: SeguimientoLoteLevanteDto): void {
     this.viewDetail.emit(seg);
+  }
+
+  /** Exporta las mismas columnas que la tabla «Registros Diarios» (sin Acciones). */
+  exportSeguimientoDiarioExcel(): void {
+    if (!this.showExportSeguimientoExcel || !this.diarioFilas?.length) return;
+    const headers = [
+      'Fecha',
+      'Semana',
+      'Edad (días vida)',
+      'Día (calendario)',
+      'Mortalidad hembras',
+      'Mortalidad machos',
+      'Selección hembras',
+      'Selección machos',
+      'TOTAL MORT+ SEL / DÍA',
+      'Despacho hembras',
+      'Despacho machos',
+      ...(this.enriquecerTablaConHistoricoInventario
+        ? ['Despacho mixtas', 'Consumo bodega (kg)', 'Saldo alimento (kg)']
+        : []),
+      'Saldo aves vivas',
+      'Tipo alimento',
+      'Ingreso alimento',
+      'Traslado',
+      'Documento',
+      'Consumo kg hembras',
+      'Consumo kg machos',
+      'Consumo real día (kg)',
+      'Consumo acumulado (kg)',
+      'Agua (litros)',
+      '% pérdidas del día',
+      'Peso prom. hembras (kg)',
+      'Peso prom. machos (kg)',
+      'Observaciones'
+    ];
+    const rows = this.diarioFilas.map(f => {
+      const s = f.seg;
+      return [
+        this.formatDMY(s.fechaRegistro),
+        f.semana,
+        f.edadDia,
+        f.diaCorto,
+        s.mortalidadHembras ?? '',
+        s.mortalidadMachos ?? '',
+        s.selH ?? '',
+        s.selM ?? '',
+        f.totalMortSelDia,
+        f.despachoH ?? '',
+        f.despachoM ?? '',
+        ...(this.enriquecerTablaConHistoricoInventario
+          ? [
+              f.despachoX ?? '',
+              f.consumoBodegaKg != null ? f.consumoBodegaKg : '',
+              f.seg.saldoAlimentoKg != null ? f.seg.saldoAlimentoKg : ''
+            ]
+          : []),
+        f.saldoAves,
+        f.tipoAlimentoCorto,
+        f.ingresoAlimento || '',
+        f.traslado || '',
+        f.documento || '',
+        s.consumoKgHembras ?? '',
+        s.consumoKgMachos ?? 0,
+        f.consumoDiaKg,
+        f.acumConsumoKg,
+        s.consumoAguaDiario != null ? s.consumoAguaDiario : '',
+        f.pctPerdidasDia != null ? Math.round(f.pctPerdidasDia * 100) / 100 : '',
+        s.pesoPromH != null ? s.pesoPromH : '',
+        s.pesoPromM != null ? s.pesoPromM : '',
+        (s.observaciones || '').trim()
+      ];
+    });
+    const title = this.exportSeguimientoLoteNombre.trim()
+      ? `Seguimiento diario pollo engorde — Lote: ${this.exportSeguimientoLoteNombre.trim()}`
+      : 'Seguimiento diario pollo engorde';
+    const aoa: (string | number)[][] = [[title], [], headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
+    const safe = (this.exportSeguimientoLoteNombre.trim() || 'seguimiento_engorde').replace(/[\\/:*?"<>|]/g, '_');
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `Seguimiento_engorde_${safe}_${stamp}.xlsx`);
   }
 
   // ================== CALCULO DE EDAD ==================

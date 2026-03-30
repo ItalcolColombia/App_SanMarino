@@ -18,6 +18,42 @@ export type {
   ResultadoLevanteResponse
 };
 
+/**
+ * Respuesta unificada de GET SeguimientoAvesEngorde/por-lote/{loteId}:
+ * registros diarios + historial (inventario y ventas).
+ */
+export interface SeguimientoAvesEngordePorLoteResponseDto {
+  seguimientos: SeguimientoLoteLevanteDto[];
+  historicoUnificado: LoteRegistroHistoricoUnificadoDto[];
+}
+
+/** Fila de lote_registro_historico_unificado (también en por-lote unificado). */
+export interface LoteRegistroHistoricoUnificadoDto {
+  id: number;
+  companyId: number;
+  loteAveEngordeId: number | null;
+  farmId: number;
+  nucleoId: string | null;
+  galponId: string | null;
+  fechaOperacion: string;
+  tipoEvento: string;
+  origenTabla: string;
+  origenId: number;
+  movementTypeOriginal: string | null;
+  itemInventarioEcuadorId: number | null;
+  itemResumen: string | null;
+  cantidadKg: number | null;
+  unidad: string | null;
+  cantidadHembras: number | null;
+  cantidadMachos: number | null;
+  cantidadMixtas: number | null;
+  referencia: string | null;
+  numeroDocumento: string | null;
+  acumuladoEntradasAlimentoKg: number | null;
+  anulado: boolean;
+  createdAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SeguimientoAvesEngordeService {
   private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
@@ -28,9 +64,16 @@ export class SeguimientoAvesEngordeService {
     return this.http.get<SeguimientoLoteLevanteDto>(`${this.baseUrl}/${id}`);
   }
 
-  getByLoteId(loteId: number): Observable<SeguimientoLoteLevanteDto[]> {
-    return this.http.get<SeguimientoLoteLevanteDto[]>(
+  /** Incluye seguimientos e historicoUnificado en una sola respuesta. */
+  getByLoteId(loteId: number): Observable<SeguimientoAvesEngordePorLoteResponseDto> {
+    return this.http.get<SeguimientoAvesEngordePorLoteResponseDto>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}`
+    );
+  }
+
+  getHistoricoUnificadoPorLote(loteId: number): Observable<LoteRegistroHistoricoUnificadoDto[]> {
+    return this.http.get<LoteRegistroHistoricoUnificadoDto[]>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/historico-unificado`
     );
   }
 

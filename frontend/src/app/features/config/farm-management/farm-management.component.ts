@@ -170,7 +170,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
           console.error('Error cargando empresas:', error);
           // Fallback a datos demo si falla la carga
           this.companies = [
-            { id: 1, name: 'Agroavicola San Marino' },
+            { id: 1, name: 'Granja demostración ItalGranja' },
             { id: 2, name: 'Piko' }
           ];
           this.updateCompanyMap();

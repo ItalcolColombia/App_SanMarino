@@ -71,7 +71,8 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             ConsumoAguaDiario: u.ConsumoAguaDiario,
             ConsumoAguaPh: u.ConsumoAguaPh,
             ConsumoAguaOrp: u.ConsumoAguaOrp,
-            ConsumoAguaTemperatura: u.ConsumoAguaTemperatura
+            ConsumoAguaTemperatura: u.ConsumoAguaTemperatura,
+            SaldoAlimentoKg: null
         );
     }
 

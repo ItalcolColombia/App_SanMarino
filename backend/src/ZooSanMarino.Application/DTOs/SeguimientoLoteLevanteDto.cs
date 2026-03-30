@@ -24,8 +24,6 @@ public record SeguimientoLoteLevanteDto(
     double? ConsumoAguaPh, // Nivel de PH del agua
     double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
     double? ConsumoAguaTemperatura, // Temperatura del agua en °C
-    string? CreatedByUserId = null // ID del usuario que crea (para tabla unificada seguimiento_diario)
-    // gestiones de administrativo  
-    // int? IdAdministrativo, string? NombreAdministrativo, string? ApellidoAdministrativo, string? DireccionAdministrativo, string? TelefonoAdministrativo, string? EmailAdministrativo, string? FechaNacimientoAdministrativo, string? GeneroAdministrativo, string? EstadoAdministrativo, string? CodigoAdministrativo, string? TipoAdministrativo, string? RolAdministrativo, string? ClaveAdministrativo, string? ClaveAdministrativoConfirmada, string? ClaveAdministrativoConfirmadaConfirmada, string? ClaveAdministrativoConfirmadaConfirmadaConfirmada, string? ClaveAdministrativoConfirmada
-    
+    string? CreatedByUserId = null, // ID del usuario que crea (para tabla unificada seguimiento_diario)
+    double? SaldoAlimentoKg = null // Saldo alimento (kg) al cierre del día; aves de engorde (inventario unificado)
 );

@@ -108,10 +108,14 @@
 
     <app-tabs-principal
       [seguimientos]="seguimientos"
+      [historicoUnificado]="historicoUnificado"
+      [enriquecerTablaConHistoricoInventario]="true"
       [selectedLote]="selectedLote"
       [resumenLevante]="resumenSelected"
       [loading]="loading"
       [disableCreateEditDelete]="noPuedeSeguimiento"
+      [showExportSeguimientoExcel]="true"
+      [exportSeguimientoLoteNombre]="selectedLoteNombre"
       (create)="create()"
       (edit)="edit($event)"
       (delete)="delete($event)"

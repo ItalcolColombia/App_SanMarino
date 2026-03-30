@@ -73,24 +73,145 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             ConsumoAguaPh: e.ConsumoAguaPh,
             ConsumoAguaOrp: e.ConsumoAguaOrp,
             ConsumoAguaTemperatura: e.ConsumoAguaTemperatura,
-            CreatedByUserId: e.CreatedByUserId
+            CreatedByUserId: e.CreatedByUserId,
+            SaldoAlimentoKg: e.SaldoAlimentoKg.HasValue ? (double)e.SaldoAlimentoKg.Value : null
         );
     }
 
-    public async Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId)
+    public async Task<SeguimientoAvesEngordePorLoteResponseDto> GetByLoteAsync(int loteId)
     {
         var companyId = _current.CompanyId;
         var exists = await _ctx.LoteAveEngorde.AsNoTracking()
             .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
-        if (!exists) return Array.Empty<SeguimientoLoteLevanteDto>();
+        if (!exists)
+            return new SeguimientoAvesEngordePorLoteResponseDto(
+                Array.Empty<SeguimientoLoteLevanteDto>(),
+                Array.Empty<LoteRegistroHistoricoUnificadoDto>());
+
+        await RecalcularSaldoAlimentoPorLoteAsync(loteId, companyId);
 
         var list = await _ctx.SeguimientoDiarioAvesEngorde
             .AsNoTracking()
             .Where(s => s.LoteAveEngordeId == loteId)
             .OrderBy(s => s.Fecha)
             .ToListAsync();
-        return list.Select(MapToDto);
+        var seguimientos = list.Select(MapToDto).ToList();
+
+        var historico = await QueryHistoricoUnificadoDtosAsync(loteId, companyId);
+
+        return new SeguimientoAvesEngordePorLoteResponseDto(seguimientos, historico);
     }
+
+    public async Task<IEnumerable<LoteRegistroHistoricoUnificadoDto>> GetHistoricoUnificadoPorLoteAsync(int loteId)
+    {
+        var companyId = _current.CompanyId;
+        var exists = await _ctx.LoteAveEngorde.AsNoTracking()
+            .AnyAsync(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null);
+        if (!exists) return Array.Empty<LoteRegistroHistoricoUnificadoDto>();
+
+        return await QueryHistoricoUnificadoDtosAsync(loteId, companyId);
+    }
+
+    private async Task<IReadOnlyList<LoteRegistroHistoricoUnificadoDto>> QueryHistoricoUnificadoDtosAsync(int loteId, int companyId)
+    {
+        var rows = await _ctx.LoteRegistroHistoricoUnificados
+            .AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado)
+            .OrderBy(h => h.FechaOperacion)
+            .ThenBy(h => h.Id)
+            .ToListAsync();
+
+        return rows.Select(MapHistoricoUnificado).ToList();
+    }
+
+    /// <summary>
+    /// Saldo al cierre de cada día = acumulado de movimientos de inventario (kg) en orden cronológico.
+    /// INV_INGRESO / INV_TRASLADO_ENTRADA suman; INV_TRASLADO_SALIDA e INV_CONSUMO restan.
+    /// </summary>
+    private static decimal DeltaInventarioKg(LoteRegistroHistoricoUnificado h)
+    {
+        var kg = h.CantidadKg ?? 0;
+        return h.TipoEvento switch
+        {
+            "INV_INGRESO" => kg,
+            "INV_TRASLADO_ENTRADA" => kg,
+            "INV_TRASLADO_SALIDA" => -kg,
+            "INV_CONSUMO" => -kg,
+            _ => 0m
+        };
+    }
+
+    /// <summary>
+    /// Recalcula y persiste <see cref="SeguimientoDiarioAvesEngorde.SaldoAlimentoKg"/> para todos los registros diarios del lote.
+    /// </summary>
+    private async Task RecalcularSaldoAlimentoPorLoteAsync(int loteId, int companyId, CancellationToken ct = default)
+    {
+        var hist = await _ctx.LoteRegistroHistoricoUnificados
+            .AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado)
+            .OrderBy(h => h.FechaOperacion)
+            .ThenBy(h => h.Id)
+            .ToListAsync(ct);
+
+        var segs = await _ctx.SeguimientoDiarioAvesEngorde
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .OrderBy(s => s.Fecha)
+            .ToListAsync(ct);
+
+        if (segs.Count == 0)
+            return;
+
+        var minD = segs.Min(s => s.Fecha.Date);
+        var maxD = segs.Max(s => s.Fecha.Date);
+        if (hist.Count > 0)
+        {
+            minD = new[] { minD, hist.Min(h => h.FechaOperacion.Date) }.Min();
+            maxD = new[] { maxD, hist.Max(h => h.FechaOperacion.Date) }.Max();
+        }
+
+        var balanceEndOfDay = new Dictionary<DateTime, decimal>();
+        decimal running = 0;
+        for (var d = minD.Date; d <= maxD.Date; d = d.AddDays(1))
+        {
+            foreach (var ev in hist.Where(h => h.FechaOperacion.Date == d).OrderBy(h => h.Id))
+                running += DeltaInventarioKg(ev);
+            balanceEndOfDay[d] = running;
+        }
+
+        foreach (var s in segs)
+        {
+            var d = s.Fecha.Date;
+            s.SaldoAlimentoKg = balanceEndOfDay.TryGetValue(d, out var b) ? b : running;
+        }
+
+        await _ctx.SaveChangesAsync(ct);
+    }
+
+    private static LoteRegistroHistoricoUnificadoDto MapHistoricoUnificado(LoteRegistroHistoricoUnificado e) =>
+        new(
+            Id: e.Id,
+            CompanyId: e.CompanyId,
+            LoteAveEngordeId: e.LoteAveEngordeId,
+            FarmId: e.FarmId,
+            NucleoId: e.NucleoId,
+            GalponId: e.GalponId,
+            FechaOperacion: e.FechaOperacion,
+            TipoEvento: e.TipoEvento,
+            OrigenTabla: e.OrigenTabla,
+            OrigenId: e.OrigenId,
+            MovementTypeOriginal: e.MovementTypeOriginal,
+            ItemInventarioEcuadorId: e.ItemInventarioEcuadorId,
+            ItemResumen: e.ItemResumen,
+            CantidadKg: e.CantidadKg,
+            Unidad: e.Unidad,
+            CantidadHembras: e.CantidadHembras,
+            CantidadMachos: e.CantidadMachos,
+            CantidadMixtas: e.CantidadMixtas,
+            Referencia: e.Referencia,
+            NumeroDocumento: e.NumeroDocumento,
+            AcumuladoEntradasAlimentoKg: e.AcumuladoEntradasAlimentoKg,
+            Anulado: e.Anulado,
+            CreatedAt: e.CreatedAt);
 
     public async Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id)
     {
@@ -222,6 +343,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             }
             catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento engorde: {ex.Message}"); }
         }
+
+        await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, _current.CompanyId);
+        await _ctx.Entry(ent).ReloadAsync();
 
         return MapToDto(ent);
     }
@@ -366,6 +490,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             catch (Exception ex) { Console.WriteLine($"Error al registrar retiro desde seguimiento engorde (actualización): {ex.Message}"); }
         }
 
+        await RecalcularSaldoAlimentoPorLoteAsync(dto.LoteId, companyId);
+        await _ctx.Entry(ent).ReloadAsync();
+
         return MapToDto(ent);
     }
 
@@ -400,8 +527,10 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             catch (Exception ex) { Console.WriteLine($"Error al devolver aves al eliminar seguimiento engorde: {ex.Message}"); }
         }
 
+        var loteIdSeg = ent.Seguimiento.LoteAveEngordeId;
         _ctx.SeguimientoDiarioAvesEngorde.Remove(ent.Seguimiento);
         await _ctx.SaveChangesAsync();
+        await RecalcularSaldoAlimentoPorLoteAsync(loteIdSeg, companyId);
         return true;
     }
 
@@ -670,6 +799,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
         if (actualizados > 0)
             await _ctx.SaveChangesAsync();
+
+        await RecalcularSaldoAlimentoPorLoteAsync(loteId, companyId);
 
         return new SeguimientoAvesEngordeBackfillResultDto(
             LoteId: loteId,

@@ -28,12 +28,21 @@ public sealed record InventarioGestionLoteFiltroDto(
     string? NucleoId,
     string? GalponId);
 
-/// <summary>Valores distintos presentes en el histórico (misma empresa, granjas del usuario, país en sesión).</summary>
+/// <summary>
+/// Valores distintos en el histórico + lotes en granjas asignadas + catálogo de ubicación (misma jerarquía que filter-data).
+/// Las granjas/núcleos/galpones permiten armar el filtro aunque <c>filter-data</c> falle o cargue tarde.
+/// </summary>
 public sealed record InventarioGestionHistoricoFiltrosDto(
     IReadOnlyList<InventarioGestionLoteFiltroDto> Lotes,
     IReadOnlyList<string> ConceptosEnHistorico,
     IReadOnlyList<string> TiposItemEnHistorico,
-    IReadOnlyList<string> EstadosEnHistorico);
+    IReadOnlyList<string> EstadosEnHistorico,
+    IReadOnlyList<string> MovementTypesEnHistorico,
+    IReadOnlyList<string> UnidadesEnHistorico,
+    IReadOnlyList<string> TiposOperacionEnHistorico,
+    IReadOnlyList<FarmDto> FarmsOrigen,
+    IReadOnlyList<NucleoDto> NucleosOrigen,
+    IReadOnlyList<GalponLiteDto> GalponesOrigen);
 
 /// <summary>Stock de un ítem en una ubicación (granja o granja+núcleo+galpón). Ítem desde item_inventario_ecuador.</summary>
 public sealed record InventarioGestionStockDto(
@@ -88,7 +97,9 @@ public sealed record InventarioGestionTrasladoRequest(
     string? Reference,
     string? Reason,
     /// <summary>Destino para estado en histórico: "granja" → Transferencia a granja, "planta" → Transferencia a planta.</summary>
-    string? DestinoTipo = null
+    string? DestinoTipo = null,
+    /// <summary>Fecha en que se realizó el traslado (solo día). Si es null, se usa la fecha/hora actual del servidor.</summary>
+    DateTime? FechaMovimiento = null
 );
 
 /// <summary>Registro del histórico de movimientos (entradas, salidas, traslados).</summary>

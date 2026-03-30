@@ -1,5 +1,7 @@
 // src/environments/environment.prod.ts
 export const environment = {
+  appName: 'ItalGranja',
+  appTagline: 'Gestión de granjas avícolas · Italcol',
   production: true,
   // Usar ALB para rutas /api (será redirigido al backend por el ALB)
   apiUrl: '/api',

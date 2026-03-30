@@ -382,9 +382,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "ZooSanMarino",
+        Title = "ItalGranja API",
         Version = "v1",
-        Description = "API de gestión ZooSanMarino (Roles, Usuarios, Granjas, Núcleos, Galpones, Lotes, Inventario, Producción, etc.)"
+        Description = "API ItalGranja — gestión avícola (roles, usuarios, granjas, lotes, inventario, producción, etc.)"
     });
 
     // 🔐 Bearer
@@ -571,10 +571,10 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     // Documento principal
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ZooSanMarino v1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ItalGranja API v1");
 
     // UI
-    c.DocumentTitle = "ZooSanMarino — API Docs";
+    c.DocumentTitle = "ItalGranja — API Docs";
     c.DisplayRequestDuration();
     c.EnableFilter();                 // caja de búsqueda/filtrado
     c.EnableDeepLinking();            // anclas navegables
@@ -663,7 +663,7 @@ Policy: https://example.com/security-policy
 // robots.txt
 app.MapGet("/robots.txt", () =>
 {
-    var robotsTxt = @"# robots.txt para ZooSanMarino API
+    var robotsTxt = @"# robots.txt — ItalGranja API
 User-agent: *
 Allow: /api/
 Disallow: /swagger/

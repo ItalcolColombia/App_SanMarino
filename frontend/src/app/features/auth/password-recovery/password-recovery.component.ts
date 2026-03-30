@@ -5,6 +5,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router, RouterModule } from '@angular/router';
 import { PasswordRecoveryService, PasswordRecoveryRequest } from '../../../core/services/auth/password-recovery.service';
 import { InputSanitizerService } from '../../../core/services/security/input-sanitizer.service';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-password-recovery',
@@ -14,6 +15,8 @@ import { InputSanitizerService } from '../../../core/services/security/input-san
   styleUrls: ['./password-recovery.component.scss']
 })
 export class PasswordRecoveryComponent implements OnInit {
+  readonly appName = environment.appName;
+  readonly appTagline = environment.appTagline;
   recoveryForm!: FormGroup;
   loading = false;
   success = false;

@@ -49,6 +49,15 @@ export interface InventarioGestionHistoricoFiltrosDto {
   conceptosEnHistorico: string[];
   tiposItemEnHistorico: string[];
   estadosEnHistorico: string[];
+  /** movementType tal como en BD (Ingreso, Consumo, TrasladoSalida, …). */
+  movementTypesEnHistorico?: string[];
+  unidadesEnHistorico?: string[];
+  /** Etiquetas legibles (mapeadas en backend a movementType). */
+  tiposOperacionEnHistorico?: string[];
+  /** Misma jerarquía que filter-data: granjas asignadas → núcleos → galpones. */
+  farmsOrigen?: FarmDto[];
+  nucleosOrigen?: NucleoDto[];
+  galponesOrigen?: GalponLiteDto[];
 }
 
 export interface InventarioGestionStockDto {
@@ -102,6 +111,8 @@ export interface InventarioGestionTrasladoRequest {
   reason?: string | null;
   /** Destino para estado en histórico: "granja" | "planta" */
   destinoTipo?: string | null;
+  /** Fecha en que se realizó el traslado (solo día, yyyy-MM-dd). Si se omite, el backend usa fecha/hora actual. */
+  fechaMovimiento?: string | null;
 }
 
 /** Registro del histórico de movimientos. */
@@ -257,6 +268,16 @@ export class GestionInventarioService {
     concepto?: string;
     /** Filtro exacto por tipo de ítem (columna tipo_item en catálogo). */
     tipoItem?: string;
+    /** Etiqueta de operación (backend la traduce a movementType). */
+    tipoOperacion?: string;
+    unit?: string;
+    referenceContains?: string;
+    reasonContains?: string;
+    transferGroupId?: string;
+    itemInventarioEcuadorId?: number;
+    fromFarmId?: number;
+    fromNucleoId?: string;
+    fromGalponId?: string;
   } = {}): Observable<InventarioGestionMovimientoDto[]> {
     let httpParams = new HttpParams();
     if (params.farmId != null) httpParams = httpParams.set('farmId', params.farmId);
@@ -270,6 +291,17 @@ export class GestionInventarioService {
     if (params.search?.trim()) httpParams = httpParams.set('search', params.search.trim());
     if (params.concepto?.trim()) httpParams = httpParams.set('concepto', params.concepto.trim());
     if (params.tipoItem?.trim()) httpParams = httpParams.set('tipoItem', params.tipoItem.trim());
+    if (params.tipoOperacion?.trim()) httpParams = httpParams.set('tipoOperacion', params.tipoOperacion.trim());
+    if (params.unit?.trim()) httpParams = httpParams.set('unit', params.unit.trim());
+    if (params.referenceContains?.trim()) httpParams = httpParams.set('referenceContains', params.referenceContains.trim());
+    if (params.reasonContains?.trim()) httpParams = httpParams.set('reasonContains', params.reasonContains.trim());
+    if (params.transferGroupId?.trim()) httpParams = httpParams.set('transferGroupId', params.transferGroupId.trim());
+    if (params.itemInventarioEcuadorId != null && params.itemInventarioEcuadorId > 0) {
+      httpParams = httpParams.set('itemInventarioEcuadorId', String(params.itemInventarioEcuadorId));
+    }
+    if (params.fromFarmId != null) httpParams = httpParams.set('fromFarmId', String(params.fromFarmId));
+    if (params.fromNucleoId) httpParams = httpParams.set('fromNucleoId', params.fromNucleoId);
+    if (params.fromGalponId) httpParams = httpParams.set('fromGalponId', params.fromGalponId);
     return this.http.get<InventarioGestionMovimientoDto[]>(`${this.api}/inventario-gestion/movimientos`, { params: httpParams });
   }
 

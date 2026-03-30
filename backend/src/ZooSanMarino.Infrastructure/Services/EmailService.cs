@@ -15,6 +15,8 @@ public class EmailService : IEmailService
     private readonly ILogger<EmailService> _logger;
     private readonly IEmailQueueService _emailQueue;
     private readonly string _applicationUrl;
+    private readonly string _brandDisplayName;
+    private readonly string _brandTagline;
 
     public EmailService(
         IConfiguration configuration, 
@@ -24,8 +26,12 @@ public class EmailService : IEmailService
         _configuration = configuration;
         _logger = logger;
         _emailQueue = emailQueue;
-        _applicationUrl = _configuration["Email:ApplicationUrl"] ?? "https://zootecnico.sanmarino.com.co";
+        _applicationUrl = _configuration["Email:ApplicationUrl"] ?? "http://localhost:4200";
+        _brandDisplayName = _configuration["Email:BrandName"] ?? "ItalGranja";
+        _brandTagline = _configuration["Email:Tagline"] ?? "Gestión de granjas avícolas · Italcol";
     }
+
+    private string BrandLine => $"{_brandDisplayName} · {_brandTagline}";
 
     /// <summary>
     /// Envía un correo de recuperación de contraseña (agrega a la cola)
@@ -34,7 +40,7 @@ public class EmailService : IEmailService
     {
         try
         {
-            var subject = "Recuperación de contraseña - Sistema Zootécnico";
+            var subject = $"Recuperación de contraseña - {_brandDisplayName}";
             var body = GeneratePasswordRecoveryEmailBody(newPassword, userName);
 
             // Crear metadata para el correo
@@ -64,7 +70,7 @@ public class EmailService : IEmailService
     {
         try
         {
-            var subject = "Bienvenido - Tus credenciales de acceso";
+            var subject = $"Bienvenido a {_brandDisplayName} - Tus credenciales de acceso";
             var body = GenerateWelcomeEmailBody(userName, toEmail, password, applicationUrl);
 
             // Crear metadata para el correo
@@ -221,8 +227,8 @@ public class EmailService : IEmailService
 <body>
     <div class='container'>
         <div class='header'>
-            <div class='logo'>San Marino</div>
-            <div class='subtitle'>Sistema zootécnico · Italcol</div>
+            <div class='logo'>{_brandDisplayName}</div>
+            <div class='subtitle'>{_brandTagline}</div>
         </div>
         
         <div class='content'>
@@ -255,7 +261,7 @@ public class EmailService : IEmailService
         </div>
         
         <div class='footer'>
-            <p class='footer-text'>© {DateTime.Now.Year} San Marino</p>
+            <p class='footer-text'>© {DateTime.Now.Year} {_brandDisplayName}</p>
             <p class='footer-text'>Todos los derechos reservados</p>
             <p class='footer-text'>Este es un correo automático, por favor no responder.</p>
         </div>
@@ -401,8 +407,8 @@ public class EmailService : IEmailService
 <body>
     <div class='container'>
         <div class='header'>
-            <div class='logo'>San Marino</div>
-            <div class='subtitle'>Sistema zootécnico · Italcol</div>
+            <div class='logo'>{_brandDisplayName}</div>
+            <div class='subtitle'>{_brandTagline}</div>
         </div>
         
         <div class='content'>
@@ -442,7 +448,7 @@ public class EmailService : IEmailService
         </div>
         
         <div class='footer'>
-            <p class='footer-text'>© {DateTime.Now.Year} San Marino</p>
+            <p class='footer-text'>© {DateTime.Now.Year} {_brandDisplayName}</p>
             <p class='footer-text'>Todos los derechos reservados</p>
             <p class='footer-text'>Este es un correo automático, por favor no responder.</p>
         </div>

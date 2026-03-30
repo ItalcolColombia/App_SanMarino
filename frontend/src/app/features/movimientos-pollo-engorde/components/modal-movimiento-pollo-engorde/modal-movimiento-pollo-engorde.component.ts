@@ -7,8 +7,7 @@ import {
   SimpleChanges,
   OnDestroy
 } from '@angular/core';
-import { Subscription, from, of, firstValueFrom } from 'rxjs';
-import { catchError, mergeMap, map, toArray } from 'rxjs/operators';
+import { Subscription, firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import {
   FormBuilder,
@@ -21,8 +20,10 @@ import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
   CreateMovimientoPolloEngordeDto,
+  CreateVentaGranjaDespachoDto,
   UpdateMovimientoPolloEngordeDto,
-  ResumenAvesLoteDto
+  ResumenAvesLoteDto,
+  VentaGranjaDespachoLineaDto
 } from '../../services/movimiento-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
@@ -459,26 +460,67 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   private async doSubmitVentaGranjaAsync(usuarioMovimientoId: number): Promise<void> {
-    const lineas = this.ventaLineasGranja.filter((l) => l.h + l.m + l.x > 0);
-    if (lineas.length === 0) {
+    const dto = this.buildVentaGranjaDespachoDto(usuarioMovimientoId);
+    if (!dto) {
       this.error = 'Sin líneas con cantidad.';
       return;
     }
     this.loading = true;
     this.error = null;
     try {
-      for (const linea of lineas) {
-        const dto = this.buildCreateDtoFromLinea(usuarioMovimientoId, linea);
-        if (!dto) throw new Error('Lote no encontrado.');
-        await firstValueFrom(this.movimientoSvc.create(dto));
-      }
+      const res = await firstValueFrom(this.movimientoSvc.createVentaGranjaDespacho(dto));
       this.loading = false;
-      this.save.emit({ ventaGranjaBatchCount: lineas.length });
+      this.save.emit({ ventaGranjaBatchCount: res.movimientos.length });
     } catch (err: unknown) {
       this.loading = false;
       this.error =
         err instanceof Error ? err.message : String((err as { message?: string })?.message ?? 'Error al guardar.');
     }
+  }
+
+  private buildVentaGranjaDespachoDto(usuarioMovimientoId: number): CreateVentaGranjaDespachoDto | null {
+    const conQty = this.ventaLineasGranja.filter((l) => l.h + l.m + l.x > 0);
+    if (conQty.length === 0) return null;
+    const v = this.form.getRawValue();
+    const granjaId = this.lotesVentaGranja[0]?.granjaId ?? null;
+    const lineas: VentaGranjaDespachoLineaDto[] = [];
+    for (const linea of conQty) {
+      const lote = this.lotesVentaGranja.find((l) => l.loteAveEngordeId === linea.loteId);
+      if (!lote) return null;
+      const nid = lote.nucleoId != null && String(lote.nucleoId).trim() !== '' ? String(lote.nucleoId).trim() : null;
+      const gpid =
+        lote.galponId != null && String(lote.galponId).trim() !== '' ? String(lote.galponId).trim() : null;
+      lineas.push({
+        loteAveEngordeOrigenId: linea.loteId,
+        granjaOrigenId: lote.granjaId ?? null,
+        nucleoOrigenId: nid,
+        galponOrigenId: gpid,
+        cantidadHembras: linea.h,
+        cantidadMachos: linea.m,
+        cantidadMixtas: linea.x
+      });
+    }
+    return {
+      fechaMovimiento: new Date(v.fechaMovimiento).toISOString(),
+      tipoMovimiento: 'Venta',
+      granjaOrigenId: granjaId,
+      usuarioMovimientoId,
+      motivoMovimiento: v.motivoMovimiento || null,
+      observaciones: v.observaciones || null,
+      numeroDespacho: v.numeroDespacho || null,
+      edadAves: v.edadAves != null && v.edadAves !== '' ? Number(v.edadAves) : null,
+      totalPollosGalpon: v.totalPollosGalpon != null && v.totalPollosGalpon !== '' ? Number(v.totalPollosGalpon) : null,
+      raza: v.raza || null,
+      placa: v.placa || null,
+      horaSalida: v.horaSalida ? `${v.horaSalida}:00` : null,
+      guiaAgrocalidad: v.guiaAgrocalidad || null,
+      sellos: v.sellos || null,
+      ayuno: v.ayuno || null,
+      conductor: v.conductor || null,
+      pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null,
+      pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null,
+      lineas
+    };
   }
 
   private loadVentaGranjaLineas(): void {
@@ -491,52 +533,43 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     }
     this.loadingVentaLineas = true;
     this.error = null;
-    /** Máximo peticiones HTTP en paralelo (evita miles de conexiones y bloqueo del navegador). */
-    const maxConcurrent = 8;
-    from(lotes.map((l, i) => ({ l, i })))
-      .pipe(
-        mergeMap(
-          ({ l, i }) =>
-            this.movimientoSvc.getResumenAvesLote('LoteAveEngorde', l.loteAveEngordeId).pipe(
-              map((r) => ({ l, i, r })),
-              catchError(() => of({ l, i, r: null as ResumenAvesLoteDto | null }))
-            ),
-          maxConcurrent
-        ),
-        toArray(),
-        map((rows) => rows.sort((a, b) => a.i - b.i))
-      )
-      .subscribe({
-        next: (sorted) => {
-          this.ventaLineasGranja = sorted.map(({ l, r }) => {
-            const maxH = r?.avesActualesHembras ?? l.hembrasL ?? 0;
-            const maxM = r?.avesActualesMachos ?? l.machosL ?? 0;
-            const maxX = r?.avesActualesMixtas ?? l.mixtas ?? 0;
-            const galponId = (l.galponId ?? '').trim() || '__SIN_GALPON__';
-            return {
-              loteId: l.loteAveEngordeId,
-              loteNombre: l.loteNombre || `Lote ${l.loteAveEngordeId}`,
-              galponId,
-              galponLabel: this.labelGalpon(l),
-              maxH: Math.max(0, maxH),
-              maxM: Math.max(0, maxM),
-              maxX: Math.max(0, maxX),
-              h: 0,
-              m: 0,
-              x: 0,
-              hStr: '',
-              mStr: '',
-              xStr: ''
-            };
-          });
-          this.loadingVentaLineas = false;
-          this.rebuildGruposVentaPorGalpon();
-        },
-        error: () => {
-          this.loadingVentaLineas = false;
-          this.error = 'No se pudo cargar la disponibilidad por lote.';
+    const loteIds = lotes.map((l) => l.loteAveEngordeId);
+    this.movimientoSvc.postResumenAvesLotes({ tipoLote: 'LoteAveEngorde', loteIds }).subscribe({
+      next: (resp) => {
+        const byId = new Map<number, ResumenAvesLoteDto | null>();
+        for (const row of resp.items ?? []) {
+          byId.set(row.loteId, row.resumen);
         }
-      });
+        this.ventaLineasGranja = lotes.map((l) => {
+          const r = byId.get(l.loteAveEngordeId);
+          const maxH = r?.avesActualesHembras ?? l.hembrasL ?? 0;
+          const maxM = r?.avesActualesMachos ?? l.machosL ?? 0;
+          const maxX = r?.avesActualesMixtas ?? l.mixtas ?? 0;
+          const galponId = (l.galponId ?? '').trim() || '__SIN_GALPON__';
+          return {
+            loteId: l.loteAveEngordeId,
+            loteNombre: l.loteNombre || `Lote ${l.loteAveEngordeId}`,
+            galponId,
+            galponLabel: this.labelGalpon(l),
+            maxH: Math.max(0, maxH),
+            maxM: Math.max(0, maxM),
+            maxX: Math.max(0, maxX),
+            h: 0,
+            m: 0,
+            x: 0,
+            hStr: '',
+            mStr: '',
+            xStr: ''
+          };
+        });
+        this.loadingVentaLineas = false;
+        this.rebuildGruposVentaPorGalpon();
+      },
+      error: () => {
+        this.loadingVentaLineas = false;
+        this.error = 'No se pudo cargar la disponibilidad por lote.';
+      }
+    });
   }
 
   private rebuildGruposVentaPorGalpon(): void {
@@ -579,48 +612,6 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       line.xStr = parsed > max ? String(max) : digits;
       line.x = clamped;
     }
-  }
-
-  private buildCreateDtoFromLinea(
-    usuarioMovimientoId: number,
-    linea: VentaLineaGranja
-  ): CreateMovimientoPolloEngordeDto | null {
-    const lote = this.lotesVentaGranja.find((l) => l.loteAveEngordeId === linea.loteId);
-    if (!lote) return null;
-    const v = this.form.getRawValue();
-    const nid = lote.nucleoId != null && String(lote.nucleoId).trim() !== '' ? String(lote.nucleoId).trim() : null;
-    const gpid =
-      lote.galponId != null && String(lote.galponId).trim() !== '' ? String(lote.galponId).trim() : null;
-
-    return {
-      fechaMovimiento: new Date(v.fechaMovimiento).toISOString(),
-      tipoMovimiento: 'Venta',
-      loteAveEngordeOrigenId: linea.loteId,
-      loteReproductoraAveEngordeOrigenId: null,
-      granjaOrigenId: lote.granjaId ?? null,
-      nucleoOrigenId: nid,
-      galponOrigenId: gpid,
-      loteAveEngordeDestinoId: null,
-      loteReproductoraAveEngordeDestinoId: null,
-      cantidadHembras: linea.h,
-      cantidadMachos: linea.m,
-      cantidadMixtas: linea.x,
-      motivoMovimiento: v.motivoMovimiento || null,
-      observaciones: v.observaciones || null,
-      usuarioMovimientoId,
-      numeroDespacho: v.numeroDespacho || null,
-      edadAves: v.edadAves != null && v.edadAves !== '' ? Number(v.edadAves) : null,
-      totalPollosGalpon: v.totalPollosGalpon != null && v.totalPollosGalpon !== '' ? Number(v.totalPollosGalpon) : null,
-      raza: v.raza || null,
-      placa: v.placa || null,
-      horaSalida: v.horaSalida ? `${v.horaSalida}:00` : null,
-      guiaAgrocalidad: v.guiaAgrocalidad || null,
-      sellos: v.sellos || null,
-      ayuno: v.ayuno || null,
-      conductor: v.conductor || null,
-      pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null,
-      pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null
-    };
   }
 
   private buildUpdateDto(): UpdateMovimientoPolloEngordeDto {

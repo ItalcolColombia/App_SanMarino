@@ -50,6 +50,8 @@ export interface SeguimientoLoteLevanteDto {
   ciclo: string;                  // "Normal" | "Reforzado"
   tipoAlimentoHembras?: number | null; // (calculo interno, no se envía en create/update)
   tipoAlimentoMachos?: number | null;  // (calculo interno, no se envía en create/update)
+  /** Saldo de alimento (kg) al cierre del día en bodega; solo pollo de engorde (API). */
+  saldoAlimentoKg?: number | null;
 }
 
 // Representa un ítem individual en el seguimiento

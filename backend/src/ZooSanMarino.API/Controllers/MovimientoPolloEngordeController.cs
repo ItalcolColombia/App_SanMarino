@@ -65,6 +65,60 @@ public class MovimientoPolloEngordeController : ControllerBase
         return Ok(resumen);
     }
 
+    /// <summary>Resúmenes de varios lotes en una sola petición (una fila por id solicitado).</summary>
+    [HttpPost("resumen-aves-lotes")]
+    [ProducesResponseType(typeof(ResumenAvesLotesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostResumenAvesLotes([FromBody] ResumenAvesLotesRequest request)
+    {
+        if (request is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.GetResumenAvesLotesAsync(request);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Venta por granja: varios movimientos Pendiente con la misma cabecera de despacho, en una transacción.</summary>
+    [HttpPost("venta-granja-despacho")]
+    [ProducesResponseType(typeof(VentaGranjaDespachoResultDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostVentaGranjaDespacho([FromBody] CreateVentaGranjaDespachoDto dto)
+    {
+        if (dto is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.CreateVentaGranjaDespachoAsync(dto);
+            return StatusCode(StatusCodes.Status201Created, res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>Completa varios movimientos Pendiente en una transacción.</summary>
+    [HttpPost("completar-batch")]
+    [ProducesResponseType(typeof(IReadOnlyList<MovimientoPolloEngordeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostCompletarBatch([FromBody] CompletarMovimientosBatchRequest request)
+    {
+        if (request is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.CompletarBatchAsync(request.MovimientoIds);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(MovimientoPolloEngordeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

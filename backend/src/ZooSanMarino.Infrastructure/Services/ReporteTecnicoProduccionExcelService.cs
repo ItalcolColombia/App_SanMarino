@@ -13,7 +13,7 @@ public class ReporteTecnicoProduccionExcelService
 {
     static ReporteTecnicoProduccionExcelService()
     {
-        ExcelPackage.License.SetNonCommercialPersonal("ZooSanMarino");
+        ExcelPackage.License.SetNonCommercialPersonal("ItalGranja");
     }
 
     /// <summary>
