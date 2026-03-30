@@ -11,6 +11,21 @@ namespace ZooSanMarino.Infrastructure.Services;
 
 public class InventarioGestionService : IInventarioGestionService
 {
+    /// <summary>Etiquetas de operación (coinciden con <see cref="MapTipoOperacionLabel"/>).</summary>
+    private static readonly IReadOnlyList<string> TiposOperacionFiltroLabels =
+    [
+        "Ingreso",
+        "Consumo",
+        "Traslado (salida entre galpones)",
+        "Traslado (entrada entre galpones)",
+        "Traslado entre granjas (solicitud pendiente)",
+        "Traslado entre granjas (en tránsito)",
+        "Traslado entre granjas (recepción)",
+        "Traslado entre granjas (rechazado)",
+        "Ajuste manual de stock",
+        "Eliminación de registro de stock"
+    ];
+
     private readonly ZooSanMarinoContext _db;
     private readonly ICurrentUser? _current;
     private readonly ICompanyResolver _companyResolver;
@@ -32,6 +47,15 @@ public class InventarioGestionService : IInventarioGestionService
         _farmService = farmService;
         _nucleoService = nucleoService;
         _galponService = galponService;
+    }
+
+    /// <summary>Fecha en histórico: día elegido a mediodía UTC; si no hay fecha, hora actual del servidor (mismo criterio que ingresos).</summary>
+    private static DateTimeOffset ResolveMovimientoCreatedAt(DateTime? fechaMovimiento)
+    {
+        if (!fechaMovimiento.HasValue)
+            return DateTimeOffset.UtcNow;
+        var d = fechaMovimiento.Value.Date;
+        return new DateTimeOffset(d.Year, d.Month, d.Day, 12, 0, 0, TimeSpan.Zero);
     }
 
     private async Task<int?> GetEffectiveCompanyIdAsync(CancellationToken ct = default)
@@ -71,6 +95,32 @@ public class InventarioGestionService : IInventarioGestionService
         return farms.Select(f => f.Id).ToHashSet();
     }
 
+    /// <summary>Granjas asignadas al usuario en la empresa + núcleos y galpones asociados (misma regla que filtros de stock/histórico).</summary>
+    private async Task<(List<FarmDto> FarmsOrigen, List<NucleoDto> NucleosOrigen, List<GalponLiteDto> GalponesOrigen)> LoadOrigenUbicacionUsuarioEnEmpresaAsync(
+        int companyId,
+        CancellationToken ct = default)
+    {
+        if (_current?.UserGuid is not { } userGuid || userGuid == Guid.Empty)
+            return ([], [], []);
+
+        var idsOrigen = await _farmService.GetAssignedFarmIdsForUserAsync(userGuid, ct).ConfigureAwait(false);
+        var farmsOrigen = (await _farmService.GetFarmDtosByIdsInCompanyAsync(idsOrigen, companyId, ct).ConfigureAwait(false)).ToList();
+        var allowedOrigenIds = farmsOrigen.Select(f => f.Id).ToHashSet();
+        if (allowedOrigenIds.Count == 0)
+            return (farmsOrigen, [], []);
+
+        var nucleosAll = (await _nucleoService.GetAllAsync().ConfigureAwait(false)).ToList();
+        var nucleosOrigen = nucleosAll.Where(n => allowedOrigenIds.Contains(n.GranjaId)).ToList();
+
+        var galponesDetailAll = (await _galponService.GetAllAsync().ConfigureAwait(false)).ToList();
+        var galponesOrigen = galponesDetailAll
+            .Where(g => allowedOrigenIds.Contains(g.GranjaId))
+            .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId))
+            .ToList();
+
+        return (farmsOrigen, nucleosOrigen, galponesOrigen);
+    }
+
     public async Task<InventarioGestionFilterDataDto> GetFilterDataAsync(CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
@@ -91,38 +141,18 @@ public class InventarioGestionService : IInventarioGestionService
         var farmsDestino = (await _farmService.GetAllAsync(userId: null, companyId: cid).ConfigureAwait(false)).ToList();
         var allowedDestinoIds = farmsDestino.Select(f => f.Id).ToHashSet();
 
-        // Granjas asignadas al usuario (origen: stock, ingreso destino, traslado origen, filtros de gestión)
-        List<FarmDto> farmsOrigen;
-        if (_current?.UserGuid is { } userGuid && userGuid != Guid.Empty)
-        {
-            var idsOrigen = await _farmService.GetAssignedFarmIdsForUserAsync(userGuid, ct).ConfigureAwait(false);
-            farmsOrigen = (await _farmService.GetFarmDtosByIdsInCompanyAsync(idsOrigen, cid, ct).ConfigureAwait(false)).ToList();
-        }
-        else
-        {
-            farmsOrigen = new List<FarmDto>();
-        }
-
-        var allowedOrigenIds = farmsOrigen.Select(f => f.Id).ToHashSet();
+        var (farmsOrigen, nucleosOrigen, galponesOrigen) = await LoadOrigenUbicacionUsuarioEnEmpresaAsync(cid, ct).ConfigureAwait(false);
 
         var nucleosAll = (await _nucleoService.GetAllAsync().ConfigureAwait(false)).ToList();
-        var nucleosOrigen = allowedOrigenIds.Count > 0
-            ? nucleosAll.Where(n => allowedOrigenIds.Contains(n.GranjaId)).ToList()
-            : new List<NucleoDto>();
         var nucleosDestino = allowedDestinoIds.Count > 0
             ? nucleosAll.Where(n => allowedDestinoIds.Contains(n.GranjaId)).ToList()
             : new List<NucleoDto>();
 
         var galponesDetailAll = (await _galponService.GetAllAsync().ConfigureAwait(false)).ToList();
-        var galponesDetailOrigen = allowedOrigenIds.Count > 0
-            ? galponesDetailAll.Where(g => allowedOrigenIds.Contains(g.GranjaId)).ToList()
-            : new List<GalponDetailDto>();
         var galponesDetailDestino = allowedDestinoIds.Count > 0
             ? galponesDetailAll.Where(g => allowedDestinoIds.Contains(g.GranjaId)).ToList()
             : new List<GalponDetailDto>();
 
-        var galponesOrigen = galponesDetailOrigen
-            .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId)).ToList();
         var galponesDestino = galponesDetailDestino
             .Select(g => new GalponLiteDto(g.GalponId, g.GalponNombre, g.NucleoId, g.GranjaId)).ToList();
 
@@ -144,33 +174,59 @@ public class InventarioGestionService : IInventarioGestionService
                 Array.Empty<InventarioGestionLoteFiltroDto>(),
                 Array.Empty<string>(),
                 Array.Empty<string>(),
-                Array.Empty<string>());
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                TiposOperacionFiltroLabels,
+                Array.Empty<FarmDto>(),
+                Array.Empty<NucleoDto>(),
+                Array.Empty<GalponLiteDto>());
         }
 
         var cid = companyId.Value;
-        var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(cid, ct).ConfigureAwait(false);
+        var (farmsOrigenHist, nucleosOrigenHist, galponesOrigenHist) =
+            await LoadOrigenUbicacionUsuarioEnEmpresaAsync(cid, ct).ConfigureAwait(false);
+        var allowedFarmIds = farmsOrigenHist.Select(f => f.Id).ToHashSet();
+        var paisId = await GetEffectivePaisIdAsync(null, ct);
+
         if (allowedFarmIds.Count == 0)
         {
             return new InventarioGestionHistoricoFiltrosDto(
                 Array.Empty<InventarioGestionLoteFiltroDto>(),
                 Array.Empty<string>(),
                 Array.Empty<string>(),
-                Array.Empty<string>());
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                TiposOperacionFiltroLabels,
+                farmsOrigenHist,
+                nucleosOrigenHist,
+                galponesOrigenHist);
         }
 
-        var paisId = await GetEffectivePaisIdAsync(null, ct);
+        // Lotes por granja asignada: la empresa se toma de farms.company_id (muchas filas legacy tienen lotes.company_id desalineado).
+        var lotesQuery = _db.Lotes.AsNoTracking()
+            .Join(_db.Farms.AsNoTracking(),
+                l => l.GranjaId,
+                f => f.Id,
+                (l, f) => new { l, f })
+            .Where(x => x.l.DeletedAt == null
+                        && allowedFarmIds.Contains(x.l.GranjaId)
+                        && x.f.CompanyId == cid
+                        && x.f.DeletedAt == null);
+        if (paisId > 0)
+            lotesQuery = lotesQuery.Where(x => x.l.PaisId == null || x.l.PaisId == paisId);
 
-        var lotes = await _db.Lotes.AsNoTracking()
-            .Where(l => l.CompanyId == cid && l.DeletedAt == null && l.LoteId != null && allowedFarmIds.Contains(l.GranjaId))
-            .OrderByDescending(l => l.FechaEncaset)
-            .ThenBy(l => l.LoteNombre)
-            .Select(l => new InventarioGestionLoteFiltroDto(
-                l.LoteId!.Value,
-                l.LoteNombre,
-                l.Fase,
-                l.GranjaId,
-                l.NucleoId,
-                l.GalponId))
+        var lotes = await lotesQuery
+            .OrderByDescending(x => x.l.FechaEncaset)
+            .ThenBy(x => x.l.LoteNombre)
+            .Select(x => new InventarioGestionLoteFiltroDto(
+                x.l.LoteId!.Value,
+                x.l.LoteNombre,
+                x.l.Fase,
+                x.l.GranjaId,
+                x.l.NucleoId,
+                x.l.GalponId))
             .ToListAsync(ct);
 
         var movBase = _db.InventarioGestionMovimientos.AsNoTracking()
@@ -203,7 +259,31 @@ public class InventarioGestionService : IInventarioGestionService
             .ToListAsync(ct);
         estados.Sort(StringComparer.OrdinalIgnoreCase);
 
-        return new InventarioGestionHistoricoFiltrosDto(lotes, conceptos, tiposItem, estados);
+        var movementTypes = await movBase
+            .Where(m => m.MovementType != null && m.MovementType != "")
+            .Select(m => m.MovementType.Trim())
+            .Distinct()
+            .ToListAsync(ct);
+        movementTypes.Sort(StringComparer.OrdinalIgnoreCase);
+
+        var unidades = await movBase
+            .Where(m => m.Unit != null && m.Unit != "")
+            .Select(m => m.Unit.Trim())
+            .Distinct()
+            .ToListAsync(ct);
+        unidades.Sort(StringComparer.OrdinalIgnoreCase);
+
+        return new InventarioGestionHistoricoFiltrosDto(
+            lotes,
+            conceptos,
+            tiposItem,
+            estados,
+            movementTypes,
+            unidades,
+            TiposOperacionFiltroLabels,
+            farmsOrigenHist,
+            nucleosOrigenHist,
+            galponesOrigenHist);
     }
 
     public async Task<List<InventarioGestionStockDto>> GetStockAsync(
@@ -355,14 +435,7 @@ public class InventarioGestionService : IInventarioGestionService
             : string.Equals(origenTipoNorm, "bodega", StringComparison.OrdinalIgnoreCase)
                 ? "Entrada bodega"
                 : "Entrada granja";
-        var movCreatedAt = req.FechaMovimiento.HasValue
-            ? new DateTimeOffset(
-                req.FechaMovimiento.Value.Year,
-                req.FechaMovimiento.Value.Month,
-                req.FechaMovimiento.Value.Day,
-                12, 0, 0,
-                TimeSpan.Zero)
-            : DateTimeOffset.UtcNow;
+        var movCreatedAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
 
         var mov = new InventarioGestionMovimiento
         {
@@ -466,6 +539,7 @@ public class InventarioGestionService : IInventarioGestionService
         var estadoTraslado = string.Equals(req.DestinoTipo?.Trim(), "planta", StringComparison.OrdinalIgnoreCase)
             ? "Transferencia a planta"
             : "Transferencia a granja";
+        var movAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
         _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
         {
             CompanyId = stockOrigen.CompanyId,
@@ -484,7 +558,7 @@ public class InventarioGestionService : IInventarioGestionService
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             TransferGroupId = transferGroupId,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = movAt,
             CreatedByUserId = _current?.UserId.ToString()
         });
         _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
@@ -505,7 +579,7 @@ public class InventarioGestionService : IInventarioGestionService
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             TransferGroupId = transferGroupId,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = movAt,
             CreatedByUserId = _current?.UserId.ToString()
         });
 
@@ -560,6 +634,7 @@ public class InventarioGestionService : IInventarioGestionService
         stockOrigen.Quantity -= req.Quantity;
         stockOrigen.UpdatedAt = DateTimeOffset.UtcNow;
 
+        var movAt = ResolveMovimientoCreatedAt(req.FechaMovimiento);
         _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
         {
             CompanyId = stockOrigen.CompanyId,
@@ -578,7 +653,7 @@ public class InventarioGestionService : IInventarioGestionService
             Reference = req.Reference?.Trim(),
             Reason = req.Reason?.Trim(),
             TransferGroupId = transferGroupId,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = movAt,
             CreatedByUserId = _current?.UserId.ToString()
         });
 
@@ -1108,6 +1183,15 @@ public class InventarioGestionService : IInventarioGestionService
         string? search = null,
         string? concepto = null,
         string? tipoItem = null,
+        string? tipoOperacion = null,
+        string? unit = null,
+        string? referenceContains = null,
+        string? reasonContains = null,
+        string? transferGroupId = null,
+        int? itemInventarioEcuadorId = null,
+        int? fromFarmId = null,
+        string? fromNucleoId = null,
+        string? fromGalponId = null,
         CancellationToken ct = default)
     {
         var companyId = await GetEffectiveCompanyIdAsync(ct);
@@ -1116,6 +1200,12 @@ public class InventarioGestionService : IInventarioGestionService
 
         var allowedFarmIds = await GetAssignedFarmIdsInCompanyAsync(companyId.Value, ct).ConfigureAwait(false);
         if (allowedFarmIds.Count == 0)
+            return new List<InventarioGestionMovimientoDto>();
+
+        if (fromFarmId.HasValue && !allowedFarmIds.Contains(fromFarmId.Value))
+            return new List<InventarioGestionMovimientoDto>();
+
+        if (!fromFarmId.HasValue && (!string.IsNullOrWhiteSpace(fromNucleoId) || !string.IsNullOrWhiteSpace(fromGalponId)))
             return new List<InventarioGestionMovimientoDto>();
 
         int? farmFilter = farmId;
@@ -1135,6 +1225,11 @@ public class InventarioGestionService : IInventarioGestionService
         }
 
         if (farmFilter.HasValue && !allowedFarmIds.Contains(farmFilter.Value))
+            return new List<InventarioGestionMovimientoDto>();
+
+        var ubicacionPorLote = loteId.HasValue && loteId.Value > 0;
+        if (!ubicacionPorLote && !farmFilter.HasValue &&
+            (!string.IsNullOrWhiteSpace(nucleoFilter) || !string.IsNullOrWhiteSpace(galponFilter)))
             return new List<InventarioGestionMovimientoDto>();
 
         var paisId = farmFilter.HasValue ? await GetEffectivePaisIdAsync(farmFilter, ct) : 0;
@@ -1172,6 +1267,15 @@ public class InventarioGestionService : IInventarioGestionService
         if (!string.IsNullOrWhiteSpace(estado)) query = query.Where(x => x.Estado != null && x.Estado.Trim() == estado.Trim());
         if (!string.IsNullOrWhiteSpace(movementType)) query = query.Where(x => x.MovementType == movementType.Trim());
 
+        if (!string.IsNullOrWhiteSpace(tipoOperacion))
+        {
+            var resolved = ResolveMovementTypeFromTipoOperacionLabel(tipoOperacion.Trim());
+            if (resolved != null)
+                query = query.Where(x => x.MovementType == resolved);
+            else
+                return new List<InventarioGestionMovimientoDto>();
+        }
+
         if (!string.IsNullOrWhiteSpace(concepto))
         {
             var c = concepto.Trim().ToLowerInvariant();
@@ -1194,6 +1298,51 @@ public class InventarioGestionService : IInventarioGestionService
             query = query.Where(x =>
                 (x.ItemInventarioEcuador.Codigo ?? "").ToLower().Contains(s) ||
                 (x.ItemInventarioEcuador.Nombre ?? "").ToLower().Contains(s));
+        }
+
+        if (!string.IsNullOrWhiteSpace(unit))
+        {
+            var u = unit.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Unit != null && x.Unit.Trim().ToLower() == u);
+        }
+
+        if (itemInventarioEcuadorId.HasValue && itemInventarioEcuadorId.Value > 0)
+            query = query.Where(x => x.ItemInventarioEcuadorId == itemInventarioEcuadorId.Value);
+
+        if (!string.IsNullOrWhiteSpace(referenceContains))
+        {
+            var r = referenceContains.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Reference != null && x.Reference.ToLower().Contains(r));
+        }
+
+        if (!string.IsNullOrWhiteSpace(reasonContains))
+        {
+            var r = reasonContains.Trim().ToLowerInvariant();
+            query = query.Where(x => x.Reason != null && x.Reason.ToLower().Contains(r));
+        }
+
+        if (!string.IsNullOrWhiteSpace(transferGroupId))
+        {
+            var tg = transferGroupId.Trim();
+            if (!Guid.TryParse(tg, out var gid))
+                return new List<InventarioGestionMovimientoDto>();
+            query = query.Where(x => x.TransferGroupId == gid);
+        }
+
+        if (fromFarmId.HasValue)
+        {
+            query = query.Where(x => x.FromFarmId == fromFarmId.Value);
+            if (!string.IsNullOrWhiteSpace(fromNucleoId))
+            {
+                var fn = fromNucleoId.Trim();
+                query = query.Where(x => x.FromNucleoId == fn);
+            }
+
+            if (!string.IsNullOrWhiteSpace(fromGalponId))
+            {
+                var fg = fromGalponId.Trim();
+                query = query.Where(x => x.FromGalponId == fg);
+            }
         }
 
         var list = await query
@@ -1286,5 +1435,21 @@ public class InventarioGestionService : IInventarioGestionService
         "AjusteStock" => "Ajuste manual de stock",
         "EliminacionStock" => "Eliminación de registro de stock",
         _ => movementType
+    };
+
+    /// <summary>Inverso de <see cref="MapTipoOperacionLabel"/> para filtro por etiqueta.</summary>
+    private static string? ResolveMovementTypeFromTipoOperacionLabel(string label) => label switch
+    {
+        "Ingreso" => "Ingreso",
+        "Consumo" => "Consumo",
+        "Traslado (salida entre galpones)" => "TrasladoSalida",
+        "Traslado (entrada entre galpones)" => "TrasladoEntrada",
+        "Traslado entre granjas (solicitud pendiente)" => "TrasladoInterGranjaPendiente",
+        "Traslado entre granjas (en tránsito)" => "TrasladoInterGranjaSalida",
+        "Traslado entre granjas (recepción)" => "TrasladoInterGranjaEntrada",
+        "Traslado entre granjas (rechazado)" => "TrasladoInterGranjaRechazado",
+        "Ajuste manual de stock" => "AjusteStock",
+        "Eliminación de registro de stock" => "EliminacionStock",
+        _ => null
     };
 }

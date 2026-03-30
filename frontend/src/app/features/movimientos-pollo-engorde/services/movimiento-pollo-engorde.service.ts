@@ -74,6 +74,53 @@ export interface ResumenAvesLoteDto {
   avesActualesTotal: number;
 }
 
+/** Respuesta de POST /resumen-aves-lotes (una entrada por id solicitado). */
+export interface ResumenAvesLotePorIdDto {
+  loteId: number;
+  resumen: ResumenAvesLoteDto | null;
+}
+
+export interface ResumenAvesLotesResponse {
+  items: ResumenAvesLotePorIdDto[];
+}
+
+export interface VentaGranjaDespachoLineaDto {
+  loteAveEngordeOrigenId: number;
+  granjaOrigenId?: number | null;
+  nucleoOrigenId?: string | null;
+  galponOrigenId?: string | null;
+  cantidadHembras: number;
+  cantidadMachos: number;
+  cantidadMixtas: number;
+}
+
+export interface CreateVentaGranjaDespachoDto {
+  fechaMovimiento: string;
+  tipoMovimiento: string;
+  granjaOrigenId?: number | null;
+  usuarioMovimientoId: number;
+  motivoMovimiento?: string | null;
+  descripcion?: string | null;
+  observaciones?: string | null;
+  numeroDespacho?: string | null;
+  edadAves?: number | null;
+  totalPollosGalpon?: number | null;
+  raza?: string | null;
+  placa?: string | null;
+  horaSalida?: string | null;
+  guiaAgrocalidad?: string | null;
+  sellos?: string | null;
+  ayuno?: string | null;
+  conductor?: string | null;
+  pesoBruto?: number | null;
+  pesoTara?: number | null;
+  lineas: VentaGranjaDespachoLineaDto[];
+}
+
+export interface VentaGranjaDespachoResultDto {
+  movimientos: MovimientoPolloEngordeDto[];
+}
+
 export interface CreateMovimientoPolloEngordeDto {
   fechaMovimiento: string;
   tipoMovimiento: string;
@@ -231,6 +278,27 @@ export class MovimientoPolloEngordeService {
   getResumenAvesLote(tipoLote: 'LoteAveEngorde' | 'LoteReproductoraAveEngorde', loteId: number): Observable<ResumenAvesLoteDto> {
     return this.http
       .get<ResumenAvesLoteDto>(`${this.base}/resumen-aves-lote`, { params: { tipoLote, loteId: String(loteId) } })
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Varios resúmenes en una sola petición HTTP. */
+  postResumenAvesLotes(body: { tipoLote: string; loteIds: number[] }): Observable<ResumenAvesLotesResponse> {
+    return this.http
+      .post<ResumenAvesLotesResponse>(`${this.base}/resumen-aves-lotes`, body)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Venta por granja: cabecera de despacho + líneas; crea todos los movimientos Pendiente en una transacción. */
+  createVentaGranjaDespacho(dto: CreateVentaGranjaDespachoDto): Observable<VentaGranjaDespachoResultDto> {
+    return this.http
+      .post<VentaGranjaDespachoResultDto>(`${this.base}/venta-granja-despacho`, dto)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Completa varios movimientos Pendiente en una sola transacción en servidor. */
+  completarBatch(movimientoIds: number[]): Observable<MovimientoPolloEngordeDto[]> {
+    return this.http
+      .post<MovimientoPolloEngordeDto[]>(`${this.base}/completar-batch`, { movimientoIds })
       .pipe(catchError(this.handleError));
   }
 

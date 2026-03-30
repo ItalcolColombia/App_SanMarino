@@ -103,11 +103,27 @@
 
         <!-- Registros diarios (vista tipo libro: fechas, pérdidas, alimento, traslado, saldos) -->
         <div class="table-container table-container--diario">
-          <h4>Registros Diarios</h4>
-          <p class="registro-diario__hint">
+          <div class="registro-diario__toolbar">
+            <h4>Registros Diarios</h4>
+            <button
+              *ngIf="showExportSeguimientoExcel"
+              type="button"
+              class="btn btn--outline registro-diario__export"
+              [disabled]="loading || !diarioFilas.length"
+              (click)="exportSeguimientoDiarioExcel()"
+              [title]="(!diarioFilas.length ? 'Sin registros para exportar' : 'Descargar Excel con todas las columnas de la tabla')">
+              Descargar Excel
+            </button>
+          </div>
+          <p class="registro-diario__hint" *ngIf="!enriquecerTablaConHistoricoInventario">
             Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − bajas acumuladas (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
-            <strong>Ingreso alimento</strong>, <strong>traslado</strong> y <strong>documento</strong> se muestran si están guardados en el registro (metadata);
-            el traslado de alimento puede consumir movimientos de traslado de inventario según corresponda.
+            <strong>Ingreso alimento</strong>, <strong>traslado</strong> y <strong>documento</strong> se muestran si están guardados en el registro (metadata).
+          </p>
+          <p class="registro-diario__hint" *ngIf="enriquecerTablaConHistoricoInventario">
+            Orden cronológico por fecha de registro. <strong>Ingreso</strong>, <strong>traslado</strong>, <strong>documento</strong>,
+            <strong>despachos</strong> y <strong>consumo bodega</strong> vienen del historial unificado (fecha de operación).
+            <strong>Saldo alimento</strong> (kg al cierre del día) se guarda en el registro diario y se recalcula desde inventario: ingresos + traslados entrada − traslados salida − consumos de bodega.
+            El <strong>consumo real</strong> (kg hembras/machos) sigue siendo el del seguimiento diario.
           </p>
           <div class="ux-scroll ux-scroll--diario">
             <table class="ux-table ux-table--registro-diario">
@@ -124,6 +140,9 @@
                   <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
                   <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
                   <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
+                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
+                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">bodega (kg)</span></th>
+                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
                   <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
@@ -143,7 +162,7 @@
               </thead>
               <tbody>
                 <tr *ngIf="!loading && (!diarioFilas || diarioFilas.length === 0)">
-                  <td colspan="26" class="empty-state">
+                  <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
                     <div class="empty-illustration" aria-hidden="true">📄</div>
                     <p>Sin registros para este lote.</p>
                     <button type="button" class="btn btn--outline" (click)="onCreate()" [disabled]="disableCreateEditDelete" [title]="disableCreateEditDelete ? 'El lote está cerrado o no hay aves disponibles' : 'Crear el primero'">
@@ -164,6 +183,9 @@
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
                   <td class="num">{{ f.despachoH != null ? (f.despachoH | number:'1.0-0') : '—' }}</td>
                   <td class="num">{{ f.despachoM != null ? (f.despachoM | number:'1.0-0') : '—' }}</td>
+                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
+                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.2-3') : '—' }}</td>
+                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.2-3') : '—' }}</td>
                   <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
                   <td>{{ f.tipoAlimentoCorto }}</td>
                   <td class="cell-text cell-text--wide" [title]="f.ingresoAlimento">{{ f.ingresoAlimento || '—' }}</td>

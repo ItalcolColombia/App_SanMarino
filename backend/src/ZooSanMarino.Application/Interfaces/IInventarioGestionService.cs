@@ -39,6 +39,15 @@ public interface IInventarioGestionService
         string? search = null,
         string? concepto = null,
         string? tipoItem = null,
+        string? tipoOperacion = null,
+        string? unit = null,
+        string? referenceContains = null,
+        string? reasonContains = null,
+        string? transferGroupId = null,
+        int? itemInventarioEcuadorId = null,
+        int? fromFarmId = null,
+        string? fromNucleoId = null,
+        string? fromGalponId = null,
         CancellationToken ct = default);
 
     /// <summary>Traslados inter-granja en tránsito pendientes de recepción en la granja destino (opcional).</summary>

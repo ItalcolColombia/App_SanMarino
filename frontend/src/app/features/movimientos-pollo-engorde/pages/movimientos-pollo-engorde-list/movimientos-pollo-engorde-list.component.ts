@@ -527,7 +527,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     const n = detail?.ventaGranjaBatchCount;
     if (n != null && n > 0) {
       this.toastService.success(
-        `Se registraron ${this.formatearNumero(n)} movimiento(s) de venta (uno por lote). Quedan pendientes de completar.`
+        `Se registraron ${this.formatearNumero(n)} movimiento(s) de venta en una sola operación. Quedan pendientes de completar.`
       );
     } else {
       this.toastService.success('Movimiento guardado correctamente.');
@@ -591,13 +591,10 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.showConfirmationModal = false;
     this.movimientoToCompleteGroup = null;
     this.loading = true;
-    const ok: string[] = [];
     try {
-      for (const m of pendientes) {
-        if (m.estado !== 'Pendiente') continue;
-        await firstValueFrom(this.movimientoSvc.complete(m.id));
-        ok.push(m.numeroMovimiento);
-      }
+      const ids = pendientes.filter((m) => m.estado === 'Pendiente').map((m) => m.id);
+      if (ids.length === 0) return;
+      const ok = await firstValueFrom(this.movimientoSvc.completarBatch(ids));
       this.toastService.success(
         `Despacho completado: ${ok.length} movimiento(s). Se descontaron las aves en cada lote.`
       );

@@ -165,3 +165,66 @@ public record ResumenAvesLoteDto(
     int AvesActualesMixtas,
     int AvesActualesTotal
 );
+
+/// <summary>POST /resumen-aves-lotes: tipo de lote y lista de IDs (misma compañía).</summary>
+public sealed class ResumenAvesLotesRequest
+{
+    public string TipoLote { get; set; } = "LoteAveEngorde";
+    public List<int> LoteIds { get; set; } = new();
+}
+
+/// <summary>Un renglón por lote solicitado; <see cref="Resumen"/> es null si el lote no existe o no aplica.</summary>
+public sealed record ResumenAvesLotePorIdDto(int LoteId, ResumenAvesLoteDto? Resumen);
+
+public sealed class ResumenAvesLotesResponse
+{
+    public List<ResumenAvesLotePorIdDto> Items { get; set; } = new();
+}
+
+/// <summary>Línea de venta por granja (un lote origen y cantidades).</summary>
+public sealed class VentaGranjaDespachoLineaDto
+{
+    public int LoteAveEngordeOrigenId { get; set; }
+    public int? GranjaOrigenId { get; set; }
+    public string? NucleoOrigenId { get; set; }
+    public string? GalponOrigenId { get; set; }
+    public int CantidadHembras { get; set; }
+    public int CantidadMachos { get; set; }
+    public int CantidadMixtas { get; set; }
+}
+
+/// <summary>Cabecera de despacho compartida + líneas por lote. Crea N movimientos en estado Pendiente en una transacción.</summary>
+public sealed class CreateVentaGranjaDespachoDto
+{
+    public DateTime FechaMovimiento { get; set; } = DateTime.UtcNow;
+    public string TipoMovimiento { get; set; } = "Venta";
+    public int? GranjaOrigenId { get; set; }
+    public int UsuarioMovimientoId { get; set; }
+    public string? MotivoMovimiento { get; set; }
+    public string? Descripcion { get; set; }
+    public string? Observaciones { get; set; }
+    public string? NumeroDespacho { get; set; }
+    public int? EdadAves { get; set; }
+    /// <summary>El cliente puede enviar decimal (p. ej. 6.271); se redondea al guardar en movimiento (columna entera).</summary>
+    public double? TotalPollosGalpon { get; set; }
+    public string? Raza { get; set; }
+    public string? Placa { get; set; }
+    public TimeOnly? HoraSalida { get; set; }
+    public string? GuiaAgrocalidad { get; set; }
+    public string? Sellos { get; set; }
+    public string? Ayuno { get; set; }
+    public string? Conductor { get; set; }
+    public double? PesoBruto { get; set; }
+    public double? PesoTara { get; set; }
+    public List<VentaGranjaDespachoLineaDto> Lineas { get; set; } = new();
+}
+
+public sealed class VentaGranjaDespachoResultDto
+{
+    public List<MovimientoPolloEngordeDto> Movimientos { get; set; } = new();
+}
+
+public sealed class CompletarMovimientosBatchRequest
+{
+    public List<int> MovimientoIds { get; set; } = new();
+}

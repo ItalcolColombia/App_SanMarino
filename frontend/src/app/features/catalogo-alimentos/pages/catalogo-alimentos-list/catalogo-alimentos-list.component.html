@@ -360,7 +360,7 @@
             <div class="meta-row" *ngFor="let row of metadataArray.controls; index as i" [formGroupName]="i">
               <input type="text" placeholder="Clave (ej: fabricante, unidad)" formControlName="key" 
                      class="meta-key" maxlength="50" />
-              <input type="text" placeholder="Valor (ej: SanMarino, kg)" formControlName="value" 
+              <input type="text" placeholder="Valor (ej: ItalGranja, kg)" formControlName="value" 
                      class="meta-value" maxlength="500" />
               <button type="button" class="icon-btn icon-btn--danger" (click)="removeMetaRow(i)" 
                       title="Eliminar campo" aria-label="Eliminar">

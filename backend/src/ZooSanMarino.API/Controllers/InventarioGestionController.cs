@@ -150,9 +150,21 @@ public class InventarioGestionController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] string? concepto = null,
         [FromQuery] string? tipoItem = null,
+        [FromQuery] string? tipoOperacion = null,
+        [FromQuery] string? unit = null,
+        [FromQuery] string? referenceContains = null,
+        [FromQuery] string? reasonContains = null,
+        [FromQuery] string? transferGroupId = null,
+        [FromQuery] int? itemInventarioEcuadorId = null,
+        [FromQuery] int? fromFarmId = null,
+        [FromQuery] string? fromNucleoId = null,
+        [FromQuery] string? fromGalponId = null,
         CancellationToken ct = default)
     {
-        var list = await _service.GetMovimientosAsync(farmId, fechaDesde, fechaHasta, estado, movementType, nucleoId, galponId, loteId, search, concepto, tipoItem, ct);
+        var list = await _service.GetMovimientosAsync(
+            farmId, fechaDesde, fechaHasta, estado, movementType, nucleoId, galponId, loteId, search, concepto, tipoItem,
+            tipoOperacion, unit, referenceContains, reasonContains, transferGroupId, itemInventarioEcuadorId,
+            fromFarmId, fromNucleoId, fromGalponId, ct);
         return Ok(list);
     }
 

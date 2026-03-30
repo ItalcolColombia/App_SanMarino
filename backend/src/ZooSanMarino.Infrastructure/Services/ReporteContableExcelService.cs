@@ -13,7 +13,7 @@ public class ReporteContableExcelService
 {
     static ReporteContableExcelService()
     {
-        ExcelPackage.License.SetNonCommercialPersonal("ZooSanMarino");
+        ExcelPackage.License.SetNonCommercialPersonal("ItalGranja");
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontaweso
 import { faHome } from '@fortawesome/free-solid-svg-icons';
 import { AuthService } from '../../core/auth/auth.service';
 import { TokenStorageService } from '../../core/auth/token-storage.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-home',
@@ -16,6 +17,9 @@ import { TokenStorageService } from '../../core/auth/token-storage.service';
 export class HomeComponent implements OnInit {
   private auth = inject(AuthService);
   private storage = inject(TokenStorageService);
+
+  readonly appName = environment.appName;
+  readonly appTagline = environment.appTagline;
 
   loadingMenu = true;
   menuError: string | null = null;

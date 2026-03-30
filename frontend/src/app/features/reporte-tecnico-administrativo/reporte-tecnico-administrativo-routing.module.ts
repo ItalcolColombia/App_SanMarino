@@ -7,7 +7,7 @@ const routes: Routes = [
   {
     path: '',
     component: ReporteTecnicoAdministrativoMainComponent,
-    data: { title: 'Reporte Técnico Administrativo SanMarino' }
+    data: { title: 'Reporte Técnico Administrativo ItalGranja' }
   }
 ];
 

@@ -34,12 +34,24 @@ public class SeguimientoAvesEngordeController : ControllerBase
         return Ok(data);
     }
 
-    /// <summary>Obtener todos los registros de un lote (ordenados por fecha asc).</summary>
+    /// <summary>
+    /// Registros diarios del lote + historial unificado (inventario y ventas), orden cronológico.
+    /// Misma información que GET por-lote/{id}/historico-unificado, incluida aquí para una sola petición.
+    /// </summary>
     [HttpGet("por-lote/{loteId}")]
-    [ProducesResponseType(typeof(IEnumerable<SeguimientoLoteLevanteDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<SeguimientoLoteLevanteDto>>> GetByLote(int loteId)
+    [ProducesResponseType(typeof(SeguimientoAvesEngordePorLoteResponseDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<SeguimientoAvesEngordePorLoteResponseDto>> GetByLote(int loteId)
     {
-        var items = await _svc.GetByLoteAsync(loteId);
+        var data = await _svc.GetByLoteAsync(loteId);
+        return Ok(data);
+    }
+
+    /// <summary>Historial unificado (inventario EC + ventas aves) del lote, orden por fecha de operación.</summary>
+    [HttpGet("por-lote/{loteId}/historico-unificado")]
+    [ProducesResponseType(typeof(IEnumerable<LoteRegistroHistoricoUnificadoDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<LoteRegistroHistoricoUnificadoDto>>> GetHistoricoUnificadoPorLote(int loteId)
+    {
+        var items = await _svc.GetHistoricoUnificadoPorLoteAsync(loteId);
         return Ok(items);
     }
 

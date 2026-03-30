@@ -136,7 +136,8 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
             ConsumoAguaPh: ConsumoAguaPh,
             ConsumoAguaOrp: ConsumoAguaOrp,
             ConsumoAguaTemperatura: ConsumoAguaTemperatura,
-            CreatedByUserId: CreatedByUserId
+            CreatedByUserId: CreatedByUserId,
+            SaldoAlimentoKg: null
         );
     }
 

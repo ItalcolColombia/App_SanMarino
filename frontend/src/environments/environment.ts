@@ -1,5 +1,9 @@
 // src/environments/environment.ts
 export const environment = {
+  /** Nombre comercial de la aplicación (UI, título del documento base). */
+  appName: 'ItalGranja',
+  /** Subtítulo / línea de marca. */
+  appTagline: 'Gestión de granjas avícolas · Italcol',
   production: false,
   //apiUrl: 'https://mi-dominio.com/api'
   apiUrl: 'http://localhost:5002/api',

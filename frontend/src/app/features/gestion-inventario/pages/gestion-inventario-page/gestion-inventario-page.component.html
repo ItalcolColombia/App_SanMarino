@@ -295,11 +295,19 @@
     <div class="card-italfoods form-card">
       <div class="card-italfoods__title">Registrar traslado</div>
       <div class="card-italfoods__body form-grid">
-        <div class="field field-full">
+        <div class="field">
           <label class="form-label">Concepto (Tipo ítem) *</label>
           <select class="form-input" [(ngModel)]="selectedConcept" (ngModelChange)="onItemTypeChange()">
             <option *ngFor="let c of conceptos" [value]="c">{{ c }}</option>
           </select>
+        </div>
+        <div class="field">
+          <label class="form-label" for="traslado-fecha-movimiento">Fecha del traslado *</label>
+          <input
+            id="traslado-fecha-movimiento"
+            class="form-input"
+            type="date"
+            [(ngModel)]="trasladoFechaMovimiento" />
         </div>
 
         <div class="field field-full traslado-modos">
@@ -525,12 +533,13 @@
   <section *ngIf="activeTab === 'historico'" class="tab-content">
     <div class="card-italfoods filters">
       <div class="card-italfoods__title"><fa-icon [icon]="faFilter"></fa-icon> Filtros</div>
-      <p class="hint field-full" style="margin: 0 0 0.75rem 0">
-        <strong>Granjas</strong> mostradas: las asignadas a su usuario. Filtre por ubicación (núcleo/galpón), por <strong>lote</strong> (todas las fases en sus granjas),
-        por <strong>concepto</strong> y <strong>tipo de ítem</strong> según lo ya registrado en el histórico, fechas y estado. Si elige un <strong>lote</strong>, el sistema usa esa ubicación
-        y no aplica núcleo/galpón manual. Use <strong>Buscar ítem</strong> para código o nombre del producto.
+      <p class="hint historico-filtros-hint">
+        <strong>Filtros principales:</strong> granja o lote, fechas, tipo de operación, estado y búsqueda por código o nombre de ítem.
+        <strong>Más filtros:</strong> núcleo/galpón de registro, concepto y tipo de ítem del catálogo, ítem por ID, unidad, tipo de movimiento técnico, referencia/motivo, grupo de traslado y origen (traslados).
+        Al abrir esta pestaña se cargan granjas, núcleos, galpones y lotes alineados a su usuario y a la empresa de la granja; con <strong>lote</strong> seleccionado no aplica núcleo/galpón manual.
       </p>
-      <div class="card-italfoods__body filters-grid">
+      <div class="card-italfoods__body filters-grid historico-filtros-grid">
+        <!-- Prioritarios -->
         <div class="field">
           <label class="form-label">Granja</label>
           <select class="form-input" [(ngModel)]="historicoFarmId" (ngModelChange)="onHistoricoFarmChange()">
@@ -539,61 +548,14 @@
           </select>
         </div>
         <div class="field">
-          <label class="form-label">Núcleo</label>
-          <select
-            class="form-input"
-            [(ngModel)]="historicoNucleoId"
-            (ngModelChange)="onHistoricoNucleoChange()"
-            [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
-          >
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let n of historicoNucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Galpón</label>
-          <select
-            class="form-input"
-            [(ngModel)]="historicoGalponId"
-            [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
-          >
-            <option [ngValue]="null">Todos</option>
-            <option *ngFor="let g of historicoGalponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
-          </select>
-        </div>
-        <div class="field">
           <label class="form-label">Lote</label>
-          <select
-            class="form-input"
-            [(ngModel)]="historicoLoteId"
-            (ngModelChange)="onHistoricoLoteChange()"
-          >
+          <select class="form-input" [(ngModel)]="historicoLoteId" (ngModelChange)="onHistoricoLoteChange()">
             <option [ngValue]="null">Todos</option>
             <option *ngFor="let l of historicoLotesFiltered" [ngValue]="l.loteId">{{ historicoLoteOptionLabel(l) }}</option>
           </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Concepto (en histórico)</label>
-          <select class="form-input" [(ngModel)]="historicoConcepto">
-            <option value="">Todos</option>
-            <option *ngFor="let c of historicoConceptosOptions" [value]="c">{{ c }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="form-label">Tipo de ítem (en histórico)</label>
-          <select class="form-input" [(ngModel)]="historicoTipoItem">
-            <option value="">Todos</option>
-            <option *ngFor="let t of historicoTiposItemOptions" [value]="t">{{ t }}</option>
-          </select>
-        </div>
-        <div class="field field-full">
-          <label class="form-label">Buscar ítem</label>
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="historicoItemSearch"
-            placeholder="Código o nombre del producto (catálogo)"
-          />
+          <small class="hint" style="display: block; margin-top: 0.35rem">
+            Si en <strong>Más filtros</strong> elige núcleo/galpón, aquí solo verá lotes de esa ubicación.
+          </small>
         </div>
         <div class="field">
           <label class="form-label">Fecha desde</label>
@@ -604,20 +566,166 @@
           <input class="form-input" type="date" [(ngModel)]="historicoFechaHasta" />
         </div>
         <div class="field">
+          <label class="form-label">Tipo de operación</label>
+          <select class="form-input" [(ngModel)]="historicoTipoOperacion">
+            <option value="">Todos</option>
+            <option *ngFor="let x of historicoTiposOperacionOptions" [value]="x">{{ x }}</option>
+          </select>
+        </div>
+        <div class="field">
           <label class="form-label">Estado</label>
           <select class="form-input" [(ngModel)]="historicoEstado">
             <option value="">Todos</option>
             <option *ngFor="let e of historicoEstadosOptions" [value]="e">{{ e }}</option>
           </select>
         </div>
-        <div class="field actions">
+        <div class="field field-full">
+          <label class="form-label">Buscar ítem (código o nombre)</label>
+          <input
+            class="form-input"
+            type="text"
+            [(ngModel)]="historicoItemSearch"
+            placeholder="Contiene en código o nombre del catálogo"
+          />
+        </div>
+        <div class="field field-full historico-filtros-actions-row">
           <button type="button" class="btn-italfoods-secondary" (click)="loadMovimientos()" [disabled]="loading">Consultar</button>
+          <button
+            type="button"
+            class="btn-italfoods-secondary historico-filtros-mas-btn"
+            (click)="toggleHistoricoFiltrosAvanzados()"
+            [attr.aria-expanded]="historicoFiltrosAvanzadosAbiertos"
+            aria-controls="historico-filtros-avanzados"
+          >
+            <fa-icon [icon]="historicoFiltrosAvanzadosAbiertos ? faChevronUp : faChevronDown"></fa-icon>
+            {{ historicoFiltrosAvanzadosAbiertos ? 'Ocultar filtros avanzados' : 'Más filtros' }}
+          </button>
+        </div>
+
+        <!-- Avanzados (sin duplicar tipo de operación; ítem por ID ≠ búsqueda texto) -->
+        <div
+          id="historico-filtros-avanzados"
+          class="historico-filtros-avanzados field-full filters-grid"
+          *ngIf="historicoFiltrosAvanzadosAbiertos"
+        >
+          <div class="section-label field-full">Ubicación de registro (detalle)</div>
+          <div class="field">
+            <label class="form-label">Núcleo</label>
+            <select
+              class="form-input"
+              [(ngModel)]="historicoNucleoId"
+              (ngModelChange)="onHistoricoNucleoChange()"
+              [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+            >
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let n of historicoNucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Galpón</label>
+            <select
+              class="form-input"
+              [(ngModel)]="historicoGalponId"
+              (ngModelChange)="onHistoricoGalponChange()"
+              [disabled]="historicoFarmId == null || (historicoLoteId != null && historicoLoteId > 0)"
+            >
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let g of historicoGalponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+
+          <div class="section-label field-full">Catálogo e ítem exacto</div>
+          <div class="field">
+            <label class="form-label">Concepto (catálogo)</label>
+            <select class="form-input" [(ngModel)]="historicoConcepto">
+              <option value="">Todos</option>
+              <option *ngFor="let c of historicoConceptosOptions" [value]="c">{{ c }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Tipo de ítem (catálogo)</label>
+            <select class="form-input" [(ngModel)]="historicoTipoItem">
+              <option value="">Todos</option>
+              <option *ngFor="let t of historicoTiposItemOptions" [value]="t">{{ t }}</option>
+            </select>
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Ítem por ID (catálogo)</label>
+            <select class="form-input" [(ngModel)]="historicoItemInventarioEcuadorId">
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let i of historicoItemsCatalogSorted" [ngValue]="i.id">{{ i.codigo }} — {{ i.nombre }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Unidad</label>
+            <select class="form-input" [(ngModel)]="historicoUnit">
+              <option value="">Todas</option>
+              <option *ngFor="let x of historicoUnidadesOptions" [value]="x">{{ x }}</option>
+            </select>
+          </div>
+          <div class="field field-full hint" style="margin: 0">
+            El <strong>ítem por ID</strong> filtra un producto concreto; <strong>Buscar ítem</strong> arriba busca por texto en código o nombre.
+          </div>
+
+          <div class="section-label field-full">Movimiento (técnico)</div>
+          <div class="field field-full">
+            <label class="form-label">Tipo de movimiento (valor en sistema)</label>
+            <select class="form-input" [(ngModel)]="historicoMovementType">
+              <option value="">Todos</option>
+              <option *ngFor="let x of historicoMovementTypesOptions" [value]="x">{{ x }}</option>
+            </select>
+            <small class="hint" style="display: block; margin-top: 0.35rem">
+              Opcional. Para uso habitual prefiera <strong>Tipo de operación</strong> en los filtros principales; si usa ambos, el resultado debe cumplir los dos.
+            </small>
+          </div>
+
+          <div class="section-label field-full">Texto y traslados</div>
+          <div class="field field-full">
+            <label class="form-label">Referencia contiene</label>
+            <input class="form-input" type="text" [(ngModel)]="historicoReferenceContains" placeholder="Texto en referencia / guía" />
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Motivo contiene</label>
+            <input class="form-input" type="text" [(ngModel)]="historicoReasonContains" placeholder="Texto en motivo o detalle" />
+          </div>
+          <div class="field field-full">
+            <label class="form-label">Grupo traslado (UUID)</label>
+            <input class="form-input" type="text" [(ngModel)]="historicoTransferGroupId" placeholder="00000000-0000-0000-0000-000000000000" />
+          </div>
+
+          <div class="section-label field-full">Origen del movimiento (traslados)</div>
+          <div class="field">
+            <label class="form-label">Granja origen</label>
+            <select class="form-input" [(ngModel)]="historicoFromFarmId" (ngModelChange)="onHistoricoFromFarmChange()">
+              <option [ngValue]="null">Todas</option>
+              <option *ngFor="let f of farmsOrigen" [ngValue]="f.id">{{ f.name }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Núcleo origen</label>
+            <select
+              class="form-input"
+              [(ngModel)]="historicoFromNucleoId"
+              (ngModelChange)="onHistoricoFromNucleoChange()"
+              [disabled]="historicoFromFarmId == null"
+            >
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let n of historicoFromNucleosFiltered" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="form-label">Galpón origen</label>
+            <select class="form-input" [(ngModel)]="historicoFromGalponId" [disabled]="historicoFromFarmId == null">
+              <option [ngValue]="null">Todos</option>
+              <option *ngFor="let g of historicoFromGalponesFiltered" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
-    <div class="card-italfoods">
-      <div class="historico-card-title-row">
-        <div class="card-italfoods__title">Histórico de movimientos</div>
+    <div class="card-italfoods historico-movimientos-card">
+      <header class="historico-movimientos-card__head">
+        <h2 class="historico-movimientos-card__title">Histórico de movimientos</h2>
         <button
           type="button"
           class="btn-italfoods-secondary historico-export-btn"
@@ -627,8 +735,8 @@
         >
           <fa-icon [icon]="faExport"></fa-icon> Descargar Excel (CSV)
         </button>
-      </div>
-      <div class="card-italfoods__body">
+      </header>
+      <div class="card-italfoods__body historico-movimientos-card__body">
         <p class="hint field-full">
           Tabla de movimientos: puede <strong>anular</strong> líneas de <strong>Consumo</strong> o <strong>Ingreso</strong> para revertir el stock (no aplica a traslados ni tránsito).
         </p>

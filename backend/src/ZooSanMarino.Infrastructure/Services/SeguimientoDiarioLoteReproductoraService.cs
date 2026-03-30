@@ -53,7 +53,8 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             ConsumoAguaPh: e.ConsumoAguaPh,
             ConsumoAguaOrp: e.ConsumoAguaOrp,
             ConsumoAguaTemperatura: e.ConsumoAguaTemperatura,
-            CreatedByUserId: e.CreatedByUserId
+            CreatedByUserId: e.CreatedByUserId,
+            SaldoAlimentoKg: null
         );
     }
 
