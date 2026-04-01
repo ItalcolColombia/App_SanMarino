@@ -1,5 +1,6 @@
 // src/app/features/gestion-inventario/pages/gestion-inventario-page/gestion-inventario-page.component.ts
 import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -194,7 +195,10 @@ export class GestionInventarioPageComponent implements OnInit {
 
   private allCatalogItems: ItemInventarioEcuadorDto[] = [];
 
-  constructor(private svc: GestionInventarioService) {}
+  constructor(
+    private svc: GestionInventarioService,
+    private route: ActivatedRoute
+  ) {}
 
   ngOnInit(): void {
     this.ingresoFechaMovimiento = this.todayYmd();
@@ -603,13 +607,50 @@ export class GestionInventarioPageComponent implements OnInit {
           if (this.transitoFarmFilter == null) this.transitoFarmFilter = only;
         }
         this.loading = false;
-        if (this.activeTab === 'stock') this.loadStock();
+        this.applyInventoryQueryParamsFromRoute();
       },
       error: () => {
         this.loading = false;
         this.openAlertModal('error', 'Error', 'Error al cargar filtros.');
       }
     });
+  }
+
+  /**
+   * Desde Seguimiento engorde: ?farmId=&nucleoId=&galponId=&tab=traslados
+   * Preselecciona ubicación y pestaña (p. ej. traslados de alimento).
+   */
+  private applyInventoryQueryParamsFromRoute(): void {
+    const q = this.route.snapshot.queryParamMap;
+    const farm = q.get('farmId');
+    if (farm) {
+      const n = parseInt(farm, 10);
+      if (!Number.isNaN(n)) {
+        this.selectedFarmId = n;
+        if (this.fromFarmId == null) this.fromFarmId = n;
+        if (this.ingresoFarmId == null && (this.filterData?.farmsDestino ?? []).some(f => f.id === n)) {
+          this.ingresoFarmId = n;
+        }
+        if (this.transitoFarmFilter == null) this.transitoFarmFilter = n;
+      }
+    }
+    const nucleo = q.get('nucleoId');
+    if (nucleo) {
+      this.selectedNucleoId = nucleo;
+      if (this.fromNucleoId == null) this.fromNucleoId = nucleo;
+    }
+    const galpon = q.get('galponId');
+    if (galpon) {
+      this.selectedGalponId = galpon;
+      if (this.fromGalponId == null) this.fromGalponId = galpon;
+    }
+    const tab = q.get('tab');
+    const tabKeys: TabKey[] = ['stock', 'ingresos', 'traslados', 'transito', 'historico', 'items'];
+    if (tab && (tabKeys as string[]).includes(tab)) {
+      this.setTab(tab as TabKey);
+    } else if (this.activeTab === 'stock') {
+      this.loadStock();
+    }
   }
 
   loadStock(): void {

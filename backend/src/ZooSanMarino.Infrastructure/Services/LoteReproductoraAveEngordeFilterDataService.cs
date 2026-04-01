@@ -63,7 +63,9 @@ public class LoteReproductoraAveEngordeFilterDataService : ILoteReproductoraAveE
                 l.LoteNombre,
                 l.GranjaId,
                 l.NucleoId,
-                l.GalponId))
+                l.GalponId,
+                l.Linea,
+                l.FechaEncaset))
             .ToList();
 
         return new LoteReproductoraAveEngordeFilterDataDto(

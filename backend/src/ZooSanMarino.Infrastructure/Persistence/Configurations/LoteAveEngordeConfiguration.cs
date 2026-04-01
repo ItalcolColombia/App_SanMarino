@@ -44,6 +44,13 @@ public class LoteAveEngordeConfiguration : IEntityTypeConfiguration<LoteAveEngor
         b.Property(x => x.LoteErp).HasColumnName("lote_erp").HasMaxLength(80);
         b.Property(x => x.EstadoTraslado).HasColumnName("estado_traslado").HasMaxLength(50);
 
+        b.Property(x => x.EstadoOperativoLote).HasColumnName("estado_operativo_lote").HasMaxLength(20).IsRequired();
+        b.Property(x => x.LiquidadoAt).HasColumnName("liquidado_at");
+        b.Property(x => x.LiquidadoPorUserId).HasColumnName("liquidado_por_user_id").HasMaxLength(450);
+        b.Property(x => x.ReabiertoAt).HasColumnName("reabierto_at");
+        b.Property(x => x.ReabiertoPorUserId).HasColumnName("reabierto_por_user_id").HasMaxLength(450);
+        b.Property(x => x.MotivoReapertura).HasColumnName("motivo_reapertura").HasMaxLength(2000);
+
         b.Property(x => x.PaisId).HasColumnName("pais_id");
         b.Property(x => x.PaisNombre).HasColumnName("pais_nombre").HasMaxLength(120);
         b.Property(x => x.EmpresaNombre).HasColumnName("empresa_nombre").HasMaxLength(200);

@@ -5,7 +5,6 @@ import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levan
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { TablaListaIndicadoresComponent } from '../tabla-lista-indicadores/tabla-lista-indicadores.component';
-import { TablaIndicadoresDiariosComponent } from '../tabla-indicadores-diarios/tabla-indicadores-diarios.component';
 import { GraficasPrincipalComponent } from '../graficas-principal/graficas-principal.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { LoteRegistroHistoricoUnificadoDto } from '../../../aves-engorde/services/seguimiento-aves-engorde.service';
@@ -51,7 +50,7 @@ export interface RegistroDiarioTablaFila {
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
-  imports: [CommonModule, TablaListaIndicadoresComponent, TablaIndicadoresDiariosComponent, GraficasPrincipalComponent],
+  imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent],
   templateUrl: './tabs-principal.component.html',
   styleUrls: ['./tabs-principal.component.scss']
 })
@@ -85,9 +84,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
 
-  /** Subpestaña dentro de Indicadores: diario (guía Ecuador mixto) vs semanal. */
-  indicadoresSubTab: 'diario' | 'semanal' = 'diario';
-
   // Verificar si el usuario es admin
   isAdmin: boolean = false;
 
@@ -116,9 +112,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     }
   }
 
-  /** Columnas de la tabla de registros diarios (incluye despacho mixtas y consumo bodega si engorde). */
+  /** Columnas de la tabla de registros diarios (incluye despacho mixtas y consumo bodega si engorde). Sin despacho H/M, ingreso, traslado, documento ni agua. */
   get colspanRegistroDiario(): number {
-    return 26 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    return 20 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;
@@ -359,10 +355,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.activeTab = tab;
   }
 
-  setIndicadoresSubTab(sub: 'diario' | 'semanal'): void {
-    this.indicadoresSubTab = sub;
-  }
-
   onCreate(): void {
     this.create.emit();
   }
@@ -392,21 +384,15 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Selección hembras',
       'Selección machos',
       'TOTAL MORT+ SEL / DÍA',
-      'Despacho hembras',
-      'Despacho machos',
       ...(this.enriquecerTablaConHistoricoInventario
         ? ['Despacho mixtas', 'Consumo bodega (kg)', 'Saldo alimento (kg)']
         : []),
       'Saldo aves vivas',
       'Tipo alimento',
-      'Ingreso alimento',
-      'Traslado',
-      'Documento',
       'Consumo kg hembras',
       'Consumo kg machos',
       'Consumo real día (kg)',
       'Consumo acumulado (kg)',
-      'Agua (litros)',
       '% pérdidas del día',
       'Peso prom. hembras (kg)',
       'Peso prom. machos (kg)',
@@ -424,8 +410,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         s.selH ?? '',
         s.selM ?? '',
         f.totalMortSelDia,
-        f.despachoH ?? '',
-        f.despachoM ?? '',
         ...(this.enriquecerTablaConHistoricoInventario
           ? [
               f.despachoX ?? '',
@@ -435,14 +419,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
           : []),
         f.saldoAves,
         f.tipoAlimentoCorto,
-        f.ingresoAlimento || '',
-        f.traslado || '',
-        f.documento || '',
         s.consumoKgHembras ?? '',
         s.consumoKgMachos ?? 0,
         f.consumoDiaKg,
         f.acumConsumoKg,
-        s.consumoAguaDiario != null ? s.consumoAguaDiario : '',
         f.pctPerdidasDia != null ? Math.round(f.pctPerdidasDia * 100) / 100 : '',
         s.pesoPromH != null ? s.pesoPromH : '',
         s.pesoPromM != null ? s.pesoPromM : '',

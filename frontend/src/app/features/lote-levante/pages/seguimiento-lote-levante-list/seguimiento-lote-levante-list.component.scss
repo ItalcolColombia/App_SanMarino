@@ -257,6 +257,10 @@
     border: 1px solid var(--border); position: relative; overflow: hidden;
     transform: translateY(6px); animation: dialogUp .18s ease-out forwards;
   }
+  :host .ux-modal__dialog--sm {
+    width: min(480px, 95vw);
+  }
+  :host .text-muted { color: var(--text-sub); font-size: var(--fs-sm); }
   @keyframes dialogUp { to { transform: translateY(0); } }
 
   :host .ux-modal__header {

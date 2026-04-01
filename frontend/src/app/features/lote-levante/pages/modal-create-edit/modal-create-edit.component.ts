@@ -8,7 +8,7 @@ import { LoteDto } from '../../../lote/services/lote.service';
 import { CatalogoAlimentosService, CatalogItemDto, PagedResult, CatalogItemType } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
 import { GestionInventarioService, ItemInventarioEcuadorDto, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
-import { EMPTY, forkJoin, of } from 'rxjs';
+import { EMPTY, forkJoin, of, firstValueFrom } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -25,16 +25,24 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   @Input() editing: SeguimientoLoteLevanteDto | null = null;
   @Input() lotes: LoteDto[] = [];
   @Input() selectedLoteId: number | null = null;
+  /** Nombre de la granja del filtro principal (Seguimiento diario), para la pestaña Stock. */
+  @Input() selectedGranjaName: string | null = null;
   /** ID de lote_postura_levante. Se envía al backend al crear (desde selectedLote del padre). */
   @Input() lotePosturaLevanteId: number | null = null;
   @Input() loading: boolean = false;
   /** True mientras se obtiene el registro por ID (editar) antes de mostrar el formulario. */
   @Input() loadingRecord: boolean = false;
-  /**
-   * Seguimiento diario pollo engorde: en la pestaña Hembras solo se permite alimento
-   * (tipo fijo, listado y filtro de ítems solo alimentos).
-   */
-  @Input() hembrasSoloAlimento: boolean = false;
+
+  /** Pestañas: General (incluye consumos H/M y generales) / Stock. */
+  levanteTab: 'general' | 'stock' = 'general';
+
+  /** Listado detalle stock Inventario de productos (Ecuador/Panamá) — misma consulta que ítems Hembras/Machos. */
+  stockListadoEcuador: InventarioGestionStockDto[] = [];
+  /** Inventario por catálogo en granja (otros países). */
+  stockListadoLegacy: FarmInventoryDto[] = [];
+  cargandoStockListado = false;
+  stockListadoError: string | null = null;
+  stockVistaSearch = '';
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<{ data: CreateSeguimientoLoteLevanteDto | UpdateSeguimientoLoteLevanteDto; isEdit: boolean }>();
@@ -46,6 +54,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   alimentosCatalog: CatalogItemDto[] = [];
   alimentosFiltradosHembras: CatalogItemDto[] = [];
   alimentosFiltradosMachos: CatalogItemDto[] = [];
+  alimentosFiltradosGeneral: CatalogItemDto[] = [];
   private alimentosByCode = new Map<string, CatalogItemDto>();
   private alimentosById = new Map<number, CatalogItemDto>();
   private alimentosByName = new Map<string, CatalogItemDto>();
@@ -101,6 +110,85 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       : this.tiposItem;
   }
 
+  get stockListadoFiltradoEcuador(): InventarioGestionStockDto[] {
+    const s = this.stockVistaSearch.trim().toLowerCase();
+    if (!s) return this.stockListadoEcuador;
+    return this.stockListadoEcuador.filter(
+      r =>
+        (r.itemNombre || '').toLowerCase().includes(s) ||
+        (r.itemCodigo || '').toLowerCase().includes(s) ||
+        (r.itemType || '').toLowerCase().includes(s)
+    );
+  }
+
+  get stockListadoFiltradoLegacy(): FarmInventoryDto[] {
+    const s = this.stockVistaSearch.trim().toLowerCase();
+    if (!s) return this.stockListadoLegacy;
+    return this.stockListadoLegacy.filter(
+      r =>
+        (r.nombre || '').toLowerCase().includes(s) ||
+        (r.codigo || '').toLowerCase().includes(s)
+    );
+  }
+
+  setLevanteTab(tab: 'general' | 'stock'): void {
+    this.levanteTab = tab;
+    if (tab === 'stock') this.refrescarStockListado();
+  }
+
+  /** Para la plantilla (pestaña Stock): ya hay granja resuelta desde el lote. */
+  get tieneGranjaParaStock(): boolean {
+    return this.granjaIdActual != null;
+  }
+
+  /** Misma consulta que el catálogo de ítems: granja del lote + núcleo/galpón si el lote los tiene. */
+  refrescarStockListado(): void {
+    this.stockListadoError = null;
+    if (!this.granjaIdActual) {
+      this.stockListadoEcuador = [];
+      this.stockListadoLegacy = [];
+      this.cargandoStockListado = false;
+      return;
+    }
+    this.cargandoStockListado = true;
+    const gid = this.granjaIdActual;
+    const u = this.inventarioUbicacionActual;
+    if (this.isEcuadorOrPanama) {
+      const params: { farmId: number; nucleoId?: string; galponId?: string } = { farmId: gid };
+      if (u.nucleoId) params.nucleoId = u.nucleoId;
+      if (u.galponId) params.galponId = u.galponId;
+      this.gestionInventarioSvc
+        .getStock(params)
+        .pipe(
+          finalize(() => (this.cargandoStockListado = false)),
+          catchError(err => {
+            console.error('Stock listado:', err);
+            this.stockListadoError = err?.error?.message ?? err?.message ?? 'No se pudo cargar el stock.';
+            return of([] as InventarioGestionStockDto[]);
+          })
+        )
+        .subscribe(rows => {
+          this.stockListadoEcuador = rows ?? [];
+          this.stockListadoLegacy = [];
+        });
+    } else {
+      this.inventarioSvc
+        .getInventory(gid)
+        .pipe(
+          finalize(() => (this.cargandoStockListado = false)),
+          catchError(err => {
+            console.error('Inventario granja:', err);
+            this.stockListadoError = err?.error?.message ?? err?.message ?? 'No se pudo cargar el inventario.';
+            return of([] as FarmInventoryDto[]);
+          })
+        )
+        .subscribe(rows => {
+          this.stockListadoLegacy = (rows ?? []).filter(r => r.active !== false);
+          this.stockListadoEcuador = [];
+        });
+    }
+  }
+
   ngOnInit(): void {
     this.initializeForm();
     // No cargar catálogo automáticamente, se cargará cuando se seleccione un tipo de ítem
@@ -122,7 +210,18 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['isOpen']?.currentValue === false) {
+      this.levanteTab = 'general';
+      this.stockListadoEcuador = [];
+      this.stockListadoLegacy = [];
+      this.stockVistaSearch = '';
+      this.stockListadoError = null;
+      this.cargandoStockListado = false;
+    }
     if (!this.isOpen) return;
+    if (changes['isOpen']?.currentValue === true) {
+      this.levanteTab = 'general';
+    }
     // Evitar repoblar al cambiar solo lotes/loading (borraría lo que el usuario editó en el modal)
     if (!changes['isOpen'] && !changes['editing']) return;
 
@@ -148,6 +247,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       // FormArrays para múltiples ítems (alimentos y otros)
       itemsHembras: this.fb.array([]),
       itemsMachos: this.fb.array([]),
+      itemsGenerales: this.fb.array([]),
       observaciones: [''],
       pesoPromH: [null, [Validators.min(0)]],
       pesoPromM: [null, [Validators.min(0)]],
@@ -199,6 +299,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const alimentoM = this.form.get('tipoAlimentoMachos')?.value;
         if (alimentoH) this.consultarInventario('hembras', alimentoH);
         if (alimentoM) this.consultarInventario('machos', alimentoM);
+        if (this.levanteTab === 'stock') this.refrescarStockListado();
       } else {
         // Si no hay lote seleccionado, limpiar todo
         this.granjaIdActual = null;
@@ -226,6 +327,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
     while (this.itemsMachosArray.length !== 0) {
       this.itemsMachosArray.removeAt(0);
+    }
+    while (this.itemsGeneralesArray.length !== 0) {
+      this.itemsGeneralesArray.removeAt(0);
     }
 
     this.form.reset({
@@ -262,6 +366,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.mensajeInventarioMachos = '';
     this.alimentosFiltradosHembras = [];
     this.alimentosFiltradosMachos = [];
+    this.alimentosFiltradosGeneral = [];
     this.originalConsumoKgByItem.clear();
 
     // Si hay lote seleccionado, cargar inventario de su granja
@@ -277,8 +382,14 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       this.alimentosCatalog = [];
     }
 
-    // Pollo engorde: iniciar con al menos una fila de alimento por sexo.
     this.ensureDefaultFoodRows();
+    if (this.itemsHembrasArray.length === 0) {
+      this.agregarItemHembras();
+    }
+    // Nuevo registro: mostrar también una fila por defecto en Machos (opcional de llenar).
+    if (this.itemsMachosArray.length === 0) {
+      this.agregarItemMachos();
+    }
     this.applyEditModeFieldLocks();
   }
 
@@ -292,42 +403,42 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return this.form.get('itemsMachos') as FormArray;
   }
 
+  get itemsGeneralesArray(): FormArray {
+    return this.form.get('itemsGenerales') as FormArray;
+  }
+
   agregarItemHembras(): void {
-    const soloAlimento = this.hembrasSoloAlimento;
     const itemForm = this.fb.group({
-      tipoItem: [soloAlimento ? 'alimento' : null, Validators.required],
+      tipoItem: [this.isEcuadorOrPanama ? null : 'alimento', Validators.required],
       catalogItemId: [null, Validators.required],
       cantidad: [0, [Validators.required, Validators.min(0)]],
       unidad: ['kg', Validators.required]
     });
 
-    if (!soloAlimento) {
-      // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
-      itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
-        if (tipo === 'alimento') {
-          itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
-        } else if (tipo) {
-          itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
-        }
-        // Limpiar el catalogItemId cuando cambia el tipo
-        itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
-      });
-    } else {
-      itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
-    }
+    // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') {
+        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      } else if (tipo) {
+        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      }
+      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
+    });
 
     this.itemsHembrasArray.push(itemForm);
   }
 
-  /** Tipo de ítem usado para filtrar el catálogo en la fila Hembras (engorde = siempre alimento). */
+  /** Tipo de ítem usado para filtrar el catálogo en la fila Hembras. */
   tipoItemFiltroHembra(itemGroup: FormGroup): string | null {
-    if (this.hembrasSoloAlimento) return 'alimento';
     return itemGroup.get('tipoItem')?.value ?? null;
   }
 
-  /** Tipo de ítem usado para filtrar el catálogo en la fila Machos (engorde = siempre alimento). */
+  /** Tipo de ítem usado para filtrar el catálogo en la fila Machos. */
   tipoItemFiltroMacho(itemGroup: FormGroup): string | null {
-    if (this.hembrasSoloAlimento) return 'alimento';
+    return itemGroup.get('tipoItem')?.value ?? null;
+  }
+
+  tipoItemFiltroGeneral(itemGroup: FormGroup): string | null {
     return itemGroup.get('tipoItem')?.value ?? null;
   }
 
@@ -336,28 +447,21 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   agregarItemMachos(): void {
-    const soloAlimento = this.hembrasSoloAlimento;
     const itemForm = this.fb.group({
-      tipoItem: [soloAlimento ? 'alimento' : null, Validators.required],
+      tipoItem: [this.isEcuadorOrPanama ? null : 'alimento', Validators.required],
       catalogItemId: [null, Validators.required],
       cantidad: [0, [Validators.required, Validators.min(0)]],
       unidad: ['kg', Validators.required]
     });
 
-    if (!soloAlimento) {
-      // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
-      itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
-        if (tipo === 'alimento') {
-          itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
-        } else if (tipo) {
-          itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
-        }
-        // Limpiar el catalogItemId cuando cambia el tipo
-        itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
-      });
-    } else {
-      itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
-    }
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') {
+        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      } else if (tipo) {
+        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      }
+      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
+    });
 
     this.itemsMachosArray.push(itemForm);
   }
@@ -366,18 +470,33 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.itemsMachosArray.removeAt(index);
   }
 
-  /** En engorde (hembrasSoloAlimento), asegura una fila inicial de alimento por sexo. */
-  private ensureDefaultFoodRows(): void {
-    if (!this.hembrasSoloAlimento) return;
-    while (this.itemsHembrasArray.length === 0) this.agregarItemHembras();
-    // En modo UI engorde simplificado mostramos una sola lista visible:
-    // migrar cualquier item de machos a la lista visible antes de limpiar.
-    if (this.itemsMachosArray.length > 0) {
-      const machos = [...this.itemsMachosArray.controls];
-      machos.forEach(c => this.itemsHembrasArray.push(c));
-      while (this.itemsMachosArray.length > 0) this.itemsMachosArray.removeAt(this.itemsMachosArray.length - 1);
-    }
+  agregarItemGeneral(): void {
+    const itemForm = this.fb.group({
+      tipoItem: [null as string | null, Validators.required],
+      catalogItemId: [null, Validators.required],
+      cantidad: [0, [Validators.required, Validators.min(0)]],
+      unidad: ['unidades', Validators.required]
+    });
+
+    itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
+      if (tipo === 'alimento') {
+        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+      } else if (tipo) {
+        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+      }
+      itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
+    });
+
+    this.itemsGeneralesArray.push(itemForm);
+    this.filtrarAlimentosPorTipo('general', itemForm.get('tipoItem')?.value ?? null);
   }
+
+  eliminarItemGeneral(index: number): void {
+    this.itemsGeneralesArray.removeAt(index);
+  }
+
+  /** Levante: no fuerza filas ni fusiona listas (pollo engorde usa otro componente). */
+  private ensureDefaultFoodRows(): void {}
 
   // Obtener alimentos filtrados para un ítem específico
   // Ecuador/Panamá: filtra por concepto (tipo ítem = conceptos de item_inventario_ecuador); mismo criterio en tabs hembras y machos
@@ -427,11 +546,115 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return cantidad;
   }
 
-  private buildOriginalConsumoMap(itemsH: any[] | null | undefined, itemsM: any[] | null | undefined): void {
+  /** Colombia: consumo de alimento (kg) por catalogItemId desde metadata guardada. */
+  private buildFoodKgMapFromMetadata(ed: SeguimientoLoteLevanteDto): Map<number, number> {
+    const m = new Map<number, number>();
+    const meta = this.normalizeSeguimientoMetadata(ed);
+    const addArr = (arr: any[] | undefined) => {
+      if (!Array.isArray(arr)) return;
+      for (const it of arr) {
+        if (String(it?.tipoItem ?? 'alimento').toLowerCase() !== 'alimento') continue;
+        const id = Number(it.catalogItemId ?? it.itemInventarioEcuadorId);
+        if (!id) continue;
+        const kg = this.toKg(Number(it.cantidad ?? 0), it.unidad ?? 'kg');
+        m.set(id, (m.get(id) ?? 0) + kg);
+      }
+    };
+    addArr(meta?.itemsHembras);
+    addArr(meta?.itemsMachos);
+    addArr(meta?.itemsGenerales ?? meta?.items_generales);
+    if (m.size === 0) {
+      const hId = Number(meta?.tipoAlimentoHembras ?? ed.tipoAlimentoHembras);
+      if (hId) {
+        const kg = this.toKg(
+          Number(meta?.consumoOriginalHembras ?? ed.consumoKgHembras ?? 0),
+          meta?.unidadConsumoOriginalHembras ?? 'kg'
+        );
+        m.set(hId, kg);
+      }
+      const mId = Number(meta?.tipoAlimentoMachos ?? ed.tipoAlimentoMachos);
+      if (mId) {
+        const kg = this.toKg(
+          Number(meta?.consumoOriginalMachos ?? ed.consumoKgMachos ?? 0),
+          meta?.unidadConsumoOriginalMachos ?? 'kg'
+        );
+        m.set(mId, (m.get(mId) ?? 0) + kg);
+      }
+    }
+    return m;
+  }
+
+  private buildFoodKgMapFromAlimentoLists(
+    h: ItemSeguimientoDto[],
+    mach: ItemSeguimientoDto[],
+    gen: ItemSeguimientoDto[] = []
+  ): Map<number, number> {
+    const m = new Map<number, number>();
+    const add = (list: ItemSeguimientoDto[]) => {
+      for (const it of list) {
+        const kg = this.toKg(it.cantidad, it.unidad);
+        m.set(it.catalogItemId, (m.get(it.catalogItemId) ?? 0) + kg);
+      }
+    };
+    add(h);
+    add(mach);
+    add(gen);
+    return m;
+  }
+
+  /** deltaKg positivo: salida; negativo: entrada (devolución). Cantidad en la unidad del registro de stock. */
+  private async colombiaApplyInventoryDelta(
+    farmId: number,
+    lote: LoteDto,
+    loteId: string | number,
+    catalogItemId: number,
+    deltaKg: number
+  ): Promise<void> {
+    if (Math.abs(deltaKg) < 1e-12) return;
+    const inv = await firstValueFrom(
+      this.inventarioSvc.getInventoryByItem(farmId, catalogItemId).pipe(catchError(() => of(null)))
+    );
+    const unit = (inv?.unit || 'kg').trim();
+    const ul = unit.toLowerCase();
+    let qty = Math.abs(deltaKg);
+    if (ul === 'g' || ul === 'gramos' || ul === 'gramo') qty = Math.abs(deltaKg) * 1000;
+    const ref = `Consumo diario levante - Lote ${lote.loteNombre || loteId}`;
+    if (deltaKg > 0) {
+      await firstValueFrom(
+        this.inventarioSvc.postExit(farmId, {
+          catalogItemId,
+          quantity: qty,
+          unit,
+          reference: ref,
+          reason: 'Consumo diario',
+          destination: 'Consumo'
+        })
+      );
+    } else {
+      await firstValueFrom(
+        this.inventarioSvc.postEntry(farmId, {
+          catalogItemId,
+          quantity: qty,
+          unit,
+          reference: `${ref} (ajuste)`,
+          reason: 'Devolución por edición seguimiento',
+          origin: 'Ajuste'
+        })
+      );
+    }
+  }
+
+  private buildOriginalConsumoMap(
+    itemsH: any[] | null | undefined,
+    itemsM: any[] | null | undefined,
+    itemsG: any[] | null | undefined = undefined
+  ): void {
     const map = new Map<number, number>();
     const addArr = (arr: any[] | null | undefined) => {
       if (!arr || !Array.isArray(arr)) return;
       arr.forEach((it: any) => {
+        const tipo = String(it?.tipoItem ?? 'alimento').toLowerCase();
+        if (tipo !== 'alimento') return;
         const id = this.resolveItemCatalogId(it);
         if (!id) return;
         const cantidad = Number(it?.cantidad ?? it?.cantidadKg ?? 0);
@@ -442,6 +665,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     };
     addArr(itemsH);
     addArr(itemsM);
+    addArr(itemsG);
     this.originalConsumoKgByItem = map;
   }
 
@@ -466,15 +690,20 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     return qtyKg > maxPermitidoKg;
   }
 
-  /** Bloquea guardar si cualquier fila de alimento supera el disponible (solo en creación; en edición no aplica). */
+  /**
+   * Bloquea guardar si el consumo supera disponible + consumo ya registrado (edición Colombia).
+   * Ecuador/Panamá en edición no valida aquí.
+   */
   get hasCantidadExcedida(): boolean {
-    if (this.editing) return false;
-    return this.itemsHembrasArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
+    if (this.editing && this.isEcuadorOrPanama) return false;
+    const h = this.itemsHembrasArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
+    const m = this.itemsMachosArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
+    const g = this.itemsGeneralesArray.controls.some(c => this.cantidadExcedeDisponible(c as FormGroup));
+    return h || m || g;
   }
 
-  /** En edición pollo engorde: alimento, mortalidad, selección y error de sexaje quedan bloqueados (solo lectura). */
   get camposCalculoBloqueadosEnEdicion(): boolean {
-    return !!this.editing && this.hembrasSoloAlimento;
+    return false;
   }
 
   // Obtener texto completo del ítem con cantidad disponible para mostrar en el dropdown
@@ -495,7 +724,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   /** Metadata puede venir como objeto, string JSON o con claves snake_case desde la API. */
   private normalizeSeguimientoMetadata(editing: SeguimientoLoteLevanteDto): any {
-    return this.normalizeJsonField(editing.metadata) ?? {};
+    const raw = this.normalizeJsonField(editing.metadata);
+    return this.unwrapJsonApiEnvelope(raw) ?? {};
   }
 
   /** itemsAdicionales u otros JSONB a veces llegan como string desde la API. */
@@ -507,6 +737,19 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       } catch {
         return null;
       }
+    }
+    return raw;
+  }
+
+  /**
+   * Algunas respuestas serializan JsonDocument/JsonElement como objeto con raíz anidada.
+   * También acepta { itemsHembras, itemsMachos } en cualquier nivel visible.
+   */
+  private unwrapJsonApiEnvelope(raw: any): any {
+    if (raw == null || typeof raw !== 'object') return raw;
+    const o = raw as Record<string, unknown>;
+    if (o['rootElement'] != null && typeof o['rootElement'] === 'object') {
+      return this.normalizeJsonField(o['rootElement']) ?? raw;
     }
     return raw;
   }
@@ -534,6 +777,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     while (this.itemsMachosArray.length > 0) {
       this.itemsMachosArray.removeAt(0);
     }
+    while (this.itemsGeneralesArray.length > 0) {
+      this.itemsGeneralesArray.removeAt(0);
+    }
 
     // Leer consumo original desde Metadata JSONB (compatibilidad hacia atrás)
     const metadata: any = this.normalizeSeguimientoMetadata(this.editing);
@@ -548,26 +794,28 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const tipoAlimentoHembras = metadata?.tipoAlimentoHembras ?? this.editing.tipoAlimentoHembras ?? null;
     const tipoAlimentoMachos = metadata?.tipoAlimentoMachos ?? this.editing.tipoAlimentoMachos ?? null;
 
-    // Fallback para registros antiguos sin itemsHembras/itemsMachos en metadata.
-    if (this.originalConsumoKgByItem.size === 0) {
-      if (tipoAlimentoHembras && consumoHembras > 0) {
-        const kgH = this.toKg(Number(consumoHembras), unidadConsumoHembras);
-        this.originalConsumoKgByItem.set(Number(tipoAlimentoHembras), kgH);
-      }
-      if (tipoAlimentoMachos && consumoMachos && consumoMachos > 0) {
-        const kgM = this.toKg(Number(consumoMachos), unidadConsumoMachos);
-        const idM = Number(tipoAlimentoMachos);
-        this.originalConsumoKgByItem.set(idM, (this.originalConsumoKgByItem.get(idM) ?? 0) + kgM);
-      }
-    }
-
     // Cargar ítems en FormArrays
     // Primero, verificar si hay itemsHembras/itemsMachos en metadata (nuevo formato)
     const itemsHembrasFromMetadata =
       metadata?.itemsHembras ?? metadata?.items_hembras ?? metadata?.ItemsHembras;
     const itemsMachosFromMetadata =
       metadata?.itemsMachos ?? metadata?.items_machos ?? metadata?.ItemsMachos;
-    this.buildOriginalConsumoMap(itemsHembrasFromMetadata, itemsMachosFromMetadata);
+    const itemsGeneralesFromMetadata =
+      metadata?.itemsGenerales ?? metadata?.items_generales ?? metadata?.ItemsGenerales;
+    this.buildOriginalConsumoMap(itemsHembrasFromMetadata, itemsMachosFromMetadata, itemsGeneralesFromMetadata);
+
+    // Sin arrays en metadata: conservar consumo original para validación/edición de inventario (Colombia).
+    if (this.originalConsumoKgByItem.size === 0) {
+      if (tipoAlimentoHembras && consumoHembras > 0) {
+        const kgH = this.toKg(Number(consumoHembras), unidadConsumoHembras);
+        this.originalConsumoKgByItem.set(Number(tipoAlimentoHembras), kgH);
+      }
+      if (tipoAlimentoMachos && consumoMachos != null && consumoMachos > 0) {
+        const kgM = this.toKg(Number(consumoMachos), unidadConsumoMachos);
+        const idM = Number(tipoAlimentoMachos);
+        this.originalConsumoKgByItem.set(idM, (this.originalConsumoKgByItem.get(idM) ?? 0) + kgM);
+      }
+    }
 
     // Si hay items en metadata, cargarlos todos (incluyendo alimentos)
     // IMPORTANTE: El tipoItem debe venir desde metadata, si no está, se obtendrá del inventario después
@@ -576,9 +824,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         // Obtener tipoItem desde el item (debe estar guardado en metadata)
         // Si no está, se actualizará después cuando se cargue el inventario
         const tipoItem = item.tipoItem || 'alimento'; // Fallback temporal, se actualizará después
-        if (this.hembrasSoloAlimento && String(tipoItem).trim().toLowerCase() !== 'alimento') {
-          return; // Pollo engorde: pestaña hembras solo alimentos
-        }
 
         const cid = this.resolveItemCatalogId(item);
         if (cid == null) return;
@@ -630,18 +875,33 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       }
     }
 
+    if (itemsGeneralesFromMetadata && Array.isArray(itemsGeneralesFromMetadata)) {
+      itemsGeneralesFromMetadata.forEach((item: any) => {
+        const tipoItem = item.tipoItem || 'consumible';
+        const cid = this.resolveItemCatalogId(item);
+        if (cid == null) return;
+        this.itemsGeneralesArray.push(
+          this.fb.group({
+            tipoItem: [tipoItem, Validators.required],
+            catalogItemId: [cid, Validators.required],
+            cantidad: [item.cantidad ?? item.cantidadKg ?? 0, [Validators.required, Validators.min(0)]],
+            unidad: [item.unidad || 'unidades', Validators.required]
+          })
+        );
+      });
+    }
+
     // itemsAdicionales solo contiene ítems NO alimentos; metadata.itemsHembras/Machos ya tiene TODOS los ítems.
     // Solo cargar desde itemsAdicionales si no había items en metadata (registros antiguos).
-    const itemsAdicionales: any = this.normalizeJsonField(this.editing.itemsAdicionales);
+    const itemsAdicionales: any = this.unwrapJsonApiEnvelope(this.normalizeJsonField(this.editing.itemsAdicionales));
     const yaCargamosHembras = (itemsHembrasFromMetadata && itemsHembrasFromMetadata.length > 0);
     const yaCargamosMachos = (itemsMachosFromMetadata && itemsMachosFromMetadata.length > 0);
+    const yaCargamosGenerales =
+      itemsGeneralesFromMetadata && Array.isArray(itemsGeneralesFromMetadata) && itemsGeneralesFromMetadata.length > 0;
 
     if (itemsAdicionales && !yaCargamosHembras) {
       if (itemsAdicionales.itemsHembras && Array.isArray(itemsAdicionales.itemsHembras)) {
         itemsAdicionales.itemsHembras.forEach((item: ItemSeguimientoDto) => {
-          if (this.hembrasSoloAlimento && String(item.tipoItem || '').trim().toLowerCase() !== 'alimento') {
-            return;
-          }
           const cid = this.resolveItemCatalogId(item as any) ?? item.catalogItemId;
           if (cid == null) return;
           this.itemsHembrasArray.push(this.fb.group({
@@ -667,12 +927,32 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         });
       }
     }
+    if (itemsAdicionales && !yaCargamosGenerales) {
+      if (itemsAdicionales.itemsGenerales && Array.isArray(itemsAdicionales.itemsGenerales)) {
+        itemsAdicionales.itemsGenerales.forEach((item: ItemSeguimientoDto) => {
+          const cid = this.resolveItemCatalogId(item as any) ?? item.catalogItemId;
+          if (cid == null) return;
+          this.itemsGeneralesArray.push(
+            this.fb.group({
+              tipoItem: [item.tipoItem, Validators.required],
+              catalogItemId: [cid, Validators.required],
+              cantidad: [item.cantidad, [Validators.required, Validators.min(0)]],
+              unidad: [item.unidad || 'unidades', Validators.required]
+            })
+          );
+        });
+      }
+    }
 
     this.ensureDefaultFoodRows();
+    if (this.itemsHembrasArray.length === 0) {
+      this.agregarItemHembras();
+    }
+    // No forzar fila machos al editar: registros solo hembras deben poder guardarse sin ítems machos.
 
     this.form.patchValue({
       fechaRegistro: this.toYMD(this.editing.fechaRegistro),
-      loteId: this.editing.loteId,
+      loteId: this.editing.loteId != null && this.editing.loteId !== '' ? String(this.editing.loteId) : '',
       mortalidadHembras: this.editing.mortalidadHembras,
       mortalidadMachos: this.editing.mortalidadMachos,
       selH: this.editing.selH,
@@ -724,7 +1004,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     Object.keys(this.form.controls).forEach(key => {
       const c = this.form.get(key);
       if (!c) return;
-      if (key === 'itemsHembras' || key === 'itemsMachos') {
+      if (key === 'itemsHembras' || key === 'itemsMachos' || key === 'itemsGenerales') {
         const fa = c as FormArray;
         fa.controls.forEach(ctrl => {
           if (enabled) ctrl.enable({ emitEvent: false });
@@ -743,26 +1023,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    * Edición pollo engorde: solo lectura en alimento (FormArrays), mortalidad, selección y error de sexaje.
    */
   private applyEditModeFieldLocks(): void {
-    if (!this.editing) {
-      this.setAllFormControlsEnabled(true);
-      return;
-    }
-    if (!this.hembrasSoloAlimento) {
-      this.setAllFormControlsEnabled(true);
-      return;
-    }
     this.setAllFormControlsEnabled(true);
-    const bloqueados = [
-      'mortalidadHembras',
-      'mortalidadMachos',
-      'selH',
-      'selM',
-      'errorSexajeHembras',
-      'errorSexajeMachos',
-    ];
-    bloqueados.forEach(k => this.form.get(k)?.disable({ emitEvent: false }));
-    this.itemsHembrasArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
-    this.itemsMachosArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
   }
 
   private establecerTipoItemYAlimentoAlEditar(): void {
@@ -1081,13 +1342,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       const catalogItemId = control.get('catalogItemId')?.value;
       const tipoItemActual = control.get('tipoItem')?.value;
 
-      if (this.hembrasSoloAlimento) {
-        control.patchValue({ tipoItem: 'alimento' }, { emitEvent: false });
-        this.filtrarAlimentosPorTipo('hembras', 'alimento');
-        // No borrar catalogItemId: el concepto en catálogo puede no ser el string exacto "alimento"
-        return;
-      }
-
       if (catalogItemId) {
         let tipoItem: string | undefined;
         if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
@@ -1134,6 +1388,34 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             // Si el tipoItem actual no coincide con el del catálogo, actualizar
             control.patchValue({ tipoItem }, { emitEvent: false });
             this.filtrarAlimentosPorTipo('machos', tipoItem);
+          }
+        }
+      }
+    });
+
+    this.itemsGeneralesArray.controls.forEach(control => {
+      const catalogItemId = control.get('catalogItemId')?.value;
+      const tipoItemActual = control.get('tipoItem')?.value;
+      if (catalogItemId) {
+        let tipoItem: string | undefined;
+        if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
+          const ecuadorItem = this.itemsEcuadorPanama.find(i => i.id === catalogItemId);
+          tipoItem = ecuadorItem
+            ? (ecuadorItem.concepto ?? ecuadorItem.tipoItem ?? '').trim() || ecuadorItem.tipoItem
+            : undefined;
+        } else {
+          const item = this.alimentosById.get(catalogItemId);
+          tipoItem = item
+            ? (item.metadata?.type_item || item.metadata?.itemType || (item as any).itemType || 'alimento')
+            : undefined;
+        }
+        if (tipoItem) {
+          if ((!tipoItemActual || tipoItemActual === 'alimento') && tipoItem !== tipoItemActual) {
+            control.patchValue({ tipoItem }, { emitEvent: false });
+            this.filtrarAlimentosPorTipo('general', tipoItem);
+          } else if (tipoItemActual && tipoItemActual !== tipoItem) {
+            control.patchValue({ tipoItem }, { emitEvent: false });
+            this.filtrarAlimentosPorTipo('general', tipoItem);
           }
         }
       }
@@ -1205,6 +1487,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const tipoItemM = this.form.get('tipoItemMachos')?.value;
         if (tipoItemH) this.filtrarAlimentosPorTipo('hembras', tipoItemH);
         if (tipoItemM) this.filtrarAlimentosPorTipo('machos', tipoItemM);
+        this.itemsGeneralesArray.controls.forEach(ctrl => {
+          const t = ctrl.get('tipoItem')?.value;
+          if (t) this.filtrarAlimentosPorTipo('general', t);
+        });
       }
     }
   }
@@ -1254,11 +1540,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       const tipoItemM = this.form.get('tipoItemMachos')?.value;
       if (tipoItemH) this.filtrarAlimentosPorTipo('hembras', tipoItemH);
       if (tipoItemM) this.filtrarAlimentosPorTipo('machos', tipoItemM);
+      this.itemsGeneralesArray.controls.forEach(ctrl => {
+        const t = ctrl.get('tipoItem')?.value;
+        if (t) this.filtrarAlimentosPorTipo('general', t);
+      });
     });
   }
 
   // ================== FILTRADO POR TIPO ==================
-  filtrarAlimentosPorTipo(tipoGenero: 'hembras' | 'machos', tipoItem: string | null): void {
+  filtrarAlimentosPorTipo(tipoGenero: 'hembras' | 'machos' | 'general', tipoItem: string | null): void {
     if (this.alimentosCatalog.length === 0 && this.granjaIdActual && !this.cargandoInventarioGranja) {
       this.cargarInventarioGranja(this.granjaIdActual);
       return;
@@ -1267,8 +1557,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     if (!this.granjaIdActual || this.cargandoInventarioGranja) {
       if (tipoGenero === 'hembras') {
         this.alimentosFiltradosHembras = [];
-      } else {
+      } else if (tipoGenero === 'machos') {
         this.alimentosFiltradosMachos = [];
+      } else {
+        this.alimentosFiltradosGeneral = [];
       }
       return;
     }
@@ -1276,8 +1568,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     if (!tipoItem) {
       if (tipoGenero === 'hembras') {
         this.alimentosFiltradosHembras = this.alimentosCatalog;
-      } else {
+      } else if (tipoGenero === 'machos') {
         this.alimentosFiltradosMachos = this.alimentosCatalog;
+      } else {
+        this.alimentosFiltradosGeneral = this.alimentosCatalog;
       }
     } else {
       const alimentos = this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0
@@ -1290,8 +1584,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
       if (tipoGenero === 'hembras') {
         this.alimentosFiltradosHembras = alimentos;
-      } else {
+      } else if (tipoGenero === 'machos') {
         this.alimentosFiltradosMachos = alimentos;
+      } else {
+        this.alimentosFiltradosGeneral = alimentos;
       }
     }
   }
@@ -1520,14 +1816,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     // Construir arrays de ítems desde FormArrays
     const itemsHembras: ItemSeguimientoDto[] = [];
     const itemsMachos: ItemSeguimientoDto[] = [];
+    const itemsGenerales: ItemSeguimientoDto[] = [];
 
     const hembrasControls = this.itemsHembrasArray.controls;
     const machosControls = this.itemsMachosArray.controls;
+    const generalesControls = this.itemsGeneralesArray.controls;
 
     // Procesar ítems de hembras
     hembrasControls.forEach(control => {
       const itemValue = control.value;
-      const tipoH = this.hembrasSoloAlimento ? 'alimento' : itemValue.tipoItem;
+      const tipoH = itemValue.tipoItem;
       if (tipoH && itemValue.catalogItemId && itemValue.cantidad > 0) {
         const catalogItemId = Number(itemValue.catalogItemId);
         itemsHembras.push({
@@ -1555,6 +1853,20 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       }
     });
 
+    generalesControls.forEach(control => {
+      const itemValue = control.value;
+      if (itemValue.tipoItem && itemValue.catalogItemId && itemValue.cantidad > 0) {
+        const catalogItemId = Number(itemValue.catalogItemId);
+        itemsGenerales.push({
+          tipoItem: itemValue.tipoItem,
+          catalogItemId,
+          ...(this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
+          cantidad: Number(itemValue.cantidad),
+          unidad: itemValue.unidad || 'kg'
+        });
+      }
+    });
+
     // Validar inventario para alimentos (validación básica, la validación completa se hace en el backend)
     const alimentosHembrasParaValidar = itemsHembras.filter(item => item.tipoItem === 'alimento');
     const alimentosMachosParaValidar = itemsMachos.filter(item => item.tipoItem === 'alimento');
@@ -1565,16 +1877,27 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     // Separar alimentos de otros ítems para itemsAdicionales
     const otrosItemsHembras = itemsHembras.filter(item => item.tipoItem !== 'alimento');
     const otrosItemsMachos = itemsMachos.filter(item => item.tipoItem !== 'alimento');
+    const otrosItemsGenerales = itemsGenerales.filter(item => item.tipoItem !== 'alimento');
 
-    const itemsAdicionales: { itemsHembras?: ItemSeguimientoDto[], itemsMachos?: ItemSeguimientoDto[] } | null =
-      (otrosItemsHembras.length > 0 || otrosItemsMachos.length > 0) ? {
-        ...(otrosItemsHembras.length > 0 ? { itemsHembras: otrosItemsHembras } : {}),
-        ...(otrosItemsMachos.length > 0 ? { itemsMachos: otrosItemsMachos } : {})
-      } : null;
+    const itemsAdicionales: {
+      itemsHembras?: ItemSeguimientoDto[];
+      itemsMachos?: ItemSeguimientoDto[];
+      itemsGenerales?: ItemSeguimientoDto[];
+    } | null =
+      (otrosItemsHembras.length > 0 ||
+        otrosItemsMachos.length > 0 ||
+        otrosItemsGenerales.length > 0)
+        ? {
+            ...(otrosItemsHembras.length > 0 ? { itemsHembras: otrosItemsHembras } : {}),
+            ...(otrosItemsMachos.length > 0 ? { itemsMachos: otrosItemsMachos } : {}),
+            ...(otrosItemsGenerales.length > 0 ? { itemsGenerales: otrosItemsGenerales } : {})
+          }
+        : null;
 
     // Construir string de tipoAlimento desde los alimentos
     const alimentosHembras = itemsHembras.filter(item => item.tipoItem === 'alimento');
     const alimentosMachos = itemsMachos.filter(item => item.tipoItem === 'alimento');
+    const alimentosGenerales = itemsGenerales.filter(item => item.tipoItem === 'alimento');
     const nombresAlimentos: string[] = [];
 
     alimentosHembras.forEach(item => {
@@ -1588,6 +1911,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       const alimento = this.alimentosById.get(item.catalogItemId);
       if (alimento?.nombre) {
         nombresAlimentos.push(`M: ${alimento.nombre}`);
+      }
+    });
+
+    alimentosGenerales.forEach(item => {
+      const alimento = this.alimentosById.get(item.catalogItemId);
+      if (alimento?.nombre) {
+        nombresAlimentos.push(`G: ${alimento.nombre}`);
       }
     });
 
@@ -1611,6 +1941,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       // Arrays de ítems (el backend separa alimentos de otros ítems)
       itemsHembras: itemsHembras.length > 0 ? itemsHembras : null,
       itemsMachos: itemsMachos.length > 0 ? itemsMachos : null,
+      itemsGenerales: itemsGenerales.length > 0 ? itemsGenerales : null,
       // Items adicionales JSONB (solo ítems que NO son alimentos)
       itemsAdicionales: itemsAdicionales,
       pesoPromH: this.toNumOrNull(raw.pesoPromH),
@@ -1640,100 +1971,30 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       ? { ...baseDto, id: this.editing!.id } as UpdateSeguimientoLoteLevanteDto
       : baseDto as CreateSeguimientoLoteLevanteDto;
 
-    // Ecuador/Panamá: no usar inventario legacy (GET .../by-item ni POST .../movements/out): los IDs son de item_inventario_ecuador.
-    // En Pollo engorde el consumo lo aplica el backend al guardar (SeguimientoAvesEngorde → Metadata → RegistrarConsumoAsync).
+    // Ecuador/Panamá: consumo en inventario-gestion lo resuelve el backend con metadata.
     if (this.isEcuadorOrPanama) {
       this.save.emit({ data, isEdit });
       return;
     }
 
-    // Edición: consumo/alimento no cambia en UI (engorde); no repetir salidas de inventario legacy en Colombia.
-    if (isEdit) {
-      this.save.emit({ data, isEdit: true });
-      return;
-    }
+    // Colombia (San Marino): inventario de productos — farm inventory / catalog_items.
+    const oldFoodKg = isEdit && this.editing ? this.buildFoodKgMapFromMetadata(this.editing) : new Map<number, number>();
+    const newFoodKg = this.buildFoodKgMapFromAlimentoLists(alimentosHembras, alimentosMachos, alimentosGenerales);
+    const allFoodIds = new Set<number>([...oldFoodKg.keys(), ...newFoodKg.keys()]);
 
-    // Hacer resta al inventario antes de guardar (solo creación Colombia; inventario legacy por catalog_items)
-    const restas: Promise<void>[] = [];
-
-    // Procesar alimentos de hembras
-    alimentosHembras.forEach(item => {
-      const cantidad = item.cantidad;
-      const unidad = item.unidad || 'kg';
-      let cantidadKg = cantidad;
-
-      // Convertir a kg si viene en gramos
-      if (unidad === 'g' || unidad === 'gramos') {
-        cantidadKg = cantidad / 1000;
-      }
-
-      if (cantidadKg > 0) {
-        // Consultar inventario para obtener la unidad exacta
-        this.consultarInventario('hembras', item.catalogItemId);
-        const unidadInventario = this.inventarioUnidadHembras || 'kg';
-
-        restas.push(
-          this.inventarioSvc.postExit(lote.granjaId, {
-            catalogItemId: item.catalogItemId,
-            quantity: cantidadKg,
-            unit: unidadInventario,
-            reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
-            reason: 'Consumo diario',
-            destination: 'Consumo'
-          }).toPromise().then(() => {
-            console.log(`Inventario hembras reducido: ${cantidadKg} ${unidadInventario}`);
-          }).catch(err => {
-            console.error('Error al restar inventario hembras:', err);
-            throw new Error('Error al registrar consumo en inventario (hembras)');
-          })
-        );
-      }
-    });
-
-    // Procesar alimentos de machos
-    alimentosMachos.forEach(item => {
-      const cantidad = item.cantidad;
-      const unidad = item.unidad || 'kg';
-      let cantidadKg = cantidad;
-
-      // Convertir a kg si viene en gramos
-      if (unidad === 'g' || unidad === 'gramos') {
-        cantidadKg = cantidad / 1000;
-      }
-
-      if (cantidadKg > 0) {
-        // Consultar inventario para obtener la unidad exacta
-        this.consultarInventario('machos', item.catalogItemId);
-        const unidadInventario = this.inventarioUnidadMachos || 'kg';
-
-        restas.push(
-          this.inventarioSvc.postExit(lote.granjaId, {
-            catalogItemId: item.catalogItemId,
-            quantity: cantidadKg,
-            unit: unidadInventario,
-            reference: `Consumo diario levante - Lote ${lote.loteNombre || loteId}`,
-            reason: 'Consumo diario',
-            destination: 'Consumo'
-          }).toPromise().then(() => {
-            console.log(`Inventario machos reducido: ${cantidadKg} ${unidadInventario}`);
-          }).catch(err => {
-            console.error('Error al restar inventario machos:', err);
-            throw new Error('Error al registrar consumo en inventario (machos)');
-          })
-        );
-      }
-    });
-
-    // Esperar a que se completen las restas antes de emitir el save
-    if (restas.length > 0) {
-      Promise.all(restas).then(() => {
+    void (async () => {
+      try {
+        for (const catalogItemId of allFoodIds) {
+          const oldK = oldFoodKg.get(catalogItemId) ?? 0;
+          const newK = newFoodKg.get(catalogItemId) ?? 0;
+          const diff = newK - oldK;
+          await this.colombiaApplyInventoryDelta(lote.granjaId, lote, loteId, catalogItemId, diff);
+        }
         this.save.emit({ data, isEdit });
-      }).catch(err => {
-        alert(err.message || 'Error al registrar consumo en inventario');
-      });
-    } else {
-      this.save.emit({ data, isEdit });
-    }
+      } catch (e: any) {
+        alert(e?.message ?? 'Error al actualizar el inventario de la granja (inventario de productos).');
+      }
+    })();
   }
 
   // ================== HELPERS ==================

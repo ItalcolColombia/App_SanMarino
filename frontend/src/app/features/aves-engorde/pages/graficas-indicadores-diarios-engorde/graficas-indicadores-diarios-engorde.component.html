@@ -1,0 +1,60 @@
+<div class="graf-ind-eng">
+  <div class="graf-ind-eng__head">
+    <h3 class="graf-ind-eng__title">Gráficas — indicadores diarios vs guía genética</h3>
+    <p class="graf-ind-eng__subtitle" *ngIf="selectedLote">
+      Lote: <strong>{{ selectedLote.loteNombre || ('#' + selectedLote.loteId) }}</strong>
+      — un punto por cada día con registro (eje horizontal = día de vida del lote).
+    </p>
+    <p class="graf-ind-eng__guia" *ngIf="etiquetaGuia && !errorGuia">{{ etiquetaGuia }}</p>
+  </div>
+
+  <div class="graf-ind-eng__loading" *ngIf="loading || cargando">Cargando datos y curva guía…</div>
+
+  <div class="graf-ind-eng__alert" *ngIf="errorGuia" role="alert">{{ errorGuia }}</div>
+
+  <div class="graf-ind-eng__empty" *ngIf="!loading && !cargando && !errorGuia && seguimientos.length === 0">
+    No hay registros de seguimiento para graficar.
+  </div>
+
+  <div class="graf-ind-eng__empty" *ngIf="!loading && !cargando && !errorGuia && seguimientos.length > 0 && filas.length === 0">
+    No se pudieron calcular filas diarias. Verifique fechas, pesos y configuración de raza / año de tabla genética.
+  </div>
+
+  <div class="graf-ind-eng__stack" *ngIf="filas.length > 0 && !errorGuia">
+    <div class="graf-ind-eng__chart-wrap">
+      <canvas
+        baseChart
+        [type]="'bar'"
+        [data]="chart1Data"
+        [options]="chart1Options">
+      </canvas>
+    </div>
+
+    <div class="graf-ind-eng__chart-wrap">
+      <canvas
+        baseChart
+        [type]="'bar'"
+        [data]="chart2Data"
+        [options]="chart2Options">
+      </canvas>
+    </div>
+
+    <div class="graf-ind-eng__chart-wrap">
+      <canvas
+        baseChart
+        [type]="'bar'"
+        [data]="chart3Data"
+        [options]="chart3Options">
+      </canvas>
+    </div>
+
+    <div class="graf-ind-eng__chart-wrap">
+      <canvas
+        baseChart
+        [type]="'bar'"
+        [data]="chart4Data"
+        [options]="chart4Options">
+      </canvas>
+    </div>
+  </div>
+</div>

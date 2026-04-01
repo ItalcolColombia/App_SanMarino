@@ -7,7 +7,14 @@ import { GalponService } from '../../../galpon/services/galpon.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 
 import { LoteService, LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
-import { LotePosturaLevanteService, LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
+import {
+  LotePosturaLevanteService,
+  LotePosturaLevanteDto,
+  CierreLoteLevanteResumenDto
+} from '../../../lote/services/lote-postura-levante.service';
+import { AuthService } from '../../../../core/auth/auth.service';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 import {
   SeguimientoLoteLevanteService,
@@ -18,13 +25,11 @@ import {
 
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../services/nucleo.service';
-import { ModalLiquidacionComponent } from '../modal-liquidacion/modal-liquidacion.component';
 import { ModalCalculosComponent } from '../modal-calculos/modal-calculos.component';
 import { ModalCreateEditComponent } from '../modal-create-edit/modal-create-edit.component';
 import { ModalDetalleSeguimientoLevanteComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../filtro-select/filtro-select.component';
 import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.component';
-import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 // ===== Importa el servicio del catálogo =====
 import {
@@ -42,7 +47,7 @@ import { environment } from '../../../../../environments/environment';
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalLiquidacionComponent, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent, ConfirmationModalComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })
@@ -88,6 +93,8 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   // ================== UI ==================
   loading = false;
+  /** True mientras se carga el registro completo por ID (editar / ver detalle). */
+  loadingRecord = false;
   modalOpen = false;
   detailModalOpen = false;
   editing: SeguimientoLoteLevanteDto | null = null;
@@ -95,15 +102,14 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   activeTab: 'principal' | 'calculos' | 'liquidacion' = 'principal';
 
-  /** Modal informativo cuando el lote levante seleccionado está cerrado */
-  loteCerradoModalOpen = false;
-  loteCerradoModalData: ConfirmationModalData = {
-    title: 'Lote cerrado',
-    message: 'El lote seleccionado está cerrado. No se podrá realizar ningún registro porque el lote está cerrado. La información mostrada es solo de consulta.',
-    type: 'warning',
-    confirmText: 'Entendido',
-    showCancel: false
-  };
+  /** Cerrar lote → crea lote producción (modal). */
+  cerrarLoteModalOpen = false;
+  abrirLoteModalOpen = false;
+  resumenCierre: CierreLoteLevanteResumenDto | null = null;
+  huevosCierre = 0;
+  motivoAbrirLote = '';
+  loadingCierreLote = false;
+  errorCierreLote: string | null = null;
 
   /** True si el lote levante está cerrado (no se permite crear/editar/eliminar registros). */
   get isLoteCerrado(): boolean {
@@ -120,8 +126,8 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private lotePosturaLevanteSvc: LotePosturaLevanteService,
     private segSvc: SeguimientoLoteLevanteService,
     private galponSvc: GalponService,
-    // servicio de catálogo
     private catalogSvc: CatalogoAlimentosService,
+    private auth: AuthService,
   ) {}
 
   // ================== INIT ==================
@@ -319,11 +325,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     // Cargar información del lote levante desde lote_postura_levante
     this.lotePosturaLevanteSvc.getByLoteId(this.selectedLoteId).subscribe({
       next: rows => {
-        this.selectedLote = (rows && rows.length > 0) ? rows[0] : null;
-        // Si el lote está cerrado, mostrar modal de aviso
-        const lev = rows?.[0];
-        const cerrado = lev && String(lev.estadoCierre ?? '').trim().toLowerCase() === 'cerrado';
-        if (cerrado) this.loteCerradoModalOpen = true;
+        this.selectedLote = rows && rows.length > 0 ? rows[0] : null;
       },
       error: () => (this.selectedLote = null)
     });
@@ -455,13 +457,41 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   }
 
   edit(seg: SeguimientoLoteLevanteDto): void {
-    this.editing = seg;
-    this.modalOpen = true;
+    this.loadingRecord = true;
+    this.segSvc
+      .getById(seg.id)
+      .pipe(finalize(() => (this.loadingRecord = false)))
+      .subscribe({
+        next: full => {
+          this.editing = full;
+          this.modalOpen = true;
+        },
+        error: err => {
+          console.error('Error al cargar registro para editar:', err);
+          const msg =
+            err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudo cargar el registro completo.';
+          alert(msg);
+        }
+      });
   }
 
   viewDetail(seg: SeguimientoLoteLevanteDto): void {
-    this.editing = seg;
-    this.detailModalOpen = true;
+    this.loadingRecord = true;
+    this.segSvc
+      .getById(seg.id)
+      .pipe(finalize(() => (this.loadingRecord = false)))
+      .subscribe({
+        next: full => {
+          this.editing = full;
+          this.detailModalOpen = true;
+        },
+        error: err => {
+          console.error('Error al cargar registro para detalle:', err);
+          const msg =
+            err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudo cargar el registro.';
+          alert(msg);
+        }
+      });
   }
 
   delete(id: number): void {
@@ -488,6 +518,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   cancel(): void {
     this.modalOpen = false;
     this.editing = null;
+    this.loadingRecord = false;
   }
 
   onSave(event: { data: CreateSeguimientoLoteLevanteDto | UpdateSeguimientoLoteLevanteDto; isEdit: boolean }): void {
@@ -587,7 +618,6 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   // ========= MODALES =========
   calcsOpen = false;
-  liquidacionOpen = false;
 
   openCalculos(): void {
     if (!this.selectedLoteId) return;
@@ -596,16 +626,6 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
 
   closeCalculos(): void {
     this.calcsOpen = false;
-  }
-
-  // ========= LIQUIDACIÓN TÉCNICA =========
-  openLiquidacion(): void {
-    if (!this.selectedLoteId) return;
-    this.liquidacionOpen = true;
-  }
-
-  closeLiquidacion(): void {
-    this.liquidacionOpen = false;
   }
 
   // ******************************* Helpers de fecha *******************************
@@ -681,5 +701,124 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     if (!ymd) return null;
     const d = new Date(`${ymd}T12:00:00`);
     return isNaN(d.getTime()) ? null : d;
+  }
+
+  /** ID lote_postura_levante del lote seleccionado. */
+  get lotePosturaLevanteIdActual(): number | null {
+    const id = this.selectedLote?.lotePosturaLevanteId;
+    return id != null ? Number(id) : null;
+  }
+
+  openCerrarLoteModal(): void {
+    const id = this.lotePosturaLevanteIdActual;
+    if (id == null || this.isLoteCerrado) return;
+    this.loadingCierreLote = true;
+    this.errorCierreLote = null;
+    this.resumenCierre = null;
+    this.lotePosturaLevanteSvc.getResumenCierre(id).subscribe({
+      next: r => {
+        this.resumenCierre = r;
+        this.huevosCierre = 0;
+        this.loadingCierreLote = false;
+        if (r.yaExisteLoteProduccion) {
+          this.errorCierreLote = 'Ya existe un lote de producción vinculado a este levante.';
+        }
+        this.cerrarLoteModalOpen = true;
+      },
+      error: err => {
+        this.loadingCierreLote = false;
+        this.errorCierreLote = err?.error?.message ?? err?.message ?? 'No se pudo cargar el resumen.';
+        this.cerrarLoteModalOpen = true;
+      }
+    });
+  }
+
+  closeCerrarLoteModal(): void {
+    this.cerrarLoteModalOpen = false;
+    this.resumenCierre = null;
+    this.errorCierreLote = null;
+  }
+
+  async confirmarCerrarLote(): Promise<void> {
+    const id = this.lotePosturaLevanteIdActual;
+    if (id == null || this.resumenCierre?.yaExisteLoteProduccion) return;
+    const uid = await firstValueFrom(this.auth.session$.pipe(take(1)));
+    const u = uid?.user;
+    const userId =
+      (u?.id && String(u.id)) ||
+      (u?.userId != null ? String(u.userId) : '') ||
+      '';
+    if (!userId) {
+      this.errorCierreLote = 'No hay usuario en sesión.';
+      return;
+    }
+    if (this.huevosCierre < 0 || !Number.isFinite(this.huevosCierre)) {
+      this.errorCierreLote = 'Indique huevos iniciales (número entero ≥ 0).';
+      return;
+    }
+    this.loadingCierreLote = true;
+    this.errorCierreLote = null;
+    this.lotePosturaLevanteSvc
+      .cerrarLoteYcrearProduccion(id, {
+        huevosIniciales: Math.floor(Number(this.huevosCierre)),
+        closedByUserId: userId
+      })
+      .pipe(finalize(() => (this.loadingCierreLote = false)))
+      .subscribe({
+        next: () => {
+          this.closeCerrarLoteModal();
+          this.onLoteChange(this.selectedLoteId);
+        },
+        error: err => {
+          this.errorCierreLote = err?.error?.message ?? err?.message ?? 'No se pudo cerrar el lote.';
+        }
+      });
+  }
+
+  openAbrirLoteModal(): void {
+    if (!this.isLoteCerrado || this.lotePosturaLevanteIdActual == null) return;
+    this.motivoAbrirLote = '';
+    this.errorCierreLote = null;
+    this.abrirLoteModalOpen = true;
+  }
+
+  closeAbrirLoteModal(): void {
+    this.abrirLoteModalOpen = false;
+    this.motivoAbrirLote = '';
+    this.errorCierreLote = null;
+  }
+
+  async confirmarAbrirLote(): Promise<void> {
+    const id = this.lotePosturaLevanteIdActual;
+    if (id == null) return;
+    const m = (this.motivoAbrirLote || '').trim();
+    if (m.length < 3) {
+      this.errorCierreLote = 'Indique el motivo (mínimo 3 caracteres).';
+      return;
+    }
+    const uid = await firstValueFrom(this.auth.session$.pipe(take(1)));
+    const u = uid?.user;
+    const userId =
+      (u?.id && String(u.id)) ||
+      (u?.userId != null ? String(u.userId) : '') ||
+      '';
+    if (!userId) {
+      this.errorCierreLote = 'No hay usuario en sesión.';
+      return;
+    }
+    this.loadingCierreLote = true;
+    this.errorCierreLote = null;
+    this.lotePosturaLevanteSvc
+      .abrirLote(id, { motivo: m, openedByUserId: userId })
+      .pipe(finalize(() => (this.loadingCierreLote = false)))
+      .subscribe({
+        next: () => {
+          this.closeAbrirLoteModal();
+          this.onLoteChange(this.selectedLoteId);
+        },
+        error: err => {
+          this.errorCierreLote = err?.error?.message ?? err?.message ?? 'No se pudo abrir el lote.';
+        }
+      });
   }
 }

@@ -68,6 +68,9 @@ public class CreateSeguimientoLoteLevanteRequest
     public List<ItemSeguimientoDto>? ItemsHembras { get; set; }
     [JsonPropertyName("itemsMachos")]
     public List<ItemSeguimientoDto>? ItemsMachos { get; set; }
+    /// <summary>Ítems aplicados al lote en general (no hembras/machos): medicamentos, insumos compartidos, etc.</summary>
+    [JsonPropertyName("itemsGenerales")]
+    public List<ItemSeguimientoDto>? ItemsGenerales { get; set; }
     
     // Cantidad de unidades (para tipos de ítem que no sean alimento) - DEPRECATED
     public double? CantidadUnidadesHembras { get; set; }
@@ -111,6 +114,7 @@ public class CreateSeguimientoLoteLevanteRequest
         // Separar alimentos de otros ítems
         var (alimentosHembras, otrosItemsHembras) = SepararAlimentosYOtrosItems(ItemsHembras);
         var (alimentosMachos, otrosItemsMachos) = SepararAlimentosYOtrosItems(ItemsMachos);
+        var (alimentosGenerales, otrosItemsGenerales) = SepararAlimentosYOtrosItems(ItemsGenerales);
         
         // Calcular consumo total de alimentos desde los arrays de ítems
         double consumoKgHembras = CalcularConsumoTotalAlimentos(alimentosHembras);
@@ -153,11 +157,11 @@ public class CreateSeguimientoLoteLevanteRequest
         string tipoAlimentoStr = TipoAlimento ?? string.Empty;
         if (string.IsNullOrWhiteSpace(tipoAlimentoStr))
         {
-            tipoAlimentoStr = ConstruirTipoAlimentoString(alimentosHembras, alimentosMachos);
+            tipoAlimentoStr = ConstruirTipoAlimentoString(alimentosHembras, alimentosMachos, alimentosGenerales);
         }
         
         // Construir ItemsAdicionales JSONB solo con ítems que NO son alimentos
-        JsonDocument? itemsAdicionales = BuildItemsAdicionales(otrosItemsHembras, otrosItemsMachos);
+        JsonDocument? itemsAdicionales = BuildItemsAdicionales(otrosItemsHembras, otrosItemsMachos, otrosItemsGenerales);
         
         return new SeguimientoLoteLevanteDto(
             Id: id ?? 0,
@@ -186,7 +190,7 @@ public class CreateSeguimientoLoteLevanteRequest
             CvH: CvH,
             CvM: CvM,
             // Metadata JSONB con consumo original, tipo de ítem y otros campos adicionales
-            Metadata: BuildMetadata(ItemsHembras, ItemsMachos, ConsumoHembras, UnidadConsumoHembras, 
+            Metadata: BuildMetadata(ItemsHembras, ItemsMachos, ItemsGenerales, ConsumoHembras, UnidadConsumoHembras, 
                                    ConsumoMachos, UnidadConsumoMachos, TipoItemHembras, TipoItemMachos, 
                                    TipoAlimentoHembras, TipoAlimentoMachos, CantidadUnidadesHembras, CantidadUnidadesMachos),
             // Items adicionales JSONB solo para ítems que NO son alimentos
@@ -233,7 +237,10 @@ public class CreateSeguimientoLoteLevanteRequest
     /// <summary>
     /// Construye el JSONB de ItemsAdicionales solo con ítems que NO son alimentos.
     /// </summary>
-    private static JsonDocument? BuildItemsAdicionales(List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    private static JsonDocument? BuildItemsAdicionales(
+        List<ItemSeguimientoDto>? itemsHembras,
+        List<ItemSeguimientoDto>? itemsMachos,
+        List<ItemSeguimientoDto>? itemsGenerales)
     {
         var itemsAdicionales = new Dictionary<string, object?>();
         
@@ -251,6 +258,17 @@ public class CreateSeguimientoLoteLevanteRequest
         if (itemsMachos != null && itemsMachos.Count > 0)
         {
             itemsAdicionales["itemsMachos"] = itemsMachos.Select(i => new
+            {
+                tipoItem = i.TipoItem,
+                catalogItemId = i.CatalogItemId,
+                cantidad = i.Cantidad,
+                unidad = i.Unidad
+            }).ToList();
+        }
+
+        if (itemsGenerales != null && itemsGenerales.Count > 0)
+        {
+            itemsAdicionales["itemsGenerales"] = itemsGenerales.Select(i => new
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,
@@ -295,7 +313,10 @@ public class CreateSeguimientoLoteLevanteRequest
     /// <summary>
     /// Construye el string de TipoAlimento concatenando los nombres de los alimentos.
     /// </summary>
-    private static string ConstruirTipoAlimentoString(List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    private static string ConstruirTipoAlimentoString(
+        List<ItemSeguimientoDto>? itemsHembras,
+        List<ItemSeguimientoDto>? itemsMachos,
+        List<ItemSeguimientoDto>? itemsGenerales)
     {
         var nombres = new List<string>();
         
@@ -320,6 +341,17 @@ public class CreateSeguimientoLoteLevanteRequest
                 }
             }
         }
+
+        if (itemsGenerales != null)
+        {
+            foreach (var item in itemsGenerales)
+            {
+                if (item.TipoItem?.ToLower().Trim() == "alimento")
+                {
+                    nombres.Add($"G:{item.CatalogItemId}");
+                }
+            }
+        }
         
         return nombres.Count > 0 ? string.Join(" / ", nombres) : string.Empty;
     }
@@ -331,6 +363,7 @@ public class CreateSeguimientoLoteLevanteRequest
     private static JsonDocument? BuildMetadata(
         List<ItemSeguimientoDto>? itemsHembras,
         List<ItemSeguimientoDto>? itemsMachos,
+        List<ItemSeguimientoDto>? itemsGenerales,
         double? consumoHembras, string? unidadHembras, 
         double? consumoMachos, string? unidadMachos,
         string? tipoItemHembras, string? tipoItemMachos,
@@ -355,6 +388,18 @@ public class CreateSeguimientoLoteLevanteRequest
         if (itemsMachos != null && itemsMachos.Count > 0)
         {
             metadata["itemsMachos"] = itemsMachos.Select(i => new
+            {
+                tipoItem = i.TipoItem,
+                catalogItemId = i.CatalogItemId,
+                itemInventarioEcuadorId = i.ItemInventarioEcuadorId,
+                cantidad = i.Cantidad,
+                unidad = i.Unidad
+            }).ToList();
+        }
+
+        if (itemsGenerales != null && itemsGenerales.Count > 0)
+        {
+            metadata["itemsGenerales"] = itemsGenerales.Select(i => new
             {
                 tipoItem = i.TipoItem,
                 catalogItemId = i.CatalogItemId,

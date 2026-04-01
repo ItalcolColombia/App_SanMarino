@@ -756,3 +756,83 @@
   font-weight: 800;
   color: var(--ital-orange-dark);
 }
+
+/* Planilla liquidación EC (columnas por lote + total) */
+.liquidacion-ec-sheet__body {
+  overflow-x: auto;
+}
+
+.liquidacion-ec-sheet__hint {
+  font-size: 0.88rem;
+  color: var(--warm-600);
+  margin: 0 0 1rem;
+}
+
+.liquidacion-ec-sheet__wrap {
+  min-width: 640px;
+}
+
+.liquidacion-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  background: #fff;
+}
+
+.liquidacion-matrix__brand th {
+  text-align: left;
+  font-weight: 800;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.5rem;
+  background: #f5f0e8;
+  border: 1px solid var(--warm-300);
+}
+
+.liquidacion-matrix th,
+.liquidacion-matrix td {
+  border: 1px solid var(--warm-300);
+  padding: 0.35rem 0.5rem;
+  vertical-align: middle;
+}
+
+.liquidacion-matrix__label-col {
+  text-align: left;
+  font-weight: 600;
+  min-width: 11rem;
+  background: #faf8f5;
+}
+
+.liquidacion-matrix__lot-head {
+  text-align: center;
+  font-weight: 700;
+  background: #fff3bf;
+  max-width: 10rem;
+  white-space: normal;
+}
+
+.liquidacion-matrix__total-head {
+  text-align: center;
+  font-weight: 800;
+  background: #d4e4f0;
+}
+
+.liquidacion-matrix__total-col {
+  background: #e8f2f8;
+}
+
+.liquidacion-matrix__stripe td {
+  background: #fffaf5;
+}
+
+.liquidacion-matrix__row--green td {
+  background: #d8f0dc !important;
+}
+
+.liquidacion-matrix__row--yellow td {
+  background: #fff3bf !important;
+}
+
+.liquidacion-matrix__text-red td:not(:first-child) {
+  color: #b91c1c;
+  font-weight: 600;
+}

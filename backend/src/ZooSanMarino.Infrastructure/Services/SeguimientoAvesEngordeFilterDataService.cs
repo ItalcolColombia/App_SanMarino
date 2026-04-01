@@ -75,7 +75,8 @@ public class SeguimientoAvesEngordeFilterDataService : ISeguimientoAvesEngordeFi
                 l.GranjaId,
                 l.NucleoId,
                 l.GalponId,
-                l.LoteErp))
+                l.LoteErp,
+                l.EstadoOperativoLote))
             .ToList();
 
         return new LoteReproductoraFilterDataDto(

@@ -1,6 +1,6 @@
-<!-- Modal de creación/edición -->
+<!-- Modal de creación/edición — Seguimiento diario Levante (General + Stock; consumos H/M y generales en General) -->
 <div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="seguimiento-modal-title">
-  <div class="ux-modal__dialog">
+  <div class="ux-modal__dialog ux-modal__dialog--wide">
     <header class="ux-modal__header">
       <h2 id="seguimiento-modal-title">
         {{ loadingRecord ? 'Cargando registro…' : (editing ? 'Editar registro' : 'Nuevo registro') }}
@@ -10,11 +10,17 @@
 
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
       <div class="ux-panel-stack">
-          <!-- GENERAL -->
+
+        <nav class="modal-lev-tabs" role="tablist" aria-label="Secciones del registro">
+          <button type="button" class="modal-lev-tabs__btn" [class.modal-lev-tabs__btn--active]="levanteTab === 'general'"
+            (click)="setLevanteTab('general')" role="tab" [attr.aria-selected]="levanteTab === 'general'">General</button>
+          <button type="button" class="modal-lev-tabs__btn" [class.modal-lev-tabs__btn--active]="levanteTab === 'stock'"
+            (click)="setLevanteTab('stock')" role="tab" [attr.aria-selected]="levanteTab === 'stock'">Stock</button>
+        </nav>
+
+        <!-- ========== GENERAL ========== -->
+        <ng-container *ngIf="levanteTab === 'general'">
           <section class="ux-panel-section">
-            <p class="ux-hint" *ngIf="camposCalculoBloqueadosEnEdicion" style="margin: 0 0 1rem 0;">
-              En edición no puede modificar <strong>alimento</strong>, <strong>mortalidad</strong>, <strong>selección</strong> ni <strong>error de sexaje</strong>. Puede actualizar fecha, lote, observaciones, peso, uniformidad, agua y demás campos del registro.
-            </p>
             <div class="grid grid-2">
               <div class="form-field">
                 <label for="f-fecha">Fecha</label>
@@ -38,62 +44,223 @@
             </div>
           </section>
 
+          <!-- Alimento e ítems — Hembras -->
           <section class="ux-panel-section">
-            <div class="data-group">
-              <h3 class="data-group-title">📦 Alimento</h3>
-              <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
-                Puede registrar varios alimentos por sexo. Por defecto aparece una fila.
+            <div class="data-group modal-lev-box modal-lev-box--hembras">
+              <h3 class="data-group-title">🐔 Hembras — alimento e ítems</h3>
+              <p class="ux-hint modal-lev-colombia-food" *ngIf="!isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
+                <strong>Alimento hembras (Colombia — inventario de productos):</strong> producto con existencias en la granja del lote,
+                consumo en kg o g; debajo, <strong>disponible</strong> y tope al editar.
               </p>
-
-              <div>
-                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 0.75rem;">
-                  <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()" [disabled]="camposCalculoBloqueadosEnEdicion">+ Agregar alimento</button>
+              <p class="ux-hint" *ngIf="isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
+                Registre alimentos, medicamentos u otros ítems para hembras.
+              </p>
+              <div *ngFor="let itemH of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemH)"
+                class="modal-lev-item-row">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <small style="font-weight: 700; color: #57534e;">Hembras — ítem {{ i + 1 }}</small>
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)"
+                    [disabled]="itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
                 </div>
-                  <div *ngFor="let itemH of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemH)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; background: #fff;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                      <small style="font-weight: 700; color: #57534e;">Alimento {{ i + 1 }}</small>
-                      <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" [disabled]="camposCalculoBloqueadosEnEdicion || itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
-                    </div>
-                    <div class="grid grid-2">
-                      <div class="form-field">
-                        <label [for]="'f-item-h-' + i">Ítem (alimento)</label>
-                        <div class="ux-select">
-                          <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
-                            <option [ngValue]="null">— Seleccione —</option>
-                            <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)))" [ngValue]="a.id">
-                              {{ getItemDisplayText(a) }}
-                            </option>
-                          </select>
-                        </div>
-                        <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
-                          Disponible actual: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
-                          <ng-container *ngIf="editing">
-                            • Máximo para editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.2-2' }} kg
-                          </ng-container>
-                        </small>
-                      </div>
-                      <div class="form-field">
-                        <label [for]="'f-cantidad-h-' + i">Cantidad</label>
-                        <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                          <div style="flex: 1;">
-                            <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
-                          </div>
-                          <div style="width: 100px;">
-                            <select formControlName="unidad" class="ux-select" style="width: 100%;">
-                              <option value="kg">kg</option>
-                              <option value="g">gramos</option>
-                            </select>
-                          </div>
-                        </div>
-                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemH))">
-                      La cantidad ingresada supera el máximo permitido para este ítem.
-                    </small>
-                      </div>
+                <div class="grid grid-2">
+                  <div class="form-field">
+                    <label [for]="'f-tipo-h-' + i">Tipo de ítem</label>
+                    <div class="ux-select">
+                      <select [id]="'f-tipo-h-' + i" formControlName="tipoItem"
+                        (change)="filtrarAlimentosPorTipo('hembras', $any(itemH).get('tipoItem')?.value)">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        <option *ngFor="let t of tiposItemDisplay" [ngValue]="t">{{ t }}</option>
+                      </select>
                     </div>
                   </div>
+                  <div class="form-field">
+                    <label [for]="'f-item-h-' + i">Ítem</label>
+                    <div class="ux-select">
+                      <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)))" [ngValue]="a.id">
+                          {{ getItemDisplayText(a) }}
+                        </option>
+                      </select>
+                    </div>
+                    <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
+                      Disponible: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
+                      <ng-container *ngIf="editing">
+                        • Máx. editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                      </ng-container>
+                    </small>
+                  </div>
+                  <div class="form-field">
+                    <label [for]="'f-cantidad-h-' + i">Cantidad</label>
+                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
+                      </div>
+                      <div style="width: 100px;">
+                        <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                          <option value="kg">kg</option>
+                          <option value="g">gramos</option>
+                          <option value="unidades">unidades</option>
+                        </select>
+                      </div>
+                    </div>
+                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemH))">
+                      La cantidad supera el máximo permitido para este ítem.
+                    </small>
+                  </div>
                 </div>
+              </div>
             </div>
+          </section>
 
+          <!-- Alimento e ítems — Machos -->
+          <section class="ux-panel-section">
+            <div class="data-group modal-lev-box modal-lev-box--machos">
+              <h3 class="data-group-title">🐓 Machos — alimento e ítems</h3>
+              <p class="ux-hint modal-lev-colombia-food" *ngIf="!isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
+                <strong>Alimento machos (Colombia):</strong> mismo criterio que hembras: stock en granja y validación de consumo.
+              </p>
+              <p class="ux-hint" *ngIf="isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
+                Registre alimentos, medicamentos u otros ítems para machos.
+              </p>
+              <p class="ux-hint" *ngIf="itemsMachosArray.length === 0" style="margin: 0 0 1rem 0;">
+                Si hay consumo para machos, pulse <strong>«+ Ítem machos»</strong> en la sección de abajo.
+              </p>
+              <div *ngFor="let itemM of itemsMachosArray.controls; let j = index" [formGroup]="$any(itemM)"
+                class="modal-lev-item-row">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <small style="font-weight: 700; color: #57534e;">Machos — ítem {{ j + 1 }}</small>
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(j)"
+                    [disabled]="itemsMachosArray.length === 1" style="color: #d32f2f;">Eliminar</button>
+                </div>
+                <div class="grid grid-2">
+                  <div class="form-field">
+                    <label [for]="'f-tipo-m-' + j">Tipo de ítem</label>
+                    <div class="ux-select">
+                      <select [id]="'f-tipo-m-' + j" formControlName="tipoItem"
+                        (change)="filtrarAlimentosPorTipo('machos', $any(itemM).get('tipoItem')?.value)">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        <option *ngFor="let t of tiposItemDisplay" [ngValue]="t">{{ t }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label [for]="'f-item-m-' + j">Ítem</label>
+                    <div class="ux-select">
+                      <select [id]="'f-item-m-' + j" formControlName="catalogItemId">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroMacho($any(itemM)))" [ngValue]="a.id">
+                          {{ getItemDisplayText(a) }}
+                        </option>
+                      </select>
+                    </div>
+                    <small class="ux-hint text-success" *ngIf="itemM.get('catalogItemId')?.value && getCantidadDisponible(itemM.get('catalogItemId')?.value)">
+                      Disponible: {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.unit }}
+                      <ng-container *ngIf="editing">
+                        • Máx. editar: {{ getMaxPermitidoKg(itemM.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                      </ng-container>
+                    </small>
+                  </div>
+                  <div class="form-field">
+                    <label [for]="'f-cantidad-m-' + j">Cantidad</label>
+                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <input [id]="'f-cantidad-m-' + j" type="number" step="0.001" min="0" formControlName="cantidad" />
+                      </div>
+                      <div style="width: 100px;">
+                        <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                          <option value="kg">kg</option>
+                          <option value="g">gramos</option>
+                          <option value="unidades">unidades</option>
+                        </select>
+                      </div>
+                    </div>
+                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemM))">
+                      La cantidad supera el máximo permitido para este ítem.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Agregar ítems (hembras / machos / general) -->
+          <section class="ux-panel-section">
+            <div class="data-group">
+              <h3 class="data-group-title">➕ Agregar ítems</h3>
+              <p class="ux-hint" style="margin: 0.25rem 0 0.75rem 0;">
+                Elija si el nuevo ítem aplica a <strong>hembras</strong>, <strong>machos</strong> o al <strong>lote en general</strong>
+                (medicamentos, biológicos, accesorios, consumibles u otros no asignados a un sexo).
+              </p>
+              <div class="modal-lev-add-items-toolbar" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                <button type="button" class="btn btn--outline btn--sm" (click)="agregarItemHembras()">+ Ítem hembras</button>
+                <button type="button" class="btn btn--outline btn--sm" (click)="agregarItemMachos()">+ Ítem machos</button>
+                <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemGeneral()">+ Ítem general</button>
+              </div>
+            </div>
+            <div class="data-group" *ngIf="itemsGeneralesArray.length > 0">
+              <h3 class="data-group-title">📌 Ítems generales (lote completo)</h3>
+              <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
+                Insumos compartidos o no ligados a hembras/machos. Seleccione tipo de ítem y producto (todos los tipos del catálogo).
+              </p>
+              <div *ngFor="let itemG of itemsGeneralesArray.controls; let k = index" [formGroup]="$any(itemG)"
+                class="modal-lev-item-row">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <small style="font-weight: 700; color: #57534e;">General — ítem {{ k + 1 }}</small>
+                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemGeneral(k)" style="color: #d32f2f;">Eliminar</button>
+                </div>
+                <div class="grid grid-2">
+                  <div class="form-field">
+                    <label [for]="'f-tipo-g-' + k">Tipo de ítem</label>
+                    <div class="ux-select">
+                      <select [id]="'f-tipo-g-' + k" formControlName="tipoItem"
+                        (change)="filtrarAlimentosPorTipo('general', $any(itemG).get('tipoItem')?.value)">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        <option *ngFor="let t of tiposItemDisplay" [ngValue]="t">{{ t }}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-field">
+                    <label [for]="'f-item-g-' + k">Ítem</label>
+                    <div class="ux-select">
+                      <select [id]="'f-item-g-' + k" formControlName="catalogItemId">
+                        <option [ngValue]="null">— Seleccione —</option>
+                        <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroGeneral($any(itemG)))" [ngValue]="a.id">
+                          {{ getItemDisplayText(a) }}
+                        </option>
+                      </select>
+                    </div>
+                    <small class="ux-hint text-success" *ngIf="itemG.get('catalogItemId')?.value && getCantidadDisponible(itemG.get('catalogItemId')?.value)">
+                      Disponible: {{ getCantidadDisponible(itemG.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemG.get('catalogItemId')?.value)?.unit }}
+                      <ng-container *ngIf="editing">
+                        • Máx. editar: {{ getMaxPermitidoKg(itemG.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                      </ng-container>
+                    </small>
+                  </div>
+                  <div class="form-field">
+                    <label [for]="'f-cantidad-g-' + k">Cantidad</label>
+                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                      <div style="flex: 1;">
+                        <input [id]="'f-cantidad-g-' + k" type="number" step="0.001" min="0" formControlName="cantidad" />
+                      </div>
+                      <div style="width: 100px;">
+                        <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                          <option value="kg">kg</option>
+                          <option value="g">gramos</option>
+                          <option value="unidades">unidades</option>
+                        </select>
+                      </div>
+                    </div>
+                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemG))">
+                      La cantidad supera el máximo permitido para este ítem.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="ux-panel-section">
             <div class="data-group">
               <h3 class="data-group-title">💀 Mortalidad, Selección y Error de sexaje</h3>
               <div class="compare-grid">
@@ -137,74 +304,121 @@
             </div>
           </section>
 
-          <!-- AGUA (solo para Ecuador y Panamá) -->
           <section class="ux-panel-section" *appShowIfEcuadorPanama>
             <div class="data-group">
               <h3 class="data-group-title">💧 Información del Agua</h3>
               <div class="grid grid-2">
                 <div class="form-field">
-                  <label for="f-consumo-agua-diario">
-                    <span class="label-icon">📊</span>
-                    Consumo Agua Diario (litros)
-                  </label>
-                  <input 
-                    id="f-consumo-agua-diario" 
-                    type="number" 
-                    step="0.01" 
-                    min="0" 
-                    formControlName="consumoAguaDiario" 
-                    placeholder="Ej: 1500.50" />
-                  <small class="ux-hint">Consumo diario de agua en litros</small>
+                  <label for="f-consumo-agua-diario">Consumo Agua Diario (litros)</label>
+                  <input id="f-consumo-agua-diario" type="number" step="0.01" min="0" formControlName="consumoAguaDiario" placeholder="Ej: 1500.50" />
                 </div>
-
                 <div class="form-field">
-                  <label for="f-consumo-agua-ph">
-                    <span class="label-icon">🧪</span>
-                    PH del Agua
-                  </label>
-                  <input 
-                    id="f-consumo-agua-ph" 
-                    type="number" 
-                    step="0.01" 
-                    min="0" 
-                    max="14" 
-                    formControlName="consumoAguaPh" 
-                    placeholder="Ej: 7.0" />
-                  <small class="ux-hint">Nivel de PH del agua (0-14)</small>
+                  <label for="f-consumo-agua-ph">PH del Agua</label>
+                  <input id="f-consumo-agua-ph" type="number" step="0.01" min="0" max="14" formControlName="consumoAguaPh" placeholder="Ej: 7.0" />
                 </div>
-
                 <div class="form-field">
-                  <label for="f-consumo-agua-orp">
-                    <span class="label-icon">⚡</span>
-                    ORP (mV)
-                  </label>
-                  <input 
-                    id="f-consumo-agua-orp" 
-                    type="number" 
-                    step="0.01" 
-                    min="0" 
-                    formControlName="consumoAguaOrp" 
-                    placeholder="Ej: 650.00" />
-                  <small class="ux-hint">Potencial de Oxidación-Reducción en milivoltios</small>
+                  <label for="f-consumo-agua-orp">ORP (mV)</label>
+                  <input id="f-consumo-agua-orp" type="number" step="0.01" min="0" formControlName="consumoAguaOrp" placeholder="Ej: 650.00" />
                 </div>
-
                 <div class="form-field">
-                  <label for="f-consumo-agua-temperatura">
-                    <span class="label-icon">🌡️</span>
-                    Temperatura del Agua (°C)
-                  </label>
-                  <input 
-                    id="f-consumo-agua-temperatura" 
-                    type="number" 
-                    step="0.1" 
-                    min="0" 
-                    formControlName="consumoAguaTemperatura" 
-                    placeholder="Ej: 25.5" />
-                  <small class="ux-hint">Temperatura del agua en grados Celsius</small>
+                  <label for="f-consumo-agua-temperatura">Temperatura del Agua (°C)</label>
+                  <input id="f-consumo-agua-temperatura" type="number" step="0.1" min="0" formControlName="consumoAguaTemperatura" placeholder="Ej: 25.5" />
                 </div>
               </div>
             </div>
           </section>
+        </ng-container>
+
+        <!-- ========== STOCK: inventario de productos (misma granja/ubicación que el lote) ========== -->
+        <ng-container *ngIf="levanteTab === 'stock'">
+          <section class="ux-panel-section">
+            <div class="data-group">
+              <h3 class="data-group-title">📊 Stock — Inventario de productos</h3>
+              <p class="ux-hint modal-lev-stock__intro">
+                Stock de la granja del lote en <strong>General</strong>
+                <ng-container *ngIf="selectedGranjaName"> ({{ selectedGranjaName }})</ng-container>.
+                <ng-container *ngIf="isEcuadorOrPanama"> Ubicación por núcleo/galpón del lote cuando aplica.</ng-container>
+                <ng-container *ngIf="!isEcuadorOrPanama"> En Colombia corresponde al <strong>inventario de productos</strong> (existencias por granja en catálogo).</ng-container>
+              </p>
+              <p class="ux-hint text-warning" *ngIf="!form.get('loteId')?.value">
+                Seleccione un lote en la pestaña General para cargar la granja y el stock.
+              </p>
+              <div class="modal-lev-stock__toolbar" *ngIf="form.get('loteId')?.value">
+                <div class="form-field modal-lev-stock__search">
+                  <label for="f-stock-buscar">Buscar producto</label>
+                  <input id="f-stock-buscar" type="search" [(ngModel)]="stockVistaSearch" [ngModelOptions]="{standalone: true}"
+                    placeholder="Nombre o código" autocomplete="off" />
+                </div>
+                <button type="button" class="btn btn--outline btn--sm" (click)="refrescarStockListado()"
+                  [disabled]="cargandoStockListado || !tieneGranjaParaStock">
+                  Actualizar
+                </button>
+              </div>
+              <p class="ux-hint text-danger" *ngIf="stockListadoError">{{ stockListadoError }}</p>
+              <div *ngIf="cargandoStockListado" class="modal-lev-stock__loading ux-hint">Cargando stock…</div>
+
+              <!-- Ecuador / Panamá: inventario-gestion -->
+              <div *ngIf="isEcuadorOrPanama && !cargandoStockListado && tieneGranjaParaStock" class="modal-lev-stock__table-wrap">
+                <table class="modal-lev-stock-table" *ngIf="stockListadoFiltradoEcuador.length > 0">
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Producto</th>
+                      <th>Tipo</th>
+                      <th class="text-right">Cantidad</th>
+                      <th>Unidad</th>
+                      <th>Ubicación</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of stockListadoFiltradoEcuador">
+                      <td>{{ r.itemCodigo }}</td>
+                      <td>{{ r.itemNombre }}</td>
+                      <td>{{ r.itemType }}</td>
+                      <td class="text-right">{{ r.quantity | number:'1.0-4' }}</td>
+                      <td>{{ r.unit }}</td>
+                      <td>
+                        <span *ngIf="r.nucleoNombre || r.galponNombre">{{ r.nucleoNombre || '—' }} / {{ r.galponNombre || '—' }}</span>
+                        <span *ngIf="!r.nucleoNombre && !r.galponNombre">{{ r.granjaNombre || 'Granja' }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="ux-hint" *ngIf="stockListadoFiltradoEcuador.length === 0 && !stockListadoError && !cargandoStockListado">
+                  No hay líneas de stock en esta ubicación. Verifique ingresos en Inventario de productos o amplíe la búsqueda.
+                </p>
+              </div>
+
+              <!-- Otros países: inventario por catálogo -->
+              <div *ngIf="!isEcuadorOrPanama && !cargandoStockListado && tieneGranjaParaStock" class="modal-lev-stock__table-wrap">
+                <table class="modal-lev-stock-table" *ngIf="stockListadoFiltradoLegacy.length > 0">
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Producto</th>
+                      <th class="text-right">Cantidad</th>
+                      <th>Unidad</th>
+                      <th>Ubicación</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of stockListadoFiltradoLegacy">
+                      <td>{{ r.codigo }}</td>
+                      <td>{{ r.nombre }}</td>
+                      <td class="text-right">{{ r.quantity | number:'1.0-4' }}</td>
+                      <td>{{ r.unit }}</td>
+                      <td>{{ r.location || '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="ux-hint" *ngIf="stockListadoFiltradoLegacy.length === 0 && !stockListadoError && !cargandoStockListado">
+                  No hay inventario registrado para esta granja.
+                </p>
+              </div>
+            </div>
+          </section>
+        </ng-container>
+
       </div>
 
       <footer class="ux-modal__footer">

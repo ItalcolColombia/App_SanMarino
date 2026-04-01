@@ -43,6 +43,13 @@ export interface LoteAveEngordeDto {
   paisId?: number | null;
   paisNombre?: string | null;
   empresaNombre?: string | null;
+  /** Abierto | Cerrado (liquidado). */
+  estadoOperativoLote?: string | null;
+  liquidadoAt?: string | null;
+  liquidadoPorUserId?: string | null;
+  reabiertoAt?: string | null;
+  reabiertoPorUserId?: string | null;
+  motivoReapertura?: string | null;
 }
 
 export interface CreateLoteAveEngordeDto extends Omit<LoteAveEngordeDto, 'loteAveEngordeId'> {
@@ -87,5 +94,15 @@ export class LoteEngordeService {
 
   delete(loteAveEngordeId: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${loteAveEngordeId}`);
+  }
+
+  cerrarLote(loteAveEngordeId: number, closedByUserId: string): Observable<LoteAveEngordeDto> {
+    return this.http.post<LoteAveEngordeDto>(`${this.baseUrl}/${loteAveEngordeId}/cerrar`, {
+      closedByUserId
+    });
+  }
+
+  abrirLote(loteAveEngordeId: number, body: { motivo: string; openedByUserId: string }): Observable<LoteAveEngordeDto> {
+    return this.http.post<LoteAveEngordeDto>(`${this.baseUrl}/${loteAveEngordeId}/abrir`, body);
   }
 }

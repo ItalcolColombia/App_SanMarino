@@ -1,0 +1,14 @@
+@import '../../../lote-levante/pages/tabla-indicadores-diarios/tabla-indicadores-diarios.component.scss';
+
+.indicadores-diarios__head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.indicadores-diarios__download {
+  flex-shrink: 0;
+  align-self: flex-start;
+}

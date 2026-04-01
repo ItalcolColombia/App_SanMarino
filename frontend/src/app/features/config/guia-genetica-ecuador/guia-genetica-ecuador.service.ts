@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 
 export interface GuiaGeneticaEcuadorFiltersDto {
@@ -54,6 +55,52 @@ export interface GuiaGeneticaEcuadorHeaderDto {
   estado: string;
 }
 
+function pickNumGuia(raw: Record<string, unknown>, ...keys: string[]): number {
+  for (const k of keys) {
+    const v = raw[k];
+    if (v != null && v !== '') {
+      const n = typeof v === 'number' ? v : Number(v);
+      if (Number.isFinite(n)) {
+        return n;
+      }
+    }
+  }
+  return 0;
+}
+
+function pickIntGuia(raw: Record<string, unknown>, ...keys: string[]): number {
+  return Math.trunc(pickNumGuia(raw, ...keys));
+}
+
+/** Acepta camelCase o PascalCase (y CA/ca) para que la tabla de indicadores siempre reciba números. */
+export function normalizeGuiaGeneticaEcuadorDetalleApiRow(raw: unknown): GuiaGeneticaEcuadorDetalleDto {
+  if (raw == null || typeof raw !== 'object') {
+    return {
+      sexo: 'mixto',
+      dia: 0,
+      pesoCorporalG: 0,
+      gananciaDiariaG: 0,
+      promedioGananciaDiariaG: 0,
+      cantidadAlimentoDiarioG: 0,
+      alimentoAcumuladoG: 0,
+      ca: 0,
+      mortalidadSeleccionDiaria: 0
+    };
+  }
+  const o = raw as Record<string, unknown>;
+  return {
+    sexo: String(o['sexo'] ?? o['Sexo'] ?? 'mixto'),
+    dia: pickIntGuia(o, 'dia', 'Dia'),
+    pesoCorporalG: pickNumGuia(o, 'pesoCorporalG', 'PesoCorporalG'),
+    gananciaDiariaG: pickNumGuia(o, 'gananciaDiariaG', 'GananciaDiariaG'),
+    promedioGananciaDiariaG: pickNumGuia(o, 'promedioGananciaDiariaG', 'PromedioGananciaDiariaG'),
+    cantidadAlimentoDiarioG: pickNumGuia(o, 'cantidadAlimentoDiarioG', 'CantidadAlimentoDiarioG'),
+    alimentoAcumuladoG: pickNumGuia(o, 'alimentoAcumuladoG', 'AlimentoAcumuladoG'),
+    ca: pickNumGuia(o, 'ca', 'cA', 'CA', 'Ca'),
+    mortalidadSeleccionDiaria: pickNumGuia(o, 'mortalidadSeleccionDiaria', 'MortalidadSeleccionDiaria')
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class GuiaGeneticaEcuadorService {
   private readonly base = `${environment.apiUrl}/guia-genetica-ecuador`;
@@ -76,7 +123,9 @@ export class GuiaGeneticaEcuadorService {
 
   getDatos(raza: string, anioGuia: number, sexo: string): Observable<GuiaGeneticaEcuadorDetalleDto[]> {
     const p = new HttpParams().set('raza', raza).set('anioGuia', String(anioGuia)).set('sexo', sexo);
-    return this.http.get<GuiaGeneticaEcuadorDetalleDto[]>(`${this.base}/datos`, { params: p });
+    return this.http.get<unknown[]>(`${this.base}/datos`, { params: p }).pipe(
+      map(rows => (rows ?? []).map(r => normalizeGuiaGeneticaEcuadorDetalleApiRow(r)))
+    );
   }
 
   importExcel(file: File, raza: string, anioGuia: number, estado: string): Observable<GuiaGeneticaEcuadorImportResultDto> {

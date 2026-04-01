@@ -84,12 +84,15 @@ export interface CreateSeguimientoLoteLevanteDto {
   // los otros ítems van a itemsAdicionales JSONB
   itemsHembras?: ItemSeguimientoDto[] | null;
   itemsMachos?: ItemSeguimientoDto[] | null;
+  /** Ítems del lote sin distinción hembras/machos (medicamentos, insumos compartidos, etc.). */
+  itemsGenerales?: ItemSeguimientoDto[] | null;
   
   // Items adicionales JSONB (solo para ítems que NO son alimentos)
-  // Se calcula automáticamente desde itemsHembras/itemsMachos filtrando los no-alimentos
+  // Se calcula automáticamente desde itemsHembras/itemsMachos/itemsGenerales filtrando los no-alimentos
   itemsAdicionales?: {
     itemsHembras?: ItemSeguimientoDto[];
     itemsMachos?: ItemSeguimientoDto[];
+    itemsGenerales?: ItemSeguimientoDto[];
   } | null;
   
   // DEPRECATED: Mantener para compatibilidad hacia atrás

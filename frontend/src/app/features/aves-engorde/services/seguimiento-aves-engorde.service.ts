@@ -28,6 +28,23 @@ export interface SeguimientoAvesEngordePorLoteResponseDto {
 }
 
 /** Fila de lote_registro_historico_unificado (también en por-lote unificado). */
+export interface LiquidacionLoteEngordeResumenDto {
+  loteAveEngordeId: number;
+  loteNombre: string;
+  estadoOperativoLote: string;
+  hembrasInicio: number | null;
+  machosInicio: number | null;
+  mixtasInicio: number | null;
+  totalAvesInicio: number;
+  ventasTotalHembras: number;
+  ventasTotalMachos: number;
+  ventasTotalMixtas: number;
+  /** Aves vivas actuales (inicio - bajas seguimiento - ventas). Debe ser 0 para permitir liquidación. */
+  avesVivasActuales: number;
+  movimientosVentaCount: number;
+  saldoAlimentoKg: number | null;
+}
+
 export interface LoteRegistroHistoricoUnificadoDto {
   id: number;
   companyId: number;
@@ -74,6 +91,13 @@ export class SeguimientoAvesEngordeService {
   getHistoricoUnificadoPorLote(loteId: number): Observable<LoteRegistroHistoricoUnificadoDto[]> {
     return this.http.get<LoteRegistroHistoricoUnificadoDto[]>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/historico-unificado`
+    );
+  }
+
+  /** Resumen para liquidar lote (ventas, aves inicio, saldo alimento). */
+  getResumenLiquidacion(loteId: number): Observable<LiquidacionLoteEngordeResumenDto> {
+    return this.http.get<LiquidacionLoteEngordeResumenDto>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/resumen-liquidacion`
     );
   }
 

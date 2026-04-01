@@ -11,7 +11,9 @@ public sealed record LoteAveEngordeFilterItemDto(
     string LoteNombre,
     int GranjaId,
     string? NucleoId,
-    string? GalponId
+    string? GalponId,
+    string? Linea,
+    DateTime? FechaEncaset
 );
 
 /// <summary>

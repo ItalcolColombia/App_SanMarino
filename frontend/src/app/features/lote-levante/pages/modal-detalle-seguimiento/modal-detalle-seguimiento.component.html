@@ -102,6 +102,32 @@
           </div>
         </section>
 
+        <section class="detail-section" *ngIf="itemsGenerales.length > 0">
+          <h3 class="detail-section__title">Ítems generales (lote)</h3>
+          <div class="detail-items-wrap">
+            <div class="detail-table-wrap">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Ítem</th>
+                    <th>Cantidad</th>
+                    <th>Unidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let item of itemsGenerales">
+                    <td><span class="detail-badge">{{ item.tipoItem }}</span></td>
+                    <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                    <td>{{ formatNumber(item.cantidad) }}</td>
+                    <td>{{ item.unidad }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <!-- Machos -->
         <section class="detail-section">
           <h3 class="detail-section__title">Machos</h3>

@@ -1,0 +1,69 @@
+.graf-ind-eng {
+  padding: 0.25rem 0 1rem;
+}
+
+.graf-ind-eng__head {
+  margin-bottom: 1rem;
+}
+
+.graf-ind-eng__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ux-text, #111);
+}
+
+.graf-ind-eng__subtitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  color: var(--ux-muted, #64748b);
+}
+
+.graf-ind-eng__guia {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ux-primary, #b91c1c);
+  font-weight: 600;
+}
+
+.graf-ind-eng__loading,
+.graf-ind-eng__alert,
+.graf-ind-eng__empty {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.graf-ind-eng__alert {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.graf-ind-eng__empty {
+  background: var(--ux-surface-muted, #f8fafc);
+  color: var(--ux-muted, #64748b);
+}
+
+.graf-ind-eng__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.graf-ind-eng__chart-wrap {
+  position: relative;
+  height: 320px;
+  width: 100%;
+  background: var(--ux-surface, #fff);
+  border: 1px solid var(--ux-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 0.75rem 0.5rem 0.25rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .graf-ind-eng__chart-wrap {
+    height: 280px;
+  }
+}

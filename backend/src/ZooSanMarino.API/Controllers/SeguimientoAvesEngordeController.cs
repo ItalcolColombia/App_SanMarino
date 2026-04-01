@@ -55,6 +55,16 @@ public class SeguimientoAvesEngordeController : ControllerBase
         return Ok(items);
     }
 
+    /// <summary>Resumen para liquidar lote: aves al inicio, ventas acumuladas, saldo alimento (kg).</summary>
+    [HttpGet("por-lote/{loteId}/resumen-liquidacion")]
+    [ProducesResponseType(typeof(LiquidacionLoteEngordeResumenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LiquidacionLoteEngordeResumenDto>> GetResumenLiquidacion(int loteId)
+    {
+        var res = await _svc.GetLiquidacionResumenAsync(loteId);
+        return res is null ? NotFound() : Ok(res);
+    }
+
     /// <summary>Obtener un registro por ID.</summary>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(SeguimientoLoteLevanteDto), StatusCodes.Status200OK)]
@@ -131,6 +141,10 @@ public class SeguimientoAvesEngordeController : ControllerBase
             if (!deleted)
                 return NotFound(new { message = "Registro no encontrado o no tienes permisos para eliminarlo." });
             return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

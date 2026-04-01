@@ -71,6 +71,14 @@
   font-size: 0.92rem;
 }
 
+.indicadores-diarios__aves-hm {
+  display: inline-block;
+  margin-left: 0.25rem;
+  font-size: 0.72em;
+  color: var(--ital-muted, #64748b);
+  font-weight: 500;
+}
+
 .indicadores-diarios__table {
   font-size: 0.78rem;
   white-space: nowrap;
