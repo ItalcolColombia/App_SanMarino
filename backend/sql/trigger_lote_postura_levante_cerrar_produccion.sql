@@ -6,6 +6,12 @@
 -- El seguimiento diario de producción registra mortalidad, descarte y
 -- error de sexaje para hembras y machos en el mismo lote.
 -- Nombre del lote: prefijo opcional "P-" + nombre del levante (sin -H/-M).
+--
+-- IMPORTANTE: Si el cierre debe ser SOLO manual (API), no ejecute este script
+-- en nuevas instalaciones o desactive el trigger en BD con:
+--   sql/disable_trg_lpl_cerrar_produccion.sql
+-- (Las actualizaciones de seguimiento diario suelen tocar lote_postura_levante
+-- y disparaban este trigger, cerrando el lote sin intervención del usuario.)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION trg_lote_postura_levante_cerrar_produccion()

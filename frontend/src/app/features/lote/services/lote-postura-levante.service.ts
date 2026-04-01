@@ -69,6 +69,15 @@ export interface LotePosturaLevanteDto {
   edadMaximaSeguimiento?: number | null;
 }
 
+/** Resumen API GET .../resumen-cierre */
+export interface CierreLoteLevanteResumenDto {
+  lotePosturaLevanteId: number;
+  loteNombre: string;
+  avesHembrasDisponibles: number;
+  avesMachosDisponibles: number;
+  yaExisteLoteProduccion: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LotePosturaLevanteService {
   private readonly baseUrl = `${environment.apiUrl}/LotePosturaLevante`;
@@ -85,5 +94,28 @@ export class LotePosturaLevanteService {
   /** Detalle por ID (incluye edadMaximaSeguimiento). */
   getById(id: number): Observable<LotePosturaLevanteDto> {
     return this.http.get<LotePosturaLevanteDto>(`${this.baseUrl}/${id}`);
+  }
+
+  getResumenCierre(lotePosturaLevanteId: number): Observable<CierreLoteLevanteResumenDto> {
+    return this.http.get<CierreLoteLevanteResumenDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/resumen-cierre`
+    );
+  }
+
+  cerrarLoteYcrearProduccion(
+    lotePosturaLevanteId: number,
+    body: { huevosIniciales: number; closedByUserId: string }
+  ): Observable<LotePosturaLevanteDto> {
+    return this.http.post<LotePosturaLevanteDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/cerrar`,
+      body
+    );
+  }
+
+  abrirLote(lotePosturaLevanteId: number, body: { motivo: string; openedByUserId: string }): Observable<LotePosturaLevanteDto> {
+    return this.http.post<LotePosturaLevanteDto>(
+      `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/abrir`,
+      body
+    );
   }
 }

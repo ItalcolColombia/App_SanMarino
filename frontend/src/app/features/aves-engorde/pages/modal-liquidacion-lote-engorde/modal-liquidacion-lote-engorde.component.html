@@ -1,0 +1,158 @@
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="liq-lote-title">
+  <div class="ux-modal__dialog ux-modal__dialog--lg liq-lote">
+    <header class="ux-modal__header">
+      <h2 id="liq-lote-title">
+        Liquidar lote
+        <ng-container *ngIf="loteNombre"> — <strong>{{ loteNombre }}</strong></ng-container>
+      </h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <section class="liq-lote__body">
+      <p *ngIf="loading" class="liq-lote__hint" aria-live="polite">Cargando resumen…</p>
+
+      <p *ngIf="error && !abrirModal" class="liq-lote__err" role="alert">{{ error }}</p>
+
+      <ng-container *ngIf="!loading && resumen">
+        <div class="liq-lote__grid">
+          <div class="liq-lote__card">
+            <h3 class="liq-lote__card-title">Aves al inicio</h3>
+            <dl class="liq-lote__dl">
+              <dt>Hembras</dt>
+              <dd>{{ resumen.hembrasInicio ?? 0 | number:'1.0-0' }}</dd>
+              <dt>Machos</dt>
+              <dd>{{ resumen.machosInicio ?? 0 | number:'1.0-0' }}</dd>
+              <dt>Mixtas</dt>
+              <dd>{{ resumen.mixtasInicio ?? 0 | number:'1.0-0' }}</dd>
+              <dt>Total</dt>
+              <dd><strong>{{ resumen.totalAvesInicio | number:'1.0-0' }}</strong></dd>
+            </dl>
+          </div>
+
+          <div class="liq-lote__card">
+            <h3 class="liq-lote__card-title">Ventas registradas (lote)</h3>
+            <dl class="liq-lote__dl">
+              <dt>Movimientos venta</dt>
+              <dd>{{ resumen.movimientosVentaCount | number:'1.0-0' }}</dd>
+              <dt>Hembras vendidas</dt>
+              <dd>{{ resumen.ventasTotalHembras | number:'1.0-0' }}</dd>
+              <dt>Machos vendidos</dt>
+              <dd>{{ resumen.ventasTotalMachos | number:'1.0-0' }}</dd>
+              <dt>Mixtas vendidas</dt>
+              <dd>{{ resumen.ventasTotalMixtas | number:'1.0-0' }}</dd>
+            </dl>
+          </div>
+
+          <div class="liq-lote__card liq-lote__card--accent">
+            <h3 class="liq-lote__card-title">Saldo alimento (kg)</h3>
+            <p class="liq-lote__saldo">
+              {{ resumen.saldoAlimentoKg != null ? (resumen.saldoAlimentoKg | number:'1.2-2') : '—' }}
+            </p>
+            <p class="liq-lote__hint">Stock de alimento asociado al lote en bodega de granja.</p>
+          </div>
+        </div>
+
+        <p *ngIf="!loteCerrado && avesVivasPendientes > 0" class="liq-lote__banner" role="alert">
+          No se puede liquidar el lote porque aún hay <strong>{{ avesVivasPendientes | number:'1.0-0' }}</strong> aves vivas/disponibles.
+          Para liquidar, el lote debe quedar en <strong>0</strong> aves.
+        </p>
+
+        <p *ngIf="loteCerrado" class="liq-lote__banner" role="status">
+          Este lote está <strong>cerrado</strong> (liquidado). Puede reabrirlo indicando el motivo.
+        </p>
+
+        <div *ngIf="!loteCerrado && puedeLiquidarPorAves" class="liq-lote__traslado" role="group" aria-labelledby="traslado-q">
+          <p id="traslado-q" class="liq-lote__traslado-q">
+            Alimento disponible en inventario (ubicación del lote)
+          </p>
+
+          <p *ngIf="loadingStock" class="liq-lote__hint">Cargando stock de alimento…</p>
+          <p *ngIf="stockError" class="liq-lote__err" role="alert">{{ stockError }}</p>
+
+          <ng-container *ngIf="!loadingStock && !stockError">
+            <div *ngIf="stockAlimento.length === 0" class="liq-lote__hint">
+              No hay alimento pendiente (stock en 0). El lote puede liquidarse sin traslados pendientes.
+            </div>
+
+            <div *ngIf="stockAlimento.length > 0">
+              <p class="liq-lote__hint" style="margin-bottom: 0.75rem;">
+                Hay alimento pendiente en el galpón/granja del lote. Puede <strong>realizar traslado</strong> en Gestión de Inventario o cerrar el lote de todas formas.
+              </p>
+              <div class="liq-lote__table-wrap" style="overflow:auto;">
+                <table class="ux-table" style="min-width: 520px;">
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Producto</th>
+                      <th class="text-right">Cantidad</th>
+                      <th>Unidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of stockAlimento">
+                      <td>{{ r.itemCodigo }}</td>
+                      <td>{{ r.itemNombre }}</td>
+                      <td class="text-right">{{ r.quantity | number:'1.0-4' }}</td>
+                      <td>{{ r.unit }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </ng-container>
+    </section>
+
+    <footer class="ux-modal__footer liq-lote__footer">
+      <button type="button" class="btn btn--ghost" (click)="onClose()">Cerrar</button>
+
+      <ng-container *ngIf="resumen && loteCerrado">
+        <button type="button" class="btn btn--primary" (click)="abrirDialogoReapertura()">Abrir lote</button>
+      </ng-container>
+
+      <ng-container *ngIf="resumen && !loteCerrado">
+        <button
+          type="button"
+          class="btn btn--outline"
+          *ngIf="puedeLiquidarPorAves && stockAlimento.length > 0"
+          (click)="irGestionInventario()">
+          Realizar traslado
+        </button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          [disabled]="!puedeConfirmarCierre || guardandoCerrar"
+          (click)="cerrarLote()">
+          {{ guardandoCerrar ? 'Guardando…' : 'Cerrar lote' }}
+        </button>
+      </ng-container>
+    </footer>
+  </div>
+</div>
+
+<!-- Sub-modal: motivo reapertura -->
+<div *ngIf="isOpen && abrirModal" class="ux-modal ux-modal--nested" role="dialog" aria-modal="true" aria-labelledby="reabrir-title">
+  <div class="ux-modal__dialog ux-modal__dialog--sm">
+    <header class="ux-modal__header">
+      <h2 id="reabrir-title">Abrir lote</h2>
+      <button type="button" class="icon-btn" (click)="cancelarAbrir()" aria-label="Cerrar">✕</button>
+    </header>
+    <section class="liq-lote__body">
+      <label class="liq-lote__label" for="motivo-reapertura">Describa el motivo por el cual se reabre el lote</label>
+      <textarea
+        id="motivo-reapertura"
+        class="liq-lote__textarea"
+        rows="4"
+        [(ngModel)]="motivoReapertura"
+        placeholder="Motivo (mínimo 3 caracteres)"></textarea>
+      <p *ngIf="error && abrirModal" class="liq-lote__err" role="alert">{{ error }}</p>
+    </section>
+    <footer class="ux-modal__footer">
+      <button type="button" class="btn btn--ghost" (click)="cancelarAbrir()">Volver</button>
+      <button type="button" class="btn btn--primary" [disabled]="guardandoAbrir" (click)="confirmarAbrirLote()">
+        {{ guardandoAbrir ? 'Guardando…' : 'Confirmar reapertura' }}
+      </button>
+    </footer>
+  </div>
+</div>

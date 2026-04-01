@@ -83,54 +83,8 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         return accessible.Select(x => x.FarmId).Distinct().ToList();
     }
 
-    private const int SemanaCierre = 26;
-
-    /// <summary>
-    /// Cierra lotes que llegaron a semana 26 y crea UN lote de producción (hembras + machos).
-    /// Ej: QLK345 → P-QLK345 (un solo lote con aves H y M; seguimiento diario por pestañas hembras/machos).
-    /// </summary>
-    private async Task ProcessarCierresPendientesAsync(CancellationToken ct = default)
-    {
-        var allAbiertos = await _ctx.LotePosturaLevante
-            .Where(l => l.DeletedAt == null &&
-                        (l.EstadoCierre == "Abierto" || l.EstadoCierre == null))
-            .ToListAsync(ct);
-
-        var pendientes = allAbiertos.Where(l =>
-        {
-            var edadSemanas = l.Edad ?? (l.FechaEncaset.HasValue
-                ? (int)((DateTime.UtcNow.Date - l.FechaEncaset.Value.Date).TotalDays / 7)
-                : 0);
-            return edadSemanas >= SemanaCierre;
-        }).ToList();
-
-        if (pendientes.Count == 0) return;
-
-        var now = DateTime.UtcNow;
-        var userId = _current.UserId;
-
-        foreach (var lev in pendientes)
-        {
-            lev.EstadoCierre = "Cerrado";
-            lev.UpdatedByUserId = userId;
-            lev.UpdatedAt = now;
-
-            var avesH = lev.AvesHActual ?? 0;
-            var avesM = lev.AvesMActual ?? 0;
-
-            var baseNombre = (lev.LoteNombre ?? "").Trim();
-            if (string.IsNullOrEmpty(baseNombre)) baseNombre = $"Lote-{lev.LotePosturaLevanteId}";
-            var nombreProduccion = $"P-{baseNombre}";
-
-            var prod = CrearLoteProduccion(lev, nombreProduccion, avesH, avesM, now, userId);
-            _ctx.LotePosturaProduccion.Add(prod);
-        }
-
-        await _ctx.SaveChangesAsync(ct);
-    }
-
     private static LotePosturaProduccion CrearLoteProduccion(
-        LotePosturaLevante lev, string nombre, int avesH, int avesM, DateTime now, int userId)
+        LotePosturaLevante lev, string nombre, int avesH, int avesM, DateTime now, int userId, int? huevosIniciales)
     {
         return new LotePosturaProduccion
         {
@@ -167,6 +121,7 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
             FechaInicioProduccion = now,
             HembrasInicialesProd = avesH,
             MachosInicialesProd = avesM,
+            HuevosIniciales = huevosIniciales,
             LotePosturaLevanteId = lev.LotePosturaLevanteId,
             AvesHInicial = avesH,
             AvesMInicial = avesM,
@@ -192,8 +147,6 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
     /// </summary>
     public async Task<IEnumerable<LotePosturaLevanteDetailDto>> GetAllAsync(CancellationToken ct = default)
     {
-        await ProcessarCierresPendientesAsync(ct);
-
         var companyId = await GetEffectiveCompanyIdAsync(ct);
 
         var assignedCountries = await _userPermissionService.GetAssignedCountriesAsync(_current.UserId);
@@ -339,5 +292,151 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         if (edadMaxSemanas < 0) edadMaxSemanas = 0;
 
         return dto with { EdadMaximaSeguimiento = edadMaxSemanas };
+    }
+
+    /// <inheritdoc />
+    public async Task<CierreLoteLevanteResumenDto?> GetResumenCierreAsync(int lotePosturaLevanteId, CancellationToken ct = default)
+    {
+        var lev = await LoadLevanteTrackedOrNullAsync(lotePosturaLevanteId, ct);
+        if (lev is null) return null;
+
+        var yaProd = await _ctx.LotePosturaProduccion.AsNoTracking()
+            .AnyAsync(p => p.LotePosturaLevanteId == lotePosturaLevanteId && p.DeletedAt == null, ct);
+
+        return new CierreLoteLevanteResumenDto(
+            lotePosturaLevanteId,
+            lev.LoteNombre ?? "",
+            lev.AvesHActual ?? 0,
+            lev.AvesMActual ?? 0,
+            yaProd);
+    }
+
+    /// <inheritdoc />
+    public async Task<LotePosturaLevanteDetailDto?> CerrarLoteYCrearProduccionAsync(int lotePosturaLevanteId, CerrarLoteLevanteRequest request, CancellationToken ct = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.ClosedByUserId))
+            throw new ArgumentException("ClosedByUserId es requerido.");
+        if (request.HuevosIniciales < 0)
+            throw new ArgumentException("Huevos iniciales no puede ser negativo.");
+
+        var lev = await LoadLevanteTrackedOrNullAsync(lotePosturaLevanteId, ct);
+        if (lev is null) return null;
+
+        var estado = (lev.EstadoCierre ?? "").Trim();
+        if (string.Equals(estado, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote ya está cerrado.");
+
+        var existeProd = await _ctx.LotePosturaProduccion
+            .AnyAsync(p => p.LotePosturaLevanteId == lotePosturaLevanteId && p.DeletedAt == null, ct);
+        if (existeProd)
+            throw new InvalidOperationException("Ya existe un lote de producción asociado a este lote de levante.");
+
+        var avesH = Math.Max(0, lev.AvesHActual ?? 0);
+        var avesM = Math.Max(0, lev.AvesMActual ?? 0);
+
+        var now = DateTime.UtcNow;
+        var userId = _current.UserId;
+        var baseNombre = (lev.LoteNombre ?? "").Trim();
+        if (string.IsNullOrEmpty(baseNombre)) baseNombre = $"Lote-{lev.LotePosturaLevanteId}";
+        var nombreProduccion = $"P-{baseNombre}";
+
+        var prod = CrearLoteProduccion(lev, nombreProduccion, avesH, avesM, now, userId, request.HuevosIniciales);
+        _ctx.LotePosturaProduccion.Add(prod);
+
+        lev.EstadoCierre = "Cerrado";
+        lev.UpdatedByUserId = userId;
+        lev.UpdatedAt = now;
+
+        await _ctx.SaveChangesAsync(ct);
+        return await GetByIdAsync(lotePosturaLevanteId, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<LotePosturaLevanteDetailDto?> AbrirLoteAsync(int lotePosturaLevanteId, AbrirLoteLevanteRequest request, CancellationToken ct = default)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.OpenedByUserId))
+            throw new ArgumentException("OpenedByUserId es requerido.");
+        var motivo = (request.Motivo ?? "").Trim();
+        if (motivo.Length < 3)
+            throw new ArgumentException("Indique el motivo de reapertura (mínimo 3 caracteres).");
+
+        var lev = await LoadLevanteTrackedOrNullAsync(lotePosturaLevanteId, ct);
+        if (lev is null) return null;
+
+        var estado = (lev.EstadoCierre ?? "").Trim();
+        if (!string.Equals(estado, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote no está cerrado.");
+
+        var prod = await _ctx.LotePosturaProduccion
+            .FirstOrDefaultAsync(p => p.LotePosturaLevanteId == lotePosturaLevanteId && p.DeletedAt == null, ct);
+
+        lev.EstadoCierre = "Abierto";
+        lev.UpdatedByUserId = _current.UserId;
+        lev.UpdatedAt = DateTime.UtcNow;
+
+        if (prod?.LotePosturaProduccionId is { } pid)
+        {
+            await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
+            try
+            {
+                await EliminarDependientesLoteProduccionAsync(pid, ct);
+                _ctx.LotePosturaProduccion.Remove(prod);
+                await _ctx.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        }
+        else
+        {
+            await _ctx.SaveChangesAsync(ct);
+        }
+
+        return await GetByIdAsync(lotePosturaLevanteId, ct);
+    }
+
+    /// <summary>
+    /// Quita seguimientos, espejo de huevos y desvincula traslados del LPP para poder eliminar el registro de producción al reabrir levante.
+    /// </summary>
+    private async Task EliminarDependientesLoteProduccionAsync(int lotePosturaProduccionId, CancellationToken ct)
+    {
+        await _ctx.SeguimientoDiario
+            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
+            .ExecuteDeleteAsync(ct);
+
+        await _ctx.SeguimientoProduccion
+            .Where(s => s.LotePosturaProduccionId == lotePosturaProduccionId)
+            .ExecuteDeleteAsync(ct);
+
+        await _ctx.EspejoHuevoProduccion
+            .Where(e => e.LotePosturaProduccionId == lotePosturaProduccionId)
+            .ExecuteDeleteAsync(ct);
+
+        await _ctx.TrasladoHuevos
+            .Where(t => t.LotePosturaProduccionId == lotePosturaProduccionId)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.LotePosturaProduccionId, (int?)null), ct);
+    }
+
+    private async Task<LotePosturaLevante?> LoadLevanteTrackedOrNullAsync(int lotePosturaLevanteId, CancellationToken ct)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        var lev = await _ctx.LotePosturaLevante
+            .FirstOrDefaultAsync(l =>
+                l.LotePosturaLevanteId == lotePosturaLevanteId &&
+                l.CompanyId == companyId &&
+                l.DeletedAt == null, ct);
+        if (lev is null) return null;
+
+        if (!await IsUserAdminOrAdministratorAsync(ct) && !await IsSuperAdminAsync(ct))
+        {
+            var allowed = await GetAllowedFarmIdsForCurrentUserAsync(ct);
+            if (allowed != null && allowed.Count > 0 && !allowed.Contains(lev.GranjaId))
+                return null;
+        }
+
+        return lev;
     }
 }

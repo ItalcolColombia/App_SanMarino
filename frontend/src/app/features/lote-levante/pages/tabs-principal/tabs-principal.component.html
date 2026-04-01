@@ -101,7 +101,7 @@
 
         </div>
 
-        <!-- Registros diarios (vista tipo libro: fechas, pérdidas, alimento, traslado, saldos) -->
+        <!-- Registros diarios (fechas, pérdidas, consumos, saldos) -->
         <div class="table-container table-container--diario">
           <div class="registro-diario__toolbar">
             <h4>Registros Diarios</h4>
@@ -117,12 +117,9 @@
           </div>
           <p class="registro-diario__hint" *ngIf="!enriquecerTablaConHistoricoInventario">
             Orden cronológico. <strong>Saldo aves</strong> = aves iniciales − bajas acumuladas (mortalidad, selección y, si aplica, error de sexaje registrado en cada día).
-            <strong>Ingreso alimento</strong>, <strong>traslado</strong> y <strong>documento</strong> se muestran si están guardados en el registro (metadata).
           </p>
           <p class="registro-diario__hint" *ngIf="enriquecerTablaConHistoricoInventario">
-            Orden cronológico por fecha de registro. <strong>Ingreso</strong>, <strong>traslado</strong>, <strong>documento</strong>,
-            <strong>despachos</strong> y <strong>consumo bodega</strong> vienen del historial unificado (fecha de operación).
-            <strong>Saldo alimento</strong> (kg al cierre del día) se guarda en el registro diario y se recalcula desde inventario: ingresos + traslados entrada − traslados salida − consumos de bodega.
+            Orden cronológico por fecha de registro. <strong>Saldo alimento</strong> (kg al cierre del día) se guarda en el registro diario y se recalcula desde inventario: ingresos + traslados entrada − traslados salida − consumos de bodega.
             El <strong>consumo real</strong> (kg hembras/machos) sigue siendo el del seguimiento diario.
           </p>
           <div class="ux-scroll ux-scroll--diario">
@@ -138,21 +135,15 @@
                   <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
                   <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
                   <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
                   <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
                   <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">bodega (kg)</span></th>
                   <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
                   <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
-                  <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
-                  <th scope="col" class="th-diario th-diario--wide">Traslado</th>
-                  <th scope="col" class="th-diario th-diario--wide">Documento</th>
                   <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
                   <th scope="col" class="th-diario th-diario--num">% pérdidas <span class="th-diario__sub">del día</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
@@ -181,21 +172,15 @@
                   <td>{{ f.seg.selH }}</td>
                   <td>{{ f.seg.selM }}</td>
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
-                  <td class="num">{{ f.despachoH != null ? (f.despachoH | number:'1.0-0') : '—' }}</td>
-                  <td class="num">{{ f.despachoM != null ? (f.despachoM | number:'1.0-0') : '—' }}</td>
                   <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
                   <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.2-3') : '—' }}</td>
                   <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.2-3') : '—' }}</td>
                   <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
                   <td>{{ f.tipoAlimentoCorto }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.ingresoAlimento">{{ f.ingresoAlimento || '—' }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.traslado">{{ f.traslado || '—' }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.documento">{{ f.documento || '—' }}</td>
                   <td class="num">{{ f.seg.consumoKgHembras | number:'1.2-2' }}</td>
                   <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
                   <td class="num">{{ f.consumoDiaKg | number:'1.2-2' }}</td>
                   <td class="num">{{ f.acumConsumoKg | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.seg.consumoAguaDiario != null ? (f.seg.consumoAguaDiario | number:'1.1-1') : '—' }}</td>
                   <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.2-2') + '%' : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.2-2') : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.2-2') : '—' }}</td>
@@ -222,36 +207,7 @@
         role="tabpanel"
         aria-labelledby="indicadores-tab">
 
-        <nav class="indicadores-subnav" role="tablist" aria-label="Tipo de indicadores">
-          <button
-            type="button"
-            class="indicadores-subnav__btn"
-            [class.indicadores-subnav__btn--active]="indicadoresSubTab === 'diario'"
-            (click)="setIndicadoresSubTab('diario')"
-            role="tab"
-            [attr.aria-selected]="indicadoresSubTab === 'diario'">
-            Indicador diario
-          </button>
-          <button
-            type="button"
-            class="indicadores-subnav__btn"
-            [class.indicadores-subnav__btn--active]="indicadoresSubTab === 'semanal'"
-            (click)="setIndicadoresSubTab('semanal')"
-            role="tab"
-            [attr.aria-selected]="indicadoresSubTab === 'semanal'">
-            Semanal
-          </button>
-        </nav>
-
-        <app-tabla-indicadores-diarios
-          *ngIf="indicadoresSubTab === 'diario'"
-          [seguimientos]="seguimientos"
-          [selectedLote]="selectedLote"
-          [loading]="loading">
-        </app-tabla-indicadores-diarios>
-
         <app-tabla-lista-indicadores
-          *ngIf="indicadoresSubTab === 'semanal'"
           [seguimientos]="seguimientos"
           [selectedLote]="selectedLote"
           [loading]="loading">

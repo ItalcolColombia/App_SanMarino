@@ -127,6 +127,8 @@ export interface LiquidacionPolloEngordeReporteRequest {
   alcance: string;
   granjaId?: number | null;
   nucleoId?: string | null;
+  /** Modo UnLote sin lote: acota por galpón (opcional). */
+  galponId?: string | null;
 }
 
 export interface LiquidacionPolloEngordeItemDto {

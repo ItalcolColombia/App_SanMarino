@@ -18,12 +18,12 @@ import {
 import { LoteReproductoraAveEngordeService, AvesDisponiblesDto, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
-import { ModalLiquidacionComponent } from '../../../lote-levante/pages/modal-liquidacion/modal-liquidacion.component';
+import { ModalLiquidacionLoteEngordeComponent } from '../modal-liquidacion-lote-engorde/modal-liquidacion-lote-engorde.component';
 import { ModalCalculosComponent } from '../../../lote-levante/pages/modal-calculos/modal-calculos.component';
-import { ModalCreateEditComponent } from '../../../lote-levante/pages/modal-create-edit/modal-create-edit.component';
+import { ModalSeguimientoEngordeComponent } from '../modal-seguimiento-engorde/modal-seguimiento-engorde.component';
 import { ModalDetalleSeguimientoLevanteComponent } from '../../../lote-levante/pages/modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
-import { TabsPrincipalComponent } from '../../../lote-levante/pages/tabs-principal/tabs-principal.component';
+import { TabsPrincipalEngordeComponent } from '../tabs-principal-engorde/tabs-principal-engorde.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import {
   CatalogoAlimentosService,
@@ -41,12 +41,12 @@ import { environment } from '../../../../../environments/environment';
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    ModalLiquidacionComponent,
+    ModalLiquidacionLoteEngordeComponent,
     ModalCalculosComponent,
-    ModalCreateEditComponent,
+    ModalSeguimientoEngordeComponent,
     ModalDetalleSeguimientoLevanteComponent,
     FiltroSelectComponent,
-    TabsPrincipalComponent,
+    TabsPrincipalEngordeComponent,
     ConfirmationModalComponent
   ],
   templateUrl: './seguimiento-aves-engorde-list.component.html',
@@ -133,10 +133,16 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     return this.lotesReproductora.every(r => r.estado === 'Cerrado' || (r.avesActuales ?? 0) <= 0);
   }
 
-  /** No se puede crear/editar/eliminar seguimiento: sin aves disponibles (ya cargado) o lote cerrado por reproductoras. */
+  /** Lote liquidado operativamente (pollo engorde): no nuevos registros hasta reabrir. */
+  get loteOperativoCerrado(): boolean {
+    const s = (this.selectedLote?.estadoOperativoLote ?? '').trim().toLowerCase();
+    return s === 'cerrado';
+  }
+
+  /** No se puede crear/editar/eliminar seguimiento: sin aves, reproductoras, o lote operativo cerrado. */
   get noPuedeSeguimiento(): boolean {
     const sinAves = this.avesDisponibles != null && this.avesDisponiblesTotal === 0;
-    return sinAves || this.loteCerradoPorReproductoras;
+    return sinAves || this.loteCerradoPorReproductoras || this.loteOperativoCerrado;
   }
 
   ngOnInit(): void {
@@ -219,7 +225,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       granjaId: l.granjaId,
       nucleoId: l.nucleoId ?? undefined,
       galponId: l.galponId ?? undefined,
-      loteErp: l.loteErp ?? undefined
+      loteErp: l.loteErp ?? undefined,
+      estadoOperativoLote: l.estadoOperativoLote ?? undefined
     })) as LoteDto[];
     (data.galpones ?? []).forEach(g => {
       if (g.galponId) this.galponNameById.set(String(g.galponId).trim(), (g.galponNombre || g.galponId).trim());
@@ -351,7 +358,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       codigoGuiaGenetica: l.codigoGuiaGenetica,
       farm: l.farm ?? null,
       nucleo: l.nucleo ?? null,
-      galpon: l.galpon ?? null
+      galpon: l.galpon ?? null,
+      estadoOperativoLote: l.estadoOperativoLote ?? undefined
     };
   }
 
@@ -585,6 +593,10 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   }
   closeLiquidacion(): void {
     this.liquidacionOpen = false;
+  }
+
+  onLoteLiquidacionActualizado(): void {
+    this.onLoteChange(this.selectedLoteId);
   }
 
   private todayYMD(): string {

@@ -12,6 +12,13 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 {
     private const string TipoLevante = "levante";
 
+    /// <summary>Serialización camelCase para metadata sintético (registros viejos sin JSON en BD).</summary>
+    private static readonly JsonSerializerOptions SyntheticMetadataJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
     private readonly ZooSanMarinoContext _ctx;
     private readonly ISeguimientoDiarioService _seguimientoDiarioService;
     private readonly IAlimentoNutricionProvider _alimentos;
@@ -222,7 +229,82 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         var u = await _seguimientoDiarioService.GetByIdAsync((long)id);
         if (u is null || u.TipoSeguimiento != TipoLevante)
             return null;
-        return MapToLevanteDto(u);
+        var dto = MapToLevanteDto(u);
+        if (dto.Metadata is not null)
+            return dto;
+        var synthetic = await BuildSyntheticMetadataForLegacyRowAsync(dto, default).ConfigureAwait(false);
+        return synthetic is null ? dto : dto with { Metadata = synthetic };
+    }
+
+    /// <summary>
+    /// Registros antiguos solo tenían tipo_alimento + consumo_kg_* en columnas; metadata en BD NULL.
+    /// Construye un JSON compatible con el modal (itemsHembras/itemsMachos + consumo original) resolviendo
+    /// el ítem de catálogo por código igual a <see cref="SeguimientoLoteLevanteDto.TipoAlimento"/>.
+    /// </summary>
+    private async Task<JsonDocument?> BuildSyntheticMetadataForLegacyRowAsync(SeguimientoLoteLevanteDto dto, CancellationToken ct)
+    {
+        var hasConsumo = dto.ConsumoKgHembras > 0 || (dto.ConsumoKgMachos ?? 0) > 0;
+        var hasTipo = !string.IsNullOrWhiteSpace(dto.TipoAlimento);
+        if (!hasConsumo && !hasTipo)
+            return null;
+
+        int? catalogId = null;
+        string itemType = "alimento";
+        if (hasTipo)
+        {
+            var code = dto.TipoAlimento!.Trim();
+            var cat = await _ctx.CatalogItems.AsNoTracking()
+                .Where(c => c.CompanyId == _current.CompanyId && c.Activo && c.Codigo == code)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+            cat ??= await _ctx.CatalogItems.AsNoTracking()
+                .Where(c => c.CompanyId == _current.CompanyId && c.Activo && EF.Functions.ILike(c.Codigo, code))
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+            if (cat != null)
+            {
+                catalogId = cat.Id;
+                if (!string.IsNullOrWhiteSpace(cat.ItemType))
+                    itemType = cat.ItemType.Trim();
+            }
+        }
+
+        var root = new Dictionary<string, object?>();
+        root["consumoOriginalHembras"] = dto.ConsumoKgHembras;
+        root["unidadConsumoOriginalHembras"] = "kg";
+        if (dto.ConsumoKgMachos.HasValue)
+        {
+            root["consumoOriginalMachos"] = dto.ConsumoKgMachos.Value;
+            root["unidadConsumoOriginalMachos"] = "kg";
+        }
+        if (hasTipo)
+            root["tipoAlimentoCodigo"] = dto.TipoAlimento!.Trim();
+        root["syntheticLegacyMetadata"] = true;
+
+        if (catalogId.HasValue)
+        {
+            root["tipoAlimentoHembras"] = catalogId.Value;
+            root["tipoAlimentoMachos"] = catalogId.Value;
+            root["tipoItemHembras"] = itemType;
+            root["tipoItemMachos"] = itemType;
+
+            if (dto.ConsumoKgHembras > 0)
+            {
+                root["itemsHembras"] = new[]
+                {
+                    new { tipoItem = itemType, catalogItemId = catalogId.Value, cantidad = dto.ConsumoKgHembras, unidad = "kg" }
+                };
+            }
+            if (dto.ConsumoKgMachos is > 0)
+            {
+                root["itemsMachos"] = new[]
+                {
+                    new { tipoItem = itemType, catalogItemId = catalogId.Value, cantidad = dto.ConsumoKgMachos!.Value, unidad = "kg" }
+                };
+            }
+        }
+
+        return JsonSerializer.SerializeToDocument(root, SyntheticMetadataJsonOptions);
     }
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
@@ -593,6 +675,19 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             }
         if (root.TryGetProperty("itemsMachos", out var arrM))
             foreach (var e in arrM.EnumerateArray())
+            {
+                var id = 0;
+                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
+                    id = pid.GetInt32();
+                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
+                    id = cid.GetInt32();
+                if (id <= 0) continue;
+                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
+                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
+                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
+            }
+        if (root.TryGetProperty("itemsGenerales", out var arrG))
+            foreach (var e in arrG.EnumerateArray())
             {
                 var id = 0;
                 if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)

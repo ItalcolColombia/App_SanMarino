@@ -104,6 +104,9 @@ export interface LoteDto {
   paisId?: number | null;
   paisNombre?: string | null;
   empresaNombre?: string | null;
+
+  /** Pollo engorde: Abierto | Cerrado (liquidación operativa). */
+  estadoOperativoLote?: string | null;
 }
 
 

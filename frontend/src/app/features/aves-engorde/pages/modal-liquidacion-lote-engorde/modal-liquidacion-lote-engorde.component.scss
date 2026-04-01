@@ -1,0 +1,218 @@
+.icon-btn {
+  appearance: none;
+  border: 1px solid var(--ux-border, #e2e8f0);
+  background: transparent;
+  border-radius: 0.55rem;
+  padding: 0.35rem 0.55rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Modal overlay (para que sea superior, no dentro del flujo) */
+:host .ux-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 1050;
+  animation: modalFadeIn 0.12s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+:host .ux-modal__dialog {
+  width: min(900px, 95vw);
+  max-height: min(90vh, 900px);
+  background: var(--ux-surface, #fff);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 25px rgba(31, 41, 55, 0.12);
+  border: 1px solid var(--ux-border, #e2e8f0);
+  position: relative;
+  overflow: hidden;
+  transform: translateY(6px);
+  animation: dialogUp 0.18s ease-out forwards;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes dialogUp {
+  to {
+    transform: translateY(0);
+  }
+}
+
+:host .ux-modal__dialog--lg {
+  width: min(980px, 95vw);
+}
+
+:host .ux-modal__dialog--sm {
+  width: min(520px, 95vw);
+}
+
+:host .ux-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--ux-border, #e2e8f0);
+  flex-shrink: 0;
+  background: var(--ux-surface, #fff);
+}
+
+:host .ux-modal__header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+:host .ux-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--ux-border, #e2e8f0);
+  flex-shrink: 0;
+  background: var(--ux-surface, #fff);
+}
+
+.liq-lote__body {
+  padding: 0 1rem 1rem;
+  min-height: 4rem;
+}
+
+.liq-lote__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.liq-lote__card {
+  border: 1px solid var(--ux-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--ux-surface, #fff);
+}
+
+.liq-lote__card--accent {
+  border-color: var(--ux-primary-soft, #93c5fd);
+  background: var(--ux-primary-bg, #eff6ff);
+}
+
+.liq-lote__card-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ux-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.liq-lote__dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  font-size: 0.95rem;
+
+  dt {
+    color: var(--ux-muted, #64748b);
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+  }
+}
+
+.liq-lote__saldo {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.liq-lote__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ux-muted, #64748b);
+}
+
+.liq-lote__err {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.liq-lote__banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.liq-lote__traslado {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px dashed var(--ux-border, #cbd5e1);
+}
+
+.liq-lote__traslado-q {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.liq-lote__traslado-btns {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.liq-lote__footer {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.liq-lote__label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.liq-lote__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--ux-border, #cbd5e1);
+  font: inherit;
+  resize: vertical;
+}
+
+:host ::ng-deep .ux-modal--nested {
+  z-index: 1100;
+  align-items: center;
+  justify-content: center;
+}
+
+:host ::ng-deep .ux-modal--nested .ux-modal__dialog--sm {
+  max-width: 420px;
+  width: calc(100% - 2rem);
+}

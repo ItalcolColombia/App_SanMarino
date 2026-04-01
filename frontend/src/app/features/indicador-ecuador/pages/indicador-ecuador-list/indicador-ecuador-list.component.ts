@@ -25,11 +25,21 @@ interface FilterDataResponse {
 }
 
 /** Filter-data Pollo Engorde: granjas, núcleos, galpones y lotes ave engorde (LoteReproductoraAveEngorde/filter-data). */
+interface PeLoteAveEngordeItem {
+  loteAveEngordeId: number;
+  loteNombre: string;
+  granjaId: number;
+  nucleoId?: string | null;
+  galponId?: string | null;
+  linea?: string | null;
+  fechaEncaset?: string | null;
+}
+
 interface FilterDataPolloEngordeResponse {
   farms?: Array<{ id: number; name: string }>;
   nucleos?: Array<{ nucleoId: string; nucleoNombre?: string; granjaId: number }>;
   galpones?: Array<{ galponId: string; galponNombre?: string; nucleoId: string; granjaId: number }>;
-  lotesAveEngorde?: Array<{ loteAveEngordeId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null }>;
+  lotesAveEngorde?: PeLoteAveEngordeItem[];
 }
 
 @Component({
@@ -66,10 +76,12 @@ export class IndicadorEcuadorListComponent implements OnInit {
   peFarms: Array<{ id: number; name: string }> = [];
   peNucleos: Array<{ nucleoId: string; nucleoNombre?: string; granjaId: number }> = [];
   peGalpones: Array<{ galponId: string; galponNombre?: string; nucleoId: string; granjaId: number }> = [];
-  peLotesAveEngorde: Array<{ loteAveEngordeId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null }> = [];
+  peLotesAveEngorde: PeLoteAveEngordeItem[] = [];
   private peAllNucleos: Array<{ nucleoId: string; nucleoNombre?: string; granjaId: number }> = [];
   private peAllGalpones: Array<{ galponId: string; galponNombre?: string; nucleoId: string; granjaId: number }> = [];
-  private peAllLotesAveEngorde: Array<{ loteAveEngordeId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null }> = [];
+  private peAllLotesAveEngorde: PeLoteAveEngordeItem[] = [];
+  /** Si true, genera liquidación de todos los lotes liquidados del alcance (granja / núcleo / galpón) sin elegir uno. */
+  peTodosLotesLiquidados = false;
 
   peGranjaId: number | null = null;
   peNucleoId: string | null = null;
@@ -85,7 +97,6 @@ export class IndicadorEcuadorListComponent implements OnInit {
 
   resultadoLiquidacionPollo: LiquidacionPolloEngordeReporteDto | null = null;
   mostrarLiquidacionPollo = false;
-  tabLiquidacionIdx = 0;
 
   // Datos
   indicadores: IndicadorEcuadorDto[] = [];
@@ -165,7 +176,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
               loteNombre: String(x.loteNombre ?? x.LoteNombre ?? ''),
               granjaId: Number(x.granjaId ?? x.GranjaId ?? 0),
               nucleoId: x.nucleoId ?? x.NucleoId ?? null,
-              galponId: x.galponId ?? x.GalponId ?? null
+              galponId: x.galponId ?? x.GalponId ?? null,
+              linea: x.linea ?? x.Linea ?? null,
+              fechaEncaset: x.fechaEncaset ?? x.FechaEncaset ?? null
             }))
           : [];
         this.applyPeCascade();
@@ -209,11 +222,21 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.peLotesAveEngorde = this.peLotesAveEngorde.filter((l) => String(l.galponId || '').trim() === gpid);
   }
 
+  /** Si solo hay un núcleo en la granja, se selecciona solo (flujo Ecuador: núcleo 1 implícito). */
+  private aplicarNucleoUnicoPorDefecto(): void {
+    if (this.peNucleos.length === 1 && !this.peNucleoId) {
+      this.peNucleoId = this.peNucleos[0].nucleoId;
+      this.applyPeCascade();
+    }
+  }
+
   onPeGranjaChange(): void {
     this.peNucleoId = null;
     this.peGalponId = null;
     this.peLoteAveEngordeId = null;
+    this.peTodosLotesLiquidados = false;
     this.applyPeCascade();
+    this.aplicarNucleoUnicoPorDefecto();
   }
 
   onPeNucleoChange(): void {
@@ -225,6 +248,12 @@ export class IndicadorEcuadorListComponent implements OnInit {
   onPeGalponChange(): void {
     this.peLoteAveEngordeId = null;
     this.applyPeCascade();
+  }
+
+  onPeTodosLotesChange(): void {
+    if (this.peTodosLotesLiquidados) {
+      this.peLoteAveEngordeId = null;
+    }
   }
 
   onPolloModoChange(): void {
@@ -451,22 +480,44 @@ export class IndicadorEcuadorListComponent implements OnInit {
 
     try {
       if (this.polloModo === 'unLote') {
-        if (!this.peLoteAveEngordeId) {
-          this.error = 'Seleccione granja, núcleo, galpón y lote liquidado.';
+        if (!this.peGranjaId) {
+          this.error = 'Seleccione granja.';
           return;
         }
-        const res = await firstValueFrom(
-          this.indicadorService.liquidacionPolloEngordeReporte({
-            modo: 'UnLote',
-            loteAveEngordeId: this.peLoteAveEngordeId,
-            fechaDesde: null,
-            fechaHasta: null,
-            alcance: 'TodasLasGranjas',
-            granjaId: null,
-            nucleoId: null
-          })
-        );
-        this.resultadoLiquidacionPollo = res;
+        if (this.peTodosLotesLiquidados) {
+          const res = await firstValueFrom(
+            this.indicadorService.liquidacionPolloEngordeReporte({
+              modo: 'UnLote',
+              loteAveEngordeId: null,
+              fechaDesde: null,
+              fechaHasta: null,
+              alcance: 'TodasLasGranjas',
+              granjaId: this.peGranjaId,
+              nucleoId: this.peNucleoId || null,
+              galponId: this.peGalponId || null
+            })
+          );
+          this.resultadoLiquidacionPollo = res;
+        } else {
+          if (!this.peLoteAveEngordeId) {
+            this.error =
+              'Seleccione un lote liquidado o active «Todos los lotes liquidados» para el alcance (granja / núcleo / galpón).';
+            return;
+          }
+          const res = await firstValueFrom(
+            this.indicadorService.liquidacionPolloEngordeReporte({
+              modo: 'UnLote',
+              loteAveEngordeId: this.peLoteAveEngordeId,
+              fechaDesde: null,
+              fechaHasta: null,
+              alcance: 'TodasLasGranjas',
+              granjaId: null,
+              nucleoId: null,
+              galponId: null
+            })
+          );
+          this.resultadoLiquidacionPollo = res;
+        }
       } else {
         if (!this.peFechaDesde || !this.peFechaHasta) {
           this.error = 'Indique fecha inicial y fecha final (fecha de cierre del lote).';
@@ -494,7 +545,6 @@ export class IndicadorEcuadorListComponent implements OnInit {
         );
         this.resultadoLiquidacionPollo = res;
       }
-      this.tabLiquidacionIdx = 0;
       this.mostrarLiquidacionPollo = true;
     } catch (err: any) {
       this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al generar la liquidación.';
@@ -504,15 +554,106 @@ export class IndicadorEcuadorListComponent implements OnInit {
     }
   }
 
-  setTabLiquidacion(idx: number): void {
-    this.tabLiquidacionIdx = idx;
+  /** Encabezado de columna en la planilla: galpón · lote · edad (días de ciclo). */
+  etiquetaColumnaLiquidacion(item: LiquidacionPolloEngordeItemDto): string {
+    const ind = item.indicador;
+    const g = String(ind.galponNombre || ind.galponId || '—').trim();
+    const loteNom = item.loteNombre || `Lote ${item.loteAveEngordeId}`;
+    const edad =
+      ind.edadPromedio != null && ind.edadPromedio > 0
+        ? ` · ${this.formatearNumero(ind.edadPromedio, 1)} d`
+        : '';
+    return `${g} · ${loteNom}${edad}`;
   }
 
-  liquidacionItemActivo(): LiquidacionPolloEngordeItemDto | null {
+  /** Fila TOTAL: agrega cantidades y recalcula ratios como en consolidado. */
+  liquidacionTotales(): IndicadorEcuadorDto | null {
     const items = this.resultadoLiquidacionPollo?.items;
     if (!items?.length) return null;
-    const i = Math.min(this.tabLiquidacionIdx, items.length - 1);
-    return items[i] ?? null;
+    const R = items.map(i => i.indicador);
+    let enc = 0;
+    let sac = 0;
+    let mort = 0;
+    let cons = 0;
+    let kg = 0;
+    let m2 = 0;
+    for (const r of R) {
+      enc += r.avesEncasetadas;
+      sac += r.avesSacrificadas;
+      mort += r.mortalidad;
+      cons += r.consumoTotalAlimentoKg;
+      kg += r.kgCarnePollos;
+      m2 += r.metrosCuadrados;
+    }
+    const first = R[0];
+    const pesoAj = first.pesoAjusteVariable;
+    const divAj = first.divisorAjusteVariable;
+    const mortPct = enc > 0 ? (mort / enc) * 100 : 0;
+    const supPct = enc > 0 ? ((enc - mort) / enc) * 100 : 0;
+    const consAveG = enc > 0 ? (cons * 1000) / enc : 0;
+    const pesoProm = kg > 0 ? R.reduce((s, r) => s + r.pesoPromedioKilos * r.kgCarnePollos, 0) / kg : 0;
+    const conv = kg > 0 ? cons / kg : 0;
+    const convAdj = conv > 0 ? conv + (pesoAj - pesoProm) / divAj : 0;
+    const edad = enc > 0 ? R.reduce((s, r) => s + r.edadPromedio * r.avesEncasetadas, 0) / enc : 0;
+    const avM2 = m2 > 0 ? enc / m2 : 0;
+    const kgM2 = m2 > 0 ? kg / m2 : 0;
+    const w = (fn: (x: IndicadorEcuadorDto) => number) =>
+      enc > 0 ? R.reduce((s, r) => s + fn(r) * r.avesEncasetadas, 0) / enc : 0;
+    return {
+      granjaId: first.granjaId,
+      granjaNombre: first.granjaNombre,
+      loteId: null,
+      loteNombre: 'TOTAL',
+      galponId: null,
+      galponNombre: null,
+      avesEncasetadas: enc,
+      avesSacrificadas: sac,
+      mortalidad: mort,
+      mortalidadPorcentaje: mortPct,
+      supervivenciaPorcentaje: supPct,
+      consumoTotalAlimentoKg: cons,
+      consumoAveGramos: consAveG,
+      kgCarnePollos: kg,
+      pesoPromedioKilos: pesoProm,
+      conversion: conv,
+      conversionAjustada2700: convAdj,
+      pesoAjusteVariable: pesoAj,
+      divisorAjusteVariable: divAj,
+      edadPromedio: edad,
+      metrosCuadrados: m2,
+      avesPorMetroCuadrado: avM2,
+      kgPorMetroCuadrado: kgM2,
+      eficienciaAmericana: w(r => r.eficienciaAmericana),
+      eficienciaEuropea: w(r => r.eficienciaEuropea),
+      indiceProductividad: w(r => r.indiceProductividad),
+      gananciaDia: w(r => r.gananciaDia),
+      fechaInicioLote: null,
+      fechaCierreLote: null,
+      loteCerrado: true
+    };
+  }
+
+  etiquetaLoteFiltro(l: PeLoteAveEngordeItem): string {
+    const gNom = this.nombreGalponPe(l.galponId);
+    const line = (l.linea || '').trim();
+    const enc = l.fechaEncaset ? new Date(l.fechaEncaset) : null;
+    const encStr =
+      enc && !isNaN(enc.getTime())
+        ? enc.toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '';
+    const parts = [
+      gNom,
+      line || null,
+      l.loteNombre || `Lote ${l.loteAveEngordeId}`,
+      encStr ? `enc. ${encStr}` : null
+    ].filter((x): x is string => !!x);
+    return parts.join(' · ');
+  }
+
+  private nombreGalponPe(id: string | null | undefined): string {
+    if (id == null || id === '') return '—';
+    const g = this.peAllGalpones.find(x => String(x.galponId).trim() === String(id).trim());
+    return (g?.galponNombre || id).trim();
   }
 
   limpiarFiltros(): void {
@@ -537,13 +678,13 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.peNucleoId = null;
     this.peGalponId = null;
     this.peLoteAveEngordeId = null;
+    this.peTodosLotesLiquidados = false;
     this.polloAlcance = 'TodasLasGranjas';
     this.rangoGranjaId = null;
     this.rangoNucleoId = null;
     this.applyPeCascade();
     this.resultadoLiquidacionPollo = null;
     this.mostrarLiquidacionPollo = false;
-    this.tabLiquidacionIdx = 0;
   }
 
   formatearNumero(valor: number | null | undefined, decimales: number = 2): string {

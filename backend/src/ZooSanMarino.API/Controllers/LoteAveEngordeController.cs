@@ -137,4 +137,38 @@ public class LoteAveEngordeController : ControllerBase
         var ok = await _svc.HardDeleteAsync(loteAveEngordeId);
         return ok ? NoContent() : NotFound();
     }
+
+    /// <summary>Cierra el lote operativamente (liquidación); guarda usuario que ejecuta la acción.</summary>
+    [HttpPost("{loteAveEngordeId}/cerrar")]
+    [ProducesResponseType(typeof(LoteAveEngordeDtos.LoteAveEngordeDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteAveEngordeDtos.LoteAveEngordeDetailDto>> Cerrar(int loteAveEngordeId, [FromBody] CerrarLoteAveEngordeRequest? body)
+    {
+        if (body is null) return BadRequest("Body requerido.");
+        try
+        {
+            var res = await _svc.CerrarLoteAsync(loteAveEngordeId, body);
+            return res is null ? NotFound() : Ok(res);
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Reabre un lote cerrado (motivo obligatorio).</summary>
+    [HttpPost("{loteAveEngordeId}/abrir")]
+    [ProducesResponseType(typeof(LoteAveEngordeDtos.LoteAveEngordeDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteAveEngordeDtos.LoteAveEngordeDetailDto>> Abrir(int loteAveEngordeId, [FromBody] AbrirLoteAveEngordeRequest? body)
+    {
+        if (body is null) return BadRequest("Body requerido.");
+        try
+        {
+            var res = await _svc.AbrirLoteAsync(loteAveEngordeId, body);
+            return res is null ? NotFound() : Ok(res);
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
 }

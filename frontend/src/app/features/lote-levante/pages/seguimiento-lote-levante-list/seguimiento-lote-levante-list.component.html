@@ -39,6 +39,10 @@
           <span class="chip chip--muted" *ngIf="selectedLoteId">
             {{ seguimientos.length || 0 }} registro(s)
           </span>
+
+          <span class="chip chip--info" *ngIf="loadingRecord" role="status">
+            Cargando registro…
+          </span>
         </div>
       </div>
 
@@ -56,10 +60,21 @@
         <button
           type="button"
           class="btn btn--outline"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
-          (click)="openLiquidacion()">
-          Liquidación técnica
+          *ngIf="selectedLoteId && !isLoteCerrado && lotePosturaLevanteIdActual != null"
+          [disabled]="loadingCierreLote"
+          (click)="openCerrarLoteModal()"
+          title="Cerrar el lote de levante y crear el lote de producción">
+          Cerrar lote
+        </button>
+
+        <button
+          type="button"
+          class="btn btn--outline"
+          *ngIf="selectedLoteId && isLoteCerrado && lotePosturaLevanteIdActual != null"
+          [disabled]="loadingCierreLote"
+          (click)="openAbrirLoteModal()"
+          title="Reabrir el lote de levante (si el lote de producción aún no tiene seguimiento)">
+          Abrir lote Seguimiento Diario de Levante
         </button>
 
         <button
@@ -109,8 +124,10 @@
   [editing]="editing"
   [lotes]="lotes"
   [selectedLoteId]="selectedLoteId"
+  [selectedGranjaName]="selectedGranjaName"
   [lotePosturaLevanteId]="selectedLote?.lotePosturaLevanteId ?? null"
   [loading]="loading"
+  [loadingRecord]="loadingRecord"
   (close)="cancel()"
   (save)="onSave($event)">
 </app-modal-create-edit>
@@ -130,18 +147,78 @@
   (close)="closeCalculos()">
 </app-modal-calculos>
 
-<!-- ================= MODAL: LOTE CERRADO (alerta informativa) ================= -->
-<app-confirmation-modal
-  [isOpen]="loteCerradoModalOpen"
-  [data]="loteCerradoModalData"
-  (confirmed)="loteCerradoModalOpen = false"
-  (closed)="loteCerradoModalOpen = false">
-</app-confirmation-modal>
+<!-- ================= MODAL: CERRAR LOTE → PRODUCCIÓN ================= -->
+<div *ngIf="cerrarLoteModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cerrar-lote-lev-title">
+  <div class="ux-modal__dialog ux-modal__dialog--sm">
+    <header class="ux-modal__header">
+      <h2 id="cerrar-lote-lev-title">Cerrar lote de levante</h2>
+      <button type="button" class="icon-btn" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
+    </header>
 
-<!-- ================= MODAL: LIQUIDACIÓN TÉCNICA ================= -->
-<app-modal-liquidacion
-  [isOpen]="liquidacionOpen"
-  [loteId]="selectedLoteId"
-  [loteNombre]="selectedLoteNombre"
-  (close)="closeLiquidacion()">
-</app-modal-liquidacion>
+    <div class="ux-form">
+      <p *ngIf="loadingCierreLote && !resumenCierre" class="text-muted">Cargando resumen…</p>
+
+      <ng-container *ngIf="resumenCierre as r">
+        <p><strong>Lote:</strong> {{ r.loteNombre }}</p>
+        <div class="grid grid-2">
+          <p><strong>Hembras disponibles:</strong> {{ r.avesHembrasDisponibles }}</p>
+          <p><strong>Machos disponibles:</strong> {{ r.avesMachosDisponibles }}</p>
+        </div>
+        <p *ngIf="r.yaExisteLoteProduccion" class="chip chip--warning" role="alert">
+          Ya existe un lote de producción vinculado; no se puede cerrar de nuevo desde aquí.
+        </p>
+
+        <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
+          <label for="huevos-cierre">Huevos iniciales (al cerrar)</label>
+          <input id="huevos-cierre" type="number" min="0" step="1" [(ngModel)]="huevosCierre" name="huevosCierre" />
+        </div>
+      </ng-container>
+
+      <p *ngIf="errorCierreLote" class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
+    </div>
+
+    <footer class="ux-modal__footer">
+      <button type="button" class="btn btn--outline" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
+      <button
+        type="button"
+        class="btn btn--primary"
+        (click)="confirmarCerrarLote()"
+        [disabled]="loadingCierreLote || !resumenCierre || resumenCierre.yaExisteLoteProduccion">
+        Confirmar cierre
+      </button>
+    </footer>
+
+    <div *ngIf="loadingCierreLote && resumenCierre" class="modal-loading" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span> Procesando…
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: ABRIR LOTE LEVANTE ================= -->
+<div *ngIf="abrirLoteModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="abrir-lote-lev-title">
+  <div class="ux-modal__dialog ux-modal__dialog--sm">
+    <header class="ux-modal__header">
+      <h2 id="abrir-lote-lev-title">Abrir lote — Seguimiento Diario de Levante</h2>
+      <button type="button" class="icon-btn" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
+    </header>
+
+    <div class="ux-form">
+      <div class="form-field">
+        <label for="motivo-abrir-lote">Motivo</label>
+        <textarea id="motivo-abrir-lote" rows="3" [(ngModel)]="motivoAbrirLote" name="motivoAbrirLote" placeholder="Indique el motivo (mínimo 3 caracteres)"></textarea>
+      </div>
+      <p *ngIf="errorCierreLote" class="chip chip--warning" role="alert">{{ errorCierreLote }}</p>
+    </div>
+
+    <footer class="ux-modal__footer">
+      <button type="button" class="btn btn--outline" (click)="closeAbrirLoteModal()" [disabled]="loadingCierreLote">Cancelar</button>
+      <button type="button" class="btn btn--primary" (click)="confirmarAbrirLote()" [disabled]="loadingCierreLote">Abrir lote</button>
+    </footer>
+
+    <div *ngIf="loadingCierreLote" class="modal-loading" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span> Procesando…
+    </div>
+  </div>
+</div>
+
+<!-- Modal de liquidación técnica eliminado en Levante -->

@@ -239,7 +239,8 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             CreatedAt = DateTime.UtcNow,
             PaisId = _current.PaisId,
             PaisNombre = paisNombre,
-            EmpresaNombre = _current.ActiveCompanyName
+            EmpresaNombre = _current.ActiveCompanyName,
+            EstadoOperativoLote = "Abierto"
         };
 
         _ctx.LoteAveEngorde.Add(ent);
@@ -405,6 +406,67 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         return true;
     }
 
+    public async Task<LoteAveEngordeDetailDto?> CerrarLoteAsync(int loteAveEngordeId, CerrarLoteAveEngordeRequest request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.ClosedByUserId))
+            throw new ArgumentException("ClosedByUserId es requerido.");
+
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return null;
+
+        var ent = await _ctx.LoteAveEngorde
+            .SingleOrDefaultAsync(x =>
+                x.LoteAveEngordeId == loteAveEngordeId &&
+                x.CompanyId == companyId &&
+                x.DeletedAt == null &&
+                allowed.Contains(x.GranjaId));
+        if (ent is null) return null;
+
+        if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote ya está cerrado.");
+
+        ent.EstadoOperativoLote = "Cerrado";
+        ent.LiquidadoAt = DateTime.UtcNow;
+        ent.LiquidadoPorUserId = request.ClosedByUserId.Trim();
+        ent.UpdatedByUserId = _current.UserId;
+        ent.UpdatedAt = DateTime.UtcNow;
+        await _ctx.SaveChangesAsync();
+        return await GetByIdAsync(loteAveEngordeId);
+    }
+
+    public async Task<LoteAveEngordeDetailDto?> AbrirLoteAsync(int loteAveEngordeId, AbrirLoteAveEngordeRequest request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.OpenedByUserId))
+            throw new ArgumentException("OpenedByUserId es requerido.");
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+            throw new ArgumentException("Motivo es requerido.");
+
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return null;
+
+        var ent = await _ctx.LoteAveEngorde
+            .SingleOrDefaultAsync(x =>
+                x.LoteAveEngordeId == loteAveEngordeId &&
+                x.CompanyId == companyId &&
+                x.DeletedAt == null &&
+                allowed.Contains(x.GranjaId));
+        if (ent is null) return null;
+
+        if (!string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote no está cerrado; no aplica reapertura.");
+
+        ent.EstadoOperativoLote = "Abierto";
+        ent.ReabiertoAt = DateTime.UtcNow;
+        ent.ReabiertoPorUserId = request.OpenedByUserId.Trim();
+        ent.MotivoReapertura = request.Motivo.Trim();
+        ent.UpdatedByUserId = _current.UserId;
+        ent.UpdatedAt = DateTime.UtcNow;
+        await _ctx.SaveChangesAsync();
+        return await GetByIdAsync(loteAveEngordeId);
+    }
+
     /// <summary>
     /// Acepta combinación raza+año en guía clásica (<see cref="ProduccionAvicolaRaw"/>) o en guía Ecuador activa
     /// (<see cref="GuiaGeneticaEcuadorHeader"/>), misma compañía.
@@ -484,6 +546,12 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 l.EdadInicial,
                 l.LoteErp,
                 l.EstadoTraslado,
+                l.EstadoOperativoLote,
+                l.LiquidadoAt,
+                l.LiquidadoPorUserId,
+                l.ReabiertoAt,
+                l.ReabiertoPorUserId,
+                l.MotivoReapertura,
                 l.PaisId,
                 l.PaisNombre,
                 l.EmpresaNombre,

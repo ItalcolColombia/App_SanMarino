@@ -1,0 +1,227 @@
+<!-- Modal de creación/edición -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="seguimiento-modal-title">
+  <div class="ux-modal__dialog">
+    <header class="ux-modal__header">
+      <h2 id="seguimiento-modal-title">
+        {{ loadingRecord ? 'Cargando…' : (editing ? 'Editar seguimiento (pollo engorde)' : 'Nuevo seguimiento (pollo engorde)') }}
+      </h2>
+      <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
+      <div class="ux-panel-stack">
+          <!-- GENERAL -->
+          <section class="ux-panel-section">
+            <p class="ux-hint" *ngIf="camposCalculoBloqueadosEnEdicion" style="margin: 0 0 1rem 0;">
+              En edición no puede modificar <strong>alimento</strong>, <strong>mortalidad</strong>, <strong>selección</strong> ni <strong>error de sexaje</strong>. Puede actualizar fecha, lote, observaciones, peso, uniformidad, agua y demás campos del registro.
+            </p>
+            <div class="grid grid-2">
+              <div class="form-field">
+                <label for="f-fecha">Fecha</label>
+                <input id="f-fecha" type="date" formControlName="fechaRegistro" />
+              </div>
+
+              <div class="form-field">
+                <label for="f-lote">Lote</label>
+                <div class="ux-select">
+                  <select id="f-lote" formControlName="loteId">
+                    <option value="" disabled>— Seleccione —</option>
+                    <option *ngFor="let l of lotes" [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="f-obs">Observaciones</label>
+                <textarea id="f-obs" rows="3" formControlName="observaciones"></textarea>
+              </div>
+            </div>
+          </section>
+
+          <section class="ux-panel-section">
+            <div class="data-group">
+              <h3 class="data-group-title">📦 Alimento</h3>
+              <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
+                Puede registrar varios alimentos por sexo. Por defecto aparece una fila.
+              </p>
+
+              <div>
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 0.75rem;">
+                  <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemHembras()" [disabled]="camposCalculoBloqueadosEnEdicion">+ Agregar alimento</button>
+                </div>
+                  <div *ngFor="let itemH of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemH)" style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; background: #fff;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                      <small style="font-weight: 700; color: #57534e;">Alimento {{ i + 1 }}</small>
+                      <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)" [disabled]="camposCalculoBloqueadosEnEdicion || itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
+                    </div>
+                    <div class="grid grid-2">
+                      <div class="form-field">
+                        <label [for]="'f-item-h-' + i">Ítem (alimento)</label>
+                        <div class="ux-select">
+                          <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
+                            <option [ngValue]="null">— Seleccione —</option>
+                            <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)))" [ngValue]="a.id">
+                              {{ getItemDisplayText(a) }}
+                            </option>
+                          </select>
+                        </div>
+                        <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
+                          Disponible actual: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
+                          <ng-container *ngIf="editing">
+                            • Máximo para editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                          </ng-container>
+                        </small>
+                      </div>
+                      <div class="form-field">
+                        <label [for]="'f-cantidad-h-' + i">Cantidad</label>
+                        <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                          <div style="flex: 1;">
+                            <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
+                          </div>
+                          <div style="width: 100px;">
+                            <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                              <option value="kg">kg</option>
+                              <option value="g">gramos</option>
+                            </select>
+                          </div>
+                        </div>
+                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemH))">
+                      La cantidad ingresada supera el máximo permitido para este ítem.
+                    </small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+            </div>
+
+            <div class="data-group">
+              <h3 class="data-group-title">💀 Mortalidad, Selección y Error de sexaje</h3>
+              <div class="compare-grid">
+                <div class="compare-grid__row-title"></div>
+                <div class="compare-grid__col-title">Hembras</div>
+                <div class="compare-grid__col-title">Machos</div>
+
+                <div class="compare-grid__row-title">Mortalidad</div>
+                <div class="form-field"><input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" /></div>
+                <div class="form-field"><input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" /></div>
+
+                <div class="compare-grid__row-title">Selección</div>
+                <div class="form-field"><input id="f-selh" type="number" min="0" formControlName="selH" /></div>
+                <div class="form-field"><input id="f-selm" type="number" min="0" formControlName="selM" /></div>
+
+                <div class="compare-grid__row-title">Error de sexaje</div>
+                <div class="form-field"><input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" /></div>
+                <div class="form-field"><input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" /></div>
+              </div>
+            </div>
+
+            <div class="data-group">
+              <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
+              <div class="compare-grid">
+                <div class="compare-grid__row-title"></div>
+                <div class="compare-grid__col-title">Hembras</div>
+                <div class="compare-grid__col-title">Machos</div>
+
+                <div class="compare-grid__row-title">Peso promedio (kg)</div>
+                <div class="form-field"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
+                <div class="form-field"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
+
+                <div class="compare-grid__row-title">Uniformidad (%)</div>
+                <div class="form-field"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
+                <div class="form-field"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
+
+                <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
+                <div class="form-field"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
+                <div class="form-field"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- AGUA (solo para Ecuador y Panamá) -->
+          <section class="ux-panel-section" *appShowIfEcuadorPanama>
+            <div class="data-group">
+              <h3 class="data-group-title">💧 Información del Agua</h3>
+              <div class="grid grid-2">
+                <div class="form-field">
+                  <label for="f-consumo-agua-diario">
+                    <span class="label-icon">📊</span>
+                    Consumo Agua Diario (litros)
+                  </label>
+                  <input 
+                    id="f-consumo-agua-diario" 
+                    type="number" 
+                    step="0.01" 
+                    min="0" 
+                    formControlName="consumoAguaDiario" 
+                    placeholder="Ej: 1500.50" />
+                  <small class="ux-hint">Consumo diario de agua en litros</small>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-consumo-agua-ph">
+                    <span class="label-icon">🧪</span>
+                    PH del Agua
+                  </label>
+                  <input 
+                    id="f-consumo-agua-ph" 
+                    type="number" 
+                    step="0.01" 
+                    min="0" 
+                    max="14" 
+                    formControlName="consumoAguaPh" 
+                    placeholder="Ej: 7.0" />
+                  <small class="ux-hint">Nivel de PH del agua (0-14)</small>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-consumo-agua-orp">
+                    <span class="label-icon">⚡</span>
+                    ORP (mV)
+                  </label>
+                  <input 
+                    id="f-consumo-agua-orp" 
+                    type="number" 
+                    step="0.01" 
+                    min="0" 
+                    formControlName="consumoAguaOrp" 
+                    placeholder="Ej: 650.00" />
+                  <small class="ux-hint">Potencial de Oxidación-Reducción en milivoltios</small>
+                </div>
+
+                <div class="form-field">
+                  <label for="f-consumo-agua-temperatura">
+                    <span class="label-icon">🌡️</span>
+                    Temperatura del Agua (°C)
+                  </label>
+                  <input 
+                    id="f-consumo-agua-temperatura" 
+                    type="number" 
+                    step="0.1" 
+                    min="0" 
+                    formControlName="consumoAguaTemperatura" 
+                    placeholder="Ej: 25.5" />
+                  <small class="ux-hint">Temperatura del agua en grados Celsius</small>
+                </div>
+              </div>
+            </div>
+          </section>
+      </div>
+
+      <footer class="ux-modal__footer">
+        <button type="button" class="btn btn--ghost" (click)="onClose()" [disabled]="loading || loadingRecord">Cancelar</button>
+        <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida">
+          <ng-container *ngIf="loadingRecord">Cargando registro…</ng-container>
+          <ng-container *ngIf="!loadingRecord && loading">{{ editing ? 'Actualizando…' : 'Guardando…' }}</ng-container>
+          <ng-container *ngIf="!loadingRecord && !loading">{{ editing ? 'Actualizar registro' : 'Guardar' }}</ng-container>
+        </button>
+      </footer>
+    </form>
+
+    <div *ngIf="loadingRecord" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> Cargando registro…
+    </div>
+    <div *ngIf="loading && !loadingRecord" class="modal-loading" role="status" aria-live="polite">
+      <div class="spinner"></div> {{ editing ? 'Actualizando registro…' : 'Guardando…' }}
+    </div>
+  </div>
+</div>

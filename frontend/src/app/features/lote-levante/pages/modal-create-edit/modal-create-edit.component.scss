@@ -229,7 +229,54 @@
 :host .ux-input--readonly { background: var(--warm-50); color: var(--text-sub); }
 
 /* ==========================================================================
-   🧱 Flujo único (sin tabs)
+   Pestañas Levante (General / Hembras / Machos)
+   ========================================================================== */
+:host .ux-modal__dialog--wide {
+  max-width: min(920px, 96vw);
+}
+
+.modal-lev-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--warm-200);
+}
+
+.modal-lev-tabs__btn {
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warm-300);
+  background: var(--warm-50);
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--warm-600);
+  transition: background var(--t-med), border-color var(--t-med), color var(--t-med);
+}
+
+.modal-lev-tabs__btn:hover {
+  background: var(--white);
+  border-color: var(--brand-red);
+  color: var(--brand-red);
+}
+
+.modal-lev-tabs__btn--active {
+  background: var(--brand-red);
+  border-color: var(--brand-red);
+  color: var(--white);
+}
+
+.modal-lev-item-row {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: #fff;
+}
+
+/* ==========================================================================
+   Contenedor del formulario
    ========================================================================== */
 :host .ux-panel-stack {
   background: var(--white);
@@ -373,6 +420,43 @@
   width: 100%;
   background: #fffdf5;
   border: 2px solid var(--warm-300);
+}
+
+:host .text-right { text-align: right; }
+:host .modal-lev-stock__intro { margin: 0.25rem 0 0.75rem 0; line-height: 1.45; }
+:host .modal-lev-stock__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+:host .modal-lev-stock__search { flex: 1; min-width: 200px; margin: 0; }
+:host .modal-lev-stock__loading { margin: 0.5rem 0; }
+:host .modal-lev-stock__table-wrap {
+  overflow: auto;
+  max-height: min(420px, 50vh);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+:host .modal-lev-stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+:host .modal-lev-stock-table th,
+:host .modal-lev-stock-table td {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--warm-200);
+  text-align: left;
+  vertical-align: top;
+}
+:host .modal-lev-stock-table th {
+  background: var(--warm-100);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 /* ==========================================================================

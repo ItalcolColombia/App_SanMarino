@@ -39,6 +39,17 @@ public class LoteAveEngorde : AuditableEntity
     public string? LoteErp { get; set; }
     public string? EstadoTraslado { get; set; }
 
+    /// <summary>Abierto (operativo) o Cerrado (liquidado). No confundir con EstadoTraslado.</summary>
+    public string EstadoOperativoLote { get; set; } = "Abierto";
+
+    public DateTime? LiquidadoAt { get; set; }
+    /// <summary>Id de usuario (Guid string) que liquidó el lote.</summary>
+    public string? LiquidadoPorUserId { get; set; }
+
+    public DateTime? ReabiertoAt { get; set; }
+    public string? ReabiertoPorUserId { get; set; }
+    public string? MotivoReapertura { get; set; }
+
     public int? PaisId { get; set; }
     public string? PaisNombre { get; set; }
     public string? EmpresaNombre { get; set; }

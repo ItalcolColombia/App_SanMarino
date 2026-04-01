@@ -126,7 +126,9 @@ public record LiquidacionPolloEngordeReporteRequest(
     DateTime? FechaHasta,
     string Alcance,
     int? GranjaId,
-    string? NucleoId
+    string? NucleoId,
+    /// <summary>Modo UnLote sin lote: filtra lotes liquidados por galpón (opcional).</summary>
+    string? GalponId = null
 );
 
 public record LiquidacionPolloEngordeItemDto(

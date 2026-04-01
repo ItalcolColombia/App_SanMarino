@@ -13,7 +13,15 @@ export interface FilterDataResponse {
   farms: FarmDto[];
   nucleos: NucleoDto[];
   galpones: Array<{ galponId: string; galponNombre: string; nucleoId: string; granjaId: number }>;
-  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId: string | null; galponId: string | null; loteErp?: string | null }>;
+  lotes: Array<{
+    loteId: number;
+    loteNombre: string;
+    granjaId: number;
+    nucleoId: string | null;
+    galponId: string | null;
+    loteErp?: string | null;
+    estadoOperativoLote?: string | null;
+  }>;
 }
 
 @Component({
@@ -104,7 +112,8 @@ export class FiltroSelectComponent implements OnInit {
           granjaId: l.granjaId,
           nucleoId: l.nucleoId ?? undefined,
           galponId: l.galponId ?? undefined,
-          loteErp: l.loteErp ?? undefined
+          loteErp: l.loteErp ?? undefined,
+          estadoOperativoLote: l.estadoOperativoLote ?? undefined
         })) as LoteDto[];
         this.galponNameById.clear();
         (data.galpones ?? []).forEach(g => {

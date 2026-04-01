@@ -112,6 +112,76 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         return await QueryHistoricoUnificadoDtosAsync(loteId, companyId);
     }
 
+    public async Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId)
+    {
+        var companyId = _current.CompanyId;
+        var lote = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => new
+            {
+                l.LoteAveEngordeId,
+                l.LoteNombre,
+                l.EstadoOperativoLote,
+                l.HembrasL,
+                l.MachosL,
+                l.Mixtas,
+                l.AvesEncasetadas
+            })
+            .SingleOrDefaultAsync();
+        if (lote is null) return null;
+
+        await RecalcularSaldoAlimentoPorLoteAsync(loteId, companyId);
+
+        var saldo = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .OrderByDescending(s => s.Fecha)
+            .Select(s => s.SaldoAlimentoKg)
+            .FirstOrDefaultAsync();
+
+        var ventas = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado && h.TipoEvento == "VENTA_AVES")
+            .ToListAsync();
+
+        var vh = ventas.Sum(v => v.CantidadHembras ?? 0);
+        var vm = ventas.Sum(v => v.CantidadMachos ?? 0);
+        var vx = ventas.Sum(v => v.CantidadMixtas ?? 0);
+
+        var h0 = lote.HembrasL ?? 0;
+        var m0 = lote.MachosL ?? 0;
+        var x0 = lote.Mixtas ?? 0;
+        var total = h0 + m0 + x0;
+        if (total == 0 && lote.AvesEncasetadas.HasValue && lote.AvesEncasetadas.Value > 0)
+            total = lote.AvesEncasetadas.Value;
+
+        // Aves vivas actuales: total inicio - (bajas acumuladas del seguimiento) - (ventas acumuladas)
+        var bajas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .Select(s =>
+                (s.MortalidadHembras ?? 0) +
+                (s.MortalidadMachos ?? 0) +
+                (s.SelH ?? 0) +
+                (s.SelM ?? 0) +
+                (s.ErrorSexajeHembras ?? 0) +
+                (s.ErrorSexajeMachos ?? 0))
+            .SumAsync();
+        var avesVivas = Math.Max(0, total - bajas - (vh + vm + vx));
+
+        return new LiquidacionLoteEngordeResumenDto(
+            lote.LoteAveEngordeId ?? loteId,
+            lote.LoteNombre ?? "",
+            lote.EstadoOperativoLote ?? "Abierto",
+            lote.HembrasL,
+            lote.MachosL,
+            lote.Mixtas,
+            total,
+            vh,
+            vm,
+            vx,
+            avesVivas,
+            ventas.Count,
+            saldo);
+    }
+
     private async Task<IReadOnlyList<LoteRegistroHistoricoUnificadoDto>> QueryHistoricoUnificadoDtosAsync(int loteId, int companyId)
     {
         var rows = await _ctx.LoteRegistroHistoricoUnificados
@@ -244,6 +314,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             .SingleOrDefaultAsync(l => l.LoteAveEngordeId == dto.LoteId && l.CompanyId == _current.CompanyId && l.DeletedAt == null);
         if (lote is null)
             throw new InvalidOperationException($"Lote aves de engorde '{dto.LoteId}' no existe o no pertenece a la compañía.");
+        if (string.Equals(lote.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote está cerrado (liquidado). No se pueden agregar registros diarios.");
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
@@ -357,6 +429,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             .SingleOrDefaultAsync(l => l.LoteAveEngordeId == dto.LoteId && l.CompanyId == companyId && l.DeletedAt == null);
         if (lote is null)
             throw new InvalidOperationException($"Lote aves de engorde '{dto.LoteId}' no existe o no pertenece a la compañía.");
+        if (string.Equals(lote.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede editar el registro.");
 
         var ent = await (from s in _ctx.SeguimientoDiarioAvesEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on s.LoteAveEngordeId equals l.LoteAveEngordeId
@@ -502,8 +576,10 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         var ent = await (from s in _ctx.SeguimientoDiarioAvesEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on s.LoteAveEngordeId equals l.LoteAveEngordeId
                          where s.Id == id && l.CompanyId == companyId && l.DeletedAt == null
-                         select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId }).SingleOrDefaultAsync();
+                         select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId, l.EstadoOperativoLote }).SingleOrDefaultAsync();
         if (ent is null) return false;
+        if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede eliminar el registro.");
 
         if (_inventarioGestionService != null && ent.Seguimiento.Metadata != null)
         {

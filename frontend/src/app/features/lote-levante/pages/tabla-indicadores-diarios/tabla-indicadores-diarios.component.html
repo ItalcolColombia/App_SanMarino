@@ -7,14 +7,11 @@
       </p>
       <p class="indicadores-diarios__hint" *ngIf="guiaOk && !errorGuia">
         Cada fila es un día de registro. <strong class="indicadores-diarios__kbd indicadores-diarios__kbd--reg">Registro</strong>
-        = lo medido en el seguimiento (pesos, kg de alimento y, si aplica, alimento desde detalle de ítems cuando el consumo en kg va en 0).
-        <strong class="indicadores-diarios__kbd indicadores-diarios__kbd--guia">Guía</strong> = tabla Ecuador
-        <strong>mixto</strong> (no hembra/macho por separado). La ganancia comparada es solo la
-        <strong>ganancia diaria</strong> de la guía (no el “promedio ganancia” de la hoja).
-        Alimento diario (g/ave) = total kg ese día ÷ <strong>aves al inicio del día</strong>.
-        <strong>Mortalidad + selección</strong>: en Registro es el % real del día
-        <span class="indicadores-diarios__nowrap">((mort.+sel.) ÷ aves al inicio)</span>; en Guía es el
-        <strong>objetivo diario</strong> de la tabla genética.
+        = consumo en kg del seguimiento (campos hembras/machos e ítems de alimento en metadata; ítems <strong>generales</strong> se reparten entre A/B según aves al inicio del día).
+        <strong>A (H)</strong> y <strong>B (M)</strong>: g/ave/día = kg consumidos ese sexo ÷ aves vivas de ese sexo al inicio del día.
+        <strong>Mix</strong> = total kg del día × 1000 ÷ total aves al inicio (comparación con guía mixta).
+        <strong class="indicadores-diarios__kbd indicadores-diarios__kbd--guia">Guía</strong> = tabla Ecuador <strong>mixto</strong>.
+        <strong>Mortalidad + selección</strong>: % del día = (mort.+sel. del día) ÷ aves al inicio del día.
       </p>
     </div>
   </div>
@@ -33,12 +30,12 @@
         <tr>
           <th rowspan="2" class="indicadores-diarios__th-fixed">Fecha</th>
           <th rowspan="2" class="indicadores-diarios__th-fixed">Día</th>
-          <th rowspan="2" class="indicadores-diarios__th-fixed" title="Aves vivas al inicio del día (antes de mort. y selección del día)">Aves</th>
+          <th rowspan="2" class="indicadores-diarios__th-fixed" title="Total aves al inicio; entre paréntesis H/M si hay desglose en el lote">Aves</th>
           <th colspan="3" class="indicadores-diarios__th-grp">Peso corporal (g)</th>
           <th colspan="3" class="indicadores-diarios__th-grp">Ganancia diaria (g)</th>
-          <th colspan="3" class="indicadores-diarios__th-grp">Alimento diario (g/ave)</th>
-          <th colspan="3" class="indicadores-diarios__th-grp">Alimento acum. (g/ave)</th>
-          <th colspan="3" class="indicadores-diarios__th-grp">Conversión (CA)</th>
+          <th colspan="5" class="indicadores-diarios__th-grp">Alimento diario (g/ave)</th>
+          <th colspan="5" class="indicadores-diarios__th-grp">Alimento acum. (g/ave)</th>
+          <th colspan="5" class="indicadores-diarios__th-grp">Conversión (CA)</th>
           <th colspan="3" class="indicadores-diarios__th-grp" title="Real vs objetivo tabla">Mortalidad + selección (%)</th>
         </tr>
         <tr>
@@ -48,13 +45,19 @@
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
-          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg" title="Hembras">A (H)</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg" title="Machos">B (M)</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Mix</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
-          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">A (H)</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">B (M)</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Mix</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
-          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">A (H)</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">B (M)</th>
+          <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Mix</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--guia">Guía</th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-tag"></th>
           <th class="indicadores-diarios__th-sub indicadores-diarios__th-sub--reg">Registro</th>
@@ -66,7 +69,12 @@
         <tr *ngFor="let row of filas" [ngClass]="faseDiaClass(row.dia)">
           <td>{{ formatDMY(row.fechaYmd) }}</td>
           <td>{{ row.dia }}</td>
-          <td class="indicadores-diarios__num">{{ row.avesInicioDia | number:'1.0-0' }}</td>
+          <td class="indicadores-diarios__num">
+            {{ row.avesInicioDia | number:'1.0-0' }}
+            <span *ngIf="!row.mixtoSinDesgloseSexo" class="indicadores-diarios__aves-hm">
+              ({{ row.avesHembrasInicioDia | number:'1.0-0' }}/{{ row.avesMachosInicioDia | number:'1.0-0' }})
+            </span>
+          </td>
 
           <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.pesoRealG, 0) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.pesoTablaG, 0) }}</td>
@@ -76,14 +84,20 @@
           <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.gananciaDiariaTablaG, 1) }}</td>
           <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagGanancia(row))">{{ tagLabel(tagGanancia(row)) }}</span></td>
 
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNumNullable(row.consumoDiarioRealGA, 1) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNumNullable(row.consumoDiarioRealGB, 1) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.consumoDiarioRealG, 1) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.consumoDiarioTablaG, 1) }}</td>
           <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagConsumoDiario(row))">{{ tagLabel(tagConsumoDiario(row)) }}</span></td>
 
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNumNullable(row.alimentoAcumRealGA, 0) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNumNullable(row.alimentoAcumRealGB, 0) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.alimentoAcumRealG, 0) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.alimentoAcumTablaG, 0) }}</td>
           <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagAlimentoAcum(row))">{{ tagLabel(tagAlimentoAcum(row)) }}</span></td>
 
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNumNullable(row.caRealA, 3) }}</td>
+          <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNumNullable(row.caRealB, 3) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.caReal, 3) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.caTabla, 3) }}</td>
           <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagCa(row))">{{ tagLabel(tagCa(row)) }}</span></td>

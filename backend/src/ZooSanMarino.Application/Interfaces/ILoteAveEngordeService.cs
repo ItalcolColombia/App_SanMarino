@@ -20,4 +20,10 @@ public interface ILoteAveEngordeService
     Task<bool> DeleteAsync(int loteAveEngordeId);
     /// <summary>Eliminación física (hard delete).</summary>
     Task<bool> HardDeleteAsync(int loteAveEngordeId);
+
+    /// <summary>Marca el lote como cerrado (liquidado) y guarda usuario y fecha.</summary>
+    Task<LoteAveEngordeDetailDto?> CerrarLoteAsync(int loteAveEngordeId, CerrarLoteAveEngordeRequest request);
+
+    /// <summary>Reabre un lote cerrado (motivo y usuario obligatorios).</summary>
+    Task<LoteAveEngordeDetailDto?> AbrirLoteAsync(int loteAveEngordeId, AbrirLoteAveEngordeRequest request);
 }

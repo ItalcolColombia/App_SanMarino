@@ -38,6 +38,10 @@
           <span class="chip chip--muted" *ngIf="selectedLoteId">
             {{ seguimientos.length || 0 }} registro(s)
           </span>
+
+          <span class="chip chip--warning" *ngIf="selectedLoteId && loteOperativoCerrado" role="status">
+            Lote operativo: cerrado
+          </span>
         </div>
       </div>
 
@@ -45,10 +49,19 @@
         <button
           type="button"
           class="btn btn--outline"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
-          (click)="openLiquidacion()">
-          Liquidación técnica
+          *ngIf="selectedLoteId && !loteOperativoCerrado"
+          [title]="'Liquidar lote (resumen y cierre operativo)'"
+          (click)="liquidacionOpen = true">
+          Liquidar lote
+        </button>
+
+        <button
+          type="button"
+          class="btn btn--outline"
+          *ngIf="selectedLoteId && loteOperativoCerrado"
+          [title]="'Abrir lote liquidado (motivo obligatorio)'"
+          (click)="liquidacionOpen = true">
+          Abrir lote
         </button>
 
         <button
@@ -56,7 +69,7 @@
           (click)="create()"
           class="btn btn--primary"
           [disabled]="!selectedLoteId || noPuedeSeguimiento"
-          [title]="noPuedeSeguimiento ? 'No hay aves disponibles o lote cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
+          [title]="noPuedeSeguimiento ? 'No hay aves, lote cerrado por reproductoras o lote operativo cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
           Nuevo registro
         </button>
       </div>
@@ -85,6 +98,9 @@
       <p *ngIf="loteCerradoPorReproductoras && lotesReproductora.length > 0" class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
         <strong>Lote cerrado</strong> porque los lotes reproductora ya no tienen aves disponibles.
       </p>
+      <p *ngIf="loteOperativoCerrado" class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
+        <strong>Lote operativo cerrado</strong> (liquidación). No se pueden crear ni editar registros de seguimiento hasta usar «Abrir lote».
+      </p>
 
       <div class="pe-info-lote__grid">
         <div class="pe-info-lote__block">
@@ -106,7 +122,7 @@
       </div>
     </section>
 
-    <app-tabs-principal
+    <app-tabs-principal-engorde
       [seguimientos]="seguimientos"
       [historicoUnificado]="historicoUnificado"
       [enriquecerTablaConHistoricoInventario]="true"
@@ -120,21 +136,20 @@
       (edit)="edit($event)"
       (delete)="delete($event)"
       (viewDetail)="viewDetail($event)">
-    </app-tabs-principal>
+    </app-tabs-principal-engorde>
   </div>
 </div>
 
-<app-modal-create-edit
+<app-modal-seguimiento-engorde
   [isOpen]="modalOpen"
   [editing]="editing"
   [lotes]="lotes"
   [selectedLoteId]="selectedLoteId"
   [loading]="loading"
   [loadingRecord]="loadingEdit"
-  [hembrasSoloAlimento]="true"
   (close)="cancel()"
   (save)="onSave($event)">
-</app-modal-create-edit>
+</app-modal-seguimiento-engorde>
 
 <app-modal-detalle-seguimiento-levante
   [isOpen]="detailModalOpen"
@@ -150,13 +165,17 @@
   (close)="closeCalculos()">
 </app-modal-calculos>
 
-<app-modal-liquidacion
+<app-modal-liquidacion-lote-engorde
+  *ngIf="liquidacionOpen"
   [isOpen]="liquidacionOpen"
   [loteId]="selectedLoteId"
   [loteNombre]="selectedLoteNombre"
-  [esLoteAveEngorde]="true"
-  (close)="closeLiquidacion()">
-</app-modal-liquidacion>
+  [granjaId]="selectedGranjaId"
+  [nucleoId]="selectedNucleoId"
+  [galponId]="selectedGalponId === SIN_GALPON ? null : selectedGalponId"
+  (close)="closeLiquidacion()"
+  (loteActualizado)="onLoteLiquidacionActualizado()">
+</app-modal-liquidacion-lote-engorde>
 
 <app-confirmation-modal
   [isOpen]="errorModalOpen"

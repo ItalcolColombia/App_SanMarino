@@ -27,6 +27,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
   loading: boolean = false;
   itemsHembras: ItemSeguimientoDto[] = [];
   itemsMachos: ItemSeguimientoDto[] = [];
+  itemsGenerales: ItemSeguimientoDto[] = [];
   /** catalogItemId -> nombre (o codigo - nombre) para mostrar en la tabla de ítems */
   itemNames = new Map<number, string>();
 
@@ -99,12 +100,14 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     } else if (itemsAdicionales.itemsHembras && Array.isArray(itemsAdicionales.itemsHembras)) {
       this.itemsHembras = itemsAdicionales.itemsHembras;
     } else {
-      // Compatibilidad hacia atrás: construir desde campos tradicionales
-      if (metadata.tipoAlimentoHembras && metadata.tipoItemHembras === 'alimento') {
+      // Compatibilidad: un solo alimento hembras sin itemsHembras en metadata
+      const hId = Number(metadata.tipoAlimentoHembras ?? this.seguimiento.tipoAlimentoHembras);
+      const hTipo = String(metadata.tipoItemHembras ?? 'alimento').toLowerCase();
+      if (hId && (hTipo === 'alimento' || !metadata.tipoItemHembras)) {
         this.itemsHembras = [{
           tipoItem: 'alimento',
-          catalogItemId: metadata.tipoAlimentoHembras,
-          cantidad: metadata.consumoOriginalHembras || this.seguimiento.consumoKgHembras || 0,
+          catalogItemId: hId,
+          cantidad: metadata.consumoOriginalHembras ?? this.seguimiento.consumoKgHembras ?? 0,
           unidad: metadata.unidadConsumoOriginalHembras || 'kg'
         }];
       }
@@ -121,15 +124,30 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     } else if (itemsAdicionales.itemsMachos && Array.isArray(itemsAdicionales.itemsMachos)) {
       this.itemsMachos = itemsAdicionales.itemsMachos;
     } else {
-      // Compatibilidad hacia atrás: construir desde campos tradicionales
-      if (metadata.tipoAlimentoMachos && metadata.tipoItemMachos === 'alimento' && this.seguimiento.consumoKgMachos) {
+      const mId = Number(metadata.tipoAlimentoMachos ?? this.seguimiento.tipoAlimentoMachos);
+      const mTipo = String(metadata.tipoItemMachos ?? 'alimento').toLowerCase();
+      const consM = metadata.consumoOriginalMachos ?? this.seguimiento.consumoKgMachos;
+      if (mId && (mTipo === 'alimento' || !metadata.tipoItemMachos) && consM != null && Number(consM) >= 0) {
         this.itemsMachos = [{
           tipoItem: 'alimento',
-          catalogItemId: metadata.tipoAlimentoMachos,
-          cantidad: metadata.consumoOriginalMachos || this.seguimiento.consumoKgMachos || 0,
+          catalogItemId: mId,
+          cantidad: Number(consM),
           unidad: metadata.unidadConsumoOriginalMachos || 'kg'
         }];
       }
+    }
+
+    if (metadata.itemsGenerales && Array.isArray(metadata.itemsGenerales)) {
+      this.itemsGenerales = metadata.itemsGenerales.map((item: any) => ({
+        tipoItem: item.tipoItem || 'consumible',
+        catalogItemId: item.catalogItemId,
+        cantidad: item.cantidad || item.cantidadKg || 0,
+        unidad: item.unidad || 'unidades'
+      }));
+    } else if (itemsAdicionales.itemsGenerales && Array.isArray(itemsAdicionales.itemsGenerales)) {
+      this.itemsGenerales = itemsAdicionales.itemsGenerales;
+    } else {
+      this.itemsGenerales = [];
     }
 
     this.loadItemNames();
@@ -139,6 +157,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     const ids = new Set<number>();
     this.itemsHembras.forEach(i => ids.add(i.catalogItemId));
     this.itemsMachos.forEach(i => ids.add(i.catalogItemId));
+    this.itemsGenerales.forEach(i => ids.add(i.catalogItemId));
     if (ids.size === 0) return;
 
     const requests = Array.from(ids).map(id =>

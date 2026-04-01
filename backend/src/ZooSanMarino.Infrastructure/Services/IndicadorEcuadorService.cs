@@ -260,29 +260,67 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
 
         if (string.Equals(request.Modo, "UnLote", StringComparison.OrdinalIgnoreCase))
         {
-            if (!request.LoteAveEngordeId.HasValue || request.LoteAveEngordeId.Value <= 0)
-                throw new InvalidOperationException("Debe indicar LoteAveEngordeId para el modo UnLote.");
+            // Un lote por id
+            if (request.LoteAveEngordeId.HasValue && request.LoteAveEngordeId.Value > 0)
+            {
+                var lote = await _context.LoteAveEngorde
+                    .AsNoTracking()
+                    .Include(l => l.Farm)
+                    .Include(l => l.Galpon)
+                    .Where(l => l.LoteAveEngordeId == request.LoteAveEngordeId.Value &&
+                                l.CompanyId == _currentUser.CompanyId &&
+                                l.DeletedAt == null)
+                    .FirstOrDefaultAsync(ct)
+                    .ConfigureAwait(false);
 
-            var lote = await _context.LoteAveEngorde
-                .AsNoTracking()
-                .Include(l => l.Farm)
-                .Include(l => l.Galpon)
-                .Where(l => l.LoteAveEngordeId == request.LoteAveEngordeId.Value &&
-                            l.CompanyId == _currentUser.CompanyId &&
-                            l.DeletedAt == null)
-                .FirstOrDefaultAsync(ct)
-                .ConfigureAwait(false);
+                if (lote == null)
+                    throw new InvalidOperationException($"No se encontró el lote de ave engorde {request.LoteAveEngordeId}.");
 
-            if (lote == null)
-                throw new InvalidOperationException($"No se encontró el lote de ave engorde {request.LoteAveEngordeId}.");
+                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                if (ind == null)
+                    throw new InvalidOperationException("El lote no está liquidado (aún tiene aves o no cumple criterios de liquidación). Solo se muestran lotes con aves en cero.");
 
-            var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
-            if (ind == null)
-                throw new InvalidOperationException("El lote no está liquidado (aún tiene aves o no cumple criterios de liquidación). Solo se muestran lotes con aves en cero.");
+                var id = lote.LoteAveEngordeId ?? 0;
+                items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
+                return new LiquidacionPolloEngordeReporteDto("UnLote", items);
+            }
 
-            var id = lote.LoteAveEngordeId ?? 0;
-            items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
-            return new LiquidacionPolloEngordeReporteDto("UnLote", items);
+            // Varios lotes liquidados: granja y opcionalmente núcleo / galpón (sin id de lote)
+            if (request.GranjaId.HasValue && request.GranjaId.Value > 0)
+            {
+                var query = _context.LoteAveEngorde
+                    .AsNoTracking()
+                    .Include(l => l.Farm)
+                    .Include(l => l.Galpon)
+                    .Where(l => l.CompanyId == _currentUser.CompanyId &&
+                                l.DeletedAt == null &&
+                                l.GranjaId == request.GranjaId.Value);
+
+                if (!string.IsNullOrWhiteSpace(request.NucleoId))
+                    query = query.Where(l => l.NucleoId == request.NucleoId);
+
+                if (!string.IsNullOrWhiteSpace(request.GalponId))
+                    query = query.Where(l => l.GalponId == request.GalponId);
+
+                var lotes = await query.OrderBy(l => l.LoteNombre).ToListAsync(ct).ConfigureAwait(false);
+
+                foreach (var lote in lotes)
+                {
+                    var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                    if (ind == null)
+                        continue;
+                    var id = lote.LoteAveEngordeId ?? 0;
+                    items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
+                }
+
+                if (items.Count == 0)
+                    throw new InvalidOperationException(
+                        "No hay lotes liquidados en el alcance seleccionado (aves = 0). Ajuste granja, núcleo o galpón, o elija un lote en la lista.");
+
+                return new LiquidacionPolloEngordeReporteDto("UnLote", items);
+            }
+
+            throw new InvalidOperationException("Modo UnLote: indique un lote (LoteAveEngordeId) o una granja para listar todos los liquidados en ese alcance.");
         }
 
         if (string.Equals(request.Modo, "Rango", StringComparison.OrdinalIgnoreCase))

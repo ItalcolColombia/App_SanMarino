@@ -14,7 +14,9 @@ public sealed record LoteFilterItemDto(
     int GranjaId,
     string? NucleoId,
     string? GalponId,
-    string? LoteErp = null
+    string? LoteErp = null,
+    /// <summary>Solo lotes ave engorde: Abierto / Cerrado; null en otros módulos.</summary>
+    string? EstadoOperativoLote = null
 );
 
 /// <summary>

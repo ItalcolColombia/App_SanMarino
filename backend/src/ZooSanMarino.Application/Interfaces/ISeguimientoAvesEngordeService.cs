@@ -28,4 +28,7 @@ public interface ISeguimientoAvesEngordeService
     /// Historial unificado (inventario + ventas) para el lote, orden cronológico; excluye anulados.
     /// </summary>
     Task<IEnumerable<LoteRegistroHistoricoUnificadoDto>> GetHistoricoUnificadoPorLoteAsync(int loteId);
+
+    /// <summary>Resumen para modal Liquidar lote (ventas, aves inicio, saldo alimento).</summary>
+    Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId);
 }
