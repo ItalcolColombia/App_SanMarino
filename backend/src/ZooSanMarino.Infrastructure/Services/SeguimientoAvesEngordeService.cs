@@ -6,6 +6,7 @@
 // inventario-gestion; los dos módulos de inventario están divididos (postura → su inventario; pollo engorde → inventario-gestion).
 using System.Text.Json;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -146,12 +147,35 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         var vm = ventas.Sum(v => v.CantidadMachos ?? 0);
         var vx = ventas.Sum(v => v.CantidadMixtas ?? 0);
 
-        var h0 = lote.HembrasL ?? 0;
-        var m0 = lote.MachosL ?? 0;
-        var x0 = lote.Mixtas ?? 0;
-        var total = h0 + m0 + x0;
-        if (total == 0 && lote.AvesEncasetadas.HasValue && lote.AvesEncasetadas.Value > 0)
-            total = lote.AvesEncasetadas.Value;
+        // Encaset / inicio real: mismo criterio que historial_lote_pollo_engorde (Inicio al crear el lote).
+        var ini = await _ctx.HistorialLotePolloEngorde.AsNoTracking()
+            .Where(h =>
+                h.CompanyId == companyId &&
+                h.LoteAveEngordeId == loteId &&
+                h.TipoLote == "LoteAveEngorde" &&
+                h.TipoRegistro == "Inicio")
+            .OrderBy(h => h.Id)
+            .FirstOrDefaultAsync();
+
+        int hInicio;
+        int mInicio;
+        int xInicio;
+        if (ini != null)
+        {
+            hInicio = ini.AvesHembras;
+            mInicio = ini.AvesMachos;
+            xInicio = ini.AvesMixtas;
+        }
+        else
+        {
+            hInicio = lote.HembrasL ?? 0;
+            mInicio = lote.MachosL ?? 0;
+            xInicio = lote.Mixtas ?? 0;
+            if (hInicio + mInicio + xInicio == 0 && lote.AvesEncasetadas.HasValue && lote.AvesEncasetadas.Value > 0)
+                xInicio = lote.AvesEncasetadas.Value;
+        }
+
+        var totalInicio = hInicio + mInicio + xInicio;
 
         // Aves vivas actuales: total inicio - (bajas acumuladas del seguimiento) - (ventas acumuladas)
         var bajas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
@@ -164,16 +188,16 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                 (s.ErrorSexajeHembras ?? 0) +
                 (s.ErrorSexajeMachos ?? 0))
             .SumAsync();
-        var avesVivas = Math.Max(0, total - bajas - (vh + vm + vx));
+        var avesVivas = Math.Max(0, totalInicio - bajas - (vh + vm + vx));
 
         return new LiquidacionLoteEngordeResumenDto(
             lote.LoteAveEngordeId ?? loteId,
             lote.LoteNombre ?? "",
             lote.EstadoOperativoLote ?? "Abierto",
-            lote.HembrasL,
-            lote.MachosL,
-            lote.Mixtas,
-            total,
+            hInicio,
+            mInicio,
+            xInicio,
+            totalInicio,
             vh,
             vm,
             vx,
@@ -195,27 +219,137 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     }
 
     /// <summary>
-    /// Saldo al cierre de cada día = acumulado de movimientos de inventario (kg) en orden cronológico.
-    /// INV_INGRESO / INV_TRASLADO_ENTRADA suman; INV_TRASLADO_SALIDA e INV_CONSUMO restan.
+    /// Fecha calendario (yyyy-MM-DD) para ordenar/agrupar movimientos del histórico, alineada con el front
+    /// (tabs-principal-engorde: ymdHistoricoEfectivo).
     /// </summary>
-    private static decimal DeltaInventarioKg(LoteRegistroHistoricoUnificado h)
+    private static string? YmdHistoricoEfectivo(LoteRegistroHistoricoUnificado h)
     {
-        var kg = h.CantidadKg ?? 0;
-        return h.TipoEvento switch
+        var referencia = $"{h.Referencia ?? ""} {h.NumeroDocumento ?? ""}".Trim();
+        var mSeg = Regex.Match(referencia, @"Seguimiento\s+aves\s+engorde\s+#\d+\s+(\d{4}-\d{2}-\d{2})", RegexOptions.IgnoreCase);
+        if (mSeg.Success)
+            return mSeg.Groups[1].Value;
+        if (string.Equals(h.TipoEvento, "INV_CONSUMO", StringComparison.OrdinalIgnoreCase))
         {
-            "INV_INGRESO" => kg,
-            "INV_TRASLADO_ENTRADA" => kg,
-            "INV_TRASLADO_SALIDA" => -kg,
-            "INV_CONSUMO" => -kg,
-            _ => 0m
-        };
+            var mAny = Regex.Match(referencia, @"(\d{4}-\d{2}-\d{2})");
+            if (mAny.Success)
+                return mAny.Groups[1].Value;
+        }
+        return h.FechaOperacion.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatYmd(DateTime d) =>
+        d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static long TsHistorico(LoteRegistroHistoricoUnificado h) =>
+        h.CreatedAt.ToUnixTimeMilliseconds();
+
+    private static long TsSeguimiento(SeguimientoDiarioAvesEngorde s)
+    {
+        var t = new DateTimeOffset(s.Fecha.Year, s.Fecha.Month, s.Fecha.Day, 12, 0, 0, TimeSpan.Zero);
+        return t.ToUnixTimeMilliseconds();
     }
 
     /// <summary>
+    /// Delta de kg por movimiento de histórico (sin INV_CONSUMO: el consumo va en el seguimiento diario).
+    /// Alineado con <c>deltaHistoricoMovimientoStock</c> en el front.
+    /// </summary>
+    private static bool TryGetHistDeltaAndOrd(LoteRegistroHistoricoUnificado h, out decimal delta, out int ord)
+    {
+        delta = 0;
+        ord = 0;
+        if (h.Anulado)
+            return false;
+        var kg = h.CantidadKg ?? 0;
+        switch (h.TipoEvento)
+        {
+            case "INV_INGRESO":
+                if (kg == 0) return false;
+                delta = kg;
+                ord = 0;
+                return true;
+            case "INV_TRASLADO_ENTRADA":
+                if (kg == 0) return false;
+                delta = kg;
+                ord = 1;
+                return true;
+            case "INV_TRASLADO_SALIDA":
+                if (kg == 0) return false;
+                delta = -Math.Abs(kg);
+                ord = 2;
+                return true;
+            case "INV_OTRO":
+                {
+                    var mt = (h.MovementTypeOriginal ?? "").Trim();
+                    if (string.Equals(mt, "AjusteStock", StringComparison.OrdinalIgnoreCase))
+                    {
+                        delta = kg;
+                        ord = 2;
+                        return true;
+                    }
+                    if (string.Equals(mt, "EliminacionStock", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (kg == 0) return false;
+                        delta = -Math.Abs(kg);
+                        ord = 2;
+                        return true;
+                    }
+                    return false;
+                }
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Stock (kg) antes del primer día de seguimiento: solo movimientos histórico con fecha efectiva &lt; primer seguimiento.
+    /// Tras cada movimiento piso en 0 (misma regla que el front).
+    /// </summary>
+    private static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
+        IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
+        DateTime firstSegDate)
+    {
+        var firstYmd = FormatYmd(firstSegDate.Date);
+        var rows = new List<(string ymd, long ts, decimal delta)>();
+        foreach (var h in hist)
+        {
+            var ymd = YmdHistoricoEfectivo(h);
+            if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0)
+                continue;
+            if (!TryGetHistDeltaAndOrd(h, out var d, out _))
+                continue;
+            rows.Add((ymd, TsHistorico(h), d));
+        }
+        rows.Sort((a, b) =>
+        {
+            var c = string.Compare(a.ymd, b.ymd, StringComparison.Ordinal);
+            if (c != 0) return c;
+            return a.ts.CompareTo(b.ts);
+        });
+        decimal bal = 0;
+        foreach (var r in rows)
+        {
+            bal += r.delta;
+            if (bal < 0) bal = 0;
+        }
+        return bal;
+    }
+
+    private readonly record struct SaldoAlimentoEvent(string Ymd, int Ord, long Tie, long? SegId, decimal Delta);
+
+    /// <summary>
     /// Recalcula y persiste <see cref="SeguimientoDiarioAvesEngorde.SaldoAlimentoKg"/> para todos los registros diarios del lote.
+    /// Misma lógica que el front (computeSaldoAlimentoKgPorSeguimiento): no duplica INV_CONSUMO del histórico,
+    /// resta consumo del seguimiento, orden estable, piso en 0 tras cada paso.
     /// </summary>
     private async Task RecalcularSaldoAlimentoPorLoteAsync(int loteId, int companyId, CancellationToken ct = default)
     {
+        var lote = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => new { l.FechaEncaset })
+            .FirstOrDefaultAsync(ct);
+        if (lote is null)
+            return;
+
         var hist = await _ctx.LoteRegistroHistoricoUnificados
             .AsNoTracking()
             .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado)
@@ -226,32 +360,65 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         var segs = await _ctx.SeguimientoDiarioAvesEngorde
             .Where(s => s.LoteAveEngordeId == loteId)
             .OrderBy(s => s.Fecha)
+            .ThenBy(s => s.Id)
             .ToListAsync(ct);
 
         if (segs.Count == 0)
             return;
 
-        var minD = segs.Min(s => s.Fecha.Date);
-        var maxD = segs.Max(s => s.Fecha.Date);
-        if (hist.Count > 0)
-        {
-            minD = new[] { minD, hist.Min(h => h.FechaOperacion.Date) }.Min();
-            maxD = new[] { maxD, hist.Max(h => h.FechaOperacion.Date) }.Max();
-        }
+        var firstSegDate = segs.Min(s => s.Fecha.Date);
+        var encYmd = lote.FechaEncaset.HasValue 
+            ? FormatYmd(lote.FechaEncaset.Value.Date) 
+            : null;
+        var firstYmd = FormatYmd(firstSegDate);
 
-        var balanceEndOfDay = new Dictionary<DateTime, decimal>();
-        decimal running = 0;
-        for (var d = minD.Date; d <= maxD.Date; d = d.AddDays(1))
+        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate);
+
+        var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
+
+        foreach (var h in hist)
         {
-            foreach (var ev in hist.Where(h => h.FechaOperacion.Date == d).OrderBy(h => h.Id))
-                running += DeltaInventarioKg(ev);
-            balanceEndOfDay[d] = running;
+            var ymd = YmdHistoricoEfectivo(h);
+            if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) < 0)
+                continue;
+            if (encYmd is not null && string.Compare(ymd, encYmd, StringComparison.Ordinal) < 0)
+                continue;
+            if (!TryGetHistDeltaAndOrd(h, out var delta, out var ord))
+                continue;
+            events.Add(new SaldoAlimentoEvent(ymd, ord, TsHistorico(h), null, delta));
         }
 
         foreach (var s in segs)
         {
-            var d = s.Fecha.Date;
-            s.SaldoAlimentoKg = balanceEndOfDay.TryGetValue(d, out var b) ? b : running;
+            var ymd = FormatYmd(s.Fecha.Date);
+            var ch = s.ConsumoKgHembras ?? 0;
+            var cm = s.ConsumoKgMachos ?? 0;
+            var cons = ch + cm;
+            events.Add(new SaldoAlimentoEvent(ymd, 3, TsSeguimiento(s), s.Id, -cons));
+        }
+
+        events.Sort((a, b) =>
+        {
+            var c = string.Compare(a.Ymd, b.Ymd, StringComparison.Ordinal);
+            if (c != 0) return c;
+            if (a.Ord != b.Ord) return a.Ord.CompareTo(b.Ord);
+            if (a.Tie != b.Tie) return a.Tie.CompareTo(b.Tie);
+            return (a.SegId ?? 0L).CompareTo(b.SegId ?? 0L);
+        });
+
+        var saldoPorSegId = new Dictionary<long, decimal>();
+        decimal bal = opening;
+        foreach (var e in events)
+        {
+            bal += e.Delta;
+            if (bal < 0) bal = 0;
+            if (e.SegId.HasValue)
+                saldoPorSegId[e.SegId.Value] = bal;
+        }
+
+        foreach (var s in segs)
+        {
+            s.SaldoAlimentoKg = saldoPorSegId.TryGetValue(s.Id, out var sal) ? sal : bal;
         }
 
         await _ctx.SaveChangesAsync(ct);

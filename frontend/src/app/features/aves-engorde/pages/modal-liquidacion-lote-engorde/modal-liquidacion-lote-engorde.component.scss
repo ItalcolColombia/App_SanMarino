@@ -8,6 +8,61 @@
   cursor: pointer;
 }
 
+/* Botones del modal (misma línea visual que seguimiento engorde; el host no hereda estilos de página). */
+:host .btn {
+  --btn-bg: var(--bg-muted, #f1f5f9);
+  --btn-fg: var(--text, #1e293b);
+  --btn-br: var(--border, #e2e8f0);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: 1px solid var(--btn-br);
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+:host .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+:host .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+:host .btn--primary {
+  --btn-bg: var(--brand-red, #c41e3a);
+  --btn-fg: #fff;
+  --btn-br: var(--brand-red, #c41e3a);
+}
+:host .btn--primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+:host .btn--outline {
+  --btn-bg: #fff;
+  --btn-fg: var(--brand-red, #c41e3a);
+  --btn-br: var(--brand-red, #c41e3a);
+}
+:host .btn--outline:hover:not(:disabled) {
+  background: var(--ital-orange-50, #fff7ed);
+}
+:host .btn--ghost {
+  --btn-bg: #fff;
+  --btn-fg: var(--text, #334155);
+  --btn-br: var(--border, #cbd5e1);
+}
+:host .btn--ghost:hover:not(:disabled) {
+  background: var(--bg-muted, #f8fafc);
+}
+
 /* Modal overlay (para que sea superior, no dentro del flujo) */
 :host .ux-modal {
   position: fixed;
@@ -118,6 +173,13 @@
   letter-spacing: 0.02em;
 }
 
+.liq-lote__card-desc {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--ux-muted, #64748b);
+  line-height: 1.35;
+}
+
 .liq-lote__dl {
   margin: 0;
   display: grid;
@@ -146,6 +208,19 @@
   margin: 0;
   font-size: 0.85rem;
   color: var(--ux-muted, #64748b);
+}
+
+.liq-lote__hint--mb {
+  margin-bottom: 0.75rem;
+}
+
+.liq-lote__hint--info {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
 }
 
 .liq-lote__err {
@@ -186,7 +261,49 @@
 
 .liq-lote__footer {
   flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.liq-lote__footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
+  width: 100%;
+}
+
+.liq-lote__action-btn {
+  min-width: 7.5rem;
+}
+
+.liq-lote__table-wrap {
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid var(--ux-border, #e2e8f0);
+}
+
+.liq-lote__table {
+  min-width: 520px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.liq-lote__table th,
+.liq-lote__table td {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--ux-border, #e2e8f0);
+}
+
+.liq-lote__table thead th {
+  background: var(--bg-muted, #f8fafc);
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.text-right {
+  text-align: right;
 }
 
 .liq-lote__label {

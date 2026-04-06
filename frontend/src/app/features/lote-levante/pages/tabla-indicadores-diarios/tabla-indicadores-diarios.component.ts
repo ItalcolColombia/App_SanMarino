@@ -8,6 +8,7 @@ import {
   ComparativoTag
 } from '../../services/indicadores-diarios.models';
 import { IndicadoresDiariosComputeService } from '../../services/indicadores-diarios-compute.service';
+import { formatDecimalTrim } from '../../../../shared/utils/format-decimal';
 
 @Component({
   selector: 'app-tabla-indicadores-diarios',
@@ -68,7 +69,7 @@ export class TablaIndicadoresDiariosComponent implements OnChanges {
     if (v == null || Number.isNaN(v)) {
       return '—';
     }
-    return v.toFixed(decimals);
+    return formatDecimalTrim(v, decimals);
   }
 
   /** Para columnas A/B cuando el lote es solo mixto (sin desglose). */
@@ -76,14 +77,14 @@ export class TablaIndicadoresDiariosComponent implements OnChanges {
     if (v == null || Number.isNaN(v)) {
       return '—';
     }
-    return v.toFixed(decimals);
+    return formatDecimalTrim(v, decimals);
   }
 
   formatPct(v: number | null | undefined, decimals = 2): string {
     if (v == null || Number.isNaN(v)) {
       return '—';
     }
-    return `${v.toFixed(decimals)}%`;
+    return `${formatDecimalTrim(v, decimals)}%`;
   }
 
   tagPeso(row: IndicadorDiarioFila): ComparativoTag {

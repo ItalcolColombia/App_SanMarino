@@ -428,7 +428,7 @@
                   <td class="liquidacion-matrix__total-col text-right font-semibold">{{ formatearNumero(tot.conversion, 3) }}</td>
                 </tr>
                 <tr class="liquidacion-matrix__row--yellow liquidacion-matrix__text-red">
-                  <td>Conv. ajustada ({{ tot.pesoAjusteVariable | number:'1.1-1' }} kg / {{ tot.divisorAjusteVariable | number:'1.1-1' }})</td>
+                  <td>Conv. ajustada ({{ tot.pesoAjusteVariable | number:'1.0-1' }} kg / {{ tot.divisorAjusteVariable | number:'1.0-1' }})</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="text-right">{{ formatearNumero(it.indicador.conversionAjustada2700, 3) }}</td>
                   <td class="liquidacion-matrix__total-col text-right font-semibold">{{ formatearNumero(tot.conversionAjustada2700, 3) }}</td>
                 </tr>

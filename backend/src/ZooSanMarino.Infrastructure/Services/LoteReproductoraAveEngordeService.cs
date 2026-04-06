@@ -364,6 +364,14 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             })
             .SingleOrDefaultAsync();
 
+        // Encaset real (mostrar): historial Inicio. La fórmula de disponibles usa el saldo actual del maestro como base de restas (no cambiar sin revisar ventas).
+        var inicioHist = await _ctx.HistorialLotePolloEngorde.AsNoTracking()
+            .Where(h => h.CompanyId == companyId && h.LoteAveEngordeId == loteAveEngordeId
+                && h.TipoLote == "LoteAveEngorde" && h.TipoRegistro == "Inicio")
+            .OrderBy(h => h.FechaRegistro).ThenBy(h => h.Id)
+            .FirstOrDefaultAsync();
+        int hembrasInicialesEncaset = inicioHist?.AvesHembras ?? (lote.HembrasL ?? 0);
+        int machosInicialesEncaset = inicioHist?.AvesMachos ?? (lote.MachosL ?? 0);
         int hembrasIniciales = lote.HembrasL ?? 0;
         int machosIniciales = lote.MachosL ?? 0;
         int mortCajaH = lote.MortCajaH ?? 0;
@@ -382,8 +390,8 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
 
         return new AvesDisponiblesDto
         {
-            HembrasIniciales = hembrasIniciales,
-            MachosIniciales = machosIniciales,
+            HembrasIniciales = hembrasInicialesEncaset,
+            MachosIniciales = machosInicialesEncaset,
             MortalidadAcumuladaHembras = mortSegH,
             MortalidadAcumuladaMachos = mortSegM,
             MortCajaHembras = mortCajaH,

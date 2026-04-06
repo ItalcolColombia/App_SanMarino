@@ -323,15 +323,15 @@
             <div class="detail-grid">
               <div class="detail-item">
                 <span class="detail-label">Peso Machos (kg)</span>
-                <span class="detail-value">{{ (detalleData?.pesoInicialM ?? 0) | number:'1.3-3' }}</span>
+                <span class="detail-value">{{ (detalleData?.pesoInicialM ?? 0) | number:'1.0-3' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Peso Hembras (kg)</span>
-                <span class="detail-value">{{ (detalleData?.pesoInicialH ?? 0) | number:'1.3-3' }}</span>
+                <span class="detail-value">{{ (detalleData?.pesoInicialH ?? 0) | number:'1.0-3' }}</span>
               </div>
               <div class="detail-item" *ngIf="detalleData?.pesoMixto">
                 <span class="detail-label">Peso Mixto (kg)</span>
-                <span class="detail-value">{{ detalleData?.pesoMixto | number:'1.3-3' }}</span>
+                <span class="detail-value">{{ detalleData?.pesoMixto | number:'1.0-3' }}</span>
               </div>
             </div>
           </section>
@@ -363,11 +363,11 @@
             <div class="detail-grid">
               <div class="detail-item">
                 <span class="detail-label">Uniformidad Hembras (%)</span>
-                <span class="detail-value">{{ detalleData?.unifH ?? 0 | number:'1.1-1' }}%</span>
+                <span class="detail-value">{{ detalleData?.unifH ?? 0 | number:'1.0-1' }}%</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Uniformidad Machos (%)</span>
-                <span class="detail-value">{{ detalleData?.unifM ?? 0 | number:'1.1-1' }}%</span>
+                <span class="detail-value">{{ detalleData?.unifM ?? 0 | number:'1.0-1' }}%</span>
               </div>
             </div>
           </section>

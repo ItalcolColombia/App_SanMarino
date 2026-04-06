@@ -16,7 +16,8 @@
       <ng-container *ngIf="!loading && resumen">
         <div class="liq-lote__grid">
           <div class="liq-lote__card">
-            <h3 class="liq-lote__card-title">Aves al inicio</h3>
+            <h3 class="liq-lote__card-title">Aves al inicio (encaset)</h3>
+            <p class="liq-lote__card-desc">Hembras, machos y mixtas según el registro de inicio de lote (encasetamiento).</p>
             <dl class="liq-lote__dl">
               <dt>Hembras</dt>
               <dd>{{ resumen.hembrasInicio ?? 0 | number:'1.0-0' }}</dd>
@@ -44,11 +45,25 @@
           </div>
 
           <div class="liq-lote__card liq-lote__card--accent">
-            <h3 class="liq-lote__card-title">Saldo alimento (kg)</h3>
+            <h3 class="liq-lote__card-title">Alimento disponible (inventario galpón)</h3>
             <p class="liq-lote__saldo">
-              {{ resumen.saldoAlimentoKg != null ? (resumen.saldoAlimentoKg | number:'1.2-2') : '—' }}
+              <ng-container *ngIf="loadingStock"><span class="liq-lote__saldo-loading">…</span></ng-container>
+              <ng-container *ngIf="!loadingStock">
+                {{ totalKgStockInventario | number:'1.0-2' }}
+                <span class="liq-lote__saldo-unit">kg</span>
+              </ng-container>
             </p>
-            <p class="liq-lote__hint">Stock de alimento asociado al lote en bodega de granja.</p>
+            <p class="liq-lote__hint" *ngIf="loadingStock">Consultando inventario en la ubicación del lote…</p>
+            <p class="liq-lote__hint" *ngIf="stockUsandoFallbackUbicacion && !loadingStock">
+              No hay filas en el galpón indicado; se muestra stock a nivel núcleo/granja. Revise que el inventario esté ubicado en el galpón correcto.
+            </p>
+            <p class="liq-lote__ref" *ngIf="!loadingStock">
+              <span class="liq-lote__ref-label">Saldo último día (seguimiento diario):</span>
+              {{ resumen.saldoAlimentoKg != null ? (resumen.saldoAlimentoKg | number:'1.0-2') : '—' }} kg
+            </p>
+            <p class="liq-lote__hint liq-lote__hint--info" *ngIf="inventarioDifiereDelSeguimiento && !loadingStock">
+              El inventario físico y el saldo del seguimiento pueden diferir (consumos registrados vs existencias en bodega). Use Gestión de inventario para alinear traslados.
+            </p>
           </div>
         </div>
 
@@ -61,25 +76,24 @@
           Este lote está <strong>cerrado</strong> (liquidado). Puede reabrirlo indicando el motivo.
         </p>
 
-        <div *ngIf="!loteCerrado && puedeLiquidarPorAves" class="liq-lote__traslado" role="group" aria-labelledby="traslado-q">
+        <div *ngIf="granjaId" class="liq-lote__traslado" role="group" aria-labelledby="traslado-q">
           <p id="traslado-q" class="liq-lote__traslado-q">
-            Alimento disponible en inventario (ubicación del lote)
+            Detalle por producto (inventario — ubicación del lote)
           </p>
 
-          <p *ngIf="loadingStock" class="liq-lote__hint">Cargando stock de alimento…</p>
           <p *ngIf="stockError" class="liq-lote__err" role="alert">{{ stockError }}</p>
 
           <ng-container *ngIf="!loadingStock && !stockError">
             <div *ngIf="stockAlimento.length === 0" class="liq-lote__hint">
-              No hay alimento pendiente (stock en 0). El lote puede liquidarse sin traslados pendientes.
+              Sin existencias de alimento en inventario para esta ubicación (0 kg). Si el seguimiento muestra saldo &gt; 0, revise traslados o que el stock esté registrado en el galpón/núcleo correcto.
             </div>
 
             <div *ngIf="stockAlimento.length > 0">
-              <p class="liq-lote__hint" style="margin-bottom: 0.75rem;">
-                Hay alimento pendiente en el galpón/granja del lote. Puede <strong>realizar traslado</strong> en Gestión de Inventario o cerrar el lote de todas formas.
+              <p *ngIf="puedeLiquidarPorAves" class="liq-lote__hint liq-lote__hint--mb">
+                Hay alimento en inventario en esta ubicación. Puede <strong>realizar traslado</strong> en Gestión de Inventario o cerrar el lote si corresponde.
               </p>
-              <div class="liq-lote__table-wrap" style="overflow:auto;">
-                <table class="ux-table" style="min-width: 520px;">
+              <div class="liq-lote__table-wrap">
+                <table class="ux-table liq-lote__table">
                   <thead>
                     <tr>
                       <th>Código</th>
@@ -105,28 +119,30 @@
     </section>
 
     <footer class="ux-modal__footer liq-lote__footer">
-      <button type="button" class="btn btn--ghost" (click)="onClose()">Cerrar</button>
+      <div class="liq-lote__footer-actions">
+        <button type="button" class="btn btn--ghost liq-lote__action-btn" (click)="onClose()">Cerrar</button>
 
-      <ng-container *ngIf="resumen && loteCerrado">
-        <button type="button" class="btn btn--primary" (click)="abrirDialogoReapertura()">Abrir lote</button>
-      </ng-container>
+        <ng-container *ngIf="resumen && loteCerrado">
+          <button type="button" class="btn btn--primary liq-lote__action-btn" (click)="abrirDialogoReapertura()">Abrir lote</button>
+        </ng-container>
 
-      <ng-container *ngIf="resumen && !loteCerrado">
-        <button
-          type="button"
-          class="btn btn--outline"
-          *ngIf="puedeLiquidarPorAves && stockAlimento.length > 0"
-          (click)="irGestionInventario()">
-          Realizar traslado
-        </button>
-        <button
-          type="button"
-          class="btn btn--primary"
-          [disabled]="!puedeConfirmarCierre || guardandoCerrar"
-          (click)="cerrarLote()">
-          {{ guardandoCerrar ? 'Guardando…' : 'Cerrar lote' }}
-        </button>
-      </ng-container>
+        <ng-container *ngIf="resumen && !loteCerrado">
+          <button
+            type="button"
+            class="btn btn--outline liq-lote__action-btn"
+            *ngIf="puedeLiquidarPorAves && totalKgStockInventario > 0"
+            (click)="irGestionInventario()">
+            Realizar traslado
+          </button>
+          <button
+            type="button"
+            class="btn btn--primary liq-lote__action-btn"
+            [disabled]="!puedeConfirmarCierre || guardandoCerrar"
+            (click)="cerrarLote()">
+            {{ guardandoCerrar ? 'Guardando…' : 'Cerrar lote' }}
+          </button>
+        </ng-container>
+      </div>
     </footer>
   </div>
 </div>
@@ -148,11 +164,13 @@
         placeholder="Motivo (mínimo 3 caracteres)"></textarea>
       <p *ngIf="error && abrirModal" class="liq-lote__err" role="alert">{{ error }}</p>
     </section>
-    <footer class="ux-modal__footer">
-      <button type="button" class="btn btn--ghost" (click)="cancelarAbrir()">Volver</button>
-      <button type="button" class="btn btn--primary" [disabled]="guardandoAbrir" (click)="confirmarAbrirLote()">
-        {{ guardandoAbrir ? 'Guardando…' : 'Confirmar reapertura' }}
-      </button>
+    <footer class="ux-modal__footer liq-lote__footer">
+      <div class="liq-lote__footer-actions">
+        <button type="button" class="btn btn--ghost liq-lote__action-btn" (click)="cancelarAbrir()">Volver</button>
+        <button type="button" class="btn btn--primary liq-lote__action-btn" [disabled]="guardandoAbrir" (click)="confirmarAbrirLote()">
+          {{ guardandoAbrir ? 'Guardando…' : 'Confirmar reapertura' }}
+        </button>
+      </div>
     </footer>
   </div>
 </div>

@@ -149,10 +149,10 @@
             </tr>
             <tr>
               <td><strong>% Mortalidad</strong></td>
-              <td>{{ calcularMortalidadPromedio() | number:'1.2-2' }}</td>
-              <td>{{ mortalidadEsperadaGuia | number:'1.2-2' }}</td>
+              <td>{{ calcularMortalidadPromedio() | number:'1.0-2' }}</td>
+              <td>{{ mortalidadEsperadaGuia | number:'1.0-2' }}</td>
               <td [class]="getDiferenciaClass(calcularMortalidadPromedio() - mortalidadEsperadaGuia)">
-                {{ (calcularMortalidadPromedio() - mortalidadEsperadaGuia) | number:'1.2-2' }}
+                {{ (calcularMortalidadPromedio() - mortalidadEsperadaGuia) | number:'1.0-2' }}
               </td>
               <td>
                 <span [class]="getEstadoClass('mortalidad', mortalidadEsperadaGuia, calcularMortalidadPromedio())">
@@ -162,10 +162,10 @@
             </tr>
             <tr>
               <td><strong>Conversión Alimenticia</strong></td>
-              <td>{{ calcularConversionAlimenticia() | number:'1.2-2' }}</td>
-              <td>{{ conversionEsperadaGuia | number:'1.2-2' }}</td>
+              <td>{{ calcularConversionAlimenticia() | number:'1.0-2' }}</td>
+              <td>{{ conversionEsperadaGuia | number:'1.0-2' }}</td>
               <td [class]="getDiferenciaClass(conversionEsperadaGuia - calcularConversionAlimenticia())">
-                {{ (conversionEsperadaGuia - calcularConversionAlimenticia()) | number:'1.2-2' }}
+                {{ (conversionEsperadaGuia - calcularConversionAlimenticia()) | number:'1.0-2' }}
               </td>
               <td>
                 <span [class]="getEstadoClass('conversion', conversionEsperadaGuia, calcularConversionAlimenticia())">
@@ -265,18 +265,18 @@
             <tr *ngFor="let indicador of indicadores" class="indicador-row">
               <td class="indicador-concepto">{{ indicador.concepto }}</td>
               <td class="indicador-real">
-                {{ indicador.real | number:'1.2-2' }}{{ indicador.unidad }}
+                {{ indicador.real | number:'1.0-2' }}{{ indicador.unidad }}
               </td>
               <td class="indicador-guia">
                 <span *ngIf="indicador.guia !== null; else sinGuia">
-                  {{ indicador.guia | number:'1.2-2' }}{{ indicador.unidad }}
+                  {{ indicador.guia | number:'1.0-2' }}{{ indicador.unidad }}
                 </span>
                 <ng-template #sinGuia>—</ng-template>
               </td>
               <td class="indicador-diferencia">
                 <span *ngIf="indicador.diferencia !== null; else sinDiferencia"
                       [class]="indicador.diferencia! > 0 ? 'diferencia-positiva' : 'diferencia-negativa'">
-                  {{ indicador.diferencia! > 0 ? '+' : '' }}{{ indicador.diferencia | number:'1.2-2' }}%
+                  {{ indicador.diferencia! > 0 ? '+' : '' }}{{ indicador.diferencia | number:'1.0-2' }}%
                 </span>
                 <ng-template #sinDiferencia>—</ng-template>
               </td>
@@ -300,11 +300,11 @@
               <span class="retiro-icon">🐔</span>
               <span class="retiro-titulo">Hembras</span>
             </div>
-            <div class="retiro-valor">{{ liquidacion()!.porcentajeRetiroTotalHembras | number:'1.2-2' }}%</div>
+            <div class="retiro-valor">{{ liquidacion()!.porcentajeRetiroTotalHembras | number:'1.0-2' }}%</div>
             <div class="retiro-detalle">
-              <small>Mort: {{ liquidacion()!.porcentajeMortalidadHembras | number:'1.2-2' }}% |
-                     Sel: {{ liquidacion()!.porcentajeSeleccionHembras | number:'1.2-2' }}% |
-                     Err: {{ liquidacion()!.porcentajeErrorSexajeHembras | number:'1.2-2' }}%</small>
+              <small>Mort: {{ liquidacion()!.porcentajeMortalidadHembras | number:'1.0-2' }}% |
+                     Sel: {{ liquidacion()!.porcentajeSeleccionHembras | number:'1.0-2' }}% |
+                     Err: {{ liquidacion()!.porcentajeErrorSexajeHembras | number:'1.0-2' }}%</small>
             </div>
           </div>
 
@@ -313,11 +313,11 @@
               <span class="retiro-icon">🐓</span>
               <span class="retiro-titulo">Machos</span>
             </div>
-            <div class="retiro-valor">{{ liquidacion()!.porcentajeRetiroTotalMachos | number:'1.2-2' }}%</div>
+            <div class="retiro-valor">{{ liquidacion()!.porcentajeRetiroTotalMachos | number:'1.0-2' }}%</div>
             <div class="retiro-detalle">
-              <small>Mort: {{ liquidacion()!.porcentajeMortalidadMachos | number:'1.2-2' }}% |
-                     Sel: {{ liquidacion()!.porcentajeSeleccionMachos | number:'1.2-2' }}% |
-                     Err: {{ liquidacion()!.porcentajeErrorSexajeMachos | number:'1.2-2' }}%</small>
+              <small>Mort: {{ liquidacion()!.porcentajeMortalidadMachos | number:'1.0-2' }}% |
+                     Sel: {{ liquidacion()!.porcentajeSeleccionMachos | number:'1.0-2' }}% |
+                     Err: {{ liquidacion()!.porcentajeErrorSexajeMachos | number:'1.0-2' }}%</small>
             </div>
           </div>
         </div>
@@ -437,9 +437,9 @@
                 <td>{{ detalle.mortalidadMachos || 0 }}</td>
                 <td>{{ detalle.seleccionHembras || 0 }}</td>
                 <td>{{ detalle.seleccionMachos || 0 }}</td>
-                <td>{{ (detalle.consumoAlimento || 0) | number:'1.2-2' }}</td>
-                <td>{{ (detalle.pesoPromedioHembras || 0) | number:'1.2-2' }}</td>
-                <td>{{ (detalle.uniformidadHembras || 0) | number:'1.1-1' }}%</td>
+                <td>{{ (detalle.consumoAlimento || 0) | number:'1.0-2' }}</td>
+                <td>{{ (detalle.pesoPromedioHembras || 0) | number:'1.0-2' }}</td>
+                <td>{{ (detalle.uniformidadHembras || 0) | number:'1.0-1' }}%</td>
               </tr>
             </tbody>
           </table>

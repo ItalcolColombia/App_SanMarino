@@ -244,7 +244,7 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Promedio:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('mortalidadTotal') | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ calcularPromedioIndicadores('mortalidadTotal') | number:'1.0-2' }}%</span>
             </div>
           </div>
         </div>
@@ -292,7 +292,7 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Promedio:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('porcentajeIncubables') | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ calcularPromedioIndicadores('porcentajeIncubables') | number:'1.0-2' }}%</span>
             </div>
           </div>
         </div>
@@ -314,7 +314,7 @@
           <div class="grafica-stats" *ngIf="indicadoresSemanales.length > 0">
             <div class="stat-item">
               <span class="stat-label">Incubables:</span>
-              <span class="stat-value">{{ indicadoresSemanales[indicadoresSemanales.length - 1].porcentajeIncubables | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ indicadoresSemanales[indicadoresSemanales.length - 1].porcentajeIncubables | number:'1.0-2' }}%</span>
             </div>
           </div>
         </div>
@@ -359,7 +359,7 @@
           <div class="metrica-icon">✅</div>
           <div class="metrica-content">
             <h5>Eficiencia</h5>
-            <p>{{ calcularPromedioIndicadores('porcentajeIncubables') | number:'1.2-2' }}%</p>
+            <p>{{ calcularPromedioIndicadores('porcentajeIncubables') | number:'1.0-2' }}%</p>
           </div>
         </div>
 
@@ -367,7 +367,7 @@
           <div class="metrica-icon">💀</div>
           <div class="metrica-content">
             <h5>Mort. Promedio</h5>
-            <p>{{ calcularPromedioIndicadores('mortalidadTotal') | number:'1.2-2' }}%</p>
+            <p>{{ calcularPromedioIndicadores('mortalidadTotal') | number:'1.0-2' }}%</p>
           </div>
         </div>
 

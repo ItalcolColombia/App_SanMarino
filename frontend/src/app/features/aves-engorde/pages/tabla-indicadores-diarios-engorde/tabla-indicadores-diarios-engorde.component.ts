@@ -7,6 +7,7 @@ import {
   ComparativoTag
 } from '../../../lote-levante/services/indicadores-diarios.models';
 import { IndicadoresDiariosEngordeComputeService } from '../../services/indicadores-diarios-engorde-compute.service';
+import { formatDecimalTrim } from '../../../../shared/utils/format-decimal';
 
 @Component({
   selector: 'app-tabla-indicadores-diarios-engorde',
@@ -67,14 +68,14 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     if (v == null || Number.isNaN(v)) {
       return '—';
     }
-    return v.toFixed(decimals);
+    return formatDecimalTrim(v, decimals);
   }
 
   formatPct(v: number | null | undefined, decimals = 2): string {
     if (v == null || Number.isNaN(v)) {
       return '—';
     }
-    return `${v.toFixed(decimals)}%`;
+    return `${formatDecimalTrim(v, decimals)}%`;
   }
 
   tagPeso(row: IndicadorDiarioFila): ComparativoTag {

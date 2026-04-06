@@ -250,12 +250,12 @@
                     <td>{{ (reporteSemanal.mortalidadHembrasSemanal + reporteSemanal.mortalidadMachosSemanal) | number:'1.0-0' }}</td>
                     <td>{{ (reporteSemanal.trasladosHembrasSemanal + reporteSemanal.trasladosMachosSemanal) | number:'1.0-0' }}</td>
                     <td>{{ (reporteSemanal.ventasHembrasSemanal + reporteSemanal.ventasMachosSemanal) | number:'1.0-0' }}</td>
-                    <td>{{ reporteSemanal.consumoTotalAlimento | number:'1.2-2' }}</td>
-                    <td>{{ reporteSemanal.consumoTotalAgua | number:'1.2-2' }}</td>
-                    <td>{{ reporteSemanal.consumoTotalMedicamento | number:'1.2-2' }}</td>
-                    <td>{{ reporteSemanal.consumoTotalVacuna | number:'1.2-2' }}</td>
-                    <td>{{ reporteSemanal.otrosConsumos | number:'1.2-2' }}</td>
-                    <td><strong>{{ reporteSemanal.totalGeneral | number:'1.2-2' }}</strong></td>
+                    <td>{{ reporteSemanal.consumoTotalAlimento | number:'1.0-2' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalAgua | number:'1.0-2' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalMedicamento | number:'1.0-2' }}</td>
+                    <td>{{ reporteSemanal.consumoTotalVacuna | number:'1.0-2' }}</td>
+                    <td>{{ reporteSemanal.otrosConsumos | number:'1.0-2' }}</td>
+                    <td><strong>{{ reporteSemanal.totalGeneral | number:'1.0-2' }}</strong></td>
                   </tr>
                 </tbody>
                 <tfoot>
@@ -264,12 +264,12 @@
                     <td><strong>{{ getTotalMortalidad() | number:'1.0-0' }}</strong></td>
                     <td><strong>{{ getTotalTraslados() | number:'1.0-0' }}</strong></td>
                     <td><strong>{{ getTotalVentas() | number:'1.0-0' }}</strong></td>
-                    <td><strong>{{ getTotalAlimento() | number:'1.2-2' }}</strong></td>
-                    <td><strong>{{ getTotalAgua() | number:'1.2-2' }}</strong></td>
-                    <td><strong>{{ getTotalMedicamento() | number:'1.2-2' }}</strong></td>
-                    <td><strong>{{ getTotalVacuna() | number:'1.2-2' }}</strong></td>
-                    <td><strong>{{ getTotalOtros() | number:'1.2-2' }}</strong></td>
-                    <td><strong>{{ getTotalGeneral() | number:'1.2-2' }}</strong></td>
+                    <td><strong>{{ getTotalAlimento() | number:'1.0-2' }}</strong></td>
+                    <td><strong>{{ getTotalAgua() | number:'1.0-2' }}</strong></td>
+                    <td><strong>{{ getTotalMedicamento() | number:'1.0-2' }}</strong></td>
+                    <td><strong>{{ getTotalVacuna() | number:'1.0-2' }}</strong></td>
+                    <td><strong>{{ getTotalOtros() | number:'1.0-2' }}</strong></td>
+                    <td><strong>{{ getTotalGeneral() | number:'1.0-2' }}</strong></td>
                   </tr>
                 </tfoot>
               </table>
@@ -335,12 +335,12 @@
                   <tbody>
                     <tr>
                       <td>Totales</td>
-                      <td>{{ reporteSemanal.seccionInicio.saldoBultosAnterior | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionInicio.trasladosBultos | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionInicio.entradasBultos | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionInicio.consumoBultosHembras | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.1-1' }}</td>
-                      <td><strong>{{ reporteSemanal.seccionInicio.saldoBultosFinal | number:'1.1-1' }}</strong></td>
+                      <td>{{ reporteSemanal.seccionInicio.saldoBultosAnterior | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.trasladosBultos | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.entradasBultos | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.consumoBultosHembras | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionInicio.consumoBultosMachos | number:'1.0-1' }}</td>
+                      <td><strong>{{ reporteSemanal.seccionInicio.saldoBultosFinal | number:'1.0-1' }}</strong></td>
                     </tr>
                   </tbody>
                 </table>
@@ -367,12 +367,12 @@
                   <tbody>
                     <tr>
                       <td>Totales</td>
-                      <td>{{ reporteSemanal.seccionLevante.saldoBultosAnterior | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionLevante.trasladosBultos | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionLevante.entradasBultos | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionLevante.consumoBultosHembras | number:'1.1-1' }}</td>
-                      <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.1-1' }}</td>
-                      <td><strong>{{ reporteSemanal.seccionLevante.saldoBultosFinal | number:'1.1-1' }}</strong></td>
+                      <td>{{ reporteSemanal.seccionLevante.saldoBultosAnterior | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.trasladosBultos | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.entradasBultos | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.consumoBultosHembras | number:'1.0-1' }}</td>
+                      <td>{{ reporteSemanal.seccionLevante.consumoBultosMachos | number:'1.0-1' }}</td>
+                      <td><strong>{{ reporteSemanal.seccionLevante.saldoBultosFinal | number:'1.0-1' }}</strong></td>
                     </tr>
                   </tbody>
                 </table>

@@ -85,12 +85,16 @@ export interface CreateLoteReproductoraAveEngordeDto {
 
 export type UpdateLoteReproductoraAveEngordeDto = CreateLoteReproductoraAveEngordeDto;
 
-/** Respuesta del API aves-disponibles (el backend puede devolver más campos; el front solo usa estos). */
+/** Respuesta del API GET .../LoteReproductoraAveEngorde/{id}/aves-disponibles */
 export interface AvesDisponiblesDto {
-  readonly hembrasIniciales: number;
-  readonly machosIniciales: number;
-  readonly asignadasHembras: number;
-  readonly asignadasMachos: number;
+  readonly hembrasIniciales?: number;
+  readonly machosIniciales?: number;
+  readonly mortalidadAcumuladaHembras?: number;
+  readonly mortalidadAcumuladaMachos?: number;
+  readonly mortCajaHembras?: number;
+  readonly mortCajaMachos?: number;
+  readonly asignadasHembras?: number;
+  readonly asignadasMachos?: number;
   readonly hembrasDisponibles: number;
   readonly machosDisponibles: number;
 }

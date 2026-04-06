@@ -169,7 +169,7 @@
                       <option *ngFor="let a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value)" [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
                     </select>
                     <small class="ux-hint text-success" *ngIf="itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                      Disponible: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
                     </small>
                   </div>
                   <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value === 'alimento'">
@@ -250,7 +250,7 @@
                       <option *ngFor="let a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value)" [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
                     </select>
                     <small class="ux-hint text-success" *ngIf="itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                      Disponible: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
                     </small>
                   </div>
                   <div class="form-field" *ngIf="itemGroup.get('tipoItem')?.value === 'alimento'">
