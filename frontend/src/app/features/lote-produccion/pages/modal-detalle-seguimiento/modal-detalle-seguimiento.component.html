@@ -81,7 +81,7 @@
               </div>
               <div class="detail-field">
                 <label>Consumo (kg)</label>
-                <div class="detail-value highlight">{{ seguimiento.consKgH | number:'1.2-2' }} kg</div>
+                <div class="detail-value highlight">{{ seguimiento.consKgH | number:'1.0-2' }} kg</div>
               </div>
             </div>
           </div>
@@ -106,11 +106,11 @@
               </div>
               <div class="detail-field">
                 <label>Consumo (kg)</label>
-                <div class="detail-value highlight">{{ seguimiento.consKgM | number:'1.2-2' }} kg</div>
+                <div class="detail-value highlight">{{ seguimiento.consKgM | number:'1.0-2' }} kg</div>
               </div>
               <div class="detail-field">
                 <label>Consumo Total (H+M)</label>
-                <div class="detail-value highlight">{{ seguimiento.consumoKg | number:'1.2-2' }} kg</div>
+                <div class="detail-value highlight">{{ seguimiento.consumoKg | number:'1.0-2' }} kg</div>
               </div>
             </div>
           </div>
@@ -133,12 +133,12 @@
             </div>
             <div class="detail-field">
               <label>Peso Promedio (g)</label>
-              <div class="detail-value highlight">{{ seguimiento.pesoHuevo | number:'1.2-2' }} g</div>
+              <div class="detail-value highlight">{{ seguimiento.pesoHuevo | number:'1.0-2' }} g</div>
             </div>
             <div class="detail-field">
               <label>Eficiencia</label>
               <div class="detail-value highlight">
-                {{ seguimiento.huevosTotales > 0 ? ((seguimiento.huevosIncubables / seguimiento.huevosTotales) * 100 | number:'1.2-2') : 0 }}%
+                {{ seguimiento.huevosTotales > 0 ? ((seguimiento.huevosIncubables / seguimiento.huevosTotales) * 100 | number:'1.0-2') : 0 }}%
               </div>
             </div>
           </div>
@@ -207,19 +207,19 @@
           <div class="detail-grid grid-4">
             <div class="detail-field">
               <label>Peso Hembras (kg)</label>
-              <div class="detail-value">{{ (seguimiento.pesoH ?? 0) | number:'1.2-2' }} kg</div>
+              <div class="detail-value">{{ (seguimiento.pesoH ?? 0) | number:'1.0-2' }} kg</div>
             </div>
             <div class="detail-field">
               <label>Peso Machos (kg)</label>
-              <div class="detail-value">{{ (seguimiento.pesoM ?? 0) | number:'1.2-2' }} kg</div>
+              <div class="detail-value">{{ (seguimiento.pesoM ?? 0) | number:'1.0-2' }} kg</div>
             </div>
             <div class="detail-field">
               <label>Uniformidad (%)</label>
-              <div class="detail-value">{{ (seguimiento.uniformidad ?? 0) | number:'1.2-2' }}%</div>
+              <div class="detail-value">{{ (seguimiento.uniformidad ?? 0) | number:'1.0-2' }}%</div>
             </div>
             <div class="detail-field">
               <label>Coeficiente de Variación (CV)</label>
-              <div class="detail-value">{{ (seguimiento.coeficienteVariacion ?? 0) | number:'1.2-2' }}</div>
+              <div class="detail-value">{{ (seguimiento.coeficienteVariacion ?? 0) | number:'1.0-2' }}</div>
             </div>
             <div class="detail-field detail-field--full">
               <label>Observaciones del Pesaje</label>
@@ -237,19 +237,19 @@
           <div class="detail-grid grid-4">
             <div class="detail-field">
               <label>Consumo Agua Diario (litros)</label>
-              <div class="detail-value">{{ (seguimiento.consumoAguaDiario ?? 0) | number:'1.2-2' }} L</div>
+              <div class="detail-value">{{ (seguimiento.consumoAguaDiario ?? 0) | number:'1.0-2' }} L</div>
             </div>
             <div class="detail-field">
               <label>PH del Agua</label>
-              <div class="detail-value">{{ (seguimiento.consumoAguaPh ?? 0) | number:'1.2-2' }}</div>
+              <div class="detail-value">{{ (seguimiento.consumoAguaPh ?? 0) | number:'1.0-2' }}</div>
             </div>
             <div class="detail-field">
               <label>ORP (mV)</label>
-              <div class="detail-value">{{ (seguimiento.consumoAguaOrp ?? 0) | number:'1.2-2' }} mV</div>
+              <div class="detail-value">{{ (seguimiento.consumoAguaOrp ?? 0) | number:'1.0-2' }} mV</div>
             </div>
             <div class="detail-field">
               <label>Temperatura del Agua (°C)</label>
-              <div class="detail-value">{{ (seguimiento.consumoAguaTemperatura ?? 0) | number:'1.2-2' }} °C</div>
+              <div class="detail-value">{{ (seguimiento.consumoAguaTemperatura ?? 0) | number:'1.0-2' }} °C</div>
             </div>
           </div>
         </section>

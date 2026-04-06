@@ -1,5 +1,6 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-aves-engorde.service';
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
@@ -7,6 +8,10 @@ import { TablaIndicadoresDiariosEngordeComponent } from '../tabla-indicadores-di
 import { GraficasIndicadoresDiariosEngordeComponent } from '../graficas-indicadores-diarios-engorde/graficas-indicadores-diarios-engorde.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { LoteRegistroHistoricoUnificadoDto } from '../../services/seguimiento-aves-engorde.service';
+import { TEXTO_FORMULA_SALDO_ALIMENTO_TOOLTIP } from '../../utils/saldo-alimento-engorde.util';
+
+/** Texto explicativo del saldo de alimento (modal de ayuda en seguimiento diario). */
+export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado. El saldo de alimento (kg) parte del stock ya registrado en el histórico con fecha anterior al primer día de seguimiento; a partir de ahí se aplican ingresos, traslados de entrada, ajustes; restas por traslado de salida, eliminaciones y consumo del día en seguimiento (hembras + machos); no se duplica INV_CONSUMO del histórico. Tras cada movimiento el saldo no baja de 0 kg: si el consumo supera lo disponible, queda en 0 y los ingresos o traslados de entrada posteriores suman sobre ese saldo disponible.`;
 
 /** Totales del historial unificado por una fecha (YYYY-MM-DD), alineados con el backend. */
 interface AggregadoHistoricoDia {
@@ -39,12 +44,14 @@ export interface RegistroDiarioTablaFilaEngorde {
   consumoBodegaKg: number | null;
   tipoAlimentoCorto: string;
   pctPerdidasDia: number | null;
+  /** Saldo alimento (kg) al cierre de la fila (≥ 0; existencias disponibles). Sin duplicar INV_CONSUMO del histórico. */
+  saldoAlimentoKgMostrado: number | null;
 }
 
 @Component({
   selector: 'app-tabs-principal-engorde',
   standalone: true,
-  imports: [CommonModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent],
+  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent],
   templateUrl: './tabs-principal-engorde.component.html',
   styleUrls: ['./tabs-principal-engorde.component.scss']
 })
@@ -68,12 +75,36 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
   isAdmin: boolean = false;
   diarioFilas: RegistroDiarioTablaFilaEngorde[] = [];
+  /** Hay al menos un registro sin stock previo al primer consumo (desde encasetamiento). */
+  advertenciaSaldoSinIngresoPrevio = false;
+
+  /** Tooltip columna saldo alimento: fórmula explícita (validación de negocio). */
+  readonly textoFormulaSaldoAlimento = TEXTO_FORMULA_SALDO_ALIMENTO_TOOLTIP;
+
+  readonly textoAyudaSeguimientoDiario = TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE;
+  readonly semanasFiltroOpciones = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+
+  /** Modal ayuda (saldo / histórico). */
+  modalAyudaSeguimientoAbierto = false;
+
+  /** Filtros tabla seguimiento (solo vista; no altera datos del servidor). */
+  filtroFechaDesde = '';
+  filtroFechaHasta = '';
+  /** null = todas las semanas */
+  filtroSemana: number | null = null;
+  /** '' = todos los tipos */
+  filtroTipoAlimento = '';
 
   constructor(private storageService: TokenStorageService) {}
 
   ngOnInit(): void {
     const session = this.storageService.get();
     this.isAdmin = !!session?.user?.roles?.includes('Admin');
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeCerrarAyuda(): void {
+    if (this.modalAyudaSeguimientoAbierto) this.modalAyudaSeguimientoAbierto = false;
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -90,7 +121,66 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFilaEngorde) => f.seg.id;
 
+  /** Tipos de alimento distintos en los registros del lote (para filtro). */
+  get opcionesTipoAlimento(): string[] {
+    const s = new Set<string>();
+    for (const x of this.seguimientos ?? []) {
+      const t = (x.tipoAlimento ?? '').trim();
+      if (t) s.add(t);
+    }
+    return [...s].sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  get hayFiltrosDiarioActivos(): boolean {
+    return !!(
+      (this.filtroFechaDesde && this.filtroFechaDesde.trim()) ||
+      (this.filtroFechaHasta && this.filtroFechaHasta.trim()) ||
+      this.filtroSemana != null ||
+      (this.filtroTipoAlimento && this.filtroTipoAlimento.trim())
+    );
+  }
+
+  /** Filas visibles según filtros; con consumo acumulado recalculado en el subconjunto. */
+  get diarioFilasFiltradas(): RegistroDiarioTablaFilaEngorde[] {
+    const base = this.diarioFilas ?? [];
+    if (!this.hayFiltrosDiarioActivos) return base;
+    const filtered = base.filter(f => this.pasaFiltrosDiario(f));
+    if (filtered.length === 0) return [];
+    let acum = 0;
+    return filtered.map(f => {
+      acum += f.consumoDiaKg;
+      return { ...f, acumConsumoKg: acum };
+    });
+  }
+
+  get diarioFilasVaciasPorFiltro(): boolean {
+    return (this.diarioFilas?.length ?? 0) > 0 && this.diarioFilasFiltradas.length === 0 && this.hayFiltrosDiarioActivos;
+  }
+
+  limpiarFiltrosDiario(): void {
+    this.filtroFechaDesde = '';
+    this.filtroFechaHasta = '';
+    this.filtroSemana = null;
+    this.filtroTipoAlimento = '';
+  }
+
+  private pasaFiltrosDiario(f: RegistroDiarioTablaFilaEngorde): boolean {
+    const ymd = this.toYMD(f.seg.fechaRegistro);
+    const desde = (this.filtroFechaDesde || '').trim();
+    const hasta = (this.filtroFechaHasta || '').trim();
+    if (desde && ymd && ymd < desde) return false;
+    if (hasta && ymd && ymd > hasta) return false;
+    if (this.filtroSemana != null && f.semana !== this.filtroSemana) return false;
+    const ft = (this.filtroTipoAlimento || '').trim();
+    if (ft) {
+      const full = (f.seg.tipoAlimento || '').trim().toLowerCase();
+      if (full !== ft.toLowerCase()) return false;
+    }
+    return true;
+  }
+
   private buildDiarioFilas(): RegistroDiarioTablaFilaEngorde[] {
+    this.advertenciaSaldoSinIngresoPrevio = false;
     const list = [...(this.seguimientos || [])];
     if (list.length === 0) return [];
     list.sort((a, b) => {
@@ -101,6 +191,11 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     });
 
     const histPorFecha = this.enriquecerTablaConHistoricoInventario ? this.aggregateHistoricoPorFecha() : null;
+    const saldoCalc = this.enriquecerTablaConHistoricoInventario
+      ? this.computeSaldoAlimentoKgPorSeguimiento(list)
+      : null;
+    const saldoPorSegId = saldoCalc?.porSegId ?? null;
+    this.advertenciaSaldoSinIngresoPrevio = !!saldoCalc?.sinIngresoPrevioAlPrimerConsumo;
 
     const inicial = this.avesInicialesLote();
     let acumTodasPerdidas = 0;
@@ -182,10 +277,185 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
         despachoX,
         consumoBodegaKg,
         tipoAlimentoCorto: this.tipoAlimentoCorto(seg.tipoAlimento),
-        pctPerdidasDia
+        pctPerdidasDia,
+        saldoAlimentoKgMostrado: this.resolveSaldoAlimentoMostrado(seg, saldoPorSegId)
       });
     }
     return out;
+  }
+
+  /**
+   * Delta de kg por movimiento de histórico (un término de la fórmula en `saldo-alimento-engorde.util.ts`).
+   * INV_OTRO: AjusteStock usa la cantidad con signo; EliminacionStock siempre resta.
+   */
+  /**
+   * Fecha calendario (YYYY-MM-DD) para agrupar y ordenar movimientos del histórico.
+   * Si `referencia` trae la fecha real del movimiento (p. ej. "Seguimiento aves engorde #336 2026-03-05"),
+   * se usa en lugar de `fechaOperacion` cuando el backend consolidó muchas líneas en un solo día.
+   */
+  private ymdHistoricoEfectivo(h: LoteRegistroHistoricoUnificadoDto): string | null {
+    const ref = `${h.referencia ?? ''} ${h.numeroDocumento ?? ''}`.trim();
+    const mSeg = ref.match(/Seguimiento\s+aves\s+engorde\s+#\d+\s+(\d{4}-\d{2}-\d{2})/i);
+    if (mSeg) return mSeg[1];
+    if (h.tipoEvento === 'INV_CONSUMO') {
+      const mAny = ref.match(/(\d{4}-\d{2}-\d{2})/);
+      if (mAny) return mAny[1];
+    }
+    return this.toYMD(h.fechaOperacion);
+  }
+
+  /** Orden estable dentro del mismo día (createdAt del movimiento o id). */
+  private tsHistorico(h: LoteRegistroHistoricoUnificadoDto): number {
+    const t = Date.parse(h.createdAt);
+    return Number.isFinite(t) ? t : h.id;
+  }
+
+  private tsSeguimiento(seg: SeguimientoLoteLevanteDto): number {
+    const t = Date.parse(String(seg.fechaRegistro ?? ''));
+    return Number.isFinite(t) ? t : (seg.id ?? 0) * 1e9;
+  }
+
+  private deltaHistoricoMovimientoStock(
+    h: LoteRegistroHistoricoUnificadoDto
+  ): { delta: number; ord: number } | null {
+    if (h.anulado) return null;
+    const kg = Number(h.cantidadKg ?? 0);
+    switch (h.tipoEvento) {
+      case 'INV_INGRESO':
+        if (kg === 0) return null;
+        return { delta: kg, ord: 0 };
+      case 'INV_TRASLADO_ENTRADA':
+        if (kg === 0) return null;
+        return { delta: kg, ord: 1 };
+      case 'INV_TRASLADO_SALIDA':
+        if (kg === 0) return null;
+        return { delta: -Math.abs(kg), ord: 2 };
+      case 'INV_OTRO': {
+        const mt = (h.movementTypeOriginal ?? '').trim();
+        if (mt === 'AjusteStock') return { delta: kg, ord: 2 };
+        if (mt === 'EliminacionStock') {
+          if (kg === 0) return null;
+          return { delta: -Math.abs(kg), ord: 2 };
+        }
+        return null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Stock de alimento (kg) después de cada seguimiento, en orden cronológico.
+   * - Saldo inicial (antes del primer día de seguimiento): ingresos y traslados del histórico con fecha
+   *   anterior al primer registro de seguimiento (stock ya en galpón de días/meses previos; sin filtro encaset).
+   * - A partir de ese día: movimientos de histórico desde encasetamiento + consumos del seguimiento.
+   * - Tras cada evento se aplica piso en 0: no hay saldo negativo; el siguiente ingreso suma sobre lo disponible.
+   * - No incluye INV_CONSUMO del histórico (duplicaría el consumo del seguimiento).
+   */
+  private computeSaldoAlimentoKgPorSeguimiento(sortedSeg: SeguimientoLoteLevanteDto[]): {
+    porSegId: Map<number, number>;
+    sinIngresoPrevioAlPrimerConsumo: boolean;
+  } | null {
+    const hist = this.historicoUnificado ?? [];
+    if (hist.length === 0) return null;
+
+    const firstSegYmd = this.toYMD(sortedSeg[0]?.fechaRegistro);
+    if (!firstSegYmd) return null;
+
+    /** Solo movimientos de histórico desde encaset (no duplicar líneas ya en apertura). */
+    const encYmd = this.toYMD(this.selectedLote?.fechaEncaset);
+
+    const openingKg = this.computeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegYmd);
+
+    type Ev = { ymd: string; ord: number; tie: number; segId: number | null; delta: number };
+    const ev: Ev[] = [];
+
+    for (const h of hist) {
+      const ymd = this.ymdHistoricoEfectivo(h);
+      if (!ymd) continue;
+      if (ymd < firstSegYmd) continue;
+      if (encYmd && ymd < encYmd) continue;
+      const d = this.deltaHistoricoMovimientoStock(h);
+      if (!d) continue;
+      ev.push({ ymd, ord: d.ord, tie: this.tsHistorico(h), segId: null, delta: d.delta });
+    }
+
+    for (const seg of sortedSeg) {
+      const ymd = this.toYMD(seg.fechaRegistro);
+      if (!ymd) continue;
+      const ch = Number(seg.consumoKgHembras ?? 0);
+      const cm = Number(seg.consumoKgMachos ?? 0);
+      const cons = ch + cm;
+      if (seg.id == null) continue;
+      ev.push({ ymd, ord: 3, tie: this.tsSeguimiento(seg), segId: seg.id, delta: -cons });
+    }
+
+    ev.sort((a, b) => {
+      if (a.ymd !== b.ymd) return a.ymd.localeCompare(b.ymd);
+      if (a.ord !== b.ord) return a.ord - b.ord;
+      if (a.tie !== b.tie) return a.tie - b.tie;
+      return (a.segId ?? 0) - (b.segId ?? 0);
+    });
+
+    const map = new Map<number, number>();
+    let bal = openingKg;
+    let saldoAntesPrimerConsumoSeg: number | null = null;
+    for (const e of ev) {
+      if (e.segId != null && saldoAntesPrimerConsumoSeg === null) {
+        saldoAntesPrimerConsumoSeg = bal;
+      }
+      bal += e.delta;
+      bal = Math.max(0, bal);
+      if (e.segId != null) {
+        map.set(e.segId, bal);
+      }
+    }
+    const sinIngresoPrevioAlPrimerConsumo =
+      saldoAntesPrimerConsumoSeg !== null && saldoAntesPrimerConsumoSeg <= 0;
+
+    return { porSegId: map, sinIngresoPrevioAlPrimerConsumo };
+  }
+
+  /**
+   * Stock disponible (kg) en galpón antes del primer día de registro de seguimiento: suma ingresos,
+   * traslados de entrada y ajustes; resta traslados de salida y eliminaciones; en orden cronológico.
+   * Tras cada movimiento se aplica piso en 0 (misma regla que la secuencia principal).
+   */
+  private computeSaldoAperturaGalponAntesPrimerSeguimiento(
+    hist: LoteRegistroHistoricoUnificadoDto[],
+    firstSegYmd: string
+  ): number {
+    type Row = { ymd: string; ts: number; delta: number };
+    const rows: Row[] = [];
+    for (const h of hist) {
+      const ymd = this.ymdHistoricoEfectivo(h);
+      if (!ymd || ymd >= firstSegYmd) continue;
+      const d = this.deltaHistoricoMovimientoStock(h);
+      if (!d) continue;
+      rows.push({ ymd, ts: this.tsHistorico(h), delta: d.delta });
+    }
+    rows.sort((a, b) => (a.ymd !== b.ymd ? a.ymd.localeCompare(b.ymd) : a.ts - b.ts));
+    let bal = 0;
+    for (const r of rows) {
+      bal += r.delta;
+      bal = Math.max(0, bal);
+    }
+    return bal;
+  }
+
+  private resolveSaldoAlimentoMostrado(
+    seg: SeguimientoLoteLevanteDto,
+    saldoPorSegId: Map<number, number> | null
+  ): number | null {
+    if (seg.id != null && saldoPorSegId?.has(seg.id)) {
+      return saldoPorSegId.get(seg.id)!;
+    }
+    const raw = (seg as unknown as { saldoAlimentoKg?: unknown }).saldoAlimentoKg;
+    if (raw != null && raw !== '') {
+      const n = Number(raw);
+      if (!Number.isNaN(n)) return Math.max(0, n);
+    }
+    return null;
   }
 
   private aggregateHistoricoPorFecha(): Map<string, AggregadoHistoricoDia> {
@@ -214,7 +484,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     };
 
     for (const h of this.historicoUnificado ?? []) {
-      const ymd = this.toYMD(h.fechaOperacion);
+      const ymd =
+        h.tipoEvento === 'VENTA_AVES' ? this.toYMD(h.fechaOperacion) : this.ymdHistoricoEfectivo(h);
       if (!ymd) continue;
       const a = ensure(ymd);
       const kg = Number(h.cantidadKg ?? 0);
@@ -316,7 +587,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   onViewDetail(seg: SeguimientoLoteLevanteDto): void { this.viewDetail.emit(seg); }
 
   exportSeguimientoDiarioExcel(): void {
-    if (!this.showExportSeguimientoExcel || !this.diarioFilas?.length) return;
+    if (!this.showExportSeguimientoExcel || !this.diarioFilasFiltradas?.length) return;
     const headers = [
       'Fecha',
       'Semana',
@@ -345,7 +616,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       'Peso prom. machos (kg)',
       'Observaciones'
     ];
-    const rows = this.diarioFilas.map(f => {
+    const rows = this.diarioFilasFiltradas.map(f => {
       const s = f.seg;
       return [
         this.formatDMY(s.fechaRegistro),
@@ -363,7 +634,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
           ? [
               f.despachoX ?? '',
               f.consumoBodegaKg != null ? f.consumoBodegaKg : '',
-              (s as any).saldoAlimentoKg != null ? (s as any).saldoAlimentoKg : ''
+              f.saldoAlimentoKgMostrado != null ? f.saldoAlimentoKgMostrado : ''
             ]
           : []),
         f.saldoAves,
@@ -382,10 +653,16 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
         ((s as any).observaciones || '').trim()
       ];
     });
-    const title = this.exportSeguimientoLoteNombre.trim()
+    const titleBase = this.exportSeguimientoLoteNombre.trim()
       ? `Seguimiento diario pollo engorde — Lote: ${this.exportSeguimientoLoteNombre.trim()}`
       : 'Seguimiento diario pollo engorde';
-    const aoa: (string | number)[][] = [[title], [], headers, ...rows];
+    const title = this.hayFiltrosDiarioActivos ? `${titleBase} (filtros aplicados)` : titleBase;
+    const adv = this.enriquecerTablaConHistoricoInventario && this.advertenciaSaldoSinIngresoPrevio
+      ? [
+          'Advertencia: sin ingreso/traslado de entrada desde encasetamiento antes del primer consumo en seguimiento (no hay saldo previo del que consumir hasta registrar entradas).'
+        ]
+      : [];
+    const aoa: (string | number)[][] = [[title], ...adv.map(a => [a]), [], headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
@@ -427,6 +704,15 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     if (!ymd) return null;
     const d = new Date(`${ymd}T12:00:00`);
     return isNaN(d.getTime()) ? null : d;
+  }
+
+  /** Tooltip de la celda de saldo alimento: fórmula de negocio y advertencia si aplica. */
+  titleSaldoAlimentoCelda(_f: RegistroDiarioTablaFilaEngorde): string {
+    const parts = [this.textoFormulaSaldoAlimento];
+    if (this.advertenciaSaldoSinIngresoPrevio) {
+      parts.push('Advertencia: sin saldo previo al primer consumo (desde encasetamiento). Revise ingresos en el histórico.');
+    }
+    return parts.join(' ');
   }
 
   formatDMY(input: string | Date | null | undefined): string {

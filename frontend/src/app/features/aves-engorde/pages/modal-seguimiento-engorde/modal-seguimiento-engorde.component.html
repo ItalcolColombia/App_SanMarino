@@ -43,6 +43,7 @@
               <h3 class="data-group-title">📦 Alimento</h3>
               <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
                 Puede registrar varios alimentos por sexo. Por defecto aparece una fila.
+                En la lista solo se muestran ítems con existencia disponible en inventario (mayor a cero); los que están en cero no aparecen.
               </p>
 
               <div>
@@ -60,15 +61,15 @@
                         <div class="ux-select">
                           <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                             <option [ngValue]="null">— Seleccione —</option>
-                            <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)))" [ngValue]="a.id">
+                            <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)), itemH.get('catalogItemId')?.value)" [ngValue]="a.id">
                               {{ getItemDisplayText(a) }}
                             </option>
                           </select>
                         </div>
                         <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
-                          Disponible actual: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
+                          Disponible actual: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
                           <ng-container *ngIf="editing">
-                            • Máximo para editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                            • Máximo para editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.0-2' }} kg
                           </ng-container>
                         </small>
                       </div>
@@ -96,43 +97,61 @@
 
             <div class="data-group">
               <h3 class="data-group-title">💀 Mortalidad, Selección y Error de sexaje</h3>
+              <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles" style="margin: 0 0 0.5rem 0;">
+                Aves disponibles en el lote (API) — Hembras: <strong>{{ avesDisponibles!.hembrasDisponibles | number:'1.0-0' }}</strong>,
+                Machos: <strong>{{ avesDisponibles!.machosDisponibles | number:'1.0-0' }}</strong>.
+              </p>
+              <p class="ux-hint ux-hint--warning" *ngIf="!editing && bloqueoAmbosSexosPorAves" role="status">
+                No hay aves disponibles ni en hembras ni en machos (ambos en cero). No puede registrar mortalidad, selección ni error de sexaje por sexo hasta que existan aves en el lote.
+              </p>
+              <p class="ux-hint ux-hint--warning" *ngIf="bloqueoHembrasPorAves && !bloqueoMachosPorAves" role="status">
+                <strong>Hembras:</strong> sin aves disponibles (0). Los campos de esta columna están deshabilitados; no se registran datos para hembras.
+              </p>
+              <p class="ux-hint ux-hint--warning" *ngIf="bloqueoMachosPorAves && !bloqueoHembrasPorAves" role="status">
+                <strong>Machos:</strong> sin aves disponibles (0). Los campos de esta columna están deshabilitados; no se registran datos para machos.
+              </p>
               <div class="compare-grid">
                 <div class="compare-grid__row-title"></div>
-                <div class="compare-grid__col-title">Hembras</div>
-                <div class="compare-grid__col-title">Machos</div>
+                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
+                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
 
                 <div class="compare-grid__row-title">Mortalidad</div>
-                <div class="form-field"><input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" /></div>
-                <div class="form-field"><input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" /></div>
 
                 <div class="compare-grid__row-title">Selección</div>
-                <div class="form-field"><input id="f-selh" type="number" min="0" formControlName="selH" /></div>
-                <div class="form-field"><input id="f-selm" type="number" min="0" formControlName="selM" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-selh" type="number" min="0" formControlName="selH" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-selm" type="number" min="0" formControlName="selM" /></div>
 
                 <div class="compare-grid__row-title">Error de sexaje</div>
-                <div class="form-field"><input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" /></div>
-                <div class="form-field"><input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" /></div>
               </div>
             </div>
 
             <div class="data-group">
               <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
+              <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles && (bloqueoHembrasPorAves || bloqueoMachosPorAves)" style="margin: 0 0 0.75rem 0;">
+                Peso, uniformidad y CV solo aplican al sexo con aves disponibles.
+                <ng-container *ngIf="bloqueoHembrasPorAves"><strong> Hembras:</strong> sin aves (campos deshabilitados).</ng-container>
+                <ng-container *ngIf="bloqueoMachosPorAves"><strong> Machos:</strong> sin aves (campos deshabilitados).</ng-container>
+              </p>
               <div class="compare-grid">
                 <div class="compare-grid__row-title"></div>
-                <div class="compare-grid__col-title">Hembras</div>
-                <div class="compare-grid__col-title">Machos</div>
+                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
+                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
 
                 <div class="compare-grid__row-title">Peso promedio (kg)</div>
-                <div class="form-field"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
-                <div class="form-field"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
 
                 <div class="compare-grid__row-title">Uniformidad (%)</div>
-                <div class="form-field"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
-                <div class="form-field"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
 
                 <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
-                <div class="form-field"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
-                <div class="form-field"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
               </div>
             </div>
           </section>

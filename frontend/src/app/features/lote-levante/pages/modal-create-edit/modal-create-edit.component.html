@@ -84,9 +84,9 @@
                       </select>
                     </div>
                     <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
+                      Disponible: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
                       <ng-container *ngIf="editing">
-                        • Máx. editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                        • Máx. editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.0-2' }} kg
                       </ng-container>
                     </small>
                   </div>
@@ -155,9 +155,9 @@
                       </select>
                     </div>
                     <small class="ux-hint text-success" *ngIf="itemM.get('catalogItemId')?.value && getCantidadDisponible(itemM.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.unit }}
+                      Disponible: {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.unit }}
                       <ng-container *ngIf="editing">
-                        • Máx. editar: {{ getMaxPermitidoKg(itemM.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                        • Máx. editar: {{ getMaxPermitidoKg(itemM.get('catalogItemId')?.value) | number:'1.0-2' }} kg
                       </ng-container>
                     </small>
                   </div>
@@ -231,9 +231,9 @@
                       </select>
                     </div>
                     <small class="ux-hint text-success" *ngIf="itemG.get('catalogItemId')?.value && getCantidadDisponible(itemG.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemG.get('catalogItemId')?.value)?.quantity | number:'1.2-2' }} {{ getCantidadDisponible(itemG.get('catalogItemId')?.value)?.unit }}
+                      Disponible: {{ getCantidadDisponible(itemG.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemG.get('catalogItemId')?.value)?.unit }}
                       <ng-container *ngIf="editing">
-                        • Máx. editar: {{ getMaxPermitidoKg(itemG.get('catalogItemId')?.value) | number:'1.2-2' }} kg
+                        • Máx. editar: {{ getMaxPermitidoKg(itemG.get('catalogItemId')?.value) | number:'1.0-2' }} kg
                       </ng-container>
                     </small>
                   </div>

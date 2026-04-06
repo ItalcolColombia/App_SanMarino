@@ -21,7 +21,7 @@
         <!-- Fila de Saldo Anterior (solo primera fila) -->
         <tr class="info-row saldo-anterior-row" *ngIf="reporteSemanal">
           <td colspan="2" class="info-label"><strong>Saldo Anterior</strong></td>
-          <td class="text-right highlight-yellow">{{ reporteSemanal.saldoBultosAnterior | number:'1.1-1' }}</td>
+          <td class="text-right highlight-yellow">{{ reporteSemanal.saldoBultosAnterior | number:'1.0-1' }}</td>
           <td colspan="6" class="empty-cells"></td>
         </tr>
 
@@ -29,25 +29,25 @@
         <tr *ngFor="let dato of datosDiarios" class="data-row">
           <td class="col-fecha">{{ getDiaSemana(dato.fecha) }}</td>
           <td class="col-fecha">{{ getNumeroDia(dato.fecha) }}</td>
-          <td class="text-right">{{ dato.saldoBultosAnterior | number:'1.1-1' }}</td>
-          <td class="text-right">{{ dato.trasladosBultos | number:'1.1-1' }}</td>
-          <td class="text-right">{{ dato.entradasBultos | number:'1.1-1' }}</td>
-          <td class="text-right">{{ dato.retirosBultos | number:'1.1-1' }}</td>
-          <td class="text-right col-hembra">{{ dato.consumoBultosHembras | number:'1.1-1' }}</td>
-          <td class="text-right col-macho">{{ dato.consumoBultosMachos | number:'1.1-1' }}</td>
-          <td class="text-right">{{ dato.saldoBultos | number:'1.1-1' }}</td>
+          <td class="text-right">{{ dato.saldoBultosAnterior | number:'1.0-1' }}</td>
+          <td class="text-right">{{ dato.trasladosBultos | number:'1.0-1' }}</td>
+          <td class="text-right">{{ dato.entradasBultos | number:'1.0-1' }}</td>
+          <td class="text-right">{{ dato.retirosBultos | number:'1.0-1' }}</td>
+          <td class="text-right col-hembra">{{ dato.consumoBultosHembras | number:'1.0-1' }}</td>
+          <td class="text-right col-macho">{{ dato.consumoBultosMachos | number:'1.0-1' }}</td>
+          <td class="text-right">{{ dato.saldoBultos | number:'1.0-1' }}</td>
         </tr>
 
         <!-- Totales Semana Acumulado -->
         <tr class="total-row" *ngIf="reporteSemanal">
           <td colspan="2" class="info-label"><strong>Semana Acumulado</strong></td>
-          <td class="text-right"><strong>{{ reporteSemanal.saldoBultosAnterior | number:'1.1-1' }}</strong></td>
-          <td class="text-right"><strong>{{ reporteSemanal.trasladosBultosSemanal | number:'1.1-1' }}</strong></td>
-          <td class="text-right"><strong>{{ reporteSemanal.entradasBultosSemanal | number:'1.1-1' }}</strong></td>
-          <td class="text-right"><strong>{{ reporteSemanal.retirosBultosSemanal | number:'1.1-1' }}</strong></td>
-          <td class="text-right col-hembra"><strong>{{ reporteSemanal.consumoBultosHembrasSemanal | number:'1.1-1' }}</strong></td>
-          <td class="text-right col-macho"><strong>{{ reporteSemanal.consumoBultosMachosSemanal | number:'1.1-1' }}</strong></td>
-          <td class="text-right highlight-green"><strong>{{ reporteSemanal.saldoBultosFinal | number:'1.1-1' }}</strong></td>
+          <td class="text-right"><strong>{{ reporteSemanal.saldoBultosAnterior | number:'1.0-1' }}</strong></td>
+          <td class="text-right"><strong>{{ reporteSemanal.trasladosBultosSemanal | number:'1.0-1' }}</strong></td>
+          <td class="text-right"><strong>{{ reporteSemanal.entradasBultosSemanal | number:'1.0-1' }}</strong></td>
+          <td class="text-right"><strong>{{ reporteSemanal.retirosBultosSemanal | number:'1.0-1' }}</strong></td>
+          <td class="text-right col-hembra"><strong>{{ reporteSemanal.consumoBultosHembrasSemanal | number:'1.0-1' }}</strong></td>
+          <td class="text-right col-macho"><strong>{{ reporteSemanal.consumoBultosMachosSemanal | number:'1.0-1' }}</strong></td>
+          <td class="text-right highlight-green"><strong>{{ reporteSemanal.saldoBultosFinal | number:'1.0-1' }}</strong></td>
         </tr>
       </tbody>
     </table>

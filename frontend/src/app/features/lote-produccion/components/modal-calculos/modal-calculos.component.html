@@ -96,20 +96,20 @@
                 <td>{{ item.mortalidadTotal }}</td>
                 <td>
                   <span class="badge" [class]="'badge--' + getMortalidadColor(item.mortalidadPorcentaje)">
-                    {{ item.mortalidadPorcentaje | number:'1.1-1' }}%
+                    {{ item.mortalidadPorcentaje | number:'1.0-1' }}%
                   </span>
                 </td>
                 <td>{{ item.selH }}</td>
-                <td>{{ item.consKgH | number:'1.2-2' }}</td>
-                <td>{{ item.consKgM | number:'1.2-2' }}</td>
+                <td>{{ item.consKgH | number:'1.0-2' }}</td>
+                <td>{{ item.consKgM | number:'1.0-2' }}</td>
                 <td>{{ item.huevoTot }}</td>
                 <td>{{ item.huevoInc }}</td>
                 <td>
                   <span class="badge" [class]="'badge--' + getEficienciaColor(item.eficiencia)">
-                    {{ item.eficiencia | number:'1.1-1' }}%
+                    {{ item.eficiencia | number:'1.0-1' }}%
                   </span>
                 </td>
-                <td>{{ item.pesoHuevo | number:'1.1-1' }}g</td>
+                <td>{{ item.pesoHuevo | number:'1.0-1' }}g</td>
                 <td>{{ item.etapa }}</td>
               </tr>
             </tbody>

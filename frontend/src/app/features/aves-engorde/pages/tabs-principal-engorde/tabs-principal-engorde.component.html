@@ -40,21 +40,77 @@
       <!-- TAB GENERAL -->
       <div *ngIf="activeTab === 'general'" id="general-panel" class="tab-panel" role="tabpanel">
         <div class="table-container table-container--diario">
-          <div class="registro-diario__toolbar">
-            <h4>Registros Diarios</h4>
-            <button
-              *ngIf="showExportSeguimientoExcel"
-              type="button"
-              class="btn btn--outline registro-diario__export"
-              [disabled]="loading || !diarioFilas.length"
-              (click)="exportSeguimientoDiarioExcel()"
-              [title]="(!diarioFilas.length ? 'Sin registros para exportar' : 'Descargar Excel con todas las columnas de la tabla')">
-              Descargar Excel
-            </button>
-          </div>
+          <div class="registro-diario__toolbar registro-diario__toolbar--engorde">
+            <div class="registro-diario__toolbar-head">
+              <h4>Registros Diarios</h4>
+              <div class="registro-diario__toolbar-actions">
+                <button
+                  type="button"
+                  class="icon-btn registro-diario__info-btn"
+                  (click)="modalAyudaSeguimientoAbierto = true"
+                  [attr.aria-expanded]="modalAyudaSeguimientoAbierto"
+                  aria-controls="modal-ayuda-seguimiento-engorde"
+                  title="Ayuda: saldo de alimento y seguimiento diario">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span class="sr-only">Ayuda sobre el seguimiento diario</span>
+                </button>
+                <button
+                  *ngIf="showExportSeguimientoExcel"
+                  type="button"
+                  class="btn btn--outline registro-diario__export"
+                  [disabled]="loading || !diarioFilasFiltradas.length"
+                  (click)="exportSeguimientoDiarioExcel()"
+                  [title]="(!diarioFilasFiltradas.length ? 'Sin registros para exportar' : 'Descargar Excel (respeta filtros si hay)')">
+                  Descargar Excel
+                </button>
+              </div>
+            </div>
 
-          <p class="registro-diario__hint">
-            Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado.
+            <div class="registro-diario__filters" role="group" aria-label="Filtros de seguimiento diario">
+              <div class="registro-diario__filter-field">
+                <label for="filtro-fecha-desde">Desde</label>
+                <input
+                  id="filtro-fecha-desde"
+                  type="date"
+                  [(ngModel)]="filtroFechaDesde"
+                  class="registro-diario__filter-input" />
+              </div>
+              <div class="registro-diario__filter-field">
+                <label for="filtro-fecha-hasta">Hasta</label>
+                <input
+                  id="filtro-fecha-hasta"
+                  type="date"
+                  [(ngModel)]="filtroFechaHasta"
+                  class="registro-diario__filter-input" />
+              </div>
+              <div class="registro-diario__filter-field">
+                <label for="filtro-semana">Semana</label>
+                <select id="filtro-semana" [(ngModel)]="filtroSemana" class="registro-diario__filter-input">
+                  <option [ngValue]="null">Todas</option>
+                  <option *ngFor="let n of semanasFiltroOpciones" [ngValue]="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="registro-diario__filter-field registro-diario__filter-field--grow">
+                <label for="filtro-tipo-alimento">Tipo alimento</label>
+                <select id="filtro-tipo-alimento" [(ngModel)]="filtroTipoAlimento" class="registro-diario__filter-input">
+                  <option value="">Todos</option>
+                  <option *ngFor="let t of opcionesTipoAlimento" [value]="t">{{ t }}</option>
+                </select>
+              </div>
+              <button
+                *ngIf="hayFiltrosDiarioActivos"
+                type="button"
+                class="btn btn--ghost registro-diario__filter-clear"
+                (click)="limpiarFiltrosDiario()">
+                Limpiar filtros
+              </button>
+            </div>
+          </div>
+          <p
+            *ngIf="enriquecerTablaConHistoricoInventario && advertenciaSaldoSinIngresoPrevio"
+            class="registro-diario__alert"
+            role="status">
+            No había ingreso ni traslado de entrada de alimento en el histórico desde la fecha de encasetamiento <strong>antes</strong> del primer consumo registrado en seguimiento: no hay saldo previo del que consumir hasta que existan esas entradas (o revise fechas de encasetamiento e ingresos).
           </p>
 
           <div class="ux-scroll ux-scroll--diario">
@@ -72,17 +128,13 @@
                   <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
                   <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
                   <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
-                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixtas</span></th>
-                  <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">bodega (kg)</span></th>
                   <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">aves vivas</span></th>
                   <th scope="col" class="th-diario">Tipo <span class="th-diario__sub">alimento</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Traslado</th>
                   <th scope="col" class="th-diario th-diario--wide">Documento</th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo kg </th>
                   <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
                   <th scope="col" class="th-diario th-diario--num">% pérdidas <span class="th-diario__sub">del día</span></th>
@@ -101,7 +153,15 @@
                   </td>
                 </tr>
 
-                <tr *ngFor="let f of diarioFilas; trackBy: trackByDiarioFila" class="ux-row">
+                <tr *ngIf="!loading && diarioFilasVaciasPorFiltro">
+                  <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🔍</div>
+                    <p>Ningún registro coincide con los filtros.</p>
+                    <button type="button" class="btn btn--outline" (click)="limpiarFiltrosDiario()">Quitar filtros</button>
+                  </td>
+                </tr>
+
+                <tr *ngFor="let f of diarioFilasFiltradas; trackBy: trackByDiarioFila" class="ux-row">
                   <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
                   <td>{{ f.semana }}</td>
                   <td>{{ f.edadDia }}</td>
@@ -113,22 +173,25 @@
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
                   <td class="num">{{ f.despachoH != null ? (f.despachoH | number:'1.0-0') : '—' }}</td>
                   <td class="num">{{ f.despachoM != null ? (f.despachoM | number:'1.0-0') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.2-3') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.2-3') : '—' }}</td>
+
+                  <td
+                    *ngIf="enriquecerTablaConHistoricoInventario"
+                    class="num"
+                    [class.registro-diario__saldo--warn]="advertenciaSaldoSinIngresoPrevio"
+                    [attr.title]="titleSaldoAlimentoCelda(f)">
+                    {{ f.saldoAlimentoKgMostrado != null ? (f.saldoAlimentoKgMostrado | number:'1.0-2') : '—' }}
+                  </td>
                   <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
                   <td>{{ f.tipoAlimentoCorto }}</td>
                   <td class="cell-text cell-text--wide" [title]="f.ingresoAlimento">{{ f.ingresoAlimento || '—' }}</td>
                   <td class="cell-text cell-text--wide" [title]="f.traslado">{{ f.traslado || '—' }}</td>
                   <td class="cell-text cell-text--wide" [title]="f.documento">{{ f.documento || '—' }}</td>
-                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.consumoDiaKg | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.acumConsumoKg | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.seg.consumoAguaDiario != null ? (f.seg.consumoAguaDiario | number:'1.1-1') : '—' }}</td>
-                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.2-2') + '%' : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.2-2') : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.2-2') : '—' }}</td>
+                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
+                  <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
+                  <td class="num">{{ f.seg.consumoAguaDiario != null ? (f.seg.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
+                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
+                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
+                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
                   <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
                     <div class="btn-group">
@@ -140,6 +203,32 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <div
+            *ngIf="modalAyudaSeguimientoAbierto"
+            class="modal-ayuda-seguimiento"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-ayuda-seguimiento-title"
+            id="modal-ayuda-seguimiento-engorde"
+            (click)="modalAyudaSeguimientoAbierto = false">
+            <div class="modal-ayuda-seguimiento__dialog" (click)="$event.stopPropagation()">
+              <header class="modal-ayuda-seguimiento__header">
+                <h3 id="modal-ayuda-seguimiento-title">Información del seguimiento diario</h3>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="modalAyudaSeguimientoAbierto = false"
+                  aria-label="Cerrar ayuda">✕</button>
+              </header>
+              <section class="modal-ayuda-seguimiento__body">
+                <p>{{ textoAyudaSeguimientoDiario }}</p>
+              </section>
+              <footer class="modal-ayuda-seguimiento__footer">
+                <button type="button" class="btn btn--primary" (click)="modalAyudaSeguimientoAbierto = false">Cerrar</button>
+              </footer>
+            </div>
           </div>
         </div>
       </div>

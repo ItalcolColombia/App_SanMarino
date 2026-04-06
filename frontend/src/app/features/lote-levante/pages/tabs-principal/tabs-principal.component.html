@@ -173,17 +173,17 @@
                   <td>{{ f.seg.selM }}</td>
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
                   <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.despachoX != null ? (f.despachoX | number:'1.0-0') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.2-3') : '—' }}</td>
-                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.2-3') : '—' }}</td>
+                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.consumoBodegaKg != null ? (f.consumoBodegaKg | number:'1.0-3') : '—' }}</td>
+                  <td *ngIf="enriquecerTablaConHistoricoInventario" class="num">{{ f.seg.saldoAlimentoKg != null ? (f.seg.saldoAlimentoKg | number:'1.0-3') : '—' }}</td>
                   <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
                   <td>{{ f.tipoAlimentoCorto }}</td>
-                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.consumoDiaKg | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.acumConsumoKg | number:'1.2-2' }}</td>
-                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.2-2') + '%' : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.2-2') : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.2-2') : '—' }}</td>
+                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
+                  <td class="num">{{ f.seg.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+                  <td class="num">{{ f.consumoDiaKg | number:'1.0-2' }}</td>
+                  <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
+                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
+                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
+                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
                   <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
                     <div class="btn-group">

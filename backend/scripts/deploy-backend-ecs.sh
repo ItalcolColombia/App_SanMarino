@@ -90,7 +90,8 @@ success "Login exitoso a ECR"
 log "2/7) Building Docker image para linux/amd64..."
 cd "$DEPLOY_DIR"
 
-if ! $DOCKER_CMD buildx build --platform linux/amd64 -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
+# --provenance/--sbom evitan fallos de push en algunos entornos Docker Desktop (tag does not exist)
+if ! $DOCKER_CMD buildx build --platform linux/amd64 --provenance=false --sbom=false -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
     error "Fallo en docker buildx build (p. ej. 403 en push a ECR)"
 fi
 success "Imagen construida y pusheada"

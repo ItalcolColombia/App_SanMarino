@@ -57,14 +57,14 @@
               {{ mapAlimentoNombre(s?.tipoAlimento) }}
             </ng-template>
           </td>
-          <td>{{ s.consumoKgHembras | number:'1.2-2' }}</td>
-          <td>{{ s.consumoKgMachos ?? 0 | number:'1.2-2' }}</td>
-          <td>{{ s.pesoPromH ?? 0 | number:'1.2-2' }}</td>
-          <td>{{ s.pesoPromM ?? 0 | number:'1.2-2' }}</td>
-          <td>{{ s.uniformidadH ?? 0 | number:'1.1-1' }}</td>
-          <td>{{ s.uniformidadM ?? 0 | number:'1.1-1' }}</td>
-          <td>{{ s.cvH ?? 0 | number:'1.2-2' }}</td>
-          <td>{{ s.cvM ?? 0 | number:'1.2-2' }}</td>
+          <td>{{ s.consumoKgHembras | number:'1.0-2' }}</td>
+          <td>{{ s.consumoKgMachos ?? 0 | number:'1.0-2' }}</td>
+          <td>{{ s.pesoPromH ?? 0 | number:'1.0-2' }}</td>
+          <td>{{ s.pesoPromM ?? 0 | number:'1.0-2' }}</td>
+          <td>{{ s.uniformidadH ?? 0 | number:'1.0-1' }}</td>
+          <td>{{ s.uniformidadM ?? 0 | number:'1.0-1' }}</td>
+          <td>{{ s.cvH ?? 0 | number:'1.0-2' }}</td>
+          <td>{{ s.cvM ?? 0 | number:'1.0-2' }}</td>
           <td class="text-right">
             <div class="btn-group">
               <button type="button" (click)="onEdit(s)" class="icon-btn" title="Editar" aria-label="Editar registro">✎</button>

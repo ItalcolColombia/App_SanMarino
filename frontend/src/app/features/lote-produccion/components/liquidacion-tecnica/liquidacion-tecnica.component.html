@@ -147,11 +147,11 @@
               <td><strong>💀 Mortalidad</strong></td>
               <td>
                 {{ liquidacion()!.totales.totalMortalidadHembras | number:'1.0-0' }}
-                <small>({{ liquidacion()!.totales.porcentajeMortalidadAcumuladaHembras | number:'1.2-2' }}%)</small>
+                <small>({{ liquidacion()!.totales.porcentajeMortalidadAcumuladaHembras | number:'1.0-2' }}%)</small>
               </td>
               <td>
                 {{ liquidacion()!.totales.totalMortalidadMachos | number:'1.0-0' }}
-                <small>({{ liquidacion()!.totales.porcentajeMortalidadAcumuladaMachos | number:'1.2-2' }}%)</small>
+                <small>({{ liquidacion()!.totales.porcentajeMortalidadAcumuladaMachos | number:'1.0-2' }}%)</small>
               </td>
               <td><strong>{{ liquidacion()!.totales.totalMortalidadHembras + liquidacion()!.totales.totalMortalidadMachos | number:'1.0-0' }}</strong></td>
             </tr>
@@ -159,16 +159,16 @@
               <td><strong>👋 Selección (Retiradas)</strong></td>
               <td>
                 {{ liquidacion()!.totales.totalSeleccionHembras | number:'1.0-0' }}
-                <small>({{ liquidacion()!.totales.porcentajeSeleccionAcumuladaHembras | number:'1.2-2' }}%)</small>
+                <small>({{ liquidacion()!.totales.porcentajeSeleccionAcumuladaHembras | number:'1.0-2' }}%)</small>
               </td>
               <td>—</td>
               <td><strong>{{ liquidacion()!.totales.totalSeleccionHembras | number:'1.0-0' }}</strong></td>
             </tr>
             <tr>
               <td><strong>🌾 Consumo Alimento (kg)</strong></td>
-              <td>{{ liquidacion()!.totales.consumoTotalKgHembras | number:'1.2-2' }}</td>
-              <td>{{ liquidacion()!.totales.consumoTotalKgMachos | number:'1.2-2' }}</td>
-              <td><strong>{{ liquidacion()!.totales.consumoTotalKg | number:'1.2-2' }}</strong></td>
+              <td>{{ liquidacion()!.totales.consumoTotalKgHembras | number:'1.0-2' }}</td>
+              <td>{{ liquidacion()!.totales.consumoTotalKgMachos | number:'1.0-2' }}</td>
+              <td><strong>{{ liquidacion()!.totales.consumoTotalKg | number:'1.0-2' }}</strong></td>
             </tr>
             <tr>
               <td><strong>🥚 Producción Huevos</strong></td>
@@ -189,7 +189,7 @@
                   <div>
                     <small>Eficiencia:</small><br>
                     <strong [class]="liquidacion()!.totales.eficienciaProduccionTotal >= 80 ? 'text-success' : 'text-warning'">
-                      {{ liquidacion()!.totales.eficienciaProduccionTotal | number:'1.2-2' }}%
+                      {{ liquidacion()!.totales.eficienciaProduccionTotal | number:'1.0-2' }}%
                     </strong>
                   </div>
                 </div>
@@ -215,12 +215,12 @@
           <div class="metrica-valor">
             <div class="metrica-item">
               <span class="metrica-label">Hembras:</span>
-              <span class="metrica-num">{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaHembras | number:'1.2-2' }}%</span>
+              <span class="metrica-num">{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaHembras | number:'1.0-2' }}%</span>
               <span class="metrica-cant">({{ liquidacion()!.totales.totalMortalidadHembras | number:'1.0-0' }} aves)</span>
             </div>
             <div class="metrica-item">
               <span class="metrica-label">Machos:</span>
-              <span class="metrica-num">{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaMachos | number:'1.2-2' }}%</span>
+              <span class="metrica-num">{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaMachos | number:'1.0-2' }}%</span>
               <span class="metrica-cant">({{ liquidacion()!.totales.totalMortalidadMachos | number:'1.0-0' }} aves)</span>
             </div>
           </div>
@@ -234,7 +234,7 @@
           <div class="metrica-valor">
             <div class="metrica-item">
               <span class="metrica-label">Hembras:</span>
-              <span class="metrica-num">{{ liquidacion()!.totales.porcentajeSeleccionAcumuladaHembras | number:'1.2-2' }}%</span>
+              <span class="metrica-num">{{ liquidacion()!.totales.porcentajeSeleccionAcumuladaHembras | number:'1.0-2' }}%</span>
               <span class="metrica-cant">({{ liquidacion()!.totales.totalSeleccionHembras | number:'1.0-0' }} aves)</span>
             </div>
           </div>
@@ -248,11 +248,11 @@
           <div class="metrica-valor">
             <div class="metrica-item">
               <span class="metrica-label">Total:</span>
-              <span class="metrica-num">{{ liquidacion()!.totales.consumoTotalKg | number:'1.2-2' }} kg</span>
+              <span class="metrica-num">{{ liquidacion()!.totales.consumoTotalKg | number:'1.0-2' }} kg</span>
             </div>
             <div class="metrica-item">
               <span class="metrica-label">Promedio Diario:</span>
-              <span class="metrica-num">{{ liquidacion()!.totales.consumoPromedioDiarioKg | number:'1.2-2' }} kg/día</span>
+              <span class="metrica-num">{{ liquidacion()!.totales.consumoPromedioDiarioKg | number:'1.0-2' }} kg/día</span>
             </div>
           </div>
       </div>
@@ -278,7 +278,7 @@
             <div class="metrica-item">
               <span class="metrica-label">Eficiencia:</span>
               <span class="metrica-num" [class]="liquidacion()!.totales.eficienciaProduccionTotal >= 80 ? 'text-success' : 'text-warning'">
-                {{ liquidacion()!.totales.eficienciaProduccionTotal | number:'1.2-2' }}%
+                {{ liquidacion()!.totales.eficienciaProduccionTotal | number:'1.0-2' }}%
               </span>
             </div>
             </div>
@@ -365,15 +365,15 @@
               </div>
               <div class="summary-item">
                 <span>💀 Mortalidad H:</span>
-                <strong>{{ etapa.mortalidadHembras }} ({{ etapa.porcentajeMortalidadHembras | number:'1.2-2' }}%)</strong>
+                <strong>{{ etapa.mortalidadHembras }} ({{ etapa.porcentajeMortalidadHembras | number:'1.0-2' }}%)</strong>
               </div>
               <div class="summary-item">
                 <span>🌾 Consumo Total:</span>
-                <strong>{{ etapa.consumoTotalKg | number:'1.2-2' }} kg</strong>
+                <strong>{{ etapa.consumoTotalKg | number:'1.0-2' }} kg</strong>
               </div>
               <div class="summary-item">
                 <span>✅ Eficiencia:</span>
-                <strong>{{ etapa.eficienciaProduccion | number:'1.2-2' }}%</strong>
+                <strong>{{ etapa.eficienciaProduccion | number:'1.0-2' }}%</strong>
               </div>
             </div>
             <div *ngIf="!getEtapa(etapaNum)" class="etapa-empty">
@@ -413,11 +413,11 @@
                   <td><strong>💀 Mortalidad</strong></td>
                   <td>
                     {{ etapa.mortalidadHembras }}
-                    <small>({{ etapa.porcentajeMortalidadHembras | number:'1.2-2' }}%)</small>
+                    <small>({{ etapa.porcentajeMortalidadHembras | number:'1.0-2' }}%)</small>
                   </td>
                   <td>
                     {{ etapa.mortalidadMachos }}
-                    <small>({{ etapa.porcentajeMortalidadMachos | number:'1.2-2' }}%)</small>
+                    <small>({{ etapa.porcentajeMortalidadMachos | number:'1.0-2' }}%)</small>
                   </td>
                   <td><strong>{{ etapa.mortalidadHembras + etapa.mortalidadMachos }}</strong></td>
                 </tr>
@@ -425,16 +425,16 @@
                   <td><strong>👋 Selección (Retiradas)</strong></td>
                   <td>
                     {{ etapa.seleccionHembras }}
-                    <small>({{ etapa.porcentajeSeleccionHembras | number:'1.2-2' }}%)</small>
+                    <small>({{ etapa.porcentajeSeleccionHembras | number:'1.0-2' }}%)</small>
                   </td>
                   <td>—</td>
                   <td><strong>{{ etapa.seleccionHembras }}</strong></td>
                 </tr>
                 <tr>
                   <td><strong>🌾 Consumo Alimento (kg)</strong></td>
-                  <td>{{ etapa.consumoKgHembras | number:'1.2-2' }}</td>
-                  <td>{{ etapa.consumoKgMachos | number:'1.2-2' }}</td>
-                  <td><strong>{{ etapa.consumoTotalKg | number:'1.2-2' }}</strong></td>
+                  <td>{{ etapa.consumoKgHembras | number:'1.0-2' }}</td>
+                  <td>{{ etapa.consumoKgMachos | number:'1.0-2' }}</td>
+                  <td><strong>{{ etapa.consumoTotalKg | number:'1.0-2' }}</strong></td>
                 </tr>
                 <tr>
                   <td><strong>🥚 Producción Huevos</strong></td>
@@ -455,7 +455,7 @@
                       <div>
                         <small>Eficiencia:</small><br>
                         <strong [class]="etapa.eficienciaProduccion >= 80 ? 'text-success' : 'text-warning'">
-                          {{ etapa.eficienciaProduccion | number:'1.2-2' }}%
+                          {{ etapa.eficienciaProduccion | number:'1.0-2' }}%
                         </strong>
                       </div>
                     </div>
@@ -464,15 +464,15 @@
                 <tr *ngIf="etapa.pesoPromedioHembras || etapa.pesoPromedioMachos">
                   <td><strong>⚖️ Pesaje Semanal (Promedio)</strong></td>
                   <td>
-                    <span *ngIf="etapa.pesoPromedioHembras">{{ etapa.pesoPromedioHembras | number:'1.2-2' }} kg</span>
+                    <span *ngIf="etapa.pesoPromedioHembras">{{ etapa.pesoPromedioHembras | number:'1.0-2' }} kg</span>
                     <span *ngIf="!etapa.pesoPromedioHembras">—</span>
                   </td>
                   <td>
-                    <span *ngIf="etapa.pesoPromedioMachos">{{ etapa.pesoPromedioMachos | number:'1.2-2' }} kg</span>
+                    <span *ngIf="etapa.pesoPromedioMachos">{{ etapa.pesoPromedioMachos | number:'1.0-2' }} kg</span>
                     <span *ngIf="!etapa.pesoPromedioMachos">—</span>
                   </td>
                   <td>
-                    <span *ngIf="etapa.uniformidadPromedio">Uniformidad: {{ etapa.uniformidadPromedio | number:'1.2-2' }}%</span>
+                    <span *ngIf="etapa.uniformidadPromedio">Uniformidad: {{ etapa.uniformidadPromedio | number:'1.0-2' }}%</span>
                     <span *ngIf="!etapa.uniformidadPromedio">—</span>
                   </td>
                 </tr>
@@ -597,8 +597,8 @@
               <!-- Peso -->
               <tr *ngIf="comp.pesoGuiaHembras">
                 <td><strong>Peso Hembras (kg)</strong></td>
-                <td>{{ liquidacion()!.etapa1.pesoHembras || liquidacion()!.etapa2.pesoHembras || liquidacion()!.etapa3.pesoHembras | number:'1.2-2' }}</td>
-                <td>{{ comp.pesoGuiaHembras | number:'1.2-2' }}</td>
+                <td>{{ liquidacion()!.etapa1.pesoHembras || liquidacion()!.etapa2.pesoHembras || liquidacion()!.etapa3.pesoHembras | number:'1.0-2' }}</td>
+                <td>{{ comp.pesoGuiaHembras | number:'1.0-2' }}</td>
                 <td [class]="getDiferenciaClass(comp.diferenciaPesoHembras)">
                   {{ formatearPorcentaje(comp.diferenciaPesoHembras) }}
                 </td>
@@ -610,8 +610,8 @@
               </tr>
               <tr *ngIf="comp.pesoGuiaMachos">
                 <td><strong>Peso Machos (kg)</strong></td>
-                <td>{{ liquidacion()!.etapa1.pesoMachos || liquidacion()!.etapa2.pesoMachos || liquidacion()!.etapa3.pesoMachos | number:'1.2-2' }}</td>
-                <td>{{ comp.pesoGuiaMachos | number:'1.2-2' }}</td>
+                <td>{{ liquidacion()!.etapa1.pesoMachos || liquidacion()!.etapa2.pesoMachos || liquidacion()!.etapa3.pesoMachos | number:'1.0-2' }}</td>
+                <td>{{ comp.pesoGuiaMachos | number:'1.0-2' }}</td>
                 <td [class]="getDiferenciaClass(comp.diferenciaPesoMachos)">
                   {{ formatearPorcentaje(comp.diferenciaPesoMachos) }}
                 </td>
@@ -625,8 +625,8 @@
               <!-- Mortalidad -->
               <tr *ngIf="comp.mortalidadGuiaHembras">
                 <td><strong>% Mortalidad Hembras</strong></td>
-                <td>{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaHembras | number:'1.2-2' }}%</td>
-                <td>{{ comp.mortalidadGuiaHembras | number:'1.2-2' }}%</td>
+                <td>{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaHembras | number:'1.0-2' }}%</td>
+                <td>{{ comp.mortalidadGuiaHembras | number:'1.0-2' }}%</td>
                 <td [class]="getDiferenciaClass(comp.diferenciaMortalidadHembras)">
                   {{ formatearPorcentaje(comp.diferenciaMortalidadHembras) }}
                 </td>
@@ -638,8 +638,8 @@
               </tr>
               <tr *ngIf="comp.mortalidadGuiaMachos">
                 <td><strong>% Mortalidad Machos</strong></td>
-                <td>{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaMachos | number:'1.2-2' }}%</td>
-                <td>{{ comp.mortalidadGuiaMachos | number:'1.2-2' }}%</td>
+                <td>{{ liquidacion()!.totales.porcentajeMortalidadAcumuladaMachos | number:'1.0-2' }}%</td>
+                <td>{{ comp.mortalidadGuiaMachos | number:'1.0-2' }}%</td>
                 <td [class]="getDiferenciaClass(comp.diferenciaMortalidadMachos)">
                   {{ formatearPorcentaje(comp.diferenciaMortalidadMachos) }}
                 </td>
@@ -653,8 +653,8 @@
               <!-- Uniformidad -->
               <tr *ngIf="comp.uniformidadGuia">
                 <td><strong>Uniformidad (%)</strong></td>
-                <td>{{ comp.uniformidadReal | number:'1.2-2' }}%</td>
-                <td>{{ comp.uniformidadGuia | number:'1.2-2' }}%</td>
+                <td>{{ comp.uniformidadReal | number:'1.0-2' }}%</td>
+                <td>{{ comp.uniformidadGuia | number:'1.0-2' }}%</td>
                 <td [class]="getDiferenciaClass(comp.diferenciaUniformidad)">
                   {{ formatearPorcentaje(comp.diferenciaUniformidad) }}
                 </td>
@@ -702,8 +702,8 @@
                 <!-- Porcentaje de Producción -->
                 <tr *ngIf="comp.porcentajeProduccionGuia !== null && comp.porcentajeProduccionGuia !== undefined">
                   <td><strong>% Producción</strong></td>
-                  <td>{{ comp.porcentajeProduccionReal | number:'1.2-2' }}%</td>
-                  <td>{{ comp.porcentajeProduccionGuia | number:'1.2-2' }}%</td>
+                  <td>{{ comp.porcentajeProduccionReal | number:'1.0-2' }}%</td>
+                  <td>{{ comp.porcentajeProduccionGuia | number:'1.0-2' }}%</td>
                   <td [class]="getDiferenciaClass(comp.diferenciaPorcentajeProduccion)">
                     {{ formatearPorcentaje(comp.diferenciaPorcentajeProduccion) }}
                   </td>
@@ -732,8 +732,8 @@
                 <!-- Peso Huevo -->
                 <tr *ngIf="comp.pesoHuevoGuia !== null && comp.pesoHuevoGuia !== undefined">
                   <td><strong>Peso Huevo (g)</strong></td>
-                  <td>{{ comp.pesoHuevoReal | number:'1.2-2' }}</td>
-                  <td>{{ comp.pesoHuevoGuia | number:'1.2-2' }}</td>
+                  <td>{{ comp.pesoHuevoReal | number:'1.0-2' }}</td>
+                  <td>{{ comp.pesoHuevoGuia | number:'1.0-2' }}</td>
                   <td [class]="getDiferenciaClass(comp.diferenciaPesoHuevo)">
                     {{ formatearPorcentaje(comp.diferenciaPesoHuevo) }}
                   </td>
@@ -747,8 +747,8 @@
                 <!-- Masa Huevo -->
                 <tr *ngIf="comp.masaHuevoGuia !== null && comp.masaHuevoGuia !== undefined">
                   <td><strong>Masa Huevo (g)</strong></td>
-                  <td>{{ (comp.pesoHuevoReal && comp.huevosTotalesReal ? comp.pesoHuevoReal * comp.huevosTotalesReal : null) | number:'1.2-2' }}</td>
-                  <td>{{ comp.masaHuevoGuia | number:'1.2-2' }}</td>
+                  <td>{{ (comp.pesoHuevoReal && comp.huevosTotalesReal ? comp.pesoHuevoReal * comp.huevosTotalesReal : null) | number:'1.0-2' }}</td>
+                  <td>{{ comp.masaHuevoGuia | number:'1.0-2' }}</td>
                   <td [class]="getDiferenciaClass(comp.diferenciaMasaHuevo)">
                     {{ formatearPorcentaje(comp.diferenciaMasaHuevo) }}
                   </td>
@@ -762,8 +762,8 @@
                 <!-- Gramos/Huevo Total -->
                 <tr *ngIf="comp.gramosHuevoTotalGuia !== null && comp.gramosHuevoTotalGuia !== undefined">
                   <td><strong>Gramos/Huevo Total</strong></td>
-                  <td>{{ comp.pesoHuevoReal | number:'1.2-2' }}</td>
-                  <td>{{ comp.gramosHuevoTotalGuia | number:'1.2-2' }}</td>
+                  <td>{{ comp.pesoHuevoReal | number:'1.0-2' }}</td>
+                  <td>{{ comp.gramosHuevoTotalGuia | number:'1.0-2' }}</td>
                   <td>—</td>
                   <td>—</td>
                 </tr>
@@ -772,7 +772,7 @@
                 <tr *ngIf="comp.gramosHuevoIncubableGuia !== null && comp.gramosHuevoIncubableGuia !== undefined">
                   <td><strong>Gramos/Huevo Incubable</strong></td>
                   <td>—</td>
-                  <td>{{ comp.gramosHuevoIncubableGuia | number:'1.2-2' }}</td>
+                  <td>{{ comp.gramosHuevoIncubableGuia | number:'1.0-2' }}</td>
                   <td>—</td>
                   <td>—</td>
                 </tr>
@@ -781,7 +781,7 @@
                 <tr *ngIf="comp.aprovechamientoSemanalGuia !== null && comp.aprovechamientoSemanalGuia !== undefined">
                   <td><strong>% Aprovechamiento Semanal</strong></td>
                   <td>—</td>
-                  <td>{{ comp.aprovechamientoSemanalGuia | number:'1.2-2' }}%</td>
+                  <td>{{ comp.aprovechamientoSemanalGuia | number:'1.0-2' }}%</td>
                   <td>—</td>
                   <td>—</td>
                 </tr>
@@ -790,7 +790,7 @@
                 <tr *ngIf="comp.aprovechamientoAcumuladoGuia !== null && comp.aprovechamientoAcumuladoGuia !== undefined">
                   <td><strong>% Aprovechamiento Acumulado</strong></td>
                   <td>—</td>
-                  <td>{{ comp.aprovechamientoAcumuladoGuia | number:'1.2-2' }}%</td>
+                  <td>{{ comp.aprovechamientoAcumuladoGuia | number:'1.0-2' }}%</td>
                   <td>—</td>
                   <td>—</td>
                 </tr>
@@ -798,7 +798,7 @@
                 <!-- Eficiencia Real -->
                 <tr *ngIf="comp.eficienciaReal !== null && comp.eficienciaReal !== undefined">
                   <td><strong>Eficiencia Real (%)</strong></td>
-                  <td><strong>{{ comp.eficienciaReal | number:'1.2-2' }}%</strong></td>
+                  <td><strong>{{ comp.eficienciaReal | number:'1.0-2' }}%</strong></td>
                   <td>—</td>
                   <td>—</td>
                   <td>
@@ -817,19 +817,19 @@
             <div class="datos-adicionales-grid">
               <div class="dato-item" *ngIf="comp.nacimientoPorcentajeGuia">
                 <label>% Nacimiento:</label>
-                <span>{{ comp.nacimientoPorcentajeGuia | number:'1.2-2' }}%</span>
+                <span>{{ comp.nacimientoPorcentajeGuia | number:'1.0-2' }}%</span>
               </div>
               <div class="dato-item" *ngIf="comp.pollitosAveAlojadaGuia">
                 <label>Pollitos/Ave Alojada:</label>
-                <span>{{ comp.pollitosAveAlojadaGuia | number:'1.2-2' }}</span>
+                <span>{{ comp.pollitosAveAlojadaGuia | number:'1.0-2' }}</span>
               </div>
               <div class="dato-item" *ngIf="comp.gramosPollitoGuia">
                 <label>Gramos/Pollito:</label>
-                <span>{{ comp.gramosPollitoGuia | number:'1.2-2' }}g</span>
+                <span>{{ comp.gramosPollitoGuia | number:'1.0-2' }}g</span>
               </div>
               <div class="dato-item" *ngIf="comp.apareoGuia">
                 <label>% Apareo:</label>
-                <span>{{ comp.apareoGuia | number:'1.2-2' }}%</span>
+                <span>{{ comp.apareoGuia | number:'1.0-2' }}%</span>
               </div>
               <div class="dato-item" *ngIf="comp.kcalAveDiaHGuia">
                 <label>Kcal/Ave/Día (Hembras):</label>

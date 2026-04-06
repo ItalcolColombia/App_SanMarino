@@ -13,7 +13,7 @@
   "containerDefinitions": [
     {
       "name": "backend",
-      "image": "196080479890.dkr.ecr.us-east-2.amazonaws.com/sanmarino/zootecnia/granjas/backend:20260401-1413",
+      "image": "196080479890.dkr.ecr.us-east-2.amazonaws.com/sanmarino/zootecnia/granjas/backend:20260406-0949",
       "essential": true,
       "portMappings": [
         { 

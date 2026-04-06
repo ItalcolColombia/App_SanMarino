@@ -458,7 +458,7 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Promedio:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.0-2' }}%</span>
             </div>
           </div>
         </div>
@@ -506,11 +506,11 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Peso Actual:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.2-2' }}g</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.0-2' }}g</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Ganancia:</span>
-              <span class="stat-value">{{ calcularGananciaTotal() | number:'1.2-2' }}g</span>
+              <span class="stat-value">{{ calcularGananciaTotal() | number:'1.0-2' }}g</span>
             </div>
           </div>
         </div>
@@ -532,7 +532,7 @@
           <div class="grafica-stats">
             <div class="stat-item">
               <span class="stat-label">Promedio:</span>
-              <span class="stat-value">{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.2-2' }}</span>
+              <span class="stat-value">{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Mejor:</span>
@@ -558,11 +558,11 @@
           <div class="grafica-stats" *ngIf="indicadoresFiltrados.length > 0">
             <div class="stat-item">
               <span class="stat-label">Mortalidad:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.mortalidadSem | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.mortalidadSem | number:'1.0-2' }}%</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">Selección:</span>
-              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.seleccionSem | number:'1.2-2' }}%</span>
+              <span class="stat-value">{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.seleccionSem | number:'1.0-2' }}%</span>
             </div>
           </div>
         </div>
@@ -599,7 +599,7 @@
           <div class="metrica-icon">⚖️</div>
           <div class="metrica-content">
             <h5>Peso Actual</h5>
-            <p>{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.2-2' }}g</p>
+            <p>{{ indicadoresFiltrados[indicadoresFiltrados.length - 1]?.pesoCierre | number:'1.0-2' }}g</p>
           </div>
         </div>
 
@@ -607,7 +607,7 @@
           <div class="metrica-icon">🍽️</div>
           <div class="metrica-content">
             <h5>Conv. Promedio</h5>
-            <p>{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.2-2' }}</p>
+            <p>{{ calcularPromedioIndicadores('conversionAlimenticia') | number:'1.0-2' }}</p>
           </div>
         </div>
 
@@ -615,7 +615,7 @@
           <div class="metrica-icon">💀</div>
           <div class="metrica-content">
             <h5>Mort. Promedio</h5>
-            <p>{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.2-2' }}%</p>
+            <p>{{ calcularPromedioIndicadores('mortalidadSem') | number:'1.0-2' }}%</p>
           </div>
         </div>
 

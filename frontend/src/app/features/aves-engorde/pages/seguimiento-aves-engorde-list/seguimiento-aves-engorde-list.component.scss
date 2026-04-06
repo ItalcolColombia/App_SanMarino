@@ -121,6 +121,13 @@
     display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
   }
 
+  :host .ux-header__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
   :host .chip {
     display: inline-flex; align-items: center; gap: .4rem;
     font-size: var(--fs-xs); line-height: 1;
@@ -476,6 +483,12 @@
 :host .ux-header__title { display: flex; flex-direction: column; gap: .35rem; }
 :host .ux-header__title h1 { margin: 0; font-size: 1.35rem; font-weight: 800; color: var(--ital-orange-dark); letter-spacing: .2px; }
 :host .ux-header__meta { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+:host .ux-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
 
 /* ===========================
    Chips

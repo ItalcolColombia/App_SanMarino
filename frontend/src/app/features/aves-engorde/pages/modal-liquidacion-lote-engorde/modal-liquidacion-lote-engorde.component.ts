@@ -2,7 +2,8 @@ import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, injec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize, take } from 'rxjs/operators';
+import { concatMap, finalize, map, take } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../../core/auth/auth.service';
@@ -45,6 +46,8 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   stockAlimento: InventarioGestionStockDto[] = [];
   loadingStock = false;
   stockError: string | null = null;
+  /** Si hubo que consultar inventario sin filtrar por galpón para encontrar filas. */
+  stockUsandoFallbackUbicacion = false;
 
   abrirModal = false;
   motivoReapertura = '';
@@ -66,6 +69,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.stockAlimento = [];
     this.loadingStock = false;
     this.stockError = null;
+    this.stockUsandoFallbackUbicacion = false;
     this.abrirModal = false;
     this.motivoReapertura = '';
   }
@@ -91,7 +95,12 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   }
 
   get saldoPositivo(): boolean {
-    return (this.stockAlimento ?? []).some(r => (r?.quantity ?? 0) > 0);
+    return this.totalKgStockInventario > 0;
+  }
+
+  /** Suma kg de ítems alimento en inventario (misma ubicación consultada). */
+  get totalKgStockInventario(): number {
+    return (this.stockAlimento ?? []).reduce((s, r) => s + (Number(r.quantity) || 0), 0);
   }
 
   /** No se puede liquidar si aún hay aves vivas en el lote. */
@@ -104,31 +113,68 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   }
 
   private cargarStockAlimento(): void {
-    // Solo aplica cuando ya no hay aves vivas (cierre operativo requiere lote en 0 aves).
-    if (this.granjaId == null || !this.puedeLiquidarPorAves) {
+    if (this.granjaId == null) {
       this.stockAlimento = [];
+      this.stockUsandoFallbackUbicacion = false;
       return;
     }
     this.loadingStock = true;
     this.stockError = null;
-    const params: { farmId: number; nucleoId?: string; galponId?: string } = { farmId: this.granjaId };
-    if (this.nucleoId) params.nucleoId = this.nucleoId;
-    if (this.galponId) params.galponId = this.galponId;
+    this.stockUsandoFallbackUbicacion = false;
+
+    const pFull = {
+      farmId: this.granjaId,
+      nucleoId: this.nucleoId ?? undefined,
+      galponId: this.galponId ?? undefined
+    };
+
     this.invGestion
-      .getStock(params)
-      .pipe(finalize(() => (this.loadingStock = false)))
+      .getStock(pFull)
+      .pipe(
+        concatMap(rows => {
+          const food = this.filtrarFilasAlimento(rows ?? []).filter(r => (r.quantity ?? 0) > 0);
+          if (food.length > 0 || !this.galponId) {
+            return of({ rows: food, fallback: false });
+          }
+          return this.invGestion
+            .getStock({ farmId: this.granjaId!, nucleoId: this.nucleoId ?? undefined })
+            .pipe(
+              map(rows2 => {
+                const f2 = this.filtrarFilasAlimento(rows2 ?? []).filter(r => (r.quantity ?? 0) > 0);
+                return { rows: f2, fallback: f2.length > 0 };
+              })
+            );
+        }),
+        finalize(() => (this.loadingStock = false))
+      )
       .subscribe({
-        next: rows => {
-          const list = rows ?? [];
-          this.stockAlimento = list
-            .filter(r => String(r.itemType ?? '').trim().toLowerCase() === 'alimento')
-            .filter(r => (r.quantity ?? 0) > 0);
+        next: ({ rows, fallback }) => {
+          this.stockAlimento = rows;
+          this.stockUsandoFallbackUbicacion = fallback;
         },
         error: err => {
           this.stockError = err?.error?.message ?? err?.message ?? 'No se pudo cargar el stock de alimento.';
           this.stockAlimento = [];
+          this.stockUsandoFallbackUbicacion = false;
         }
       });
+  }
+
+  /** Ítems alimento (concepto/tipo puede ser "alimento" o texto que comience por "alimento"). */
+  private filtrarFilasAlimento(rows: InventarioGestionStockDto[]): InventarioGestionStockDto[] {
+    return rows.filter(r => this.esItemTipoAlimento(r));
+  }
+
+  private esItemTipoAlimento(r: InventarioGestionStockDto): boolean {
+    const t = String(r.itemType ?? '').trim().toLowerCase();
+    return t === 'alimento' || t.startsWith('alimento');
+  }
+
+  /** Saldo diario (seguimiento) vs inventario físico: avisar si difieren de forma relevante. */
+  get inventarioDifiereDelSeguimiento(): boolean {
+    const s = this.resumen?.saldoAlimentoKg;
+    if (s == null || this.loadingStock) return false;
+    return Math.abs(Number(s) - this.totalKgStockInventario) > 0.5;
   }
 
   private async userIdStr(): Promise<string> {

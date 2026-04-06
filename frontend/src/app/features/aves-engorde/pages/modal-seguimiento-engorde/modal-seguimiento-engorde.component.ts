@@ -12,6 +12,7 @@ import { EMPTY, forkJoin, of } from 'rxjs';
 import { expand, map, reduce, finalize, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { AvesDisponiblesDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 
 @Component({
   selector: 'app-modal-seguimiento-engorde',
@@ -28,6 +29,8 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   @Input() loading: boolean = false;
   /** True mientras se obtiene el registro por ID (editar) antes de mostrar el formulario. */
   @Input() loadingRecord: boolean = false;
+  /** Aves disponibles por sexo (GET aves-disponibles); solo reglas de UI en nuevo registro. */
+  @Input() avesDisponibles: AvesDisponiblesDto | null = null;
 
   /** Pollo engorde: consumo solo alimento; UI simplificada (no comparte el modal de Levante). */
   readonly hembrasSoloAlimento = true;
@@ -120,7 +123,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.isOpen) return;
     // Evitar repoblar al cambiar solo lotes/loading (borraría lo que el usuario editó en el modal)
-    if (!changes['isOpen'] && !changes['editing']) return;
+    if (!changes['isOpen'] && !changes['editing'] && !changes['avesDisponibles']) return;
+
+    if (changes['avesDisponibles'] && !this.editing && this.form) {
+      this.aplicarBloqueoPorAvesDisponibles();
+    }
 
     if (this.editing) {
       this.populateForm();
@@ -377,22 +384,55 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
   // Obtener alimentos filtrados para un ítem específico
   // Ecuador/Panamá: filtra por concepto (tipo ítem = conceptos de item_inventario_ecuador); mismo criterio en tabs hembras y machos
-  getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemDto[] {
+  /** `selectedCatalogId`: id ya elegido en la fila; se mantiene en la lista aunque el stock sea 0 (p. ej. edición). */
+  getAlimentosFiltradosPorTipo(tipoItem: string | null, selectedCatalogId?: number | string | null): CatalogItemDto[] {
+    let list: CatalogItemDto[];
     if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
-      if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i));
-      return this.itemsEcuadorPanama
-        .filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c))
-        .map(i => this.itemEcuadorToCatalogItem(i));
+      if (!c) {
+        list = this.itemsEcuadorPanama.map(i => this.itemEcuadorToCatalogItem(i));
+      } else {
+        list = this.itemsEcuadorPanama
+          .filter(i => ((i.concepto ?? i.tipoItem ?? '').trim().toLowerCase() === c))
+          .map(i => this.itemEcuadorToCatalogItem(i));
+      }
+    } else if (!tipoItem || !this.granjaIdActual) {
+      list = this.alimentosCatalog;
+    } else {
+      list = this.alimentosCatalog.filter(a => {
+        const metadata = a.metadata;
+        const itemType = metadata?.type_item || metadata?.itemType;
+        return metadata && itemType === tipoItem;
+      });
     }
-    if (!tipoItem || !this.granjaIdActual) {
-      return this.alimentosCatalog;
-    }
-    return this.alimentosCatalog.filter(a => {
-      const metadata = a.metadata;
-      const itemType = metadata?.type_item || metadata?.itemType;
-      return metadata && itemType === tipoItem;
+    return this.filtrarAlimentosConStockDisponible(list, selectedCatalogId);
+  }
+
+  /**
+   * Solo ítems con existencia &gt; 0 en inventario (misma fuente que "Disponible actual").
+   * El id seleccionado en la fila siempre se incluye para no romper edición o valor ya guardado.
+   */
+  private filtrarAlimentosConStockDisponible(items: CatalogItemDto[], selectedCatalogId?: number | string | null): CatalogItemDto[] {
+    const sel = this.normalizarIdCatalogoSeleccion(selectedCatalogId);
+    return items.filter(a => {
+      if (sel != null && a.id === sel) return true;
+      return this.itemTieneStockDisponibleEnUbicacion(a.id);
     });
+  }
+
+  private normalizarIdCatalogoSeleccion(v: number | string | null | undefined): number | null {
+    if (v == null || v === '') return null;
+    const n = typeof v === 'string' ? parseInt(v, 10) : Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  /** True si hay cantidad &gt; 0 en `inventarioPorItem` para el ítem (kg/g según backend). */
+  private itemTieneStockDisponibleEnUbicacion(catalogItemId: number | null | undefined): boolean {
+    if (catalogItemId == null) return false;
+    const d = this.getCantidadDisponible(catalogItemId);
+    if (!d) return false;
+    const q = Number(d.quantity);
+    return Number.isFinite(q) && q > 0;
   }
 
   private itemEcuadorToCatalogItem(i: ItemInventarioEcuadorDto): CatalogItemDto {
@@ -448,6 +488,24 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     const disponibleKg = this.toKg(Number(disponible.quantity || 0), disponible.unit);
     const originalKg = this.editing ? this.getOriginalConsumoKg(catalogItemId) : 0;
     return disponibleKg + originalKg;
+  }
+
+  /** Resumen API aves-disponibles (solo nuevo registro). */
+  get muestraResumenAvesDisponibles(): boolean {
+    return !this.editing && this.avesDisponibles != null;
+  }
+
+  get bloqueoHembrasPorAves(): boolean {
+    return !this.editing && this.avesDisponibles != null && (this.avesDisponibles.hembrasDisponibles ?? 0) <= 0;
+  }
+
+  get bloqueoMachosPorAves(): boolean {
+    return !this.editing && this.avesDisponibles != null && (this.avesDisponibles.machosDisponibles ?? 0) <= 0;
+  }
+
+  /** Nuevo registro: no queda ningún ave del sexo en el lote (API aves-disponibles). */
+  get bloqueoAmbosSexosPorAves(): boolean {
+    return this.bloqueoHembrasPorAves && this.bloqueoMachosPorAves;
   }
 
   /** True si la cantidad ingresada supera el disponible del ítem seleccionado. */
@@ -741,6 +799,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   private applyEditModeFieldLocks(): void {
     if (!this.editing) {
       this.setAllFormControlsEnabled(true);
+      this.aplicarBloqueoPorAvesDisponibles();
       return;
     }
     if (!this.hembrasSoloAlimento) {
@@ -759,6 +818,56 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     bloqueados.forEach(k => this.form.get(k)?.disable({ emitEvent: false }));
     this.itemsHembrasArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
     this.itemsMachosArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
+  }
+
+  /**
+   * Nuevo registro: si no hay aves disponibles por sexo, deshabilita mortalidad/selección/error de sexaje
+   * en esa columna y fija 0. Si `avesDisponibles` es null (API aún no cargó), no bloquea.
+   */
+  private aplicarBloqueoPorAvesDisponibles(): void {
+    if (this.editing) return;
+    if (!this.form) return;
+    const adv = this.avesDisponibles;
+    const hOk = adv == null || (adv.hembrasDisponibles ?? 0) > 0;
+    const mOk = adv == null || (adv.machosDisponibles ?? 0) > 0;
+    const hemKeys = [
+      'mortalidadHembras',
+      'selH',
+      'errorSexajeHembras',
+      'pesoPromH',
+      'uniformidadH',
+      'cvH'
+    ] as const;
+    const machKeys = [
+      'mortalidadMachos',
+      'selM',
+      'errorSexajeMachos',
+      'pesoPromM',
+      'uniformidadM',
+      'cvM'
+    ] as const;
+    const valorBloqueo = (key: string) =>
+      ['pesoPromH', 'pesoPromM', 'uniformidadH', 'uniformidadM', 'cvH', 'cvM'].includes(key) ? null : 0;
+    for (const k of hemKeys) {
+      const c = this.form.get(k);
+      if (!c) continue;
+      if (hOk) {
+        c.enable({ emitEvent: false });
+      } else {
+        c.setValue(valorBloqueo(k), { emitEvent: false });
+        c.disable({ emitEvent: false });
+      }
+    }
+    for (const k of machKeys) {
+      const c = this.form.get(k);
+      if (!c) continue;
+      if (mOk) {
+        c.enable({ emitEvent: false });
+      } else {
+        c.setValue(valorBloqueo(k), { emitEvent: false });
+        c.disable({ emitEvent: false });
+      }
+    }
   }
 
   private establecerTipoItemYAlimentoAlEditar(): void {
@@ -1504,7 +1613,31 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     }
 
     // getRawValue() incluye todos los controles (también los que están en tabs condicionales como Agua)
-    const raw = this.form.getRawValue();
+    const raw = { ...this.form.getRawValue() };
+    if (!this.editing && this.avesDisponibles) {
+      const h0 = (this.avesDisponibles.hembrasDisponibles ?? 0) <= 0;
+      const m0 = (this.avesDisponibles.machosDisponibles ?? 0) <= 0;
+      if (h0) {
+        Object.assign(raw, {
+          mortalidadHembras: 0,
+          selH: 0,
+          errorSexajeHembras: 0,
+          pesoPromH: null,
+          uniformidadH: null,
+          cvH: null
+        });
+      }
+      if (m0) {
+        Object.assign(raw, {
+          mortalidadMachos: 0,
+          selM: 0,
+          errorSexajeMachos: 0,
+          pesoPromM: null,
+          uniformidadM: null,
+          cvM: null
+        });
+      }
+    }
     const loteId = raw.loteId;
     const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
 

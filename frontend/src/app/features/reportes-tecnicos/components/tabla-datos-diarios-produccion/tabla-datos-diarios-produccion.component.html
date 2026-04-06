@@ -42,14 +42,14 @@
         <td class="text-right"><strong>{{ dato.saldoHembras }}</strong></td>
         <td class="text-right"><strong>{{ dato.saldoMachos }}</strong></td>
         <td class="text-right">{{ dato.huevosTotales }}</td>
-        <td class="text-right">{{ dato.porcentajePostura | number:'1.2-2' }}%</td>
-        <td class="text-right">{{ dato.kilosAlimentoHembras | number:'1.2-2' }}</td>
-        <td class="text-right">{{ dato.kilosAlimentoMachos | number:'1.2-2' }}</td>
+        <td class="text-right">{{ dato.porcentajePostura | number:'1.0-2' }}%</td>
+        <td class="text-right">{{ dato.kilosAlimentoHembras | number:'1.0-2' }}</td>
+        <td class="text-right">{{ dato.kilosAlimentoMachos | number:'1.0-2' }}</td>
         <td class="text-right">{{ dato.huevosEnviadosPlanta }}</td>
-        <td class="text-right">{{ dato.porcentajeIncubable | number:'1.2-2' }}%</td>
-        <td class="text-right">{{ dato.pesoHembra ? (dato.pesoHembra | number:'1.2-2') : '-' }}</td>
-        <td class="text-right">{{ dato.pesoMachos ? (dato.pesoMachos | number:'1.2-2') : '-' }}</td>
-        <td class="text-right">{{ dato.pesoHuevo | number:'1.2-2' }}</td>
+        <td class="text-right">{{ dato.porcentajeIncubable | number:'1.0-2' }}%</td>
+        <td class="text-right">{{ dato.pesoHembra ? (dato.pesoHembra | number:'1.0-2') : '-' }}</td>
+        <td class="text-right">{{ dato.pesoMachos ? (dato.pesoMachos | number:'1.0-2') : '-' }}</td>
+        <td class="text-right">{{ dato.pesoHuevo | number:'1.0-2' }}</td>
       </tr>
     </tbody>
   </table>
