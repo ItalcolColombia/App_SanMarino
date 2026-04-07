@@ -5,17 +5,12 @@ import {
   EventEmitter,
   OnChanges,
   SimpleChanges,
-  OnDestroy
+  OnDestroy,
+  ChangeDetectorRef
 } from '@angular/core';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
-import {
-  FormBuilder,
-  FormGroup,
-  Validators,
-  ReactiveFormsModule,
-  FormsModule
-} from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
@@ -23,7 +18,8 @@ import {
   CreateVentaGranjaDespachoDto,
   UpdateMovimientoPolloEngordeDto,
   ResumenAvesLoteDto,
-  VentaGranjaDespachoLineaDto
+  VentaGranjaDespachoLineaDto,
+  AvesDisponiblesVentaLoteDto
 } from '../../services/movimiento-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
@@ -57,6 +53,10 @@ export interface VentaLineaGranja {
   hStr: string;
   mStr: string;
   xStr: string;
+  /** Breve aviso visual si el usuario intentó superar el máximo (se ajusta al tope). */
+  flashExcesoH?: boolean;
+  flashExcesoM?: boolean;
+  flashExcesoX?: boolean;
 }
 
 export interface MovimientoPolloEngordeSaveDetail {
@@ -66,7 +66,7 @@ export interface MovimientoPolloEngordeSaveDetail {
 @Component({
   selector: 'app-modal-movimiento-pollo-engorde',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-pollo-engorde.component.html',
   styleUrls: ['./modal-movimiento-pollo-engorde.component.scss']
 })
@@ -117,7 +117,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       return 'Editar Movimiento';
     }
     if (this.ventaPorGranjaMode) return 'Nueva venta por granja (despacho)';
-    return 'Nuevo Movimiento de Pollo Engorde';
+    return 'Nueva venta de Pollo Engorde';
   }
 
   /** Opciones de destino excluyendo el lote origen actual. */
@@ -203,9 +203,23 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   constructor(
     private fb: FormBuilder,
     private movimientoSvc: MovimientoPolloEngordeService,
-    private tokenStorage: TokenStorageService
+    private tokenStorage: TokenStorageService,
+    private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
+  }
+
+  /**
+   * Convierte YYYY-MM-DD (input date) a ISO estable sin desfase de zona horaria.
+   * Usamos mediodía UTC para evitar quedar en el día anterior/siguiente por offset.
+   */
+  private ymdToIsoUtcNoon(ymd: string | null | undefined): string | null {
+    const s = (ymd ?? '').trim();
+    if (!s) return null;
+    // Esperado: 2026-04-07
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    return `${m[1]}-${m[2]}-${m[3]}T12:00:00Z`;
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -220,19 +234,64 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.loadFormFromMovimiento(this.editingMovimiento);
         this.form.get('raza')?.enable();
         this.form.get('edadAves')?.enable();
+        this.configureTotalPollosGalponControl();
       } else {
         this.resetForm();
         if (this.ventaPorGranjaMode) {
           this.form.patchValue({ tipoMovimiento: 'Venta' });
           this.form.get('tipoMovimiento')?.disable({ emitEvent: false });
+          this.applyRazaFromVentaGranja();
           this.loadVentaGranjaLineas();
         } else {
           this.form.get('tipoMovimiento')?.enable({ emitEvent: false });
           this.applyLotInfoToForm();
           this.subscribeFechaMovimientoForEdad();
+          this.configureTotalPollosGalponControl();
         }
       }
     }
+  }
+
+  private applyRazaFromVentaGranja(): void {
+    if (!this.ventaPorGranjaMode || this.editingMovimiento) return;
+    const razas = (this.lotesVentaGranja ?? [])
+      .map((l) => (l.raza ?? '').trim())
+      .filter((x) => !!x);
+    const unica = Array.from(new Set(razas));
+    const razaValue = unica.length === 1 ? unica[0] : unica.length > 1 ? 'Varias' : null;
+    this.form.patchValue({ raza: razaValue });
+    this.form.get('raza')?.disable({ emitEvent: false });
+  }
+
+  totalSeleccionadoGalpon(lines: VentaLineaGranja[]): number {
+    return (lines || []).reduce((s, l) => s + (l.h ?? 0) + (l.m ?? 0) + (l.x ?? 0), 0);
+  }
+
+  /**
+   * En venta por granja: total pollos del despacho = suma de cantidades por lote (solo lectura).
+   */
+  private configureTotalPollosGalponControl(): void {
+    const ctrl = this.form.get('totalPollosGalpon');
+    if (!ctrl) return;
+    if (this.ventaPorGranjaMode && !this.editingMovimiento) {
+      ctrl.setValue(this.totalAves, { emitEvent: false });
+      ctrl.disable({ emitEvent: false });
+    } else if (!this.isReadOnly) {
+      ctrl.enable({ emitEvent: false });
+    }
+  }
+
+  private syncTotalPollosGalponVentaGranja(): void {
+    if (!this.ventaPorGranjaMode || this.editingMovimiento) return;
+    const ctrl = this.form.get('totalPollosGalpon');
+    ctrl?.setValue(this.totalAves, { emitEvent: false });
+  }
+
+  private clearLineaFlash(line: VentaLineaGranja, field: 'h' | 'm' | 'x'): void {
+    if (field === 'h') line.flashExcesoH = false;
+    else if (field === 'm') line.flashExcesoM = false;
+    else line.flashExcesoX = false;
+    this.cdr.markForCheck();
   }
 
   ngOnDestroy(): void {
@@ -501,7 +560,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       });
     }
     return {
-      fechaMovimiento: new Date(v.fechaMovimiento).toISOString(),
+      fechaMovimiento: this.ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString(),
       tipoMovimiento: 'Venta',
       granjaOrigenId: granjaId,
       usuarioMovimientoId,
@@ -534,17 +593,15 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     this.loadingVentaLineas = true;
     this.error = null;
     const loteIds = lotes.map((l) => l.loteAveEngordeId);
-    this.movimientoSvc.postResumenAvesLotes({ tipoLote: 'LoteAveEngorde', loteIds }).subscribe({
+    this.movimientoSvc.postAvesDisponiblesLotes({ tipoLote: 'LoteAveEngorde', loteIds }).subscribe({
       next: (resp) => {
-        const byId = new Map<number, ResumenAvesLoteDto | null>();
-        for (const row of resp.items ?? []) {
-          byId.set(row.loteId, row.resumen);
-        }
+        const byId = new Map<number, AvesDisponiblesVentaLoteDto | null>();
+        for (const row of resp.items ?? []) byId.set(row.loteId, row.disponibles);
         this.ventaLineasGranja = lotes.map((l) => {
           const r = byId.get(l.loteAveEngordeId);
-          const maxH = r?.avesActualesHembras ?? l.hembrasL ?? 0;
-          const maxM = r?.avesActualesMachos ?? l.machosL ?? 0;
-          const maxX = r?.avesActualesMixtas ?? l.mixtas ?? 0;
+          const maxH = r?.hembrasDisponibles ?? l.hembrasL ?? 0;
+          const maxM = r?.machosDisponibles ?? l.machosL ?? 0;
+          const maxX = r?.mixtasDisponibles ?? l.mixtas ?? 0;
           const galponId = (l.galponId ?? '').trim() || '__SIN_GALPON__';
           return {
             loteId: l.loteAveEngordeId,
@@ -559,11 +616,15 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
             x: 0,
             hStr: '',
             mStr: '',
-            xStr: ''
+            xStr: '',
+            flashExcesoH: false,
+            flashExcesoM: false,
+            flashExcesoX: false
           };
         });
         this.loadingVentaLineas = false;
         this.rebuildGruposVentaPorGalpon();
+        this.configureTotalPollosGalponControl();
       },
       error: () => {
         this.loadingVentaLineas = false;
@@ -594,30 +655,55 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   /**
-   * Solo dígitos; actualiza el número usado en totales y validación.
-   * Si supera el máximo del lote, el texto se ajusta al máximo permitido.
+   * Cantidad por lote (venta granja): lee el valor real del input, limita al máximo disponible
+   * y mantiene modelo + DOM alineados (evita quedar en 4710 cuando el tope es 471).
    */
-  onLineaCantidadStr(line: VentaLineaGranja, field: 'h' | 'm' | 'x', value: string): void {
-    const digits = (value ?? '').replace(/\D/g, '');
+  onLineaCantidadInput(ev: Event, line: VentaLineaGranja, field: 'h' | 'm' | 'x'): void {
+    const input = ev.target as HTMLInputElement;
+    const digits = (input.value ?? '').replace(/\D/g, '');
     const max = field === 'h' ? line.maxH : field === 'm' ? line.maxM : line.maxX;
     const parsed = digits === '' ? 0 : parseInt(digits, 10) || 0;
     const clamped = Math.min(parsed, max);
+    const exceeded = parsed > max;
+    const nextStr = digits === '' ? '' : String(clamped);
+
     if (field === 'h') {
-      line.hStr = parsed > max ? String(max) : digits;
       line.h = clamped;
+      line.hStr = nextStr;
+      if (exceeded) {
+        line.flashExcesoH = true;
+        window.setTimeout(() => this.clearLineaFlash(line, 'h'), 900);
+      }
     } else if (field === 'm') {
-      line.mStr = parsed > max ? String(max) : digits;
       line.m = clamped;
+      line.mStr = nextStr;
+      if (exceeded) {
+        line.flashExcesoM = true;
+        window.setTimeout(() => this.clearLineaFlash(line, 'm'), 900);
+      }
     } else {
-      line.xStr = parsed > max ? String(max) : digits;
       line.x = clamped;
+      line.xStr = nextStr;
+      if (exceeded) {
+        line.flashExcesoX = true;
+        window.setTimeout(() => this.clearLineaFlash(line, 'x'), 900);
+      }
     }
+
+    if (input.value !== nextStr) {
+      input.value = nextStr;
+    }
+
+    this.syncTotalPollosGalponVentaGranja();
+    this.cdr.detectChanges();
   }
 
   private buildUpdateDto(): UpdateMovimientoPolloEngordeDto {
     const v = this.form.getRawValue();
     return {
-      fechaMovimiento: v.fechaMovimiento ? new Date(v.fechaMovimiento).toISOString() : undefined,
+      fechaMovimiento: v.fechaMovimiento
+        ? (this.ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString())
+        : undefined,
       tipoMovimiento: v.tipoMovimiento || undefined,
       cantidadHembras: Number(v.cantidadHembras) ?? undefined,
       cantidadMachos: Number(v.cantidadMachos) ?? undefined,
@@ -647,7 +733,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     const dest = this.isTipoVenta ? null : (v.loteDestinoValue ? this.parseLoteValue(v.loteDestinoValue) : null);
 
     const dto: CreateMovimientoPolloEngordeDto = {
-      fechaMovimiento: new Date(v.fechaMovimiento).toISOString(),
+      fechaMovimiento: this.ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString(),
       tipoMovimiento: v.tipoMovimiento || 'Venta',
       loteAveEngordeOrigenId: origen.tipo === 'ae' ? origen.id : null,
       loteReproductoraAveEngordeOrigenId: origen.tipo === 'rae' ? origen.id : null,

@@ -3,16 +3,20 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { finalize } from 'rxjs/operators';
+import * as XLSX from 'xlsx';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
-  ResumenAvesLoteDto
+  ResumenAvesLoteDto,
+  AuditoriaVentasEngordeResponse,
+  CorregirVentasCompletadasResponse
 } from '../../services/movimiento-pollo-engorde.service';
 import { FarmDto } from '../../../farm/services/farm.service';
 import { NucleoDto } from '../../../lote-produccion/services/nucleo.service';
 import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { LoteEngordeService, LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { AuditoriaVentasModalComponent } from '../../components/auditoria-ventas-modal/auditoria-ventas-modal.component';
 import {
   ModalMovimientoPolloEngordeComponent,
   MovimientoPolloEngordeSaveDetail
@@ -50,6 +54,7 @@ export type FilaTablaMovimiento = FilaDespachoGrupo | FilaMovimientoSimple;
     CommonModule,
     FormsModule,
     ConfirmationModalComponent,
+    AuditoriaVentasModalComponent,
     ModalMovimientoPolloEngordeComponent
   ],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
@@ -119,6 +124,14 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   expandedDespacho: Record<string, boolean> = {};
 
   private galponNameById = new Map<string, string>();
+  /** IDs de lotes Ave Engorde presentes en ventas registradas (resultado actual). */
+  private ventaLoteAveEngordeIdSet = new Set<number>();
+
+  loadingAuditoria = false;
+  auditoriaToRun: { dryRun: boolean; aplicarCorreccion: boolean } | null = null;
+  auditoriaModalOpen = false;
+  auditoriaResult: AuditoriaVentasEngordeResponse | null = null;
+  auditoriaLoteMetaById: Record<number, { galponLabel: string; loteLabel: string }> = {};
 
   get selectedGranjaName(): string {
     const g = this.granjas.find((x) => x.id === this.selectedGranjaId);
@@ -169,6 +182,228 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     private toastService: ToastService
   ) {}
 
+  private resumenAuditoriaTexto(res: AuditoriaVentasEngordeResponse): string {
+    const lotes = res.lotes ?? [];
+    const conExceso = lotes
+      .filter((l) => (l.excesoH + l.excesoM + l.excesoX) > 0)
+      .sort((a, b) => (b.excesoH + b.excesoM + b.excesoX) - (a.excesoH + a.excesoM + a.excesoX));
+
+    const fmt = (n: number) => new Intl.NumberFormat('es-CO').format(n ?? 0);
+    const pad = (s: string, w: number, dir: 'l' | 'r' = 'l') => {
+      const txt = s ?? '';
+      if (txt.length >= w) return txt.slice(0, w);
+      const spaces = ' '.repeat(w - txt.length);
+      return dir === 'r' ? spaces + txt : txt + spaces;
+    };
+    const row = (cols: Array<{ v: string; w: number; dir?: 'l' | 'r' }>) =>
+      cols.map((c) => pad(c.v, c.w, c.dir ?? 'l')).join(' | ').trimEnd();
+    const sep = (cols: Array<{ w: number }>) => cols.map((c) => '-'.repeat(c.w)).join('-+-');
+
+    const lines: string[] = [];
+    lines.push(res.mensaje || (res.ok ? 'OK' : 'Se encontraron inconsistencias.'));
+    lines.push('');
+    lines.push('RESUMEN');
+    const modo = res.aplicarCorreccion
+      ? 'CORRIGIÓ (solo Pendiente)'
+      : res.dryRun
+        ? 'VALIDACIÓN (sin cambios)'
+        : 'VALIDACIÓN';
+    const resumenCols = [
+      { v: 'Lotes auditados', w: 16 },
+      { v: String(lotes.length), w: 6, dir: 'r' as const },
+      { v: 'Con exceso', w: 10 },
+      { v: String(conExceso.length), w: 6, dir: 'r' as const },
+      { v: 'Modo', w: 6 },
+      { v: modo, w: 28 }
+    ];
+    lines.push(row(resumenCols));
+    lines.push(sep(resumenCols));
+
+    if (conExceso.length) {
+      lines.push('');
+      lines.push('DETALLE DE INCONSISTENCIAS (por lote)');
+      const tableCols = [
+        { v: 'Lote (ID · Nombre)', w: 26 },
+        { v: 'Límite H', w: 9, dir: 'r' as const },
+        { v: 'Límite M', w: 9, dir: 'r' as const },
+        { v: 'Comp H', w: 8, dir: 'r' as const },
+        { v: 'Comp M', w: 8, dir: 'r' as const },
+        { v: 'Pend H', w: 8, dir: 'r' as const },
+        { v: 'Pend M', w: 8, dir: 'r' as const },
+        { v: 'Exceso H', w: 9, dir: 'r' as const },
+        { v: 'Exceso M', w: 9, dir: 'r' as const },
+        { v: 'Corregible', w: 10 }
+      ];
+      lines.push(row(tableCols));
+      lines.push(sep(tableCols));
+
+      for (const l of conExceso.slice(0, 50)) {
+        const nombre = (l.loteNombre || '').trim();
+        const lotLabel = nombre ? `${l.loteAveEngordeId} · ${nombre}` : String(l.loteAveEngordeId);
+        lines.push(
+          row([
+            { v: lotLabel, w: 26 },
+            { v: fmt(l.maxVendibleH), w: 9, dir: 'r' },
+            { v: fmt(l.maxVendibleM), w: 9, dir: 'r' },
+            { v: fmt(l.vendidasCompletadoH), w: 8, dir: 'r' },
+            { v: fmt(l.vendidasCompletadoM), w: 8, dir: 'r' },
+            { v: fmt(l.vendidasPendienteH), w: 8, dir: 'r' },
+            { v: fmt(l.vendidasPendienteM), w: 8, dir: 'r' },
+            { v: fmt(l.excesoH), w: 9, dir: 'r' },
+            { v: fmt(l.excesoM), w: 9, dir: 'r' },
+            { v: l.autoCorregible ? 'Sí' : 'No', w: 10 }
+          ])
+        );
+
+        // Tabla de cálculo (explica de dónde sale el límite vendible)
+        lines.push(
+          row([
+            { v: '  Cálculo', w: 26 },
+            { v: `EncH ${fmt(l.encasetadasH)}`, w: 9 },
+            { v: `EncM ${fmt(l.encasetadasM)}`, w: 9 },
+            { v: `MortH ${fmt(l.mortCajaH + l.mortSegH)}`, w: 8 },
+            { v: `MortM ${fmt(l.mortCajaM + l.mortSegM)}`, w: 8 },
+            { v: `SelH ${fmt(l.selH)}`, w: 8 },
+            { v: `SelM ${fmt(l.selM)}`, w: 8 },
+            { v: `ErrH ${fmt(l.errSexH)}`, w: 9 },
+            { v: `ErrM ${fmt(l.errSexM)}`, w: 9 },
+            { v: `AsigH/M ${fmt(l.asignadasH)}/${fmt(l.asignadasM)}`, w: 10 }
+          ])
+        );
+
+        if (!l.autoCorregible) {
+          lines.push(`  Motivo: ${l.estado}. No hay ventas Pendiente para ajustar (el exceso viene de Completados u otra inconsistencia).`);
+        }
+      }
+      if (conExceso.length > 50) lines.push(`... y ${conExceso.length - 50} lote(s) más con exceso.`);
+    }
+
+    if ((res.acciones?.length || 0) > 0) {
+      lines.push('');
+      lines.push(`Acciones aplicadas (${res.acciones.length}):`);
+      for (const a of res.acciones.slice(0, 25)) {
+        lines.push(
+          `- ${a.numeroMovimiento} (ID ${a.movimientoId}) lote ${a.loteAveEngordeOrigenId}: ` +
+            `H/M/X ${a.antesH}/${a.antesM}/${a.antesX} → ${a.despuesH}/${a.despuesM}/${a.despuesX}`
+        );
+      }
+      if (res.acciones.length > 25) lines.push(`... y ${res.acciones.length - 25} acción(es) más.`);
+    }
+    return lines.join('\n');
+  }
+
+  auditarVentas(dryRun: boolean, aplicarCorreccion: boolean): void {
+    if (!this.selectedGranjaId) return;
+    if (this.loadingAuditoria) return;
+    this.loadingAuditoria = true;
+    this.movimientoSvc
+      .postAuditarVentas({
+        granjaId: this.selectedGranjaId,
+        aplicarCorreccion,
+        dryRun
+      })
+      .pipe(finalize(() => (this.loadingAuditoria = false)))
+      .subscribe({
+        next: (res) => {
+          this.auditoriaResult = res;
+          this.rebuildAuditoriaMeta();
+          this.auditoriaModalOpen = true;
+          if (res.aplicarCorreccion) this.loadMovimientos();
+        },
+        error: (err) => {
+          this.toastService.error(err?.message ?? 'Error al auditar ventas.');
+        }
+      });
+  }
+
+  private rebuildAuditoriaMeta(): void {
+    const map: Record<number, { galponLabel: string; loteLabel: string }> = {};
+    for (const l of this.allLoteAveEngorde || []) {
+      const id = l.loteAveEngordeId;
+      if (id == null) continue;
+      const galponNombre = (l.galpon?.galponNombre || '').trim();
+      const galponId = (l.galponId || '').trim();
+      const galponLabel = galponNombre || galponId || '— Sin galpón —';
+      const loteLabel = (l.loteNombre || '').trim() || String(id);
+      map[id] = { galponLabel, loteLabel };
+    }
+    this.auditoriaLoteMetaById = map;
+  }
+
+  closeAuditoriaModal(): void {
+    this.auditoriaModalOpen = false;
+    this.auditoriaResult = null;
+  }
+
+  solicitarAuditoriaFix(): void {
+    if (!this.selectedGranjaId) return;
+    if (this.loadingAuditoria) return;
+    this.auditoriaToRun = { dryRun: false, aplicarCorreccion: true };
+    this.confirmationModalData = {
+      title: 'Validar y corregir ventas (Pendiente)',
+      message:
+        'Se validarán los lotes de la granja seleccionada. Si hay sobreventa, se corregirá automáticamente SOLO lo que esté en estado Pendiente (se reducen cantidades o se cancela si queda en 0). Movimientos Completados no se tocan. ¿Desea continuar?',
+      type: 'warning',
+      confirmText: 'Sí, corregir',
+      cancelText: 'No',
+      showCancel: true
+    };
+    this.showConfirmationModal = true;
+  }
+
+  solicitarCorregirCompletados(): void {
+    if (!this.selectedGranjaId) return;
+    this.confirmationModalData = {
+      title: 'Corregir ventas completadas',
+      message:
+        'Esto ajusta cantidades en movimientos Completados para eliminar el exceso (por sexo) y devuelve al lote SOLO la diferencia corregida. No elimina registros; si algún movimiento queda en 0 se anula. ¿Desea continuar?',
+      type: 'warning',
+      confirmText: 'Sí, corregir',
+      cancelText: 'No',
+      showCancel: true
+    };
+    this.showConfirmationModal = true;
+    this.auditoriaToRun = { dryRun: false, aplicarCorreccion: false };
+    // Reusamos onConfirmAuditoria para otro flujo: si auditoriaToRun existe pero aplicarCorreccion=false,
+    // onConfirmAuditoria llamará auditarVentas; aquí no queremos eso. Por eso manejamos con una bandera distinta.
+    // La bandera real se maneja por 'correccionCompletadosPending' abajo.
+    this.correccionCompletadosPending = true;
+  }
+
+  correccionCompletadosPending = false;
+
+  private ejecutarCorregirCompletados(): void {
+    if (!this.selectedGranjaId) return;
+    this.loadingAuditoria = true;
+    this.movimientoSvc
+      .postCorregirVentasCompletadas({ granjaId: this.selectedGranjaId, dryRun: false })
+      .pipe(finalize(() => (this.loadingAuditoria = false)))
+      .subscribe({
+        next: (res: CorregirVentasCompletadasResponse) => {
+          this.toastService.success(res.mensaje || 'Corrección aplicada.');
+          this.loadMovimientos();
+          // Re-validar después de corregir.
+          this.auditarVentas(true, false);
+        },
+        error: (err) => this.toastService.error(err?.message ?? 'Error al corregir completados.')
+      });
+  }
+
+  onConfirmAuditoria(): void {
+    if (this.correccionCompletadosPending) {
+      this.correccionCompletadosPending = false;
+      this.showConfirmationModal = false;
+      this.auditoriaToRun = null;
+      this.ejecutarCorregirCompletados();
+      return;
+    }
+    const a = this.auditoriaToRun;
+    this.auditoriaToRun = null;
+    this.showConfirmationModal = false;
+    if (!a) return;
+    this.auditarVentas(a.dryRun, a.aplicarCorreccion);
+  }
+
   ngOnInit(): void {
     this.filteredMovimientos = [];
     this.loading = true;
@@ -204,6 +439,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.galpones = [];
     this.lotesOpciones = [];
     this.nucleos = [];
+    this.ventaLoteAveEngordeIdSet = new Set<number>();
 
     if (!this.selectedGranjaId) {
       this.refreshLotesParaVentaGranja();
@@ -212,7 +448,6 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
     this.nucleos = this.allNucleosFull.filter((n) => n.granjaId === this.selectedGranjaId);
     this.fillGalponMapFromCache();
-    this.buildLotesOpciones();
     this.refreshLotesParaVentaGranja();
     this.loadMovimientos();
   }
@@ -275,8 +510,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       this.galpones = [];
       return;
     }
-    const gid = String(this.selectedGranjaId);
-    let base = this.allLoteAveEngorde.filter((l) => String(l.granjaId) === gid);
+    // Regla solicitada: mostrar solo galpones asociados a ventas registradas (resultado actual).
+    let base = this.getVentaLotesAveEngorde();
     if (this.selectedNucleoId) {
       const nid = String(this.selectedNucleoId);
       base = base.filter((l) => (l.nucleoId ?? '') === nid);
@@ -293,6 +528,14 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       result.unshift({ id: this.SIN_GALPON, label: '— Sin galpón —' });
     }
     this.galpones = result.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
+  }
+
+  private getVentaLotesAveEngorde(): LoteAveEngordeDto[] {
+    if (!this.selectedGranjaId) return [];
+    if (!this.ventaLoteAveEngordeIdSet.size) return [];
+    const gid = String(this.selectedGranjaId);
+    const base = this.allLoteAveEngorde.filter((l) => String(l.granjaId) === gid);
+    return base.filter((l) => l.loteAveEngordeId != null && this.ventaLoteAveEngordeIdSet.has(l.loteAveEngordeId));
   }
 
   /**
@@ -322,11 +565,11 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       this.lotesOpciones = [];
       return;
     }
-    const gid = String(this.selectedGranjaId);
     const nid = this.selectedNucleoId ? String(this.selectedNucleoId) : null;
     const gpid = this.selectedGalponId && this.selectedGalponId !== this.SIN_GALPON ? String(this.selectedGalponId).trim() : null;
 
-    let filteredAE = this.allLoteAveEngorde.filter((l) => String(l.granjaId) === gid);
+    // Regla solicitada: mostrar solo lotes asociados a ventas registradas (resultado actual).
+    let filteredAE = this.getVentaLotesAveEngorde();
     if (nid) filteredAE = filteredAE.filter((l) => (l.nucleoId ?? '') === nid);
     if (gpid) {
       filteredAE = filteredAE.filter((l) => (l.galponId ?? '').trim() === gpid);
@@ -346,6 +589,35 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       });
     }
     this.lotesOpciones = options.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
+  }
+
+  private rebuildVentaBasedFilterOptions(): void {
+    this.ventaLoteAveEngordeIdSet = this.buildVentaLoteAveEngordeIdSetFromMovimientos(this.movimientos);
+    this.buildGalponesFromLotes();
+    this.buildLotesOpciones();
+    this.ensureSelectedFiltersStillValid();
+  }
+
+  private buildVentaLoteAveEngordeIdSetFromMovimientos(items: MovimientoPolloEngordeDto[]): Set<number> {
+    const set = new Set<number>();
+    for (const m of items ?? []) {
+      if (m.tipoMovimiento !== 'Venta') continue;
+      if (m.tipoLoteOrigen !== 'AveEngorde') continue;
+      const id = m.loteOrigenId ?? null;
+      if (id != null && !isNaN(Number(id))) set.add(Number(id));
+    }
+    return set;
+  }
+
+  private ensureSelectedFiltersStillValid(): void {
+    if (this.selectedGalponId && !this.galpones.some((g) => g.id === this.selectedGalponId)) {
+      this.selectedGalponId = null;
+    }
+    if (this.selectedLoteValue && !this.lotesOpciones.some((l) => l.value === this.selectedLoteValue)) {
+      this.selectedLoteValue = null;
+      this.loteDetalleAveEngorde = null;
+      this.resumenAvesLote = null;
+    }
   }
 
   /** Carga el detalle del lote Ave Engorde seleccionado para la tabla informativa. */
@@ -391,12 +663,17 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       .subscribe({
         next: (res) => {
           this.movimientos = res.items ?? [];
+          this.rebuildVentaBasedFilterOptions();
+          this.rebuildAuditoriaMeta();
           this.aplicarFiltros();
         },
         error: (err) => {
           this.error = err?.message ?? 'Error al cargar movimientos';
           this.movimientos = [];
           this.filteredMovimientos = [];
+          this.ventaLoteAveEngordeIdSet = new Set<number>();
+          this.galpones = [];
+          this.lotesOpciones = [];
         }
       });
   }
@@ -725,6 +1002,98 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   formatearNumero(num: number): string {
     return new Intl.NumberFormat('es-CO').format(num);
+  }
+
+  descargarExcel(): void {
+    const rows = this.filteredMovimientos ?? [];
+    if (!rows.length) {
+      this.toastService.info('No hay datos para exportar con los filtros actuales.');
+      return;
+    }
+
+    const headers = [
+      'Número movimiento',
+      'Despacho',
+      'Fecha',
+      'Tipo',
+      'Estado',
+      'Granja origen',
+      'Lote origen',
+      'Granja destino',
+      'Lote destino',
+      'Total aves',
+      'Hembras',
+      'Machos',
+      'Mixtas',
+      'Placa',
+      'Hora salida',
+      'Guía Agrocalidad',
+      'Conductor',
+      'Peso bruto',
+      'Peso tara',
+      'Peso neto',
+      'Prom. peso/ave',
+      'Observaciones'
+    ];
+
+    const data = rows.map((m) => {
+      const pesoBruto = m.pesoBruto ?? null;
+      const pesoTara = m.pesoTara ?? null;
+      const pesoNeto = pesoBruto != null && pesoTara != null ? pesoBruto - pesoTara : null;
+      const promPesoAve = pesoNeto != null && (m.totalAves ?? 0) > 0 ? pesoNeto / m.totalAves : null;
+      return [
+        m.numeroMovimiento ?? '',
+        (m.numeroDespacho ?? '').trim(),
+        this.fechaCorta(m.fechaMovimiento),
+        m.tipoMovimiento ?? '',
+        m.estado ?? '',
+        m.granjaOrigenNombre ?? '',
+        m.loteOrigenNombre ?? '',
+        m.granjaDestinoNombre ?? '',
+        m.loteDestinoNombre ?? '',
+        m.totalAves ?? 0,
+        m.cantidadHembras ?? 0,
+        m.cantidadMachos ?? 0,
+        m.cantidadMixtas ?? 0,
+        m.placa ?? '',
+        m.horaSalida ? String(m.horaSalida).slice(0, 5) : '',
+        m.guiaAgrocalidad ?? '',
+        m.conductor ?? '',
+        pesoBruto ?? '',
+        pesoTara ?? '',
+        pesoNeto ?? '',
+        promPesoAve != null ? Math.round(promPesoAve * 1000) / 1000 : '',
+        (m.observaciones ?? '').trim()
+      ];
+    });
+
+    const titleBase = 'Venta de Pollo Engorde';
+    const granja = (this.selectedGranjaName || '').trim();
+    const title = granja ? `${titleBase} — Granja: ${granja}` : titleBase;
+
+    const filtros: string[] = [];
+    if (this.selectedGalponId) filtros.push(`Galpón: ${this.selectedGalponNombre}`);
+    if (this.selectedLoteValue) filtros.push(`Lote: ${this.selectedLoteNombre}`);
+    if ((this.filtroTipoMovimiento || '').trim()) filtros.push(`Tipo: ${this.filtroTipoMovimiento}`);
+    if ((this.filtroEstado || '').trim()) filtros.push(`Estado: ${this.filtroEstado}`);
+    if ((this.filtroBusqueda || '').trim()) filtros.push(`Búsqueda: ${this.filtroBusqueda.trim()}`);
+
+    const aoa: (string | number)[][] = [
+      [title],
+      ...(filtros.length ? [[`Filtros: ${filtros.join(' · ')}`]] : []),
+      [],
+      headers,
+      ...data
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+
+    const safeGranja = (granja || 'granja').replace(/[\\/:*?"<>|]/g, '_');
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `Venta_pollo_engorde_${safeGranja}_${stamp}.xlsx`);
   }
 
   /** Total aves en lote Ave Engorde (hembras + machos + mixtas o avesEncasetadas). */

@@ -84,6 +84,119 @@ export interface ResumenAvesLotesResponse {
   items: ResumenAvesLotePorIdDto[];
 }
 
+export interface AvesDisponiblesVentaLoteDto {
+  loteId: number;
+  tipoLote: string;
+  nombreLote: string | null;
+  hembrasDisponibles: number;
+  machosDisponibles: number;
+  mixtasDisponibles: number;
+  totalDisponibles: number;
+  hembrasReservadasPendiente: number;
+  machosReservadasPendiente: number;
+  mixtasReservadasPendiente: number;
+  totalReservadasPendiente: number;
+}
+
+export interface AvesDisponiblesLotePorIdDto {
+  loteId: number;
+  disponibles: AvesDisponiblesVentaLoteDto | null;
+}
+
+export interface AvesDisponiblesLotesResponse {
+  items: AvesDisponiblesLotePorIdDto[];
+}
+
+export interface AuditoriaVentasEngordeRequest {
+  granjaId?: number | null;
+  loteAveEngordeIds?: number[] | null;
+  aplicarCorreccion?: boolean;
+  dryRun?: boolean;
+}
+
+export interface AuditoriaVentasLoteDetalle {
+  loteAveEngordeId: number;
+  loteNombre: string | null;
+  encasetadasH: number;
+  encasetadasM: number;
+  encasetadasX: number;
+  mortCajaH: number;
+  mortCajaM: number;
+  mortSegH: number;
+  mortSegM: number;
+  selH: number;
+  selM: number;
+  errSexH: number;
+  errSexM: number;
+  asignadasH: number;
+  asignadasM: number;
+  maxVendibleH: number;
+  maxVendibleM: number;
+  maxVendibleX: number;
+  vendidasCompletadoH: number;
+  vendidasCompletadoM: number;
+  vendidasCompletadoX: number;
+  vendidasPendienteH: number;
+  vendidasPendienteM: number;
+  vendidasPendienteX: number;
+  excesoH: number;
+  excesoM: number;
+  excesoX: number;
+  autoCorregible: boolean;
+  estado: string;
+}
+
+export interface AuditoriaCorreccionAccion {
+  movimientoId: number;
+  numeroMovimiento: string;
+  loteAveEngordeOrigenId: number;
+  antesH: number;
+  antesM: number;
+  antesX: number;
+  despuesH: number;
+  despuesM: number;
+  despuesX: number;
+  nota: string;
+}
+
+export interface AuditoriaVentasEngordeResponse {
+  ok: boolean;
+  dryRun: boolean;
+  aplicarCorreccion: boolean;
+  mensaje: string | null;
+  lotes: AuditoriaVentasLoteDetalle[];
+  acciones: AuditoriaCorreccionAccion[];
+}
+
+export interface CorregirVentasCompletadasRequest {
+  granjaId?: number | null;
+  loteAveEngordeIds?: number[] | null;
+  dryRun?: boolean;
+}
+
+export interface CorreccionCompletadoAccionDto {
+  movimientoId: number;
+  numeroMovimiento: string;
+  loteAveEngordeId: number;
+  antesH: number;
+  antesM: number;
+  antesX: number;
+  despuesH: number;
+  despuesM: number;
+  despuesX: number;
+  devueltoAlLoteH: number;
+  devueltoAlLoteM: number;
+  devueltoAlLoteX: number;
+  nota: string;
+}
+
+export interface CorregirVentasCompletadasResponse {
+  ok: boolean;
+  dryRun: boolean;
+  mensaje: string | null;
+  acciones: CorreccionCompletadoAccionDto[];
+}
+
 export interface VentaGranjaDespachoLineaDto {
   loteAveEngordeOrigenId: number;
   granjaOrigenId?: number | null;
@@ -285,6 +398,27 @@ export class MovimientoPolloEngordeService {
   postResumenAvesLotes(body: { tipoLote: string; loteIds: number[] }): Observable<ResumenAvesLotesResponse> {
     return this.http
       .post<ResumenAvesLotesResponse>(`${this.base}/resumen-aves-lotes`, body)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Disponibilidad para venta por lote (incluye reservas Pendiente). */
+  postAvesDisponiblesLotes(body: { tipoLote: string; loteIds: number[] }): Observable<AvesDisponiblesLotesResponse> {
+    return this.http
+      .post<AvesDisponiblesLotesResponse>(`${this.base}/aves-disponibles-lotes`, body)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Auditoría / corrección de ventas (por granja o por lotes). */
+  postAuditarVentas(body: AuditoriaVentasEngordeRequest): Observable<AuditoriaVentasEngordeResponse> {
+    return this.http
+      .post<AuditoriaVentasEngordeResponse>(`${this.base}/auditar-ventas`, body)
+      .pipe(catchError(this.handleError));
+  }
+
+  /** Corrección de incoherencias en ventas Completadas (ajusta cantidades y devuelve al lote solo lo necesario). */
+  postCorregirVentasCompletadas(body: CorregirVentasCompletadasRequest): Observable<CorregirVentasCompletadasResponse> {
+    return this.http
+      .post<CorregirVentasCompletadasResponse>(`${this.base}/corregir-ventas-completadas`, body)
       .pipe(catchError(this.handleError));
   }
 

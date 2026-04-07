@@ -58,7 +58,7 @@
             <dt>Guía Agrocalidad</dt><dd>{{ editingMovimiento.guiaAgrocalidad || '—' }}</dd>
             <dt>Sellos</dt><dd>{{ editingMovimiento.sellos || '—' }}</dd>
             <dt>Ayuno</dt><dd>{{ editingMovimiento.ayuno || '—' }}</dd>
-            <dt>Conductor</dt><dd>{{ editingMovimiento.conductor || '—' }}</dd>
+            <dt>Cliente</dt><dd>{{ editingMovimiento.conductor || '—' }}</dd>
             <dt>Peso bruto (kg)</dt><dd>{{ editingMovimiento.pesoBruto != null ? formatearNumero(editingMovimiento.pesoBruto) : '—' }}</dd>
             <dt>Peso tara (kg)</dt><dd>{{ editingMovimiento.pesoTara != null ? formatearNumero(editingMovimiento.pesoTara) : '—' }}</dd>
             <dt>Peso neto (kg)</dt><dd>{{ editingMovimiento.pesoNeto != null ? formatearNumero(editingMovimiento.pesoNeto) : '—' }}</dd>
@@ -183,7 +183,10 @@
         </div>
         <div class="venta-granja-wrap" *ngIf="!loadingVentaLineas && gruposVentaPorGalpon.length > 0">
           <div class="venta-granja-galpon" *ngFor="let g of gruposVentaPorGalpon">
-            <h4 class="venta-granja-galpon__title">{{ g.galponLabel }}</h4>
+            <h4 class="venta-granja-galpon__title">
+              {{ g.galponLabel }}
+              <small class="text-muted">· Seleccionado: {{ formatearNumero(totalSeleccionadoGalpon(g.lineas)) }}</small>
+            </h4>
             <div class="venta-granja-table-wrap">
               <table class="venta-granja-table">
                 <thead>
@@ -201,40 +204,58 @@
                   <tr *ngFor="let line of g.lineas" [class.venta-granja-table__row-error]="line.h > line.maxH || line.m > line.maxM || line.x > line.maxX">
                     <td>{{ line.loteNombre }}</td>
                     <td class="num">{{ formatearNumero(line.maxH) }}</td>
-                    <td class="num">
+                    <td class="num venta-granja-qty-cell">
                       <input
                         type="text"
                         inputmode="numeric"
                         autocomplete="off"
                         class="form-input form-input--sm venta-granja-qty"
-                        [ngModel]="line.hStr"
-                        (ngModelChange)="onLineaCantidadStr(line, 'h', $event)"
-                        [ngModelOptions]="{ standalone: true }"
+                        [disabled]="line.maxH === 0"
+                        [class.form-input--readonly]="line.maxH === 0"
+                        [class.form-input--error]="line.flashExcesoH"
+                        [value]="line.hStr"
+                        (input)="onLineaCantidadInput($event, line, 'h')"
+                        [attr.aria-invalid]="line.flashExcesoH"
                       />
+                      <span class="venta-granja-qty-hint venta-granja-qty-hint--error" *ngIf="line.flashExcesoH">
+                        Máximo {{ formatearNumero(line.maxH) }} hembras
+                      </span>
                     </td>
                     <td class="num">{{ formatearNumero(line.maxM) }}</td>
-                    <td class="num">
+                    <td class="num venta-granja-qty-cell">
                       <input
                         type="text"
                         inputmode="numeric"
                         autocomplete="off"
                         class="form-input form-input--sm venta-granja-qty"
-                        [ngModel]="line.mStr"
-                        (ngModelChange)="onLineaCantidadStr(line, 'm', $event)"
-                        [ngModelOptions]="{ standalone: true }"
+                        [disabled]="line.maxM === 0"
+                        [class.form-input--readonly]="line.maxM === 0"
+                        [class.form-input--error]="line.flashExcesoM"
+                        [value]="line.mStr"
+                        (input)="onLineaCantidadInput($event, line, 'm')"
+                        [attr.aria-invalid]="line.flashExcesoM"
                       />
+                      <span class="venta-granja-qty-hint venta-granja-qty-hint--error" *ngIf="line.flashExcesoM">
+                        Máximo {{ formatearNumero(line.maxM) }} machos
+                      </span>
                     </td>
                     <td class="num">{{ formatearNumero(line.maxX) }}</td>
-                    <td class="num">
+                    <td class="num venta-granja-qty-cell">
                       <input
                         type="text"
                         inputmode="numeric"
                         autocomplete="off"
                         class="form-input form-input--sm venta-granja-qty"
-                        [ngModel]="line.xStr"
-                        (ngModelChange)="onLineaCantidadStr(line, 'x', $event)"
-                        [ngModelOptions]="{ standalone: true }"
+                        [disabled]="line.maxX === 0"
+                        [class.form-input--readonly]="line.maxX === 0"
+                        [class.form-input--error]="line.flashExcesoX"
+                        [value]="line.xStr"
+                        (input)="onLineaCantidadInput($event, line, 'x')"
+                        [attr.aria-invalid]="line.flashExcesoX"
                       />
+                      <span class="venta-granja-qty-hint venta-granja-qty-hint--error" *ngIf="line.flashExcesoX">
+                        Máximo {{ formatearNumero(line.maxX) }} mixtas
+                      </span>
                     </td>
                   </tr>
                 </tbody>
@@ -266,8 +287,24 @@
               <input id="edadAves" type="number" min="0" formControlName="edadAves" class="form-input" [class.form-input--readonly]="lotFieldsReadOnly" placeholder="Edad aves" />
             </div>
             <div class="form-group">
-              <label for="totalPollosGalpon">Total pollos por galpón</label>
-              <input id="totalPollosGalpon" type="number" min="0" formControlName="totalPollosGalpon" class="form-input" />
+              <label for="totalPollosGalpon">
+                {{
+                  ventaPorGranjaMode && !editingMovimiento
+                    ? 'Total pollos (suma del despacho)'
+                    : 'Total pollos por galpón'
+                }}
+              </label>
+              <input
+                id="totalPollosGalpon"
+                type="number"
+                min="0"
+                formControlName="totalPollosGalpon"
+                class="form-input"
+                [class.form-input--readonly]="ventaPorGranjaMode && !editingMovimiento"
+              />
+              <small class="form-hint" *ngIf="ventaPorGranjaMode && !editingMovimiento">
+                Se calcula automáticamente con las cantidades que indique por lote; no puede editarse.
+              </small>
             </div>
             <div class="form-group">
               <label for="raza">Raza</label>
@@ -294,8 +331,8 @@
               <input id="ayuno" type="text" formControlName="ayuno" class="form-input" placeholder="Ej. horas" />
             </div>
             <div class="form-group form-group--full">
-              <label for="conductor">Conductor</label>
-              <input id="conductor" type="text" formControlName="conductor" class="form-input" />
+              <label for="conductor">Cliente</label>
+              <input id="conductor" type="text" formControlName="conductor" class="form-input" placeholder="Nombre del cliente" />
             </div>
             <div class="form-group">
               <label for="pesoBruto">Peso bruto (kg)</label>
@@ -313,7 +350,7 @@
         </section>
       </ng-container>
 
-      <section class="form-section">
+      <section class="form-section" *ngIf="!ventaPorGranjaMode">
         <h3 class="form-section__title">Observaciones</h3>
         <div class="form-group">
           <label for="observaciones">Observaciones</label>

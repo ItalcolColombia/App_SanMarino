@@ -83,6 +83,66 @@ public class MovimientoPolloEngordeController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Disponibilidad por lote para ventas (incluye reservas en estado Pendiente para evitar sobreventa).
+    /// </summary>
+    [HttpPost("aves-disponibles-lotes")]
+    [ProducesResponseType(typeof(AvesDisponiblesLotesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostAvesDisponiblesLotes([FromBody] AvesDisponiblesLotesRequest request)
+    {
+        if (request is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.GetAvesDisponiblesLotesAsync(request);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Auditoría de coherencia (ventas vs disponibilidad) por granja/lotes y corrección opcional (solo Pendiente).
+    /// </summary>
+    [HttpPost("auditar-ventas")]
+    [ProducesResponseType(typeof(AuditoriaVentasEngordeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostAuditarVentas([FromBody] AuditoriaVentasEngordeRequest request)
+    {
+        if (request is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.AuditarVentasEngordeAsync(request);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Corrige incoherencias de ventas en estado Completado ajustando cantidades (devuelve al lote solo lo necesario).
+    /// </summary>
+    [HttpPost("corregir-ventas-completadas")]
+    [ProducesResponseType(typeof(CorregirVentasCompletadasResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostCorregirVentasCompletadas([FromBody] CorregirVentasCompletadasRequest request)
+    {
+        if (request is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.CorregirVentasCompletadasAsync(request);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     /// <summary>Venta por granja: varios movimientos Pendiente con la misma cabecera de despacho, en una transacción.</summary>
     [HttpPost("venta-granja-despacho")]
     [ProducesResponseType(typeof(VentaGranjaDespachoResultDto), StatusCodes.Status201Created)]
