@@ -7,6 +7,7 @@ using GalponLiteDto = ZooSanMarino.Application.DTOs.Shared.GalponLiteDto;
 public sealed record LoteDetailDto(
     int       LoteId,  // Cambiado a int para secuencia numérica
     string    LoteNombre,
+    int?      LotePosturaBaseId,
     int       GranjaId,
     string?   NucleoId,
     string?   GalponId,

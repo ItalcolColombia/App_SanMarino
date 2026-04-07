@@ -28,6 +28,7 @@ import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { UserService, UserDto, User } from '../../../../core/services/user/user.service';
 import { Company, CompanyService } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaService } from '../../services/guia-genetica.service';
+import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
 
 /* ============================================================
    Directiva standalone: separador de miles (es-CO) y enteros
@@ -115,6 +116,7 @@ export class LoteListComponent implements OnInit {
   // Estado UI
   loading = false;
   modalOpen = false;
+  baseModalOpen = false;
   editing: LoteDto | null = null;
   selectedLote: LoteDto | null = null;
   selectedLoteLevante: LotePosturaLevanteDto | null = null;
@@ -135,6 +137,7 @@ export class LoteListComponent implements OnInit {
 
   // Form
   form!: FormGroup;
+  baseForm!: FormGroup;
 
   // Datos maestros
   farms:    FarmDto[]   = [];
@@ -172,6 +175,10 @@ export class LoteListComponent implements OnInit {
   // Lotes (tab Lote = tabla lotes)
   lotes: LoteDto[] = [];
   viewLotes: LoteDto[] = [];
+  // Lotes postura base (creación rápida)
+  lotesPosturaBase: LotePosturaBaseDto[] = [];
+  baseLotesOptions: LotePosturaBaseDto[] = [];
+  selectedBaseLote: LotePosturaBaseDto | null = null;
   // Lotes postura levante (tab Levante = tabla lote_postura_levante)
   lotesLevante: LotePosturaLevanteDto[] = [];
   viewLotesLevante: LotePosturaLevanteDto[] = [];
@@ -223,6 +230,7 @@ export class LoteListComponent implements OnInit {
     private loteSvc:   LoteService,
     private lotePosturaLevanteSvc: LotePosturaLevanteService,
     private lotePosturaProduccionSvc: LotePosturaProduccionService,
+    private lotePosturaBaseSvc: LotePosturaBaseService,
     private farmSvc:   FarmService,
     private nucleoSvc: NucleoService,
     private galponSvc: GalponService,
@@ -248,7 +256,14 @@ export class LoteListComponent implements OnInit {
   // ===================== Ciclo de vida ======================
   ngOnInit(): void {
     this.initForm();
+    this.initBaseForm();
     this.loadData();
+
+    // Lote base -> autogenerar nombre
+    this.form.get('lotePosturaBaseId')!.valueChanges.subscribe((val) => {
+      const id = val != null && val !== '' ? Number(val) : null;
+      this.onBaseLoteChange(isNaN(Number(id)) ? null : id);
+    });
 
     // Chains del modal (usan datos cargados al abrir el modal)
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
@@ -346,6 +361,7 @@ export class LoteListComponent implements OnInit {
     this.form = this.fb.group({
       loteId:             [null], // Opcional - auto-incremento numérico
       loteNombre:         ['', Validators.required],
+      lotePosturaBaseId:  [null], // solo UI (no persiste en Lote)
       granjaId:           [null, Validators.required],
       nucleoId:           [null],
       galponId:           [null],
@@ -370,6 +386,16 @@ export class LoteListComponent implements OnInit {
       lineaGenetica:      [''],
       esLotePadre:        [false],
       lotePadreId:        [null]
+    });
+  }
+
+  private initBaseForm(): void {
+    this.baseForm = this.fb.group({
+      loteNombre: ['', [Validators.required, Validators.minLength(2)]],
+      codigoErp: [''],
+      cantidadHembras: [0, [Validators.required, Validators.min(0)]],
+      cantidadMachos: [0, [Validators.required, Validators.min(0)]],
+      cantidadMixtas: [0, [Validators.required, Validators.min(0)]],
     });
   }
 
@@ -406,10 +432,27 @@ export class LoteListComponent implements OnInit {
             this.lotes = list;
             this.buildFilterOptions();
             this.recomputeList();
+            this.loadLotesPosturaBase();
           },
           error: () => this.toastService.error('No se pudo cargar la lista de lotes.', 'Error')
         });
     }
+  }
+
+  private loadLotesPosturaBase(): void {
+    // Solo se usa visualmente en el tab "Lote"
+    this.lotePosturaBaseSvc.getAll().subscribe({
+      next: (items) => this.lotesPosturaBase = items ?? [],
+      error: () => { /* no bloquear el resto de la pantalla */ }
+    });
+  }
+
+  getBaseLoteNombre(id?: number | null): string {
+    if (!id) return '—';
+    const found =
+      (this.lotesPosturaBase ?? []).find(x => x.lotePosturaBaseId === id) ??
+      (this.baseLotesOptions ?? []).find(x => x.lotePosturaBaseId === id);
+    return found?.loteNombre ?? `#${id}`;
   }
 
   setTab(tab: 'levante' | 'lote' | 'produccion'): void {
@@ -795,7 +838,107 @@ export class LoteListComponent implements OnInit {
   openModal(l?: LoteDto): void {
     this.editing = l ?? null;
     this.modalOpen = true;
+    this.selectedBaseLote = null;
+    this.form.patchValue({ lotePosturaBaseId: null }, { emitEvent: false });
+    this.loadBaseLotesOptions();
     this.loadModalData();
+  }
+
+  private loadBaseLotesOptions(): void {
+    this.lotePosturaBaseSvc.getAll().subscribe({
+      next: (items) => {
+        this.baseLotesOptions = items ?? [];
+        // Si estamos editando y ya hay base asociada, reflejarla en UI
+        const currentBaseId = this.form.get('lotePosturaBaseId')?.value;
+        const id = currentBaseId != null ? Number(currentBaseId) : null;
+        if (id) {
+          this.selectedBaseLote = this.baseLotesOptions.find(b => b.lotePosturaBaseId === id) ?? null;
+        }
+      },
+      error: () => this.baseLotesOptions = []
+    });
+  }
+
+  onBaseLoteChange(baseId: number | null): void {
+    const id = baseId != null ? Number(baseId) : null;
+    if (!id) {
+      this.selectedBaseLote = null;
+      this.form.patchValue({ lotePosturaBaseId: null }, { emitEvent: false });
+      return;
+    }
+
+    const base = this.baseLotesOptions.find(b => b.lotePosturaBaseId === id) ?? null;
+    this.selectedBaseLote = base;
+    this.form.patchValue({ lotePosturaBaseId: id }, { emitEvent: false });
+    if (!base) return;
+
+    const generatedName = this.generateNextLoteNameFromBase(base.loteNombre);
+    this.form.patchValue({ loteNombre: generatedName }, { emitEvent: false });
+  }
+
+  private generateNextLoteNameFromBase(baseName: string): string {
+    const cleanBase = (baseName ?? '').toString().trim();
+    if (!cleanBase) return '';
+
+    const taken = new Set<string>();
+    for (const l of this.lotes ?? []) {
+      const name = (l.loteNombre ?? '').toString().trim();
+      if (!name) continue;
+      if (!name.startsWith(cleanBase)) continue;
+
+      // Formato esperado: K324A, K324B... (sin espacios)
+      const suffix = name.substring(cleanBase.length).trim();
+      if (!suffix) {
+        taken.add(''); // base sin sufijo
+        continue;
+      }
+      const letter = suffix.substring(0, 1).toUpperCase();
+      if (/^[A-Z]$/.test(letter)) taken.add(letter);
+    }
+
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const next = alphabet.find(ch => !taken.has(ch));
+    if (next) return `${cleanBase}${next}`;
+
+    // fallback si ya se usaron A-Z
+    let i = 1;
+    while (taken.has(String(i))) i++;
+    return `${cleanBase}${i}`;
+  }
+
+  openBaseModal(): void {
+    this.baseForm.reset({
+      loteNombre: '',
+      codigoErp: '',
+      cantidadHembras: 0,
+      cantidadMachos: 0,
+      cantidadMixtas: 0,
+    });
+    this.baseModalOpen = true;
+  }
+
+  saveBase(): void {
+    if (this.baseForm.invalid) return;
+    const v = this.baseForm.value;
+    const dto: CreateLotePosturaBaseDto = {
+      loteNombre: (v.loteNombre ?? '').toString().trim(),
+      codigoErp: (v.codigoErp ?? '').toString().trim() || null,
+      cantidadHembras: Number(v.cantidadHembras) || 0,
+      cantidadMachos: Number(v.cantidadMachos) || 0,
+      cantidadMixtas: Number(v.cantidadMixtas) || 0,
+    };
+    this.loading = true;
+    this.lotePosturaBaseSvc.create(dto).pipe(finalize(() => this.loading = false)).subscribe({
+      next: () => {
+        this.baseModalOpen = false;
+        this.toastService.success('Lote base registrado correctamente.', 'Listo');
+        this.loadLotesPosturaBase();
+      },
+      error: (err) => {
+        const msg = err?.error?.message || err?.message || 'Error al guardar el lote base.';
+        this.toastService.error(msg, 'Error');
+      }
+    });
   }
 
   onEsLotePadreChange(event: Event): void {
@@ -871,6 +1014,7 @@ export class LoteListComponent implements OnInit {
       // Para creación: no enviar loteId (la base de datos lo generará automáticamente)
       // Para edición: enviar el loteId existente
       loteId: this.editing ? raw.loteId : undefined,
+      lotePosturaBaseId: raw.lotePosturaBaseId ? Number(raw.lotePosturaBaseId) : null,
       granjaId: Number(raw.granjaId),
       nucleoId: raw.nucleoId ? String(raw.nucleoId) : undefined,
       galponId: raw.galponId ? String(raw.galponId) : undefined,

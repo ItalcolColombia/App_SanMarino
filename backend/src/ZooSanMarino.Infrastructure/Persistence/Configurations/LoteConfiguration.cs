@@ -44,6 +44,7 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
         b.Property(x => x.EdadInicial).HasColumnName("edad_inicial");
         b.Property(x => x.EstadoTraslado).HasColumnName("estado_traslado").HasMaxLength(50);
         b.Property(x => x.LotePadreId).HasColumnName("lote_padre_id");
+        b.Property(x => x.LotePosturaBaseId).HasColumnName("lote_postura_base_id");
         b.Property(x => x.Fase).HasColumnName("fase").HasMaxLength(20).IsRequired().HasDefaultValue("Levante");
         b.Property(x => x.FechaInicioProduccion).HasColumnName("fecha_inicio_produccion");
         b.Property(x => x.HembrasInicialesProd).HasColumnName("hembras_iniciales_prod");
@@ -109,5 +110,11 @@ public class LoteConfiguration : IEntityTypeConfiguration<Lote>
          .OnDelete(DeleteBehavior.Restrict);
 
         b.HasIndex(x => x.LotePadreId).HasDatabaseName("ix_lote_padre");
+
+        b.HasOne(x => x.LotePosturaBase)
+            .WithMany()
+            .HasForeignKey(x => x.LotePosturaBaseId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

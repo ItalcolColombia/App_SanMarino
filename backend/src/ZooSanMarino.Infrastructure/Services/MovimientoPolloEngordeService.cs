@@ -500,7 +500,9 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         "No se pudo guardar la corrección de ventas completadas. " +
         "Causas frecuentes: (1) en la base de producción falta permitir estado 'Anulado' en el CHECK de movimiento_pollo_engorde " +
         "(ejecutar el script backend/sql/alter_movimiento_pollo_engorde_ck_estado_anulado.sql); " +
-        "(2) error en un trigger sobre movimiento_pollo_engorde o lote_registro_historico_unificado. ";
+        "(2) en la base de producción el CHECK ck_mpe_cantidades exige (H+M+X) > 0 incluso para Anulados " +
+        "(ejecutar el script backend/sql/alter_movimiento_pollo_engorde_ck_cantidades_allow_anulado.sql); " +
+        "(3) error en un trigger sobre movimiento_pollo_engorde o lote_registro_historico_unificado. ";
 
     /// <summary>
     /// Si el Include no trajo el lote (FK inconsistente o filtro), carga explícita por id para poder revertir cantidades.
