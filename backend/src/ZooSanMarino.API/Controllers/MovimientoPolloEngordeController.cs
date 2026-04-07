@@ -139,7 +139,7 @@ public class MovimientoPolloEngordeController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new { error = ex.Message });
+            return BadRequest(new { error = ex.Message, message = ex.Message });
         }
     }
 
