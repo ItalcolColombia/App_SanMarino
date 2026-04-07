@@ -480,17 +480,27 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         }
     }
 
-    private static InvalidOperationException MapDbUpdateToInvalidOperation(DbUpdateException ex)
+    /// <summary>
+    /// Expone el detalle de PostgreSQL (SqlState, constraint) para diagnóstico en producción.
+    /// </summary>
+    private static InvalidOperationException MapDbUpdateToInvalidOperation(DbUpdateException ex, string? operacion = null)
     {
         var detail = ex.InnerException is PostgresException pg
-            ? $"{pg.SqlState}: {pg.MessageText} ({pg.ConstraintName ?? ""})"
+            ? $"{pg.SqlState}: {pg.MessageText}" +
+              (string.IsNullOrEmpty(pg.ConstraintName) ? "" : $" (constraint: {pg.ConstraintName})")
             : (ex.InnerException?.Message ?? ex.Message);
-        return new InvalidOperationException(
-            "No se pudo guardar la eliminación del movimiento (reversión de aves en lotes o anulación). " +
-            "Revise que el lote destino tenga aves suficientes para deshacer el traslado y que no haya restricciones en base de datos. " +
-            "Detalle: " + detail,
-            ex);
+        var prefix = string.IsNullOrWhiteSpace(operacion)
+            ? "No se pudo guardar la eliminación del movimiento (reversión de aves en lotes o anulación). " +
+              "Revise que el lote destino tenga aves suficientes para deshacer el traslado y que no haya restricciones en base de datos. "
+            : operacion.TrimEnd() + " ";
+        return new InvalidOperationException(prefix + "Detalle: " + detail, ex);
     }
+
+    private static readonly string MensajeAyudaCorreccionCompletados =
+        "No se pudo guardar la corrección de ventas completadas. " +
+        "Causas frecuentes: (1) en la base de producción falta permitir estado 'Anulado' en el CHECK de movimiento_pollo_engorde " +
+        "(ejecutar el script backend/sql/alter_movimiento_pollo_engorde_ck_estado_anulado.sql); " +
+        "(2) error en un trigger sobre movimiento_pollo_engorde o lote_registro_historico_unificado. ";
 
     /// <summary>
     /// Si el Include no trajo el lote (FK inconsistente o filtro), carga explícita por id para poder revertir cantidades.
@@ -1534,6 +1544,11 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
                 Mensaje = $"Corrección aplicada. Acciones: {acciones.Count}.",
                 Acciones = acciones
             };
+        }
+        catch (DbUpdateException ex)
+        {
+            await tx.RollbackAsync();
+            throw MapDbUpdateToInvalidOperation(ex, MensajeAyudaCorreccionCompletados);
         }
         catch
         {
