@@ -15,6 +15,8 @@ export interface ConfirmationModalData {
   cancelText?: string;
   type?: 'success' | 'warning' | 'info' | 'error';
   showCancel?: boolean; // Si es false, solo muestra el botón de confirmar
+  /** Renderiza el mensaje preservando espacios/saltos (útil para tablas). */
+  preformatted?: boolean;
 }
 
 @Component({
@@ -62,7 +64,8 @@ export class ConfirmationModalComponent {
   }
 
   getModalClass(): string {
-    return `modal modal--${this.data.type || 'info'}`;
+    const base = `modal modal--${this.data.type || 'info'}`;
+    return this.data.preformatted ? `${base} modal--wide` : base;
   }
 
   onConfirm(event?: Event): void {

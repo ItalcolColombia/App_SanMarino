@@ -34,6 +34,22 @@ public interface IMovimientoPolloEngordeService
     /// <summary>Resúmenes de varios lotes en una sola llamada (una fila por id solicitado).</summary>
     Task<ResumenAvesLotesResponse> GetResumenAvesLotesAsync(ResumenAvesLotesRequest request);
 
+    /// <summary>
+    /// Disponibilidad para ventas por lote (incluye reservas en estado Pendiente para evitar sobreventa).
+    /// </summary>
+    Task<AvesDisponiblesLotesResponse> GetAvesDisponiblesLotesAsync(AvesDisponiblesLotesRequest request);
+
+    /// <summary>
+    /// Auditoría de coherencia de ventas vs disponibilidad por lote (y corrección opcional).
+    /// </summary>
+    Task<AuditoriaVentasEngordeResponse> AuditarVentasEngordeAsync(AuditoriaVentasEngordeRequest request);
+
+    /// <summary>
+    /// Corrige incoherencias en ventas ya Completadas ajustando cantidades (devuelve al lote solo la diferencia).
+    /// No elimina movimientos; actualiza cantidades y observaciones.
+    /// </summary>
+    Task<CorregirVentasCompletadasResponse> CorregirVentasCompletadasAsync(CorregirVentasCompletadasRequest request);
+
     /// <summary>Venta por granja: varios movimientos Pendiente con la misma cabecera de despacho, en una transacción.</summary>
     Task<VentaGranjaDespachoResultDto> CreateVentaGranjaDespachoAsync(CreateVentaGranjaDespachoDto dto);
 

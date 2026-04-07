@@ -3,16 +3,21 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { concatMap, finalize, map, take } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../../core/auth/auth.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import {
   SeguimientoAvesEngordeService,
-  LiquidacionLoteEngordeResumenDto
+  LiquidacionLoteEngordeResumenDto,
+  LoteRegistroHistoricoUnificadoDto
 } from '../../services/seguimiento-aves-engorde.service';
 import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
+import {
+  AvesDisponiblesDto,
+  LoteReproductoraAveEngordeService
+} from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 
 @Component({
   selector: 'app-modal-liquidacion-lote-engorde',
@@ -24,6 +29,7 @@ import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.
 export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   private readonly seg = inject(SeguimientoAvesEngordeService);
   private readonly loteEngorde = inject(LoteEngordeService);
+  private readonly repSvc = inject(LoteReproductoraAveEngordeService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly invGestion = inject(GestionInventarioService);
@@ -41,6 +47,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   loading = false;
   error: string | null = null;
   resumen: LiquidacionLoteEngordeResumenDto | null = null;
+  avesDisponibles: AvesDisponiblesDto | null = null;
+  verVentasRegistros = false;
+  loadingVentasRegistros = false;
+  ventasRegistrosError: string | null = null;
+  ventasRegistros: LoteRegistroHistoricoUnificadoDto[] = [];
 
   /** Stock de alimento (inventario-gestion) en la ubicación del lote (EC/PA). */
   stockAlimento: InventarioGestionStockDto[] = [];
@@ -66,6 +77,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   private resetLocal(): void {
     this.error = null;
     this.resumen = null;
+    this.avesDisponibles = null;
+    this.verVentasRegistros = false;
+    this.loadingVentasRegistros = false;
+    this.ventasRegistrosError = null;
+    this.ventasRegistros = [];
     this.stockAlimento = [];
     this.loadingStock = false;
     this.stockError = null;
@@ -79,12 +95,16 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.loading = true;
     this.error = null;
     this.resumen = null;
-    this.seg
-      .getResumenLiquidacion(this.loteId)
+    this.avesDisponibles = null;
+    forkJoin({
+      resumen: this.seg.getResumenLiquidacion(this.loteId),
+      aves: this.repSvc.getAvesDisponibles(this.loteId)
+    })
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
-        next: r => {
-          this.resumen = r;
+        next: ({ resumen, aves }) => {
+          this.resumen = resumen;
+          this.avesDisponibles = aves ?? null;
           this.cargarStockAlimento();
         },
         error: err => {
@@ -92,6 +112,86 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
             err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudo cargar el resumen.';
         }
       });
+  }
+
+  /** Aves al inicio: preferir API aves-disponibles (incluye lógica de asignadas), fallback a resumen-liquidacion. */
+  get hembrasInicioUi(): number {
+    return Number(this.avesDisponibles?.hembrasIniciales ?? this.resumen?.hembrasInicio ?? 0);
+  }
+  get machosInicioUi(): number {
+    return Number(this.avesDisponibles?.machosIniciales ?? this.resumen?.machosInicio ?? 0);
+  }
+  get mixtasInicioUi(): number {
+    return Number(this.resumen?.mixtasInicio ?? 0);
+  }
+  get totalInicioUi(): number {
+    return this.hembrasInicioUi + this.machosInicioUi + this.mixtasInicioUi;
+  }
+
+  /** Alertas: ventas por sexo exceden iniciales (inconsistencia a corregir). */
+  get sobreventaHembras(): boolean {
+    const v = Number(this.resumen?.ventasTotalHembras ?? 0);
+    return v > this.hembrasInicioUi && this.hembrasInicioUi > 0;
+  }
+  get sobreventaMachos(): boolean {
+    const v = Number(this.resumen?.ventasTotalMachos ?? 0);
+    return v > this.machosInicioUi && this.machosInicioUi > 0;
+  }
+  get sobreventaTotal(): boolean {
+    const v = Number(this.resumen?.ventasTotalHembras ?? 0) + Number(this.resumen?.ventasTotalMachos ?? 0) + Number(this.resumen?.ventasTotalMixtas ?? 0);
+    return v > this.totalInicioUi && this.totalInicioUi > 0;
+  }
+
+  toggleVerVentasRegistros(): void {
+    this.verVentasRegistros = !this.verVentasRegistros;
+    if (this.verVentasRegistros) {
+      this.cargarVentasRegistros();
+    }
+  }
+
+  private cargarVentasRegistros(): void {
+    if (!this.loteId) return;
+    this.loadingVentasRegistros = true;
+    this.ventasRegistrosError = null;
+    this.ventasRegistros = [];
+    this.seg
+      .getHistoricoUnificadoPorLote(this.loteId)
+      .pipe(finalize(() => (this.loadingVentasRegistros = false)))
+      .subscribe({
+        next: rows => {
+          const list = (rows ?? []).filter(r => String(r.tipoEvento || '').toUpperCase() === 'VENTA_AVES' && !r.anulado);
+          // Orden: fecha operación asc, id asc
+          list.sort((a, b) => {
+            const da = String(a.fechaOperacion ?? '');
+            const db = String(b.fechaOperacion ?? '');
+            if (da !== db) return da.localeCompare(db);
+            return (a.id ?? 0) - (b.id ?? 0);
+          });
+          this.ventasRegistros = list;
+        },
+        error: err => {
+          this.ventasRegistrosError =
+            err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudieron cargar los registros de venta.';
+          this.ventasRegistros = [];
+        }
+      });
+  }
+
+  /** Totales calculados desde los registros (para comparar con el resumen). */
+  get ventasRegistrosTotH(): number {
+    return (this.ventasRegistros ?? []).reduce((s, r) => s + (Number(r.cantidadHembras) || 0), 0);
+  }
+  get ventasRegistrosTotM(): number {
+    return (this.ventasRegistros ?? []).reduce((s, r) => s + (Number(r.cantidadMachos) || 0), 0);
+  }
+  get ventasRegistrosTotX(): number {
+    return (this.ventasRegistros ?? []).reduce((s, r) => s + (Number(r.cantidadMixtas) || 0), 0);
+  }
+  get diffVentasH(): number {
+    return (Number(this.resumen?.ventasTotalHembras ?? 0) - this.ventasRegistrosTotH) || 0;
+  }
+  get diffVentasM(): number {
+    return (Number(this.resumen?.ventasTotalMachos ?? 0) - this.ventasRegistrosTotM) || 0;
   }
 
   get saldoPositivo(): boolean {

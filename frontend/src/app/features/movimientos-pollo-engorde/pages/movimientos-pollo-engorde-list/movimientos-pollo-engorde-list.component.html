@@ -2,7 +2,7 @@
   <div class="mpp-main">
     <header class="mpp-header">
       <div class="mpp-header__title">
-        <h1>Movimiento de Pollo Engorde</h1>
+        <h1>Venta de Pollo Engorde</h1>
         <div class="mpp-header__meta">
           <ng-template #noGranjaChip>
             <span class="chip chip--warning">
@@ -30,6 +30,30 @@
         </div>
       </div>
       <div class="mpp-header__actions">
+        <button
+          type="button"
+          class="btn-italfoods-secondary"
+          (click)="descargarExcel()"
+          [disabled]="!selectedGranjaId || (filteredMovimientos.length || 0) === 0"
+          [title]="!selectedGranjaId ? 'Selecciona una granja' : (filteredMovimientos.length || 0) === 0 ? 'No hay datos para exportar' : 'Descargar Excel'">
+          Descargar Excel
+        </button>
+        <button
+          type="button"
+          class="btn-italfoods-secondary"
+          (click)="auditarVentas(true, false)"
+          [disabled]="!selectedGranjaId || loadingAuditoria"
+          [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Validar coherencia de ventas vs disponibilidad (sin cambios)'">
+          {{ loadingAuditoria ? 'Validando...' : 'Validar' }}
+        </button>
+        <button
+          type="button"
+          class="btn-italfoods-secondary"
+          (click)="solicitarAuditoriaFix()"
+          [disabled]="!selectedGranjaId || loadingAuditoria"
+          [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Validar y corregir sobreventas en Pendiente'">
+          Corregir
+        </button>
         <button
           type="button"
           (click)="create()"
@@ -67,6 +91,38 @@
               <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
             </select>
           </div>
+
+          <div class="filter-group">
+            <label for="selGalpon">Galpón</label>
+            <select
+              id="selGalpon"
+              class="filter-select input-italfoods"
+              [ngModel]="selectedGalponId"
+              (ngModelChange)="onGalponChange($event)"
+              [disabled]="!selectedGranjaId || galpones.length === 0">
+              <option [ngValue]="null">— Todos —</option>
+              <option *ngFor="let gp of galpones" [ngValue]="gp.id">{{ gp.label }}</option>
+            </select>
+            <small class="text-muted" *ngIf="selectedGranjaId && galpones.length === 0">
+              No hay galpones asociados a ventas registradas en esta granja.
+            </small>
+          </div>
+
+          <div class="filter-group">
+            <label for="selLote">Lote</label>
+            <select
+              id="selLote"
+              class="filter-select input-italfoods"
+              [ngModel]="selectedLoteValue"
+              (ngModelChange)="onLoteChange($event)"
+              [disabled]="!selectedGranjaId || lotesOpciones.length === 0">
+              <option [ngValue]="null">— Todos —</option>
+              <option *ngFor="let l of lotesOpciones" [ngValue]="l.value">{{ l.label }}</option>
+            </select>
+            <small class="text-muted" *ngIf="selectedGranjaId && lotesOpciones.length === 0">
+              No hay lotes asociados a ventas registradas para los filtros actuales.
+            </small>
+          </div>
         </div>
       </div>
     </section>
@@ -75,7 +131,7 @@
 
     <section class="ux-card mpp-card mpp-card--registros" *ngIf="selectedGranjaId">
       <div class="ux-card__header">
-        <h2>Registros de Movimiento de Pollo Engorde</h2>
+        <h2>Registros de Venta de Pollo Engorde</h2>
         <p class="mpp-card__subtitle" *ngIf="selectedGranjaId">
           Vista por granja: incluye movimientos de todos los galpones de la granja. Las ventas con el mismo <strong>número de despacho</strong> y fecha se muestran en una sola fila (varios lotes en un viaje).
         </p>
@@ -396,10 +452,18 @@
   (save)="onMovimientoSaved($event)">
 </app-modal-movimiento-pollo-engorde>
 
+<app-auditoria-ventas-modal
+  [isOpen]="auditoriaModalOpen"
+  [data]="auditoriaResult"
+  [loteMetaById]="auditoriaLoteMetaById"
+  (corregirCompletados)="solicitarCorregirCompletados()"
+  (close)="closeAuditoriaModal()">
+</app-auditoria-ventas-modal>
+
 <app-confirmation-modal
   [isOpen]="showConfirmationModal"
   [data]="confirmationModalData"
-  (confirmed)="movimientoToDelete || movimientoToDeleteGroup?.length ? onConfirmDelete() : movimientoToComplete || movimientoToCompleteGroup?.length ? onConfirmCompletar() : onConfirmationModalClose()"
+  (confirmed)="auditoriaToRun ? onConfirmAuditoria() : (movimientoToDelete || movimientoToDeleteGroup?.length ? onConfirmDelete() : movimientoToComplete || movimientoToCompleteGroup?.length ? onConfirmCompletar() : onConfirmationModalClose())"
   (cancelled)="onCancelDelete()"
   (closed)="onConfirmationModalClose()">
 </app-confirmation-modal>

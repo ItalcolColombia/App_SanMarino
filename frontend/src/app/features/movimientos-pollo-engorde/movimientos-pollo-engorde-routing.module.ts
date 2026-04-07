@@ -9,7 +9,7 @@ const routes: Routes = [
       import('./pages/movimientos-pollo-engorde-list/movimientos-pollo-engorde-list.component').then(
         (m) => m.MovimientosPolloEngordeListComponent
       ),
-    title: 'Movimiento de Pollo Engorde'
+    title: 'Venta de Pollo Engorde'
   }
 ];
 

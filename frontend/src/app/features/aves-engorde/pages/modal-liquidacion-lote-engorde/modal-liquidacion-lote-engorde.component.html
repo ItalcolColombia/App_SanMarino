@@ -20,14 +20,25 @@
             <p class="liq-lote__card-desc">Hembras, machos y mixtas según el registro de inicio de lote (encasetamiento).</p>
             <dl class="liq-lote__dl">
               <dt>Hembras</dt>
-              <dd>{{ resumen.hembrasInicio ?? 0 | number:'1.0-0' }}</dd>
+              <dd>{{ hembrasInicioUi | number:'1.0-0' }}</dd>
               <dt>Machos</dt>
-              <dd>{{ resumen.machosInicio ?? 0 | number:'1.0-0' }}</dd>
+              <dd>{{ machosInicioUi | number:'1.0-0' }}</dd>
               <dt>Mixtas</dt>
-              <dd>{{ resumen.mixtasInicio ?? 0 | number:'1.0-0' }}</dd>
+              <dd>{{ mixtasInicioUi | number:'1.0-0' }}</dd>
               <dt>Total</dt>
-              <dd><strong>{{ resumen.totalAvesInicio | number:'1.0-0' }}</strong></dd>
+              <dd><strong>{{ totalInicioUi | number:'1.0-0' }}</strong></dd>
             </dl>
+            <ng-container *ngIf="avesDisponibles">
+              <div class="liq-lote__hint liq-lote__hint--mb">
+                <strong>Mortalidad acumulada (según API aves-disponibles)</strong>
+              </div>
+              <dl class="liq-lote__dl">
+                <dt>Mort. hembras</dt>
+                <dd>{{ (avesDisponibles.mortalidadAcumuladaHembras ?? 0) | number:'1.0-0' }}</dd>
+                <dt>Mort. machos</dt>
+                <dd>{{ (avesDisponibles.mortalidadAcumuladaMachos ?? 0) | number:'1.0-0' }}</dd>
+              </dl>
+            </ng-container>
           </div>
 
           <div class="liq-lote__card">
@@ -42,6 +53,60 @@
               <dt>Mixtas vendidas</dt>
               <dd>{{ resumen.ventasTotalMixtas | number:'1.0-0' }}</dd>
             </dl>
+
+            <div class="liq-lote__actions-row">
+              <button type="button" class="btn btn--outline btn--sm" (click)="toggleVerVentasRegistros()">
+                {{ verVentasRegistros ? 'Ocultar registros' : 'Ver registros' }}
+                <ng-container *ngIf="resumen.movimientosVentaCount">({{ resumen.movimientosVentaCount | number:'1.0-0' }})</ng-container>
+              </button>
+            </div>
+
+            <p *ngIf="sobreventaHembras || sobreventaMachos || sobreventaTotal" class="liq-lote__hint liq-lote__hint--warn" role="alert">
+              Alerta: hay ventas registradas mayores que las aves iniciales (inconsistencia). Revise movimientos o ejecute el proceso de corrección.
+            </p>
+
+            <ng-container *ngIf="verVentasRegistros">
+              <p *ngIf="loadingVentasRegistros" class="liq-lote__hint">Cargando registros de venta…</p>
+              <p *ngIf="ventasRegistrosError" class="liq-lote__err" role="alert">{{ ventasRegistrosError }}</p>
+
+              <div *ngIf="!loadingVentasRegistros && !ventasRegistrosError">
+                <p class="liq-lote__hint">
+                  Totales en tabla: H {{ ventasRegistrosTotH | number:'1.0-0' }}, M {{ ventasRegistrosTotM | number:'1.0-0' }}, X {{ ventasRegistrosTotX | number:'1.0-0' }}.
+                  <ng-container *ngIf="diffVentasH !== 0 || diffVentasM !== 0">
+                    Diferencia vs resumen: H {{ diffVentasH | number:'1.0-0' }}, M {{ diffVentasM | number:'1.0-0' }}.
+                  </ng-container>
+                </p>
+
+                <div class="liq-lote__table-wrap" *ngIf="ventasRegistros.length > 0">
+                  <table class="ux-table liq-lote__table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Origen</th>
+                        <th>Documento</th>
+                        <th class="text-right">H</th>
+                        <th class="text-right">M</th>
+                        <th class="text-right">X</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let r of ventasRegistros">
+                        <td>{{ r.fechaOperacion | date:'yyyy-MM-dd' }}</td>
+                        <td>{{ r.origenTabla }} #{{ r.origenId }}</td>
+                        <td>{{ r.numeroDocumento || r.referencia || '—' }}</td>
+                        <td class="text-right">{{ (r.cantidadHembras ?? 0) | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ (r.cantidadMachos ?? 0) | number:'1.0-0' }}</td>
+                        <td class="text-right">{{ (r.cantidadMixtas ?? 0) | number:'1.0-0' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div *ngIf="ventasRegistros.length === 0" class="liq-lote__hint">
+                  No hay registros `VENTA_AVES` en el histórico unificado para este lote.
+                </div>
+              </div>
+            </ng-container>
           </div>
 
           <div class="liq-lote__card liq-lote__card--accent">

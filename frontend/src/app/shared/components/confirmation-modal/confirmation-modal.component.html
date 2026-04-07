@@ -26,7 +26,8 @@
 
     <!-- Modal Body -->
     <div class="modal-body">
-      <p class="modal-message">{{ data.message }}</p>
+      <pre *ngIf="data.preformatted" class="modal-message modal-message--pre">{{ data.message }}</pre>
+      <p *ngIf="!data.preformatted" class="modal-message">{{ data.message }}</p>
     </div>
 
     <!-- Modal Footer -->

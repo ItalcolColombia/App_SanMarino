@@ -1,0 +1,130 @@
+<div class="aud-backdrop" *ngIf="isOpen" (click)="onClose()" [attr.aria-hidden]="!isOpen">
+  <div class="aud-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <header class="aud-header">
+      <div class="aud-title">
+        <h2>Auditoría de ventas</h2>
+        <p class="aud-subtitle">{{ data?.mensaje || '' }}</p>
+      </div>
+      <button type="button" class="aud-close" (click)="onClose()" aria-label="Cerrar">✕</button>
+    </header>
+
+    <section class="aud-summary">
+      <div class="summary-card">
+        <div class="summary-label">Lotes auditados</div>
+        <div class="summary-value">{{ data?.lotes?.length || 0 }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Con exceso</div>
+        <div class="summary-value">{{ lotesConExceso().length }}</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Modo</div>
+        <div class="summary-value">{{ modoLabel() }}</div>
+      </div>
+    </section>
+
+    <section class="aud-table-wrap">
+      <div class="aud-table-hint">Tip: haz clic en un lote para ver el cálculo.</div>
+      <div class="aud-table-scroll">
+        <table class="aud-table">
+          <thead>
+            <tr>
+              <th class="col-lote">Lote</th>
+              <th class="col-galpon">Galpón / Bodega</th>
+              <th class="col-num">Límite H</th>
+              <th class="col-num">Límite M</th>
+              <th class="col-num">Comp H</th>
+              <th class="col-num">Comp M</th>
+              <th class="col-num">Pend H</th>
+              <th class="col-num">Pend M</th>
+              <th class="col-num col-exceso">Exceso H</th>
+              <th class="col-num col-exceso">Exceso M</th>
+              <th class="col-state">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let l of lotesConExceso()">
+              <tr class="aud-row" (click)="toggle(l.loteAveEngordeId)">
+                <td class="col-lote">
+                  <div class="lote-main">
+                    <span class="caret">{{ isExpanded(l.loteAveEngordeId) ? '▼' : '▶' }}</span>
+                    <strong>{{ l.loteAveEngordeId }}</strong>
+                    <span class="muted">·</span>
+                    <span>{{ l.loteNombre || '—' }}</span>
+                  </div>
+                </td>
+                <td class="col-galpon">{{ galponLabel(l.loteAveEngordeId) }}</td>
+                <td class="col-num">{{ fmt(l.maxVendibleH) }}</td>
+                <td class="col-num">{{ fmt(l.maxVendibleM) }}</td>
+                <td class="col-num">{{ fmt(l.vendidasCompletadoH) }}</td>
+                <td class="col-num">{{ fmt(l.vendidasCompletadoM) }}</td>
+                <td class="col-num">{{ fmt(l.vendidasPendienteH) }}</td>
+                <td class="col-num">{{ fmt(l.vendidasPendienteM) }}</td>
+                <td class="col-num col-exceso" [class.col-exceso--hot]="l.excesoH > 0"><strong>{{ fmt(l.excesoH) }}</strong></td>
+                <td class="col-num col-exceso" [class.col-exceso--hot]="l.excesoM > 0"><strong>{{ fmt(l.excesoM) }}</strong></td>
+                <td class="col-state">
+                  <div class="state-stack">
+                    <span [class]="estadoBadgeClass(l)">{{ l.autoCorregible ? 'Corregible' : 'No corregible' }}</span>
+                    <small class="state-detail" *ngIf="(l.excesoH + l.excesoM + l.excesoX) > 0">
+                      Exceso: <strong *ngIf="l.excesoH > 0">H {{ fmt(l.excesoH) }}</strong><span *ngIf="l.excesoH > 0 && l.excesoM > 0"> · </span><strong *ngIf="l.excesoM > 0">M {{ fmt(l.excesoM) }}</strong>
+                    </small>
+                  </div>
+                </td>
+              </tr>
+
+              <tr *ngIf="isExpanded(l.loteAveEngordeId)" class="aud-detail">
+                <td colspan="11">
+                  <div class="detail-grid">
+                    <div class="detail-block">
+                      <div class="detail-title">Cálculo del límite vendible</div>
+                      <div class="detail-lines">
+                        <div><span class="k">Encasetadas</span> H/M/X: <span class="v">{{ fmt(l.encasetadasH) }}/{{ fmt(l.encasetadasM) }}/{{ fmt(l.encasetadasX) }}</span></div>
+                        <div><span class="k">Mortalidad caja</span> H/M: <span class="v">{{ fmt(l.mortCajaH) }}/{{ fmt(l.mortCajaM) }}</span></div>
+                        <div><span class="k">Mortalidad seguimiento</span> H/M: <span class="v">{{ fmt(l.mortSegH) }}/{{ fmt(l.mortSegM) }}</span></div>
+                        <div><span class="k">Selección</span> H/M: <span class="v">{{ fmt(l.selH) }}/{{ fmt(l.selM) }}</span></div>
+                        <div><span class="k">Error sexaje</span> H/M: <span class="v">{{ fmt(l.errSexH) }}/{{ fmt(l.errSexM) }}</span></div>
+                        <div><span class="k">Asignadas a reproductoras</span> H/M: <span class="v">{{ fmt(l.asignadasH) }}/{{ fmt(l.asignadasM) }}</span></div>
+                        <div class="detail-eq">
+                          <span class="k">Límite vendible</span> H/M/X:
+                          <span class="v">{{ fmt(l.maxVendibleH) }}/{{ fmt(l.maxVendibleM) }}/{{ fmt(l.maxVendibleX) }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="detail-block">
+                      <div class="detail-title">Diagnóstico</div>
+                      <div class="detail-lines">
+                        <div><span class="k">Estado</span>: <span class="v">{{ l.estado }}</span></div>
+                        <div><span class="k">Motivo</span>:
+                          <span class="v">
+                            {{ l.autoCorregible ? 'Hay ventas Pendiente para ajustar.' : 'No hay ventas Pendiente para ajustar; el exceso viene de Completados u otra inconsistencia.' }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </ng-container>
+
+            <tr *ngIf="lotesConExceso().length === 0">
+              <td colspan="10" class="aud-empty">No hay inconsistencias para mostrar.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="aud-footer">
+      <button
+        type="button"
+        class="btn-italfoods-secondary"
+        (click)="onCorregirCompletados()"
+        [disabled]="lotesConExceso().length === 0">
+        Corregir completados
+      </button>
+      <button type="button" class="btn-italfoods-secondary" (click)="onClose()">Cerrar</button>
+    </footer>
+  </div>
+</div>
+

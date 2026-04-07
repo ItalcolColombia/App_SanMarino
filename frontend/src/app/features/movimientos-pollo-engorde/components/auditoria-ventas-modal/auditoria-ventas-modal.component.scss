@@ -1,0 +1,274 @@
+.aud-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10002;
+  padding: 1rem;
+}
+
+.aud-modal {
+  width: min(1100px, 100%);
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.aud-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.25rem 1.25rem 0.75rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.aud-title h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.aud-subtitle {
+  margin: 0.25rem 0 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.aud-close {
+  margin-left: auto;
+  border: none;
+  background: #f3f4f6;
+  color: #374151;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.aud-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.summary-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.summary-value {
+  margin-top: 0.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aud-table-wrap {
+  padding: 0.75rem 1.25rem;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.aud-table-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.aud-table-scroll {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: auto;
+  background: #fff;
+}
+
+.aud-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1120px;
+}
+
+.aud-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f9fafb;
+  z-index: 1;
+  font-size: 0.8rem;
+  color: #374151;
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.aud-row td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9rem;
+  color: #111827;
+  cursor: pointer;
+}
+
+.aud-row:hover td {
+  background: #fcfcfd;
+}
+
+.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.col-exceso {
+  color: #991b1b;
+}
+
+.col-exceso--hot {
+  background: #fff1f2;
+  border-radius: 8px;
+}
+
+.col-lote {
+  width: 260px;
+}
+
+.col-galpon {
+  width: 200px;
+  white-space: nowrap;
+}
+
+.state-stack {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.state-detail {
+  color: #991b1b;
+}
+
+.lote-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.caret {
+  color: #6b7280;
+  width: 18px;
+  display: inline-block;
+}
+
+.muted {
+  color: #9ca3af;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge--success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.badge--warning {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.badge--danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.aud-detail td {
+  padding: 0;
+  background: #f9fafb;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.detail-block {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.detail-title {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+
+.detail-lines {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.detail-lines .k {
+  color: #6b7280;
+}
+
+.detail-lines .v {
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-eq {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.aud-empty {
+  padding: 1rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.aud-footer {
+  padding: 0.9rem 1.25rem 1.1rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
