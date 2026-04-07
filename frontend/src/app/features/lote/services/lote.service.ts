@@ -25,6 +25,7 @@ export interface LoteMortalidadResumenDto {
 export interface LoteDto {
   loteId: number;
   loteNombre: string;
+  lotePosturaBaseId?: number | null;
 
   // Claves base
   granjaId: number;

@@ -5,6 +5,7 @@ public class UpdateLoteDto
 {
     public int LoteId { get; set; } // Requerido para actualización - secuencia numérica
     public string LoteNombre { get; set; } = null!;
+    public int?   LotePosturaBaseId { get; set; } // ← NUEVO: base lot opcional
     public int    GranjaId { get; set; }
     public string? NucleoId { get; set; }      // ← string? (coincide con Nucleo.NucleoId)
     public string? GalponId { get; set; }      // ← string? (coincide con Galpon.GalponId)

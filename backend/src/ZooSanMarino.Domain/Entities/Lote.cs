@@ -39,6 +39,11 @@ public class Lote : AuditableEntity
     public string?   EstadoTraslado     { get; set; } // ← Estados: null/"normal", "trasladado", "en_transferencia"
     public int?      LotePadreId         { get; set; } // ← ID del lote padre (Levante); los de Producción son hijos
 
+    /// <summary>
+    /// Referencia opcional al lote base de postura del cual se deriva el nombre (K324A, K324B...).
+    /// </summary>
+    public int? LotePosturaBaseId { get; set; }
+
     /// <summary>Fase del lote: Levante (inicial) o Produccion (lote hijo al pasar a producción).</summary>
     public string Fase { get; set; } = "Levante";
 
@@ -68,6 +73,8 @@ public class Lote : AuditableEntity
     // Relación self-referencial para lote padre
     public Lote? LotePadre { get; set; }
     public List<Lote> LotesHijos { get; set; } = new();
+
+    public LotePosturaBase? LotePosturaBase { get; set; }
 
     /// <summary>Seguimientos diarios de producción (solo cuando Fase == "Produccion").</summary>
     public List<ProduccionSeguimiento> ProduccionSeguimientos { get; set; } = new();

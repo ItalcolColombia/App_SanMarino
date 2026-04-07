@@ -4,10 +4,16 @@
   <div class="lote-list-content ux-page">
     <!-- Header: Nuevo Lote solo en pestaña Lote -->
     <div class="ux-header">
-      <button *ngIf="activeTab === 'lote'" (click)="openModal()" class="btn-primary">
-        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-        <span>Nuevo Lote</span>
-      </button>
+      <div *ngIf="activeTab === 'lote'" class="flex items-center gap-2 flex-wrap">
+        <button (click)="openBaseModal()" class="btn-primary">
+          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+          <span>Nuevo Lote</span>
+        </button>
+        <button (click)="openModal()" class="btn-secondary">
+          <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+          <span>Nueva asociación a seguimiento</span>
+        </button>
+      </div>
     </div>
 
     <!-- Pestañas Levante (lote_postura_levante) / Lote (lotes) -->
@@ -343,6 +349,95 @@
       </div>
     </div>
 
+    <!-- Tabla: Lotes base (creación rápida) -->
+    <div *ngIf="activeTab === 'lote'" class="ux-card mt-4">
+      <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <h3 class="text-lg font-semibold text-gray-900">Lotes base</h3>
+        <p class="text-sm text-gray-600 mt-1">Mostrando {{ lotesPosturaBase.length }} registro(s)</p>
+      </div>
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Código ERP</th>
+              <th>Hembras</th>
+              <th>Machos</th>
+              <th>Mixtas</th>
+              <th>Empresa</th>
+              <th>Usuario</th>
+              <th>País</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of lotesPosturaBase">
+              <td>{{ b.lotePosturaBaseId }}</td>
+              <td>{{ b.loteNombre }}</td>
+              <td>{{ b.codigoErp || '—' }}</td>
+              <td>{{ formatNumber(b.cantidadHembras) }}</td>
+              <td>{{ formatNumber(b.cantidadMachos) }}</td>
+              <td>{{ formatNumber(b.cantidadMixtas) }}</td>
+              <td>{{ b.companyId }}</td>
+              <td>{{ b.createdByUserId }}</td>
+              <td>{{ b.paisId ?? '—' }}</td>
+              <td>{{ b.createdAt ? (b.createdAt | date:'dd/MM/yyyy') : '—' }}</td>
+            </tr>
+            <tr *ngIf="!loading && lotesPosturaBase.length === 0">
+              <td colspan="10" class="empty-state">
+                <p>No hay lotes base registrados.</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MODAL: Crear Lote base -->
+    <div *ngIf="baseModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-base-modal-title">
+      <div class="ux-modal__panel">
+        <div class="ux-modal__header">
+          <h2 id="lote-base-modal-title" class="ux-title">Registrar Nuevo Lote (base)</h2>
+          <button (click)="baseModalOpen = false" type="button" class="btn-muted">Cerrar</button>
+        </div>
+
+        <form [formGroup]="baseForm" (ngSubmit)="saveBase()" class="ux-modal__body space-y-4" novalidate>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+              <label class="ux-label">Nombre del lote <span class="req">*</span></label>
+              <input formControlName="loteNombre" class="ux-input" placeholder="Nombre..." />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="ux-label">Código ERP</label>
+              <input formControlName="codigoErp" class="ux-input" placeholder="ERP..." />
+            </div>
+
+            <div>
+              <label class="ux-label">Cantidad hembras <span class="req">*</span></label>
+              <input type="number" min="0" formControlName="cantidadHembras" class="ux-input" />
+            </div>
+
+            <div>
+              <label class="ux-label">Cantidad machos <span class="req">*</span></label>
+              <input type="number" min="0" formControlName="cantidadMachos" class="ux-input" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="ux-label">Cantidad mixtas <span class="req">*</span></label>
+              <input type="number" min="0" formControlName="cantidadMixtas" class="ux-input" />
+            </div>
+          </div>
+
+          <div class="ux-actions">
+            <button type="button" (click)="baseModalOpen = false" class="btn-muted">Cancelar</button>
+            <button type="submit" [disabled]="baseForm.invalid || loading" class="btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- MODAL: Crear / Editar Lote -->
     <div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="lote-modal-title">
       <div class="ux-modal__panel ux-modal__panel--wide">
@@ -401,13 +496,28 @@
 
             <!-- Nombre del lote -->
             <div>
+              <label class="ux-label">📋 Lote base (opcional)</label>
+              <select class="ux-input" formControlName="lotePosturaBaseId">
+                <option [ngValue]="null">—</option>
+                <option *ngFor="let b of baseLotesOptions" [ngValue]="b.lotePosturaBaseId">
+                  {{ b.loteNombre }} (ERP: {{ b.codigoErp || '—' }})
+                </option>
+              </select>
+            </div>
+
+            <!-- Nombre del lote -->
+            <div>
               <label class="ux-label">📋 Nombre del lote <span class="req">*</span></label>
               <input formControlName="loteNombre" class="ux-input"
+                     [readonly]="!!selectedBaseLote"
                      [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"/>
+              <small *ngIf="selectedBaseLote" class="ux-hint">
+                Nombre generado desde lote base (se asigna la siguiente letra disponible).
+              </small>
             </div>
 
             <!-- Es Sublote - Checkbox -->
-            <div class="md:col-span-2 lg:col-span-3" style="grid-column: 1 / -1; margin: 12px 0;">
+            <div *ngIf="false" class="md:col-span-2 lg:col-span-3" style="grid-column: 1 / -1; margin: 12px 0;">
               <div style="padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #f9fafb;">
                 <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;">
                   <input formControlName="esLotePadre"
@@ -424,7 +534,7 @@
             </div>
 
             <!-- Filtros y Selección de Lote Padre (solo si ES sublote) -->
-            <div *ngIf="esLotePadre" class="md:col-span-2 lg:col-span-3" style="grid-column: 1 / -1; margin-top: 8px;">
+            <div *ngIf="false" class="md:col-span-2 lg:col-span-3" style="grid-column: 1 / -1; margin-top: 8px;">
               <div style="padding: 16px; border: 1px solid #d1d5db; border-radius: 6px; background-color: #ffffff;">
                 <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #111827;">
                   Seleccionar Lote Padre <span style="color: #ef4444;">*</span>
@@ -714,12 +824,13 @@
         <div class="ux-modal__body">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-warm-gray-700 mb-4">
             <div><strong class="text-warm-gray-800">📋 Nombre:</strong> {{ selectedLote.loteNombre }}</div>
-            <div><strong class="text-warm-gray-800">🏚️ Galpón:</strong> {{ getGalponName(selectedLote.galponId) }}</div>
-            <div><strong class="text-warm-gray-800">🏠 Granja:</strong> {{ getFarmName(selectedLote.granjaId) }}</div>
-            <div><strong class="text-warm-gray-800">📍 Núcleo:</strong> {{ getNucleoName(selectedLote.nucleoId) }}</div>
+            <div><strong class="text-warm-gray-800">🏚️ Galpón:</strong> {{ selectedLote.galpon?.galponNombre ?? '—' }}</div>
+            <div><strong class="text-warm-gray-800">🏠 Granja:</strong> {{ selectedLote.farm?.name ?? '—' }}</div>
+            <div><strong class="text-warm-gray-800">📍 Núcleo:</strong> {{ selectedLote.nucleo?.nucleoNombre ?? '—' }}</div>
             <div><strong class="text-warm-gray-800">📅 Fecha encaset:</strong> {{ selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—' }}</div>
             <div><strong class="text-warm-gray-800">📊 Fase:</strong> {{ calcularFase(selectedLote.fechaEncaset) }}</div>
             <div><strong class="text-warm-gray-800">⏳ Edad:</strong> {{ calcularEdadSemanas(selectedLote.fechaEncaset) }} sem.</div>
+            <div><strong class="text-warm-gray-800">🧩 Lote base:</strong> {{ getBaseLoteNombre(selectedLote.lotePosturaBaseId) }}</div>
             <div><strong class="text-warm-gray-800">📄 Lote ERP:</strong> {{ selectedLote.loteErp || '—' }}</div>
             <div><strong class="text-warm-gray-800">🧬 Raza:</strong> {{ selectedLote.raza || '—' }}</div>
             <div><strong class="text-warm-gray-800">📅 Año Tabla Genética:</strong> {{ selectedLote.anoTablaGenetica || '—' }}</div>

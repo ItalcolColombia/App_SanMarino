@@ -668,6 +668,7 @@ public class ProduccionService : IProduccionService
         return lotes.Select(l => new LoteDtos.LoteDetailDto(
             l.LoteId ?? 0,
             l.LoteNombre,
+            l.LotePosturaBaseId,
             l.GranjaId,
             l.NucleoId,
             l.GalponId,

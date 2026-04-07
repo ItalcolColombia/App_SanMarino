@@ -234,6 +234,7 @@ namespace ZooSanMarino.Infrastructure.Services
             var ent = new Lote
             {
                 LoteNombre = (dto.LoteNombre ?? string.Empty).Trim(),
+                LotePosturaBaseId = dto.LotePosturaBaseId,
                 GranjaId = dto.GranjaId,
                 NucleoId = nucleoId,
                 GalponId = galponId,
@@ -484,6 +485,7 @@ namespace ZooSanMarino.Infrastructure.Services
             ent.EdadInicial = dto.EdadInicial;
             ent.LoteErp = dto.LoteErp;  // ← NUEVO: Código ERP del lote
             ent.LotePadreId = dto.LotePadreId;  // ← NUEVO: ID del lote padre
+            ent.LotePosturaBaseId = dto.LotePosturaBaseId;
 
             // Validar que el lote padre existe y pertenece a la misma compañía
             if (dto.LotePadreId.HasValue)
@@ -598,6 +600,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 .Select(l => new LoteDetailDto(
                     l.LoteId ?? 0,
                     l.LoteNombre,
+                    l.LotePosturaBaseId,
                     l.GranjaId,
                     l.NucleoId,
                     l.GalponId,

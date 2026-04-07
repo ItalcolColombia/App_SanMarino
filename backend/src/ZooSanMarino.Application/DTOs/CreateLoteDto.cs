@@ -5,6 +5,7 @@ public class CreateLoteDto
 {
     public int? LoteId { get; set; } // Opcional - auto-incremento numérico
     public string LoteNombre { get; set; } = null!;
+    public int?   LotePosturaBaseId { get; set; } // ← NUEVO: base lot opcional
     public int    GranjaId { get; set; }
     public string? NucleoId { get; set; }      // ← string?
     public string? GalponId { get; set; }      // ← string?
