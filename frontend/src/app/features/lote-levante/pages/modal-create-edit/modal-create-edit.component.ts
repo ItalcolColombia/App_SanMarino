@@ -49,6 +49,10 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
   // Formulario
   form!: FormGroup;
+  /** Cuando el registro es legacy (sin itemsH/M), guardamos el texto de alimento para resolverlo a catalogItemId al cargar inventario. */
+  private legacyFoodTextH: string | null = null;
+  private legacyFoodTextM: string | null = null;
+  private isLegacySyntheticRecord = false;
 
   // Catálogo de alimentos (ahora desde inventario de la granja)
   alimentosCatalog: CatalogItemDto[] = [];
@@ -390,6 +394,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     if (this.itemsMachosArray.length === 0) {
       this.agregarItemMachos();
     }
+    // Lote fijo del contexto (no editable)
+    this.lockLoteField();
     this.applyEditModeFieldLocks();
   }
 
@@ -770,6 +776,9 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   private populateForm(): void {
     if (!this.editing) return;
     this.originalConsumoKgByItem.clear();
+    this.legacyFoodTextH = null;
+    this.legacyFoodTextM = null;
+    this.isLegacySyntheticRecord = false;
 
     while (this.itemsHembrasArray.length > 0) {
       this.itemsHembrasArray.removeAt(0);
@@ -783,6 +792,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     // Leer consumo original desde Metadata JSONB (compatibilidad hacia atrás)
     const metadata: any = this.normalizeSeguimientoMetadata(this.editing);
+    this.isLegacySyntheticRecord = metadata?.syntheticLegacyMetadata === true;
     const consumoHembras = metadata?.consumoOriginalHembras ?? this.editing.consumoKgHembras ?? 0;
     const unidadConsumoHembras = metadata?.unidadConsumoOriginalHembras ?? 'kg';
     const consumoMachos = metadata?.consumoOriginalMachos ?? this.editing.consumoKgMachos ?? null;
@@ -845,6 +855,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           unidad: [unidadConsumoHembras, Validators.required]
         }));
       }
+      // Legacy puro: no hay IDs de alimento. Creamos una fila sintética y resolvemos catalogItemId por texto.
+      if ((!tipoAlimentoHembras || tipoAlimentoHembras === '') && Number(consumoHembras) > 0) {
+        this.itemsHembrasArray.push(this.fb.group({
+          tipoItem: ['alimento', Validators.required],
+          catalogItemId: [null, Validators.required],
+          cantidad: [consumoHembras, [Validators.required, Validators.min(0)]],
+          unidad: [unidadConsumoHembras || 'kg', Validators.required]
+        }));
+        this.legacyFoodTextH = this.pickLegacyFoodText(metadata, this.editing);
+      }
     }
 
     if (itemsMachosFromMetadata && Array.isArray(itemsMachosFromMetadata)) {
@@ -872,6 +892,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
           cantidad: [consumoMachos, [Validators.required, Validators.min(0)]],
           unidad: [unidadConsumoMachos, Validators.required]
         }));
+      }
+      // Legacy puro: no hay IDs de alimento. Creamos una fila sintética y resolvemos catalogItemId por texto.
+      if ((!tipoAlimentoMachos || tipoAlimentoMachos === '') && consumoMachos != null && Number(consumoMachos) > 0) {
+        this.itemsMachosArray.push(this.fb.group({
+          tipoItem: ['alimento', Validators.required],
+          catalogItemId: [null, Validators.required],
+          cantidad: [consumoMachos, [Validators.required, Validators.min(0)]],
+          unidad: [unidadConsumoMachos || 'kg', Validators.required]
+        }));
+        this.legacyFoodTextM = this.pickLegacyFoodText(metadata, this.editing);
       }
     }
 
@@ -952,7 +982,8 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
 
     this.form.patchValue({
       fechaRegistro: this.toYMD(this.editing.fechaRegistro),
-      loteId: this.editing.loteId != null && this.editing.loteId !== '' ? String(this.editing.loteId) : '',
+      // Lote fijo del contexto actual. Si por alguna razón no llega, usar el del registro.
+      loteId: (this.selectedLoteId ?? this.editing.loteId) != null ? String(this.selectedLoteId ?? this.editing.loteId) : '',
       mortalidadHembras: this.editing.mortalidadHembras,
       mortalidadMachos: this.editing.mortalidadMachos,
       selH: this.editing.selH,
@@ -991,12 +1022,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       // Esto se hará en el callback de cargarInventarioGranja
       setTimeout(() => {
         this.establecerTipoItemYAlimentoAlEditar();
+        this.tryResolveLegacyFoodRows();
       }, 500); // Dar tiempo para que se cargue el inventario
     } else {
       // Si no hay granja, intentar obtener el tipo desde el catálogo completo
       this.establecerTipoItemYAlimentoAlEditar();
+      this.tryResolveLegacyFoodRows();
     }
 
+    // Lote fijo del contexto (no editable)
+    this.lockLoteField();
     this.applyEditModeFieldLocks();
   }
 
@@ -1024,6 +1059,79 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
    */
   private applyEditModeFieldLocks(): void {
     this.setAllFormControlsEnabled(true);
+    // Lote siempre fijo (crear/editar)
+    this.lockLoteField();
+
+    // Requerimiento: en editar bloquear mortalidad/selección/error sexaje
+    if (this.editing) {
+      this.form.get('mortalidadHembras')?.disable({ emitEvent: false });
+      this.form.get('mortalidadMachos')?.disable({ emitEvent: false });
+      this.form.get('selH')?.disable({ emitEvent: false });
+      this.form.get('selM')?.disable({ emitEvent: false });
+      this.form.get('errorSexajeHembras')?.disable({ emitEvent: false });
+      this.form.get('errorSexajeMachos')?.disable({ emitEvent: false });
+    }
+  }
+
+  /** Lote debe mostrarse pero no ser editable. */
+  private lockLoteField(): void {
+    const c = this.form?.get('loteId');
+    if (!c) return;
+    if (this.selectedLoteId != null) {
+      c.setValue(String(this.selectedLoteId), { emitEvent: false });
+    }
+    c.disable({ emitEvent: false });
+  }
+
+  /** Para metadata legacy: escogemos un texto que probablemente mapea a un ítem del catálogo. */
+  private pickLegacyFoodText(metadata: any, editing: SeguimientoLoteLevanteDto): string | null {
+    const t = (metadata?.tipoAlimentoCodigo ?? metadata?.tipo_alimento_codigo ?? editing?.tipoAlimento ?? '').toString().trim();
+    return t ? t : null;
+  }
+
+  private normalizeKeyText(s: string): string {
+    return (s ?? '')
+      .toString()
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+  }
+
+  private findCatalogItemIdByText(text: string | null | undefined): number | null {
+    const raw = (text ?? '').toString().trim();
+    if (!raw) return null;
+    const key = this.normalizeKeyText(raw);
+    // 1) por nombre exacto
+    const byName = this.alimentosByName.get(key);
+    if (byName?.id != null) return Number(byName.id);
+    // 2) por código exacto
+    const byCode = this.alimentosByCode.get(raw);
+    if (byCode?.id != null) return Number(byCode.id);
+    // 3) por código normalizado
+    const byCode2 = this.alimentosByCode.get(key);
+    if (byCode2?.id != null) return Number(byCode2.id);
+    return null;
+  }
+
+  /**
+   * Si el registro venía legacy (filas sintéticas con catalogItemId null), intenta resolverlo
+   * cuando ya tenemos inventario/catálogo cargado.
+   */
+  private tryResolveLegacyFoodRows(): void {
+    const tryPatch = (arr: FormArray, text: string | null) => {
+      if (!text) return;
+      const id = this.findCatalogItemIdByText(text);
+      if (!id) return;
+      for (const c of arr.controls) {
+        const tipo = String(c.get('tipoItem')?.value ?? '').toLowerCase();
+        const catalogItemId = c.get('catalogItemId')?.value;
+        if (tipo === 'alimento' && (catalogItemId == null || catalogItemId === '')) {
+          c.patchValue({ catalogItemId: id }, { emitEvent: false });
+        }
+      }
+    };
+    tryPatch(this.itemsHembrasArray, this.legacyFoodTextH);
+    tryPatch(this.itemsMachosArray, this.legacyFoodTextM);
   }
 
   private establecerTipoItemYAlimentoAlEditar(): void {
@@ -1479,6 +1587,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     // Si estamos editando y hay alimentos seleccionados, establecer el tipo de ítem
     if (this.editing) {
       this.establecerTipoItemYAlimentoAlEditar();
+      this.tryResolveLegacyFoodRows();
     } else {
       // Si no estamos editando, actualizar los filtros si hay tipos seleccionados
       // Solo actualizar si no estamos cargando para prevenir ciclos infinitos
@@ -1978,8 +2087,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     // Colombia (San Marino): inventario de productos — farm inventory / catalog_items.
-    const oldFoodKg = isEdit && this.editing ? this.buildFoodKgMapFromMetadata(this.editing) : new Map<number, number>();
     const newFoodKg = this.buildFoodKgMapFromAlimentoLists(alimentosHembras, alimentosMachos, alimentosGenerales);
+    // Si el registro era legacy sintético (sin baseline inventario), NO ajustar inventario en este update.
+    // Evita “consumir de inventario” retroactivamente al migrar un registro viejo.
+    const oldFoodKg =
+      isEdit && this.editing
+        ? (this.isLegacySyntheticRecord ? newFoodKg : this.buildFoodKgMapFromMetadata(this.editing))
+        : new Map<number, number>();
     const allFoodIds = new Set<number>([...oldFoodKg.keys(), ...newFoodKg.keys()]);
 
     void (async () => {

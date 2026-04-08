@@ -47,6 +47,29 @@ export interface RegistroDiarioTablaFila {
   pctPerdidasDia: number | null;
 }
 
+interface ReporteSemanaFila {
+  semana: number;
+  dias: number;
+  mortH: number;
+  mortM: number;
+  mortTotal: number;
+  selH: number;
+  selM: number;
+  selTotal: number;
+  errH: number;
+  errM: number;
+  errTotal: number;
+  bajasTotal: number;
+  consumoHkg: number;
+  consumoMkg: number;
+  consumoTotalkg: number;
+  pctConsumoH: number | null;
+  pctConsumoM: number | null;
+  saldoInicio: number | null;
+  saldoFin: number | null;
+  pctBajasSobreInicio: number | null;
+}
+
 @Component({
   selector: 'app-tabs-principal',
   standalone: true,
@@ -82,7 +105,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Output() delete = new EventEmitter<number>();
   @Output() viewDetail = new EventEmitter<SeguimientoLoteLevanteDto>();
 
-  activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
+  activeTab: 'general' | 'indicadores' | 'reporteSemana' | 'grafica' = 'general';
 
   // Verificar si el usuario es admin
   isAdmin: boolean = false;
@@ -118,6 +141,38 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;
+
+  /** Registros de seguimiento diario cargados para el lote (debe coincidir con filas de la tabla). */
+  get cantidadRegistrosSeguimiento(): number {
+    return (this.seguimientos ?? []).length;
+  }
+
+  get fechaEncasetLote(): string | null {
+    const l = this.selectedLote as LoteDto | LotePosturaLevanteDto | null;
+    const raw = l && 'fechaEncaset' in l ? (l as { fechaEncaset?: string | null }).fechaEncaset : null;
+    return raw && String(raw).trim() ? String(raw) : null;
+  }
+
+  /** Mortalidad acumulada (hembras + machos) según resumen API. */
+  get totalMortalidadAcumulada(): number {
+    const r = this.resumenLevante;
+    if (!r) return 0;
+    return (r.mortalidadAcumHembras ?? 0) + (r.mortalidadAcumMachos ?? 0);
+  }
+
+  /** Selección / descarte acumulado (hembras + machos). */
+  get totalSeleccionAcumulada(): number {
+    const r = this.resumenLevante;
+    if (!r) return 0;
+    return (r.selAcumHembras ?? 0) + (r.selAcumMachos ?? 0);
+  }
+
+  /** Error de sexaje acumulado (hembras + machos). */
+  get totalErrorSexajeAcumulado(): number {
+    const r = this.resumenLevante;
+    if (!r) return 0;
+    return (r.errorSexajeAcumHembras ?? 0) + (r.errorSexajeAcumMachos ?? 0);
+  }
 
   private buildDiarioFilas(): RegistroDiarioTablaFila[] {
     const list = [...(this.seguimientos || [])];
@@ -163,10 +218,10 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
             : null;
 
       const edad0 = this.calcularEdadDias(seg.fechaRegistro);
-      /** Días de vida: el día del encasetamiento es 0 (no 1). */
-      const edadDia = edad0;
-      /** Semana de cría: misma frontera que antes (cuando edad mostrada era edad0+1). */
-      const semana = Math.max(1, Math.min(8, Math.ceil((edadDia + 1) / 7)));
+      /** Días de vida: el día del encasetamiento es 1. */
+      const edadDia = Math.max(1, edad0 + 1);
+      /** Semana de cría: semana 1 = días 1..7, semana 2 = 8..14, etc. (sin tope). */
+      const semana = Math.max(1, Math.ceil(edadDia / 7));
 
       const ymd = this.toYMD(seg.fechaRegistro);
       const agg = ymd && histPorFecha ? histPorFecha.get(ymd) : undefined;
@@ -355,6 +410,77 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.activeTab = tab;
   }
 
+  onTabChangeExtended(tab: 'general' | 'indicadores' | 'reporteSemana' | 'grafica'): void {
+    this.activeTab = tab;
+  }
+
+  get reporteSemanaFilas(): ReporteSemanaFila[] {
+    const filas = this.diarioFilas ?? [];
+    if (filas.length === 0) return [];
+
+    const porSemana = new Map<number, RegistroDiarioTablaFila[]>();
+    for (const f of filas) {
+      const s = Number(f.semana);
+      if (!porSemana.has(s)) porSemana.set(s, []);
+      porSemana.get(s)!.push(f);
+    }
+
+    const out: ReporteSemanaFila[] = [];
+    const semanas = [...porSemana.keys()].sort((a, b) => a - b);
+    for (const semana of semanas) {
+      const list = porSemana.get(semana) ?? [];
+      if (list.length === 0) continue;
+      // vienen ya ordenadas por fecha en buildDiarioFilas()
+      const first = list[0];
+      const last = list[list.length - 1];
+
+      let mortH = 0, mortM = 0, selH = 0, selM = 0, errH = 0, errM = 0;
+      let consumoHkg = 0, consumoMkg = 0;
+      for (const f of list) {
+        const s = f.seg;
+        mortH += Number(s.mortalidadHembras ?? 0);
+        mortM += Number(s.mortalidadMachos ?? 0);
+        selH += Number(s.selH ?? 0);
+        selM += Number(s.selM ?? 0);
+        errH += Number(s.errorSexajeHembras ?? 0);
+        errM += Number(s.errorSexajeMachos ?? 0);
+        consumoHkg += Number(s.consumoKgHembras ?? 0);
+        consumoMkg += Number(s.consumoKgMachos ?? 0);
+      }
+
+      const mortTotal = mortH + mortM;
+      const selTotal = selH + selM;
+      const errTotal = errH + errM;
+      const bajasTotal = mortTotal + selTotal + errTotal;
+      const consumoTotalkg = consumoHkg + consumoMkg;
+      const pctConsumoH = consumoTotalkg > 0 ? (100 * consumoHkg) / consumoTotalkg : null;
+      const pctConsumoM = consumoTotalkg > 0 ? (100 * consumoMkg) / consumoTotalkg : null;
+
+      // Saldo inicio de semana: saldo fin + bajas acumuladas dentro de la semana (aprox. aves vivas al iniciar)
+      const saldoFin = last.saldoAves;
+      const saldoInicio = saldoFin + bajasTotal;
+      const pctBajasSobreInicio = saldoInicio > 0 ? (100 * bajasTotal) / saldoInicio : null;
+
+      out.push({
+        semana,
+        dias: list.length,
+        mortH, mortM, mortTotal,
+        selH, selM, selTotal,
+        errH, errM, errTotal,
+        bajasTotal,
+        consumoHkg,
+        consumoMkg,
+        consumoTotalkg,
+        pctConsumoH,
+        pctConsumoM,
+        saldoInicio: Number.isFinite(saldoInicio) ? saldoInicio : null,
+        saldoFin: Number.isFinite(saldoFin) ? saldoFin : null,
+        pctBajasSobreInicio
+      });
+    }
+    return out;
+  }
+
   onCreate(): void {
     this.create.emit();
   }
@@ -429,23 +555,90 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         (s.observaciones || '').trim()
       ];
     });
-    const title = this.exportSeguimientoLoteNombre.trim()
-      ? `Seguimiento diario pollo engorde — Lote: ${this.exportSeguimientoLoteNombre.trim()}`
-      : 'Seguimiento diario pollo engorde';
+    const loteNombre = this.exportSeguimientoLoteNombre.trim();
+    const title = loteNombre
+      ? `Seguimiento Diario de Levante — Lote: ${loteNombre}`
+      : 'Seguimiento Diario de Levante';
     const aoa: (string | number)[][] = [[title], [], headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
-    const safe = (this.exportSeguimientoLoteNombre.trim() || 'seguimiento_engorde').replace(/[\\/:*?"<>|]/g, '_');
+    const safe = (loteNombre || 'lote').replace(/[\\/:*?"<>|]/g, '_');
     const d = new Date();
     const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `Seguimiento_engorde_${safe}_${stamp}.xlsx`);
+    XLSX.writeFile(wb, `Seguimiento_Diario_de_Levante_${safe}_${stamp}.xlsx`);
+  }
+
+  exportReporteSemanaExcel(): void {
+    const filas = this.reporteSemanaFilas ?? [];
+    if (!filas.length) return;
+
+    const headers = [
+      'Semana',
+      'Días',
+      'Mort. H',
+      'Mort. M',
+      'Mort. Total',
+      'Sel. H',
+      'Sel. M',
+      'Sel. Total',
+      'Err. H',
+      'Err. M',
+      'Err. Total',
+      'Bajas total',
+      'Consumo H (kg)',
+      'Consumo M (kg)',
+      'Consumo total (kg)',
+      '% consumo H',
+      '% consumo M',
+      'Saldo inicio',
+      'Saldo fin',
+      '% bajas/ini'
+    ];
+
+    const rows = filas.map(r => ([
+      r.semana,
+      r.dias,
+      r.mortH,
+      r.mortM,
+      r.mortTotal,
+      r.selH,
+      r.selM,
+      r.selTotal,
+      r.errH,
+      r.errM,
+      r.errTotal,
+      r.bajasTotal,
+      r.consumoHkg,
+      r.consumoMkg,
+      r.consumoTotalkg,
+      r.pctConsumoH != null ? Math.round(r.pctConsumoH * 100) / 100 : '',
+      r.pctConsumoM != null ? Math.round(r.pctConsumoM * 100) / 100 : '',
+      r.saldoInicio != null ? r.saldoInicio : '',
+      r.saldoFin != null ? r.saldoFin : '',
+      r.pctBajasSobreInicio != null ? Math.round(r.pctBajasSobreInicio * 100) / 100 : ''
+    ]));
+
+    const loteNombre = this.exportSeguimientoLoteNombre.trim();
+    const title = loteNombre
+      ? `Reporte semana — Lote: ${loteNombre}`
+      : 'Reporte semana';
+
+    const aoa: (string | number)[][] = [[title], [], headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ReporteSemana');
+
+    const safe = (loteNombre || 'lote').replace(/[\\/:*?"<>|]/g, '_');
+    const d = new Date();
+    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `Reporte_Semana_${safe}_${stamp}.xlsx`);
   }
 
   // ================== CALCULO DE EDAD ==================
   /**
    * Edad del lote en la fecha del registro (días de calendario desde encasetamiento).
-   * El mismo día del encasetamiento = 0; no usa ceil ni zona UTC sobre la cadena ISO.
+   * Retorna 0 si la fecha es igual al encasetamiento; para UI se muestra como día 1 (edad0 + 1).
    */
   calcularEdadDias(fechaRegistro: string | Date): number {
     if (!this.selectedLote?.fechaEncaset) return 0;

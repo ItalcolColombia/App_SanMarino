@@ -107,6 +107,13 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   abrirLoteModalOpen = false;
   resumenCierre: CierreLoteLevanteResumenDto | null = null;
   huevosCierre = 0;
+  /** Fecha inicio producción (editable en el modal cerrar lote). */
+  fechaInicioProduccionYmd: string = '';
+  /** Editar aves para producción (ajuste manual). */
+  editAvesProduccion = false;
+  avesHProd: number | null = null;
+  avesMProd: number | null = null;
+  motivoAjusteAves = '';
   motivoAbrirLote = '';
   loadingCierreLote = false;
   errorCierreLote: string | null = null;
@@ -719,6 +726,11 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
       next: r => {
         this.resumenCierre = r;
         this.huevosCierre = 0;
+        this.fechaInicioProduccionYmd = this.todayYMD();
+        this.editAvesProduccion = false;
+        this.avesHProd = r.avesHembrasDisponibles;
+        this.avesMProd = r.avesMachosDisponibles;
+        this.motivoAjusteAves = '';
         this.loadingCierreLote = false;
         if (r.yaExisteLoteProduccion) {
           this.errorCierreLote = 'Ya existe un lote de producción vinculado a este levante.';
@@ -756,12 +768,23 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
       this.errorCierreLote = 'Indique huevos iniciales (número entero ≥ 0).';
       return;
     }
+    if (!this.fechaInicioProduccionYmd) {
+      this.errorCierreLote = 'Indique la fecha de inicio de producción.';
+      return;
+    }
     this.loadingCierreLote = true;
     this.errorCierreLote = null;
+    const avesH = this.editAvesProduccion ? Math.max(0, Math.floor(Number(this.avesHProd ?? 0))) : null;
+    const avesM = this.editAvesProduccion ? Math.max(0, Math.floor(Number(this.avesMProd ?? 0))) : null;
+    const motivo = (this.editAvesProduccion ? (this.motivoAjusteAves || '').trim() : '').trim();
     this.lotePosturaLevanteSvc
       .cerrarLoteYcrearProduccion(id, {
         huevosIniciales: Math.floor(Number(this.huevosCierre)),
-        closedByUserId: userId
+        closedByUserId: userId,
+        fechaInicioProduccion: this.ymdToIsoAtNoon(this.fechaInicioProduccionYmd),
+        avesHInicialProd: this.editAvesProduccion ? avesH : null,
+        avesMInicialProd: this.editAvesProduccion ? avesM : null,
+        motivoAjusteAves: this.editAvesProduccion && motivo ? motivo : null
       })
       .pipe(finalize(() => (this.loadingCierreLote = false)))
       .subscribe({

@@ -110,6 +110,8 @@
       [loading]="loading"
       [disableCreateEditDelete]="isLoteCerrado"
       [isLoteCerrado]="isLoteCerrado"
+      [showExportSeguimientoExcel]="true"
+      [exportSeguimientoLoteNombre]="selectedLoteNombre"
       (create)="create()"
       (edit)="edit($event)"
       (delete)="delete($event)"
@@ -149,7 +151,7 @@
 
 <!-- ================= MODAL: CERRAR LOTE → PRODUCCIÓN ================= -->
 <div *ngIf="cerrarLoteModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cerrar-lote-lev-title">
-  <div class="ux-modal__dialog ux-modal__dialog--sm">
+  <div class="ux-modal__dialog ux-modal__dialog--sm ux-modal__dialog--cerrar-levante">
     <header class="ux-modal__header">
       <h2 id="cerrar-lote-lev-title">Cerrar lote de levante</h2>
       <button type="button" class="icon-btn" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
@@ -164,9 +166,67 @@
           <p><strong>Hembras disponibles:</strong> {{ r.avesHembrasDisponibles }}</p>
           <p><strong>Machos disponibles:</strong> {{ r.avesMachosDisponibles }}</p>
         </div>
+        <div class="grid grid-2" *ngIf="selectedLote?.fechaEncaset">
+          <p><strong>Edad al cierre:</strong> {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días</p>
+          <p><strong>Fecha encasetamiento:</strong> {{ selectedLote?.fechaEncaset | date:'dd/MM/yyyy' }}</p>
+        </div>
+
+        <div class="ux-card" style="margin: 0.75rem 0; padding: 0.75rem;" *ngIf="resumenSelected as rs">
+          <p style="margin: 0 0 0.5rem 0;"><strong>Cortes (acumulado) — Levante</strong></p>
+          <div class="grid grid-2">
+            <div>
+              <div><strong>Hembras</strong></div>
+              <div>Mort. caja: {{ rs.mortCajaHembras | number:'1.0-0' }}</div>
+              <div>Mortalidad: {{ rs.mortalidadAcumHembras | number:'1.0-0' }}</div>
+              <div>Selección: {{ rs.selAcumHembras | number:'1.0-0' }}</div>
+              <div>Error sexaje: {{ rs.errorSexajeAcumHembras | number:'1.0-0' }}</div>
+            </div>
+            <div>
+              <div><strong>Machos</strong></div>
+              <div>Mort. caja: {{ rs.mortCajaMachos | number:'1.0-0' }}</div>
+              <div>Mortalidad: {{ rs.mortalidadAcumMachos | number:'1.0-0' }}</div>
+              <div>Selección: {{ rs.selAcumMachos | number:'1.0-0' }}</div>
+              <div>Error sexaje: {{ rs.errorSexajeAcumMachos | number:'1.0-0' }}</div>
+            </div>
+          </div>
+        </div>
         <p *ngIf="r.yaExisteLoteProduccion" class="chip chip--warning" role="alert">
           Ya existe un lote de producción vinculado; no se puede cerrar de nuevo desde aquí.
         </p>
+
+        <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
+          <label for="fecha-inicio-prod">Fecha inicio producción</label>
+          <input id="fecha-inicio-prod" type="date" [(ngModel)]="fechaInicioProduccionYmd" name="fechaInicioProduccionYmd" />
+        </div>
+
+        <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
+          <button type="button" class="btn btn--outline" (click)="editAvesProduccion = !editAvesProduccion">
+            {{ editAvesProduccion ? 'Ocultar' : 'Editar' }} aves para producción
+          </button>
+          <p class="ux-hint" style="margin: 0.5rem 0 0 0;">
+            Por defecto, se pasan a producción las aves disponibles actuales del levante.
+          </p>
+        </div>
+
+        <div class="ux-card" *ngIf="!r.yaExisteLoteProduccion && editAvesProduccion" style="padding: 0.75rem; margin-bottom: 0.75rem;">
+          <div class="grid grid-2">
+            <div class="form-field">
+              <label for="aves-h-prod">Aves hembras para producción</label>
+              <input id="aves-h-prod" type="number" min="0" step="1" [(ngModel)]="avesHProd" name="avesHProd" />
+              <small class="ux-hint">Máx: {{ r.avesHembrasDisponibles }}</small>
+            </div>
+            <div class="form-field">
+              <label for="aves-m-prod">Aves machos para producción</label>
+              <input id="aves-m-prod" type="number" min="0" step="1" [(ngModel)]="avesMProd" name="avesMProd" />
+              <small class="ux-hint">Máx: {{ r.avesMachosDisponibles }}</small>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="motivo-ajuste-aves">Motivo del ajuste</label>
+            <textarea id="motivo-ajuste-aves" rows="2" [(ngModel)]="motivoAjusteAves" name="motivoAjusteAves"
+              placeholder="Ej: Se descontó por traslado / se agregó por ajuste físico"></textarea>
+          </div>
+        </div>
 
         <div class="form-field" *ngIf="!r.yaExisteLoteProduccion">
           <label for="huevos-cierre">Huevos iniciales (al cerrar)</label>

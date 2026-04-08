@@ -7,7 +7,7 @@
         type="button"
         class="tab-button"
         [class.active]="activeTab === 'general'"
-        (click)="onTabChange('general')"
+        (click)="onTabChangeExtended('general')"
         role="tab"
         [attr.aria-selected]="activeTab === 'general'"
         aria-controls="general-panel">
@@ -18,7 +18,7 @@
         type="button"
         class="tab-button"
         [class.active]="activeTab === 'indicadores'"
-        (click)="onTabChange('indicadores')"
+        (click)="onTabChangeExtended('indicadores')"
         role="tab"
         [attr.aria-selected]="activeTab === 'indicadores'"
         aria-controls="indicadores-panel">
@@ -28,8 +28,19 @@
       <button
         type="button"
         class="tab-button"
+        [class.active]="activeTab === 'reporteSemana'"
+        (click)="onTabChangeExtended('reporteSemana')"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'reporteSemana'"
+        aria-controls="reporte-semana-panel">
+        🗓️ Reporte semana
+      </button>
+
+      <button
+        type="button"
+        class="tab-button"
         [class.active]="activeTab === 'grafica'"
-        (click)="onTabChange('grafica')"
+        (click)="onTabChangeExtended('grafica')"
         role="tab"
         [attr.aria-selected]="activeTab === 'grafica'"
         aria-controls="grafica-panel">
@@ -54,12 +65,55 @@
           <strong>Lote cerrado.</strong> Solo consulta. No se pueden agregar ni editar registros de seguimiento.
         </div>
 
+        <!-- Resumen compacto en cuadros (KPI) -->
+        <div class="info-lote-kpis" *ngIf="resumenLevante" aria-label="Resumen del lote">
+          <div class="info-kpi">
+            <span class="info-kpi__label">Registros diarios</span>
+            <span class="info-kpi__value">{{ cantidadRegistrosSeguimiento | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi">
+            <span class="info-kpi__label">Fecha encasetamiento</span>
+            <span class="info-kpi__value">{{ fechaEncasetLote ? (fechaEncasetLote | date:'dd/MM/yyyy') : '—' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--hembras">
+            <span class="info-kpi__label">Hembras inicio</span>
+            <span class="info-kpi__value">{{ resumenLevante.hembrasIniciales | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--machos">
+            <span class="info-kpi__label">Machos inicio</span>
+            <span class="info-kpi__value">{{ resumenLevante.machosIniciales | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--hembras">
+            <span class="info-kpi__label">Aves vivas (hembras)</span>
+            <span class="info-kpi__value">{{ resumenLevante.saldoHembras | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--machos">
+            <span class="info-kpi__label">Aves vivas (machos)</span>
+            <span class="info-kpi__value">{{ resumenLevante.saldoMachos | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi">
+            <span class="info-kpi__label">Mortalidad acum.</span>
+            <span class="info-kpi__value">{{ totalMortalidadAcumulada | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi">
+            <span class="info-kpi__label">Selección (descarte) acum.</span>
+            <span class="info-kpi__value">{{ totalSeleccionAcumulada | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi">
+            <span class="info-kpi__label">Error sexaje acum.</span>
+            <span class="info-kpi__value">{{ totalErrorSexajeAcumulado | number:'1.0-0' }}</span>
+          </div>
+        </div>
+
         <!-- Descuentos sobre el lote en Levante: hembras y machos separados -->
         <div class="info-lote-card" *ngIf="resumenLevante">
           <div class="info-lote__header">
             <h4 class="info-lote__title">Descuentos sobre el lote en Levante</h4>
             <p class="info-lote__intro">Las reducciones por mortalidad, descarte (selección) y error de sexaje se descontan del inicio del lote. El saldo es el que se usa en cálculos.</p>
           </div>
+
+          <details class="info-lote-detalle">
+            <summary class="info-lote-detalle__summary">Ver detalle por concepto (hembras / machos)</summary>
 
           <div class="info-lote__grid">
             <div class="info-lote__header-row">
@@ -98,6 +152,7 @@
               <input type="text" class="info-lote__input info-lote__input--saldo" [value]="resumenLevante.saldoMachos | number:'1.0-0'" readonly disabled>
             </div>
           </div>
+          </details>
 
         </div>
 
@@ -212,6 +267,90 @@
           [selectedLote]="selectedLote"
           [loading]="loading">
         </app-tabla-lista-indicadores>
+      </div>
+
+      <!-- TAB REPORTE SEMANA -->
+      <div
+        *ngIf="activeTab === 'reporteSemana'"
+        id="reporte-semana-panel"
+        class="tab-panel tab-panel--reporte-semana"
+        role="tabpanel"
+        aria-labelledby="reporte-semana-tab">
+
+        <div class="registro-diario__toolbar">
+          <h3 style="margin: 0;">Reporte semana</h3>
+          <button
+            type="button"
+            class="btn btn--outline registro-diario__export"
+            [disabled]="loading || reporteSemanaFilas.length === 0"
+            (click)="exportReporteSemanaExcel()"
+            [title]="(reporteSemanaFilas.length === 0 ? 'Sin datos para exportar' : 'Descargar Excel con el reporte semanal')">
+            Descargar Excel
+          </button>
+        </div>
+        <p class="registro-diario__hint">
+          Totales por semana (sumas de registros diarios). <strong>Saldo inicio</strong> se estima como saldo fin + bajas de la semana.
+        </p>
+
+        <div class="ux-scroll ux-scroll--reporte" *ngIf="reporteSemanaFilas.length > 0; else noReporteSemana">
+          <table class="ux-table ux-table--reporte-semana">
+            <thead>
+              <tr>
+                <th>Semana</th>
+                <th class="text-right">Días</th>
+                <th class="text-right">Mort. H</th>
+                <th class="text-right">Mort. M</th>
+                <th class="text-right">Mort. Total</th>
+                <th class="text-right">Sel. H</th>
+                <th class="text-right">Sel. M</th>
+                <th class="text-right">Sel. Total</th>
+                <th class="text-right">Err. H</th>
+                <th class="text-right">Err. M</th>
+                <th class="text-right">Err. Total</th>
+                <th class="text-right">Bajas total</th>
+                <th class="text-right">Consumo H (kg)</th>
+                <th class="text-right">Consumo M (kg)</th>
+                <th class="text-right">Consumo total (kg)</th>
+                <th class="text-right">% consumo H</th>
+                <th class="text-right">% consumo M</th>
+                <th class="text-right">Saldo inicio</th>
+                <th class="text-right">Saldo fin</th>
+                <th class="text-right">% bajas/ini</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let r of reporteSemanaFilas">
+                <td><strong>{{ r.semana }}</strong></td>
+                <td class="text-right">{{ r.dias }}</td>
+                <td class="text-right">{{ r.mortH | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.mortM | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.mortTotal | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.selH | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.selM | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.selTotal | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.errH | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.errM | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.errTotal | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.bajasTotal | number:'1.0-0' }}</td>
+                <td class="text-right">{{ r.consumoHkg | number:'1.0-2' }}</td>
+                <td class="text-right">{{ r.consumoMkg | number:'1.0-2' }}</td>
+                <td class="text-right">{{ r.consumoTotalkg | number:'1.0-2' }}</td>
+                <td class="text-right">{{ r.pctConsumoH != null ? (r.pctConsumoH | number:'1.0-2') + '%' : '—' }}</td>
+                <td class="text-right">{{ r.pctConsumoM != null ? (r.pctConsumoM | number:'1.0-2') + '%' : '—' }}</td>
+                <td class="text-right">{{ r.saldoInicio != null ? (r.saldoInicio | number:'1.0-0') : '—' }}</td>
+                <td class="text-right">{{ r.saldoFin != null ? (r.saldoFin | number:'1.0-0') : '—' }}</td>
+                <td class="text-right">{{ r.pctBajasSobreInicio != null ? (r.pctBajasSobreInicio | number:'1.0-2') + '%' : '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ng-template #noReporteSemana>
+          <div class="empty-state">
+            <div class="empty-illustration" aria-hidden="true">🗓️</div>
+            <p>Sin datos para reporte semanal.</p>
+          </div>
+        </ng-template>
       </div>
 
       <!-- TAB GRÁFICA -->
