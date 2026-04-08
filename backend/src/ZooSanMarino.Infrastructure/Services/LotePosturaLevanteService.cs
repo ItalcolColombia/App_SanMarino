@@ -331,10 +331,18 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         if (existeProd)
             throw new InvalidOperationException("Ya existe un lote de producción asociado a este lote de levante.");
 
-        var avesH = Math.Max(0, lev.AvesHActual ?? 0);
-        var avesM = Math.Max(0, lev.AvesMActual ?? 0);
+        var dispH = Math.Max(0, lev.AvesHActual ?? 0);
+        var dispM = Math.Max(0, lev.AvesMActual ?? 0);
+        var avesH = request.AvesHInicialProd.HasValue ? Math.Max(0, request.AvesHInicialProd.Value) : dispH;
+        var avesM = request.AvesMInicialProd.HasValue ? Math.Max(0, request.AvesMInicialProd.Value) : dispM;
+        if (avesH > dispH) avesH = dispH;
+        if (avesM > dispM) avesM = dispM;
 
-        var now = DateTime.UtcNow;
+        var now = request.FechaInicioProduccion.HasValue
+            ? (request.FechaInicioProduccion.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(request.FechaInicioProduccion.Value, DateTimeKind.Utc)
+                : request.FechaInicioProduccion.Value.ToUniversalTime())
+            : DateTime.UtcNow;
         var userId = _current.UserId;
         var baseNombre = (lev.LoteNombre ?? "").Trim();
         if (string.IsNullOrEmpty(baseNombre)) baseNombre = $"Lote-{lev.LotePosturaLevanteId}";

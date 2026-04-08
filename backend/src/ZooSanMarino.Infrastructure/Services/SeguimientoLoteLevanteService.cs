@@ -211,17 +211,39 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteAsync(int loteId)
     {
-        var filter = new SeguimientoDiarioFilterRequest
+        // GetFilteredAsync limita PageSize a 100; hay que paginar para devolver todos los días del lote.
+        var baseFilter = new SeguimientoDiarioFilterRequest
         {
             TipoSeguimiento = TipoLevante,
             LoteId = loteId.ToString(),
-            Page = 1,
-            PageSize = 10_000,
             OrderBy = "Fecha",
             OrderAsc = true
         };
-        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
-        return paged.Items.Select(MapToLevanteDto).ToList();
+        return await FetchAllLevanteDtoPagesAsync(baseFilter).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Recorre todas las páginas del listado unificado (máx. 100 filas por página en <see cref="SeguimientoDiarioService"/>).
+    /// </summary>
+    private async Task<List<SeguimientoLoteLevanteDto>> FetchAllLevanteDtoPagesAsync(SeguimientoDiarioFilterRequest baseFilter)
+    {
+        const int pageSize = 100;
+        var all = new List<SeguimientoLoteLevanteDto>();
+        var page = 1;
+        long total;
+        do
+        {
+            var filter = baseFilter with { Page = page, PageSize = pageSize };
+            var paged = await _seguimientoDiarioService.GetFilteredAsync(filter).ConfigureAwait(false);
+            total = paged.Total;
+            foreach (var item in paged.Items)
+                all.Add(MapToLevanteDto(item));
+            if (paged.Items.Count == 0)
+                break;
+            page++;
+        } while (all.Count < total);
+
+        return all;
     }
 
     public async Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id)
@@ -309,19 +331,16 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> FilterAsync(int? loteId, DateTime? desde, DateTime? hasta)
     {
-        var filter = new SeguimientoDiarioFilterRequest
+        var baseFilter = new SeguimientoDiarioFilterRequest
         {
             TipoSeguimiento = TipoLevante,
             LoteId = loteId?.ToString(),
             FechaDesde = desde,
             FechaHasta = hasta,
-            Page = 1,
-            PageSize = 10_000,
             OrderBy = "Fecha",
             OrderAsc = true
         };
-        var paged = await _seguimientoDiarioService.GetFilteredAsync(filter);
-        return paged.Items.Select(MapToLevanteDto).ToList();
+        return await FetchAllLevanteDtoPagesAsync(baseFilter).ConfigureAwait(false);
     }
 
     public async Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto)

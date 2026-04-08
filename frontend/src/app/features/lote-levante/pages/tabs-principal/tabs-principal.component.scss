@@ -91,6 +91,14 @@
   overflow-y: auto; max-height: 70vh;
 }
 
+.ux-scroll--reporte {
+  max-height: min(70vh, 720px);
+}
+
+.ux-table--reporte-semana {
+  min-width: 2200px;
+}
+
 .tab-panel {
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -148,6 +156,71 @@
   background: var(--ital-orange-50);
   border: 1px solid var(--ital-orange-100);
   color: var(--ital-orange-dark);
+}
+
+/* Cuadros resumen (KPI) — compacto */
+.info-lote-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.info-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  min-height: 4.25rem;
+}
+
+.info-kpi__label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-sub);
+  line-height: 1.2;
+}
+
+.info-kpi__value {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ital-text);
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.info-kpi--hembras .info-kpi__value {
+  color: #c2185b;
+}
+
+.info-kpi--machos .info-kpi__value {
+  color: #1565c0;
+}
+
+.info-lote-detalle {
+  margin-top: var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.info-lote-detalle__summary {
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ital-green-dark);
+  padding: var(--space-2) 0;
+  list-style: none;
+}
+
+.info-lote-detalle__summary::-webkit-details-marker {
+  display: none;
+}
+
+.info-lote-detalle[open] .info-lote-detalle__summary {
+  margin-bottom: var(--space-2);
 }
 
 /* ==========================================================================

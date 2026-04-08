@@ -30,7 +30,7 @@
               <div class="form-field">
                 <label for="f-lote">Lote</label>
                 <div class="ux-select">
-                  <select id="f-lote" formControlName="loteId">
+                  <select id="f-lote" formControlName="loteId" [disabled]="true">
                     <option value="" disabled>— Seleccione —</option>
                     <option *ngFor="let l of lotes" [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
                   </select>

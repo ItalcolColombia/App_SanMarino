@@ -104,7 +104,14 @@ export class LotePosturaLevanteService {
 
   cerrarLoteYcrearProduccion(
     lotePosturaLevanteId: number,
-    body: { huevosIniciales: number; closedByUserId: string }
+    body: {
+      huevosIniciales: number;
+      closedByUserId: string;
+      fechaInicioProduccion?: string | null;
+      avesHInicialProd?: number | null;
+      avesMInicialProd?: number | null;
+      motivoAjusteAves?: string | null;
+    }
   ): Observable<LotePosturaLevanteDto> {
     return this.http.post<LotePosturaLevanteDto>(
       `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/cerrar`,
