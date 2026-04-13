@@ -16,6 +16,8 @@ export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fe
 /** Totales del historial unificado por una fecha (YYYY-MM-DD), alineados con el backend. */
 interface AggregadoHistoricoDia {
   ingresoKg: number;
+  /** Desglose de ingreso por item_resumen (para evitar mezclar alimentos diferentes el mismo día). */
+  ingresoKgPorItem: Map<string, number>;
   trasladoEntradaKg: number;
   trasladoSalidaKg: number;
   consumoBodegaKg: number;
@@ -248,7 +250,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       let consumoBodegaKg: number | null = null;
 
       if (agg) {
-        if (agg.ingresoKg > 0) ingresoAlimento = `${this.formatKgNumber(agg.ingresoKg)} kg`;
+        const ingresoKgMostrado = this.resolveIngresoKgMostrado(agg, seg);
+        if (ingresoKgMostrado > 0) ingresoAlimento = `${this.formatKgNumber(ingresoKgMostrado)} kg`;
         const partesTr: string[] = [];
         if (agg.trasladoEntradaKg > 0) partesTr.push(`Entrada ${this.formatKgNumber(agg.trasladoEntradaKg)} kg`);
         if (agg.trasladoSalidaKg > 0) partesTr.push(`Salida ${this.formatKgNumber(agg.trasladoSalidaKg)} kg`);
@@ -365,7 +368,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     /** Solo movimientos de histórico desde encaset (no duplicar líneas ya en apertura). */
     const encYmd = this.toYMD(this.selectedLote?.fechaEncaset);
 
-    const openingKg = this.computeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegYmd);
+    const openingKg = this.computeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegYmd, encYmd);
 
     type Ev = { ymd: string; ord: number; tie: number; segId: number | null; delta: number };
     const ev: Ev[] = [];
@@ -423,13 +426,17 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
    */
   private computeSaldoAperturaGalponAntesPrimerSeguimiento(
     hist: LoteRegistroHistoricoUnificadoDto[],
-    firstSegYmd: string
+    firstSegYmd: string,
+    encYmd: string | null
   ): number {
     type Row = { ymd: string; ts: number; delta: number };
     const rows: Row[] = [];
     for (const h of hist) {
       const ymd = this.ymdHistoricoEfectivo(h);
       if (!ymd || ymd >= firstSegYmd) continue;
+      // Importante: el saldo de apertura debe considerar solo movimientos del ciclo del lote,
+      // no stock viejo previo al encasetamiento que podría pertenecer a otro ciclo/galpón.
+      if (encYmd && ymd < encYmd) continue;
       const d = this.deltaHistoricoMovimientoStock(h);
       if (!d) continue;
       rows.push({ ymd, ts: this.tsHistorico(h), delta: d.delta });
@@ -465,6 +472,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       if (!a) {
         a = {
           ingresoKg: 0,
+          ingresoKgPorItem: new Map<string, number>(),
           trasladoEntradaKg: 0,
           trasladoSalidaKg: 0,
           consumoBodegaKg: 0,
@@ -493,6 +501,10 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       switch (h.tipoEvento) {
         case 'INV_INGRESO':
           a.ingresoKg += kg;
+          {
+            const key = (h.itemResumen ?? '').trim() || '(sin ítem)';
+            a.ingresoKgPorItem.set(key, (a.ingresoKgPorItem.get(key) ?? 0) + kg);
+          }
           pushRef(a, h);
           break;
         case 'INV_TRASLADO_ENTRADA':
@@ -515,6 +527,22 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       }
     }
     return map;
+  }
+
+  private resolveIngresoKgMostrado(agg: AggregadoHistoricoDia, seg: SeguimientoLoteLevanteDto): number {
+    const tipo = String((seg as unknown as { tipoAlimento?: unknown }).tipoAlimento ?? '').trim();
+    if (!tipo) return agg.ingresoKg;
+
+    const tipoNorm = tipo.toLowerCase();
+    let best: { key: string; kg: number } | null = null;
+    for (const [k, v] of agg.ingresoKgPorItem.entries()) {
+      const kn = k.toLowerCase();
+      if (!kn || kn === '(sin ítem)') continue;
+      if (kn.includes(tipoNorm) || tipoNorm.includes(kn)) {
+        if (!best || v > best.kg) best = { key: k, kg: v };
+      }
+    }
+    return best ? best.kg : agg.ingresoKg;
   }
 
   private formatKgNumber(n: number): string {
