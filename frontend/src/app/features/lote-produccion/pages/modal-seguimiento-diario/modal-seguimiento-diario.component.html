@@ -284,8 +284,8 @@
                   <span class="label-icon">🥚</span>
                   Huevos Totales (HuevoTot) *
                 </label>
-                <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" required />
-                <small class="ux-hint">Total de huevos producidos</small>
+                <input id="f-huevos-totales" type="number" min="0" formControlName="huevosTotales" placeholder="0" required readonly class="ux-input--readonly" />
+                <small class="ux-hint">Automático: suma de todas las categorías de huevos</small>
               </div>
 
               <div class="form-field">
@@ -293,8 +293,8 @@
                   <span class="label-icon">✅</span>
                   Huevos Incubables (HuevoInc) *
                 </label>
-                <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" required />
-                <small class="ux-hint">Huevos aptos para incubación</small>
+                <input id="f-huevos-incubables" type="number" min="0" formControlName="huevosIncubables" placeholder="0" required readonly class="ux-input--readonly" />
+                <small class="ux-hint">Automático: Limpio + Tratado</small>
               </div>
 
               <div class="form-field">

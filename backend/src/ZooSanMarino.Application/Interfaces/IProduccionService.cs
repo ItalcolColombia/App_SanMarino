@@ -12,6 +12,7 @@ public interface IProduccionService
     Task<int> CrearSeguimientoAsync(CrearSeguimientoRequest request);
     Task ActualizarSeguimientoAsync(int id, CrearSeguimientoRequest request);
     Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta, int page, int size);
+    Task<InformacionLoteResponse> ObtenerInformacionLoteAsync(int lotePosturaProduccionId);
     Task<SeguimientoItemDto?> ObtenerSeguimientoPorIdAsync(int seguimientoId);
     Task<bool> EliminarSeguimientoAsync(int seguimientoId);
     Task<IEnumerable<LoteDtos.LoteDetailDto>> ObtenerLotesProduccionAsync(); // Lotes con semana >= 26

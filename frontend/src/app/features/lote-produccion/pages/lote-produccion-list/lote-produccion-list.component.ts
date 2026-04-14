@@ -83,6 +83,8 @@ export class LoteProduccionListComponent implements OnInit {
   currentProduccionLoteId: number | null = null;
   /** Lote postura producción seleccionado (flujo LPP). Incluye aves, estado. */
   selectedLoteLPP: LotePosturaProduccionFilterItem | null = null;
+  /** Información general del lote (desde backend) para el header del tab Seguimiento. */
+  informacionLote: import('../../services/produccion.service').InformacionLoteDto | null = null;
 
   // Datos para el modal de registro inicial
   modalLoteNombre: string = '';
@@ -250,6 +252,7 @@ export class LoteProduccionListComponent implements OnInit {
     this.produccionLote = null;
     this.currentProduccionLoteId = null;
     this.selectedLoteLPP = null;
+    this.informacionLote = null;
     this.filtroDesde = null;
     this.filtroHasta = null;
 
@@ -271,6 +274,7 @@ export class LoteProduccionListComponent implements OnInit {
         galponId: lppFromFilter.galponId ?? undefined
       } as LoteDto;
       this.currentProduccionLoteId = 0;
+      this.loadInformacionLoteLPP();
       this.loadSeguimientos();
       return;
     }
@@ -311,8 +315,8 @@ export class LoteProduccionListComponent implements OnInit {
     if (!this.selectedLoteId) return;
 
     const query = this.selectedLoteLPP
-      ? { lotePosturaProduccionId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 100 }
-      : { loteId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 100 };
+      ? { lotePosturaProduccionId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 0 }
+      : { loteId: this.selectedLoteId, desde: this.filtroDesde || undefined, hasta: this.filtroHasta || undefined, page: 1, size: 0 };
 
     this.produccionSvc.listarSeguimiento(query).pipe(finalize(() => (this.loading = false)))
     .subscribe({
@@ -326,23 +330,22 @@ export class LoteProduccionListComponent implements OnInit {
     if (!this.selectedLoteId) return;
 
     if (this.selectedLoteLPP) {
-      this.http.get<FilterDataResponse>(this.filterDataUrl).subscribe({
-        next: (data) => {
-          const lppId = this.selectedLoteId!;
-          const fresh = (data.lotes ?? []).find((l: any) =>
-            (l.lotePosturaProduccionId ?? l.loteId) === lppId
-          );
-          if (fresh) {
-            this.selectedLoteLPP = { ...fresh } as LotePosturaProduccionFilterItem;
-          }
-        }
-      });
+      this.loadInformacionLoteLPP();
       return;
     }
 
     this.produccionSvc.getProduccionLote(this.selectedLoteId).subscribe({
       next: (detalle) => (this.produccionLote = detalle),
       error: () => {}
+    });
+  }
+
+  private loadInformacionLoteLPP(): void {
+    if (!this.selectedLoteId) return;
+    // Solo para flujo LPP
+    this.produccionSvc.obtenerInformacionLote(this.selectedLoteId).subscribe({
+      next: (res) => (this.informacionLote = res?.informacionLote || null),
+      error: () => (this.informacionLote = null)
     });
   }
   

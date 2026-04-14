@@ -206,6 +206,11 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       consumoAguaTemperatura: [null, [Validators.min(0)]]
     });
 
+    // Huevos Totales/Incubables son calculados automáticamente desde clasificadora.
+    this.form.get('huevosTotales')?.disable({ emitEvent: false });
+    this.form.get('huevosIncubables')?.disable({ emitEvent: false });
+    this.setupHuevosAutoCalculo();
+
     // Calcular etapa automáticamente cuando cambia la fecha
     this.form.get('fechaRegistro')?.valueChanges.subscribe(() => {
       this.calcularYActualizarEtapa();
@@ -695,7 +700,7 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
       return;
     }
 
-    const raw = this.form.value;
+    const raw = this.form.getRawValue(); // incluye campos deshabilitados (HuevosTotales/HuevosIncubables)
     const ymd = this.toYMD(raw.fechaRegistro);
 
     if (!ymd) {
@@ -797,6 +802,51 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     };
 
     this.save.emit(request);
+  }
+
+  private setupHuevosAutoCalculo(): void {
+    const keys = [
+      'huevoLimpio',
+      'huevoTratado',
+      'huevoSucio',
+      'huevoDeforme',
+      'huevoBlanco',
+      'huevoDobleYema',
+      'huevoPiso',
+      'huevoPequeno',
+      'huevoRoto',
+      'huevoDesecho',
+      'huevoOtro'
+    ] as const;
+
+    const recalc = () => {
+      const n = (k: typeof keys[number]) => Number(this.form.get(k)?.value) || 0;
+      const limpio = n('huevoLimpio');
+      const tratado = n('huevoTratado');
+      const incubables = limpio + tratado;
+      const total =
+        incubables +
+        n('huevoSucio') +
+        n('huevoDeforme') +
+        n('huevoBlanco') +
+        n('huevoDobleYema') +
+        n('huevoPiso') +
+        n('huevoPequeno') +
+        n('huevoRoto') +
+        n('huevoDesecho') +
+        n('huevoOtro');
+
+      this.form.patchValue(
+        {
+          huevosIncubables: incubables,
+          huevosTotales: total
+        },
+        { emitEvent: false }
+      );
+    };
+
+    keys.forEach(k => this.form.get(k)?.valueChanges.subscribe(recalc));
+    recalc();
   }
 
   // ================== HELPERS ==================

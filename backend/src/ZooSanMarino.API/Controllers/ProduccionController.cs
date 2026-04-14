@@ -185,7 +185,7 @@ public class ProduccionController : ControllerBase
     /// <param name="desde">Fecha desde (opcional)</param>
     /// <param name="hasta">Fecha hasta (opcional)</param>
     /// <param name="page">Número de página (por defecto 1)</param>
-    /// <param name="size">Tamaño de página (1-100, por defecto 100)</param>
+    /// <param name="size">Tamaño de página. Use 0 para traer todos (sin paginación).</param>
     /// <returns>Lista paginada de seguimientos (cada ítem incluye metadata si existe)</returns>
     [HttpGet("seguimiento")]
     public async Task<ActionResult<ListaSeguimientoResponse>> ListarSeguimiento(
@@ -199,10 +199,35 @@ public class ProduccionController : ControllerBase
         try
         {
             if (page < 1) page = 1;
-            if (size < 1 || size > 100) size = 100;
+            // Compat: antes el frontend enviaba size=100 (máximo). Ahora 0 significa "traer todos".
+            if (size == 100) size = 0;
+            if (size < 0) size = 0;
 
             var resultado = await _produccionService.ListarSeguimientoAsync(loteId, lotePosturaProduccionId, desde, hasta, page, size);
             return Ok(resultado);
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Devuelve la información general del lote para el módulo Seguimiento (Postura Producción).
+    /// Calcula edad en semanas de producción (desde semana 26 del encaset), totales y consumo.
+    /// </summary>
+    [HttpGet("seguimiento/informacion-lote")]
+    public async Task<ActionResult<InformacionLoteResponse>> ObtenerInformacionLote(
+        [FromQuery] int lotePosturaProduccionId)
+    {
+        try
+        {
+            var info = await _produccionService.ObtenerInformacionLoteAsync(lotePosturaProduccionId);
+            return Ok(info);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception)
         {

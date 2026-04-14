@@ -111,6 +111,36 @@
   min-width: 1400px;
 }
 
+/* Sticky first columns for easier navigation on wide tables */
+.sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 12;
+  background: var(--white);
+}
+
+.indicadores-table thead .sticky-left {
+  background: linear-gradient(180deg, var(--warm-100) 0%, var(--warm-50) 100%);
+}
+
+.sticky-col-1 { left: 0; min-width: 70px; }
+.sticky-col-2 { left: 70px; min-width: 190px; }
+.sticky-col-3 { left: 260px; min-width: 90px; }
+.sticky-col-4 { left: 350px; min-width: 60px; }
+.sticky-col-5 { left: 410px; min-width: 72px; }
+
+.indicadores-table tbody tr:hover td.sticky-left {
+  background: var(--warm-50);
+}
+
+.indicadores-table td.sticky-left {
+  border-right: 1px solid var(--warm-200);
+}
+
+.indicadores-table th.sticky-left {
+  border-right: 1px solid var(--warm-200);
+}
+
 .indicadores-table thead {
   background: linear-gradient(180deg, var(--warm-100) 0%, var(--warm-50) 100%);
   position: sticky;
