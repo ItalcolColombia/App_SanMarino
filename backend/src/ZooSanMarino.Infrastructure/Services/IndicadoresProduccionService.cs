@@ -94,9 +94,10 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                     "Verifique que pertenezca a su compañía activa.");
             }
 
-            // Fecha base: fecha_inicio_produccion o fecha_encaset desde Levante
-            var fechaRef = lpp.FechaInicioProduccion;
-            if (!fechaRef.HasValue && lpp.LotePosturaLevanteId.HasValue)
+            // Fecha base para edad/guía: SIEMPRE se calcula desde ENCASET (semana de vida).
+            // Producción inicia en semana 26 de vida => semanaProduccion = semanaVida - 25.
+            DateTime? fechaRef = null;
+            if (lpp.LotePosturaLevanteId.HasValue)
             {
                 var lev = await _context.LotePosturaLevante
                     .AsNoTracking()
@@ -107,6 +108,9 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             }
             if (!fechaRef.HasValue && lpp.FechaEncaset.HasValue)
                 fechaRef = lpp.FechaEncaset;
+            // Fallback: si no hay encaset, usar fecha_inicio_produccion (menos preciso para guía)
+            if (!fechaRef.HasValue && lpp.FechaInicioProduccion.HasValue)
+                fechaRef = lpp.FechaInicioProduccion;
 
             if (!fechaRef.HasValue)
             {
@@ -164,8 +168,57 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                     s.ObservacionesPesaje))
                 .ToListAsync();
 
+            // Incluir registros legacy (tabla produccion_diaria) que aún existan para el mismo LPP.
+            // Esto permite convivir con históricos antes del flujo unificado.
+            var fromLegacy = _context.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => s.LotePosturaProduccionId == lppId);
+            if (request.FechaDesde.HasValue)
+                fromLegacy = fromLegacy.Where(s => s.Fecha >= request.FechaDesde.Value);
+            if (request.FechaHasta.HasValue)
+                fromLegacy = fromLegacy.Where(s => s.Fecha <= request.FechaHasta.Value);
+
+            var seguimientosLegacy = await fromLegacy
+                .OrderBy(s => s.Fecha)
+                .Select(s => new SeguimientoProduccionRegistroDto(
+                    s.Fecha,
+                    s.MortalidadH,
+                    s.MortalidadM,
+                    s.SelH,
+                    s.SelM,
+                    s.ConsKgH,
+                    s.ConsKgM,
+                    s.HuevoTot,
+                    s.HuevoInc,
+                    s.HuevoLimpio,
+                    s.HuevoTratado,
+                    s.HuevoSucio,
+                    s.HuevoDeforme,
+                    s.HuevoBlanco,
+                    s.HuevoDobleYema,
+                    s.HuevoPiso,
+                    s.HuevoPequeno,
+                    s.HuevoRoto,
+                    s.HuevoDesecho,
+                    s.HuevoOtro,
+                    s.PesoHuevo,
+                    s.Etapa,
+                    s.PesoH,
+                    s.PesoM,
+                    s.Uniformidad,
+                    s.CoeficienteVariacion,
+                    s.ObservacionesPesaje))
+                .ToListAsync();
+
+            var seguimientosMerged = seguimientosLpp
+                .Concat(seguimientosLegacy)
+                .GroupBy(x => x.Fecha.Date)
+                .Select(g => g.OrderBy(x => x.Fecha).First())
+                .OrderBy(x => x.Fecha)
+                .ToList();
+
             return await CalcularIndicadoresAsync(
-                seguimientosLpp,
+                seguimientosMerged,
                 fechaEncaset,
                 avesHembrasIniciales,
                 avesMachosIniciales,
@@ -275,7 +328,55 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 s.ObservacionesPesaje))
             .ToListAsync();
 
-        if (seguimientos.Count == 0)
+        // Incluir registros legacy (tabla produccion_diaria) para el mismo lote en producción.
+        var fromLegacyUnificado = _context.SeguimientoProduccion
+            .AsNoTracking()
+            .Where(s => s.LoteId.ToString() == loteIdStr);
+        if (request.FechaDesde.HasValue)
+            fromLegacyUnificado = fromLegacyUnificado.Where(s => s.Fecha >= request.FechaDesde.Value);
+        if (request.FechaHasta.HasValue)
+            fromLegacyUnificado = fromLegacyUnificado.Where(s => s.Fecha <= request.FechaHasta.Value);
+
+        var seguimientosLegacyUnificado = await fromLegacyUnificado
+            .OrderBy(s => s.Fecha)
+            .Select(s => new SeguimientoProduccionRegistroDto(
+                s.Fecha,
+                s.MortalidadH,
+                s.MortalidadM,
+                s.SelH,
+                s.SelM,
+                s.ConsKgH,
+                s.ConsKgM,
+                s.HuevoTot,
+                s.HuevoInc,
+                s.HuevoLimpio,
+                s.HuevoTratado,
+                s.HuevoSucio,
+                s.HuevoDeforme,
+                s.HuevoBlanco,
+                s.HuevoDobleYema,
+                s.HuevoPiso,
+                s.HuevoPequeno,
+                s.HuevoRoto,
+                s.HuevoDesecho,
+                s.HuevoOtro,
+                s.PesoHuevo,
+                s.Etapa,
+                s.PesoH,
+                s.PesoM,
+                s.Uniformidad,
+                s.CoeficienteVariacion,
+                s.ObservacionesPesaje))
+            .ToListAsync();
+
+        var seguimientosMergedLegacy = seguimientos
+            .Concat(seguimientosLegacyUnificado)
+            .GroupBy(x => x.Fecha.Date)
+            .Select(g => g.OrderBy(x => x.Fecha).First())
+            .OrderBy(x => x.Fecha)
+            .ToList();
+
+        if (seguimientosMergedLegacy.Count == 0)
         {
             return new IndicadoresProduccionResponse(
                 new List<IndicadorProduccionSemanalDto>(),
@@ -300,7 +401,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         }
 
         return await CalcularIndicadoresAsync(
-            seguimientos,
+            seguimientosMergedLegacy,
             fechaEncaset,
             avesHembrasIniciales,
             avesMachosIniciales,
@@ -361,13 +462,17 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 .ToDictionary(g => g.Key, g => g.First().r);
         }
 
-        // ─── 7) Agrupar por semana (semana 1 = días 0-6 desde fechaEncaset) ───
+        // ─── 7) Agrupar por SEMANA DE EDAD (VIDA) ───
+        // SemanaVida = semanas desde encaset (1..). Producción inicia en SemanaVida 26.
         var seguimientosPorSemana = seguimientos
-            .GroupBy(s =>
+            .Select(s =>
             {
                 var dias = (s.Fecha.Date - fechaEncaset.Date).Days;
-                return (dias / 7) + 1;
+                var semanaVida = (dias / 7) + 1;
+                return new { s, semanaVida };
             })
+            .Where(x => x.semanaVida >= 26) // solo semanas de producción (>= 26 de vida)
+            .GroupBy(x => x.semanaVida)
             .OrderBy(g => g.Key)
             .ToList();
 
@@ -385,9 +490,10 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         foreach (var grupoSemana in semanasFiltradas)
         {
             var semana = grupoSemana.Key;
-            var seguimientosSemana = grupoSemana.OrderBy(s => s.Fecha).ToList();
+                var seguimientosSemana = grupoSemana.Select(x => x.s).OrderBy(s => s.Fecha).ToList();
 
-            var diasInicio = (semana - 1) * 7;
+            var semanaVida = semana;
+            var diasInicio = (semanaVida - 1) * 7;
             var fechaInicioSemana = fechaEncaset.AddDays(diasInicio).Date;
             var fechaFinSemana = fechaInicioSemana.AddDays(6).Date;
 
@@ -428,9 +534,7 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             var avesMachosInicioSemana = avesMachosActuales + mortalidadM;
 
             // Comparativos con guía: la guía genética usa Edad = semanas de VIDA (26, 27, 28...).
-            // Nuestra "semana" es semanas desde inicio de producción (1, 2, 3...). Semana producción 1 = edad 26.
-            const int EdadInicioProduccion = 26;
-            var edadGuia = (EdadInicioProduccion - 1) + semana; // producción 1 -> 26, 2 -> 27, etc.
+            var edadGuia = semanaVida;
             var guiaSemana = guias.FirstOrDefault(g => g.Edad == edadGuia);
             decimal? consumoGuiaH = null, consumoGuiaM = null, mortalidadGuiaH = null, mortalidadGuiaM = null;
             decimal? pesoGuiaH = null, pesoGuiaM = null, uniformidadGuia = null;

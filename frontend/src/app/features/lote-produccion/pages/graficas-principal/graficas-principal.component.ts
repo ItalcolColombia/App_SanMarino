@@ -39,10 +39,12 @@ interface IndicadorSemanal {
 export class GraficasPrincipalComponent implements OnInit, OnChanges {
   @Input() seguimientos: SeguimientoItemDto[] = [];
   @Input() selectedLote: LoteDto | null = null;
+  /** Fecha de encaset (fuente confiable para calcular semanas de edad). */
+  @Input() fechaEncaset: string | Date | null = null;
   @Input() loading: boolean = false;
 
   // Constantes para producción
-  readonly SEMANA_INICIO_PRODUCCION = 25;
+  readonly SEMANA_INICIO_PRODUCCION = 26;
   readonly SEMANA_MAX_PRODUCCION = 75;
 
   // Datos para gráficas
@@ -326,13 +328,10 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
     registros.forEach(registro => {
       const semana = this.calcularSemana(registro.fechaRegistro);
-      // Ajustar a semana mínima de producción (25)
-      const semanaProduccion = Math.max(this.SEMANA_INICIO_PRODUCCION, semana);
-
-      if (!grupos.has(semanaProduccion)) {
-        grupos.set(semanaProduccion, []);
+      if (!grupos.has(semana)) {
+        grupos.set(semana, []);
       }
-      grupos.get(semanaProduccion)!.push(registro);
+      grupos.get(semana)!.push(registro);
     });
 
     grupos.forEach((registros, semana) => {
@@ -343,22 +342,24 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   private calcularSemana(fechaRegistro: string | Date): number {
-    if (!this.selectedLote?.fechaEncaset) return this.SEMANA_INICIO_PRODUCCION;
+    const base = this.fechaEncaset ?? (this.selectedLote as any)?.fechaEncaset ?? null;
+    if (!base) return this.SEMANA_INICIO_PRODUCCION;
 
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
+    const fechaEncaset = new Date(base as any);
     const fechaReg = new Date(fechaRegistro);
     const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // En producción, las semanas comienzan desde la 25
-    const semanaCalculada = Math.ceil(diffDays / 7);
-    return Math.max(this.SEMANA_INICIO_PRODUCCION, Math.min(semanaCalculada, this.SEMANA_MAX_PRODUCCION));
+    // Semana de EDAD (vida): (días/7)+1. Producción inicia en semana 26.
+    const semanaVida = Math.floor(diffDays / 7) + 1;
+    return Math.max(this.SEMANA_INICIO_PRODUCCION, Math.min(semanaVida, this.SEMANA_MAX_PRODUCCION));
   }
 
   private obtenerFechaInicioSemana(semana: number): string {
-    if (!this.selectedLote?.fechaEncaset) return '';
+    const base = this.fechaEncaset ?? (this.selectedLote as any)?.fechaEncaset ?? null;
+    if (!base) return '';
 
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
+    const fechaEncaset = new Date(base as any);
     const diasASumar = (semana - 1) * 7;
     const fechaInicio = new Date(fechaEncaset.getTime() + (diasASumar * 24 * 60 * 60 * 1000));
 

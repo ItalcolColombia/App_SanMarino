@@ -1,6 +1,15 @@
 <div class="indicadores-container">
   <div class="indicadores-header">
-    <h3>📈 Indicadores Semanales de Producción</h3>
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap: 12px;">
+      <h3 style="margin:0;">📈 Indicadores Semanales de Producción</h3>
+      <button
+        type="button"
+        class="btn btn--outline"
+        (click)="descargarIndicadoresExcel()"
+        [disabled]="!indicadoresSemanales || indicadoresSemanales.length === 0">
+        Descargar indicadores (Excel)
+      </button>
+    </div>
     <p class="indicadores-subtitle">
       Resumen de métricas clave por semana de producción
       <span *ngIf="tieneDatosGuiaGenetica" class="badge-guia">✓ Comparación con Guía Genética disponible</span>
@@ -30,116 +39,164 @@
     <table class="indicadores-table">
       <thead>
         <tr>
-          <th rowspan="2">Semana</th>
-          <th rowspan="2">Período</th>
-          <th rowspan="2">Etapa</th>
-          <th rowspan="2">Registros</th>
-          <th rowspan="2">Detalle</th>
-          <th colspan="3">💀 Mortalidad</th>
-          <th colspan="4">🌾 Consumo (g/ave/día)</th>
-          <th colspan="7">🥚 Producción Huevos</th>
-          <th colspan="8">⚖️ Peso / Uniformidad</th>
+          <th rowspan="2" class="sticky-left sticky-col-1">Semana</th>
+          <th rowspan="2" class="sticky-left sticky-col-2">Período</th>
+          <th rowspan="2" class="sticky-left sticky-col-3">Etapa</th>
+          <th rowspan="2" class="sticky-left sticky-col-4">Reg.</th>
+          <th rowspan="2" class="sticky-left sticky-col-5">Detalle</th>
+
+          <th colspan="8">💀 Mortalidad / Selección</th>
+          <th colspan="10">🌾 Consumo</th>
+          <th colspan="12">🥚 Producción Huevos</th>
+          <th colspan="10">⚖️ Peso / Uniformidad</th>
+          <th colspan="4">🐔 Aves</th>
         </tr>
         <tr>
-          <!-- Mortalidad -->
-          <th>H</th>
-          <th>M</th>
-          <th>Dif. Guía</th>
+          <!-- Mortalidad / selección -->
+          <th>Mort H</th>
+          <th>Mort M</th>
+          <th>%Mort H</th>
+          <th>%Mort M</th>
+          <th>Guía Mort H</th>
+          <th>Guía Mort M</th>
+          <th>Dif Mort H</th>
+          <th>Dif Mort M</th>
+          <th>Sel H</th>
+          <th>%Sel H</th>
+
           <!-- Consumo -->
-          <th>H Real</th>
-          <th>H Guía</th>
-          <th>M Real</th>
-          <th>M Guía</th>
-          <!-- Producción -->
-          <th>Totales</th>
-          <th>Tot. Guía</th>
-          <th>Incubables</th>
-          <th>Inc. Guía</th>
-          <th>Prom/Día</th>
+          <th>Kg H</th>
+          <th>Kg M</th>
+          <th>Kg Total</th>
+          <th>Prom/día Kg</th>
+          <th>H Real (g/ave/d)</th>
+          <th>H Guía (g/ave/d)</th>
+          <th>Dif Cons H</th>
+          <th>M Real (g/ave/d)</th>
+          <th>M Guía (g/ave/d)</th>
+          <th>Dif Cons M</th>
+
+          <!-- Huevos -->
+          <th>Tot</th>
+          <th>Guía Tot</th>
+          <th>Dif Tot</th>
+          <th>Inc</th>
+          <th>Guía Inc</th>
+          <th>Dif Inc</th>
+          <th>Prom/día</th>
           <th>%Prod Real</th>
           <th>%Prod Guía</th>
+          <th>Dif %Prod</th>
+          <th>Peso huevo (g)</th>
+          <th>Guía huevo (g)</th>
+
           <!-- Peso / Uniformidad -->
           <th>Peso H (kg)</th>
+          <th>Guía H (kg)</th>
+          <th>Dif Peso H</th>
           <th>Peso M (kg)</th>
-          <th>Peso Huevo (g)</th>
-          <th>Huevo Guía (g)</th>
-          <th>Dif. Huevo</th>
+          <th>Guía M (kg)</th>
+          <th>Dif Peso M</th>
           <th>Unif Real</th>
           <th>Unif Guía</th>
-          <th>Dif. Unif</th>
+          <th>Dif Unif</th>
+          <th>CV prom</th>
+
+          <!-- Aves -->
+          <th>H ini</th>
+          <th>M ini</th>
+          <th>H fin</th>
+          <th>M fin</th>
         </tr>
       </thead>
       <tbody>
         <ng-container *ngFor="let ind of indicadoresSemanales">
         <tr class="indicador-row">
-          <td><strong>{{ ind.semana }}</strong></td>
-          <td class="periodo-cell">
+          <td class="sticky-left sticky-col-1"><strong>{{ ind.semana }}</strong></td>
+          <td class="sticky-left sticky-col-2 periodo-cell">
             <span *ngIf="ind.fechaInicioSemana && ind.fechaFinSemana">
               {{ formatearFecha(ind.fechaInicioSemana) }} - {{ formatearFecha(ind.fechaFinSemana) }}
             </span>
             <span *ngIf="!ind.fechaInicioSemana || !ind.fechaFinSemana">—</span>
           </td>
-          <td><span class="etapa-badge" [class]="'etapa-' + calcularEtapa(ind.semana).toLowerCase().replace(' ', '-')">
+          <td class="sticky-left sticky-col-3"><span class="etapa-badge" [class]="'etapa-' + calcularEtapa(ind.semana).toLowerCase().replace(' ', '-')">
             {{ calcularEtapa(ind.semana) }}
           </span></td>
-          <td>{{ ind.totalRegistros }}</td>
-          <td>
+          <td class="sticky-left sticky-col-4">{{ ind.totalRegistros }}</td>
+          <td class="sticky-left sticky-col-5">
             <button type="button" class="btn btn--outline" (click)="toggleExpanded(ind.semana)">
               {{ isExpanded(ind.semana) ? '−' : '+' }}
             </button>
           </td>
 
-          <!-- Mortalidad -->
+          <!-- Mortalidad / selección -->
           <td>{{ ind.mortalidadHembras }}</td>
           <td>{{ ind.mortalidadMachos }}</td>
-          <td [class]="getDiferenciaClass(ind.diferenciaMortalidadHembras)" *ngIf="ind.diferenciaMortalidadHembras !== null && ind.diferenciaMortalidadHembras !== undefined">
-            {{ formatearPorcentaje(ind.diferenciaMortalidadHembras) }}
-          </td>
-          <td *ngIf="ind.diferenciaMortalidadHembras === null || ind.diferenciaMortalidadHembras === undefined">—</td>
+          <td>{{ ind.porcentajeMortalidadHembras | number:'1.0-2' }}%</td>
+          <td>{{ ind.porcentajeMortalidadMachos | number:'1.0-2' }}%</td>
+          <td>{{ ind.mortalidadGuiaHembras || 0 }}</td>
+          <td>{{ ind.mortalidadGuiaMachos || 0 }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaMortalidadHembras)">{{ formatearPorcentaje(ind.diferenciaMortalidadHembras) }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaMortalidadMachos)">{{ formatearPorcentaje(ind.diferenciaMortalidadMachos) }}</td>
+          <td>{{ ind.seleccionHembras }}</td>
+          <td>{{ ind.porcentajeSeleccionHembras | number:'1.0-2' }}%</td>
 
-          <!-- Consumo (g/ave/día) -->
+          <!-- Consumo -->
+          <td>{{ ind.consumoKgHembras | number:'1.0-2' }}</td>
+          <td>{{ ind.consumoKgMachos | number:'1.0-2' }}</td>
+          <td>{{ ind.consumoTotalKg | number:'1.0-2' }}</td>
+          <td>{{ ind.consumoPromedioDiarioKg | number:'1.0-2' }}</td>
           <td>
             {{ consumoRealGrAveDiaH(ind) !== null ? (consumoRealGrAveDiaH(ind) | number:'1.0-0') : '—' }}
           </td>
           <td>
             {{ ind.consumoGuiaHembras !== null && ind.consumoGuiaHembras !== undefined ? (ind.consumoGuiaHembras | number:'1.0-0') : '—' }}
           </td>
+          <td [class]="getDiferenciaClass(ind.diferenciaConsumoHembras)">{{ formatearPorcentaje(ind.diferenciaConsumoHembras) }}</td>
           <td>
             {{ consumoRealGrAveDiaM(ind) !== null ? (consumoRealGrAveDiaM(ind) | number:'1.0-0') : '—' }}
           </td>
           <td>
             {{ ind.consumoGuiaMachos !== null && ind.consumoGuiaMachos !== undefined ? (ind.consumoGuiaMachos | number:'1.0-0') : '—' }}
           </td>
+          <td [class]="getDiferenciaClass(ind.diferenciaConsumoMachos)">{{ formatearPorcentaje(ind.diferenciaConsumoMachos) }}</td>
 
-          <!-- Producción -->
+          <!-- Producción huevos -->
           <td>{{ ind.huevosTotales | number:'1.0-0' }}</td>
           <td>{{ ind.huevosTotalesGuia !== null && ind.huevosTotalesGuia !== undefined ? (ind.huevosTotalesGuia | number:'1.0-0') : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaHuevosTotales)">{{ formatearPorcentaje(ind.diferenciaHuevosTotales) }}</td>
           <td>{{ ind.huevosIncubables | number:'1.0-0' }}</td>
           <td>{{ ind.huevosIncubablesGuia !== null && ind.huevosIncubablesGuia !== undefined ? (ind.huevosIncubablesGuia | number:'1.0-0') : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaHuevosIncubables)">{{ formatearPorcentaje(ind.diferenciaHuevosIncubables) }}</td>
           <td>{{ ind.promedioHuevosPorDia | number:'1.0-0' }}</td>
-          <td>{{ ind.eficienciaProduccion | number:'1.0-2' }}</td>
-          <td>{{ ind.porcentajeProduccionGuia !== null && ind.porcentajeProduccionGuia !== undefined ? (ind.porcentajeProduccionGuia | number:'1.0-2') : '—' }}</td>
+          <td>{{ ind.eficienciaProduccion | number:'1.0-2' }}%</td>
+          <td>{{ ind.porcentajeProduccionGuia !== null && ind.porcentajeProduccionGuia !== undefined ? (ind.porcentajeProduccionGuia | number:'1.0-2') + '%' : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaPorcentajeProduccion)">{{ formatearPorcentaje(ind.diferenciaPorcentajeProduccion) }}</td>
+          <td>{{ ind.pesoHuevoPromedio !== null && ind.pesoHuevoPromedio !== undefined ? (ind.pesoHuevoPromedio | number:'1.0-2') : '—' }}</td>
+          <td>{{ ind.pesoHuevoGuia !== null && ind.pesoHuevoGuia !== undefined ? (ind.pesoHuevoGuia | number:'1.0-2') : '—' }}</td>
 
           <!-- Peso / Uniformidad -->
           <td>{{ ind.pesoPromedioHembras ? (ind.pesoPromedioHembras | number:'1.0-2') : '—' }}</td>
+          <td>{{ ind.pesoGuiaHembras !== null && ind.pesoGuiaHembras !== undefined ? (ind.pesoGuiaHembras | number:'1.0-2') : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaPesoHembras)">{{ formatearPorcentaje(ind.diferenciaPesoHembras) }}</td>
           <td>{{ ind.pesoPromedioMachos ? (ind.pesoPromedioMachos | number:'1.0-2') : '—' }}</td>
-          <td>{{ ind.pesoHuevoPromedio !== null && ind.pesoHuevoPromedio !== undefined ? (ind.pesoHuevoPromedio | number:'1.0-2') : '—' }}</td>
-          <td>{{ ind.pesoHuevoGuia !== null && ind.pesoHuevoGuia !== undefined ? (ind.pesoHuevoGuia | number:'1.0-2') : '—' }}</td>
-          <td [class]="getDiferenciaClass(ind.diferenciaPesoHuevo)" *ngIf="ind.diferenciaPesoHuevo !== null && ind.diferenciaPesoHuevo !== undefined">
-            {{ formatearPorcentaje(ind.diferenciaPesoHuevo) }}
-          </td>
-          <td *ngIf="ind.diferenciaPesoHuevo === null || ind.diferenciaPesoHuevo === undefined">—</td>
+          <td>{{ ind.pesoGuiaMachos !== null && ind.pesoGuiaMachos !== undefined ? (ind.pesoGuiaMachos | number:'1.0-2') : '—' }}</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaPesoMachos)">{{ formatearPorcentaje(ind.diferenciaPesoMachos) }}</td>
           <td>{{ ind.uniformidadPromedio !== null && ind.uniformidadPromedio !== undefined ? (ind.uniformidadPromedio | number:'1.0-2') : '—' }}</td>
           <td>{{ ind.uniformidadGuia !== null && ind.uniformidadGuia !== undefined ? (ind.uniformidadGuia | number:'1.0-2') : '—' }}</td>
-          <td [class]="getDiferenciaClass(ind.diferenciaUniformidad)" *ngIf="ind.diferenciaUniformidad !== null && ind.diferenciaUniformidad !== undefined">
-            {{ formatearPorcentaje(ind.diferenciaUniformidad) }}
-          </td>
-          <td *ngIf="ind.diferenciaUniformidad === null || ind.diferenciaUniformidad === undefined">—</td>
+          <td [class]="getDiferenciaClass(ind.diferenciaUniformidad)">{{ formatearPorcentaje(ind.diferenciaUniformidad) }}</td>
+          <td>{{ ind.coeficienteVariacionPromedio !== null && ind.coeficienteVariacionPromedio !== undefined ? (ind.coeficienteVariacionPromedio | number:'1.0-2') : '—' }}</td>
+
+          <!-- Aves -->
+          <td>{{ ind.avesHembrasInicioSemana | number:'1.0-0' }}</td>
+          <td>{{ ind.avesMachosInicioSemana | number:'1.0-0' }}</td>
+          <td>{{ ind.avesHembrasFinSemana | number:'1.0-0' }}</td>
+          <td>{{ ind.avesMachosFinSemana | number:'1.0-0' }}</td>
         </tr>
 
         <!-- Detalle clasificadora (expandible) -->
         <tr *ngIf="isExpanded(ind.semana)" class="detalle-row">
-          <td colspan="27">
+          <td colspan="999">
             <div>
               <strong>Clasificadora semana {{ ind.semana }}:</strong>
               Limpio: {{ ind.huevosLimpios }} |

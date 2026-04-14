@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionResponse, IndicadoresProduccionRequest } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { finalize } from 'rxjs/operators';
+import * as XLSX from 'xlsx';
 
 @Component({
   selector: 'app-tabla-lista-indicadores',
@@ -54,12 +55,12 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     this.loadingIndicadores = true;
     this.error = null;
 
-    // Request al backend: LPP o legacy (misma fuente que el tab General).
-    // semanaDesde: 1 = desde la primera semana de producción.
+    // Request al backend: LPP o legacy (misma fuente que el tab Seguimiento).
+    // semanaDesde: 26 = inicio de producción (semana de vida).
     const request: IndicadoresProduccionRequest = {
       loteId: hasLegacy ? loteIdLegacy! : 0,
       lotePosturaProduccionId: hasLpp ? lppId! : null,
-      semanaDesde: 1,
+      semanaDesde: 26,
       semanaHasta: null,
       fechaDesde: null,
       fechaHasta: null
@@ -97,6 +98,97 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
           this.mensajeGuiaGenetica = null;
         }
       });
+  }
+
+  descargarIndicadoresExcel(): void {
+    const loteNombre = (this.selectedLote?.loteNombre || `Lote_${this.selectedLote?.loteId ?? ''}`)
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .slice(0, 120) || 'lote';
+
+    const maxSemana = this.indicadoresSemanales.length
+      ? Math.max(...this.indicadoresSemanales.map(x => x.semana || 0))
+      : 0;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const filename = `produccion-lote-${loteNombre}-tap-indicador-semana-${maxSemana || 'NA'}-${stamp}.xlsx`;
+
+    const rows = (this.indicadoresSemanales || []).map(ind => ({
+      Semana: ind.semana,
+      FechaInicio: this.formatearFecha(ind.fechaInicioSemana),
+      FechaFin: this.formatearFecha(ind.fechaFinSemana),
+      Registros: ind.totalRegistros,
+
+      MortalidadH: ind.mortalidadHembras,
+      MortalidadM: ind.mortalidadMachos,
+      PorcMortH: ind.porcentajeMortalidadHembras,
+      PorcMortM: ind.porcentajeMortalidadMachos,
+      GuiaMortH: ind.mortalidadGuiaHembras,
+      GuiaMortM: ind.mortalidadGuiaMachos,
+      DifMortH: ind.diferenciaMortalidadHembras,
+      DifMortM: ind.diferenciaMortalidadMachos,
+
+      SeleccionH: ind.seleccionHembras,
+      PorcSelH: ind.porcentajeSeleccionHembras,
+
+      ConsumoKgH: ind.consumoKgHembras,
+      ConsumoKgM: ind.consumoKgMachos,
+      ConsumoKgTotal: ind.consumoTotalKg,
+      ConsumoPromDiaKg: ind.consumoPromedioDiarioKg,
+      ConsRealGrAveDiaH: this.consumoRealGrAveDiaH(ind),
+      ConsGuiaGrAveDiaH: ind.consumoGuiaHembras,
+      DifConsH: ind.diferenciaConsumoHembras,
+      ConsRealGrAveDiaM: this.consumoRealGrAveDiaM(ind),
+      ConsGuiaGrAveDiaM: ind.consumoGuiaMachos,
+      DifConsM: ind.diferenciaConsumoMachos,
+
+      HuevosTot: ind.huevosTotales,
+      HuevosTotGuia: ind.huevosTotalesGuia,
+      DifHuevosTot: ind.diferenciaHuevosTotales,
+      HuevosInc: ind.huevosIncubables,
+      HuevosIncGuia: ind.huevosIncubablesGuia,
+      DifHuevosInc: ind.diferenciaHuevosIncubables,
+      PromHuevosDia: ind.promedioHuevosPorDia,
+      PorcProdReal: ind.eficienciaProduccion,
+      PorcProdGuia: ind.porcentajeProduccionGuia,
+      DifPorcProd: ind.diferenciaPorcentajeProduccion,
+      PesoHuevoProm: ind.pesoHuevoPromedio,
+      PesoHuevoGuia: ind.pesoHuevoGuia,
+      DifPesoHuevo: ind.diferenciaPesoHuevo,
+
+      PesoH: ind.pesoPromedioHembras,
+      PesoHGuia: ind.pesoGuiaHembras,
+      DifPesoH: ind.diferenciaPesoHembras,
+      PesoM: ind.pesoPromedioMachos,
+      PesoMGuia: ind.pesoGuiaMachos,
+      DifPesoM: ind.diferenciaPesoMachos,
+      UnifReal: ind.uniformidadPromedio,
+      UnifGuia: ind.uniformidadGuia,
+      DifUnif: ind.diferenciaUniformidad,
+      CvProm: ind.coeficienteVariacionPromedio,
+
+      HIni: ind.avesHembrasInicioSemana,
+      MIni: ind.avesMachosInicioSemana,
+      HFin: ind.avesHembrasFinSemana,
+      MFin: ind.avesMachosFinSemana,
+
+      HuevoLimpio: ind.huevosLimpios,
+      HuevoTratado: ind.huevosTratados,
+      HuevoSucio: ind.huevosSucios,
+      HuevoDeforme: ind.huevosDeformes,
+      HuevoBlanco: ind.huevosBlancos,
+      HuevoDobleYema: ind.huevosDobleYema,
+      HuevoPiso: ind.huevosPiso,
+      HuevoPequeno: ind.huevosPequenos,
+      HuevoRoto: ind.huevosRotos,
+      HuevoDesecho: ind.huevosDesecho,
+      HuevoOtro: ind.huevosOtro
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Indicadores');
+    XLSX.writeFile(wb, filename);
   }
 
   // ================== HELPERS ==================
@@ -154,6 +246,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   }
 
   calcularEtapa(semana: number): string {
+    // "semana" viene del backend como SEMANA DE VIDA (edad).
     if (semana >= 25 && semana <= 33) return 'Etapa 1';
     if (semana >= 34 && semana <= 50) return 'Etapa 2';
     if (semana > 50) return 'Etapa 3';

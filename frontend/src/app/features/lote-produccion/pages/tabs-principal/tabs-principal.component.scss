@@ -104,7 +104,7 @@
 
 .tabs-content {
   flex: 1;
-  padding: var(--space-6);
+  padding: var(--space-4);
   overflow-y: auto;
   overflow-x: hidden;
   max-height: 70vh;
@@ -124,15 +124,21 @@
    📊 Resumen General
    ========================================================================== */
 .resumen-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-4); margin-bottom: var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-4);
 }
 
 .resumen-card {
-  display: flex; align-items: center; gap: var(--space-3);
-  padding: var(--space-4); background: var(--warm-50);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--warm-50);
   border-radius: var(--radius-md); border: 1px solid var(--border);
   transition: all var(--t-fast);
+  min-height: 76px;
 }
 
 .resumen-card:hover {
@@ -141,24 +147,37 @@
 }
 
 .resumen-icon {
-  font-size: 2rem; flex-shrink: 0;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .resumen-content h4 {
-  margin: 0 0 var(--space-1) 0; font-size: var(--fs-sm);
+  margin: 0 0 2px 0;
+  font-size: var(--fs-xs);
   font-weight: 600; color: var(--text-sub);
 }
 
 .resumen-number {
-  margin: 0; font-size: var(--fs-xl); font-weight: 700;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
   color: var(--ital-orange-dark);
+}
+
+.resumen-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--text-sub);
+  line-height: 1.1;
 }
 
 /* ==========================================================================
    📋 Tablas
    ========================================================================== */
 .table-container {
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
 }
 
 .table-container .ux-scroll {
@@ -171,7 +190,8 @@
 }
 
 .table-container .ux-table {
-  min-width: 800px;
+  /* Tabla “full fields”: muy ancha, se usa con scroll horizontal */
+  min-width: 1600px;
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -219,6 +239,47 @@
 .ux-table tbody td {
   padding: var(--space-3) var(--space-4);
   color: var(--ital-orange-dark); vertical-align: middle;
+}
+
+/* ==========================================================================
+   🧷 Sticky actions (right) + helpers
+   ========================================================================== */
+.ux-table--seguimiento .sticky-actions {
+  position: sticky;
+  right: 0;
+  z-index: calc(var(--z-sticky) + 2);
+  background: var(--bg-card);
+  text-align: right;
+  box-shadow: -10px 0 14px rgba(31, 41, 55, .08);
+  border-left: 1px solid var(--border);
+  min-width: 120px;
+}
+
+.ux-table--seguimiento thead th.sticky-actions {
+  z-index: calc(var(--z-sticky) + 3);
+  background: var(--ital-green);
+  color: var(--ital-cream);
+}
+
+.ux-table--seguimiento tbody tr:nth-child(even) td.sticky-actions {
+  background: var(--ital-cream);
+}
+
+.ux-table--seguimiento tbody tr:hover td.sticky-actions {
+  background: var(--ital-orange-50);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: nowrap;
+}
+
+.truncate {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ==========================================================================
@@ -377,7 +438,7 @@
 @media (max-width: 960px) {
   .resumen-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-3);
+    gap: var(--space-2);
   }
   .table-container .ux-table {
     min-width: 700px;
@@ -394,7 +455,7 @@
     font-size: var(--fs-sm);
   }
   .tabs-content {
-    padding: var(--space-4);
+    padding: var(--space-3);
     max-height: 65vh;
   }
   .resumen-grid {
@@ -402,6 +463,7 @@
   }
   .resumen-card {
     padding: var(--space-3);
+    min-height: auto;
   }
   .table-container {
     margin-top: var(--space-4);
@@ -438,10 +500,10 @@
     text-align: center;
   }
   .resumen-icon {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
   .resumen-number {
-    font-size: var(--fs-lg);
+    font-size: 1rem;
   }
   .table-container .ux-table {
     min-width: 580px;

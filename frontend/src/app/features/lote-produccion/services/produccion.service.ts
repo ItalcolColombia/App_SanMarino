@@ -168,6 +168,28 @@ export interface ListaSeguimientoResponse {
   total: number;
 }
 
+export interface InformacionLoteDto {
+  lotePosturaProduccionId: number;
+  loteNombre: string;
+  estado: string;
+  fechaEncaset?: string | null;
+  fechaInicioProduccion?: string | null;
+  avesInicialesH: number;
+  avesInicialesM: number;
+  avesActualesH: number;
+  avesActualesM: number;
+  edadSemanasProduccion: number;
+  registros: number;
+  mortalidadSeleccionH: number;
+  mortalidadSeleccionM: number;
+  consumoAlimentoKgH: number;
+  consumoAlimentoKgM: number;
+}
+
+export interface InformacionLoteResponse {
+  informacionLote: InformacionLoteDto;
+}
+
 export interface ListaSeguimientoQuery {
   loteId?: number | null;
   /** ID del lote postura producción (flujo LPP). Usar loteId o lotePosturaProduccionId. */
@@ -251,6 +273,15 @@ export class ProduccionService {
     }
 
     return this.http.get<ListaSeguimientoResponse>(`${this.baseUrl}/seguimiento`, { params });
+  }
+
+  /**
+   * Información general del lote (header del módulo Seguimiento).
+   * Solo aplica para Lote Postura Producción (LPP).
+   */
+  obtenerInformacionLote(lotePosturaProduccionId: number): Observable<InformacionLoteResponse> {
+    const params = new HttpParams().set('lotePosturaProduccionId', lotePosturaProduccionId.toString());
+    return this.http.get<InformacionLoteResponse>(`${this.baseUrl}/seguimiento/informacion-lote`, { params });
   }
 
   /**
