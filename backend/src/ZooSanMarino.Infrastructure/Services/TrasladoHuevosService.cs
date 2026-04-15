@@ -1,4 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/TrasladoHuevosService.cs
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs.Traslados;
 using ZooSanMarino.Application.Interfaces;
@@ -12,15 +14,34 @@ public class TrasladoHuevosService : ITrasladoHuevosService
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
     private readonly IDisponibilidadLoteService _disponibilidadService;
+    private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public TrasladoHuevosService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
-        IDisponibilidadLoteService disponibilidadService)
+        IDisponibilidadLoteService disponibilidadService,
+        IEspejoHuevoProduccionSyncService espejoHuevoSync,
+        IHttpContextAccessor httpContextAccessor)
     {
         _context = context;
         _currentUser = currentUser;
         _disponibilidadService = disponibilidadService;
+        _espejoHuevoSync = espejoHuevoSync;
+        _httpContextAccessor = httpContextAccessor;
+    }
+
+    private static string? ResolverNombreUsuarioDesdeClaims(IHttpContextAccessor http)
+    {
+        var user = http.HttpContext?.User;
+        if (user?.Identity?.IsAuthenticated != true)
+            return null;
+        return user.FindFirst(ClaimTypes.Name)?.Value
+            ?? user.FindFirst("name")?.Value
+            ?? user.FindFirst("preferred_username")?.Value
+            ?? user.FindFirst(ClaimTypes.GivenName)?.Value
+            ?? user.FindFirst(ClaimTypes.Email)?.Value
+            ?? user.FindFirst("email")?.Value;
     }
 
     public async Task<TrasladoHuevosDto> CrearTrasladoHuevosAsync(CrearTrasladoHuevosDto dto, int usuarioId)
@@ -59,7 +80,10 @@ public class TrasladoHuevosService : ITrasladoHuevosService
                 throw new InvalidOperationException($"Lote LPP {lotePosturaProduccionId} no encontrado");
 
             granjaOrigenId = lpp.GranjaId;
-            loteIdStr = $"LPP-{lotePosturaProduccionId.Value}";
+            // lote_id referencia el lote unificado (lotes.lote_id); lote_postura_produccion_id es el vínculo LPP.
+            loteIdStr = lpp.LoteId.HasValue
+                ? lpp.LoteId.Value.ToString()
+                : $"LPP-{lotePosturaProduccionId.Value}";
         }
         else
         {
@@ -108,6 +132,7 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             CantidadOtro = dto.CantidadOtro,
             Estado = "Pendiente",
             UsuarioTrasladoId = usuarioId,
+            UsuarioNombre = ResolverNombreUsuarioDesdeClaims(_httpContextAccessor),
             Observaciones = dto.Observaciones,
             CompanyId = _currentUser.CompanyId,
             CreatedByUserId = usuarioId,
@@ -146,7 +171,7 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             await _context.SaveChangesAsync();
 
             if (traslado.LotePosturaProduccionId.HasValue)
-                await AplicarDescuentoEnEspejoAsync(traslado);
+                await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(traslado.LotePosturaProduccionId.Value).ConfigureAwait(false);
             else
                 await AplicarDescuentoEnProduccionDiariaAsync(traslado);
 
@@ -158,71 +183,6 @@ public class TrasladoHuevosService : ITrasladoHuevosService
         {
             return false;
         }
-    }
-
-    /// <summary>
-    /// Aplica descuento en espejo_huevo_produccion (huevo_*_dinamico). Solo para traslados LPP.
-    /// </summary>
-    private async Task AplicarDescuentoEnEspejoAsync(TrasladoHuevos traslado)
-    {
-        if (!traslado.LotePosturaProduccionId.HasValue) return;
-
-        var espejo = await _context.EspejoHuevoProduccion
-            .FirstOrDefaultAsync(e =>
-                e.LotePosturaProduccionId == traslado.LotePosturaProduccionId.Value &&
-                e.CompanyId == _currentUser.CompanyId);
-
-        if (espejo == null)
-            throw new InvalidOperationException($"No existe registro en espejo_huevo_produccion para el lote LPP {traslado.LotePosturaProduccionId}. Ejecute el backfill si es necesario.");
-
-        espejo.HuevoTotDinamico = Math.Max(0, espejo.HuevoTotDinamico - traslado.TotalHuevos);
-        espejo.HuevoIncDinamico = Math.Max(0, espejo.HuevoIncDinamico - (traslado.CantidadLimpio + traslado.CantidadTratado));
-        espejo.HuevoLimpioDinamico = Math.Max(0, espejo.HuevoLimpioDinamico - traslado.CantidadLimpio);
-        espejo.HuevoTratadoDinamico = Math.Max(0, espejo.HuevoTratadoDinamico - traslado.CantidadTratado);
-        espejo.HuevoSucioDinamico = Math.Max(0, espejo.HuevoSucioDinamico - traslado.CantidadSucio);
-        espejo.HuevoDeformeDinamico = Math.Max(0, espejo.HuevoDeformeDinamico - traslado.CantidadDeforme);
-        espejo.HuevoBlancoDinamico = Math.Max(0, espejo.HuevoBlancoDinamico - traslado.CantidadBlanco);
-        espejo.HuevoDobleYemaDinamico = Math.Max(0, espejo.HuevoDobleYemaDinamico - traslado.CantidadDobleYema);
-        espejo.HuevoPisoDinamico = Math.Max(0, espejo.HuevoPisoDinamico - traslado.CantidadPiso);
-        espejo.HuevoPequenoDinamico = Math.Max(0, espejo.HuevoPequenoDinamico - traslado.CantidadPequeno);
-        espejo.HuevoRotoDinamico = Math.Max(0, espejo.HuevoRotoDinamico - traslado.CantidadRoto);
-        espejo.HuevoDesechoDinamico = Math.Max(0, espejo.HuevoDesechoDinamico - traslado.CantidadDesecho);
-        espejo.HuevoOtroDinamico = Math.Max(0, espejo.HuevoOtroDinamico - traslado.CantidadOtro);
-        espejo.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync();
-    }
-
-    /// <summary>
-    /// Revierte descuento en espejo (suma las cantidades). Solo para traslados LPP al cancelar.
-    /// </summary>
-    private async Task RevertirDescuentoEnEspejoAsync(TrasladoHuevos traslado)
-    {
-        if (!traslado.LotePosturaProduccionId.HasValue) return;
-
-        var espejo = await _context.EspejoHuevoProduccion
-            .FirstOrDefaultAsync(e =>
-                e.LotePosturaProduccionId == traslado.LotePosturaProduccionId.Value &&
-                e.CompanyId == _currentUser.CompanyId);
-
-        if (espejo == null) return;
-
-        espejo.HuevoTotDinamico += traslado.TotalHuevos;
-        espejo.HuevoIncDinamico += traslado.CantidadLimpio + traslado.CantidadTratado;
-        espejo.HuevoLimpioDinamico += traslado.CantidadLimpio;
-        espejo.HuevoTratadoDinamico += traslado.CantidadTratado;
-        espejo.HuevoSucioDinamico += traslado.CantidadSucio;
-        espejo.HuevoDeformeDinamico += traslado.CantidadDeforme;
-        espejo.HuevoBlancoDinamico += traslado.CantidadBlanco;
-        espejo.HuevoDobleYemaDinamico += traslado.CantidadDobleYema;
-        espejo.HuevoPisoDinamico += traslado.CantidadPiso;
-        espejo.HuevoPequenoDinamico += traslado.CantidadPequeno;
-        espejo.HuevoRotoDinamico += traslado.CantidadRoto;
-        espejo.HuevoDesechoDinamico += traslado.CantidadDesecho;
-        espejo.HuevoOtroDinamico += traslado.CantidadOtro;
-        espejo.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync();
     }
 
     /// <summary>
@@ -412,22 +372,13 @@ public class TrasladoHuevosService : ITrasladoHuevosService
             return true;
         }
 
+        await using var transaction = await _context.Database.BeginTransactionAsync().ConfigureAwait(false);
         try
         {
-            // Si el traslado está en estado "Completado", significa que ya se aplicó el descuento
-            // Necesitamos devolver los huevos al inventario antes de cancelar
+            // Solo si ya estaba Completado se había descontado inventario (LPP: espejo *_dinamico; legacy: seguimiento_diario).
+            // Pendiente: no devolver aquí (evita sumar huevos si nunca se procesó el traslado).
             if (traslado.Estado == "Completado")
-            {
-                // Devolver los huevos al inventario antes de cancelar
-                await DevolverHuevosAlInventarioAsync(traslado);
-            }
-            // Si está en "Pendiente", también puede haber descuento aplicado (si se procesó automáticamente)
-            // pero por seguridad, verificamos si hay descuento aplicado y lo revertimos
-            else if (traslado.Estado == "Pendiente")
-            {
-                // Verificar si hay descuento aplicado y devolver los huevos
-                await DevolverHuevosAlInventarioAsync(traslado);
-            }
+                await DevolverHuevosAlInventarioAsync(traslado).ConfigureAwait(false);
 
             // Cancelar el traslado (modificar el método Cancelar para permitir cancelar completados)
             // Como el método de dominio no permite cancelar completados, lo hacemos manualmente
@@ -447,26 +398,35 @@ public class TrasladoHuevosService : ITrasladoHuevosService
                 traslado.Cancelar(motivo);
             }
 
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+
+            // Espejo LPP: al pasar a Cancelado, el movimiento ya no entra en la suma de traslados Completado;
+            // RecalcularEspejoHuevoProduccionAsync vuelve a poner *_dinamico = producción − movimientos (solo Completado).
+            if (traslado.LotePosturaProduccionId.HasValue)
+            {
+                _context.ChangeTracker.Clear();
+                await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(traslado.LotePosturaProduccionId.Value).ConfigureAwait(false);
+            }
+
+            await transaction.CommitAsync().ConfigureAwait(false);
             return true;
         }
         catch (Exception ex)
         {
+            await transaction.RollbackAsync().ConfigureAwait(false);
             throw new InvalidOperationException($"Error al cancelar el traslado: {ex.Message}", ex);
         }
     }
 
     /// <summary>
     /// Devuelve los huevos al inventario cuando se cancela un traslado.
-    /// Si LPP: suma en espejo. Si legacy: suma en seguimiento_diario.
+    /// Si LPP: el espejo se recalcula en <see cref="CancelarTrasladoAsync"/> tras guardar estado Cancelado.
+    /// Si legacy: suma en seguimiento_diario.
     /// </summary>
     private async Task DevolverHuevosAlInventarioAsync(TrasladoHuevos traslado)
     {
         if (traslado.LotePosturaProduccionId.HasValue)
-        {
-            await RevertirDescuentoEnEspejoAsync(traslado);
             return;
-        }
 
         var fechaTraslado = traslado.FechaTraslado.Date;
         var loteIdStr = traslado.LoteId;
@@ -778,15 +738,48 @@ public class TrasladoHuevosService : ITrasladoHuevosService
 
     public async Task<IEnumerable<TrasladoHuevosDto>> ObtenerTrasladosPorLoteAsync(string loteId)
     {
-        // Primero materializar la consulta
-        var traslados = await _context.TrasladoHuevos
+        var companyId = _currentUser.CompanyId;
+        var baseQuery = _context.TrasladoHuevos
             .AsNoTracking()
-            .Where(t => 
-                t.LoteId == loteId && 
-                t.CompanyId == _currentUser.CompanyId && 
-                t.DeletedAt == null)
-            .OrderByDescending(t => t.FechaTraslado)
-            .ToListAsync();
+            .Where(t => t.CompanyId == companyId && t.DeletedAt == null);
+
+        List<TrasladoHuevos> traslados;
+
+        // La UI LPP usa la clave "LPP-{lotePosturaProduccionId}"; los registros nuevos guardan lote_id = id de lotes.
+        if (!string.IsNullOrEmpty(loteId)
+            && loteId.StartsWith("LPP-", StringComparison.OrdinalIgnoreCase)
+            && int.TryParse(loteId.AsSpan(4), out var lppIdFromKey))
+        {
+            traslados = await baseQuery
+                .Where(t => t.LotePosturaProduccionId == lppIdFromKey || t.LoteId == loteId)
+                .OrderByDescending(t => t.FechaTraslado)
+                .ToListAsync();
+        }
+        else if (int.TryParse(loteId, out var loteInt))
+        {
+            var lppIdsForLote = await _context.LotePosturaProduccion
+                .AsNoTracking()
+                .Where(lpp => lpp.LoteId == loteInt)
+                .Select(lpp => lpp.LotePosturaProduccionId)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            traslados = await baseQuery
+                .Where(t =>
+                    t.LoteId == loteId
+                    || (t.LotePosturaProduccionId.HasValue && lppIdsForLote.Contains(t.LotePosturaProduccionId.Value)))
+                .OrderByDescending(t => t.FechaTraslado)
+                .ToListAsync();
+        }
+        else
+        {
+            traslados = await baseQuery
+                .Where(t => t.LoteId == loteId)
+                .OrderByDescending(t => t.FechaTraslado)
+                .ToListAsync();
+        }
 
         // Obtener información de granjas y lotes para todos los traslados
         var granjaIds = traslados

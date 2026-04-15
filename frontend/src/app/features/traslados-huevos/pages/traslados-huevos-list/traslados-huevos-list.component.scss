@@ -1,6 +1,14 @@
 /* Tema Italfoods */
    :host {
     display: block;
+    /* Ocupa todo el ancho del <main> (sidebar es overlay, no restar 16rem) */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    /* Alto útil bajo la barra superior fija (~3.25rem en app.component) */
+    --app-topbar-h: 3.25rem;
+    --traslados-min-h: calc(100dvh - var(--app-topbar-h) - env(safe-area-inset-top, 0px));
     --brand-red:        var(--ital-green);
     --brand-red-600:    var(--ital-green-dark);
     --brand-red-700:    var(--ital-green-dark);
@@ -56,10 +64,14 @@
      ========================================================================== */
   .ux-page {
     display: flex;
-    min-height: 100vh;
-    height: 100vh;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: var(--traslados-min-h);
     background: var(--bg-body);
-    overflow: hidden;
+    overflow-x: hidden;
+    box-sizing: border-box;
   }
 
   .ux-sidebar {
@@ -70,15 +82,17 @@
   }
 
   .ux-main {
-    flex: 1;
-    padding: var(--space-5) var(--space-6);
-    overflow-y: auto;
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    padding: clamp(var(--space-3), 2vw, var(--space-5)) clamp(var(--space-3), 3vw, var(--space-6));
     overflow-x: hidden;
+    overflow-y: visible;
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    max-width: calc(100vw - 16rem);
     min-width: 0;
+    box-sizing: border-box;
   }
 
   /* ==========================================================================
@@ -257,6 +271,25 @@
       overflow-x: auto;
       min-height: 0;
     }
+
+    &--stretch {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+
+      .ux-card__body {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .table-container {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+    }
   }
 
   .filters-row {
@@ -401,6 +434,107 @@
   .text-muted {
     color: var(--warm-500);
     font-size: var(--fs-xs);
+  }
+
+  /* ==========================================================================
+     📈 Resumen espejo / ventas (encima de la tabla)
+     ========================================================================== */
+  .traslados-resumen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--ital-cream) 0%, var(--white) 100%);
+
+    &--muted {
+      padding: var(--space-3) var(--space-5);
+      font-size: var(--fs-sm);
+      color: var(--warm-600);
+    }
+
+    &__title {
+      margin: 0 0 var(--space-2) 0;
+      font-size: var(--fs-sm);
+      font-weight: 800;
+      color: var(--ital-orange-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    &__line {
+      margin: 0.15rem 0;
+      font-size: var(--fs-sm);
+      color: var(--text);
+    }
+
+    &__highlight {
+      margin: 0 0 var(--space-2) 0;
+      font-size: var(--fs-md);
+      color: var(--text);
+    }
+
+    &__grid-eggs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      font-size: var(--fs-xs);
+      color: var(--text-sub);
+
+      &--compact {
+        gap: var(--space-1) var(--space-2);
+      }
+    }
+
+    &__actions {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      align-items: center;
+      padding-top: var(--space-2);
+      border-top: 1px dashed var(--border);
+    }
+  }
+
+  .cell-wrap {
+    white-space: normal;
+    max-width: 14rem;
+    word-break: break-word;
+  }
+
+  /* Tabla ancha: todas las columnas + acciones fijas a la derecha */
+  .ux-table--traslados-full {
+    min-width: 3200px;
+
+    thead th.sticky-col-end {
+      position: sticky;
+      right: 0;
+      z-index: 12;
+      background: var(--ital-green);
+      color: var(--ital-cream);
+      box-shadow: -8px 0 14px rgba(0, 0, 0, 0.12);
+    }
+
+    tbody td.sticky-col-end {
+      position: sticky;
+      right: 0;
+      z-index: 5;
+      vertical-align: middle;
+      box-shadow: -8px 0 14px rgba(0, 0, 0, 0.08);
+    }
+
+    tr.ux-row:nth-child(odd) td.sticky-col-end {
+      background: var(--white);
+    }
+
+    tr.ux-row:nth-child(even) td.sticky-col-end {
+      background: var(--ital-cream);
+    }
+
+    tr.ux-row:hover td.sticky-col-end {
+      background: var(--ital-orange-50) !important;
+    }
   }
 
   /* ==========================================================================
@@ -580,7 +714,8 @@
   @media (max-width: 1200px) {
     .ux-main {
       padding: var(--space-4) var(--space-5);
-      max-width: calc(100vw - 16rem);
+      width: 100%;
+      max-width: 100%;
     }
 
     .ux-card {
@@ -601,7 +736,8 @@
   @media (max-width: 960px) {
     .ux-main {
       padding: var(--space-4);
-      max-width: calc(100vw - 16rem);
+      width: 100%;
+      max-width: 100%;
     }
 
     .ux-header {
@@ -639,8 +775,7 @@
   @media (max-width: 768px) {
     .ux-page {
       flex-direction: column;
-      height: auto;
-      min-height: 100vh;
+      min-height: var(--traslados-min-h);
     }
 
     .ux-sidebar {
@@ -652,7 +787,7 @@
     .ux-main {
       margin-left: 0;
       padding: var(--space-3) var(--space-4);
-      max-width: 100vw;
+      max-width: 100%;
       width: 100%;
     }
 

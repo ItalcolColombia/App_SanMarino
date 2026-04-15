@@ -11,11 +11,16 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
 {
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
+    private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
 
-    public DisponibilidadLoteService(ZooSanMarinoContext context, ICurrentUser currentUser)
+    public DisponibilidadLoteService(
+        ZooSanMarinoContext context,
+        ICurrentUser currentUser,
+        IEspejoHuevoProduccionSyncService espejoHuevoSync)
     {
         _context = context;
         _currentUser = currentUser;
+        _espejoHuevoSync = espejoHuevoSync;
     }
 
     public async Task<DisponibilidadLoteDto?> ObtenerDisponibilidadLoteAsync(string loteId)
@@ -299,9 +304,19 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
 
         if (espejo == null)
         {
+            await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId).ConfigureAwait(false);
+            espejo = await _context.EspejoHuevoProduccion
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e =>
+                    e.LotePosturaProduccionId == lotePosturaProduccionId &&
+                    e.CompanyId == _currentUser.CompanyId);
+        }
+
+        if (espejo == null)
+        {
             return new DisponibilidadLoteDto
             {
-                LoteId = lpp.LotePosturaProduccionId ?? lotePosturaProduccionId,
+                LoteId = lpp.LoteId ?? lotePosturaProduccionId,
                 LoteNombre = lpp.LoteNombre ?? string.Empty,
                 TipoLote = "Produccion",
                 LotePosturaProduccionId = lotePosturaProduccionId,
@@ -324,6 +339,10 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             };
         }
 
+        var diasProd = lpp.FechaInicioProduccion.HasValue
+            ? (int)(DateTime.Today - lpp.FechaInicioProduccion.Value.Date).TotalDays
+            : 0;
+
         var huevos = new HuevosDisponiblesDto
         {
             TotalHuevos = espejo.HuevoTotDinamico,
@@ -339,24 +358,41 @@ public class DisponibilidadLoteService : IDisponibilidadLoteService
             Roto = espejo.HuevoRotoDinamico,
             Desecho = espejo.HuevoDesechoDinamico,
             Otro = espejo.HuevoOtroDinamico,
-            DiasEnProduccion = lpp.FechaInicioProduccion.HasValue
-                ? (int)(DateTime.Today - lpp.FechaInicioProduccion.Value.Date).TotalDays
-                : 0
+            DiasEnProduccion = diasProd
+        };
+
+        var historicoEspejo = new HuevosDisponiblesDto
+        {
+            TotalHuevos = espejo.HuevoTotHistorico,
+            TotalHuevosIncubables = espejo.HuevoIncHistorico,
+            Limpio = espejo.HuevoLimpioHistorico,
+            Tratado = espejo.HuevoTratadoHistorico,
+            Sucio = espejo.HuevoSucioHistorico,
+            Deforme = espejo.HuevoDeformeHistorico,
+            Blanco = espejo.HuevoBlancoHistorico,
+            DobleYema = espejo.HuevoDobleYemaHistorico,
+            Piso = espejo.HuevoPisoHistorico,
+            Pequeno = espejo.HuevoPequenoHistorico,
+            Roto = espejo.HuevoRotoHistorico,
+            Desecho = espejo.HuevoDesechoHistorico,
+            Otro = espejo.HuevoOtroHistorico,
+            DiasEnProduccion = diasProd
         };
 
         return new DisponibilidadLoteDto
         {
-            LoteId = lpp.LotePosturaProduccionId ?? lotePosturaProduccionId,
+            LoteId = lpp.LoteId ?? lotePosturaProduccionId,
             LoteNombre = lpp.LoteNombre ?? string.Empty,
             TipoLote = "Produccion",
             LotePosturaProduccionId = lotePosturaProduccionId,
             Huevos = huevos,
+            HuevosHistoricoEspejo = historicoEspejo,
             GranjaId = lpp.GranjaId,
             GranjaNombre = lpp.Farm?.Name ?? string.Empty,
             NucleoId = lpp.NucleoId,
             NucleoNombre = lpp.Nucleo?.NucleoNombre,
             GalponId = lpp.GalponId,
-                GalponNombre = lpp.Galpon?.GalponNombre
+            GalponNombre = lpp.Galpon?.GalponNombre
         };
     }
 

@@ -37,7 +37,7 @@
         { "name": "JwtSettings__Audience", "value": "ZooSanMarino.Client" },
         { "name": "JwtSettings__DurationInMinutes", "value": "60" },
         
-        { "name": "Database__RunMigrations", "value": "false" },
+        { "name": "Database__RunMigrations", "value": "true" },
         { "name": "Database__RunSeed", "value": "false" },
         
         { "name": "AllowedOrigins", "value": "http://localhost:4200,https://sanmarinoapp.com,http://localhost:8080,http://sanmarino-alb-878335997.us-east-2.elb.amazonaws.com" }

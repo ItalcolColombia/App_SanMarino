@@ -30,7 +30,7 @@
         { "name": "JwtSettings__Audience", "value": "ZooSanMarinoClient" },
         { "name": "JwtSettings__DurationInMinutes", "value": "60" },
 
-        { "name": "Database__RunMigrations", "value": "false" },
+        { "name": "Database__RunMigrations", "value": "true" },
         { "name": "Database__RunSeed", "value": "false" }
       ],
       "healthCheck": {

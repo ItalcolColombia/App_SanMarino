@@ -17,6 +17,9 @@ public record DisponibilidadLoteDto
     
     // Información de huevos (si es producción)
     public HuevosDisponiblesDto? Huevos { get; init; }
+
+    /// <summary>LPP: totales históricos en espejo (producción acumulada). Disponible actual sigue en <see cref="Huevos"/>.</summary>
+    public HuevosDisponiblesDto? HuevosHistoricoEspejo { get; init; }
     
     // Información del lote
     public int GranjaId { get; init; }
