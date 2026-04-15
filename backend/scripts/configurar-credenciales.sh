@@ -88,7 +88,7 @@ generate_appsettings() {
     "DurationInMinutes": 60
   },
   "Database": {
-    "RunMigrations": false,
+    "RunMigrations": true,
     "RunSeed": false
   },
   "AllowedScopes": [ "ZooSanMarinoAPI" ],

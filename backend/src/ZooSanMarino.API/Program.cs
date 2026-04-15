@@ -283,6 +283,7 @@ builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorServi
 
 // Servicios de Traslados
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IEspejoHuevoProduccionSyncService, ZooSanMarino.Infrastructure.Services.EspejoHuevoProduccionSyncService>();
 builder.Services.AddScoped<ITrasladoHuevosService, TrasladoHuevosService>();
 
 // Proveedores
@@ -741,12 +742,18 @@ app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok()).RequireCors("
 // ─────────────────────────────────────
 // 16) Migrar + Seed (flags)
 // ─────────────────────────────────────
-bool runMigrations = app.Configuration.GetValue<bool>("Database:RunMigrations");
-bool runSeed       = app.Configuration.GetValue<bool>("Database:RunSeed");
+// RunMigrations: si no está en configuración, por defecto true en Development / Staging / Production
+// (evita depender solo de appsettings ignorados por git). Opt-out explícito: "false".
+var runMigrationsRaw = app.Configuration["Database:RunMigrations"];
+bool runMigrations = string.IsNullOrWhiteSpace(runMigrationsRaw)
+    ? (app.Environment.IsDevelopment() || app.Environment.IsStaging() || app.Environment.IsProduction())
+    : bool.Parse(runMigrationsRaw.Trim());
+
+bool runSeed = app.Configuration.GetValue<bool>("Database:RunSeed");
 
 if (runMigrations || runSeed)
 {
-    await app.MigrateAndSeedAsync();
+    await app.MigrateAndSeedAsync(runMigrations, runSeed);
 }
 app.Run();
 

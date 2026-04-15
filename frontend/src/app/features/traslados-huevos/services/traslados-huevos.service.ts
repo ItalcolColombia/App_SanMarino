@@ -104,7 +104,12 @@ export interface DisponibilidadLoteDto {
   loteId: number;
   loteNombre: string;
   tipoLote: string; // "Levante" o "Produccion"
+  /** Presente cuando la disponibilidad viene del espejo LPP (traslado huevos postura). */
+  lotePosturaProduccionId?: number;
+  /** Disponible actual (espejo *_dinamico). */
   huevos?: HuevosDisponiblesDto;
+  /** LPP: producción acumulada en espejo (*_historico). */
+  huevosHistoricoEspejo?: HuevosDisponiblesDto;
   granjaId: number;
   granjaNombre: string;
   nucleoId?: string;

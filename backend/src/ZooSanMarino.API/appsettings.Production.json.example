@@ -1,0 +1,6 @@
+{
+  "Database": {
+    "RunMigrations": true,
+    "RunSeed": false
+  }
+}

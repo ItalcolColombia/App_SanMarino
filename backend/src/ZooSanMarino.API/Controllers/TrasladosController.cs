@@ -206,7 +206,7 @@ public class TrasladosController : ControllerBase
     }
 
     /// <summary>
-    /// Cancela un traslado de huevos pendiente
+    /// Anula un traslado de huevos (Pendiente o Completado). Si estaba completado, devuelve el inventario (espejo LPP o seguimiento legacy).
     /// </summary>
     [HttpPost("huevos/{id}/cancelar")]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -218,7 +218,7 @@ public class TrasladosController : ControllerBase
             var resultado = await _trasladoHuevosService.CancelarTrasladoAsync(id, request.Motivo ?? "Cancelado por usuario");
             if (!resultado)
             {
-                return BadRequest(new { message = "No se pudo cancelar el traslado. Verifique que el traslado esté en estado 'Pendiente'" });
+                return BadRequest(new { message = "No se pudo anular el traslado. Verifique que exista y no esté ya cancelado." });
             }
             return Ok(resultado);
         }

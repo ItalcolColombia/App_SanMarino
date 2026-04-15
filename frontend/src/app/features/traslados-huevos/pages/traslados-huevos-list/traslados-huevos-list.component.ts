@@ -2,12 +2,19 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
+import * as XLSX from 'xlsx';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
 import { ModalTrasladoHuevosComponent } from '../../components/modal-traslado-huevos/modal-traslado-huevos.component';
-import { TrasladosHuevosService, TrasladoHuevosDto } from '../../services/traslados-huevos.service';
+import { TrasladosHuevosService, TrasladoHuevosDto, DisponibilidadLoteDto } from '../../services/traslados-huevos.service';
 import { FarmDto } from '../../../farm/services/farm.service';
 import { NucleoDto } from '../../../lote-produccion/services/nucleo.service';
+import {
+  ProduccionService,
+  SeguimientoItemDto,
+  ListaSeguimientoResponse
+} from '../../../lote-produccion/services/produccion.service';
 import { environment } from '../../../../../environments/environment';
 
 @Component({
@@ -37,6 +44,10 @@ export class TrasladosHuevosListComponent implements OnInit {
   // ================== datos ==================
   traslados: TrasladoHuevosDto[] = [];
   filteredTraslados: TrasladoHuevosDto[] = [];
+  /** Resumen espejo LPP + ubicación (desde API disponibilidad). */
+  disponibilidad: DisponibilidadLoteDto | null = null;
+  /** Columnas de datos + columna acciones (para colspan en estados vacíos). */
+  readonly tablaColumnasCount = 36;
   /** Lote LPP seleccionado (para fechaEncaset, etc.) */
   selectedLoteInfo: { loteNombre: string; fechaEncaset?: string | null } | null = null;
 
@@ -47,6 +58,7 @@ export class TrasladosHuevosListComponent implements OnInit {
 
   // ================== UI ==================
   loading = false;
+  exportandoSeguimientoExcel = false;
   error: string | null = null;
   modalOpen = false;
   editingTraslado: TrasladoHuevosDto | null = null;
@@ -73,7 +85,10 @@ export class TrasladosHuevosListComponent implements OnInit {
     return l?.loteNombre ?? this.selectedLoteInfo?.loteNombre ?? (this.selectedLoteId?.toString() || '—');
   }
 
-  constructor(private trasladosService: TrasladosHuevosService) {}
+  constructor(
+    private trasladosService: TrasladosHuevosService,
+    private produccionService: ProduccionService
+  ) {}
 
   // ================== INIT ==================
   ngOnInit(): void {
@@ -100,6 +115,7 @@ export class TrasladosHuevosListComponent implements OnInit {
     this.selectedLoteId = null;
     this.traslados = [];
     this.filteredTraslados = [];
+    this.disponibilidad = null;
     this.selectedLoteInfo = null;
   }
 
@@ -109,6 +125,7 @@ export class TrasladosHuevosListComponent implements OnInit {
     this.selectedLoteId = null;
     this.traslados = [];
     this.filteredTraslados = [];
+    this.disponibilidad = null;
     this.selectedLoteInfo = null;
   }
 
@@ -117,6 +134,7 @@ export class TrasladosHuevosListComponent implements OnInit {
     this.selectedLoteId = null;
     this.traslados = [];
     this.filteredTraslados = [];
+    this.disponibilidad = null;
     this.selectedLoteInfo = null;
   }
 
@@ -124,29 +142,34 @@ export class TrasladosHuevosListComponent implements OnInit {
     this.selectedLoteId = loteId;
     this.traslados = [];
     this.filteredTraslados = [];
+    this.disponibilidad = null;
     const l = this.lotes.find(x => x.loteId === loteId);
     this.selectedLoteInfo = l ? { loteNombre: l.loteNombre, fechaEncaset: l.fechaEncaset } : null;
 
     if (!this.selectedLoteId) return;
 
-    this.loadTraslados();
+    this.loadDatosLote();
   }
 
-  // ================== CARGA DE TRASLADOS ==================
-  private loadTraslados(): void {
+  // ================== CARGA TRASLADOS + ESPEJO ==================
+  private loadDatosLote(): void {
     if (!this.selectedLoteId) return;
 
     this.loading = true;
     this.error = null;
 
-    // Traslados LPP usan LoteId = "LPP-{id}"
     const loteKey = `LPP-${this.selectedLoteId}`;
-    this.trasladosService.getTrasladosHuevosPorLote(loteKey)
+    forkJoin({
+      traslados: this.trasladosService.getTrasladosHuevosPorLote(loteKey),
+      disponibilidad: this.trasladosService.getDisponibilidadLoteLPP(this.selectedLoteId).pipe(
+        catchError(() => of(null))
+      )
+    })
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
-        next: (traslados) => {
+        next: ({ traslados, disponibilidad }) => {
           this.traslados = traslados || [];
-          this.filteredTraslados = traslados || [];
+          this.disponibilidad = disponibilidad;
           this.aplicarFiltros();
         },
         error: (err) => {
@@ -154,6 +177,7 @@ export class TrasladosHuevosListComponent implements OnInit {
           this.error = 'Error al cargar los traslados de huevos';
           this.traslados = [];
           this.filteredTraslados = [];
+          this.disponibilidad = null;
         }
       });
   }
@@ -172,6 +196,11 @@ export class TrasladosHuevosListComponent implements OnInit {
           t.tipoOperacion || '',
           t.granjaDestinoNombre || '',
           t.motivo || '',
+          t.descripcion || '',
+          t.observaciones || '',
+          t.usuarioNombre || '',
+          t.loteId || '',
+          String(t.usuarioTrasladoId ?? ''),
           t.estado || ''
         ].join(' ').toLowerCase();
         return searchText.includes(term);
@@ -255,31 +284,42 @@ export class TrasladosHuevosListComponent implements OnInit {
   onTrasladoSaved(): void {
     this.closeModal();
     if (this.selectedLoteId) {
-      this.loadTraslados();
+      this.loadDatosLote();
     }
   }
 
   deleteTraslado(traslado: TrasladoHuevosDto): void {
-    if (!confirm(`¿Estás seguro de que deseas cancelar el traslado ${traslado.numeroTraslado}?`)) {
+    if (traslado.estado === 'Cancelado') {
       return;
     }
 
-    if (traslado.estado === 'Pendiente') {
-      this.loading = true;
-      this.trasladosService.cancelarTrasladoHuevos(traslado.id, 'Cancelado por usuario').subscribe({
-        next: () => {
-          this.loading = false;
-          this.loadTraslados();
-        },
-        error: (err) => {
-          this.loading = false;
-          this.error = 'Error al cancelar el traslado: ' + (err.message || 'Error desconocido');
-          setTimeout(() => this.error = null, 5000);
-        }
-      });
-    } else {
-      alert('Solo se pueden cancelar traslados con estado "Pendiente"');
+    const msg =
+      traslado.estado === 'Completado'
+        ? `¿Anular el registro ${traslado.numeroTraslado}? Los huevos volverán a estar disponibles en el inventario.`
+        : `¿Cancelar el traslado ${traslado.numeroTraslado}?`;
+
+    if (!confirm(msg)) {
+      return;
     }
+
+    this.loading = true;
+    this.error = null;
+    const motivo =
+      traslado.estado === 'Completado' ? 'Anulación: devolución de inventario' : 'Cancelado por usuario';
+
+    this.trasladosService.cancelarTrasladoHuevos(traslado.id, motivo).subscribe({
+      next: () => {
+        this.loading = false;
+        this.closeModal();
+        this.loadDatosLote();
+      },
+      error: (err) => {
+        this.loading = false;
+        const detail = err?.error?.message ?? err?.message ?? 'Error desconocido';
+        this.error = 'Error al anular el registro: ' + detail;
+        setTimeout(() => (this.error = null), 8000);
+      }
+    });
   }
 
   // ================== HELPERS ==================
@@ -303,6 +343,95 @@ export class TrasladosHuevosListComponent implements OnInit {
            traslado.cantidadDeforme + traslado.cantidadBlanco + traslado.cantidadDobleYema +
            traslado.cantidadPiso + traslado.cantidadPequeno + traslado.cantidadRoto +
            traslado.cantidadDesecho + traslado.cantidadOtro;
+  }
+
+  /** Suma de huevos en ventas completadas (inventario retirado por venta). */
+  totalHuevosVentasCompletadas(): number {
+    return this.traslados
+      .filter(t => t.tipoOperacion === 'Venta' && t.estado === 'Completado')
+      .reduce((s, t) => s + this.getTotalHuevos(t), 0);
+  }
+
+  totalRegistrosVentasCompletadas(): number {
+    return this.traslados.filter(t => t.tipoOperacion === 'Venta' && t.estado === 'Completado').length;
+  }
+
+  /** Suma de huevos en traslados completados (distinto de venta). */
+  totalHuevosTrasladosCompletados(): number {
+    return this.traslados
+      .filter(t => t.tipoOperacion === 'Traslado' && t.estado === 'Completado')
+      .reduce((s, t) => s + this.getTotalHuevos(t), 0);
+  }
+
+  descargarSeguimientoExcel(): void {
+    if (!this.selectedLoteId) return;
+    this.exportandoSeguimientoExcel = true;
+    this.produccionService
+      .listarSeguimiento({ lotePosturaProduccionId: this.selectedLoteId, page: 1, size: 0 })
+      .pipe(finalize(() => (this.exportandoSeguimientoExcel = false)))
+      .subscribe({
+        next: (res: ListaSeguimientoResponse) => {
+          const items = res.items ?? [];
+          const rows = items.map((i: SeguimientoItemDto) => this.mapSeguimientoToExportRow(i));
+          const ws = XLSX.utils.json_to_sheet(
+            rows.length ? rows : [{ Mensaje: 'Sin registros de seguimiento para este lote' }]
+          );
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
+          const fname = `seguimiento-produccion-LPP-${this.selectedLoteId}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+          XLSX.writeFile(wb, fname);
+        },
+        error: (err: { error?: { message?: string }; message?: string }) => {
+          const d = err?.error?.message ?? err?.message ?? 'Error al exportar';
+          this.error = 'Exportación Excel: ' + d;
+          setTimeout(() => (this.error = null), 8000);
+        }
+      });
+  }
+
+  private mapSeguimientoToExportRow(i: SeguimientoItemDto): Record<string, string | number | null | undefined> {
+    return {
+      ID: i.id,
+      ProduccionLoteId: i.produccionLoteId,
+      LotePosturaProduccionId: i.lotePosturaProduccionId ?? '',
+      FechaRegistro: i.fechaRegistro,
+      MortalidadH: i.mortalidadH,
+      MortalidadM: i.mortalidadM,
+      SelH: i.selH,
+      SelM: i.selM,
+      ConsKgH: i.consKgH,
+      ConsKgM: i.consKgM,
+      ConsumoKg: i.consumoKg,
+      HuevosTotales: i.huevosTotales,
+      HuevosIncubables: i.huevosIncubables,
+      HuevoLimpio: i.huevoLimpio ?? '',
+      HuevoTratado: i.huevoTratado ?? '',
+      HuevoSucio: i.huevoSucio ?? '',
+      HuevoDeforme: i.huevoDeforme ?? '',
+      HuevoBlanco: i.huevoBlanco ?? '',
+      HuevoDobleYema: i.huevoDobleYema ?? '',
+      HuevoPiso: i.huevoPiso ?? '',
+      HuevoPequeno: i.huevoPequeno ?? '',
+      HuevoRoto: i.huevoRoto ?? '',
+      HuevoDesecho: i.huevoDesecho ?? '',
+      HuevoOtro: i.huevoOtro ?? '',
+      TipoAlimento: i.tipoAlimento,
+      PesoHuevo: i.pesoHuevo,
+      Etapa: i.etapa,
+      Observaciones: i.observaciones ?? '',
+      CreatedAt: i.createdAt,
+      UpdatedAt: i.updatedAt ?? '',
+      ConsumoAguaDiario: i.consumoAguaDiario ?? '',
+      ConsumoAguaPh: i.consumoAguaPh ?? '',
+      ConsumoAguaOrp: i.consumoAguaOrp ?? '',
+      ConsumoAguaTemperatura: i.consumoAguaTemperatura ?? '',
+      PesoH: i.pesoH ?? '',
+      PesoM: i.pesoM ?? '',
+      Uniformidad: i.uniformidad ?? '',
+      CoeficienteVariacion: i.coeficienteVariacion ?? '',
+      ObservacionesPesaje: i.observacionesPesaje ?? '',
+      MetadataJSON: i.metadata != null ? JSON.stringify(i.metadata) : ''
+    };
   }
 
   calcularEdadDiasDesdeEncasetamiento(): number {

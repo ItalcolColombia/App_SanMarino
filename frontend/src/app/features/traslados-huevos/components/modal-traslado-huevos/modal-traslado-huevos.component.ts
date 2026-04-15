@@ -4,17 +4,12 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { TrasladosHuevosService, DisponibilidadLoteDto, CrearTrasladoHuevosDto, ActualizarTrasladoHuevosDto, HuevosDisponiblesDto, TrasladoHuevosDto } from '../../services/traslados-huevos.service';
 import { LoteService, LoteDto } from '../../../lote/services/lote.service';
-import { FarmService } from '../../../farm/services/farm.service';
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
-import { FiltroSelectComponent } from '../../../lote-produccion/pages/filtro-select/filtro-select.component';
-import { NucleoService, NucleoDto } from '../../../lote-produccion/services/nucleo.service';
-import { GalponService } from '../../../galpon/services/galpon.service';
-import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-modal-traslado-huevos',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FiltroSelectComponent],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './modal-traslado-huevos.component.html',
   styleUrls: ['./modal-traslado-huevos.component.scss']
 })
@@ -27,6 +22,8 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<TrasladoHuevosDto>();
+  /** Solicitud de anular un registro Completado (misma acción que Eliminar en la lista: devuelve inventario). */
+  @Output() anular = new EventEmitter<TrasladoHuevosDto>();
 
   // Formulario
   formHuevos!: FormGroup;
@@ -77,32 +74,20 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     return 'Guardar Traslado';
   });
 
-  // Granjas para destino
-  granjas = signal<any[]>([]);
+  /** Valores fijos alineados con el backend (`TrasladoHuevos.TipoOperacion`). */
+  readonly tiposOperacionHuevos: readonly ('Traslado' | 'Venta')[] = ['Traslado', 'Venta'];
 
-  // Tipos de operación desde lista maestra
-  tiposOperacion = signal<string[]>([]);
+  /** Traslado: destino fijo en BD como `Planta` (UI deshabilitada). */
+  readonly tipoDestinoTrasladoFijo = 'Planta';
 
-  // Tipos de destino desde lista maestra
-  tiposDestino = signal<string[]>([]);
+  /** Destinos para venta. */
+  readonly tiposDestinoVenta: readonly string[] = ['Cliente', 'Empresa', 'Planta'];
 
-  // Plantas destino desde lista maestra
+  // Plantas destino desde lista maestra (solo venta → Planta)
   plantasDestino = signal<string[]>([]);
-
-  // Motivos de venta desde lista maestra
-  motivosVenta = signal<string[]>([]);
 
   /** Flag para cargar catálogos solo una vez al abrir el modal */
   private catalogosCargados = false;
-
-  /** URL filter-data para FiltroSelect destino (evita Farm.getAll duplicado) */
-  readonly filterDataUrl = `${environment.apiUrl}/traslados/filter-data`;
-
-  // Filtros para seleccionar lote destino (solo cuando tipo destino es Granja)
-  selectedGranjaDestinoId: number | null = null;
-  selectedNucleoDestinoId: string | null = null;
-  selectedGalponDestinoId: string | null = null;
-  selectedLoteDestinoId: number | null = null;
 
   // Tipos de huevo para el formulario
   tiposHuevo: Array<{ key: string; label: string; disponible: () => number }> = [
@@ -123,10 +108,7 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     private fb: FormBuilder,
     private trasladosService: TrasladosHuevosService,
     private loteService: LoteService,
-    private farmService: FarmService,
-    private masterListService: MasterListService,
-    private nucleoService: NucleoService,
-    private galponService: GalponService
+    private masterListService: MasterListService
   ) {
     this.initForm();
   }
@@ -139,51 +121,7 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   private cargarCatalogosSiNecesario(): void {
     if (this.catalogosCargados) return;
     this.catalogosCargados = true;
-    this.cargarGranjas();
-    this.cargarTiposOperacion();
-    this.cargarTiposDestino();
     this.cargarPlantasDestino();
-    this.cargarMotivosVenta();
-  }
-
-  private cargarTiposOperacion(): void {
-    this.masterListService.getByKey('traslado_de_huevos_tipo_de_operacion').subscribe({
-      next: (masterList) => {
-        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
-          const arr = masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? '');
-          this.tiposOperacion.set(arr);
-          if (arr.length > 0 && !this.formHuevos.get('tipoOperacion')?.value) {
-            this.formHuevos.patchValue({ tipoOperacion: arr[0] });
-          }
-        } else {
-          // Fallback a valores por defecto si no se encuentra la lista maestra
-          this.tiposOperacion.set(['Traslado', 'Venta']);
-        }
-      },
-      error: (error) => {
-        console.error('Error cargando tipos de operación desde lista maestra:', error);
-        // Fallback a valores por defecto en caso de error
-        this.tiposOperacion.set(['Traslado', 'Venta']);
-      }
-    });
-  }
-
-  private cargarTiposDestino(): void {
-    this.masterListService.getByKey('traslado_de_huevos_tipo_destino').subscribe({
-      next: (masterList) => {
-        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
-          this.tiposDestino.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
-        } else {
-          // Fallback a valores por defecto si no se encuentra la lista maestra
-          this.tiposDestino.set(['Granja', 'Planta']);
-        }
-      },
-      error: (error) => {
-        console.error('Error cargando tipos de destino desde lista maestra:', error);
-        // Fallback a valores por defecto en caso de error
-        this.tiposDestino.set(['Granja', 'Planta']);
-      }
-    });
   }
 
   private cargarPlantasDestino(): void {
@@ -202,85 +140,23 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     });
   }
 
-  private cargarMotivosVenta(): void {
-    this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
-      next: (masterList) => {
-        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
-          this.motivosVenta.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
-        } else {
-          this.motivosVenta.set([]);
-        }
-      },
-      error: (error) => {
-        console.error('Error cargando motivos de venta desde lista maestra:', error);
-        this.motivosVenta.set([]);
-      }
-    });
-  }
-
-  // Métodos para manejar cambios en los filtros del lote destino
-  onGranjaDestinoChange(granjaId: number | null): void {
-    this.selectedGranjaDestinoId = granjaId;
-    this.selectedNucleoDestinoId = null;
-    this.selectedGalponDestinoId = null;
-    this.selectedLoteDestinoId = null;
-    this.formHuevos.patchValue({ loteDestinoId: null });
-  }
-
-  // Cuando cambia la granja destino desde el formulario, actualizar el filtro
-  onGranjaDestinoFormChange(): void {
-    const granjaId = this.formHuevos.get('granjaDestinoId')?.value;
-    if (granjaId) {
-      this.selectedGranjaDestinoId = granjaId;
-      this.selectedNucleoDestinoId = null;
-      this.selectedGalponDestinoId = null;
-      this.selectedLoteDestinoId = null;
-      this.formHuevos.patchValue({ loteDestinoId: null });
-    }
-  }
-
-  onNucleoDestinoChange(nucleoId: string | null): void {
-    this.selectedNucleoDestinoId = nucleoId;
-    this.selectedGalponDestinoId = null;
-    this.selectedLoteDestinoId = null;
-    this.formHuevos.patchValue({ loteDestinoId: null });
-  }
-
-  onGalponDestinoChange(galponId: string | null): void {
-    this.selectedGalponDestinoId = galponId;
-    this.selectedLoteDestinoId = null;
-    this.formHuevos.patchValue({ loteDestinoId: null });
-  }
-
-  onLoteDestinoChange(loteId: number | null): void {
-    this.selectedLoteDestinoId = loteId;
-    this.formHuevos.patchValue({ loteDestinoId: loteId?.toString() || null });
-  }
-
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen) {
       this.cargarCatalogosSiNecesario();
-      if (this.lotePosturaProduccionId) {
-        this.loteInfo.set({ loteId: this.lotePosturaProduccionId, loteNombre: 'Lote LPP', granjaId: 0 } as LoteDto);
-        this.cargarDisponibilidadLPP(this.lotePosturaProduccionId);
-      } else if (this.loteId) {
-        this.cargarLoteInfo(this.loteId);
-        this.cargarDisponibilidad(this.loteId.toString());
-      }
       if (this.editingTraslado) {
-        // Si el estado es Completado o Cancelado, es solo lectura
-        // Si es Pendiente, puede ser edición o solo lectura dependiendo de isEditMode
         if (this.isReadOnly()) {
           this.isEditMode.set(false);
         } else {
-          // Por defecto, si es Pendiente, activar modo edición
-          // Esto se puede cambiar con el botón "Editar" en el modal
           this.isEditMode.set(true);
         }
         this.loadEditingData();
         if (this.editingTraslado.lotePosturaProduccionId) {
           this.cargarDisponibilidadLPP(this.editingTraslado.lotePosturaProduccionId);
-          this.loteInfo.set({ loteId: this.editingTraslado.lotePosturaProduccionId, loteNombre: this.editingTraslado.loteNombre, granjaId: 0 } as LoteDto);
+          this.loteInfo.set({
+            loteId: this.editingTraslado.lotePosturaProduccionId,
+            loteNombre: this.editingTraslado.loteNombre,
+            granjaId: 0
+          } as LoteDto);
         } else if (this.editingTraslado.loteId) {
           const loteIdNum = Number(this.editingTraslado.loteId);
           if (!isNaN(loteIdNum)) {
@@ -291,6 +167,12 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
       } else {
         this.isEditMode.set(false);
         this.resetForm();
+        if (this.lotePosturaProduccionId) {
+          this.cargarDisponibilidadLPP(this.lotePosturaProduccionId);
+        } else if (this.loteId) {
+          this.cargarLoteInfo(this.loteId);
+          this.cargarDisponibilidad(this.loteId.toString());
+        }
       }
     }
     
@@ -328,6 +210,11 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     this.trasladosService.getDisponibilidadLoteLPP(lotePosturaProduccionId).subscribe({
       next: (disp) => {
         this.disponibilidad.set(disp);
+        this.loteInfo.set({
+          loteId: disp.loteId,
+          loteNombre: disp.loteNombre,
+          granjaId: disp.granjaId
+        } as LoteDto);
         this.loadingDisponibilidad.set(false);
       },
       error: () => {
@@ -355,8 +242,7 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
 
   private initForm(): void {
     const hoyHuevos = new Date().toISOString().split('T')[0];
-    // Valor por defecto será el primero de la lista maestra cuando se cargue
-    const tipoOperacionDefault = this.tiposOperacion().length > 0 ? this.tiposOperacion()[0] : '';
+    const tipoOperacionDefault = this.tiposOperacionHuevos[0];
     // Inicializar signal con el valor por defecto
     this.tipoOperacionForm.set(tipoOperacionDefault);
     
@@ -364,7 +250,7 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
       loteId: ['', [Validators.required]],
       fechaTraslado: [hoyHuevos, [Validators.required]],
       tipoOperacion: [tipoOperacionDefault, [Validators.required]],
-      tipoDestino: [null],
+      tipoDestino: [this.tipoDestinoTrasladoFijo],
       granjaDestinoId: [null],
       plantaDestino: [null],
       loteDestinoId: [null],
@@ -379,32 +265,59 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
 
     this.formHuevos = this.fb.group(huevosControls, { validators: this.validarTrasladoHuevos.bind(this) });
 
-    this.formHuevos.get('tipoOperacion')?.valueChanges.subscribe(tipo => {
-      this.actualizarValidadoresDestino(tipo);
-      // Actualizar signal para que los computed properties reaccionen
+    this.aplicarModoTipoOperacion(tipoOperacionDefault);
+
+    this.formHuevos.get('tipoOperacion')?.valueChanges.subscribe((tipo) => {
+      if (this.esTipoVenta(tipo)) {
+        this.formHuevos.patchValue(
+          {
+            tipoDestino: null,
+            granjaDestinoId: null,
+            plantaDestino: null,
+            loteDestinoId: null,
+            observaciones: null
+          },
+          { emitEvent: false }
+        );
+      } else {
+        this.formHuevos.patchValue(
+          {
+            tipoDestino: this.tipoDestinoTrasladoFijo,
+            granjaDestinoId: null,
+            plantaDestino: null,
+            loteDestinoId: null,
+            descripcion: null,
+            motivo: null
+          },
+          { emitEvent: false }
+        );
+      }
+      this.aplicarModoTipoOperacion(tipo);
+      this.actualizarValidadoresDestino(tipo ?? '');
       this.tipoOperacionForm.set(tipo || '');
     });
 
-    // Cuando cambia el tipo de destino, limpiar y actualizar validadores
-    this.formHuevos.get('tipoDestino')?.valueChanges.subscribe(tipoDestino => {
-      // Limpiar los campos de destino cuando cambia el tipo
-      this.formHuevos.patchValue({
-        granjaDestinoId: null,
-        plantaDestino: null,
-        loteDestinoId: null
-      }, { emitEvent: false });
-      // Limpiar filtros de lote destino
-      this.selectedGranjaDestinoId = null;
-      this.selectedNucleoDestinoId = null;
-      this.selectedGalponDestinoId = null;
-      this.selectedLoteDestinoId = null;
-      this.actualizarValidadoresDestino(this.formHuevos.get('tipoOperacion')?.value);
+    this.formHuevos.get('tipoDestino')?.valueChanges.subscribe(() => {
+      this.formHuevos.patchValue(
+        { granjaDestinoId: null, plantaDestino: null, loteDestinoId: null },
+        { emitEvent: false }
+      );
+      this.actualizarValidadoresDestino(this.formHuevos.get('tipoOperacion')?.value ?? '');
     });
+  }
 
-    // Cuando cambia la granja destino, actualizar el filtro de lote
-    this.formHuevos.get('granjaDestinoId')?.valueChanges.subscribe(granjaId => {
-      this.onGranjaDestinoFormChange();
-    });
+  /** Traslado: destino Planta fijo y control deshabilitado; Venta: selector habilitado. */
+  private aplicarModoTipoOperacion(tipo: string | null | undefined): void {
+    const tdCtrl = this.formHuevos.get('tipoDestino');
+    if (!tdCtrl) return;
+    if (this.esTipoTraslado(tipo)) {
+      tdCtrl.patchValue(this.tipoDestinoTrasladoFijo, { emitEvent: false });
+      if (!this.isReadOnly()) {
+        tdCtrl.disable({ emitEvent: false });
+      }
+    } else {
+      tdCtrl.enable({ emitEvent: false });
+    }
   }
 
   private loadEditingData(): void {
@@ -431,7 +344,7 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     this.formHuevos.patchValue({
       loteId: t.loteId,
       fechaTraslado: fecha,
-      tipoOperacion: t.tipoOperacion,
+      tipoOperacion: this.normalizarTipoOperacion(t.tipoOperacion),
       cantidadLimpio: t.cantidadLimpio,
       cantidadTratado: t.cantidadTratado,
       cantidadSucio: t.cantidadSucio,
@@ -443,7 +356,10 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
       cantidadRoto: t.cantidadRoto,
       cantidadDesecho: t.cantidadDesecho,
       cantidadOtro: t.cantidadOtro,
-      tipoDestino: t.tipoDestino,
+      tipoDestino:
+        this.normalizarTipoOperacion(t.tipoOperacion) === 'Traslado'
+          ? this.tipoDestinoTrasladoFijo
+          : this.normalizarTipoDestinoVenta(t.tipoDestino),
       granjaDestinoId: t.granjaDestinoId,
       plantaDestino: plantaDestinoValue,
       loteDestinoId: loteDestinoEsPlanta ? null : t.loteDestinoId,
@@ -453,27 +369,24 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     }, { emitEvent: false });
 
     // Actualizar signal para que los computed properties reaccionen
-    this.tipoOperacionForm.set(t.tipoOperacion || '');
+    this.tipoOperacionForm.set(this.normalizarTipoOperacion(t.tipoOperacion));
 
-    // Si hay granja destino, inicializar los filtros
-    if (t.granjaDestinoId && t.tipoDestino === 'Granja') {
-      this.selectedGranjaDestinoId = t.granjaDestinoId;
-      // Intentar obtener el lote destino si existe
-      if (t.loteDestinoId && !loteDestinoEsPlanta) {
-        this.selectedLoteDestinoId = Number(t.loteDestinoId);
-      }
+    const op = this.normalizarTipoOperacion(t.tipoOperacion);
+    if (!this.isReadOnly()) {
+      this.aplicarModoTipoOperacion(op);
     }
+
+    this.actualizarValidadoresDestino(op);
   }
 
   private resetForm(): void {
     const hoyHuevos = new Date().toISOString().split('T')[0];
-    // Usar el primer valor de la lista maestra como valor por defecto
-    const tipoOperacionDefault = this.tiposOperacion().length > 0 ? this.tiposOperacion()[0] : '';
+    const tipoOperacionDefault = this.tiposOperacionHuevos[0];
     this.formHuevos.reset({
       loteId: this.lotePosturaProduccionId ? `LPP-${this.lotePosturaProduccionId}` : (this.loteId?.toString() || ''),
       fechaTraslado: hoyHuevos,
       tipoOperacion: tipoOperacionDefault,
-      tipoDestino: null,
+      tipoDestino: this.tipoDestinoTrasladoFijo,
       granjaDestinoId: null,
       plantaDestino: null,
       loteDestinoId: null,
@@ -484,6 +397,9 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     this.tiposHuevo.forEach(tipo => {
       this.formHuevos.get(`cantidad${tipo.key.charAt(0).toUpperCase() + tipo.key.slice(1)}`)?.setValue(0);
     });
+    this.tipoOperacionForm.set(tipoOperacionDefault);
+    this.aplicarModoTipoOperacion(tipoOperacionDefault);
+    this.actualizarValidadoresDestino(tipoOperacionDefault);
     this.error.set(null);
     this.success.set(null);
     this.disponibilidad.set(null);
@@ -497,40 +413,33 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     const tipoDestino = this.formHuevos.get('tipoDestino');
     const motivo = this.formHuevos.get('motivo');
     const descripcion = this.formHuevos.get('descripcion');
+    const observaciones = this.formHuevos.get('observaciones');
 
-    // Determinar si es tipo "Venta" (case-insensitive para flexibilidad)
     const esVenta = tipo && tipo.toLowerCase().includes('venta');
-    
+    const rawTd = this.formHuevos.getRawValue().tipoDestino as string | null | undefined;
+    const tipoDestinoValue = esVenta ? rawTd : this.tipoDestinoTrasladoFijo;
+    const esPlanta = !!tipoDestinoValue && tipoDestinoValue.toLowerCase().includes('planta');
+
+    motivo?.clearValidators();
+    observaciones?.clearValidators();
+
     if (esVenta) {
-      // Para ventas, no se requiere destino
+      tipoDestino?.setValidators([Validators.required]);
+      descripcion?.setValidators([Validators.required]);
+      if (esPlanta) {
+        plantaDestino?.setValidators([Validators.required]);
+      } else {
+        plantaDestino?.clearValidators();
+      }
+      granjaDestino?.clearValidators();
+      loteDestino?.clearValidators();
+    } else {
+      tipoDestino?.clearValidators();
+      descripcion?.clearValidators();
       granjaDestino?.clearValidators();
       plantaDestino?.clearValidators();
       loteDestino?.clearValidators();
-      tipoDestino?.clearValidators();
-      motivo?.setValidators([Validators.required]);
-      descripcion?.setValidators([Validators.required]);
-    } else {
-      // Para traslados, se requiere tipo de destino
-      tipoDestino?.setValidators([Validators.required]);
-      motivo?.clearValidators();
-      descripcion?.clearValidators();
-
-      // Validar granja o planta según el tipo de destino seleccionado
-      const tipoDestinoValue = tipoDestino?.value;
-      const esGranja = tipoDestinoValue && tipoDestinoValue.toLowerCase().includes('granja');
-      const esPlanta = tipoDestinoValue && tipoDestinoValue.toLowerCase().includes('planta');
-
-      if (esGranja) {
-        granjaDestino?.setValidators([Validators.required]);
-        plantaDestino?.clearValidators();
-      } else if (esPlanta) {
-        granjaDestino?.clearValidators();
-        plantaDestino?.setValidators([Validators.required]);
-      } else {
-        // Si no hay tipo de destino seleccionado, limpiar validadores
-        granjaDestino?.clearValidators();
-        plantaDestino?.clearValidators();
-      }
+      observaciones?.setValidators([Validators.required, Validators.minLength(2), Validators.maxLength(2000)]);
     }
 
     granjaDestino?.updateValueAndValidity();
@@ -539,17 +448,31 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     tipoDestino?.updateValueAndValidity();
     motivo?.updateValueAndValidity();
     descripcion?.updateValueAndValidity();
-  }
-
-  // Métodos helper para determinar el tipo de destino
-  esTipoGranja(tipoDestino: string | null | undefined): boolean {
-    if (!tipoDestino) return false;
-    return tipoDestino.toLowerCase().includes('granja');
+    observaciones?.updateValueAndValidity({ emitEvent: false });
   }
 
   esTipoPlanta(tipoDestino: string | null | undefined): boolean {
     if (!tipoDestino) return false;
     return tipoDestino.toLowerCase().includes('planta');
+  }
+
+  getTiposDestinoVenta(): string[] {
+    return [...this.tiposDestinoVenta];
+  }
+
+  /** Traslado: campo único "Otra granja" en `observaciones`. */
+  mostrarOtraGranjaTraslado(): boolean {
+    return this.esTipoTraslado(this.formHuevos?.get('tipoOperacion')?.value);
+  }
+
+  /** Venta con destino Planta: catálogo de planta en `loteDestinoId` / `plantaDestino`. */
+  mostrarPlantaCatalogoVenta(): boolean {
+    return this.esTipoVenta(this.formHuevos?.get('tipoOperacion')?.value) && this.esTipoPlanta(this.formHuevos?.get('tipoDestino')?.value);
+  }
+
+  /** Observaciones opcionales solo en venta (no en traslado: va en "Otra granja"). */
+  mostrarObservacionesTextarea(): boolean {
+    return this.esTipoVenta(this.formHuevos?.get('tipoOperacion')?.value);
   }
 
   // Métodos helper para determinar el tipo de operación
@@ -561,6 +484,25 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
   esTipoTraslado(tipo: string | null | undefined): boolean {
     if (!tipo) return false;
     return tipo.toLowerCase().includes('traslado');
+  }
+
+  private normalizarTipoOperacion(value: string | null | undefined): 'Traslado' | 'Venta' {
+    const v = (value ?? '').toLowerCase();
+    if (v.includes('venta')) return 'Venta';
+    return 'Traslado';
+  }
+
+  private normalizarTipoDestinoVenta(value: string | null | undefined): string | null {
+    if (!value?.trim()) return null;
+    const v = value.trim();
+    const list = this.tiposDestinoVenta;
+    const found = list.find((o) => o.toLowerCase() === v.toLowerCase());
+    if (found) return found;
+    const low = v.toLowerCase();
+    if (low.includes('cliente')) return 'Cliente';
+    if (low.includes('empresa')) return 'Empresa';
+    if (low.includes('planta')) return 'Planta';
+    return null;
   }
 
   private validarTrasladoHuevos(control: AbstractControl): ValidationErrors | null {
@@ -575,17 +517,6 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     }
 
     return null;
-  }
-
-  private cargarGranjas(): void {
-    this.farmService.getAll().subscribe({
-      next: (granjas) => {
-        this.granjas.set(granjas);
-      },
-      error: (error) => {
-        console.error('Error cargando granjas:', error);
-      }
-    });
   }
 
   private cargarDisponibilidad(loteId: string): void {
@@ -625,16 +556,24 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
     this.error.set(null);
     this.success.set(null);
 
-    const formValue = this.formHuevos.value;
+    const formValue = this.formHuevos.getRawValue();
     const fechaTraslado = typeof formValue.fechaTraslado === 'string'
       ? new Date(formValue.fechaTraslado)
       : (formValue.fechaTraslado instanceof Date ? formValue.fechaTraslado : new Date());
 
     const lppId = this.lotePosturaProduccionId ?? (formValue.lotePosturaProduccionId ? Number(formValue.lotePosturaProduccionId) : undefined);
+    const esTraslado = this.esTipoTraslado(formValue.tipoOperacion);
+    const loteIdLegacy = String(formValue.loteId || this.loteId || '');
+
+    let loteDestinoId = formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined;
+    if (!esTraslado && formValue.plantaDestino && !loteDestinoId) {
+      loteDestinoId = String(formValue.plantaDestino);
+    }
+
     const dto: CrearTrasladoHuevosDto = {
       lotePosturaProduccionId: lppId,
-      loteId: lppId ? '' : String(formValue.loteId || this.loteId),
-      fechaTraslado: fechaTraslado,
+      loteId: lppId ? '' : loteIdLegacy,
+      fechaTraslado,
       tipoOperacion: formValue.tipoOperacion,
       cantidadLimpio: formValue.cantidadLimpio || 0,
       cantidadTratado: formValue.cantidadTratado || 0,
@@ -647,48 +586,36 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
       cantidadRoto: formValue.cantidadRoto || 0,
       cantidadDesecho: formValue.cantidadDesecho || 0,
       cantidadOtro: formValue.cantidadOtro || 0,
-      granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
-      loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
-      tipoDestino: formValue.tipoDestino,
-      // Si es planta, guardar el nombre de la planta en loteDestinoId o crear un campo nuevo si es necesario
-      motivo: formValue.motivo,
-      descripcion: formValue.descripcion,
-      observaciones: formValue.observaciones
+      granjaDestinoId: esTraslado ? undefined : (formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined),
+      loteDestinoId,
+      tipoDestino: esTraslado ? this.tipoDestinoTrasladoFijo : formValue.tipoDestino,
+      motivo: esTraslado ? undefined : (formValue.motivo || undefined),
+      descripcion: esTraslado ? undefined : (formValue.descripcion || undefined),
+      observaciones: (formValue.observaciones && String(formValue.observaciones).trim()) || undefined
     };
 
-    // Si se seleccionó planta destino, guardarla en loteDestinoId
-    if (formValue.plantaDestino && !formValue.loteDestinoId) {
-      dto.loteDestinoId = formValue.plantaDestino;
-    }
-
     if (this.editingTraslado && this.isEditMode()) {
-      // Actualizar traslado existente
       const updateDto: ActualizarTrasladoHuevosDto = {
-        fechaTraslado: fechaTraslado,
-        tipoOperacion: formValue.tipoOperacion,
-        cantidadLimpio: formValue.cantidadLimpio || 0,
-        cantidadTratado: formValue.cantidadTratado || 0,
-        cantidadSucio: formValue.cantidadSucio || 0,
-        cantidadDeforme: formValue.cantidadDeforme || 0,
-        cantidadBlanco: formValue.cantidadBlanco || 0,
-        cantidadDobleYema: formValue.cantidadDobleYema || 0,
-        cantidadPiso: formValue.cantidadPiso || 0,
-        cantidadPequeno: formValue.cantidadPequeno || 0,
-        cantidadRoto: formValue.cantidadRoto || 0,
-        cantidadDesecho: formValue.cantidadDesecho || 0,
-        cantidadOtro: formValue.cantidadOtro || 0,
-        granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
-        loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
-        tipoDestino: formValue.tipoDestino,
-        motivo: formValue.motivo,
-        descripcion: formValue.descripcion,
-        observaciones: formValue.observaciones
+        fechaTraslado: dto.fechaTraslado,
+        tipoOperacion: dto.tipoOperacion,
+        cantidadLimpio: dto.cantidadLimpio,
+        cantidadTratado: dto.cantidadTratado,
+        cantidadSucio: dto.cantidadSucio,
+        cantidadDeforme: dto.cantidadDeforme,
+        cantidadBlanco: dto.cantidadBlanco,
+        cantidadDobleYema: dto.cantidadDobleYema,
+        cantidadPiso: dto.cantidadPiso,
+        cantidadPequeno: dto.cantidadPequeno,
+        cantidadRoto: dto.cantidadRoto,
+        cantidadDesecho: dto.cantidadDesecho,
+        cantidadOtro: dto.cantidadOtro,
+        granjaDestinoId: dto.granjaDestinoId,
+        loteDestinoId: dto.loteDestinoId,
+        tipoDestino: dto.tipoDestino,
+        motivo: dto.motivo,
+        descripcion: dto.descripcion,
+        observaciones: dto.observaciones
       };
-
-      // Si se seleccionó planta destino, guardarla en loteDestinoId
-      if (formValue.plantaDestino && !formValue.loteDestinoId) {
-        updateDto.loteDestinoId = formValue.plantaDestino;
-      }
 
       this.trasladosService.actualizarTrasladoHuevos(this.editingTraslado.id, updateDto).subscribe({
         next: (result) => {
@@ -715,36 +642,6 @@ export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {
         }
       });
     } else {
-      const lppId = this.lotePosturaProduccionId ?? (formValue.lotePosturaProduccionId ? Number(formValue.lotePosturaProduccionId) : undefined);
-      const dto: CrearTrasladoHuevosDto = {
-        lotePosturaProduccionId: lppId,
-        loteId: lppId ? '' : String(formValue.loteId || this.loteId),
-        fechaTraslado: fechaTraslado,
-        tipoOperacion: formValue.tipoOperacion,
-        cantidadLimpio: formValue.cantidadLimpio || 0,
-        cantidadTratado: formValue.cantidadTratado || 0,
-        cantidadSucio: formValue.cantidadSucio || 0,
-        cantidadDeforme: formValue.cantidadDeforme || 0,
-        cantidadBlanco: formValue.cantidadBlanco || 0,
-        cantidadDobleYema: formValue.cantidadDobleYema || 0,
-        cantidadPiso: formValue.cantidadPiso || 0,
-        cantidadPequeno: formValue.cantidadPequeno || 0,
-        cantidadRoto: formValue.cantidadRoto || 0,
-        cantidadDesecho: formValue.cantidadDesecho || 0,
-        cantidadOtro: formValue.cantidadOtro || 0,
-        granjaDestinoId: formValue.granjaDestinoId ? Number(formValue.granjaDestinoId) : undefined,
-        loteDestinoId: formValue.loteDestinoId ? String(formValue.loteDestinoId) : undefined,
-        tipoDestino: formValue.tipoDestino,
-        motivo: formValue.motivo,
-        descripcion: formValue.descripcion,
-        observaciones: formValue.observaciones
-      };
-
-      // Si se seleccionó planta destino, guardarla en loteDestinoId
-      if (formValue.plantaDestino && !formValue.loteDestinoId) {
-        dto.loteDestinoId = formValue.plantaDestino;
-      }
-
       this.trasladosService.crearTrasladoHuevos(dto).subscribe({
         next: (result) => {
           this.loading.set(false);

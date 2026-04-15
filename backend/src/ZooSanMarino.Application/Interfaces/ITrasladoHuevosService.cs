@@ -19,7 +19,7 @@ public interface ITrasladoHuevosService
     Task<bool> ProcesarTrasladoAsync(int trasladoId);
     
     /// <summary>
-    /// Cancela un traslado pendiente
+    /// Anula un traslado (Pendiente o Completado). Si estaba completado, devuelve inventario (espejo LPP o seguimiento legacy).
     /// </summary>
     Task<bool> CancelarTrasladoAsync(int trasladoId, string motivo);
     

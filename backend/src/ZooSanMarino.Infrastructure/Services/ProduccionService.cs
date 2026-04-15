@@ -18,6 +18,7 @@ public class ProduccionService : IProduccionService
     private readonly ZooSanMarinoContext _context;
     private readonly ICurrentUser _currentUser;
     private readonly ILoteService _loteService;
+    private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
 
     /// <summary>
     /// Seguimiento diario postura (producción) no aplica consumo/devolución sobre inventario-gestion.
@@ -26,11 +27,13 @@ public class ProduccionService : IProduccionService
     public ProduccionService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
-        ILoteService loteService)
+        ILoteService loteService,
+        IEspejoHuevoProduccionSyncService espejoHuevoSync)
     {
         _context = context;
         _currentUser = currentUser;
         _loteService = loteService;
+        _espejoHuevoSync = espejoHuevoSync;
     }
 
     /// <summary>
@@ -323,6 +326,8 @@ public class ProduccionService : IProduccionService
 
         _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
+        if (lotePosturaProduccionId.HasValue)
+            await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
         return entity.Id;
     }
 
@@ -452,6 +457,8 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
 
         await _context.SaveChangesAsync().ConfigureAwait(false);
+        if (lotePosturaProduccionId.HasValue)
+            await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
     }
 
     public async Task<ListaSeguimientoResponse> ListarSeguimientoAsync(int? loteId, int? lotePosturaProduccionId, DateTime? desde, DateTime? hasta, int page, int size)
@@ -696,8 +703,11 @@ public class ProduccionService : IProduccionService
             .ConfigureAwait(false);
         if (!isMine) return false;
 
+        var lppId = e.LotePosturaProduccionId;
         _context.SeguimientoProduccion.Remove(e);
         await _context.SaveChangesAsync().ConfigureAwait(false);
+        if (lppId.HasValue)
+            await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lppId.Value).ConfigureAwait(false);
         return true;
     }
 

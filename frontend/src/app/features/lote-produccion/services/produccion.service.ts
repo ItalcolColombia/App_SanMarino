@@ -268,7 +268,7 @@ export class ProduccionService {
       params = params.set('page', query.page.toString());
     }
 
-    if (query.size) {
+    if (query.size !== undefined && query.size !== null) {
       params = params.set('size', query.size.toString());
     }
 
