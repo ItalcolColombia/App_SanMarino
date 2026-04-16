@@ -70,4 +70,54 @@ public interface IInventarioGestionService
     /// No aplica a traslados ni tránsito inter-granja.
     /// </summary>
     Task AnularMovimientoHistoricoAsync(int movimientoId, string? motivo, CancellationToken ct = default);
+
+    // ─── TRASLADOS ───────────────────────────────────────────────────────────
+
+    /// <summary>Lista de traslados agrupados por TransferGroupId en granjas asignadas al usuario.</summary>
+    Task<List<InventarioGestionTrasladoListDto>> GetTrasladosAsync(
+        int? farmId = null,
+        DateTime? fechaDesde = null,
+        DateTime? fechaHasta = null,
+        string? search = null,
+        string? itemTipoItem = null,
+        string? nucleoId = null,
+        string? galponId = null,
+        CancellationToken ct = default);
+
+    /// <summary>Actualiza la fecha de movimiento de un traslado (aplica a todos los registros del TransferGroupId).</summary>
+    Task<InventarioGestionTrasladoListDto> ActualizarFechaTrasladoAsync(
+        Guid transferGroupId,
+        InventarioGestionActualizarFechaTrasladoRequest req,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Elimina todos los movimientos de un traslado, revierte stock según tipo (salida → devuelve a origen,
+    /// entrada → descuenta de destino) y marca anulado=true en lote_registro_historico_unificado.
+    /// </summary>
+    Task EliminarTrasladoAsync(Guid transferGroupId, CancellationToken ct = default);
+
+    // ─── INGRESOS ────────────────────────────────────────────────────────────
+
+    /// <summary>Lista de ingresos (Ingreso, TrasladoEntrada, TrasladoInterGranjaEntrada) en granjas asignadas al usuario.</summary>
+    Task<List<InventarioGestionIngresoListDto>> GetIngresosAsync(
+        int? farmId = null,
+        DateTime? fechaDesde = null,
+        DateTime? fechaHasta = null,
+        string? search = null,
+        string? itemTipoItem = null,
+        string? nucleoId = null,
+        string? galponId = null,
+        CancellationToken ct = default);
+
+    /// <summary>Actualiza la fecha de movimiento de un ingreso.</summary>
+    Task<InventarioGestionIngresoListDto> ActualizarFechaIngresoAsync(
+        int movimientoId,
+        InventarioGestionActualizarFechaIngresoRequest req,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Elimina un ingreso (Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada), revierte stock
+    /// y marca anulado=true en lote_registro_historico_unificado.
+    /// </summary>
+    Task EliminarIngresoAsync(int movimientoId, CancellationToken ct = default);
 }

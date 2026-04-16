@@ -193,3 +193,78 @@ public sealed record InventarioGestionStockUpdateRequest(
     /// <summary>Fecha de primer ingreso en ubicación (solo día). Si se indica, actualiza <c>CreatedAt</c> del stock.</summary>
     DateTime? FechaIngreso = null
 );
+
+// ─── TRASLADOS: LISTADO Y EDICIÓN ────────────────────────────────────────────
+
+/// <summary>
+/// Vista agrupada de un traslado (salida + entrada opcional bajo el mismo TransferGroupId).
+/// <list type="bullet">
+///   <item>Misma granja: TrasladoSalida + TrasladoEntrada, ambos presentes.</item>
+///   <item>Inter-granja: TrasladoInterGranjaSalida + TrasladoInterGranjaEntrada (o solo salida si está en tránsito).</item>
+/// </list>
+/// </summary>
+public sealed record InventarioGestionTrasladoListDto(
+    Guid TransferGroupId,
+    int SalidaMovimientoId,
+    int? EntradaMovimientoId,
+    int FromFarmId,
+    string? FromGranjaNombre,
+    string? FromNucleoId,
+    string? FromNucleoNombre,
+    string? FromGalponId,
+    string? FromGalponNombre,
+    int ToFarmId,
+    string? ToGranjaNombre,
+    string? ToNucleoId,
+    string? ToNucleoNombre,
+    string? ToGalponId,
+    string? ToGalponNombre,
+    int ItemInventarioEcuadorId,
+    string ItemCodigo,
+    string ItemNombre,
+    string ItemConcepto,
+    string ItemTipoItem,
+    decimal Quantity,
+    string Unit,
+    string? Reference,
+    string? Reason,
+    /// <summary>Estado del traslado: "Completado", "En tránsito", "Rechazado".</summary>
+    string Estado,
+    DateTimeOffset FechaMovimiento,
+    DateTimeOffset CreatedAt
+);
+
+/// <summary>Edita solo la fecha de movimiento de un traslado (aplica a todos los registros del TransferGroupId).</summary>
+public sealed record InventarioGestionActualizarFechaTrasladoRequest(
+    DateTime FechaMovimiento
+);
+
+// ─── INGRESOS: LISTADO Y EDICIÓN ─────────────────────────────────────────────
+
+/// <summary>Vista de un ingreso individual del histórico.</summary>
+public sealed record InventarioGestionIngresoListDto(
+    int MovimientoId,
+    int FarmId,
+    string? GranjaNombre,
+    string? NucleoId,
+    string? NucleoNombre,
+    string? GalponId,
+    string? GalponNombre,
+    int ItemInventarioEcuadorId,
+    string ItemCodigo,
+    string ItemNombre,
+    string ItemConcepto,
+    string ItemTipoItem,
+    decimal Quantity,
+    string Unit,
+    string? Reference,
+    string? Reason,
+    string? Estado,
+    DateTimeOffset FechaMovimiento,
+    DateTimeOffset CreatedAt
+);
+
+/// <summary>Edita solo la fecha de movimiento de un ingreso.</summary>
+public sealed record InventarioGestionActualizarFechaIngresoRequest(
+    DateTime FechaMovimiento
+);

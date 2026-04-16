@@ -23,87 +23,133 @@
       </div>
     </div>
 
-
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4" novalidate>
-      <!-- Error global con tipos específicos -->
-      <div *ngIf="errorMsg" class="alert-error" [ngClass]="{
-        'alert-error--database': errorType === 'database',
-        'alert-error--network': errorType === 'network',
-        'alert-error--blocked': errorType === 'blocked',
-        'alert-error--credentials': errorType === 'credentials',
-        'alert-error--encryption': errorType === 'encryption'
-      }" role="alert">
-        <div class="error-header">
-          <strong *ngIf="errorType === 'database'">🔴 Error de Base de Datos:</strong>
-          <strong *ngIf="errorType === 'network'">🌐 Error de Conexión:</strong>
-          <strong *ngIf="errorType === 'blocked'">🚫 Acceso Bloqueado:</strong>
-          <strong *ngIf="errorType === 'credentials'">🔐 Credenciales Inválidas:</strong>
-          <strong *ngIf="errorType === 'encryption'">🔒 Error de Seguridad:</strong>
-          <strong *ngIf="!errorType || errorType === 'unknown'">⚠️ Error:</strong>
+
+      <!-- Error global -->
+      @if (errorMsg) {
+        <div class="alert-error" [ngClass]="{
+          'alert-error--database': errorType === 'database',
+          'alert-error--network': errorType === 'network',
+          'alert-error--blocked': errorType === 'blocked',
+          'alert-error--credentials': errorType === 'credentials',
+          'alert-error--encryption': errorType === 'encryption'
+        }" role="alert">
+          <div class="error-header">
+            @if (errorType === 'database') { <strong>🔴 Error de Base de Datos:</strong> }
+            @if (errorType === 'network')   { <strong>🌐 Error de Conexión:</strong> }
+            @if (errorType === 'blocked')   { <strong>🚫 Acceso Bloqueado:</strong> }
+            @if (errorType === 'credentials') { <strong>🔐 Credenciales Inválidas:</strong> }
+            @if (errorType === 'encryption')  { <strong>🔒 Error de Seguridad:</strong> }
+            @if (!errorType || errorType === 'unknown') { <strong>⚠️ Error:</strong> }
+          </div>
+          <div class="error-message">{{ errorMsg }}</div>
         </div>
-        <div class="error-message">{{ errorMsg }}</div>
-      </div>
+      }
 
       <!-- Email -->
       <div class="field">
-        <label for="email" class="label">Email</label>
-        <input
-          id="email"
-          type="email"
-          formControlName="email"
-          placeholder="you@example.com"
-          class="brand-input"
-          autocomplete="username email"
-          inputmode="email"
-          [attr.aria-invalid]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
-          required
-        />
-        <div *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid" class="hint-error" role="status" aria-live="polite">
-          <div *ngIf="loginForm.get('email')?.errors?.['required']">El email es obligatorio.</div>
-          <div *ngIf="loginForm.get('email')?.errors?.['email']">Email no válido.</div>
+        <label for="email" class="label">Correo electrónico</label>
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+          </svg>
+          <input
+            id="email"
+            type="email"
+            formControlName="email"
+            placeholder="usuario@empresa.com"
+            class="brand-input brand-input--icon"
+            autocomplete="username email"
+            inputmode="email"
+            [attr.aria-invalid]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
+            required
+          />
         </div>
+        @if (loginForm.get('email')?.touched && loginForm.get('email')?.invalid) {
+          <div class="hint-error" role="status" aria-live="polite">
+            @if (loginForm.get('email')?.errors?.['required']) { <div>El email es obligatorio.</div> }
+            @if (loginForm.get('email')?.errors?.['email'])    { <div>Ingresa un email válido.</div> }
+          </div>
+        }
       </div>
 
       <!-- Contraseña -->
       <div class="field">
         <label for="password" class="label">Contraseña</label>
-        <input
-          id="password"
-          type="password"
-          formControlName="password"
-          placeholder="••••••••"
-          class="brand-input"
-          autocomplete="current-password"
-          [attr.aria-invalid]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
-          required
-        />
-        <div *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid" class="hint-error" role="status" aria-live="polite">
-          <div *ngIf="loginForm.get('password')?.errors?.['required']">La contraseña es obligatoria.</div>
-          <div *ngIf="loginForm.get('password')?.errors?.['minlength']">
-            Mínimo {{ loginForm.get('password')?.errors?.['minlength'].requiredLength }} caracteres.
-          </div>
+        <div class="input-wrapper">
+          <svg class="input-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+          </svg>
+          <input
+            id="password"
+            [type]="showPassword ? 'text' : 'password'"
+            formControlName="password"
+            placeholder="••••••••"
+            class="brand-input brand-input--icon brand-input--with-toggle"
+            autocomplete="current-password"
+            [attr.aria-invalid]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
+            required
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            (click)="togglePassword()"
+            [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          >
+            @if (!showPassword) {
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+              </svg>
+            }
+            @if (showPassword) {
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clip-rule="evenodd"/>
+                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.064 7 9.542 7 .847 0 1.669-.105 2.454-.303z"/>
+              </svg>
+            }
+          </button>
         </div>
+        @if (loginForm.get('password')?.touched && loginForm.get('password')?.invalid) {
+          <div class="hint-error" role="status" aria-live="polite">
+            @if (loginForm.get('password')?.errors?.['required']) {
+              <div>La contraseña es obligatoria.</div>
+            }
+            @if (loginForm.get('password')?.errors?.['minlength']) {
+              <div>Mínimo {{ loginForm.get('password')?.errors?.['minlength'].requiredLength }} caracteres.</div>
+            }
+          </div>
+        }
       </div>
 
-      <!-- Recordarme -->
-      <label class="remember">
-        <input type="checkbox" formControlName="remember" class="remember__control" />
-        <span class="remember__label">Recordarme</span>
-      </label>
+      <!-- Recordarme + ¿Olvidaste? -->
+      <div class="form-row">
+        <label class="remember">
+          <input type="checkbox" formControlName="remember" class="remember__control" />
+          <span class="remember__label">Recordarme</span>
+        </label>
+        <button type="button" class="link-button" (click)="goToPasswordRecovery()">
+          ¿Olvidaste tu contraseña?
+        </button>
+      </div>
 
       <!-- reCAPTCHA (solo en producción) -->
-      <div *ngIf="recaptchaEnabled && recaptchaSiteKey" class="recaptcha-container">
-        <re-captcha
-          [siteKey]="recaptchaSiteKey"
-          (resolved)="onRecaptchaResolved($event)"
-          (error)="onRecaptchaError()"
-          formControlName="recaptchaToken"
-        ></re-captcha>
-        <div *ngIf="loginForm.get('recaptchaToken')?.touched && loginForm.get('recaptchaToken')?.invalid"
-             class="hint-error" role="status" aria-live="polite">
-          Por favor, completa la verificación de seguridad.
+      @if (recaptchaEnabled && recaptchaSiteKey) {
+        <div class="recaptcha-container">
+          <re-captcha
+            [siteKey]="recaptchaSiteKey"
+            (resolved)="onRecaptchaResolved($event)"
+            (error)="onRecaptchaError()"
+            formControlName="recaptchaToken"
+          ></re-captcha>
+          @if (loginForm.get('recaptchaToken')?.touched && loginForm.get('recaptchaToken')?.invalid) {
+            <div class="hint-error" role="status" aria-live="polite">
+              Por favor, completa la verificación de seguridad.
+            </div>
+          }
         </div>
-      </div>
+      }
 
       <!-- Botón -->
       <button
@@ -112,25 +158,14 @@
         [disabled]="loginForm.invalid || loading"
         aria-label="Entrar"
       >
-        <span *ngIf="!loading">Entrar</span>
-        <span *ngIf="loading" class="loading-content">
-          <span class="spinner"></span>
-          Procesando...
-        </span>
+        @if (!loading) { <span>Entrar</span> }
+        @if (loading) {
+          <span class="loading-content">
+            <span class="spinner"></span>
+            Procesando...
+          </span>
+        }
       </button>
-
-      <!-- Mensaje de carga extendido -->
-      <div *ngIf="loading" class="loading-message" role="status" aria-live="polite">
-        <p>Iniciando sesión...</p>
-        <p class="loading-subtitle">Desencriptando datos y cargando información...</p>
-      </div>
-
-      <!-- Enlace de recuperación de contraseña -->
-      <div class="forgot-password">
-        <button type="button" class="link-button" (click)="goToPasswordRecovery()">
-          ¿Olvidaste tu contraseña?
-        </button>
-      </div>
 
     </form>
   </div>

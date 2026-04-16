@@ -181,6 +181,77 @@ export interface InventarioGestionRecepcionTransitoRequest {
   toGalponId: string | null;
 }
 
+// ─── TRASLADOS: LISTADO Y EDICIÓN ────────────────────────────────────────────
+
+/** Vista agrupada de un traslado (salida + entrada bajo el mismo TransferGroupId). */
+export interface InventarioGestionTrasladoListDto {
+  transferGroupId: string;
+  salidaMovimientoId: number;
+  entradaMovimientoId: number | null;
+  fromFarmId: number;
+  fromGranjaNombre: string | null;
+  fromNucleoId: string | null;
+  fromNucleoNombre: string | null;
+  fromGalponId: string | null;
+  fromGalponNombre: string | null;
+  toFarmId: number;
+  toGranjaNombre: string | null;
+  toNucleoId: string | null;
+  toNucleoNombre: string | null;
+  toGalponId: string | null;
+  toGalponNombre: string | null;
+  itemInventarioEcuadorId: number;
+  itemCodigo: string;
+  itemNombre: string;
+  itemConcepto: string;
+  itemTipoItem: string;
+  quantity: number;
+  unit: string;
+  reference: string | null;
+  reason: string | null;
+  /** "Completado" | "En tránsito" | "Pendiente despacho" | "Rechazado" */
+  estado: string;
+  fechaMovimiento: string;
+  createdAt: string;
+}
+
+/** Edita solo la fecha de movimiento de un traslado (aplica a todos los registros del TransferGroupId). */
+export interface InventarioGestionActualizarFechaTrasladoRequest {
+  /** yyyy-MM-dd */
+  fechaMovimiento: string;
+}
+
+// ─── INGRESOS: LISTADO Y EDICIÓN ─────────────────────────────────────────────
+
+/** Vista de un ingreso (Ingreso directo, TrasladoEntrada o TrasladoInterGranjaEntrada). */
+export interface InventarioGestionIngresoListDto {
+  movimientoId: number;
+  farmId: number;
+  granjaNombre: string | null;
+  nucleoId: string | null;
+  nucleoNombre: string | null;
+  galponId: string | null;
+  galponNombre: string | null;
+  itemInventarioEcuadorId: number;
+  itemCodigo: string;
+  itemNombre: string;
+  itemConcepto: string;
+  itemTipoItem: string;
+  quantity: number;
+  unit: string;
+  reference: string | null;
+  reason: string | null;
+  estado: string | null;
+  fechaMovimiento: string;
+  createdAt: string;
+}
+
+/** Edita solo la fecha de movimiento de un ingreso. */
+export interface InventarioGestionActualizarFechaIngresoRequest {
+  /** yyyy-MM-dd */
+  fechaMovimiento: string;
+}
+
 /** Ajuste manual de cantidad/unidad en un registro de stock. */
 export interface InventarioGestionStockUpdateRequest {
   quantity: number;
@@ -331,6 +402,73 @@ export class GestionInventarioService {
       `${this.api}/inventario-gestion/transito/recepcion`,
       payload
     );
+  }
+
+  // ─── TRASLADOS ──────────────────────────────────────────────────────────────
+
+  /** Lista de traslados agrupados por TransferGroupId. Filtros: granja, núcleo, galpón, fechas, búsqueda, tipoItem. */
+  getTraslados(params: {
+    farmId?: number;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    search?: string;
+    itemTipoItem?: string;
+    nucleoId?: string;
+    galponId?: string;
+  } = {}): Observable<InventarioGestionTrasladoListDto[]> {
+    let httpParams = new HttpParams();
+    if (params.farmId != null) httpParams = httpParams.set('farmId', params.farmId);
+    if (params.fechaDesde) httpParams = httpParams.set('fechaDesde', params.fechaDesde);
+    if (params.fechaHasta) httpParams = httpParams.set('fechaHasta', params.fechaHasta);
+    if (params.search?.trim()) httpParams = httpParams.set('search', params.search.trim());
+    if (params.itemTipoItem?.trim()) httpParams = httpParams.set('itemTipoItem', params.itemTipoItem.trim());
+    if (params.nucleoId) httpParams = httpParams.set('nucleoId', params.nucleoId);
+    if (params.galponId) httpParams = httpParams.set('galponId', params.galponId);
+    return this.http.get<InventarioGestionTrasladoListDto[]>(`${this.api}/inventario-gestion/traslados`, { params: httpParams });
+  }
+
+  /** Actualiza la fecha de movimiento de un traslado (aplica a todos los registros del grupo). */
+  actualizarFechaTraslado(
+    transferGroupId: string,
+    req: InventarioGestionActualizarFechaTrasladoRequest
+  ): Observable<InventarioGestionTrasladoListDto> {
+    return this.http.put<InventarioGestionTrasladoListDto>(`${this.api}/inventario-gestion/traslados/${transferGroupId}/fecha`, req);
+  }
+
+  /** Elimina un traslado completo: revierte stock y marca anulado en el histórico unificado. */
+  eliminarTraslado(transferGroupId: string): Observable<void> {
+    return this.http.delete<void>(`${this.api}/inventario-gestion/traslados/${transferGroupId}`);
+  }
+
+  // ─── INGRESOS ───────────────────────────────────────────────────────────────
+
+  /** Lista de ingresos (directos y de traslados). Filtros: granja, núcleo, galpón, fechas, búsqueda, tipoItem. */
+  getIngresos(params: {
+    farmId?: number;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    search?: string;
+    itemTipoItem?: string;
+    nucleoId?: string;
+    galponId?: string;
+  } = {}): Observable<InventarioGestionIngresoListDto[]> {
+    let httpParams = new HttpParams();
+    if (params.farmId != null) httpParams = httpParams.set('farmId', params.farmId);
+    if (params.fechaDesde) httpParams = httpParams.set('fechaDesde', params.fechaDesde);
+    if (params.fechaHasta) httpParams = httpParams.set('fechaHasta', params.fechaHasta);
+    if (params.search?.trim()) httpParams = httpParams.set('search', params.search.trim());
+    if (params.itemTipoItem?.trim()) httpParams = httpParams.set('itemTipoItem', params.itemTipoItem.trim());
+    if (params.nucleoId) httpParams = httpParams.set('nucleoId', params.nucleoId);
+    if (params.galponId) httpParams = httpParams.set('galponId', params.galponId);
+    return this.http.get<InventarioGestionIngresoListDto[]>(`${this.api}/inventario-gestion/ingresos`, { params: httpParams });
+  }
+
+  /** Actualiza la fecha de movimiento de un ingreso (Ingreso directo o entrada de traslado). */
+  actualizarFechaIngreso(
+    movimientoId: number,
+    req: InventarioGestionActualizarFechaIngresoRequest
+  ): Observable<InventarioGestionIngresoListDto> {
+    return this.http.put<InventarioGestionIngresoListDto>(`${this.api}/inventario-gestion/ingresos/${movimientoId}/fecha`, req);
   }
 
   /** Ítems desde Config > Ítems inventario Ecuador (item_inventario_ecuador). */

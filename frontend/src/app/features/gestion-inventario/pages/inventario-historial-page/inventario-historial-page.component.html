@@ -1,0 +1,348 @@
+<div class="historial-root ux-page">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════════════════════ -->
+  <div class="list-header">
+    <div class="list-header__info">
+      <a routerLink="/gestion-inventario" class="btn-back" title="Volver a Gestión de Inventario">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </a>
+      <h2 class="list-header__title">Historial de Inventario</h2>
+      @if (activeTab === 'traslados') {
+        <span class="count-pill">{{ traslados.length }} traslados</span>
+      } @else {
+        <span class="count-pill">{{ ingresos.length }} ingresos</span>
+      }
+    </div>
+  </div>
+
+  <!-- ═══ TABS ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-bar">
+    <button class="tab-btn" [class.active]="activeTab === 'traslados'" (click)="switchTab('traslados')">
+      Traslados
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'ingresos'" (click)="switchTab('ingresos')">
+      Ingresos
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+  <!--  TAB: TRASLADOS                                                           -->
+  <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (activeTab === 'traslados') {
+
+    <!-- Filters -->
+    <div class="filters-card">
+      <div class="filters-grid">
+
+        <!-- Granja origen -->
+        <div class="filter-field">
+          <label class="ux-label">Granja origen</label>
+          <select class="ux-select" [(ngModel)]="trasladosFilter.farmId" (ngModelChange)="onFarmChangeTraslados()">
+            <option [ngValue]="null">Todas</option>
+            @for (f of filterData?.farmsOrigen ?? []; track f.id) {
+              <option [ngValue]="f.id">{{ f.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Núcleo origen -->
+        <div class="filter-field">
+          <label class="ux-label">Núcleo</label>
+          <select class="ux-select" [(ngModel)]="trasladosFilter.nucleoId" (ngModelChange)="onNucleoChangeTraslados()" [disabled]="nucleosTrasladosFiltrados.length === 0">
+            <option value="">Todos</option>
+            @for (n of nucleosTrasladosFiltrados; track n.nucleoId) {
+              <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Galpón origen -->
+        <div class="filter-field">
+          <label class="ux-label">Galpón</label>
+          <select class="ux-select" [(ngModel)]="trasladosFilter.galponId" [disabled]="galponesTrasladosFiltrados.length === 0">
+            <option value="">Todos</option>
+            @for (g of galponesTrasladosFiltrados; track g.galponId) {
+              <option [value]="g.galponId">{{ g.galponNombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Fecha desde -->
+        <div class="filter-field">
+          <label class="ux-label">Desde</label>
+          <input type="date" class="ux-input" [(ngModel)]="trasladosFilter.fechaDesde" />
+        </div>
+
+        <!-- Fecha hasta -->
+        <div class="filter-field">
+          <label class="ux-label">Hasta</label>
+          <input type="date" class="ux-input" [(ngModel)]="trasladosFilter.fechaHasta" />
+        </div>
+
+        <!-- Búsqueda -->
+        <div class="filter-field filter-field--search">
+          <label class="ux-label">Ítem (código / nombre)</label>
+          <div class="ux-search">
+            <svg class="ux-search__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" class="ux-input" placeholder="Buscar…" [(ngModel)]="trasladosFilter.search" (keyup.enter)="loadTraslados()" />
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="filter-field filter-field--action">
+          <button class="btn-primary" (click)="loadTraslados()" [disabled]="trasladosLoading">
+            @if (trasladosLoading) {
+              <span class="spinner-sm"></span>
+            } @else {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            }
+            Buscar
+          </button>
+          <button class="btn-secondary" (click)="clearFiltersTraslados()" style="margin-left:.5rem">Limpiar</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="ux-card">
+      @if (trasladosLoading) {
+        <div class="loading-overlay">
+          <span class="spinner"></span>
+          Cargando traslados…
+        </div>
+      }
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <thead>
+            <tr>
+              <th>Ítem</th>
+              <th>Origen</th>
+              <th>Destino</th>
+              <th>Cantidad</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of traslados; track t.transferGroupId) {
+              <tr>
+                <td>
+                  <div class="item-name">{{ t.itemNombre }}</div>
+                  <div class="item-code">{{ t.itemCodigo }}</div>
+                </td>
+                <td>
+                  <div class="ubicacion-text">{{ formatUbicacion(t.fromGranjaNombre, t.fromNucleoNombre, t.fromGalponNombre) }}</div>
+                </td>
+                <td>
+                  <div class="ubicacion-text">{{ formatUbicacion(t.toGranjaNombre, t.toNucleoNombre, t.toGalponNombre) }}</div>
+                </td>
+                <td class="font-medium">{{ t.quantity | number:'1.0-2' }} {{ t.unit }}</td>
+                <td>
+                  <span class="ux-badge" [ngClass]="estadoBadgeClass(t.estado)">{{ t.estado }}</span>
+                </td>
+                <td>{{ t.fechaMovimiento | date:'dd/MM/yyyy' }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="icon-btn" title="Editar fecha" (click)="openEditTraslado(t)">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">
+                  <div class="empty-state">
+                    <div class="empty-illustration">📦</div>
+                    <p>Sin traslados para los filtros aplicados.</p>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+  <!--  TAB: INGRESOS                                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (activeTab === 'ingresos') {
+
+    <!-- Filters -->
+    <div class="filters-card">
+      <div class="filters-grid">
+
+        <!-- Granja -->
+        <div class="filter-field">
+          <label class="ux-label">Granja</label>
+          <select class="ux-select" [(ngModel)]="ingresosFilter.farmId" (ngModelChange)="onFarmChangeIngresos()">
+            <option [ngValue]="null">Todas</option>
+            @for (f of filterData?.farmsOrigen ?? []; track f.id) {
+              <option [ngValue]="f.id">{{ f.name }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Núcleo -->
+        <div class="filter-field">
+          <label class="ux-label">Núcleo</label>
+          <select class="ux-select" [(ngModel)]="ingresosFilter.nucleoId" (ngModelChange)="onNucleoChangeIngresos()" [disabled]="nucleosIngresosFiltrados.length === 0">
+            <option value="">Todos</option>
+            @for (n of nucleosIngresosFiltrados; track n.nucleoId) {
+              <option [value]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Galpón -->
+        <div class="filter-field">
+          <label class="ux-label">Galpón</label>
+          <select class="ux-select" [(ngModel)]="ingresosFilter.galponId" [disabled]="galponesIngresosFiltrados.length === 0">
+            <option value="">Todos</option>
+            @for (g of galponesIngresosFiltrados; track g.galponId) {
+              <option [value]="g.galponId">{{ g.galponNombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Fecha desde -->
+        <div class="filter-field">
+          <label class="ux-label">Desde</label>
+          <input type="date" class="ux-input" [(ngModel)]="ingresosFilter.fechaDesde" />
+        </div>
+
+        <!-- Fecha hasta -->
+        <div class="filter-field">
+          <label class="ux-label">Hasta</label>
+          <input type="date" class="ux-input" [(ngModel)]="ingresosFilter.fechaHasta" />
+        </div>
+
+        <!-- Búsqueda -->
+        <div class="filter-field filter-field--search">
+          <label class="ux-label">Ítem (código / nombre)</label>
+          <div class="ux-search">
+            <svg class="ux-search__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" class="ux-input" placeholder="Buscar…" [(ngModel)]="ingresosFilter.search" (keyup.enter)="loadIngresos()" />
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="filter-field filter-field--action">
+          <button class="btn-primary" (click)="loadIngresos()" [disabled]="ingresosLoading">
+            @if (ingresosLoading) {
+              <span class="spinner-sm"></span>
+            } @else {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            }
+            Buscar
+          </button>
+          <button class="btn-secondary" (click)="clearFiltersIngresos()" style="margin-left:.5rem">Limpiar</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="ux-card">
+      @if (ingresosLoading) {
+        <div class="loading-overlay">
+          <span class="spinner"></span>
+          Cargando ingresos…
+        </div>
+      }
+      <div class="ux-scroll">
+        <table class="ux-table">
+          <thead>
+            <tr>
+              <th>Ítem</th>
+              <th>Ubicación</th>
+              <th>Cantidad</th>
+              <th>Estado</th>
+              <th>Referencia</th>
+              <th>Fecha</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (i of ingresos; track i.movimientoId) {
+              <tr>
+                <td>
+                  <div class="item-name">{{ i.itemNombre }}</div>
+                  <div class="item-code">{{ i.itemCodigo }}</div>
+                </td>
+                <td>
+                  <div class="ubicacion-text">{{ formatUbicacion(i.granjaNombre, i.nucleoNombre, i.galponNombre) }}</div>
+                </td>
+                <td class="font-medium">{{ i.quantity | number:'1.0-2' }} {{ i.unit }}</td>
+                <td>
+                  @if (i.estado) {
+                    <span class="ux-badge badge-default">{{ i.estado }}</span>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+                <td class="muted">{{ i.reference ?? '—' }}</td>
+                <td>{{ i.fechaMovimiento | date:'dd/MM/yyyy' }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="icon-btn" title="Editar fecha" (click)="openEditIngreso(i)">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">
+                  <div class="empty-state">
+                    <div class="empty-illustration">📥</div>
+                    <p>Sin ingresos para los filtros aplicados.</p>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  }
+
+</div>
+
+<!-- ═══ MODAL: EDITAR FECHA ══════════════════════════════════════════════════ -->
+@if (editOpen) {
+  <div class="ux-modal" (click)="closeEdit()">
+    <div class="ux-modal__panel" (click)="$event.stopPropagation()">
+      <div class="ux-modal__head">
+        <span class="ux-title">Editar fecha de movimiento</span>
+        <button class="btn-close" type="button" (click)="closeEdit()" [disabled]="editSaving">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="ux-modal__body">
+        <div class="edit-field">
+          <label class="ux-label">Nueva fecha</label>
+          <input type="date" class="ux-input" [(ngModel)]="editFecha" [disabled]="editSaving" />
+        </div>
+        @if (editError) {
+          <p class="edit-error">{{ editError }}</p>
+        }
+      </div>
+      <div class="ux-modal__foot">
+        <button class="btn-secondary" type="button" (click)="closeEdit()" [disabled]="editSaving">Cancelar</button>
+        <button class="btn-primary" type="button" (click)="saveEdit()" [disabled]="!editFecha || editSaving">
+          @if (editSaving) { <span class="spinner-sm"></span> }
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+}

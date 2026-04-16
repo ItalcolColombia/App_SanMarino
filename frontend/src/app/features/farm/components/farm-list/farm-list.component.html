@@ -1,52 +1,65 @@
 <div class="farm-list-root" [attr.aria-busy]="loading ? 'true' : null">
   <div class="farm-list-content ux-page">
-    <!-- Header -->
-    <div class="ux-header">
+
+    <!-- List header: título, contador y acción principal -->
+    <div class="list-header">
+      <div class="list-header__info">
+        <h2 class="list-header__title">Granjas</h2>
+        <span class="count-pill">{{ viewFarms.length }} registros</span>
+      </div>
       <button (click)="openModal()" class="btn-primary">
-        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+        </svg>
         <span>Nueva Granja</span>
       </button>
     </div>
 
-    <!-- Filtros (sobre los registros cargados: regional, departamento, ciudad, nombre, estado, búsqueda) -->
-    <div class="ux-card p-4 mb-4">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+    <!-- Filtros -->
+    <div class="filters-card">
+      <div class="filters-grid">
         <!-- Regional -->
-        <div class="lg:col-span-2">
+        <div class="filter-field">
           <label for="f-regional" class="ux-label">Regional</label>
           <select id="f-regional" class="ux-select"
                   [(ngModel)]="selectedRegional"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let r of filterRegionalOptions" [ngValue]="r">{{ r }}</option>
+            @for (r of filterRegionalOptions; track r) {
+              <option [ngValue]="r">{{ r }}</option>
+            }
           </select>
         </div>
 
         <!-- Departamento -->
-        <div class="lg:col-span-2">
+        <div class="filter-field">
           <label for="f-departamento" class="ux-label">Departamento</label>
           <select id="f-departamento" class="ux-select"
                   [(ngModel)]="selectedDepartamento"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todos</option>
-            <option *ngFor="let d of filterDepartamentoOptions" [ngValue]="d">{{ d }}</option>
+            @for (d of filterDepartamentoOptions; track d) {
+              <option [ngValue]="d">{{ d }}</option>
+            }
           </select>
         </div>
 
         <!-- Ciudad -->
-        <div class="lg:col-span-2">
+        <div class="filter-field">
           <label for="f-ciudad" class="ux-label">Ciudad</label>
           <select id="f-ciudad" class="ux-select"
                   [(ngModel)]="selectedCiudad"
                   (ngModelChange)="recomputeList()">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let c of filterCiudadOptions" [ngValue]="c">{{ c }}</option>
+            @for (c of filterCiudadOptions; track c) {
+              <option [ngValue]="c">{{ c }}</option>
+            }
           </select>
         </div>
 
         <!-- Nombre -->
-        <div class="lg:col-span-2">
-          <label for="f-nombre" class="ux-label">Nombre de la granja</label>
+        <div class="filter-field">
+          <label for="f-nombre" class="ux-label">Nombre</label>
           <input id="f-nombre" class="ux-input"
                  [(ngModel)]="filtroNombre"
                  (ngModelChange)="recomputeList()"
@@ -54,7 +67,7 @@
         </div>
 
         <!-- Estado -->
-        <div class="lg:col-span-1">
+        <div class="filter-field">
           <label for="f-estado" class="ux-label">Estado</label>
           <select id="f-estado" class="ux-select"
                   [(ngModel)]="filtroEstado"
@@ -66,19 +79,19 @@
         </div>
 
         <!-- Búsqueda libre -->
-        <div class="lg:col-span-2">
+        <div class="filter-field filter-field--search">
           <label for="f-search" class="ux-label">Buscar</label>
           <div class="ux-search">
             <fa-icon [icon]="faMagnifyingGlass" class="ux-search__icon" aria-hidden="true"></fa-icon>
-            <input id="f-search" type="text" class="ux-input"
+            <input id="f-search" type="search" class="ux-input"
                    [(ngModel)]="filtroTexto"
                    (ngModelChange)="recomputeList()"
-                   placeholder="Por nombre, regional, compañía, depto o ciudad…" />
+                   placeholder="Nombre, regional, compañía…" />
           </div>
         </div>
 
         <!-- Limpiar -->
-        <div class="lg:col-span-1">
+        <div class="filter-field filter-field--action">
           <button class="btn-ghost w-full" (click)="resetFilters()">Limpiar</button>
         </div>
       </div>
@@ -102,251 +115,287 @@
             </tr>
           </thead>
           <tbody>
-            <!-- Estado de carga -->
-            <tr *ngIf="loadingTable">
-              <td colspan="8" class="empty-state">
-                <div class="spinner" aria-hidden="true"></div>
-                <p>Cargando información de granjas...</p>
-              </td>
-            </tr>
-
-            <!-- Filas de datos -->
-            <tr *ngFor="let g of viewFarms; trackBy: trackByFarm" [class.hidden]="loadingTable">
-              <td>{{ g.id }}</td>
-              <td>{{ g.companyNombre || companyName(g.companyId) || '—' }}</td>
-              <td class="uppercase">{{ g.name }}</td>
-              <td>{{ g.regionalNombre || getRegionalName(g.regionalId) || '—' }}</td>
-              <td>{{ g.status }}</td>
-              <td>{{ g.departamentoNombre || g.department || '—' }}</td>
-              <td>{{ g.ciudadNombre || g.city || '—' }}</td>
-              <td class="text-center">
-                <div class="inline-flex items-center gap-2">
-                  <button class="icon-btn" title="Ver detalle" (click)="showDetail(g)">
-                    <fa-icon [icon]="faEye"></fa-icon>
-                  </button>
-                  <button class="icon-btn" title="Editar" (click)="openModal(g)">
-                    <fa-icon [icon]="faPen"></fa-icon>
-                  </button>
-                  <button class="icon-btn danger" title="Eliminar" (click)="delete(g.id!)">
-                    <fa-icon [icon]="faTrash"></fa-icon>
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <!-- Estado vacío -->
-            <tr *ngIf="(viewFarms?.length ?? 0) === 0 && !loadingTable">
-              <td colspan="8" class="empty-state">
-                <div class="empty-illustration">🏡</div>
-                <p>No hay granjas que coincidan con los filtros.</p>
-                <button (click)="openModal()" class="btn-secondary mt-2">
-                  <fa-icon [icon]="faPlus"></fa-icon> Crear la primera
-                </button>
-              </td>
-            </tr>
+            @if (loadingTable) {
+              <tr>
+                <td colspan="8" class="empty-state">
+                  <div class="spinner" aria-hidden="true"></div>
+                  <p>Cargando información de granjas...</p>
+                </td>
+              </tr>
+            }
+            @if (!loadingTable) {
+              @for (g of viewFarms; track g.id) {
+                <tr>
+                  <td>{{ g.id }}</td>
+                  <td>{{ g.companyNombre || companyName(g.companyId) || '—' }}</td>
+                  <td class="uppercase">{{ g.name }}</td>
+                  <td>{{ g.regionalNombre || getRegionalName(g.regionalId) || '—' }}</td>
+                  <td>
+                    <span class="ux-badge"
+                          [class.badge-active]="g.status === 'A'"
+                          [class.badge-inactive]="g.status !== 'A'">
+                      {{ g.status === 'A' ? 'Activa' : 'Inactiva' }}
+                    </span>
+                  </td>
+                  <td>{{ g.departamentoNombre || g.department || '—' }}</td>
+                  <td>{{ g.ciudadNombre || g.city || '—' }}</td>
+                  <td class="text-center">
+                    <div class="row-actions">
+                      <button class="icon-btn" title="Ver detalle" aria-label="Ver detalle" (click)="showDetail(g)">
+                        <fa-icon [icon]="faEye"></fa-icon>
+                      </button>
+                      <button class="icon-btn" title="Editar" aria-label="Editar" (click)="openModal(g)">
+                        <fa-icon [icon]="faPen"></fa-icon>
+                      </button>
+                      <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar" (click)="delete(g.id!)">
+                        <fa-icon [icon]="faTrash"></fa-icon>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🏡</div>
+                    <p>No hay granjas que coincidan con los filtros.</p>
+                    <button (click)="openModal()" class="btn-secondary mt-2">
+                      <fa-icon [icon]="faPlus"></fa-icon>
+                      Crear la primera
+                    </button>
+                  </td>
+                </tr>
+              }
+            }
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- MODAL: Crear/Editar Granja -->
-    <div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="farm-modal-title">
-      <div class="ux-modal__panel">
-        <div class="ux-modal__header">
-          <h2 id="farm-modal-title" class="ux-title">{{ editing ? 'Editar Granja' : 'Nueva Granja' }}</h2>
-          <button type="button" (click)="cancel()" class="btn-muted">Cerrar</button>
-        </div>
-
-        <!-- Indicador de carga del modal -->
-        <div *ngIf="loadingModal" class="loading-overlay" style="position: relative; min-height: 200px;">
-          <div class="spinner"></div>
-          <p style="margin-top: 0.5rem; color: var(--warm-600);">Cargando datos del formulario...</p>
-        </div>
-
-        <form [formGroup]="form" (ngSubmit)="save()" class="grid grid-cols-1 md:grid-cols-2 gap-4" [class.hidden]="loadingModal" novalidate>
-          <!-- Compañía (desde storage: id y nombre de la empresa; solo lectura) -->
-          <div>
-            <label class="ux-label">Compañía <span class="req">*</span></label>
-            <input formControlName="companyDisplayName"
-                   class="ux-input"
-                   readonly
-                   [attr.aria-readonly]="true"
-                   placeholder="Empresa de la sesión" />
-          </div>
-
-          <!-- Nombre -->
-          <div class="md:col-span-2">
-            <label class="ux-label">Nombre <span class="req">*</span></label>
-            <input formControlName="name" class="ux-input"
-                   placeholder="Ej. Granja Central"
-                   [class.is-invalid]="form.get('name')?.invalid && form.get('name')?.touched" />
-          </div>
-
-          <!-- Regional (opciones desde lista maestra region_option_key; id y value; se envía regionalOptionId al backend) -->
-          <div>
-            <label class="ux-label">Regional</label>
-            <select formControlName="regionalOptionId" class="ux-input">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let opt of regionalOptionItems" [ngValue]="opt.id">{{ opt.value }}</option>
-            </select>
-            <p class="ux-help" *ngIf="regionalOptionItems.length === 0 && form.get('companyId')?.value">
-              No hay regionales disponibles para esta compañía.
-            </p>
-          </div>
-
-          <!-- Estado -->
-          <div>
-            <label class="ux-label">Estado</label>
-            <select formControlName="status" class="ux-input">
-              <option [ngValue]="'A'">Activa</option>
-              <option [ngValue]="'I'">Inactiva</option>
-            </select>
-          </div>
-
-          <!-- ====== Cascada País → Departamento → Ciudad ====== -->
-          <!-- País: siempre el de la sesión (storage), select deshabilitado; con él se cargan Departamento y Ciudad -->
-          <div>
-            <label class="ux-label">País</label>
-            <select formControlName="paisId" class="ux-input" (change)="onPaisChange()" [disabled]="paisDisabled">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let p of paises" [ngValue]="p.paisId">
-                {{ p.paisNombre }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Departamento -->
-          <div>
-            <label class="ux-label">Departamento</label>
-            <select formControlName="departamentoId" class="ux-input" (change)="onDepartamentoChange()">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let d of departamentos" [ngValue]="d.departamentoId">
-                {{ d.departamentoNombre }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Ciudad -->
-          <div>
-            <label class="ux-label">Ciudad</label>
-            <select formControlName="ciudadId" class="ux-input">
-              <option [ngValue]="null">Seleccione…</option>
-              <option *ngFor="let c of ciudades" [ngValue]="c.municipioId">
-                {{ c.municipioNombre }}
-              </option>
-            </select>
-          </div>
-
-
-          <!-- Meta (si edición) -->
-          <div class="md:col-span-2 ux-meta" *ngIf="editing?.createdAt || editing?.updatedAt">
-            <div class="ux-meta__item" *ngIf="editing?.createdAt"><strong>Creado:</strong> {{ editing?.createdAt | date:'short' }}</div>
-            <div class="ux-meta__item" *ngIf="editing?.updatedAt"><strong>Actualizado:</strong> {{ editing?.updatedAt | date:'short' }}</div>
-          </div>
-
-          <!-- Acciones -->
-          <div class="md:col-span-2 ux-actions">
-            <button type="button" class="btn-muted" (click)="cancel()">Cancelar</button>
-            <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
-              {{ editing ? 'Actualizar' : 'Guardar' }}
+    <!-- MODAL: Crear / Editar Granja -->
+    @if (modalOpen) {
+      <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="farm-modal-title">
+        <div class="ux-modal__panel">
+          <div class="ux-modal__head">
+            <h2 id="farm-modal-title" class="ux-title">{{ editing ? 'Editar Granja' : 'Nueva Granja' }}</h2>
+            <button type="button" (click)="cancel()" class="btn-close" aria-label="Cerrar">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
             </button>
           </div>
-        </form>
+
+          @if (loadingModal) {
+            <div class="modal-loading">
+              <div class="spinner" aria-hidden="true"></div>
+              <p>Cargando datos del formulario...</p>
+            </div>
+          }
+
+          @if (!loadingModal) {
+            <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+              <div class="ux-modal__body modal-form-grid">
+                <!-- Compañía -->
+                <div>
+                  <label class="ux-label">Compañía <span class="req">*</span></label>
+                  <input formControlName="companyDisplayName"
+                         class="ux-input ux-input--readonly"
+                         readonly
+                         [attr.aria-readonly]="true"
+                         placeholder="Empresa de la sesión" />
+                </div>
+
+                <!-- Nombre -->
+                <div class="col-span-2">
+                  <label class="ux-label">Nombre <span class="req">*</span></label>
+                  <input formControlName="name" class="ux-input"
+                         placeholder="Ej. Granja Central"
+                         [class.is-invalid]="form.get('name')?.invalid && form.get('name')?.touched" />
+                </div>
+
+                <!-- Regional -->
+                <div>
+                  <label class="ux-label">Regional</label>
+                  <select formControlName="regionalOptionId" class="ux-input">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (opt of regionalOptionItems; track opt.id) {
+                      <option [ngValue]="opt.id">{{ opt.value }}</option>
+                    }
+                  </select>
+                  @if (regionalOptionItems.length === 0 && form.get('companyId')?.value) {
+                    <p class="ux-help">No hay regionales disponibles para esta compañía.</p>
+                  }
+                </div>
+
+                <!-- Estado -->
+                <div>
+                  <label class="ux-label">Estado</label>
+                  <select formControlName="status" class="ux-input">
+                    <option [ngValue]="'A'">Activa</option>
+                    <option [ngValue]="'I'">Inactiva</option>
+                  </select>
+                </div>
+
+                <!-- País -->
+                <div>
+                  <label class="ux-label">País</label>
+                  <select formControlName="paisId" class="ux-input" (change)="onPaisChange()" [disabled]="paisDisabled">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (p of paises; track p.paisId) {
+                      <option [ngValue]="p.paisId">{{ p.paisNombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- Departamento -->
+                <div>
+                  <label class="ux-label">Departamento</label>
+                  <select formControlName="departamentoId" class="ux-input" (change)="onDepartamentoChange()">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (d of departamentos; track d.departamentoId) {
+                      <option [ngValue]="d.departamentoId">{{ d.departamentoNombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- Ciudad -->
+                <div>
+                  <label class="ux-label">Ciudad</label>
+                  <select formControlName="ciudadId" class="ux-input">
+                    <option [ngValue]="null">Seleccione…</option>
+                    @for (c of ciudades; track c.municipioId) {
+                      <option [ngValue]="c.municipioId">{{ c.municipioNombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- Meta de auditoría (solo edición) -->
+                @if (editing?.createdAt || editing?.updatedAt) {
+                  <div class="col-span-2 ux-meta">
+                    @if (editing?.createdAt) {
+                      <div class="ux-meta__item"><strong>Creado:</strong> {{ editing?.createdAt | date:'short' }}</div>
+                    }
+                    @if (editing?.updatedAt) {
+                      <div class="ux-meta__item"><strong>Actualizado:</strong> {{ editing?.updatedAt | date:'short' }}</div>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="ux-modal__foot">
+                <button type="button" class="btn-muted" (click)="cancel()">Cancelar</button>
+                <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
+                  {{ editing ? 'Actualizar' : 'Guardar' }}
+                </button>
+              </div>
+            </form>
+          }
+        </div>
       </div>
-    </div>
-    <!-- /MODAL -->
+    }
 
     <!-- MODAL: Detalle de Granja -->
-    <div *ngIf="detailOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
-      <div class="ux-modal__panel ux-modal__panel--detail">
-        <div class="ux-modal__header ux-modal__header--detail">
-          <h2 id="detail-modal-title" class="ux-title">Detalle de la Granja</h2>
-          <button type="button" (click)="closeDetail()" class="btn-muted" aria-label="Cerrar">
-            <fa-icon [icon]="faTimes"></fa-icon>
-          </button>
-        </div>
-
-        <!-- Indicador de carga del detalle -->
-        <div *ngIf="loadingDetail" class="loading-overlay" style="position: relative; min-height: 300px;">
-          <div class="spinner"></div>
-          <p style="margin-top: 0.5rem; color: var(--warm-600);">Cargando información de la granja...</p>
-        </div>
-
-        <div class="ux-modal__body" *ngIf="selectedDetail && !loadingDetail">
-          <!-- Información Principal -->
-          <section class="detail-section">
-            <h3 class="detail-section__title">Información Principal</h3>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">ID</span>
-                <span class="detail-value">{{ selectedDetail.id }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Nombre</span>
-                <span class="detail-value highlight">{{ selectedDetail.name }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Compañía</span>
-                <span class="detail-value">{{ selectedDetail.companyNombre || companyName(selectedDetail.companyId) || '—' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Estado</span>
-                <span class="detail-value">
-                  <span class="ux-badge" [class.badge-active]="selectedDetail.status === 'A'"
-                        [class.badge-inactive]="selectedDetail.status === 'I'">
-                    {{ selectedDetail.status === 'A' ? 'Activa' : 'Inactiva' }}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Ubicación -->
-          <section class="detail-section">
-            <h3 class="detail-section__title">Ubicación</h3>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <span class="detail-label">Regional</span>
-                <span class="detail-value">{{ selectedDetail.regionalNombre || getRegionalName(selectedDetail.regionalId) || '—' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Departamento</span>
-                <span class="detail-value">{{ selectedDetail.departamentoNombre || selectedDetail.department || '—' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Ciudad</span>
-                <span class="detail-value">{{ selectedDetail.ciudadNombre || selectedDetail.city || '—' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Auditoría -->
-          <section class="detail-section" *ngIf="selectedDetail.createdAt || selectedDetail.updatedAt">
-            <h3 class="detail-section__title">Auditoría</h3>
-            <div class="detail-grid">
-              <div class="detail-item" *ngIf="selectedDetail.createdAt">
-                <span class="detail-label">Creado</span>
-                <span class="detail-value">{{ selectedDetail.createdAt | date:'short' }}</span>
-              </div>
-              <div class="detail-item" *ngIf="selectedDetail.updatedAt">
-                <span class="detail-label">Actualizado</span>
-                <span class="detail-value">{{ selectedDetail.updatedAt | date:'short' }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Acciones -->
-          <div class="ux-actions">
-            <button type="button" class="btn-muted" (click)="closeDetail()">Cerrar</button>
-            <button type="button" class="btn-primary" (click)="closeDetail(); openModal(selectedDetail)">
-              <fa-icon [icon]="faPen"></fa-icon>
-              Editar Granja
+    @if (detailOpen) {
+      <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+        <div class="ux-modal__panel ux-modal__panel--detail">
+          <div class="ux-modal__head">
+            <h2 id="detail-modal-title" class="ux-title">Detalle de la Granja</h2>
+            <button type="button" (click)="closeDetail()" class="btn-close" aria-label="Cerrar">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
             </button>
           </div>
+
+          @if (loadingDetail) {
+            <div class="modal-loading">
+              <div class="spinner" aria-hidden="true"></div>
+              <p>Cargando información de la granja...</p>
+            </div>
+          }
+
+          @if (selectedDetail && !loadingDetail) {
+            <div class="ux-modal__body">
+              <!-- Información Principal -->
+              <section class="detail-section">
+                <h3 class="detail-section__title">Información Principal</h3>
+                <div class="detail-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">ID</span>
+                    <span class="detail-value">{{ selectedDetail.id }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Nombre</span>
+                    <span class="detail-value highlight">{{ selectedDetail.name }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Compañía</span>
+                    <span class="detail-value">{{ selectedDetail.companyNombre || companyName(selectedDetail.companyId) || '—' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Estado</span>
+                    <span class="detail-value">
+                      <span class="ux-badge"
+                            [class.badge-active]="selectedDetail.status === 'A'"
+                            [class.badge-inactive]="selectedDetail.status !== 'A'">
+                        {{ selectedDetail.status === 'A' ? 'Activa' : 'Inactiva' }}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Ubicación -->
+              <section class="detail-section">
+                <h3 class="detail-section__title">Ubicación</h3>
+                <div class="detail-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">Regional</span>
+                    <span class="detail-value">{{ selectedDetail.regionalNombre || getRegionalName(selectedDetail.regionalId) || '—' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Departamento</span>
+                    <span class="detail-value">{{ selectedDetail.departamentoNombre || selectedDetail.department || '—' }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Ciudad</span>
+                    <span class="detail-value">{{ selectedDetail.ciudadNombre || selectedDetail.city || '—' }}</span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Auditoría -->
+              @if (selectedDetail.createdAt || selectedDetail.updatedAt) {
+                <section class="detail-section">
+                  <h3 class="detail-section__title">Auditoría</h3>
+                  <div class="detail-grid">
+                    @if (selectedDetail.createdAt) {
+                      <div class="detail-item">
+                        <span class="detail-label">Creado</span>
+                        <span class="detail-value">{{ selectedDetail.createdAt | date:'short' }}</span>
+                      </div>
+                    }
+                    @if (selectedDetail.updatedAt) {
+                      <div class="detail-item">
+                        <span class="detail-label">Actualizado</span>
+                        <span class="detail-value">{{ selectedDetail.updatedAt | date:'short' }}</span>
+                      </div>
+                    }
+                  </div>
+                </section>
+              }
+            </div>
+
+            <div class="ux-modal__foot">
+              <button type="button" class="btn-muted" (click)="closeDetail()">Cerrar</button>
+              <button type="button" class="btn-primary" (click)="closeDetail(); openModal(selectedDetail)">
+                <fa-icon [icon]="faPen"></fa-icon>
+                Editar Granja
+              </button>
+            </div>
+          }
         </div>
       </div>
-    </div>
-    <!-- /MODAL DETALLE -->
+    }
 
     <!-- Modal confirmación eliminar -->
     <app-confirmation-modal
@@ -356,5 +405,6 @@
       (cancelled)="onCancelConfirm()"
       (closed)="onCancelConfirm()">
     </app-confirmation-modal>
+
   </div>
 </div>
