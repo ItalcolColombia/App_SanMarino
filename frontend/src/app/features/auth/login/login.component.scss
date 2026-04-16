@@ -114,6 +114,66 @@
     border-color: var(--brand-orange);
     box-shadow: 0 0 0 3px var(--brand-orange-light);
   }
+
+  &.brand-input--icon {
+    padding-left: 2.5rem;
+  }
+
+  &.brand-input--with-toggle {
+    padding-right: 2.75rem;
+  }
+}
+
+/* Wrapper con icono */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #9ca3af;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+/* Toggle mostrar/ocultar contraseña */
+.password-toggle {
+  position: absolute;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s ease;
+  border-radius: 4px;
+
+  svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    display: block;
+  }
+
+  &:hover { color: var(--brand-orange); }
+  &:focus-visible {
+    outline: 2px solid var(--brand-orange);
+    outline-offset: 1px;
+  }
+}
+
+/* Fila Recordarme + ¿Olvidaste? */
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 /* Errores */
@@ -211,11 +271,6 @@
 }
 .remember__control { accent-color: var(--brand-orange); }
 
-/* Enlace de recuperación de contraseña */
-.forgot-password {
-  text-align: center;
-  margin-top: 16px;
-}
 
 .link-button {
   background: none;
@@ -487,27 +542,6 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.loading-message {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 0.5rem;
-  text-align: center;
-  color: #3b82f6;
-
-  p {
-    margin: 0.25rem 0;
-    font-size: 0.9rem;
-  }
-
-  .loading-subtitle {
-    font-size: 0.85rem;
-    opacity: 0.8;
-    color: #60a5fa;
-  }
 }
 
 // Estilos para reCAPTCHA

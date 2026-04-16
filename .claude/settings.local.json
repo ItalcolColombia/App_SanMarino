@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs cat *)",
+      "Bash(dotnet build *)",
+      "Bash(npx ng *)",
+      "Bash(grep -l \"Menu\" /Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/Migrations/*.cs)",
+      "Bash(grep -l \"HasData\\\\|modelBuilder\\\\.Entity<Menu>\" /Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/Migrations/*.cs)",
+      "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
+      "Bash(grep -l \"migrationBuilder.Sql\\\\|migrationBuilder\\\\.Sql\" /Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/Migrations/*.cs)",
+      "Bash(dotnet ef *)",
+      "Bash(yarn build *)"
+    ]
+  }
+}

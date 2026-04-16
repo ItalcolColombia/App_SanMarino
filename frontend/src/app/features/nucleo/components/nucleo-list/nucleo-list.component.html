@@ -1,197 +1,213 @@
-<!-- Núcleos: lista + modal (embebible/autónomo) -->
+<!-- Núcleos: lista + modal -->
 <section class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
-  <!-- Header solo en modo autónomo (línea amarilla y botón a la derecha) -->
-  <header class="ux-header" *ngIf="!embedded">
+
+  <!-- List header: título, contador y acción -->
+  <div class="list-header">
+    <div class="list-header__info">
+      <h2 class="list-header__title">Núcleos</h2>
+      <span class="count-pill">{{ viewNucleos.length }} registros</span>
+    </div>
     <button class="btn-primary" (click)="openModal()">
-      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+      <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
+        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+      </svg>
       <span>Nuevo Núcleo</span>
     </button>
-  </header>
+  </div>
 
-  <!-- ================= Filtros ================= -->
-  <div class="ux-card ux-card--filters" role="group" aria-label="Filtros de búsqueda y selección">
-    <form (submit)="$event.preventDefault()" class="filters-form">
-      <div class="filters-form__grid">
+  <!-- Filtros -->
+  <div class="filters-card" role="group" aria-label="Filtros de búsqueda">
+    <form (submit)="$event.preventDefault()">
+      <div class="filters-grid">
         <!-- Compañía -->
-        <div class="filters-form__field">
+        <div class="filter-field">
           <label for="f-company" class="ux-label">Compañía</label>
-          <select
-            id="f-company"
-            name="fCompany"
-            class="ux-select"
-            [ngModel]="selectedCompanyId"
-            (ngModelChange)="onCompanyChange($event)">
+          <select id="f-company" name="fCompany" class="ux-select"
+                  [ngModel]="selectedCompanyId"
+                  (ngModelChange)="onCompanyChange($event)">
             <option [ngValue]="null">Todas las compañías</option>
-            <option *ngFor="let c of filterCompanyOptions" [ngValue]="c.id">{{ c.name }}</option>
+            @for (c of filterCompanyOptions; track c.id) {
+              <option [ngValue]="c.id">{{ c.name }}</option>
+            }
           </select>
         </div>
 
         <!-- Granja -->
-        <div class="filters-form__field">
+        <div class="filter-field">
           <label for="f-farm" class="ux-label">Granja</label>
-          <select
-            id="f-farm"
-            name="fFarm"
-            class="ux-select"
-            [ngModel]="selectedFarmId"
-            (ngModelChange)="onFarmFilterChange($event)">
+          <select id="f-farm" name="fFarm" class="ux-select"
+                  [ngModel]="selectedFarmId"
+                  (ngModelChange)="onFarmFilterChange($event)">
             <option [ngValue]="null">Todas las granjas</option>
-            <option *ngFor="let f of filterFarmOptions" [ngValue]="f.id">{{ f.name }}</option>
+            @for (f of filterFarmOptions; track f.id) {
+              <option [ngValue]="f.id">{{ f.name }}</option>
+            }
           </select>
         </div>
 
         <!-- Búsqueda -->
-        <div class="filters-form__field filters-form__field--search">
+        <div class="filter-field filter-field--search">
           <label for="filtro" class="ux-label sr-only">Buscar núcleo</label>
           <div class="ux-search">
             <span class="ux-search__icon" aria-hidden="true">
               <fa-icon [icon]="faSearch"></fa-icon>
             </span>
-            <input
-              id="filtro"
-              name="filtro"
-              type="search"
-              class="ux-input"
-              placeholder="Por nombre, ID o granja…"
-              [ngModel]="filtro"
-              (ngModelChange)="onFiltroChange($event)"
-              aria-label="Campo de búsqueda de núcleos" />
+            <input id="filtro" name="filtro" type="search" class="ux-input"
+                   placeholder="Por nombre, ID o granja…"
+                   [ngModel]="filtro"
+                   (ngModelChange)="onFiltroChange($event)"
+                   aria-label="Buscar núcleos" />
           </div>
         </div>
 
-        <!-- Acciones -->
-        <div class="filters-form__actions">
-          <button type="button" class="btn-ghost" (click)="resetFilters()">Limpiar</button>
+        <!-- Limpiar -->
+        <div class="filter-field filter-field--action">
+          <button type="button" class="btn-ghost w-full" (click)="resetFilters()">Limpiar</button>
         </div>
       </div>
     </form>
   </div>
 
-  <!-- ================= Tabla ================= -->
-  <div class="ux-card" role="region" aria-label="Listado de núcleos" style="position:relative;">
+  <!-- Tabla -->
+  <div class="ux-card" role="region" aria-label="Listado de núcleos">
     <div class="ux-scroll">
       <table class="ux-table">
         <caption class="sr-only">Listado de núcleos</caption>
         <thead>
           <tr>
-            <th class="col-id">ID Núcleo</th>
-            <th class="col-nombre">Nombre Núcleo</th>
-            <th class="col-granja">Granja</th>
-            <th class="col-company">Compañía</th>
-            <th class="col-actions text-center">Acciones</th>
+            <th scope="col">ID Núcleo</th>
+            <th scope="col">Nombre</th>
+            <th scope="col">Granja</th>
+            <th scope="col">Compañía</th>
+            <th scope="col" class="text-center">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <!-- Estado: cargando -->
-          <tr *ngIf="loading" aria-live="polite">
-            <td colspan="5" class="empty-state">
-              <div class="spinner" aria-hidden="true"></div>
-              Cargando núcleos…
-            </td>
-          </tr>
-
-          <!-- Estado: vacío -->
-          <tr *ngIf="!loading && viewNucleos?.length === 0">
-            <td colspan="5" class="empty-state">
-              <div class="empty-illustration" aria-hidden="true">🗂️</div>
-              <p>No hay núcleos para mostrar.</p>
-              <button class="btn-secondary" (click)="openModal()">
-                <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-                <span>Crear el primero</span>
-              </button>
-            </td>
-          </tr>
-
-          <!-- Filas -->
-          <tr *ngFor="let n of viewNucleos; trackBy: trackByNucleo" class="ux-row">
-            <td class="col-id">{{ n.nucleoId }}</td>
-            <td class="col-nombre"><span class="text-ellipsis">{{ n.nucleoNombre }}</span></td>
-            <td class="col-granja"><span class="text-ellipsis">{{ getFarmName(n) }}</span></td>
-            <td class="col-company"><span class="text-ellipsis">{{ getCompanyName(n) }}</span></td>
-            <td class="col-actions">
-              <div class="actions">
-                <button class="icon-btn" title="Editar" aria-label="Editar núcleo" (click)="openModal(n)">
-                  <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                </button>
-                <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar núcleo" (click)="delete(n)">
-                  <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                </button>
-              </div>
-            </td>
-          </tr>
+          @if (loading) {
+            <tr aria-live="polite">
+              <td colspan="5" class="empty-state">
+                <div class="spinner" aria-hidden="true"></div>
+                <p>Cargando núcleos...</p>
+              </td>
+            </tr>
+          }
+          @if (!loading) {
+            @for (n of viewNucleos; track n.nucleoId) {
+              <tr class="ux-row">
+                <td>{{ n.nucleoId }}</td>
+                <td><span class="text-ellipsis">{{ n.nucleoNombre }}</span></td>
+                <td><span class="text-ellipsis">{{ getFarmName(n) }}</span></td>
+                <td><span class="text-ellipsis">{{ getCompanyName(n) }}</span></td>
+                <td class="text-center">
+                  <div class="row-actions">
+                    <button class="icon-btn" title="Editar" aria-label="Editar núcleo" (click)="openModal(n)">
+                      <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button class="icon-btn danger" title="Eliminar" aria-label="Eliminar núcleo" (click)="delete(n)">
+                      <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="empty-state">
+                  <div class="empty-illustration" aria-hidden="true">🗂️</div>
+                  <p>No hay núcleos para mostrar.</p>
+                  <button class="btn-secondary" (click)="openModal()">
+                    <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                    <span>Crear el primero</span>
+                  </button>
+                </td>
+              </tr>
+            }
+          }
         </tbody>
       </table>
     </div>
 
-    <!-- Overlay de carga (sobre la card) -->
-    <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-      <div class="spinner" aria-hidden="true"></div>
-      Cargando…
-    </div>
+    <!-- Overlay de carga -->
+    @if (loading) {
+      <div class="loading-overlay" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Cargando…</span>
+      </div>
+    }
   </div>
 
-  <!-- ================= Modal: Crear / Editar ================= -->
-  <div
-    *ngIf="modalOpen"
-    class="ux-modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="nucleo-title">
-    <div class="ux-modal__panel">
-      <div class="ux-modal__header">
-        <h2 id="nucleo-title" class="ux-title">{{ editing ? 'Editar Núcleo' : 'Nuevo Núcleo' }}</h2>
-        <button class="btn-muted" type="button" (click)="closeModal()" aria-label="Cerrar">Cerrar</button>
-      </div>
-
-      <div *ngIf="loadingModal" class="loading-overlay" style="position:relative; min-height:120px;">
-        <div class="spinner" aria-hidden="true"></div>
-        <p style="margin-top:.5rem; color:var(--warm-600);">Cargando granjas…</p>
-      </div>
-
-      <!-- Bloque meta (opcional cuando edita) -->
-      <div class="ux-meta" *ngIf="editing && !loadingModal">
-            <div class="ux-meta__item"><strong>ID actual:</strong> {{ editing!.nucleoId }}</div>
-            <div class="ux-meta__item"><strong>Granja actual:</strong> {{ getFarmName(editing!) }}</div>
-      </div>
-
-      <form [formGroup]="form" (ngSubmit)="save()" style="margin-top:.75rem;" [class.hidden]="loadingModal">
-        <!-- ID (se autogenera) -->
-        <input type="hidden" formControlName="nucleoId" />
-
-        <div style="display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:.75rem;">
-          <!-- Granja -->
-          <div>
-            <label class="ux-label" for="field-granja">Granja <span class="req">*</span></label>
-            <select id="field-granja" class="ux-select" formControlName="granjaId">
-              <option [ngValue]="null" disabled>Seleccione…</option>
-              <option *ngFor="let f of farmsFiltered" [ngValue]="f.id">{{ f.name }}</option>
-            </select>
-          </div>
-
-          <!-- Nombre Núcleo -->
-          <div>
-            <label class="ux-label" for="field-nombre">Nombre Núcleo <span class="req">*</span></label>
-            <input id="field-nombre" class="ux-input" type="text" formControlName="nucleoNombre" />
-          </div>
-        </div>
-
-        <!-- Mostrar ID asignado (solo informativo) -->
-        <div style="margin-top:.5rem;" *ngIf="form.get('nucleoId')?.value">
-          <small class="text-center" style="display:block; opacity:.7;">
-            ID asignado: <strong>{{ form.get('nucleoId')?.value }}</strong>
-          </small>
-        </div>
-
-        <div class="ux-actions">
-          <button type="button" class="btn-ghost" (click)="closeModal()">Cancelar</button>
-          <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
-            {{ editing ? 'Actualizar' : 'Guardar' }}
+  <!-- MODAL: Crear / Editar Núcleo -->
+  @if (modalOpen) {
+    <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="nucleo-title">
+      <div class="ux-modal__panel">
+        <div class="ux-modal__head">
+          <h2 id="nucleo-title" class="ux-title">{{ editing ? 'Editar Núcleo' : 'Nuevo Núcleo' }}</h2>
+          <button type="button" class="btn-close" (click)="closeModal()" aria-label="Cerrar">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
           </button>
         </div>
-      </form>
+
+        @if (loadingModal) {
+          <div class="modal-loading">
+            <div class="spinner" aria-hidden="true"></div>
+            <p>Cargando granjas…</p>
+          </div>
+        }
+
+        @if (!loadingModal) {
+          <!-- Meta de edición -->
+          @if (editing) {
+            <div class="modal-meta-bar">
+              <span><strong>ID actual:</strong> {{ editing!.nucleoId }}</span>
+              <span><strong>Granja:</strong> {{ getFarmName(editing!) }}</span>
+            </div>
+          }
+
+          <form [formGroup]="form" (ngSubmit)="save()">
+            <input type="hidden" formControlName="nucleoId" />
+
+            <div class="ux-modal__body modal-form-grid">
+              <!-- Granja -->
+              <div>
+                <label class="ux-label" for="field-granja">Granja <span class="req">*</span></label>
+                <select id="field-granja" class="ux-select" formControlName="granjaId">
+                  <option [ngValue]="null" disabled>Seleccione…</option>
+                  @for (f of farmsFiltered; track f.id) {
+                    <option [ngValue]="f.id">{{ f.name }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Nombre Núcleo -->
+              <div>
+                <label class="ux-label" for="field-nombre">Nombre Núcleo <span class="req">*</span></label>
+                <input id="field-nombre" class="ux-input" type="text" formControlName="nucleoNombre"
+                       [class.is-invalid]="form.get('nucleoNombre')?.invalid && form.get('nucleoNombre')?.touched"
+                       placeholder="Ej. Núcleo Norte" />
+              </div>
+
+              <!-- ID asignado (informativo) -->
+              @if (form.get('nucleoId')?.value) {
+                <div class="col-span-2">
+                  <p class="ux-help text-center">
+                    ID asignado: <strong>{{ form.get('nucleoId')?.value }}</strong>
+                  </p>
+                </div>
+              }
+            </div>
+
+            <div class="ux-modal__foot">
+              <button type="button" class="btn-ghost" (click)="closeModal()">Cancelar</button>
+              <button type="submit" class="btn-primary" [disabled]="form.invalid || loading">
+                {{ editing ? 'Actualizar' : 'Guardar' }}
+              </button>
+            </div>
+          </form>
+        }
+      </div>
     </div>
-  </div>
-  <!-- /Modal -->
+  }
 
   <!-- Modal confirmación eliminar -->
   <app-confirmation-modal
@@ -201,4 +217,5 @@
     (cancelled)="onCancelConfirm()"
     (closed)="onCancelConfirm()">
   </app-confirmation-modal>
+
 </section>

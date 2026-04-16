@@ -1,71 +1,79 @@
-<!-- galpon-list: sin altura fija para un solo scroll en app-main -->
+<!-- galpon-list -->
 <div class="galpon-list-root" [attr.aria-busy]="loading ? 'true' : null">
   <div class="galpon-list-content ux-page">
-    <!-- Header -->
-    <div class="ux-header">
 
+    <!-- List header: título, contador y acción -->
+    <div class="list-header">
+      <div class="list-header__info">
+        <h2 class="list-header__title">Galpones</h2>
+        <span class="count-pill">{{ viewGalpones.length }} registros</span>
+      </div>
       <button (click)="openModal()" class="btn-primary">
-        <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16" aria-hidden="true">
+          <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+        </svg>
         <span>Nuevo Galpón</span>
       </button>
     </div>
 
     <!-- Filtros en cascada + búsqueda -->
-    <div class="ux-card p-4 mb-4">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-        <!-- Compañía (opciones derivadas de los galpones cargados) -->
-        <div class="lg:col-span-3">
+    <div class="filters-card">
+      <div class="filters-grid">
+        <!-- Compañía -->
+        <div class="filter-field">
           <label for="g-company" class="ux-label">Compañía</label>
           <select id="g-company" name="gCompany" class="ux-select"
                   [(ngModel)]="selectedCompanyId"
                   (ngModelChange)="onCompanyChangeList($event)">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let c of filterCompanyOptions" [ngValue]="c.id">{{ c.name }}</option>
+            @for (c of filterCompanyOptions; track c.id) {
+              <option [ngValue]="c.id">{{ c.name }}</option>
+            }
           </select>
         </div>
 
-        <!-- Granja (opciones derivadas; depende de compañía) -->
-        <div class="lg:col-span-3">
+        <!-- Granja -->
+        <div class="filter-field">
           <label for="g-farm" class="ux-label">Granja</label>
           <select id="g-farm" name="gFarm" class="ux-select"
                   [(ngModel)]="selectedFarmId"
                   (ngModelChange)="onFarmChangeList($event)">
             <option [ngValue]="null">Todas</option>
-            <option *ngFor="let f of filterFarmOptions" [ngValue]="f.id">{{ f.name }}</option>
+            @for (f of filterFarmOptions; track f.id) {
+              <option [ngValue]="f.id">{{ f.name }}</option>
+            }
           </select>
         </div>
 
-        <!-- Núcleo (opciones derivadas; depende de granja/compañía) -->
-        <div class="lg:col-span-3">
+        <!-- Núcleo -->
+        <div class="filter-field">
           <label for="g-nucleo" class="ux-label">Núcleo</label>
           <select id="g-nucleo" name="gNucleo" class="ux-select"
                   [(ngModel)]="selectedNucleoId"
                   (ngModelChange)="onNucleoChangeList($event)">
             <option [ngValue]="null">Todos</option>
-            <option *ngFor="let n of filterNucleoOptions" [value]="n.id">{{ n.name }}</option>
+            @for (n of filterNucleoOptions; track n.id) {
+              <option [value]="n.id">{{ n.name }}</option>
+            }
           </select>
         </div>
 
         <!-- Búsqueda -->
-        <div class="lg:col-span-2">
+        <div class="filter-field filter-field--search">
           <label for="galpon-filter" class="ux-label">Buscar</label>
           <div class="ux-search">
             <fa-icon [icon]="faMagnifyingGlass" class="ux-search__icon" aria-hidden="true"></fa-icon>
-            <input
-              id="galpon-filter"
-              name="galponFilter"
-              type="text"
-              [(ngModel)]="filtro"
-              (ngModelChange)="onFiltroChange($event)"
-              placeholder="Buscar por galpón, núcleo o granja…"
-              class="ux-input"
-              aria-label="Buscar galpón"
-            />
+            <input id="galpon-filter" name="galponFilter" type="search"
+                   [(ngModel)]="filtro"
+                   (ngModelChange)="onFiltroChange($event)"
+                   placeholder="Galpón, núcleo o granja…"
+                   class="ux-input"
+                   aria-label="Buscar galpón" />
           </div>
         </div>
 
         <!-- Limpiar -->
-        <div class="lg:col-span-1">
+        <div class="filter-field filter-field--action">
           <button class="btn-ghost w-full" (click)="resetListFilters()">Limpiar</button>
         </div>
       </div>
@@ -89,169 +97,279 @@
               <th scope="col" class="text-center">Acciones</th>
             </tr>
           </thead>
-
           <tbody>
-            <tr *ngFor="let g of viewGalpones" class="ux-row">
-              <td>{{ g.company.name || '—' }}</td>
-              <td>{{ g.farm.name || '—' }}</td>
-              <td>{{ g.nucleo.nucleoNombre || '—' }}</td>
-              <td>{{ g.galponNombre }}</td>
-              <td>{{ g.ancho || '–' }}</td>
-              <td>{{ g.largo || '–' }}</td>
-              <td>{{ getArea(g) }}</td>
-              <td><span class="ux-badge">{{ g.tipoGalpon || '—' }}</span></td>
-              <td class="text-center">
-                <div class="inline-flex items-center gap-2">
-                  <button (click)="openModal(g)" class="icon-btn" title="Editar">
-                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button (click)="showDetail(g)" class="icon-btn" title="Ver detalle">
-                    <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button (click)="delete(g.galponId)" class="icon-btn danger" title="Eliminar">
-                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <tr *ngIf="(viewGalpones)?.length === 0 && !loading">
-              <td colspan="9" class="empty-state">
-                <div class="empty-illustration">🏠</div>
-                <p>No hay galpones que coincidan con los filtros.</p>
-                <button (click)="openModal()" class="btn-secondary mt-2">
-                  <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
-                  Crear el primero
-                </button>
-              </td>
-            </tr>
+            @for (g of viewGalpones; track g.galponId) {
+              <tr class="ux-row">
+                <td>{{ g.company.name || '—' }}</td>
+                <td>{{ g.farm.name || '—' }}</td>
+                <td>{{ g.nucleo.nucleoNombre || '—' }}</td>
+                <td class="font-medium">{{ g.galponNombre }}</td>
+                <td>{{ g.ancho || '—' }}</td>
+                <td>{{ g.largo || '—' }}</td>
+                <td>{{ getArea(g) }}</td>
+                <td>
+                  <span class="ux-badge badge-tipo">{{ g.tipoGalpon || '—' }}</span>
+                </td>
+                <td class="text-center">
+                  <div class="row-actions">
+                    <button (click)="openModal(g)" class="icon-btn" title="Editar" aria-label="Editar">
+                      <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button (click)="showDetail(g)" class="icon-btn" title="Ver detalle" aria-label="Ver detalle">
+                      <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
+                    </button>
+                    <button (click)="delete(g.galponId)" class="icon-btn danger" title="Eliminar" aria-label="Eliminar">
+                      <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              @if (!loading) {
+                <tr>
+                  <td colspan="9" class="empty-state">
+                    <div class="empty-illustration" aria-hidden="true">🏠</div>
+                    <p>No hay galpones que coincidan con los filtros.</p>
+                    <button (click)="openModal()" class="btn-secondary mt-2">
+                      <fa-icon [icon]="faPlus" aria-hidden="true"></fa-icon>
+                      Crear el primero
+                    </button>
+                  </td>
+                </tr>
+              }
+            }
           </tbody>
         </table>
       </div>
 
       <!-- Overlay de carga -->
-      <div *ngIf="loading" class="loading-overlay" aria-live="polite">
-        <div class="spinner"></div>
-        Cargando…
-      </div>
+      @if (loading) {
+        <div class="loading-overlay" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <span>Cargando…</span>
+        </div>
+      }
     </div>
 
-    <!-- MODAL: Crear/Editar -->
-    <div *ngIf="modalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="galpon-modal-title">
-      <div class="ux-modal__panel">
-        <div class="ux-modal__header">
-          <h2 id="galpon-modal-title" class="ux-title">{{ editing ? 'Editar Galpón' : 'Nuevo Galpón' }}</h2>
-          <button type="button" (click)="modalOpen = false" class="btn-muted">Cerrar</button>
-        </div>
-
-        <div *ngIf="loadingModal" class="loading-overlay" style="position:relative; min-height:180px;">
-          <div class="spinner"></div>
-          <p style="margin-top:.5rem; color:var(--warm-600);">Cargando datos del formulario…</p>
-        </div>
-
-        <form [formGroup]="form" (ngSubmit)="save()" class="ux-modal__body grid grid-cols-1 md:grid-cols-2 gap-4" [class.hidden]="loadingModal" novalidate>
-          <div>
-            <label class="ux-label">Granja <span class="req">*</span></label>
-            <select formControlName="granjaId" class="ux-input"
-                    [class.is-invalid]="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">
-              <option [ngValue]="null">Seleccione una granja…</option>
-              <option *ngFor="let farm of farms" [ngValue]="farm.id">{{ farm.name }}</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="ux-label">Núcleo <span class="req">*</span></label>
-            <select formControlName="nucleoId" class="ux-input"
-                    [disabled]="!form.get('granjaId')?.value || loadingModal"
-                    [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
-              <option value=""> {{ form.get('granjaId')?.value ? 'Seleccione…' : 'Seleccione una granja primero' }} </option>
-              <option *ngFor="let opt of nucleoOptionsFiltrados" [value]="opt.id">{{ opt.label }}</option>
-            </select>
-          </div>
-
-          <!-- ID (solo lectura en edición) -->
-          <div>
-            <label class="ux-label">ID Galpón</label>
-            <input formControlName="galponId" [readonly]="editing" class="ux-input" />
-          </div>
-
-          <div>
-            <label class="ux-label">Nombre <span class="req">*</span></label>
-            <input formControlName="galponNombre" class="ux-input"
-                   [class.is-invalid]="form.get('galponNombre')?.invalid && form.get('galponNombre')?.touched" />
-          </div>
-
-          <div>
-            <label class="ux-label">Granja seleccionada</label>
-            <input type="text" [value]="getGranjaNombreById(form.get('granjaId')?.value)" readonly class="ux-input ux-input--readonly" />
-          </div>
-
-          <div>
-            <label class="ux-label">Ancho (m)</label>
-            <input formControlName="ancho" class="ux-input" />
-          </div>
-
-          <div>
-            <label class="ux-label">Largo (m)</label>
-            <input formControlName="largo" class="ux-input" />
-          </div>
-
-          <div class="md:col-span-2">
-            <label class="ux-label">Tipo de Galpón</label>
-            <select formControlName="tipoGalpon" class="ux-input">
-              <option value="">Seleccione…</option>
-              <option *ngFor="let opt of typegarponOptions" [value]="opt">{{ opt }}</option>
-            </select>
-          </div>
-
-          <!-- Meta: solo en edición -->
-          <div *ngIf="editing" class="md:col-span-2 ux-meta">
-            <div class="ux-meta__item"><strong>Empresa:</strong> {{ editing!.company.name }} ({{ editing!.company.identifier }})</div>
-            <div class="ux-meta__item"><strong>Granja:</strong> {{ editing!.farm.name }} (ID {{ editing!.farm.id }})</div>
-            <div class="ux-meta__item"><strong>Núcleo:</strong> {{ editing!.nucleo.nucleoNombre }} ({{ editing!.nucleo.nucleoId }})</div>
-            <div class="ux-meta__item"><strong>Creado:</strong> {{ editing!.createdAt | date:'short' }}</div>
-            <div class="ux-meta__item"><strong>Actualizado:</strong> {{ editing!.updatedAt | date:'short' }}</div>
-          </div>
-
-          <div class="md:col-span-2 ux-actions">
-            <button type="button" (click)="modalOpen = false" class="btn-muted">Cancelar</button>
-            <button type="submit" [disabled]="form.invalid" class="btn-primary">
-              {{ editing ? 'Actualizar' : 'Guardar' }}
+    <!-- MODAL: Crear / Editar Galpón -->
+    @if (modalOpen) {
+      <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="galpon-modal-title">
+        <div class="ux-modal__panel">
+          <div class="ux-modal__head">
+            <h2 id="galpon-modal-title" class="ux-title">{{ editing ? 'Editar Galpón' : 'Nuevo Galpón' }}</h2>
+            <button type="button" (click)="modalOpen = false" class="btn-close" aria-label="Cerrar">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
             </button>
           </div>
-        </form>
-      </div>
-    </div>
 
-    <!-- MODAL: Detalle -->
-    <div *ngIf="detailOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
-      <div class="ux-modal__panel">
-        <div class="ux-modal__header">
-          <h2 id="detail-modal-title" class="ux-title">Detalle del Galpón</h2>
-          <button type="button" (click)="detailOpen = false" class="btn-muted">Cerrar</button>
+          @if (loadingModal) {
+            <div class="modal-loading">
+              <div class="spinner" aria-hidden="true"></div>
+              <p>Cargando datos del formulario…</p>
+            </div>
+          }
+
+          @if (!loadingModal) {
+            <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+              <div class="ux-modal__body modal-form-grid">
+                <!-- Granja -->
+                <div>
+                  <label class="ux-label">Granja <span class="req">*</span></label>
+                  <select formControlName="granjaId" class="ux-input"
+                          [class.is-invalid]="form.get('granjaId')?.invalid && form.get('granjaId')?.touched">
+                    <option [ngValue]="null">Seleccione una granja…</option>
+                    @for (farm of farms; track farm.id) {
+                      <option [ngValue]="farm.id">{{ farm.name }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- Núcleo -->
+                <div>
+                  <label class="ux-label">Núcleo <span class="req">*</span></label>
+                  <select formControlName="nucleoId" class="ux-input"
+                          [disabled]="!form.get('granjaId')?.value || loadingModal"
+                          [class.is-invalid]="form.get('nucleoId')?.invalid && form.get('nucleoId')?.touched">
+                    <option value="">
+                      {{ form.get('granjaId')?.value ? 'Seleccione…' : 'Seleccione una granja primero' }}
+                    </option>
+                    @for (opt of nucleoOptionsFiltrados; track opt.id) {
+                      <option [value]="opt.id">{{ opt.label }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- ID Galpón -->
+                <div>
+                  <label class="ux-label">ID Galpón</label>
+                  <input formControlName="galponId" [readonly]="!!editing" class="ux-input"
+                         [class.ux-input--readonly]="!!editing" />
+                </div>
+
+                <!-- Nombre -->
+                <div>
+                  <label class="ux-label">Nombre <span class="req">*</span></label>
+                  <input formControlName="galponNombre" class="ux-input"
+                         placeholder="Ej. Galpón 1"
+                         [class.is-invalid]="form.get('galponNombre')?.invalid && form.get('galponNombre')?.touched" />
+                </div>
+
+                <!-- Granja seleccionada (solo lectura) -->
+                <div>
+                  <label class="ux-label">Granja seleccionada</label>
+                  <input type="text"
+                         [value]="getGranjaNombreById(form.get('granjaId')?.value)"
+                         readonly class="ux-input ux-input--readonly" />
+                </div>
+
+                <!-- Ancho -->
+                <div>
+                  <label class="ux-label">Ancho (m)</label>
+                  <input formControlName="ancho" class="ux-input" placeholder="0" />
+                </div>
+
+                <!-- Largo -->
+                <div>
+                  <label class="ux-label">Largo (m)</label>
+                  <input formControlName="largo" class="ux-input" placeholder="0" />
+                </div>
+
+                <!-- Tipo de Galpón -->
+                <div class="col-span-2">
+                  <label class="ux-label">Tipo de Galpón</label>
+                  <select formControlName="tipoGalpon" class="ux-input">
+                    <option value="">Seleccione…</option>
+                    @for (opt of typegarponOptions; track opt) {
+                      <option [value]="opt">{{ opt }}</option>
+                    }
+                  </select>
+                </div>
+
+                <!-- Meta de auditoría (solo edición) -->
+                @if (editing) {
+                  <div class="col-span-2 ux-meta">
+                    <div class="ux-meta__item"><strong>Empresa:</strong> {{ editing!.company.name }} ({{ editing!.company.identifier }})</div>
+                    <div class="ux-meta__item"><strong>Granja:</strong> {{ editing!.farm.name }} (ID {{ editing!.farm.id }})</div>
+                    <div class="ux-meta__item"><strong>Núcleo:</strong> {{ editing!.nucleo.nucleoNombre }} ({{ editing!.nucleo.nucleoId }})</div>
+                    <div class="ux-meta__item"><strong>Creado:</strong> {{ editing!.createdAt | date:'short' }}</div>
+                    <div class="ux-meta__item"><strong>Actualizado:</strong> {{ editing!.updatedAt | date:'short' }}</div>
+                  </div>
+                }
+              </div>
+
+              <div class="ux-modal__foot">
+                <button type="button" (click)="modalOpen = false" class="btn-muted">Cancelar</button>
+                <button type="submit" [disabled]="form.invalid" class="btn-primary">
+                  {{ editing ? 'Actualizar' : 'Guardar' }}
+                </button>
+              </div>
+            </form>
+          }
         </div>
+      </div>
+    }
 
-        <div class="ux-modal__body grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div><strong>ID:</strong> {{ selectedDetail?.galponId }}</div>
-          <div><strong>Nombre:</strong> {{ selectedDetail?.galponNombre }}</div>
-          <div><strong>Tipo:</strong> {{ selectedDetail?.tipoGalpon || '—' }}</div>
+    <!-- MODAL: Detalle del Galpón -->
+    @if (detailOpen) {
+      <div class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+        <div class="ux-modal__panel ux-modal__panel--detail">
+          <div class="ux-modal__head">
+            <h2 id="detail-modal-title" class="ux-title">Detalle del Galpón</h2>
+            <button type="button" (click)="detailOpen = false" class="btn-close" aria-label="Cerrar">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18" aria-hidden="true">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+          </div>
 
-          <div><strong>Núcleo:</strong> {{ selectedDetail?.nucleo?.nucleoNombre }} ({{ selectedDetail?.nucleo?.nucleoId }})</div>
-          <div><strong>Granja:</strong> {{ selectedDetail?.farm?.name }} (ID {{ selectedDetail?.farm?.id }})</div>
-          <div><strong>Empresa:</strong> {{ selectedDetail?.company?.name }}</div>
+          <div class="ux-modal__body">
+            <!-- Identificación -->
+            <section class="detail-section">
+              <h3 class="detail-section__title">Identificación</h3>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">ID</span>
+                  <span class="detail-value">{{ selectedDetail?.galponId }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Nombre</span>
+                  <span class="detail-value highlight">{{ selectedDetail?.galponNombre }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Tipo</span>
+                  <span class="detail-value">
+                    <span class="ux-badge badge-tipo">{{ selectedDetail?.tipoGalpon || '—' }}</span>
+                  </span>
+                </div>
+              </div>
+            </section>
 
-          <div><strong>Dimensiones:</strong> {{ selectedDetail?.ancho || '—' }} × {{ selectedDetail?.largo || '—' }} m</div>
-          <div><strong>Área (m²):</strong> {{ getArea(selectedDetail) }}</div>
-          <div><strong>Auditoría:</strong>
-            C: {{ selectedDetail?.createdAt | date:'short' }} • U: {{ selectedDetail?.updatedAt | date:'short' }}
+            <!-- Ubicación -->
+            <section class="detail-section">
+              <h3 class="detail-section__title">Ubicación</h3>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Núcleo</span>
+                  <span class="detail-value">{{ selectedDetail?.nucleo?.nucleoNombre }} <span class="muted">({{ selectedDetail?.nucleo?.nucleoId }})</span></span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Granja</span>
+                  <span class="detail-value">{{ selectedDetail?.farm?.name }} <span class="muted">(ID {{ selectedDetail?.farm?.id }})</span></span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Empresa</span>
+                  <span class="detail-value">{{ selectedDetail?.company?.name }}</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Dimensiones -->
+            <section class="detail-section">
+              <h3 class="detail-section__title">Dimensiones</h3>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Ancho (m)</span>
+                  <span class="detail-value">{{ selectedDetail?.ancho || '—' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Largo (m)</span>
+                  <span class="detail-value">{{ selectedDetail?.largo || '—' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Área (m²)</span>
+                  <span class="detail-value highlight">{{ getArea(selectedDetail) }}</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- Auditoría -->
+            <section class="detail-section">
+              <h3 class="detail-section__title">Auditoría</h3>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Creado</span>
+                  <span class="detail-value">{{ selectedDetail?.createdAt | date:'short' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Actualizado</span>
+                  <span class="detail-value">{{ selectedDetail?.updatedAt | date:'short' }}</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="ux-modal__foot">
+            <button type="button" (click)="detailOpen = false" class="btn-muted">Cerrar</button>
+            <button type="button" (click)="detailOpen = false; openModal(selectedDetail ?? undefined)" class="btn-primary">
+              <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+              Editar Galpón
+            </button>
           </div>
         </div>
-
-        <div class="ux-actions">
-          <button type="button" (click)="detailOpen = false" class="btn-primary">Cerrar</button>
-        </div>
       </div>
-    </div>
+    }
 
     <!-- Modal confirmación eliminar -->
     <app-confirmation-modal
@@ -261,5 +379,6 @@
       (cancelled)="onCancelConfirm()"
       (closed)="onCancelConfirm()">
     </app-confirmation-modal>
+
   </div>
 </div>

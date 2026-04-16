@@ -3,7 +3,7 @@ export const environment = {
   /** Nombre comercial de la aplicación (UI, título del documento base). */
   appName: 'ItalGranja',
   /** Subtítulo / línea de marca. */
-  appTagline: 'Gestión de granjas avícolas · Italcol',
+  appTagline: 'Gestión de granjas avícolas · ItalGranja',
   production: false,
   //apiUrl: 'https://mi-dominio.com/api'
   apiUrl: 'http://localhost:5002/api',

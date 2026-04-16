@@ -229,4 +229,116 @@ public class InventarioGestionController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    // ─── TRASLADOS ───────────────────────────────────────────────────────────
+
+    /// <summary>Lista de traslados agrupados por TransferGroupId. Filtros opcionales: granja, núcleo, galpón, rango de fechas, búsqueda de ítem, tipo de ítem.</summary>
+    [HttpGet("traslados")]
+    [ProducesResponseType(typeof(IEnumerable<InventarioGestionTrasladoListDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTraslados(
+        [FromQuery] int? farmId = null,
+        [FromQuery] DateTime? fechaDesde = null,
+        [FromQuery] DateTime? fechaHasta = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? itemTipoItem = null,
+        [FromQuery] string? nucleoId = null,
+        [FromQuery] string? galponId = null,
+        CancellationToken ct = default)
+    {
+        var list = await _service.GetTrasladosAsync(farmId, fechaDesde, fechaHasta, search, itemTipoItem, nucleoId, galponId, ct);
+        return Ok(list);
+    }
+
+    /// <summary>Actualiza la fecha de movimiento de un traslado (aplica a todos los registros del grupo).</summary>
+    [HttpPut("traslados/{transferGroupId:guid}/fecha")]
+    [ProducesResponseType(typeof(InventarioGestionTrasladoListDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ActualizarFechaTraslado(Guid transferGroupId, [FromBody] InventarioGestionActualizarFechaTrasladoRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _service.ActualizarFechaTrasladoAsync(transferGroupId, req, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Elimina un traslado completo: revierte stock en origen/destino y marca
+    /// anulado=true en lote_registro_historico_unificado para todos los movimientos del grupo.
+    /// </summary>
+    [HttpDelete("traslados/{transferGroupId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> EliminarTraslado(Guid transferGroupId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _service.EliminarTrasladoAsync(transferGroupId, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ─── INGRESOS ────────────────────────────────────────────────────────────
+
+    /// <summary>Lista de ingresos (directos y de traslados). Filtros opcionales: granja, núcleo, galpón, rango de fechas, búsqueda de ítem, tipo de ítem.</summary>
+    [HttpGet("ingresos")]
+    [ProducesResponseType(typeof(IEnumerable<InventarioGestionIngresoListDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetIngresos(
+        [FromQuery] int? farmId = null,
+        [FromQuery] DateTime? fechaDesde = null,
+        [FromQuery] DateTime? fechaHasta = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? itemTipoItem = null,
+        [FromQuery] string? nucleoId = null,
+        [FromQuery] string? galponId = null,
+        CancellationToken ct = default)
+    {
+        var list = await _service.GetIngresosAsync(farmId, fechaDesde, fechaHasta, search, itemTipoItem, nucleoId, galponId, ct);
+        return Ok(list);
+    }
+
+    /// <summary>Actualiza la fecha de movimiento de un ingreso.</summary>
+    [HttpPut("ingresos/{movimientoId:int}/fecha")]
+    [ProducesResponseType(typeof(InventarioGestionIngresoListDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ActualizarFechaIngreso(int movimientoId, [FromBody] InventarioGestionActualizarFechaIngresoRequest req, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await _service.ActualizarFechaIngresoAsync(movimientoId, req, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Elimina un ingreso (Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada): revierte stock
+    /// y marca anulado=true en lote_registro_historico_unificado.
+    /// </summary>
+    [HttpDelete("ingresos/{movimientoId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> EliminarIngreso(int movimientoId, CancellationToken ct = default)
+    {
+        try
+        {
+            await _service.EliminarIngresoAsync(movimientoId, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }

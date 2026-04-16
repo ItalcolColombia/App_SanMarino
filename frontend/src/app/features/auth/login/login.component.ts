@@ -22,9 +22,10 @@ export class LoginComponent implements OnInit {
   readonly appTagline = environment.appTagline;
   loginForm!: FormGroup;
   loading = false;
+  showPassword = false;
   errorMsg = '';
   errorType: 'database' | 'network' | 'blocked' | 'credentials' | 'encryption' | 'unknown' | null = null;
-  today = new Date(); // para el {{ today | date:'yyyy' }}
+  today = new Date();
   recaptchaEnabled = false;
   recaptchaSiteKey = '';
   recaptchaToken: string | null = null;
@@ -75,8 +76,6 @@ export class LoginComponent implements OnInit {
     this.errorType = null;
     this.loading = true;
 
-    console.log('🚀 Iniciando proceso de login...');
-
     // Preparar datos de login incluyendo reCAPTCHA token si está habilitado
     const rawLoginData = {
       email: this.loginForm.value.email,
@@ -108,48 +107,30 @@ export class LoginComponent implements OnInit {
 
     this.auth.login(loginData, this.loginForm.value.remember).subscribe({
       next: (session) => {
-        console.log('✅ Login exitoso, redirigiendo...', {
-          hasSession: !!session,
-          hasToken: !!session?.accessToken,
-          tokenLength: session?.accessToken?.length ?? 0,
-          hasMenu: session?.menu && session.menu.length > 0
-        });
-
         if (!session?.accessToken) {
-          console.error('❌ Error: Sesión sin token, no se puede continuar');
           this.loading = false;
-          this.errorMsg = 'Error: No se recibió el token de autenticación. Por favor, intenta de nuevo.';
+          this.errorMsg = 'No se recibió el token de autenticación. Por favor, intenta de nuevo.';
           return;
         }
 
         this.loading = false;
 
-        // Pequeño delay para asegurar que el storage se guarde completamente
         setTimeout(() => {
-          console.log('🔄 Redirigiendo a /home...');
           this.router.navigate(['/home'], { replaceUrl: true }).then(
             (success) => {
-              if (success) {
-                console.log('✅ Redirección exitosa a /home');
-              } else {
-                console.warn('⚠️ Redirección falló, intentando alternativa...');
+              if (!success) {
                 this.router.navigate(['/'], { replaceUrl: true });
               }
             },
-            (error) => {
-              console.error('❌ Error al redirigir:', error);
-              // Fallback: intentar navegar a dashboard o raíz
+            () => {
               this.router.navigate(['/'], { replaceUrl: true }).catch(() => {
-                console.error('❌ Error crítico al navegar');
-                // Último recurso: recargar la página
                 window.location.href = '/home';
               });
             }
           );
-        }, 200); // Aumentado a 200ms para asegurar que el storage se guarde
+        }, 200);
       },
       error: (err) => {
-        console.error('❌ Error en login:', err);
         this.loading = false;
 
         // Obtener mensaje y tipo de error
@@ -226,6 +207,10 @@ export class LoginComponent implements OnInit {
         this.errorType = errorType;
       }
     });
+  }
+
+  togglePassword(): void {
+    this.showPassword = !this.showPassword;
   }
 
   goToPasswordRecovery(): void {
