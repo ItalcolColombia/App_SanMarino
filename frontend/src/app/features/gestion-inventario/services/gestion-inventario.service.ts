@@ -471,6 +471,11 @@ export class GestionInventarioService {
     return this.http.put<InventarioGestionIngresoListDto>(`${this.api}/inventario-gestion/ingresos/${movimientoId}/fecha`, req);
   }
 
+  /** Elimina un ingreso: revierte stock y marca anulado en el histórico unificado. */
+  eliminarIngreso(movimientoId: number): Observable<void> {
+    return this.http.delete<void>(`${this.api}/inventario-gestion/ingresos/${movimientoId}`);
+  }
+
   /** Ítems desde Config > Ítems inventario Ecuador (item_inventario_ecuador). */
   getItemsByType(tipoItem: string | null = null, search: string | null = null, activo = true): Observable<ItemInventarioEcuadorDto[]> {
     let httpParams = new HttpParams();

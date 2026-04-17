@@ -94,6 +94,14 @@ export class InventarioHistorialPageComponent implements OnInit {
   editSaving = false;
   editError = '';
 
+  // ── Delete confirm modal ──────────────────────────────────────────────────────
+  deleteOpen = false;
+  deleteType: ActiveTab = 'traslados';
+  deleteId: string | number = '';
+  deleteLabel = '';
+  deleteDeleting = false;
+  deleteError = '';
+
   ngOnInit(): void {
     this.loadFilterData();
     this.loadTraslados();
@@ -153,6 +161,14 @@ export class InventarioHistorialPageComponent implements OnInit {
     this.editOpen = true;
   }
 
+  openDeleteTraslado(t: InventarioGestionTrasladoListDto): void {
+    this.deleteType = 'traslados';
+    this.deleteId = t.transferGroupId;
+    this.deleteLabel = `${t.itemNombre} — ${t.quantity} ${t.unit} (${t.fechaMovimiento.substring(0, 10)})`;
+    this.deleteError = '';
+    this.deleteOpen = true;
+  }
+
   // ── Ingresos actions ──────────────────────────────────────────────────────────
   onFarmChangeIngresos(): void {
     this.ingresosFilter.nucleoId = '';
@@ -191,10 +207,56 @@ export class InventarioHistorialPageComponent implements OnInit {
     this.editOpen = true;
   }
 
+  openDeleteIngreso(i: InventarioGestionIngresoListDto): void {
+    this.deleteType = 'ingresos';
+    this.deleteId = i.movimientoId;
+    this.deleteLabel = `${i.itemNombre} — ${i.quantity} ${i.unit} (${i.fechaMovimiento.substring(0, 10)})`;
+    this.deleteError = '';
+    this.deleteOpen = true;
+  }
+
   // ── Edit modal ────────────────────────────────────────────────────────────────
   closeEdit(): void {
     if (this.editSaving) return;
     this.editOpen = false;
+  }
+
+  // ── Delete modal ──────────────────────────────────────────────────────────────
+  closeDelete(): void {
+    if (this.deleteDeleting) return;
+    this.deleteOpen = false;
+  }
+
+  confirmDelete(): void {
+    if (this.deleteDeleting) return;
+    this.deleteDeleting = true;
+    this.deleteError = '';
+
+    if (this.deleteType === 'traslados') {
+      this.svc.eliminarTraslado(this.deleteId as string).subscribe({
+        next: () => {
+          this.traslados = this.traslados.filter(t => t.transferGroupId !== this.deleteId);
+          this.deleteOpen = false;
+          this.deleteDeleting = false;
+        },
+        error: err => {
+          this.deleteError = err?.error?.message ?? 'Error al eliminar el traslado.';
+          this.deleteDeleting = false;
+        },
+      });
+    } else {
+      this.svc.eliminarIngreso(this.deleteId as number).subscribe({
+        next: () => {
+          this.ingresos = this.ingresos.filter(i => i.movimientoId !== this.deleteId);
+          this.deleteOpen = false;
+          this.deleteDeleting = false;
+        },
+        error: err => {
+          this.deleteError = err?.error?.message ?? 'Error al eliminar el ingreso.';
+          this.deleteDeleting = false;
+        },
+      });
+    }
   }
 
   saveEdit(): void {

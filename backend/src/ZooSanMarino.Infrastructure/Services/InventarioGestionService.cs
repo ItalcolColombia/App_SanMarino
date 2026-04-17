@@ -1910,9 +1910,9 @@ public class InventarioGestionService : IInventarioGestionService
     // ─── ELIMINAR INGRESO ─────────────────────────────────────────────────────
 
     /// <summary>
-    /// Elimina un movimiento de tipo Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada:
-    /// revierte la cantidad en inventario_gestion_stock, marca anulado=true en
-    /// lote_registro_historico_unificado (auditoría) y elimina el movimiento.
+    /// Elimina un movimiento de tipo Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada.
+    /// No modifica stock. Marca anulado=true en lote_registro_historico_unificado (auditoría)
+    /// y elimina físicamente el registro de inventario_gestion_movimiento.
     /// </summary>
     public async Task EliminarIngresoAsync(int movimientoId, CancellationToken ct = default)
     {
@@ -1935,20 +1935,7 @@ public class InventarioGestionService : IInventarioGestionService
         if (!allowedFarmIds.Contains(mov.FarmId))
             throw new InvalidOperationException("No tiene acceso a este ingreso.");
 
-        // Revertir stock: el ingreso sumó; la eliminación resta
-        var stock = await _db.InventarioGestionStock
-            .FirstOrDefaultAsync(x =>
-                x.FarmId == mov.FarmId &&
-                x.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
-                x.NucleoId == mov.NucleoId &&
-                x.GalponId == mov.GalponId, ct);
-        if (stock == null || stock.Quantity < mov.Quantity)
-            throw new InvalidOperationException(
-                "No se puede eliminar este ingreso: no hay stock suficiente en la ubicación para revertir la cantidad.");
-        stock.Quantity -= mov.Quantity;
-        stock.UpdatedAt = DateTimeOffset.UtcNow;
-
-        // Marcar anulado en tabla espejo (mantener auditoría, no borrar la fila)
+        // Marcar anulado en tabla espejo (auditoría)
         var histElimIngreso = await _db.LoteRegistroHistoricoUnificados
             .FirstOrDefaultAsync(h =>
                 h.OrigenTabla == "inventario_gestion_movimiento" && h.OrigenId == movimientoId, ct);
@@ -1974,12 +1961,9 @@ public class InventarioGestionService : IInventarioGestionService
     // ─── ELIMINAR TRASLADO ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Elimina todos los movimientos de un TransferGroupId: revierte stock según el tipo de
-    /// movimiento, marca anulado=true en lote_registro_historico_unificado y elimina los registros.
-    /// — TrasladoSalida / TrasladoInterGranjaSalida / TrasladoInterGranjaPendiente
-    ///     → devuelven la cantidad al stock de origen.
-    /// — TrasladoEntrada / TrasladoInterGranjaEntrada
-    ///     → descuentan la cantidad del stock de destino.
+    /// Elimina todos los movimientos de un TransferGroupId.
+    /// No modifica stock. Marca anulado=true en lote_registro_historico_unificado (auditoría)
+    /// y elimina físicamente todos los registros de inventario_gestion_movimiento del grupo.
     /// </summary>
     public async Task EliminarTrasladoAsync(Guid transferGroupId, CancellationToken ct = default)
     {
@@ -2002,68 +1986,6 @@ public class InventarioGestionService : IInventarioGestionService
         if (!allowedFarmIds.Contains(salida.FarmId) &&
             !(salida.FromFarmId.HasValue && allowedFarmIds.Contains(salida.FromFarmId.Value)))
             throw new InvalidOperationException("No tiene acceso a este traslado.");
-
-        // Revertir stock por tipo de movimiento
-        foreach (var mov in movimientos)
-        {
-            switch (mov.MovementType)
-            {
-                // Estos tipos descontaron del origen → devolver al stock de origen
-                case "TrasladoSalida":
-                case "TrasladoInterGranjaSalida":
-                case "TrasladoInterGranjaPendiente":
-                {
-                    var stockOrigen = await _db.InventarioGestionStock
-                        .FirstOrDefaultAsync(x =>
-                            x.FarmId == mov.FarmId &&
-                            x.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
-                            x.NucleoId == mov.NucleoId &&
-                            x.GalponId == mov.GalponId, ct);
-                    if (stockOrigen != null)
-                    {
-                        stockOrigen.Quantity += mov.Quantity;
-                        stockOrigen.UpdatedAt = DateTimeOffset.UtcNow;
-                    }
-                    else
-                    {
-                        // El stock ya no existe; recrearlo para no perder la cantidad
-                        var (cId, pId) = await GetFarmCompanyAndPaisAsync(mov.FarmId, ct);
-                        _db.InventarioGestionStock.Add(new InventarioGestionStock
-                        {
-                            CompanyId = cId,
-                            PaisId = pId,
-                            FarmId = mov.FarmId,
-                            NucleoId = mov.NucleoId,
-                            GalponId = mov.GalponId,
-                            ItemInventarioEcuadorId = mov.ItemInventarioEcuadorId,
-                            Quantity = mov.Quantity,
-                            Unit = mov.Unit,
-                            CreatedAt = DateTimeOffset.UtcNow,
-                            UpdatedAt = DateTimeOffset.UtcNow,
-                        });
-                    }
-                    break;
-                }
-
-                // Estos tipos sumaron al destino → descontar del stock de destino
-                case "TrasladoEntrada":
-                case "TrasladoInterGranjaEntrada":
-                {
-                    var stockDestino = await _db.InventarioGestionStock
-                        .FirstOrDefaultAsync(x =>
-                            x.FarmId == mov.FarmId &&
-                            x.ItemInventarioEcuadorId == mov.ItemInventarioEcuadorId &&
-                            x.NucleoId == mov.NucleoId &&
-                            x.GalponId == mov.GalponId, ct);
-                    if (stockDestino != null)
-                    {
-                        stockDestino.Quantity = Math.Max(0m, stockDestino.Quantity - mov.Quantity);
-                        stockDestino.UpdatedAt = DateTimeOffset.UtcNow;
-                    }
-                    break;
-                }
-            }
-        }
 
         // Marcar anulado en tabla espejo para todos los movimientos del grupo
         var movIds = movimientos.Select(m => m.Id).ToList();

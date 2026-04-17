@@ -238,6 +238,11 @@
   transition: color .12s, background-color .12s, transform .12s;
 
   &:hover { background: var(--ital-orange-50); color: var(--ital-orange); transform: translateY(-1px); }
+
+  &--danger {
+    color: #dc2626;
+    &:hover { background: #fee2e2; color: #991b1b; transform: translateY(-1px); }
+  }
 }
 
 /* Badges estado */
@@ -309,9 +314,39 @@
 }
 
 .ux-title { font-size: 1.05rem; font-weight: 800; color: var(--ital-orange-dark); }
+.modal-title--danger { color: #991b1b; }
 
 .edit-field { display: flex; flex-direction: column; }
 .edit-error { color: #dc2626; font-size: .8rem; margin-top: .5rem; }
+
+.ux-modal__panel--sm { max-width: 380px; }
+
+.btn-danger {
+  display: inline-flex; align-items: center; gap: .4rem;
+  background: #dc2626; color: #fff;
+  padding: .5rem .9rem; border-radius: .6rem;
+  border: 1px solid transparent; font-weight: 700;
+  transition: background-color .15s, transform .15s, opacity .15s;
+
+  &:hover { background: #b91c1c; transform: translateY(-1px); }
+  &:disabled { opacity: .6; cursor: not-allowed; }
+}
+
+.delete-confirm-msg {
+  font-size: .875rem; color: var(--slate-800); margin: 0 0 .75rem;
+  line-height: 1.5;
+}
+
+.delete-item-label {
+  background: var(--warm-100); border: 1px solid var(--warm-200);
+  border-radius: .6rem; padding: .55rem .8rem;
+  font-size: .82rem; font-weight: 600; color: var(--slate-800);
+}
+
+.spinner-sm--white {
+  border-color: rgba(255,255,255,.35);
+  border-top-color: #fff;
+}
 
 /* ================================
    RESPONSIVE
