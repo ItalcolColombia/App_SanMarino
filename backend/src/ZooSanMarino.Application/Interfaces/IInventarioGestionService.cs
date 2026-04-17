@@ -91,8 +91,8 @@ public interface IInventarioGestionService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Elimina todos los movimientos de un traslado, revierte stock según tipo (salida → devuelve a origen,
-    /// entrada → descuenta de destino) y marca anulado=true en lote_registro_historico_unificado.
+    /// Elimina todos los movimientos de un traslado sin modificar stock.
+    /// Marca anulado=true en lote_registro_historico_unificado (auditoría) y borra los registros.
     /// </summary>
     Task EliminarTrasladoAsync(Guid transferGroupId, CancellationToken ct = default);
 
@@ -116,8 +116,8 @@ public interface IInventarioGestionService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Elimina un ingreso (Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada), revierte stock
-    /// y marca anulado=true en lote_registro_historico_unificado.
+    /// Elimina un ingreso (Ingreso / TrasladoEntrada / TrasladoInterGranjaEntrada) sin modificar stock.
+    /// Marca anulado=true en lote_registro_historico_unificado (auditoría) y borra el registro.
     /// </summary>
     Task EliminarIngresoAsync(int movimientoId, CancellationToken ct = default);
 }
