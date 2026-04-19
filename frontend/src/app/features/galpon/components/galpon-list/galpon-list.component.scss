@@ -1,51 +1,111 @@
-/* Tema Italfoods */
+@use 'shared/styles/module-styles' as *;
+
 :host {
-  --brand-red:        var(--ital-green);
-  --brand-red-600:    var(--ital-green-dark);
-  --warm-50:          var(--ital-cream);
-  --warm-100:         var(--ital-cream);
-  --warm-200:         var(--ital-green-100);
-  --warm-300:         var(--ital-green-50);
-  --warm-400:         var(--ital-muted);
-  --warm-500:         var(--ital-muted);
-  --warm-600:         var(--ital-orange-dark);
-  --slate-800:        var(--ital-text);
-  --radius:           14px;
+  --brand-red: var(--ital-green);
+  --brand-red-600: var(--ital-green-dark);
+  --warm-50: var(--ital-cream);
+  --warm-100: var(--ital-cream);
+  --warm-200: var(--ital-green-100);
+  --warm-300: var(--ital-green-50);
+  --warm-400: var(--ital-muted);
+  --warm-500: var(--ital-muted);
+  --warm-600: var(--ital-orange-dark);
+  --slate-800: var(--ital-text);
+  --radius: 14px;
   -webkit-font-smoothing: antialiased;
 }
 
 .galpon-list-root { display: block; width: 100%; min-height: 0; }
 .galpon-list-content { width: 100%; }
 
-/* Utilidades */
-.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-.req { color: #dc2626; }
-.text-center { text-align: center; }
-.font-medium { font-weight: 600; }
-.w-full { width: 100%; }
-.mt-2 { margin-top: 0.5rem; }
-.ux-page { position: relative; background: var(--warm-100); min-height: 100%; }
+/* Specific overrides for galpon-list */
+.list-header::after {
+  height: 3px;
+  background: var(--ital-green);
+  border-radius: 2px;
+}
 
-/* ================================
-   LIST HEADER
-================================== */
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  position: relative;
+.ux-table thead th {
+  color: var(--ital-cream);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  border-bottom: 0;
 
-  &::after {
-    content: "";
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
-    height: 3px;
-    background: var(--ital-green);
-    border-radius: 2px;
+  &:first-child { border-top-left-radius: 12px; }
+  &:last-child { border-top-right-radius: 12px; }
+}
+
+.ux-modal__panel {
+  box-shadow: 0 2px 4px rgba(0,0,0,.06), 0 12px 40px rgba(0,0,0,.16);
+  overflow: hidden;
+}
+
+.ux-modal__head {
+  padding: 1rem 1.25rem;
+}
+
+.ux-modal__body {
+  padding: 1.25rem;
+
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { background: var(--warm-300); border-radius: 6px; }
+}
+
+.ux-modal__foot {
+  padding: 0.875rem 1.25rem;
+  background: var(--warm-50);
+}
+
+.ux-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--warm-50);
+  border: 1px dashed var(--warm-200);
+  border-radius: 0.75rem;
+}
+
+.detail-section__title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-bottom: 0.4rem;
+}
+
+.detail-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.875rem;
+}
+
+.detail-label {
+  font-size: 0.72rem;
+  color: var(--warm-500);
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 1024px) {
+  .ux-scroll { max-height: 56vh; }
+}
+
+@media (max-width: 767px) {
+  .ux-scroll {
+    overflow-x: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  .ux-table { min-width: 620px; }
+  .ux-modal__panel { max-width: 100%; margin: 0.5rem; }
+}
+
+@media (max-width: 479px) {
+  .list-header { flex-wrap: wrap; gap: 0.5rem; }
+  .btn-primary { min-height: 2.75rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
+  .ux-modal__head { padding: 0.875rem 1rem; }
+  .ux-modal__body { padding: 1rem; }
+  .ux-modal__foot { padding: 0.75rem 1rem; }
 }
 
 .list-header__info {

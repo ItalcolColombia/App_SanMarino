@@ -1,0 +1,175 @@
+@use 'shared/styles/module-styles' as *;
+
+:host {
+  --brand-red: var(--ital-green);
+  --brand-red-600: var(--ital-green-dark);
+  --warm-50: var(--ital-cream);
+  --warm-100: var(--ital-cream);
+  --warm-200: var(--ital-green-100);
+  --warm-300: var(--ital-green-50);
+  --warm-400: var(--ital-muted);
+  --warm-500: var(--ital-muted);
+  --warm-600: var(--ital-orange-dark);
+  --slate-800: var(--ital-text);
+  --radius: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Form styles */
+.ux-form-wrap {
+  padding: 1.25rem;
+  background: var(--warm-100);
+  min-height: 100%;
+}
+
+.ux-card {
+  position: relative;
+  border: 1px solid var(--warm-200);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
+}
+
+.ux-card__header {
+  padding: 1rem 1rem 0.25rem 1rem;
+  border-bottom: 1px dashed var(--warm-200);
+}
+
+.ux-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--brand-red);
+}
+
+.ux-subtitle {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.8rem;
+  color: var(--warm-600);
+}
+
+.ux-card__body {
+  padding: 1rem;
+}
+
+.ux-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--warm-600);
+  margin-bottom: 0.35rem;
+}
+
+.ux-input {
+  width: 100%;
+  border: 1px solid var(--warm-300);
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  background: #fff;
+  color: #1f2937;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ux-input:focus {
+  outline: none;
+  border-color: var(--brand-red);
+  box-shadow: 0 0 0 3px rgba(45,122,62,.15);
+}
+
+.ux-input.is-invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220,38,38,.15);
+}
+
+.ux-help {
+  font-size: 0.75rem;
+  color: var(--warm-400);
+  margin-top: 0.25rem;
+}
+
+.ux-error {
+  font-size: 0.75rem;
+  color: #dc2626;
+  margin-top: 0.25rem;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--brand-red);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: var(--brand-red-600);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-muted {
+  background: var(--warm-100);
+  color: var(--warm-600);
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--warm-200);
+  transition: background-color 0.15s ease;
+}
+
+.btn-muted:hover {
+  background: var(--warm-200);
+}
+
+.ux-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.ux-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.6);
+  backdrop-filter: blur(1px);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--warm-600);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid var(--warm-300);
+  border-top-color: var(--brand-red);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 768px) {
+  .ux-card__header {
+    padding: 1.25rem 1.25rem 0.5rem 1.25rem;
+  }
+
+  .ux-card__body {
+    padding: 1.25rem;
+  }
+}

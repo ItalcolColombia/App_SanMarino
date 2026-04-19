@@ -7,7 +7,7 @@ import {
   faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
   faGlobe, faMapMarkerAlt, faCity, faBoxesAlt, faWarehouse, faDollarSign,
   faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench,
-  faTimes
+  faTimes, faUser, faCircle
 } from '@fortawesome/free-solid-svg-icons';
 import { map, filter, take, takeUntil } from 'rxjs/operators';
 import { Observable, Subject } from 'rxjs';
@@ -34,6 +34,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
   faChevronDown = faChevronDown;
   faSignOutAlt  = faSignOutAlt;
   faTimes       = faTimes;
+  faUser        = faUser;
+  faCircle      = faCircle;
+  faBuilding    = faBuilding;
 
   // Stream del árbol de menú listo para pintar
   menu$: Observable<UiMenuItem[]> = this.menuSvc.menu$;
@@ -63,7 +66,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       faCog, faUsers, faChevronDown, faSignOutAlt, faList, faBuilding,
       faGlobe, faMapMarkerAlt, faCity, faWarehouse, faBoxesAlt, faDollarSign,
       faLayerGroup, faChartLine, faEgg, faHome, faBars, faKey, faUserShield, faScrewdriverWrench,
-      faTimes
+      faTimes, faUser, faCircle
     );
   }
 
