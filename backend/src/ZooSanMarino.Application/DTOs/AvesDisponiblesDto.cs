@@ -6,6 +6,8 @@ public class AvesDisponiblesDto
     public int MachosIniciales { get; set; }
     public int MortalidadAcumuladaHembras { get; set; }
     public int MortalidadAcumuladaMachos { get; set; }
+    public int SeleccionAcumuladaHembras { get; set; }
+    public int SeleccionAcumuladaMachos { get; set; }
     public int MortCajaHembras { get; set; }
     public int MortCajaMachos { get; set; }
     public int AsignadasHembras { get; set; }

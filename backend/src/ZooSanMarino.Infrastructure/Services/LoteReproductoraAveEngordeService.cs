@@ -394,6 +394,8 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             MachosIniciales = machosInicialesEncaset,
             MortalidadAcumuladaHembras = mortSegH,
             MortalidadAcumuladaMachos = mortSegM,
+            SeleccionAcumuladaHembras = selH,
+            SeleccionAcumuladaMachos = selM,
             MortCajaHembras = mortCajaH,
             MortCajaMachos = mortCajaM,
             AsignadasHembras = asignadasH,
