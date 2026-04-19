@@ -35,7 +35,8 @@
             "scripts": [],
             "stylePreprocessorOptions": {
               "includePaths": [
-                "src"
+                "src",
+                "src/app"
               ]
             },
             "allowedCommonJsDependencies": [

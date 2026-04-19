@@ -9,7 +9,8 @@
       "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
       "Bash(grep -l \"migrationBuilder.Sql\\\\|migrationBuilder\\\\.Sql\" /Users/chelsycardona/Documents/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/Migrations/*.cs)",
       "Bash(dotnet ef *)",
-      "Bash(yarn build *)"
+      "Bash(yarn build *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

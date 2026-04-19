@@ -1,4 +1,4 @@
-@import '../../../lote-levante/pages/tabla-indicadores-diarios/tabla-indicadores-diarios.component.scss';
+@use '../../../lote-levante/pages/tabla-indicadores-diarios/tabla-indicadores-diarios.component.scss' as *;
 
 .indicadores-diarios__head-row {
   display: flex;

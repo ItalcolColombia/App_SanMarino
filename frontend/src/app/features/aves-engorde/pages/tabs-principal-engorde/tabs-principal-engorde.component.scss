@@ -1,5 +1,5 @@
 /* Reusa el look & feel del TabsPrincipal existente */
-@import "../../../lote-levante/pages/tabs-principal/tabs-principal.component.scss";
+@use "../../../lote-levante/pages/tabs-principal/tabs-principal.component.scss" as *;
 
 .registro-diario__alert {
   margin: 0.5rem 0 0;
