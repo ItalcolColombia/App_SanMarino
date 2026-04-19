@@ -91,6 +91,8 @@ export interface AvesDisponiblesDto {
   readonly machosIniciales?: number;
   readonly mortalidadAcumuladaHembras?: number;
   readonly mortalidadAcumuladaMachos?: number;
+  readonly seleccionAcumuladaHembras?: number;
+  readonly seleccionAcumuladaMachos?: number;
   readonly mortCajaHembras?: number;
   readonly mortCajaMachos?: number;
   readonly asignadasHembras?: number;

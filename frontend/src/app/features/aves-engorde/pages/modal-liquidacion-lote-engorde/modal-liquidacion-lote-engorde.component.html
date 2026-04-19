@@ -1,5 +1,7 @@
 <div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="liq-lote-title">
   <div class="ux-modal__dialog ux-modal__dialog--lg liq-lote">
+
+    <!-- ── HEADER (fijo) ─────────────────────────────────────────────────── -->
     <header class="ux-modal__header">
       <h2 id="liq-lote-title">
         Liquidar lote
@@ -8,154 +10,251 @@
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
+    <!-- ── BODY (scroll) ─────────────────────────────────────────────────── -->
     <section class="liq-lote__body">
-      <p *ngIf="loading" class="liq-lote__hint" aria-live="polite">Cargando resumen…</p>
 
+      <!-- Estado de carga / error global -->
+      <p *ngIf="loading" class="liq-lote__hint liq-lote__center" aria-live="polite">
+        <span class="liq-lote__spinner"></span> Cargando resumen…
+      </p>
       <p *ngIf="error && !abrirModal" class="liq-lote__err" role="alert">{{ error }}</p>
 
       <ng-container *ngIf="!loading && resumen">
-        <div class="liq-lote__grid">
-          <div class="liq-lote__card">
-            <h3 class="liq-lote__card-title">Aves al inicio (encaset)</h3>
-            <p class="liq-lote__card-desc">Hembras, machos y mixtas según el registro de inicio de lote (encasetamiento).</p>
-            <dl class="liq-lote__dl">
-              <dt>Hembras</dt>
-              <dd>{{ hembrasInicioUi | number:'1.0-0' }}</dd>
-              <dt>Machos</dt>
-              <dd>{{ machosInicioUi | number:'1.0-0' }}</dd>
-              <dt>Mixtas</dt>
-              <dd>{{ mixtasInicioUi | number:'1.0-0' }}</dd>
-              <dt>Total</dt>
-              <dd><strong>{{ totalInicioUi | number:'1.0-0' }}</strong></dd>
-            </dl>
-            <ng-container *ngIf="avesDisponibles">
-              <div class="liq-lote__hint liq-lote__hint--mb">
-                <strong>Mortalidad acumulada (según API aves-disponibles)</strong>
-              </div>
-              <dl class="liq-lote__dl">
-                <dt>Mort. hembras</dt>
-                <dd>{{ (avesDisponibles.mortalidadAcumuladaHembras ?? 0) | number:'1.0-0' }}</dd>
-                <dt>Mort. machos</dt>
-                <dd>{{ (avesDisponibles.mortalidadAcumuladaMachos ?? 0) | number:'1.0-0' }}</dd>
-              </dl>
-            </ng-container>
-          </div>
 
-          <div class="liq-lote__card">
-            <h3 class="liq-lote__card-title">Ventas registradas (lote)</h3>
-            <dl class="liq-lote__dl">
-              <dt>Movimientos venta</dt>
-              <dd>{{ resumen.movimientosVentaCount | number:'1.0-0' }}</dd>
-              <dt>Hembras vendidas</dt>
-              <dd>{{ resumen.ventasTotalHembras | number:'1.0-0' }}</dd>
-              <dt>Machos vendidos</dt>
-              <dd>{{ resumen.ventasTotalMachos | number:'1.0-0' }}</dd>
-              <dt>Mixtas vendidas</dt>
-              <dd>{{ resumen.ventasTotalMixtas | number:'1.0-0' }}</dd>
-            </dl>
-
-            <div class="liq-lote__actions-row">
-              <button type="button" class="btn btn--outline btn--sm" (click)="toggleVerVentasRegistros()">
-                {{ verVentasRegistros ? 'Ocultar registros' : 'Ver registros' }}
-                <ng-container *ngIf="resumen.movimientosVentaCount">({{ resumen.movimientosVentaCount | number:'1.0-0' }})</ng-container>
-              </button>
+        <!-- ── SECCIÓN: Aves al inicio ──────────────────────────────────── -->
+        <div class="liq-section">
+          <h3 class="liq-section__title">
+            <span class="liq-section__icon">🐣</span> Aves al inicio (encasetamiento)
+          </h3>
+          <div class="liq-stat-row">
+            <div class="liq-stat">
+              <span class="liq-stat__label">Hembras</span>
+              <span class="liq-stat__value">{{ hembrasInicioUi | number:'1.0-0' }}</span>
             </div>
-
-            <p *ngIf="sobreventaHembras || sobreventaMachos || sobreventaTotal" class="liq-lote__hint liq-lote__hint--warn" role="alert">
-              Alerta: hay ventas registradas mayores que las aves iniciales (inconsistencia). Revise movimientos o ejecute el proceso de corrección.
-            </p>
-
-            <ng-container *ngIf="verVentasRegistros">
-              <p *ngIf="loadingVentasRegistros" class="liq-lote__hint">Cargando registros de venta…</p>
-              <p *ngIf="ventasRegistrosError" class="liq-lote__err" role="alert">{{ ventasRegistrosError }}</p>
-
-              <div *ngIf="!loadingVentasRegistros && !ventasRegistrosError">
-                <p class="liq-lote__hint">
-                  Totales en tabla: H {{ ventasRegistrosTotH | number:'1.0-0' }}, M {{ ventasRegistrosTotM | number:'1.0-0' }}, X {{ ventasRegistrosTotX | number:'1.0-0' }}.
-                  <ng-container *ngIf="diffVentasH !== 0 || diffVentasM !== 0">
-                    Diferencia vs resumen: H {{ diffVentasH | number:'1.0-0' }}, M {{ diffVentasM | number:'1.0-0' }}.
-                  </ng-container>
-                </p>
-
-                <div class="liq-lote__table-wrap" *ngIf="ventasRegistros.length > 0">
-                  <table class="ux-table liq-lote__table">
-                    <thead>
-                      <tr>
-                        <th>Fecha</th>
-                        <th>Origen</th>
-                        <th>Documento</th>
-                        <th class="text-right">H</th>
-                        <th class="text-right">M</th>
-                        <th class="text-right">X</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let r of ventasRegistros">
-                        <td>{{ r.fechaOperacion | date:'yyyy-MM-dd' }}</td>
-                        <td>{{ r.origenTabla }} #{{ r.origenId }}</td>
-                        <td>{{ r.numeroDocumento || r.referencia || '—' }}</td>
-                        <td class="text-right">{{ (r.cantidadHembras ?? 0) | number:'1.0-0' }}</td>
-                        <td class="text-right">{{ (r.cantidadMachos ?? 0) | number:'1.0-0' }}</td>
-                        <td class="text-right">{{ (r.cantidadMixtas ?? 0) | number:'1.0-0' }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div *ngIf="ventasRegistros.length === 0" class="liq-lote__hint">
-                  No hay registros `VENTA_AVES` en el histórico unificado para este lote.
-                </div>
-              </div>
-            </ng-container>
-          </div>
-
-          <div class="liq-lote__card liq-lote__card--accent">
-            <h3 class="liq-lote__card-title">Alimento disponible (inventario galpón)</h3>
-            <p class="liq-lote__saldo">
-              <ng-container *ngIf="loadingStock"><span class="liq-lote__saldo-loading">…</span></ng-container>
-              <ng-container *ngIf="!loadingStock">
-                {{ totalKgStockInventario | number:'1.0-2' }}
-                <span class="liq-lote__saldo-unit">kg</span>
-              </ng-container>
-            </p>
-            <p class="liq-lote__hint" *ngIf="loadingStock">Consultando inventario en la ubicación del lote…</p>
-            <p class="liq-lote__hint" *ngIf="stockUsandoFallbackUbicacion && !loadingStock">
-              No hay filas en el galpón indicado; se muestra stock a nivel núcleo/granja. Revise que el inventario esté ubicado en el galpón correcto.
-            </p>
-            <p class="liq-lote__ref" *ngIf="!loadingStock">
-              <span class="liq-lote__ref-label">Saldo último día (seguimiento diario):</span>
-              {{ resumen.saldoAlimentoKg != null ? (resumen.saldoAlimentoKg | number:'1.0-2') : '—' }} kg
-            </p>
-            <p class="liq-lote__hint liq-lote__hint--info" *ngIf="inventarioDifiereDelSeguimiento && !loadingStock">
-              El inventario físico y el saldo del seguimiento pueden diferir (consumos registrados vs existencias en bodega). Use Gestión de inventario para alinear traslados.
-            </p>
+            <div class="liq-stat">
+              <span class="liq-stat__label">Machos</span>
+              <span class="liq-stat__value">{{ machosInicioUi | number:'1.0-0' }}</span>
+            </div>
+            <div class="liq-stat">
+              <span class="liq-stat__label">Mixtas</span>
+              <span class="liq-stat__value">{{ mixtasInicioUi | number:'1.0-0' }}</span>
+            </div>
+            <div class="liq-stat liq-stat--total">
+              <span class="liq-stat__label">Total</span>
+              <span class="liq-stat__value">{{ totalInicioUi | number:'1.0-0' }}</span>
+            </div>
           </div>
         </div>
 
+        <!-- ── SECCIÓN: Mortalidad y selección ─────────────────────────── -->
+        <div class="liq-section" *ngIf="avesDisponibles">
+          <h3 class="liq-section__title">
+            <span class="liq-section__icon">📉</span> Mortalidad y selección acumulada
+          </h3>
+          <div class="liq-gender-grid">
+            <!-- Hembras -->
+            <div class="liq-gender-card">
+              <p class="liq-gender-card__label">Hembras</p>
+              <dl class="liq-lote__dl">
+                <dt>Mortalidad</dt>
+                <dd>{{ mortalidadHembras | number:'1.0-0' }}</dd>
+                <dt>Selección</dt>
+                <dd>{{ seleccionHembras | number:'1.0-0' }}</dd>
+              </dl>
+              <div class="liq-gender-card__total">
+                <span>Total bajas</span>
+                <strong>{{ totalMortalidadHembras | number:'1.0-0' }}</strong>
+              </div>
+            </div>
+            <!-- Machos -->
+            <div class="liq-gender-card">
+              <p class="liq-gender-card__label">Machos</p>
+              <dl class="liq-lote__dl">
+                <dt>Mortalidad</dt>
+                <dd>{{ mortalidadMachos | number:'1.0-0' }}</dd>
+                <dt>Selección</dt>
+                <dd>{{ seleccionMachos | number:'1.0-0' }}</dd>
+              </dl>
+              <div class="liq-gender-card__total">
+                <span>Total bajas</span>
+                <strong>{{ totalMortalidadMachos | number:'1.0-0' }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECCIÓN: Ventas ──────────────────────────────────────────── -->
+        <div class="liq-section">
+          <h3 class="liq-section__title">
+            <span class="liq-section__icon">💰</span> Ventas registradas
+          </h3>
+          <div class="liq-stat-row">
+            <div class="liq-stat">
+              <span class="liq-stat__label">Hembras</span>
+              <span class="liq-stat__value">{{ resumen.ventasTotalHembras | number:'1.0-0' }}</span>
+            </div>
+            <div class="liq-stat">
+              <span class="liq-stat__label">Machos</span>
+              <span class="liq-stat__value">{{ resumen.ventasTotalMachos | number:'1.0-0' }}</span>
+            </div>
+            <div class="liq-stat">
+              <span class="liq-stat__label">Mixtas</span>
+              <span class="liq-stat__value">{{ resumen.ventasTotalMixtas | number:'1.0-0' }}</span>
+            </div>
+            <div class="liq-stat">
+              <span class="liq-stat__label">Movimientos</span>
+              <span class="liq-stat__value">{{ resumen.movimientosVentaCount | number:'1.0-0' }}</span>
+            </div>
+          </div>
+
+          <p *ngIf="sobreventaHembras || sobreventaMachos || sobreventaTotal" class="liq-lote__banner liq-lote__banner--warn" role="alert">
+            Alerta: hay ventas registradas mayores que las aves iniciales (inconsistencia). Revise movimientos o ejecute el proceso de corrección.
+          </p>
+
+          <div class="liq-section__actions">
+            <button type="button" class="btn btn--outline btn--sm" (click)="toggleVerVentasRegistros()">
+              {{ verVentasRegistros ? 'Ocultar registros' : 'Ver registros de venta' }}
+              <ng-container *ngIf="resumen.movimientosVentaCount"> ({{ resumen.movimientosVentaCount | number:'1.0-0' }})</ng-container>
+            </button>
+          </div>
+
+          <ng-container *ngIf="verVentasRegistros">
+            <p *ngIf="loadingVentasRegistros" class="liq-lote__hint">Cargando registros de venta…</p>
+            <p *ngIf="ventasRegistrosError" class="liq-lote__err" role="alert">{{ ventasRegistrosError }}</p>
+            <div *ngIf="!loadingVentasRegistros && !ventasRegistrosError">
+              <p class="liq-lote__hint liq-lote__hint--mb">
+                Totales en tabla: H {{ ventasRegistrosTotH | number:'1.0-0' }}, M {{ ventasRegistrosTotM | number:'1.0-0' }}, X {{ ventasRegistrosTotX | number:'1.0-0' }}.
+                <ng-container *ngIf="diffVentasH !== 0 || diffVentasM !== 0">
+                  Diferencia vs resumen: H {{ diffVentasH | number:'1.0-0' }}, M {{ diffVentasM | number:'1.0-0' }}.
+                </ng-container>
+              </p>
+              <div class="liq-lote__table-wrap" *ngIf="ventasRegistros.length > 0">
+                <table class="ux-table liq-lote__table">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Origen</th>
+                      <th>Documento</th>
+                      <th class="text-right">H</th>
+                      <th class="text-right">M</th>
+                      <th class="text-right">X</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let r of ventasRegistros">
+                      <td>{{ r.fechaOperacion | date:'yyyy-MM-dd' }}</td>
+                      <td>{{ r.origenTabla }} #{{ r.origenId }}</td>
+                      <td>{{ r.numeroDocumento || r.referencia || '—' }}</td>
+                      <td class="text-right">{{ (r.cantidadHembras ?? 0) | number:'1.0-0' }}</td>
+                      <td class="text-right">{{ (r.cantidadMachos ?? 0) | number:'1.0-0' }}</td>
+                      <td class="text-right">{{ (r.cantidadMixtas ?? 0) | number:'1.0-0' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div *ngIf="ventasRegistros.length === 0" class="liq-lote__hint">
+                No hay registros VENTA_AVES en el histórico unificado para este lote.
+              </div>
+            </div>
+          </ng-container>
+        </div>
+
+        <!-- ── BANNERS de estado ─────────────────────────────────────────── -->
         <p *ngIf="!loteCerrado && avesVivasPendientes > 0" class="liq-lote__banner" role="alert">
-          No se puede liquidar el lote porque aún hay <strong>{{ avesVivasPendientes | number:'1.0-0' }}</strong> aves vivas/disponibles.
-          Para liquidar, el lote debe quedar en <strong>0</strong> aves.
+          Advertencia: hay <strong>{{ avesVivasPendientes | number:'1.0-0' }}</strong> aves registradas como vivas/disponibles.
+          Si corresponde (aves no reportadas o ya no presentes físicamente), puede continuar con la liquidación.
         </p>
 
-        <p *ngIf="loteCerrado" class="liq-lote__banner" role="status">
+        <p *ngIf="loteCerrado" class="liq-lote__banner liq-lote__banner--info" role="status">
           Este lote está <strong>cerrado</strong> (liquidado). Puede reabrirlo indicando el motivo.
         </p>
 
-        <div *ngIf="granjaId" class="liq-lote__traslado" role="group" aria-labelledby="traslado-q">
-          <p id="traslado-q" class="liq-lote__traslado-q">
-            Detalle por producto (inventario — ubicación del lote)
-          </p>
+        <!-- ── SECCIÓN: Cuadre del lote ─────────────────────────────────── -->
+        <div *ngIf="avesDisponibles" class="liq-section">
+          <h3 class="liq-section__title">
+            <span class="liq-section__icon">{{ lotesCuadrado ? '✅' : '❌' }}</span>
+            Cuadre del lote
+          </h3>
+          <div class="liq-cuadre" [class.liq-cuadre--ok]="lotesCuadrado" [class.liq-cuadre--err]="!lotesCuadrado">
+            <div class="liq-cuadre__status">
+              <span class="liq-cuadre__badge" [class.liq-cuadre__badge--ok]="lotesCuadrado" [class.liq-cuadre__badge--err]="!lotesCuadrado">
+                {{ lotesCuadrado ? '✔ Cuadrado' : '✖ Desbalanceado' }}
+              </span>
+              <p class="liq-cuadre__formula">
+                Total movimientos = Mortalidad + Selección + Ventas &nbsp;vs.&nbsp; Encasetado
+              </p>
+            </div>
+            <div class="liq-cuadre__grid">
+              <!-- Hembras -->
+              <div class="liq-cuadre__col">
+                <p class="liq-cuadre__col-label">Hembras</p>
+                <dl class="liq-lote__dl">
+                  <dt>Encasetadas</dt>
+                  <dd>{{ hembrasInicioUi | number:'1.0-0' }}</dd>
+                  <dt>Movimientos</dt>
+                  <dd>{{ totalMovimientosHembras | number:'1.0-0' }}</dd>
+                </dl>
+                <div class="liq-cuadre__diff" [class.liq-cuadre__diff--ok]="diferenciaHembras <= 0" [class.liq-cuadre__diff--err]="diferenciaHembras > 0">
+                  <span class="liq-cuadre__diff-label">Diferencia</span>
+                  <span class="liq-cuadre__diff-value">
+                    {{ diferenciaHembras > 0 ? '+' : '' }}{{ diferenciaHembras | number:'1.0-0' }} aves
+                  </span>
+                </div>
+              </div>
+              <!-- Machos -->
+              <div class="liq-cuadre__col">
+                <p class="liq-cuadre__col-label">Machos</p>
+                <dl class="liq-lote__dl">
+                  <dt>Encasetados</dt>
+                  <dd>{{ machosInicioUi | number:'1.0-0' }}</dd>
+                  <dt>Movimientos</dt>
+                  <dd>{{ totalMovimientosMachos | number:'1.0-0' }}</dd>
+                </dl>
+                <div class="liq-cuadre__diff" [class.liq-cuadre__diff--ok]="diferenciaMachos <= 0" [class.liq-cuadre__diff--err]="diferenciaMachos > 0">
+                  <span class="liq-cuadre__diff-label">Diferencia</span>
+                  <span class="liq-cuadre__diff-value">
+                    {{ diferenciaMachos > 0 ? '+' : '' }}{{ diferenciaMachos | number:'1.0-0' }} aves
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── SECCIÓN: Alimento disponible ─────────────────────────────── -->
+        <div *ngIf="granjaId" class="liq-section">
+          <h3 class="liq-section__title">
+            <span class="liq-section__icon">🌾</span> Alimento disponible (inventario galpón)
+          </h3>
 
           <p *ngIf="stockError" class="liq-lote__err" role="alert">{{ stockError }}</p>
 
-          <ng-container *ngIf="!loadingStock && !stockError">
-            <div *ngIf="stockAlimento.length === 0" class="liq-lote__hint">
-              Sin existencias de alimento en inventario para esta ubicación (0 kg). Si el seguimiento muestra saldo &gt; 0, revise traslados o que el stock esté registrado en el galpón/núcleo correcto.
+          <div class="liq-food">
+            <div class="liq-food__saldo">
+              <span class="liq-food__saldo-num" *ngIf="!loadingStock">{{ totalKgStockInventario | number:'1.0-2' }} <small>kg</small></span>
+              <span class="liq-food__saldo-num" *ngIf="loadingStock">…</span>
+              <span class="liq-food__saldo-label">Inventario físico</span>
             </div>
+            <div class="liq-food__ref">
+              <span class="liq-food__ref-label">Saldo último día (seguimiento):</span>
+              <span class="liq-food__ref-val">{{ resumen.saldoAlimentoKg != null ? ((resumen.saldoAlimentoKg | number:'1.0-2') + ' kg') : '—' }}</span>
+            </div>
+          </div>
 
+          <p class="liq-lote__hint liq-lote__hint--warn" *ngIf="stockUsandoFallbackUbicacion && !loadingStock">
+            No hay filas en el galpón indicado; se muestra stock a nivel núcleo/granja.
+          </p>
+          <p class="liq-lote__hint liq-lote__hint--info" *ngIf="inventarioDifiereDelSeguimiento && !loadingStock">
+            El inventario físico y el saldo del seguimiento difieren. Use Gestión de inventario para alinear traslados.
+          </p>
+
+          <ng-container *ngIf="!loadingStock && !stockError">
+            <p *ngIf="stockAlimento.length === 0" class="liq-lote__hint liq-lote__hint--mb">
+              Sin existencias de alimento en inventario para esta ubicación (0 kg).
+            </p>
             <div *ngIf="stockAlimento.length > 0">
-              <p *ngIf="puedeLiquidarPorAves" class="liq-lote__hint liq-lote__hint--mb">
-                Hay alimento en inventario en esta ubicación. Puede <strong>realizar traslado</strong> en Gestión de Inventario o cerrar el lote si corresponde.
+              <p *ngIf="puedeLiquidarPorAves && totalKgStockInventario > 0" class="liq-lote__hint liq-lote__hint--mb">
+                Hay alimento en inventario. Puede <strong>realizar traslado</strong> en Gestión de Inventario o cerrar el lote si corresponde.
               </p>
               <div class="liq-lote__table-wrap">
                 <table class="ux-table liq-lote__table">
@@ -180,9 +279,11 @@
             </div>
           </ng-container>
         </div>
+
       </ng-container>
     </section>
 
+    <!-- ── FOOTER (fijo) ─────────────────────────────────────────────────── -->
     <footer class="ux-modal__footer liq-lote__footer">
       <div class="liq-lote__footer-actions">
         <button type="button" class="btn btn--ghost liq-lote__action-btn" (click)="onClose()">Cerrar</button>
@@ -209,6 +310,7 @@
         </ng-container>
       </div>
     </footer>
+
   </div>
 </div>
 

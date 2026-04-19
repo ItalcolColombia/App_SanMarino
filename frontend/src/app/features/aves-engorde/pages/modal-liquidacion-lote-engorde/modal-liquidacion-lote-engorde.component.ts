@@ -203,13 +203,63 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     return (this.stockAlimento ?? []).reduce((s, r) => s + (Number(r.quantity) || 0), 0);
   }
 
-  /** No se puede liquidar si aún hay aves vivas en el lote. */
+  /** Mortalidad seguimiento hembras (sin selección). */
+  get mortalidadHembras(): number {
+    return Number(this.avesDisponibles?.mortalidadAcumuladaHembras ?? 0);
+  }
+  /** Selección acumulada hembras. */
+  get seleccionHembras(): number {
+    return Number(this.avesDisponibles?.seleccionAcumuladaHembras ?? 0);
+  }
+  /** Total mortalidad hembras = mortalidad + selección. */
+  get totalMortalidadHembras(): number {
+    return this.mortalidadHembras + this.seleccionHembras;
+  }
+
+  /** Mortalidad seguimiento machos (sin selección). */
+  get mortalidadMachos(): number {
+    return Number(this.avesDisponibles?.mortalidadAcumuladaMachos ?? 0);
+  }
+  /** Selección acumulada machos. */
+  get seleccionMachos(): number {
+    return Number(this.avesDisponibles?.seleccionAcumuladaMachos ?? 0);
+  }
+  /** Total mortalidad machos = mortalidad + selección. */
+  get totalMortalidadMachos(): number {
+    return this.mortalidadMachos + this.seleccionMachos;
+  }
+
+  /** Aves vivas pendientes según el resumen (informativo, ya no bloquea liquidación). */
   get avesVivasPendientes(): number {
     return Math.max(0, Number(this.resumen?.avesVivasActuales ?? 0));
   }
 
+  /** Siempre true: se permite liquidar aunque haya aves registradas (datos pueden tener error). */
   get puedeLiquidarPorAves(): boolean {
-    return this.avesVivasPendientes === 0;
+    return true;
+  }
+
+  // ── Validador de cuadre ───────────────────────────────────────────────────────
+
+  /** Total movimientos hembras: mortalidad + selección + ventas. */
+  get totalMovimientosHembras(): number {
+    return this.totalMortalidadHembras + Number(this.resumen?.ventasTotalHembras ?? 0);
+  }
+  /** Total movimientos machos: mortalidad + selección + ventas. */
+  get totalMovimientosMachos(): number {
+    return this.totalMortalidadMachos + Number(this.resumen?.ventasTotalMachos ?? 0);
+  }
+  /** Diferencia hembras = total movimientos − encasetado. Positivo = excedente (desbalance). */
+  get diferenciaHembras(): number {
+    return this.totalMovimientosHembras - this.hembrasInicioUi;
+  }
+  /** Diferencia machos = total movimientos − encasetado. Positivo = excedente (desbalance). */
+  get diferenciaMachos(): number {
+    return this.totalMovimientosMachos - this.machosInicioUi;
+  }
+  /** true si ningún género excede el encasetado. */
+  get lotesCuadrado(): boolean {
+    return this.diferenciaHembras <= 0 && this.diferenciaMachos <= 0;
   }
 
   private cargarStockAlimento(): void {
@@ -296,7 +346,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   }
 
   get puedeConfirmarCierre(): boolean {
-    return !!this.resumen && !this.loteCerrado && this.puedeLiquidarPorAves;
+    return !!this.resumen && !this.loteCerrado;
   }
 
   async cerrarLote(): Promise<void> {

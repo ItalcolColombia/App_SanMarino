@@ -1,270 +1,176 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Modal Liquidación de Lote — Estilos completos
+   Paleta: --ital-green (primario) / --ital-orange (acento) / tonos neutros
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens locales ─────────────────────────────────────────────────────── */
+:host {
+  --liq-green:      #2d7a3e;
+  --liq-green-lt:   #d1fae5;
+  --liq-green-mid:  #86efac;
+  --liq-green-text: #14532d;
+  --liq-orange:     #e85c25;
+  --liq-red:        #dc2626;
+  --liq-red-lt:     #fef2f2;
+  --liq-red-mid:    #fca5a5;
+  --liq-red-text:   #991b1b;
+  --liq-amber-lt:   #fffbeb;
+  --liq-amber-mid:  #fcd34d;
+  --liq-amber-text: #92400e;
+  --liq-blue-lt:    #eff6ff;
+  --liq-blue-mid:   #bfdbfe;
+  --liq-blue-text:  #1e40af;
+  --liq-surface:    #fff;
+  --liq-border:     #e2e8f0;
+  --liq-muted:      #64748b;
+  --liq-text:       #1e293b;
+  --liq-radius:     0.75rem;
+  --liq-radius-sm:  0.5rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Utilidad ───────────────────────────────────────────────────────────── */
+.text-right { text-align: right; }
+
+/* ── Icono-botón cerrar ─────────────────────────────────────────────────── */
 .icon-btn {
   appearance: none;
-  border: 1px solid var(--ux-border, #e2e8f0);
+  border: 1px solid var(--liq-border);
   background: transparent;
-  border-radius: 0.55rem;
+  border-radius: var(--liq-radius-sm);
   padding: 0.35rem 0.55rem;
   line-height: 1;
   cursor: pointer;
+  color: var(--liq-muted);
+  transition: background 0.12s, color 0.12s;
+
+  &:hover { background: #f1f5f9; color: var(--liq-text); }
 }
 
-/* Botones del modal (misma línea visual que seguimiento engorde; el host no hereda estilos de página). */
+/* ── Botones ────────────────────────────────────────────────────────────── */
 :host .btn {
-  --btn-bg: var(--bg-muted, #f1f5f9);
-  --btn-fg: var(--text, #1e293b);
-  --btn-br: var(--border, #e2e8f0);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.55rem 1rem;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
   min-height: 2.5rem;
-  border-radius: 0.5rem;
-  background: var(--btn-bg);
-  color: var(--btn-fg);
-  border: 1px solid var(--btn-br);
+  border-radius: var(--liq-radius-sm);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-:host .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-}
-:host .btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-:host .btn--primary {
-  --btn-bg: var(--brand-red, #c41e3a);
-  --btn-fg: #fff;
-  --btn-br: var(--brand-red, #c41e3a);
-}
-:host .btn--primary:hover:not(:disabled) {
-  filter: brightness(0.95);
-}
-:host .btn--outline {
-  --btn-bg: #fff;
-  --btn-fg: var(--brand-red, #c41e3a);
-  --btn-br: var(--brand-red, #c41e3a);
-}
-:host .btn--outline:hover:not(:disabled) {
-  background: var(--ital-orange-50, #fff7ed);
-}
-:host .btn--ghost {
-  --btn-bg: #fff;
-  --btn-fg: var(--text, #334155);
-  --btn-br: var(--border, #cbd5e1);
-}
-:host .btn--ghost:hover:not(:disabled) {
-  background: var(--bg-muted, #f8fafc);
+  border: 1px solid transparent;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, opacity 0.12s;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  &--sm { padding: 0.4rem 0.85rem; min-height: 2rem; font-size: 0.82rem; }
 }
 
-/* Modal overlay (para que sea superior, no dentro del flujo) */
+:host .btn--primary {
+  background: var(--liq-green);
+  color: #fff;
+  border-color: var(--liq-green);
+  &:hover:not(:disabled) { filter: brightness(0.93); }
+}
+:host .btn--outline {
+  background: var(--liq-surface);
+  color: var(--liq-green);
+  border-color: var(--liq-green);
+  &:hover:not(:disabled) { background: var(--liq-green-lt); }
+}
+:host .btn--ghost {
+  background: var(--liq-surface);
+  color: var(--liq-text);
+  border-color: var(--liq-border);
+  &:hover:not(:disabled) { background: #f8fafc; }
+}
+
+/* ── Overlay ────────────────────────────────────────────────────────────── */
 :host .ux-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
   display: grid;
   place-items: center;
   padding: 1rem;
   z-index: 1050;
-  animation: modalFadeIn 0.12s ease-out;
+  animation: liqFadeIn 0.15s ease-out;
 }
 
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
+@keyframes liqFadeIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Diálogo ─────────────────────────────────────────────────────────────── */
 :host .ux-modal__dialog {
-  width: min(900px, 95vw);
-  max-height: min(90vh, 900px);
-  background: var(--ux-surface, #fff);
+  width: min(860px, 96vw);
+  max-height: min(92vh, 920px);
+  background: var(--liq-surface);
   border-radius: 1.25rem;
-  box-shadow: 0 10px 25px rgba(31, 41, 55, 0.12);
-  border: 1px solid var(--ux-border, #e2e8f0);
-  position: relative;
-  overflow: hidden;
-  transform: translateY(6px);
-  animation: dialogUp 0.18s ease-out forwards;
+  box-shadow: 0 4px 6px rgba(15,23,42,.06), 0 20px 48px rgba(15,23,42,.16);
+  border: 1px solid var(--liq-border);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  animation: liqSlideUp 0.18s ease-out;
 }
 
-@keyframes dialogUp {
-  to {
-    transform: translateY(0);
-  }
+@keyframes liqSlideUp {
+  from { transform: translateY(10px); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
-:host .ux-modal__dialog--lg {
-  width: min(980px, 95vw);
-}
+:host .ux-modal__dialog--lg { width: min(920px, 96vw); }
+:host .ux-modal__dialog--sm { width: min(500px, 96vw); }
 
-:host .ux-modal__dialog--sm {
-  width: min(520px, 95vw);
-}
-
+/* ── Header (fijo) ──────────────────────────────────────────────────────── */
 :host .ux-modal__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--ux-border, #e2e8f0);
-  flex-shrink: 0;
-  background: var(--ux-surface, #fff);
-}
-
-:host .ux-modal__header h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-:host .ux-modal__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem;
-  border-top: 1px solid var(--ux-border, #e2e8f0);
-  flex-shrink: 0;
-  background: var(--ux-surface, #fff);
-}
-
-.liq-lote__body {
-  padding: 0 1rem 1rem;
-  min-height: 4rem;
-}
-
-.liq-lote__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.liq-lote__card {
-  border: 1px solid var(--ux-border, #e2e8f0);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  background: var(--ux-surface, #fff);
-}
-
-.liq-lote__card--accent {
-  border-color: var(--ux-primary-soft, #93c5fd);
-  background: var(--ux-primary-bg, #eff6ff);
-}
-
-.liq-lote__card-title {
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--ux-muted, #64748b);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.liq-lote__card-desc {
-  margin: 0 0 0.65rem;
-  font-size: 0.82rem;
-  color: var(--ux-muted, #64748b);
-  line-height: 1.35;
-}
-
-.liq-lote__dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.25rem 1rem;
-  font-size: 0.95rem;
-
-  dt {
-    color: var(--ux-muted, #64748b);
-  }
-
-  dd {
-    margin: 0;
-    text-align: right;
-  }
-}
-
-.liq-lote__saldo {
-  margin: 0.25rem 0 0.5rem;
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.liq-lote__hint {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--ux-muted, #64748b);
-}
-
-.liq-lote__hint--mb {
-  margin-bottom: 0.75rem;
-}
-
-.liq-lote__hint--info {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 6px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
-}
-
-.liq-lote__err {
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 0.9rem;
-}
-
-.liq-lote__banner {
-  margin: 0 0 1rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  color: #92400e;
-}
-
-.liq-lote__traslado {
-  margin-top: 0.5rem;
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px dashed var(--ux-border, #cbd5e1);
-}
-
-.liq-lote__traslado-q {
-  margin: 0 0 0.75rem;
-  font-weight: 600;
-}
-
-.liq-lote__traslado-btns {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.liq-lote__footer {
-  flex-wrap: wrap;
   gap: 0.75rem;
-  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-bottom: 3px solid var(--liq-green);
+  flex-shrink: 0;
+  background: var(--liq-surface);
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--liq-text);
+  }
 }
 
+/* ── Body (scrollable) ──────────────────────────────────────────────────── */
+.liq-lote__body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  /* Scrollbar suave */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+}
+
+/* ── Footer (fijo) ──────────────────────────────────────────────────────── */
+:host .ux-modal__footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--liq-border);
+  background: #f8fafc;
+  padding: 0.875rem 1.5rem;
+}
+
+.liq-lote__footer { flex-wrap: wrap; gap: 0.5rem; }
 .liq-lote__footer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -273,63 +179,458 @@
   gap: 0.5rem;
   width: 100%;
 }
+.liq-lote__action-btn { min-width: 8rem; }
 
-.liq-lote__action-btn {
-  min-width: 7.5rem;
+/* ════════════════════════════════════════════════════════════════════════════
+   SECCIONES
+   ════════════════════════════════════════════════════════════════════════════ */
+.liq-section {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--liq-border);
+
+  &:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 }
 
+.liq-section__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.875rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--liq-muted);
+}
+
+.liq-section__icon { font-size: 1rem; line-height: 1; }
+
+.liq-section__actions { margin-top: 0.75rem; }
+
+/* ── DL base ────────────────────────────────────────────────────────────── */
+.liq-lote__dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.22rem 0.75rem;
+  font-size: 0.875rem;
+
+  dt { color: var(--liq-muted); white-space: nowrap; }
+  dd { margin: 0; text-align: right; font-weight: 500; color: var(--liq-text); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   STAT ROW (encasetamiento / ventas)
+   ════════════════════════════════════════════════════════════════════════════ */
+.liq-stat-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.liq-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 80px;
+  min-width: 72px;
+  padding: 0.6rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid var(--liq-border);
+  border-radius: var(--liq-radius-sm);
+  text-align: center;
+  gap: 0.15rem;
+
+  &--total {
+    background: var(--liq-green-lt);
+    border-color: var(--liq-green-mid);
+  }
+}
+
+.liq-stat__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--liq-muted);
+}
+
+.liq-stat__value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--liq-text);
+  line-height: 1.1;
+
+  .liq-stat--total & { color: var(--liq-green-text); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   GENDER CARDS (mortalidad + selección)
+   ════════════════════════════════════════════════════════════════════════════ */
+.liq-gender-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.liq-gender-card {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--liq-border);
+  border-radius: var(--liq-radius-sm);
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.liq-gender-card__label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--liq-green);
+}
+
+.liq-gender-card__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--liq-border);
+  font-size: 0.85rem;
+  color: var(--liq-muted);
+
+  strong { font-size: 1rem; color: var(--liq-text); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CUADRE DEL LOTE
+   ════════════════════════════════════════════════════════════════════════════ */
+.liq-cuadre {
+  border: 2px solid;
+  border-radius: var(--liq-radius);
+  overflow: hidden;
+
+  &--ok { border-color: var(--liq-green-mid); background: var(--liq-green-lt); }
+  &--err { border-color: var(--liq-red-mid); background: var(--liq-red-lt); }
+}
+
+.liq-cuadre__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.875rem 1.1rem;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+.liq-cuadre__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 100px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+
+  &--ok  { background: var(--liq-green); color: #fff; }
+  &--err { background: var(--liq-red);   color: #fff; }
+}
+
+.liq-cuadre__formula {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--liq-muted);
+}
+
+.liq-cuadre__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.liq-cuadre__col {
+  padding: 0.875rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  &:first-child { border-right: 1px solid rgba(0,0,0,.07); }
+}
+
+.liq-cuadre__col-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  .liq-cuadre--ok  & { color: var(--liq-green-text); }
+  .liq-cuadre--err & { color: var(--liq-red-text); }
+}
+
+.liq-cuadre__diff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--liq-radius-sm);
+  margin-top: auto;
+
+  &--ok  { background: var(--liq-green); }
+  &--err { background: var(--liq-red); }
+}
+
+.liq-cuadre__diff-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255,255,255,.85);
+}
+
+.liq-cuadre__diff-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ALIMENTO / FOOD
+   ════════════════════════════════════════════════════════════════════════════ */
+.liq-food {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.liq-food__saldo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.liq-food__saldo-num {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: var(--liq-text);
+  line-height: 1.1;
+
+  small { font-size: 1rem; font-weight: 600; color: var(--liq-muted); }
+}
+
+.liq-food__saldo-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--liq-muted);
+}
+
+.liq-food__ref {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.liq-food__ref-label {
+  font-size: 0.78rem;
+  color: var(--liq-muted);
+}
+
+.liq-food__ref-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--liq-text);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   BANNERS / HINTS / ERRORS
+   ════════════════════════════════════════════════════════════════════════════ */
+.liq-lote__banner {
+  margin: 0 0 1.1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--liq-radius-sm);
+  font-size: 0.875rem;
+  background: var(--liq-amber-lt);
+  border: 1px solid var(--liq-amber-mid);
+  color: var(--liq-amber-text);
+
+  &--info {
+    background: var(--liq-blue-lt);
+    border-color: var(--liq-blue-mid);
+    color: var(--liq-blue-text);
+  }
+
+  &--warn {
+    background: var(--liq-amber-lt);
+    border-color: var(--liq-amber-mid);
+    color: var(--liq-amber-text);
+  }
+}
+
+.liq-lote__err {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--liq-radius-sm);
+  background: var(--liq-red-lt);
+  border: 1px solid var(--liq-red-mid);
+  color: var(--liq-red-text);
+  font-size: 0.875rem;
+}
+
+.liq-lote__hint {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--liq-muted);
+  line-height: 1.45;
+
+  &--mb { margin-bottom: 0.65rem; }
+
+  &--info {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--liq-radius-sm);
+    background: var(--liq-blue-lt);
+    border: 1px solid var(--liq-blue-mid);
+    color: var(--liq-blue-text);
+  }
+
+  &--warn {
+    padding: 0.45rem 0.7rem;
+    border-radius: var(--liq-radius-sm);
+    background: var(--liq-amber-lt);
+    border: 1px solid var(--liq-amber-mid);
+    color: var(--liq-amber-text);
+  }
+}
+
+.liq-lote__center { text-align: center; padding: 2rem 0; }
+
+/* ── Spinner de carga ───────────────────────────────────────────────────── */
+.liq-lote__spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--liq-green);
+  border-radius: 50%;
+  animation: liqSpin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 0.35rem;
+}
+@keyframes liqSpin { to { transform: rotate(360deg); } }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TABLA
+   ════════════════════════════════════════════════════════════════════════════ */
 .liq-lote__table-wrap {
-  overflow: auto;
-  border-radius: 8px;
-  border: 1px solid var(--ux-border, #e2e8f0);
+  margin-top: 0.65rem;
+  overflow-x: auto;
+  border-radius: var(--liq-radius-sm);
+  border: 1px solid var(--liq-border);
+  -webkit-overflow-scrolling: touch;
 }
 
 .liq-lote__table {
-  min-width: 520px;
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
+
+  th, td {
+    padding: 0.45rem 0.75rem;
+    border-bottom: 1px solid var(--liq-border);
+    font-size: 0.83rem;
+  }
+
+  thead th {
+    background: #f1f5f9;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--liq-muted);
+    text-align: left;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #f8fafc; }
 }
 
-.liq-lote__table th,
-.liq-lote__table td {
-  padding: 0.5rem 0.65rem;
-  border-bottom: 1px solid var(--ux-border, #e2e8f0);
-}
-
-.liq-lote__table thead th {
-  background: var(--bg-muted, #f8fafc);
-  font-size: 0.8rem;
-  text-align: left;
-}
-
-.text-right {
-  text-align: right;
-}
-
+/* ════════════════════════════════════════════════════════════════════════════
+   FORMULARIO (sub-modal reapertura)
+   ════════════════════════════════════════════════════════════════════════════ */
 .liq-lote__label {
   display: block;
-  margin-bottom: 0.35rem;
-  font-weight: 600;
-  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--liq-text);
 }
 
 .liq-lote__textarea {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border-radius: 6px;
-  border: 1px solid var(--ux-border, #cbd5e1);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--liq-radius-sm);
+  border: 1px solid var(--liq-border);
   font: inherit;
+  font-size: 0.875rem;
   resize: vertical;
+  transition: border-color 0.12s, box-shadow 0.12s;
+
+  &:focus {
+    outline: none;
+    border-color: var(--liq-green);
+    box-shadow: 0 0 0 3px rgba(45,122,62,.15);
+  }
 }
 
+/* ── Sub-modal anidado ──────────────────────────────────────────────────── */
 :host ::ng-deep .ux-modal--nested {
   z-index: 1100;
-  align-items: center;
-  justify-content: center;
 }
 
-:host ::ng-deep .ux-modal--nested .ux-modal__dialog--sm {
-  max-width: 420px;
-  width: calc(100% - 2rem);
+/* ════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Tablet ≤ 768px */
+@media (max-width: 768px) {
+  :host .ux-modal__header { padding: 0.875rem 1rem; }
+
+  .liq-lote__body { padding: 1rem; }
+
+  :host .ux-modal__footer { padding: 0.75rem 1rem; }
+
+  .liq-gender-grid { grid-template-columns: 1fr; }
+
+  .liq-cuadre__grid { grid-template-columns: 1fr; }
+  .liq-cuadre__col:first-child { border-right: none; border-bottom: 1px solid rgba(0,0,0,.07); }
+
+  .liq-stat__value { font-size: 1.1rem; }
+}
+
+/* Mobile ≤ 480px */
+@media (max-width: 480px) {
+  :host .ux-modal { padding: 0.5rem; }
+
+  :host .ux-modal__dialog {
+    max-height: 97vh;
+    border-radius: 1rem;
+  }
+
+  .liq-stat-row { gap: 0.5rem; }
+  .liq-stat { flex: 1 1 60px; padding: 0.45rem 0.5rem; }
+  .liq-stat__value { font-size: 1rem; }
+
+  .liq-food { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+
+  .liq-lote__footer-actions { justify-content: stretch; }
+  .liq-lote__action-btn { flex: 1; }
 }
