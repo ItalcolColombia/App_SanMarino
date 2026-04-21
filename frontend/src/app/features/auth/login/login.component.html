@@ -18,10 +18,12 @@
           loading="eager"
           decoding="async"
         />
-        <div class="logo-brand-name" aria-hidden="true"></div>
+        <div class="logo-divider" aria-hidden="true"></div>
         <p class="logo-tagline">{{ appTagline }}</p>
       </div>
     </div>
+
+    <div class="form-heading" aria-hidden="true">Iniciar sesión</div>
 
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="space-y-4" novalidate>
 

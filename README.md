@@ -34,7 +34,7 @@ App_SanMarino/
 ### Prerrequisitos
 
 - Docker Desktop
-- .NET 8 SDK (para backend)
+- .NET 9 SDK (para backend)
 - Node.js 18+ y npm/yarn (para frontend)
 
 ### Desarrollo Local
