@@ -1,5 +1,6 @@
 <!-- src/app/shared/components/sidebar/sidebar.component.html -->
 <div class="sidebar-overlay" [class.sidebar-overlay--open]="isOpen">
+
   <!-- Backdrop -->
   <div
     class="sidebar-backdrop"
@@ -9,66 +10,67 @@
     aria-label="Cerrar menú"></div>
 
   <!-- Panel deslizable -->
-  <div class="sidebar-panel">
+  <div class="sidebar-panel" role="dialog" aria-modal="true" aria-label="Menú de navegación">
 
-    <!-- Botón cerrar -->
-    <button
-      type="button"
-      class="sidebar-close-btn"
-      (click)="onClose()"
-      aria-label="Cerrar menú">
-      <fa-icon [icon]="faTimes"></fa-icon>
-    </button>
+    <!-- ═══════════════════════════════════════════
+         HEADER: Logo + Identidad (fondo oscuro cálido)
+         ═══════════════════════════════════════════ -->
+    <div class="sb-header">
 
+      <!-- Botón cerrar (dentro del header oscuro) -->
+      <button
+        type="button"
+        class="sidebar-close-btn"
+        (click)="onClose()"
+        aria-label="Cerrar menú">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+
+      <!-- Logo empresa -->
+      <div class="sb-header__logo-wrap">
+        <ng-container *ngIf="(companyLogo$ | async) as logo; else defaultLogo">
+          <img [src]="logo"
+               [alt]="(userBanner$ | async)?.company || 'Empresa'"
+               class="sb-header__logo"
+               loading="eager"
+               decoding="async" />
+        </ng-container>
+        <ng-template #defaultLogo>
+          <img src="assets/brand/italcol-naraanja.png"
+               alt="Italcol"
+               class="sb-header__logo"
+               loading="eager"
+               decoding="async" />
+        </ng-template>
+      </div>
+
+      <!-- Identidad: avatar + nombre + empresa -->
+      <ng-container *ngIf="(userBanner$ | async) as banner">
+        <div class="sb-identity">
+          <!-- Avatar con iniciales + gradiente marca -->
+          <div class="sb-identity__avatar" aria-hidden="true">
+            {{ banner.initials }}
+          </div>
+
+          <!-- Nombre y empresa -->
+          <div class="sb-identity__info">
+            <p class="sb-identity__name">{{ banner.fullName }}</p>
+            <span class="sb-identity__company">
+              <fa-icon [icon]="faBuilding" class="sb-identity__company-icon"></fa-icon>
+              {{ banner.company }}
+            </span>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+    <!-- /HEADER -->
+
+    <!-- ═══════════════════════════════════════════
+         RAÍZ del sidebar (fondo claro cálido)
+         ═══════════════════════════════════════════ -->
     <div class="sidebar-root">
 
-      <!-- ═══════════════════════════════════════════
-           HEADER: Logo + Identidad del usuario
-           ═══════════════════════════════════════════ -->
-      <div class="sb-header">
-
-        <!-- Logo empresa -->
-        <div class="sb-header__logo-wrap">
-          <ng-container *ngIf="(companyLogo$ | async) as logo; else defaultLogo">
-            <img [src]="logo"
-                 [alt]="(userBanner$ | async)?.company || 'Empresa'"
-                 class="sb-header__logo"
-                 loading="eager"
-                 decoding="async" />
-          </ng-container>
-          <ng-template #defaultLogo>
-            <img src="assets/brand/italcol-naraanja.png"
-                 alt="Italcol"
-                 class="sb-header__logo"
-                 loading="eager"
-                 decoding="async" />
-          </ng-template>
-        </div>
-
-        <!-- Identidad: avatar + nombre + empresa -->
-        <ng-container *ngIf="(userBanner$ | async) as banner">
-          <div class="sb-identity">
-            <!-- Avatar con iniciales -->
-            <div class="sb-identity__avatar" aria-hidden="true">
-              {{ banner.initials }}
-            </div>
-
-            <!-- Nombre y empresa -->
-            <div class="sb-identity__info">
-              <p class="sb-identity__name">{{ banner.fullName }}</p>
-              <span class="sb-identity__company">
-                <fa-icon [icon]="faBuilding" class="sb-identity__company-icon"></fa-icon>
-                {{ banner.company }}
-              </span>
-            </div>
-          </div>
-        </ng-container>
-      </div>
-      <!-- /HEADER -->
-
-      <!-- ═══════════════════════════════════════════
-           ÁREA DE SCROLL: Navegación
-           ═══════════════════════════════════════════ -->
+      <!-- ÁREA DE SCROLL: Navegación -->
       <div class="menu-scroll-area">
         <nav aria-label="Menú principal">
 
@@ -108,7 +110,7 @@
                  [class.menu-link--l1]="level === 1"
                  [class.menu-link--l2]="level >= 2">
                 <span class="menu-link__icon">
-                  <fa-icon *ngIf="node.icon" [icon]="node.icon"></fa-icon>
+                  <fa-icon *ngIf="node.icon"  [icon]="node.icon"></fa-icon>
                   <fa-icon *ngIf="!node.icon" [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
                 </span>
                 <span class="menu-link__label">{{ node.label }}</span>
@@ -127,7 +129,7 @@
                      routerLinkActive="is-active"
                      class="menu-link menu-link--parent">
                     <span class="menu-link__icon">
-                      <fa-icon *ngIf="node.icon" [icon]="node.icon"></fa-icon>
+                      <fa-icon *ngIf="node.icon"  [icon]="node.icon"></fa-icon>
                       <fa-icon *ngIf="!node.icon" [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
                     </span>
                     <span class="menu-link__label">{{ node.label }}</span>
@@ -139,7 +141,7 @@
                           (click)="toggle(node)"
                           class="menu-link menu-link--parent">
                     <span class="menu-link__icon">
-                      <fa-icon *ngIf="node.icon" [icon]="node.icon"></fa-icon>
+                      <fa-icon *ngIf="node.icon"  [icon]="node.icon"></fa-icon>
                       <fa-icon *ngIf="!node.icon" [icon]="faCircle" class="menu-link__icon--dot"></fa-icon>
                     </span>
                     <span class="menu-link__label">{{ node.label }}</span>
@@ -170,9 +172,7 @@
       </div>
       <!-- /SCROLL AREA -->
 
-      <!-- ═══════════════════════════════════════════
-           FOOTER: Cerrar sesión
-           ═══════════════════════════════════════════ -->
+      <!-- FOOTER: Cerrar sesión -->
       <div class="sb-footer">
         <button type="button" class="sb-logout" (click)="logout()">
           <fa-icon [icon]="faSignOutAlt" class="sb-logout__icon"></fa-icon>
@@ -182,7 +182,10 @@
       <!-- /FOOTER -->
 
     </div>
+    <!-- /SIDEBAR-ROOT -->
+
   </div>
+  <!-- /PANEL -->
 </div>
 
 <!-- Contenido proyectado (Mapas, etc.) -->

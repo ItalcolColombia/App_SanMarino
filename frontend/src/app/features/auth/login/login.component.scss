@@ -1,33 +1,64 @@
-/* Paleta corporativa: verde, naranja, crema (login) */
+/* ============================================================
+   PALETA DE MARCA — Naranja · Rojo · Amarillo (San Marino)
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+
 :host {
-  /* Naranja vibrante */
-  --brand-orange: #e85c25;
-  --brand-orange-light: rgba(232, 92, 37, 0.12);
-  --brand-orange-dark: #d14a18;
-  /* Verde medio */
-  --brand-green: #2d7a3e;
-  --brand-green-light: rgba(45, 122, 62, 0.1);
-  /* Fondo crema / off-white (logo y tarjeta) */
-  --brand-cream: #faf8f5;
-  /* Compatibilidad: mantener amarillo/dorado donde se usaba */
-  --brand-yellow: #f4b428;
-  --brand-yellow-light: rgba(244, 180, 40, 0.15);
-  --brand-yellow-dark: #e6a41c;
-  --brand-red: #d62828;
-  --bg-gray: #f5f4f2;
-  --text: #2b2b2b;
-  --muted: #6b7280;
+  /* ── Naranjas ── */
+  --brand-orange:       #e85c25;
+  --brand-orange-light: rgba(232, 92, 37, 0.14);
+  --brand-orange-dark:  #c94a18;
+  --brand-orange-vivid: #ff6b2b;
+
+  /* ── Rojos ── */
+  --brand-red:          #c0392b;
+  --brand-red-light:    rgba(192, 57, 43, 0.12);
+  --brand-red-vivid:    #e63c2a;
+
+  /* ── Amarillos / dorado ── */
+  --brand-yellow:       #f4b428;
+  --brand-yellow-light: rgba(244, 180, 40, 0.18);
+  --brand-yellow-dark:  #e6a41c;
+  --brand-gold:         #ffd234;
+
+  /* ── Neutros ── */
+  --brand-cream:  #faf8f5;
+  --bg-dark:      #1c0e07;
+  --text:         #1a0d06;
+  --text-soft:    #5a3d2b;
+  --muted:        #8b6e5c;
+  --card-bg:      #ffffff;
+
+  /* ── Gradientes clave ── */
+  --grad-fire:    linear-gradient(135deg, var(--brand-yellow) 0%, var(--brand-orange) 45%, var(--brand-red) 100%);
+  --grad-fire-btn: linear-gradient(135deg, #ffd234 0%, #ff6b2b 50%, #c0392b 100%);
+  --grad-sunset:  linear-gradient(160deg,
+    #7b1e00 0%,
+    #c0392b 20%,
+    #e85c25 45%,
+    #f4b428 75%,
+    #ffd234 100%
+  );
 
   /* Watermark */
-  --wm-opacity: 0.12;
-  --wm-blur: 6px;
+  --wm-opacity: 0.07;
+  --wm-blur: 8px;
+
+  /* Tipografía */
+  font-family: 'DM Sans', sans-serif;
 
   /* Tamaños logos */
-  --logo-h: 4rem;
-  --logo-h-accent: 4.75rem;
+  --logo-h:       4.25rem;
+  --logo-h-accent: 3rem;
+  --logo-height:  9rem;
+  --logo-width:   22rem;
+  --logo-max-w:   100%;
+  --logo-accent-height: 3.25rem;
 }
 
-/* ===== Fondo + WATERMARK Italcol ===== */
+/* ===================================================
+   SHELL — Fondo atardecer con gradiente de marca
+   =================================================== */
 .login-shell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -36,7 +67,7 @@
   justify-content: center;
   padding: clamp(1rem, 4vw, 2rem);
   padding-top: max(1rem, env(safe-area-inset-top));
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: max(4rem, calc(env(safe-area-inset-bottom) + 3rem));
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
   box-sizing: border-box;
@@ -47,81 +78,163 @@
   isolation: isolate;
   -webkit-overflow-scrolling: touch;
 
-  background: linear-gradient(135deg, var(--brand-cream) 0%, var(--brand-orange-light) 50%, var(--bg-gray) 100%);
+  /* Fondo suave cálido */
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 210, 160, 0.22) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 50% at 20% 80%, rgba(232, 130, 80, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 85% 70%, rgba(244, 180, 100, 0.08) 0%, transparent 55%),
+    linear-gradient(160deg, #f5e6d8 0%, #eeddd0 30%, #e8d5c4 60%, #f0e0cc 100%);
 }
 
-/* Marca de agua */
+/* Textura grain sutil */
+.login-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  mix-blend-mode: overlay;
+}
+
+/* Marca de agua central */
 .login-shell::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: -1;
+  z-index: 1;
   pointer-events: none;
 
-  /* usa /assets para evitar resolución del bundler */
   background-image: url("/assets/brand/italcol-blanco.png");
   background-repeat: no-repeat;
-  background-position: center;
-  background-size: min(70vw, 520px);
+  background-position: center 40%;
+  background-size: min(60vw, 440px);
 
   opacity: var(--wm-opacity);
   filter: blur(var(--wm-blur));
   transform: translateZ(0);
 }
 
-/* ===== Tarjeta ===== */
+/* ===================================================
+   TARJETA — Card flotante con borde superior de fuego
+   =================================================== */
 .login-card {
-  background: #ffffff;
-  border-radius: 14px;
-  padding: clamp(1.25rem, 5vw, 2.5rem) clamp(1.25rem, 4vw, 2rem);
+  position: relative;
+  z-index: 2;
+  background: var(--card-bg);
+  border-radius: 18px;
+  padding: clamp(1.5rem, 5vw, 2.75rem) clamp(1.5rem, 4vw, 2.25rem);
   width: 100%;
-  max-width: min(380px, calc(100vw - 2rem));
+  max-width: min(400px, calc(100vw - 2rem));
   margin: 0 auto;
 
-  box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.15),
-    0 8px 12px rgba(0, 0, 0, 0.08);
+  /* Borde superior de llama (4px) */
+  border-top: 4px solid transparent;
+  background-clip: padding-box;
 
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  /* Sombra cálida dramática */
+  box-shadow:
+    0 0 0 4px transparent,
+    0 4px 0 0 rgba(232, 92, 37, 0.0),
+    0 20px 60px rgba(60, 10, 0, 0.45),
+    0 8px 20px rgba(192, 57, 43, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  animation: cardIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /* Pseudo borde superior de fuego */
+  &::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 18px 18px 0 0;
+    background: var(--grad-fire);
+  }
+
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+
 @media (hover: hover) {
   .login-card:hover {
-    transform: translateY(-3px);
+    transform: translateY(-4px);
     box-shadow:
-      0 16px 28px rgba(0, 0, 0, 0.18),
-      0 10px 14px rgba(0, 0, 0, 0.1);
+      0 28px 72px rgba(60, 10, 0, 0.5),
+      0 10px 24px rgba(192, 57, 43, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 }
 
-/* Logo único (si se usa en otros sitios) */
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Logo único */
 .brand-logo {
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.08));
   transition: transform .3s ease;
 }
 .brand-logo:hover { transform: scale(1.05); }
 
-/* Inputs */
+/* ===================================================
+   INPUTS — Campo con foco naranja cálido
+   =================================================== */
 .brand-input {
   width: 100%;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 0.65rem 0.9rem;
-  background: #fdfdfd;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  border: 1.5px solid #e8d5c8;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  background: #fdfaf8;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.94rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+
+  &::placeholder { color: #bba898; }
 
   &:focus {
     outline: none;
+    background: #fff;
     border-color: var(--brand-orange);
-    box-shadow: 0 0 0 3px var(--brand-orange-light);
+    box-shadow:
+      0 0 0 3px var(--brand-orange-light),
+      0 1px 4px rgba(232, 92, 37, 0.1);
+  }
+
+  &:hover:not(:focus) {
+    border-color: #d4a896;
   }
 
   &.brand-input--icon {
-    padding-left: 2.5rem;
+    padding-left: 2.6rem;
   }
 
   &.brand-input--with-toggle {
     padding-right: 2.75rem;
   }
+}
+
+/* Labels */
+.label {
+  display: block;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 0.4rem;
 }
 
 /* Wrapper con icono */
@@ -133,12 +246,18 @@
 
 .input-icon {
   position: absolute;
-  left: 0.75rem;
-  width: 1.1rem;
-  height: 1.1rem;
-  color: #9ca3af;
+  left: 0.8rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: #c49d88;
   pointer-events: none;
   flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+/* Icono se activa con el foco del input */
+.input-wrapper:focus-within .input-icon {
+  color: var(--brand-orange);
 }
 
 /* Toggle mostrar/ocultar contraseña */
@@ -149,15 +268,15 @@
   border: none;
   padding: 0.25rem;
   cursor: pointer;
-  color: #9ca3af;
+  color: #c49d88;
   display: flex;
   align-items: center;
   transition: color 0.2s ease;
   border-radius: 4px;
 
   svg {
-    width: 1.1rem;
-    height: 1.1rem;
+    width: 1.05rem;
+    height: 1.05rem;
     display: block;
   }
 
@@ -176,196 +295,259 @@
   gap: 0.5rem;
 }
 
-/* Errores */
+/* Errores inline */
 .hint-error {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 500;
   color: var(--brand-red);
+  margin-top: 0.3rem;
+  padding-left: 0.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
 }
 
-/* Alertas de error globales con tipos específicos */
+/* ===================================================
+   ALERTAS DE ERROR — Estilo cálido de marca
+   =================================================== */
 .alert-error {
-  padding: 1rem;
-  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
   margin-bottom: 1rem;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-  font-size: 0.9rem;
+  background: #fff5f0;
+  border: 1.5px solid rgba(232, 92, 37, 0.3);
+  border-left: 4px solid var(--brand-orange);
+  color: #6b2d10;
+  font-size: 0.875rem;
   line-height: 1.5;
+  animation: alertSlide 0.3s ease both;
 
   .error-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+    font-weight: 700;
+    font-family: 'Sora', sans-serif;
   }
 
   .error-message {
-    margin-top: 0.25rem;
+    opacity: 0.85;
+    font-size: 0.84rem;
   }
 
-  // Error de base de datos
   &.alert-error--database {
-    background: #fef2f2;
-    border-color: #dc2626;
-    color: #991b1b;
-
-    .error-header strong {
-      color: #dc2626;
-    }
+    background: #fff1f1;
+    border-left-color: var(--brand-red);
+    color: #7a1a1a;
   }
 
-  // Error de red/conexión
   &.alert-error--network {
-    background: #eff6ff;
-    border-color: #3b82f6;
-    color: #1e40af;
-
-    .error-header strong {
-      color: #3b82f6;
-    }
+    background: #fff8e6;
+    border-left-color: var(--brand-yellow-dark);
+    color: #6b4a00;
   }
 
-  // Error de bloqueo
   &.alert-error--blocked {
-    background: #fff7ed;
-    border-color: #f59e0b;
-    color: #92400e;
-
-    .error-header strong {
-      color: #f59e0b;
-    }
+    background: #fff3e0;
+    border-left-color: var(--brand-orange);
+    color: #6b2d10;
   }
 
-  // Error de credenciales
   &.alert-error--credentials {
-    background: #fef3c7;
-    border-color: #fbbf24;
-    color: #78350f;
-
-    .error-header strong {
-      color: #f59e0b;
-    }
+    background: #fff5f0;
+    border-left-color: var(--brand-orange);
+    color: #6b2d10;
   }
 
-  // Error de encriptación
   &.alert-error--encryption {
-    background: #f3f4f6;
-    border-color: #6b7280;
-    color: #374151;
-
-    .error-header strong {
-      color: #6b7280;
-    }
+    background: #f9f5f3;
+    border-left-color: #8b6e5c;
+    color: #4a3020;
   }
 }
 
-/* Checkbox */
+@keyframes alertSlide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===================================================
+   CHECKBOX + LINK — Recordarme / ¿Olvidaste?
+   =================================================== */
 .remember {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  font-weight: 500;
   color: var(--muted);
+  cursor: pointer;
+  user-select: none;
 }
-.remember__control { accent-color: var(--brand-orange); }
-
+.remember__control {
+  accent-color: var(--brand-orange);
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
 
 .link-button {
   background: none;
   border: none;
   color: var(--brand-orange);
-  font-size: 0.9rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.84rem;
+  font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(232, 92, 37, 0.4);
   padding: 0;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
 
   &:hover {
-    color: var(--brand-orange-dark);
-    text-decoration: none;
+    color: var(--brand-red);
+    text-decoration-color: var(--brand-red);
   }
 }
 
-/* Botón primario */
+/* ===================================================
+   BOTÓN PRIMARIO — Gradiente de llama
+   =================================================== */
 .brand-btn {
+  position: relative;
   width: 100%;
   border: none;
-  border-radius: 10px;
-  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  padding: 0.95rem 1rem;
+  font-family: 'Sora', sans-serif;
   font-weight: 700;
-  font-size: 0.98rem;
+  font-size: 0.96rem;
   line-height: 1;
-  letter-spacing: .2px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  overflow: hidden;
+  cursor: pointer;
 
-  background: linear-gradient(180deg, var(--brand-orange), var(--brand-orange-dark));
+  /* Gradiente: dorado → naranja → rojo */
+  background: var(--grad-fire-btn);
+  color: #fff !important;
+  text-shadow: 0 1px 3px rgba(100, 20, 0, 0.35);
+
   box-shadow:
-    0 10px 20px rgba(232, 92, 37, .25),
-    inset 0 1px 0 rgba(255,255,255,.5);
+    0 8px 32px rgba(192, 57, 43, 0.35),
+    0 2px 8px rgba(232, 92, 37, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 
-  color: #1a1a1a !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,.45);
+  transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.2s ease;
 
-  transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
+  /* Brillo superior */
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent);
+    border-radius: 12px 12px 0 0;
+    pointer-events: none;
+  }
+
+  /* Shimmer en hover */
+  &::after {
+    content: "";
+    position: absolute;
+    top: 0; left: -100%; bottom: 0;
+    width: 60%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    transform: skewX(-20deg);
+    transition: left 0.5s ease;
+    pointer-events: none;
+  }
 
   &:hover {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
     box-shadow:
-      0 14px 28px rgba(232, 92, 37, .3),
-      inset 0 1px 0 rgba(255,255,255,.6);
-    filter: saturate(1.04);
+      0 14px 40px rgba(192, 57, 43, 0.45),
+      0 4px 12px rgba(232, 92, 37, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    filter: saturate(1.08);
+
+    &::after { left: 140%; }
   }
-  &:active { transform: translateY(0); }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow:
+      0 4px 16px rgba(192, 57, 43, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
   &:disabled {
-    opacity: .65;
+    opacity: 0.55;
     cursor: not-allowed;
-    filter: grayscale(.06) contrast(.95);
+    transform: none;
+    filter: grayscale(0.15) contrast(0.9);
+    &::after { display: none; }
   }
 }
 
-/* Banner inferior Italfoods (verde) */
+/* ===================================================
+   FOOTER — Banner inferior cálido (ya no verde)
+   =================================================== */
 .site-footer {
   position: fixed;
   inset-inline: 0;
   inset-block-end: 0;
   padding-bottom: env(safe-area-inset-bottom, 0);
-  background: linear-gradient(180deg, var(--brand-green), #236b32);
-  color: #fff;
-  box-shadow: 0 -4px 10px rgba(0,0,0,.08);
+  background: linear-gradient(90deg, #d4886a 0%, #c97a58 50%, #cc7f5e 100%);
+  color: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 -4px 24px rgba(180, 100, 60, 0.15),
+    0 -1px 0 rgba(255, 200, 160, 0.15);
   z-index: 10;
 }
 .footer-inner {
   max-width: 1080px;
   margin-inline: auto;
-  padding: .6rem 1rem;
+  padding: 0.55rem 1rem;
   padding-left: max(1rem, env(safe-area-inset-left));
   padding-right: max(1rem, env(safe-area-inset-right));
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: .6rem;
-  font-size: .88rem;
+  gap: 0.6rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
   line-height: 1.2;
   text-align: center;
+  letter-spacing: 0.01em;
 }
 .footer-inner a {
-  color: #fff;
+  color: rgba(255, 220, 160, 0.9);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.footer-inner .dot { opacity: .7; }
+.footer-inner .dot { opacity: 0.5; }
+
 @media (max-width: 640px) {
-  .footer-inner { flex-wrap: wrap; gap: .35rem .6rem; padding: .55rem .75rem; font-size: .84rem; }
+  .footer-inner {
+    flex-wrap: wrap;
+    gap: 0.3rem 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+  }
 }
 
-/* ===== Dúo de logos ===== */
+/* ===================================================
+   DÚO DE LOGOS
+   =================================================== */
 .brand-duo {
   display: inline-flex;
   align-items: center;
   gap: 1.25rem;
-  padding: .25rem 0;
+  padding: 0.25rem 0;
 }
 .brand-duo__img {
   height: var(--logo-h);
@@ -374,41 +556,44 @@
   display: block;
 }
 .brand-duo__img--accent {
-  height: var(--logo-h-accent); /* un poco más grande */
+  height: var(--logo-h-accent);
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.08));
 }
 .brand-duo__divider {
   width: 1px;
   align-self: stretch;
-  background: linear-gradient(to bottom, rgba(0,0,0,.06), rgba(0,0,0,.25), rgba(0,0,0,.06));
+  background: linear-gradient(to bottom, rgba(232, 92, 37, 0.05), rgba(192, 57, 43, 0.35), rgba(232, 92, 37, 0.05));
 }
 
-/* ===== Responsividad ===== */
+/* ===================================================
+   RESPONSIVIDAD
+   =================================================== */
 @media (max-width: 640px) {
   .login-shell::before {
-    background-size: min(90vw, 420px);
-    filter: blur(5px);
-    opacity: 0.10;
+    background-size: min(90vw, 380px);
+    filter: blur(6px);
+    opacity: 0.06;
   }
   .login-card {
     padding: 1.5rem 1.25rem;
+    border-radius: 16px;
   }
 }
 
 @media (max-width: 480px) {
   :host {
-    --logo-height: 4rem;
-    --logo-accent-height: 2.75rem;
+    --logo-height:        3.75rem;
+    --logo-accent-height: 2.5rem;
   }
   .login-card {
     padding: 1.25rem 1rem;
   }
   .brand-btn {
-    min-height: 2.75rem;
-    padding: 0.75rem 1rem;
+    min-height: 2.85rem;
+    padding: 0.8rem 1rem;
   }
   .brand-input {
-    min-height: 2.75rem;
+    min-height: 2.85rem;
     padding: 0.75rem 0.9rem;
   }
   .link-button {
@@ -428,33 +613,75 @@
     padding: 1rem 0.75rem;
   }
   :host {
-    --logo-height: 3.5rem;
-    --logo-accent-height: 2.5rem;
+    --logo-height:        3.25rem;
+    --logo-accent-height: 2.25rem;
   }
 }
 
-/* ===== Modo oscuro opcional ===== */
+/* ===================================================
+   MODO OSCURO (opcional)
+   =================================================== */
 :host-context(.dark) .login-shell {
   background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(255,255,255,0.06), transparent 60%),
-    linear-gradient(to bottom, #0b0b0c, #111113);
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(244, 180, 120, 0.10), transparent 60%),
+    linear-gradient(160deg, #1a1008 0%, #22140a 40%, #2a1a0e 100%);
 }
 :host-context(.dark) .login-shell::before {
-  opacity: 0.18;
+  opacity: 0.12;
+}
+:host-context(.dark) .login-card {
+  background: #1e0f07;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.7),
+    0 8px 20px rgba(192, 57, 43, 0.15),
+    inset 0 1px 0 rgba(255, 140, 60, 0.1);
 }
 
 
-/* Control global por variables */
-:host {
-  /* Logo principal: 9rem */
-  --logo-height: 9rem;
-  --logo-width: 22rem;   /* ancho máximo */
-  --logo-max-w: 100%;
-  /* Logo pequeño (v-logo): un poco más grande para verse mejor */
-  --logo-accent-height: 3.25rem; /* ~52px */
+/* ===================================================
+   FIELDS — Campos con animación de entrada
+   =================================================== */
+.field {
+  animation: fieldIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  &:nth-child(1) { animation-delay: 0.08s; }
+  &:nth-child(2) { animation-delay: 0.16s; }
+  &:nth-child(3) { animation-delay: 0.24s; }
 }
 
-/* Contenedor del logo principal */
+@keyframes fieldIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ===================================================
+   ENCABEZADO DEL FORMULARIO
+   =================================================== */
+.form-heading {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  letter-spacing: 0.02em;
+  text-align: center;
+  margin-bottom: 1.25rem;
+  text-transform: uppercase;
+  position: relative;
+
+  &::after {
+    content: "";
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--grad-fire);
+    border-radius: 1px;
+    margin: 0.35rem auto 0;
+  }
+}
+
+/* ===================================================
+   LOGOS — Sección superior de la card
+   =================================================== */
 .logo-wrap {
   display: inline-flex;
   align-items: center;
@@ -462,24 +689,26 @@
   width: 100%;
 }
 
-/* Logos apilados (Italcol + San Marino + nombre ItalGranja) */
 .logo-stack {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   width: 100%;
+  padding-bottom: 0.25rem;
 }
 
-/* Logo principal (arriba): más pequeño y cómodo */
 .logo-img {
   height: var(--logo-height);
   width: auto;
   max-width: var(--logo-width);
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06));
+  filter: drop-shadow(0 2px 4px rgba(100, 30, 0, 0.12));
+  transition: filter 0.25s ease, transform 0.25s ease;
+
+  &:hover { transform: scale(1.03); filter: drop-shadow(0 3px 6px rgba(100, 30, 0, 0.18)); }
 }
 
 .logo-img--primary {
@@ -490,28 +719,41 @@
 .logo-img--secondary {
   height: 3rem;
   max-width: min(18rem, 100%);
-  opacity: 0.98;
+  opacity: 0.97;
 }
 
 .logo-brand-name {
-  font-size: 1.5rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 1.45rem;
   font-weight: 800;
-  color: #1e293b;
-  letter-spacing: -0.02em;
+  color: var(--text);
+  letter-spacing: -0.025em;
   text-align: center;
   line-height: 1.2;
 }
 
+/* Tagline con pequeño punto de color */
 .logo-tagline {
   margin: 0;
-  font-size: 0.8125rem;
-  color: #64748b;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
   text-align: center;
-  line-height: 1.35;
+  line-height: 1.4;
   max-width: 18rem;
+  letter-spacing: 0.01em;
 }
 
-/* Logo pequeño (pie del formulario): más grande para verse mejor */
+/* Divisor bajo logos — línea de llama */
+.logo-divider {
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--grad-fire);
+  margin: 0.15rem auto 0.5rem;
+}
+
 .logo-img-accent {
   height: var(--logo-accent-height);
   width: auto;
@@ -519,25 +761,30 @@
   margin-left: auto;
   margin-right: auto;
   display: block;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.06));
+  filter: drop-shadow(0 1px 2px rgba(100, 30, 0, 0.1));
 }
 
 
 
-// Spinner y mensaje de carga
+/* ===================================================
+   SPINNER DE CARGA
+   =================================================== */
 .loading-content {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
+  position: relative;
+  z-index: 1;
 }
 
 .spinner {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
