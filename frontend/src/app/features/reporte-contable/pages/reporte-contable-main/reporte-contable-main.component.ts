@@ -18,6 +18,7 @@ import { Subject, takeUntil, finalize } from 'rxjs';
 import {
   ReporteContableService,
   ReporteContableCompletoDto,
+  ReporteContableSemanalDto,
   GenerarReporteContableRequestDto,
   ReporteMovimientosHuevosDto,
   FiltrosContablesDto,
@@ -69,7 +70,7 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
-  selectedLoteBaseId: number | null = null; // loteId del lote base seleccionado
+  selectedLoteBaseId: number | null = null;
 
   // Fase del lote — obligatoria
   faseDelLote: 'Levante' | 'Produccion' | null = null;
@@ -84,6 +85,9 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   // UI
   error: string | null = null;
   activeTab: 'resumen' | 'movimientos-huevos' | number = 'resumen';
+
+  // Sub-lote seleccionado (tab externo)
+  selectedSublote: string | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -216,6 +220,7 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.fechaInicio = null;
     this.fechaFin = null;
     this.usarRangoFechas = false;
+    this.selectedSublote = null;
   }
 
   private cargarSemanasContables(): void {
@@ -231,6 +236,125 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
         },
         error: () => { this.semanasContablesDisponibles = []; }
       });
+  }
+
+  // ================== SUBLOTES ==================
+
+  get sublotes(): string[] {
+    const r = this.reporte();
+    if (!r) return [];
+    const names = new Set<string>();
+    r.reportesSemanales.forEach(s =>
+      s.datosDiarios.forEach(d => { if (d.loteNombre) names.add(d.loteNombre); })
+    );
+    // Fallback: use sublotes string[] from first semana if datosDiarios is empty
+    if (names.size === 0 && r.reportesSemanales.length > 0) {
+      r.reportesSemanales[0].sublotes.forEach(s => names.add(s));
+    }
+    return Array.from(names).sort();
+  }
+
+  selectSublote(nombre: string): void {
+    this.selectedSublote = nombre;
+    this.activeTab = 'resumen';
+  }
+
+  // Proyecta un ReporteContableSemanalDto filtrado para un sub-lote específico
+  private proyectarSemanaParaSublote(
+    semana: ReporteContableSemanalDto,
+    subloteNombre: string,
+    saldoAnteriorH: number,
+    saldoAnteriorM: number
+  ): ReporteContableSemanalDto {
+    const fd = semana.datosDiarios.filter(d => d.loteNombre === subloteNombre);
+    const fc = semana.consumosDiarios.filter(d => d.loteNombre === subloteNombre);
+    const last = fd[fd.length - 1];
+
+    return {
+      ...semana,
+      datosDiarios: fd,
+      consumosDiarios: fc,
+      // AVES — Saldo anterior desde la semana previa
+      saldoAnteriorHembras: saldoAnteriorH,
+      saldoAnteriorMachos: saldoAnteriorM,
+      // AVES — Entradas
+      entradasHembras: fd.reduce((s, d) => s + d.entradasHembras, 0),
+      entradasMachos: fd.reduce((s, d) => s + d.entradasMachos, 0),
+      totalEntradas: fd.reduce((s, d) => s + d.entradasHembras + d.entradasMachos, 0),
+      // AVES — Mortalidad
+      mortalidadHembrasSemanal: fd.reduce((s, d) => s + d.mortalidadHembras, 0),
+      mortalidadMachosSemanal: fd.reduce((s, d) => s + d.mortalidadMachos, 0),
+      mortalidadTotalSemanal: fd.reduce((s, d) => s + d.mortalidadHembras + d.mortalidadMachos, 0),
+      // AVES — Selección
+      seleccionHembrasSemanal: fd.reduce((s, d) => s + d.seleccionHembras, 0),
+      seleccionMachosSemanal: fd.reduce((s, d) => s + d.seleccionMachos, 0),
+      totalSeleccionSemanal: fd.reduce((s, d) => s + d.seleccionHembras + d.seleccionMachos, 0),
+      // AVES — Ventas
+      ventasHembrasSemanal: fd.reduce((s, d) => s + d.ventasHembras, 0),
+      ventasMachosSemanal: fd.reduce((s, d) => s + d.ventasMachos, 0),
+      totalVentasSemanal: fd.reduce((s, d) => s + d.ventasHembras + d.ventasMachos, 0),
+      // AVES — Traslados
+      trasladosHembrasSemanal: fd.reduce((s, d) => s + d.trasladosHembras, 0),
+      trasladosMachosSemanal: fd.reduce((s, d) => s + d.trasladosMachos, 0),
+      totalTrasladosSemanal: fd.reduce((s, d) => s + d.trasladosHembras + d.trasladosMachos, 0),
+      // AVES — Saldo final
+      saldoFinHembras: last?.saldoHembras ?? 0,
+      saldoFinMachos: last?.saldoMachos ?? 0,
+      totalAvesVivas: (last?.saldoHembras ?? 0) + (last?.saldoMachos ?? 0),
+      // BULTO
+      saldoBultosAnterior: fd.length > 0 ? fd[0].saldoBultosAnterior : 0,
+      trasladosBultosSemanal: fd.reduce((s, d) => s + d.trasladosBultos, 0),
+      entradasBultosSemanal: fd.reduce((s, d) => s + d.entradasBultos, 0),
+      retirosBultosSemanal: fd.reduce((s, d) => s + d.retirosBultos, 0),
+      consumoBultosHembrasSemanal: fd.reduce((s, d) => s + d.consumoBultosHembras, 0),
+      consumoBultosMachosSemanal: fd.reduce((s, d) => s + d.consumoBultosMachos, 0),
+      saldoBultosFinal: last?.saldoBultos ?? 0,
+      // CONSUMO
+      consumoTotalAlimento: fc.reduce((s, d) => s + d.consumoAlimento, 0),
+      consumoTotalAgua: fc.reduce((s, d) => s + d.consumoAgua, 0),
+      consumoTotalMedicamento: fc.reduce((s, d) => s + d.consumoMedicamento, 0),
+      consumoTotalVacuna: fc.reduce((s, d) => s + d.consumoVacuna, 0),
+      otrosConsumos: fc.reduce((s, d) => s + d.otrosConsumos, 0),
+      totalGeneral: fc.reduce((s, d) => s + d.totalConsumo, 0),
+    };
+  }
+
+  // Semanas filtradas y proyectadas para el sub-lote activo
+  get semanasParaSubloteActual(): ReporteContableSemanalDto[] {
+    const r = this.reporte();
+    if (!r) return [];
+    if (!this.selectedSublote) return r.reportesSemanales;
+
+    let prevSaldoH = 0, prevSaldoM = 0;
+    return r.reportesSemanales.map(semana => {
+      const projected = this.proyectarSemanaParaSublote(semana, this.selectedSublote!, prevSaldoH, prevSaldoM);
+      const last = semana.datosDiarios.filter(d => d.loteNombre === this.selectedSublote).at(-1);
+      prevSaldoH = last?.saldoHembras ?? prevSaldoH;
+      prevSaldoM = last?.saldoMachos ?? prevSaldoM;
+      return projected;
+    });
+  }
+
+  // Movimientos de huevos filtrados para el sub-lote activo
+  get movimientosHuevosParaSubloteActual(): ReporteMovimientosHuevosDto | null {
+    const r = this.reporteMovimientosHuevos();
+    if (!r) return null;
+    if (!this.selectedSublote) return r;
+
+    const filtered = r.movimientosDiarios.filter(m => m.loteNombre === this.selectedSublote);
+    return {
+      ...r,
+      movimientosDiarios: filtered,
+      totalPostura: filtered.reduce((s, m) => s + m.postura, 0),
+      totalHvtoFertil: filtered.reduce((s, m) => s + m.hvtoFertil, 0),
+      totalHvoComercial: filtered.reduce((s, m) => s + m.hvoComercial, 0),
+      totalHuevoDesecho: filtered.reduce((s, m) => s + m.huevoDesecho, 0),
+      totalEntrada: filtered.reduce((s, m) => s + m.entrada, 0),
+      totalVenta: filtered.reduce((s, m) => s + m.venta, 0),
+      totalSalida: filtered.reduce((s, m) => s + m.salida, 0),
+      totalTrasladoAPlanta: filtered.reduce((s, m) => s + m.trasladoAPlanta, 0),
+      totalDescarte: filtered.reduce((s, m) => s + m.descarte, 0),
+    };
   }
 
   // ================== GENERAR REPORTE ==================
@@ -255,6 +379,14 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
         next: (reporte) => {
           this.reporte.set(reporte);
           this.error = null;
+          // Auto-seleccionar el primer sublote disponible
+          const names = new Set<string>();
+          reporte.reportesSemanales.forEach(s =>
+            s.datosDiarios.forEach(d => { if (d.loteNombre) names.add(d.loteNombre); })
+          );
+          const lista = Array.from(names).sort();
+          this.selectedSublote = lista[0] ?? null;
+          this.activeTab = 'resumen';
           this.cargarReporteMovimientosHuevos(request);
         },
         error: (err) => {
@@ -357,9 +489,10 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.reporte.set(null);
     this.error = null;
     this.activeTab = 'resumen';
+    this.selectedSublote = null;
   }
 
-  // ================== TABS ==================
+  // ================== TABS INTERNOS ==================
 
   setActiveTab(tab: 'resumen' | 'movimientos-huevos' | number): void {
     this.activeTab = tab;
@@ -370,9 +503,8 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   }
 
   getTabLabel(semana: number): string {
-    const reporte = this.reporte();
-    if (!reporte) return `Semana ${semana}`;
-    const r = reporte.reportesSemanales.find(r => r.semanaContable === semana);
+    const semanas = this.semanasParaSubloteActual;
+    const r = semanas.find(r => r.semanaContable === semana);
     if (!r) return `Semana ${semana}`;
     return `Sem ${semana} (${this.formatDateShort(r.fechaInicio)}-${this.formatDateShort(r.fechaFin)})`;
   }
@@ -410,60 +542,42 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.limpiarReporte();
   }
 
-  // ================== TOTALES ==================
+  // ================== TOTALES (calculados sobre el sublote activo) ==================
 
   getTotalMortalidad(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.mortalidadHembrasSemanal + s.mortalidadMachosSemanal, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.mortalidadHembrasSemanal + s.mortalidadMachosSemanal, 0);
   }
 
   getTotalTraslados(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.trasladosHembrasSemanal + s.trasladosMachosSemanal, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.trasladosHembrasSemanal + s.trasladosMachosSemanal, 0);
   }
 
   getTotalVentas(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.ventasHembrasSemanal + s.ventasMachosSemanal, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.ventasHembrasSemanal + s.ventasMachosSemanal, 0);
   }
 
   getTotalAlimento(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalAlimento, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.consumoTotalAlimento, 0);
   }
 
   getTotalAgua(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalAgua, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.consumoTotalAgua, 0);
   }
 
   getTotalMedicamento(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalMedicamento, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.consumoTotalMedicamento, 0);
   }
 
   getTotalVacuna(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalVacuna, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.consumoTotalVacuna, 0);
   }
 
   getTotalOtros(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.otrosConsumos, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.otrosConsumos, 0);
   }
 
   getTotalGeneral(): number {
-    const r = this.reporte();
-    if (!r) return 0;
-    return r.reportesSemanales.reduce((t, s) => t + s.totalGeneral, 0);
+    return this.semanasParaSubloteActual.reduce((t, s) => t + s.totalGeneral, 0);
   }
 
   // ================== HELPERS ==================

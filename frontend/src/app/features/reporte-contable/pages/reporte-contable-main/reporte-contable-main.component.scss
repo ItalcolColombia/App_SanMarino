@@ -496,6 +496,79 @@
 }
 
 /* ==========================================================================
+   🗂️ Sub-lote Tabs (externos)
+   ========================================================================== */
+:host .sublotes-nav {
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--ital-green-100);
+  border-radius: var(--radius-lg);
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+:host .sublotes-nav__header {
+  padding: var(--space-2) var(--space-4);
+  background: var(--ital-green);
+  display: flex; align-items: center; gap: var(--space-2);
+}
+
+:host .sublotes-nav__label {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--white);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+:host .sublotes-nav__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+}
+
+:host .sublote-tab {
+  padding: .45rem var(--space-4);
+  border-radius: 999px;
+  border: 2px solid var(--ital-green-100);
+  background: var(--bg-card);
+  color: var(--warm-600);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: all var(--t-med);
+  white-space: nowrap;
+  outline: none;
+
+  &:hover {
+    border-color: var(--ital-green);
+    color: var(--ital-green-dark);
+    background: var(--ital-green-50);
+  }
+
+  &:focus-visible {
+    box-shadow: var(--ring);
+  }
+}
+
+:host .sublote-tab--active {
+  background: var(--ital-green);
+  border-color: var(--ital-green);
+  color: var(--white);
+
+  &:hover {
+    background: var(--ital-green-dark);
+    border-color: var(--ital-green-dark);
+    color: var(--white);
+  }
+}
+
+:host .sublote-content {
+  margin-top: var(--space-2);
+}
+
+/* ==========================================================================
    📱 Responsivo
    ========================================================================== */
 @media (max-width: 960px) {

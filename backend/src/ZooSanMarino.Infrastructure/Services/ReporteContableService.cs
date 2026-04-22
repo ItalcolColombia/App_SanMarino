@@ -563,111 +563,72 @@ public class ReporteContableService : IReporteContableService
         
         var todasLasFechas = todasLasFechasSet.OrderBy(f => f).ToList();
 
-        // Consolidar datos por fecha (sumando todos los sublotes)
+        // Generar un registro por lote por fecha (sin consolidar)
         foreach (var fecha in todasLasFechas)
         {
-            var entradasHTotal = 0;
-            var entradasMTotal = 0;
-            var mortalidadHTotal = 0;
-            var mortalidadMTotal = 0;
-            var seleccionHTotal = 0;
-            var seleccionMTotal = 0;
-            var ventasHTotal = 0;
-            var ventasMTotal = 0;
-            var trasladosHTotal = 0;
-            var trasladosMTotal = 0;
-            var consumoKgHTotal = 0m;
-            var consumoKgMTotal = 0m;
+            var bultos = datosBultos.FirstOrDefault(d => d.Fecha == fecha);
+            var tieneBultos = bultos.Fecha != default(DateTime);
 
-            // Consolidar datos de todos los lotes para esta fecha
             foreach (var lote in lotes)
             {
                 if (!lote.LoteId.HasValue) continue;
 
                 var loteId = lote.LoteId.Value;
-                var loteIdStr = loteId.ToString();
 
-                // Datos de levante (desde seguimiento_diario tipo levante)
-                var levante = datosLevante
-                    .FirstOrDefault(d => d.LoteId == loteId && d.Fecha.Date == fecha);
-
-                // Datos de producción (desde seguimiento_diario tipo produccion)
-                var produccion = datosProduccion
-                    .FirstOrDefault(d => d.LoteId == loteId && d.Fecha.Date == fecha);
-
-                // Ventas y traslados
+                var levante = datosLevante.FirstOrDefault(d => d.LoteId == loteId && d.Fecha.Date == fecha);
+                var produccion = datosProduccion.FirstOrDefault(d => d.LoteId == loteId && d.Fecha.Date == fecha);
+                var fechaEncasetLote = lote.FechaEncaset?.Date ?? DateTime.MinValue;
+                var tieneEntradas = fecha.Date == fechaEncasetLote && entradasIniciales.ContainsKey(loteId);
                 var (ventasH, ventasM, trasladosH, trasladosM) = ventasTraslados
                     .TryGetValue((loteId, fecha), out var vt) ? vt : (0, 0, 0, 0);
 
-                // Entradas (solo en la fecha de encaset de este lote específico)
-                var fechaEncasetLote = lote.FechaEncaset?.Date ?? DateTime.MinValue;
-                var tieneEntradas = fecha.Date == fechaEncasetLote;
-                if (tieneEntradas && entradasIniciales.ContainsKey(loteId))
+                // Omitir si no hay ningún dato para este lote en esta fecha
+                if (levante == null && produccion == null && !tieneEntradas &&
+                    ventasH == 0 && ventasM == 0 && trasladosH == 0 && trasladosM == 0)
+                    continue;
+
+                var entradasH = tieneEntradas ? entradasIniciales[loteId].hembras : 0;
+                var entradasM = tieneEntradas ? entradasIniciales[loteId].machos : 0;
+                var consumoKgH = (decimal)(levante?.ConsumoKgHembras ?? 0) + (produccion?.ConsKgH ?? 0);
+                var consumoKgM = (decimal)(levante?.ConsumoKgMachos ?? 0) + (produccion?.ConsKgM ?? 0);
+                var consumoBultosH = consumoKgH / FACTOR_CONVERSION_BULTO_KG;
+                var consumoBultosM = consumoKgM / FACTOR_CONVERSION_BULTO_KG;
+                // Los bultos (entradas/traslados/retiros) son a nivel de granja; solo se asignan al lote padre
+                var esPadre = loteId == lotePadreId;
+
+                var dato = new DatoDiarioContableDto
                 {
-                    entradasHTotal += entradasIniciales[loteId].hembras;
-                    entradasMTotal += entradasIniciales[loteId].machos;
-                }
+                    Fecha = fecha,
+                    LoteId = loteId,
+                    LoteNombre = lote.LoteNombre ?? string.Empty,
 
-                // Acumular datos
-                mortalidadHTotal += levante?.MortalidadHembras ?? produccion?.MortalidadH ?? 0;
-                mortalidadMTotal += levante?.MortalidadMachos ?? produccion?.MortalidadM ?? 0;
-                seleccionHTotal += levante?.SelH ?? produccion?.SelH ?? 0;
-                seleccionMTotal += levante?.SelM ?? 0;
-                ventasHTotal += ventasH;
-                ventasMTotal += ventasM;
-                trasladosHTotal += trasladosH;
-                trasladosMTotal += trasladosM;
-                consumoKgHTotal += (decimal)(levante?.ConsumoKgHembras ?? 0) + (produccion?.ConsKgH ?? 0);
-                consumoKgMTotal += (decimal)(levante?.ConsumoKgMachos ?? 0) + (produccion?.ConsKgM ?? 0);
+                    EntradasHembras = entradasH,
+                    EntradasMachos = entradasM,
+                    MortalidadHembras = levante?.MortalidadHembras ?? produccion?.MortalidadH ?? 0,
+                    MortalidadMachos = levante?.MortalidadMachos ?? produccion?.MortalidadM ?? 0,
+                    SeleccionHembras = levante?.SelH ?? produccion?.SelH ?? 0,
+                    SeleccionMachos = levante?.SelM ?? 0,
+                    VentasHembras = ventasH,
+                    VentasMachos = ventasM,
+                    TrasladosHembras = trasladosH,
+                    TrasladosMachos = trasladosM,
+
+                    ConsumoAlimentoHembras = consumoKgH,
+                    ConsumoAlimentoMachos = consumoKgM,
+
+                    SaldoBultosAnterior = esPadre && tieneBultos ? bultos.SaldoAnterior : 0,
+                    TrasladosBultos = esPadre && tieneBultos ? bultos.Traslados : 0,
+                    EntradasBultos = esPadre && tieneBultos ? bultos.Entradas : 0,
+                    RetirosBultos = esPadre && tieneBultos ? bultos.Retiros : 0,
+                    ConsumoBultosHembras = consumoBultosH,
+                    ConsumoBultosMachos = consumoBultosM,
+                };
+
+                datosDiarios.Add(dato);
             }
-
-            // Datos de bultos (consolidado para todos los lotes en la misma fecha)
-            var bultos = datosBultos
-                .FirstOrDefault(d => d.Fecha == fecha);
-
-            // Convertir consumo de kg a bultos
-            var consumoBultosH = consumoKgHTotal / FACTOR_CONVERSION_BULTO_KG;
-            var consumoBultosM = consumoKgMTotal / FACTOR_CONVERSION_BULTO_KG;
-
-            // Verificar si se encontraron datos de bultos (comparar con default DateTime)
-            var tieneBultos = bultos.Fecha != default(DateTime);
-
-            // Crear un solo registro consolidado por fecha
-            var dato = new DatoDiarioContableDto
-            {
-                Fecha = fecha,
-                LoteId = lotePadreId, // Usar ID del lote padre para consolidación
-                LoteNombre = lotePadreNombre, // Usar nombre del lote padre
-                
-                // AVES (consolidado)
-                EntradasHembras = entradasHTotal,
-                EntradasMachos = entradasMTotal,
-                MortalidadHembras = mortalidadHTotal,
-                MortalidadMachos = mortalidadMTotal,
-                SeleccionHembras = seleccionHTotal,
-                SeleccionMachos = seleccionMTotal,
-                VentasHembras = ventasHTotal,
-                VentasMachos = ventasMTotal,
-                TrasladosHembras = trasladosHTotal,
-                TrasladosMachos = trasladosMTotal,
-                
-                // CONSUMO (Kg)
-                ConsumoAlimentoHembras = consumoKgHTotal,
-                ConsumoAlimentoMachos = consumoKgMTotal,
-                
-                // BULTO
-                SaldoBultosAnterior = tieneBultos ? bultos.SaldoAnterior : 0,
-                TrasladosBultos = tieneBultos ? bultos.Traslados : 0,
-                EntradasBultos = tieneBultos ? bultos.Entradas : 0,
-                RetirosBultos = tieneBultos ? bultos.Retiros : 0,
-                ConsumoBultosHembras = consumoBultosH,
-                ConsumoBultosMachos = consumoBultosM,
-            };
-
-            datosDiarios.Add(dato);
         }
 
-        return datosDiarios.OrderBy(d => d.Fecha).ToList();
+        return datosDiarios.OrderBy(d => d.Fecha).ThenBy(d => d.LoteId).ToList();
     }
 
     /// <summary>
@@ -941,18 +902,25 @@ public class ReporteContableService : IReporteContableService
             return (0, 0, 0);
         }
 
-        // Obtener último día de la semana anterior
-        var ultimoDiaSemanaAnterior = datosConSaldos
+        // Obtener última fecha de la semana anterior y sumar saldos de todos los lotes
+        var ultimaFechaSemanaAnterior = datosConSaldos
             .Where(d => d.Fecha >= semanaAnterior.FechaInicio && d.Fecha <= semanaAnterior.FechaFin)
-            .OrderByDescending(d => d.Fecha)
-            .FirstOrDefault();
+            .Select(d => d.Fecha)
+            .DefaultIfEmpty(default)
+            .Max();
 
-        if (ultimoDiaSemanaAnterior == null)
-        {
+        if (ultimaFechaSemanaAnterior == default(DateTime))
             return (0, 0, 0);
-        }
 
-        return (ultimoDiaSemanaAnterior.SaldoHembras, ultimoDiaSemanaAnterior.SaldoMachos, ultimoDiaSemanaAnterior.SaldoBultos);
+        var ultimosDatos = datosConSaldos
+            .Where(d => d.Fecha == ultimaFechaSemanaAnterior)
+            .ToList();
+
+        var totalH = ultimosDatos.Sum(d => d.SaldoHembras);
+        var totalM = ultimosDatos.Sum(d => d.SaldoMachos);
+        var saldoBultos = ultimosDatos.Max(d => (decimal?)d.SaldoBultos) ?? 0;
+
+        return (totalH, totalM, saldoBultos);
     }
 
     /// <summary>
