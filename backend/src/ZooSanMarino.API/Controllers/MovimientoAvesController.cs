@@ -251,12 +251,28 @@ public class MovimientoAvesController : ControllerBase
             if (lote == null)
                 return NotFound(new { error = $"Lote {loteId} no encontrado" });
 
-            // Calcular etapa
-            var diasDesdeEncaset = lote.FechaEncaset.HasValue 
-                ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days 
+            // Calcular semanas desde encasetamiento (señal complementaria de fase)
+            var diasDesdeEncaset = lote.FechaEncaset.HasValue
+                ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days
                 : 0;
-            var etapa = (diasDesdeEncaset / 7) + 1;
-            var tipoLote = etapa >= 26 ? "Produccion" : "Levante"; // Corregido: >= 26 para Producción
+            var etapa = diasDesdeEncaset > 0 ? (diasDesdeEncaset / 7) + 1 : 0;
+
+            // Cargar registro de levante (si existe) para verificar EstadoCierre
+            var lotePosturaLev = await _context.LotePosturaLevante
+                .AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            // Determinar fase con tres señales combinadas:
+            // 1. Lote.Fase (campo directo)
+            // 2. LotePosturaLevante.EstadoCierre == "Cerrado" (levante cerrado → pasó a producción)
+            // 3. etapa >= 26 (cálculo por semanas como respaldo)
+            var tipoLote = lote.Fase ?? "Levante";
+            if (tipoLote == "Levante")
+            {
+                if (lotePosturaLev?.EstadoCierre == "Cerrado" || etapa >= 26)
+                    tipoLote = "Produccion";
+            }
 
             int hembrasIniciales = 0;
             int machosIniciales = 0;
@@ -266,104 +282,110 @@ public class MovimientoAvesController : ControllerBase
 
             if (tipoLote == "Produccion")
             {
-                // Opción B: aves iniciales desde Lote (Fase Produccion o hijo)
-                var loteProd = lote.Fase == "Produccion" ? lote : await _context.Lotes
+                // Fuente principal: tabla lote_postura_produccion
+                var lotePosturaProd = await _context.LotePosturaProduccion
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null);
+                    .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+                    .FirstOrDefaultAsync();
 
-                if (loteProd != null)
+                if (lotePosturaProd != null)
                 {
-                    hembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
-                    machosIniciales = loteProd.MachosInicialesProd ?? 0;
-                    var loteIdSeguimiento = loteProd.LoteId ?? loteId;
-
-                    var seguimientos = await _context.SeguimientoProduccion
+                    hembrasIniciales = lotePosturaProd.AvesHInicial ?? 0;
+                    machosIniciales = lotePosturaProd.AvesMInicial ?? 0;
+                    hembrasActuales = lotePosturaProd.AvesHActual ?? 0;
+                    machosActuales = lotePosturaProd.AvesMActual ?? 0;
+                }
+                else
+                {
+                    // Fallback: calcular desde seguimientos de producción
+                    var loteProd = lote.Fase == "Produccion" ? lote : await _context.Lotes
                         .AsNoTracking()
-                        .Where(s => s.LoteId == loteIdSeguimiento)
-                        .ToListAsync();
+                        .FirstOrDefaultAsync(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null);
 
-                    // Calcular descuentos acumulados
-                    var totalMortalidadH = seguimientos.Sum(s => s.MortalidadH);
-                    var totalMortalidadM = seguimientos.Sum(s => s.MortalidadM);
-                    var totalSeleccionH = seguimientos.Sum(s => s.SelH);
-                    var totalSeleccionM = seguimientos.Sum(s => s.SelM);
+                    if (loteProd != null)
+                    {
+                        hembrasIniciales = loteProd.HembrasInicialesProd ?? 0;
+                        machosIniciales = loteProd.MachosInicialesProd ?? 0;
+                        var loteIdSeguimiento = loteProd.LoteId ?? loteId;
 
-                    var movimientosSalida = await _context.MovimientoAves
-                        .AsNoTracking()
-                        .Where(m => m.LoteOrigenId == loteId && 
-                                   m.Estado == "Completado" &&
-                                   m.DeletedAt == null)
-                        .ToListAsync();
+                        var seguimientos = await _context.SeguimientoProduccion
+                            .AsNoTracking()
+                            .Where(s => s.LoteId == loteIdSeguimiento)
+                            .ToListAsync();
 
-                    var totalMovimientosSalidaH = movimientosSalida.Sum(m => m.CantidadHembras);
-                    var totalMovimientosSalidaM = movimientosSalida.Sum(m => m.CantidadMachos);
+                        var totalMortalidadH = seguimientos.Sum(s => s.MortalidadH);
+                        var totalMortalidadM = seguimientos.Sum(s => s.MortalidadM);
+                        var totalSeleccionH = seguimientos.Sum(s => s.SelH);
+                        var totalSeleccionM = seguimientos.Sum(s => s.SelM);
 
-                    var movimientosEntrada = await _context.MovimientoAves
-                        .AsNoTracking()
-                        .Where(m => m.LoteDestinoId == loteId && 
-                                   m.Estado == "Completado" &&
-                                   m.DeletedAt == null)
-                        .ToListAsync();
+                        var movimientosSalida = await _context.MovimientoAves
+                            .AsNoTracking()
+                            .Where(m => m.LoteOrigenId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                            .ToListAsync();
 
-                    var totalMovimientosEntradaH = movimientosEntrada.Sum(m => m.CantidadHembras);
-                    var totalMovimientosEntradaM = movimientosEntrada.Sum(m => m.CantidadMachos);
-                    var totalMovimientosEntradaMixtas = movimientosEntrada.Sum(m => m.CantidadMixtas);
+                        var movimientosEntrada = await _context.MovimientoAves
+                            .AsNoTracking()
+                            .Where(m => m.LoteDestinoId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                            .ToListAsync();
 
-                    // Calcular aves actuales
-                    hembrasActuales = Math.Max(0, hembrasIniciales - totalMortalidadH - totalSeleccionH - totalMovimientosSalidaH + totalMovimientosEntradaH);
-                    machosActuales = Math.Max(0, machosIniciales - totalMortalidadM - totalSeleccionM - totalMovimientosSalidaM + totalMovimientosEntradaM);
-                    mixtasActuales = totalMovimientosEntradaMixtas; // Las mixtas solo vienen de movimientos de entrada
+                        hembrasActuales = Math.Max(0, hembrasIniciales - totalMortalidadH - totalSeleccionH
+                            - movimientosSalida.Sum(m => m.CantidadHembras)
+                            + movimientosEntrada.Sum(m => m.CantidadHembras));
+                        machosActuales = Math.Max(0, machosIniciales - totalMortalidadM - totalSeleccionM
+                            - movimientosSalida.Sum(m => m.CantidadMachos)
+                            + movimientosEntrada.Sum(m => m.CantidadMachos));
+                        mixtasActuales = movimientosEntrada.Sum(m => m.CantidadMixtas);
+                    }
                 }
             }
             else
             {
-                // LEVANTE: Obtener aves iniciales desde Lotes
-                hembrasIniciales = lote.HembrasL ?? 0;
-                machosIniciales = lote.MachosL ?? 0;
-                var mortCajaH = lote.MortCajaH ?? 0;
-                var mortCajaM = lote.MortCajaM ?? 0;
+                // Fuente principal: registro de lote_postura_levante ya cargado
+                if (lotePosturaLev != null)
+                {
+                    hembrasIniciales = lotePosturaLev.AvesHInicial ?? 0;
+                    machosIniciales = lotePosturaLev.AvesMInicial ?? 0;
+                    hembrasActuales = lotePosturaLev.AvesHActual ?? 0;
+                    machosActuales = lotePosturaLev.AvesMActual ?? 0;
+                }
+                else
+                {
+                    // Fallback: calcular desde seguimientos de levante
+                    hembrasIniciales = lote.HembrasL ?? 0;
+                    machosIniciales = lote.MachosL ?? 0;
+                    var mortCajaH = lote.MortCajaH ?? 0;
+                    var mortCajaM = lote.MortCajaM ?? 0;
 
-                // Obtener todos los registros de seguimiento de levante
-                var seguimientos = await _context.SeguimientoLoteLevante
-                    .AsNoTracking()
-                    .Where(s => s.LoteId == loteId)
-                    .ToListAsync();
+                    var seguimientos = await _context.SeguimientoLoteLevante
+                        .AsNoTracking()
+                        .Where(s => s.LoteId == loteId)
+                        .ToListAsync();
 
-                // Calcular descuentos acumulados
-                var totalMortalidadH = seguimientos.Sum(s => s.MortalidadHembras);
-                var totalMortalidadM = seguimientos.Sum(s => s.MortalidadMachos);
-                var totalSeleccionH = seguimientos.Sum(s => s.SelH);
-                var totalSeleccionM = seguimientos.Sum(s => s.SelM);
-                var totalErrorSexajeH = seguimientos.Sum(s => s.ErrorSexajeHembras);
-                var totalErrorSexajeM = seguimientos.Sum(s => s.ErrorSexajeMachos);
+                    var totalMortalidadH = seguimientos.Sum(s => s.MortalidadHembras);
+                    var totalMortalidadM = seguimientos.Sum(s => s.MortalidadMachos);
+                    var totalSeleccionH = seguimientos.Sum(s => s.SelH);
+                    var totalSeleccionM = seguimientos.Sum(s => s.SelM);
+                    var totalErrorSexajeH = seguimientos.Sum(s => s.ErrorSexajeHembras);
+                    var totalErrorSexajeM = seguimientos.Sum(s => s.ErrorSexajeMachos);
 
-                // Obtener movimientos de aves completados que salen del lote
-                var movimientosSalida = await _context.MovimientoAves
-                    .AsNoTracking()
-                    .Where(m => m.LoteOrigenId == loteId && 
-                               m.Estado == "Completado" &&
-                               m.DeletedAt == null)
-                    .ToListAsync();
+                    var movimientosSalida = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteOrigenId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                        .ToListAsync();
 
-                var totalMovimientosSalidaH = movimientosSalida.Sum(m => m.CantidadHembras);
-                var totalMovimientosSalidaM = movimientosSalida.Sum(m => m.CantidadMachos);
+                    var movimientosEntrada = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteDestinoId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                        .ToListAsync();
 
-                // Obtener movimientos de aves completados que entran al lote
-                var movimientosEntrada = await _context.MovimientoAves
-                    .AsNoTracking()
-                    .Where(m => m.LoteDestinoId == loteId && 
-                               m.Estado == "Completado" &&
-                               m.DeletedAt == null)
-                    .ToListAsync();
-
-                var totalMovimientosEntradaH = movimientosEntrada.Sum(m => m.CantidadHembras);
-                var totalMovimientosEntradaM = movimientosEntrada.Sum(m => m.CantidadMachos);
-                var totalMovimientosEntradaMixtas = movimientosEntrada.Sum(m => m.CantidadMixtas);
-
-                // Calcular aves actuales (incluyendo mortalidad en caja)
-                hembrasActuales = Math.Max(0, hembrasIniciales - mortCajaH - totalMortalidadH - totalSeleccionH - totalErrorSexajeH - totalMovimientosSalidaH + totalMovimientosEntradaH);
-                machosActuales = Math.Max(0, machosIniciales - mortCajaM - totalMortalidadM - totalSeleccionM - totalErrorSexajeM - totalMovimientosSalidaM + totalMovimientosEntradaM);
-                mixtasActuales = totalMovimientosEntradaMixtas; // Las mixtas solo vienen de movimientos de entrada
+                    hembrasActuales = Math.Max(0, hembrasIniciales - mortCajaH - totalMortalidadH - totalSeleccionH - totalErrorSexajeH
+                        - movimientosSalida.Sum(m => m.CantidadHembras)
+                        + movimientosEntrada.Sum(m => m.CantidadHembras));
+                    machosActuales = Math.Max(0, machosIniciales - mortCajaM - totalMortalidadM - totalSeleccionM - totalErrorSexajeM
+                        - movimientosSalida.Sum(m => m.CantidadMachos)
+                        + movimientosEntrada.Sum(m => m.CantidadMachos));
+                    mixtasActuales = movimientosEntrada.Sum(m => m.CantidadMixtas);
+                }
             }
 
             var totalAvesActuales = hembrasActuales + machosActuales + mixtasActuales;

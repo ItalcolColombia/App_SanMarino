@@ -93,13 +93,30 @@ public class ReporteContableService : IReporteContableService
         var loteIds = todosLotes.Where(l => l.LoteId.HasValue).Select(l => l.LoteId!.Value).ToList();
         var loteIdsString = loteIds.Select(id => id.ToString()).ToList();
         
+        var tiposSeguimientoPrimera = request.FaseLote == "Produccion"
+            ? new[] { "produccion" }
+            : new[] { "levante" };
+
         var primeraFechaRegistro = await _ctx.SeguimientoDiario
             .AsNoTracking()
-            .Where(s => (s.TipoSeguimiento == "levante" || s.TipoSeguimiento == "produccion") &&
+            .Where(s => tiposSeguimientoPrimera.Contains(s.TipoSeguimiento) &&
                         loteIdsString.Contains(s.LoteId))
             .OrderBy(s => s.Fecha)
             .Select(s => s.Fecha.Date)
             .FirstOrDefaultAsync(ct);
+
+        // Para Produccion, también intentar desde SeguimientoProduccion si seguimiento_diario no tiene datos
+        if (primeraFechaRegistro == default(DateTime) && request.FaseLote == "Produccion")
+        {
+            var primeraFechaProduccion = await _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => loteIds.Contains(s.LoteId))
+                .OrderBy(s => s.Fecha)
+                .Select(s => s.Fecha.Date)
+                .FirstOrDefaultAsync(ct);
+            if (primeraFechaProduccion != default(DateTime))
+                primeraFechaRegistro = primeraFechaProduccion;
+        }
 
         var fechaInicioRegistro = primeraFechaRegistro != default(DateTime) ? primeraFechaRegistro : fechaPrimeraLlegada;
 
@@ -160,12 +177,13 @@ public class ReporteContableService : IReporteContableService
 
         // Obtener datos diarios completos (aplicar filtro de fecha si existe)
         var datosDiarios = await ObtenerDatosDiariosCompletosAsync(
-            todosLotes, 
-            entradasIniciales, 
+            todosLotes,
+            entradasIniciales,
             lotePadre.LoteId ?? 0,
             lotePadre.LoteNombre ?? string.Empty,
             request.FechaInicio,
             request.FechaFin,
+            request.FaseLote,
             ct);
 
         // Calcular saldos acumulativos
@@ -426,93 +444,94 @@ public class ReporteContableService : IReporteContableService
         string lotePadreNombre,
         DateTime? fechaInicioFiltro,
         DateTime? fechaFinFiltro,
+        string faseLote,
         CancellationToken ct)
     {
         var datosDiarios = new List<DatoDiarioContableDto>();
         var loteIds = lotes.Where(l => l.LoteId.HasValue).Select(l => l.LoteId!.Value).ToList();
         var loteIdsString = loteIds.Select(id => id.ToString()).ToList();
 
-        // Obtener datos de levante desde tabla unificada seguimiento_diario
-        var queryLevante = _ctx.SeguimientoDiario
-            .AsNoTracking()
-            .Where(s => s.TipoSeguimiento == "levante" && loteIdsString.Contains(s.LoteId));
+        // Plantillas para crear listas vacías con el tipo correcto (patrón C# para anonymous types)
+        var _levanteTemplate = new { LoteId = 0, Fecha = DateTime.MinValue, MortalidadHembras = (int?)null, MortalidadMachos = (int?)null, SelH = (int?)null, SelM = (int?)null, ConsumoKgHembras = (decimal?)null, ConsumoKgMachos = (decimal?)null };
+        var _prodTemplate    = new { LoteId = 0, Fecha = DateTime.MinValue, MortalidadH = 0, MortalidadM = 0, SelH = 0, ConsKgH = 0m, ConsKgM = 0m };
 
-        if (fechaInicioFiltro.HasValue)
-            queryLevante = queryLevante.Where(s => s.Fecha.Date >= fechaInicioFiltro.Value.Date);
-        if (fechaFinFiltro.HasValue)
-            queryLevante = queryLevante.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
+        // ── LEVANTE: datos desde seguimiento_diario (tipo = "levante") ──────────
+        var datosLevante = new[] { _levanteTemplate }.Take(0).ToList();
+        if (faseLote != "Produccion")
+        {
+            var queryLevante = _ctx.SeguimientoDiario
+                .AsNoTracking()
+                .Where(s => s.TipoSeguimiento == "levante" && loteIdsString.Contains(s.LoteId));
 
-        var datosLevanteRaw = await queryLevante
-            .Select(s => new { s.LoteId, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos })
-            .ToListAsync(ct);
+            if (fechaInicioFiltro.HasValue)
+                queryLevante = queryLevante.Where(s => s.Fecha.Date >= fechaInicioFiltro.Value.Date);
+            if (fechaFinFiltro.HasValue)
+                queryLevante = queryLevante.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
 
-        var datosLevante = datosLevanteRaw
-            .Select(s => new { LoteId = int.TryParse(s.LoteId, out var id) ? id : 0, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos })
-            .Where(x => x.LoteId > 0)
-            .ToList();
+            var datosLevanteRaw = await queryLevante
+                .Select(s => new { s.LoteId, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos })
+                .ToListAsync(ct);
 
-        // Obtener datos de producción desde tabla unificada seguimiento_diario
-        var queryProduccion = _ctx.SeguimientoDiario
-            .AsNoTracking()
-            .Where(s => s.TipoSeguimiento == "produccion" && loteIdsString.Contains(s.LoteId));
+            datosLevante = datosLevanteRaw
+                .Select(s => new { LoteId = int.TryParse(s.LoteId, out var id) ? id : 0, s.Fecha, s.MortalidadHembras, s.MortalidadMachos, s.SelH, s.SelM, s.ConsumoKgHembras, s.ConsumoKgMachos })
+                .Where(x => x.LoteId > 0)
+                .ToList();
+        }
 
-        if (fechaInicioFiltro.HasValue)
-            queryProduccion = queryProduccion.Where(s => s.Fecha.Date >= fechaInicioFiltro.Value.Date);
-        if (fechaFinFiltro.HasValue)
-            queryProduccion = queryProduccion.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
+        // ── PRODUCCIÓN: desde SeguimientoProduccion (produccion_diaria) o seguimiento_diario fallback ──
+        var datosProduccion = new[] { _prodTemplate }.Take(0).ToList();
+        if (faseLote != "Levante")
+        {
+            // Primero intentar desde SeguimientoProduccion (tabla produccion_diaria)
+            var queryProd = _ctx.SeguimientoProduccion
+                .AsNoTracking()
+                .Where(s => loteIds.Contains(s.LoteId));
 
-        var datosProduccionRaw = await queryProduccion
-            .Select(s => new
+            if (fechaInicioFiltro.HasValue)
+                queryProd = queryProd.Where(s => s.Fecha.Date >= fechaInicioFiltro.Value.Date);
+            if (fechaFinFiltro.HasValue)
+                queryProd = queryProd.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
+
+            var produccionDiariaRaw = await queryProd
+                .Select(s => new { LoteId = s.LoteId, s.Fecha, MortalidadH = s.MortalidadH, MortalidadM = s.MortalidadM, SelH = s.SelH, ConsKgH = s.ConsKgH, ConsKgM = s.ConsKgM })
+                .ToListAsync(ct);
+
+            if (produccionDiariaRaw.Any())
             {
-                s.LoteId,
-                s.Fecha,
-                MortalidadH = s.MortalidadHembras ?? 0,
-                MortalidadM = s.MortalidadMachos ?? 0,
-                SelH = s.SelH ?? 0,
-                ConsKgH = s.ConsumoKgHembras ?? 0,
-                ConsKgM = s.ConsumoKgMachos ?? 0,
-                s.HuevoTot,
-                s.HuevoInc,
-                s.HuevoLimpio,
-                s.HuevoTratado,
-                s.HuevoSucio,
-                s.HuevoDeforme,
-                s.HuevoBlanco,
-                s.HuevoDobleYema,
-                s.HuevoPiso,
-                s.HuevoPequeno,
-                s.HuevoRoto,
-                s.HuevoDesecho,
-                s.HuevoOtro
-            })
-            .ToListAsync(ct);
-
-        var datosProduccion = datosProduccionRaw
-            .Select(s => new
+                datosProduccion = produccionDiariaRaw.ToList();
+            }
+            else
             {
-                LoteId = int.TryParse(s.LoteId, out var id) ? id : 0,
-                s.Fecha,
-                s.MortalidadH,
-                s.MortalidadM,
-                s.SelH,
-                s.ConsKgH,
-                s.ConsKgM,
-                s.HuevoTot,
-                s.HuevoInc,
-                s.HuevoLimpio,
-                s.HuevoTratado,
-                s.HuevoSucio,
-                s.HuevoDeforme,
-                s.HuevoBlanco,
-                s.HuevoDobleYema,
-                s.HuevoPiso,
-                s.HuevoPequeno,
-                s.HuevoRoto,
-                s.HuevoDesecho,
-                s.HuevoOtro
-            })
-            .Where(x => x.LoteId > 0)
-            .ToList();
+                // Fallback: seguimiento_diario tipo=produccion
+                var queryProdFallback = _ctx.SeguimientoDiario
+                    .AsNoTracking()
+                    .Where(s => s.TipoSeguimiento == "produccion" && loteIdsString.Contains(s.LoteId));
+
+                if (fechaInicioFiltro.HasValue)
+                    queryProdFallback = queryProdFallback.Where(s => s.Fecha.Date >= fechaInicioFiltro.Value.Date);
+                if (fechaFinFiltro.HasValue)
+                    queryProdFallback = queryProdFallback.Where(s => s.Fecha.Date <= fechaFinFiltro.Value.Date);
+
+                var datosProduccionRaw = await queryProdFallback
+                    .Select(s => new
+                    {
+                        LoteId = 0, // placeholder; parsed below
+                        s.Fecha,
+                        MortalidadH = s.MortalidadHembras ?? 0,
+                        MortalidadM = s.MortalidadMachos ?? 0,
+                        SelH       = s.SelH ?? 0,
+                        ConsKgH    = s.ConsumoKgHembras ?? 0m,
+                        ConsKgM    = s.ConsumoKgMachos ?? 0m,
+                        LoteIdStr  = s.LoteId
+                    })
+                    .ToListAsync(ct);
+
+                datosProduccion = datosProduccionRaw
+                    .Select(s => new { LoteId = int.TryParse(s.LoteIdStr, out var id) ? id : 0, s.Fecha, s.MortalidadH, s.MortalidadM, s.SelH, s.ConsKgH, s.ConsKgM })
+                    .Where(x => x.LoteId > 0)
+                    .ToList();
+            }
+        }
 
         // Obtener ventas y traslados (solo si hay lotes)
         var ventasTraslados = loteIds.Any() 
@@ -1406,6 +1425,64 @@ public class ReporteContableService : IReporteContableService
             TotalTrasladoAPlanta = totales.TrasladoAPlanta,
             TotalDescarte = totales.Descarte
         };
+    }
+
+    #endregion
+
+    #region Filtros disponibles
+
+    public async Task<FiltrosContablesDto> GetFiltrosDisponiblesAsync(CancellationToken ct = default)
+    {
+        var lotes = await _ctx.Lotes
+            .AsNoTracking()
+            .Include(l => l.Farm)
+            .Include(l => l.Nucleo)
+            .Include(l => l.Galpon)
+            .Include(l => l.LotePosturaBase)
+            .Where(l => l.LotePadreId == null &&
+                        l.CompanyId == _currentUser.CompanyId &&
+                        l.DeletedAt == null)
+            .OrderBy(l => l.Farm.Name)
+            .ThenBy(l => l.NucleoId)
+            .ThenBy(l => l.GalponId)
+            .ThenBy(l => l.LoteNombre)
+            .ToListAsync(ct);
+
+        var granjas = lotes
+            .GroupBy(l => l.GranjaId)
+            .Select(gGranja => new GranjaFiltroContableDto
+            {
+                GranjaId = gGranja.Key,
+                GranjaNombre = gGranja.First().Farm?.Name ?? gGranja.Key.ToString(),
+                Nucleos = gGranja
+                    .GroupBy(l => l.NucleoId)
+                    .Select(gNucleo => new NucleoFiltroContableDto
+                    {
+                        NucleoId = gNucleo.Key,
+                        NucleoNombre = gNucleo.First().Nucleo?.NucleoNombre ?? gNucleo.Key ?? "(Sin núcleo)",
+                        Galpones = gNucleo
+                            .GroupBy(l => l.GalponId)
+                            .Select(gGalpon => new GalponFiltroContableDto
+                            {
+                                GalponId = gGalpon.Key,
+                                GalponNombre = gGalpon.First().Galpon?.GalponNombre ?? gGalpon.Key ?? "(Sin galpón)",
+                                LotesBase = gGalpon
+                                    .Select(l => new LoteBaseFiltroContableDto
+                                    {
+                                        LoteId = l.LoteId!.Value,
+                                        LoteNombre = l.LotePosturaBase?.LoteNombre ?? l.LoteNombre,
+                                        LotePosturaBaseId = l.LotePosturaBaseId,
+                                        CodigoErp = l.LotePosturaBase?.CodigoErp ?? l.LoteErp
+                                    })
+                                    .ToList()
+                            })
+                            .ToList()
+                    })
+                    .ToList()
+            })
+            .ToList();
+
+        return new FiltrosContablesDto { Granjas = granjas };
     }
 
     #endregion

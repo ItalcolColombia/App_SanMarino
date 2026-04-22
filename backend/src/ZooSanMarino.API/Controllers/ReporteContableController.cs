@@ -30,6 +30,7 @@ public class ReporteContableController : ControllerBase
     [HttpGet("generar")]
     public async Task<ActionResult<ReporteContableCompletoDto>> GenerarReporte(
         [FromQuery] int lotePadreId,
+        [FromQuery] string faseLote = "",
         [FromQuery] int? semanaContable = null,
         [FromQuery] DateTime? fechaInicio = null,
         [FromQuery] DateTime? fechaFin = null,
@@ -37,9 +38,13 @@ public class ReporteContableController : ControllerBase
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(faseLote) || (faseLote != "Levante" && faseLote != "Produccion"))
+                return BadRequest(new { message = "Debe especificar la fase del lote: 'Levante' o 'Produccion'" });
+
             var request = new GenerarReporteContableRequestDto
             {
                 LotePadreId = lotePadreId,
+                FaseLote = faseLote,
                 SemanaContable = semanaContable,
                 FechaInicio = fechaInicio,
                 FechaFin = fechaFin
@@ -97,6 +102,7 @@ public class ReporteContableController : ControllerBase
     [HttpGet("exportar/excel")]
     public async Task<IActionResult> ExportarExcel(
         [FromQuery] int lotePadreId,
+        [FromQuery] string faseLote = "",
         [FromQuery] int? semanaContable = null,
         [FromQuery] DateTime? fechaInicio = null,
         [FromQuery] DateTime? fechaFin = null,
@@ -104,9 +110,13 @@ public class ReporteContableController : ControllerBase
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(faseLote) || (faseLote != "Levante" && faseLote != "Produccion"))
+                return BadRequest(new { message = "Debe especificar la fase del lote: 'Levante' o 'Produccion'" });
+
             var request = new GenerarReporteContableRequestDto
             {
                 LotePadreId = lotePadreId,
+                FaseLote = faseLote,
                 SemanaContable = semanaContable,
                 FechaInicio = fechaInicio,
                 FechaFin = fechaFin
@@ -134,6 +144,24 @@ public class ReporteContableController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error inesperado al exportar reporte contable a Excel");
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Retorna la jerarquía granjas → núcleos → galpones → lotes base para los filtros del reporte contable
+    /// </summary>
+    [HttpGet("filtros-disponibles")]
+    public async Task<ActionResult<FiltrosContablesDto>> GetFiltrosDisponibles(CancellationToken ct = default)
+    {
+        try
+        {
+            var filtros = await _reporteContableService.GetFiltrosDisponiblesAsync(ct);
+            return Ok(filtros);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener filtros disponibles para reporte contable");
             return StatusCode(500, new { message = "Error interno del servidor" });
         }
     }

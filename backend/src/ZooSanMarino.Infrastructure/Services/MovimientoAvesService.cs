@@ -263,6 +263,11 @@ public class MovimientoAvesService : IMovimientoAvesService
                 await CrearRegistroEntradaEnLoteDestinoAsync(movimiento);
             }
 
+            // Actualizar AvesHActual/AvesMActual directamente en las tablas postura (fuente primaria de inventario).
+            // Resta del lote origen (venta o traslado) y suma al lote destino (traslado).
+            // La fase se determina con tres señales: Lote.Fase, EstadoCierre=="Cerrado", semana>=26.
+            await ActualizarAvesActualesEnPosturaAsync(movimiento);
+
             var movimientoDto = await GetByIdAsync(movimiento.Id);
             return new ResultadoMovimientoDto(true, "Movimiento procesado exitosamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimientoDto);
         }
@@ -1552,6 +1557,9 @@ public class MovimientoAvesService : IMovimientoAvesService
             {
                 await DevolverAvesEnSeguimientoDiarioAsync(movimiento);
             }
+
+            // Revertir también en las tablas postura (fuente primaria de inventario)
+            await RevertirAvesActualesEnPosturaAsync(movimiento);
         }
     }
 
@@ -1903,6 +1911,257 @@ public class MovimientoAvesService : IMovimientoAvesService
                     : $"{registroExistente.Observaciones} | {obsAjuste}";
 
                 await _context.SaveChangesAsync();
+            }
+        }
+    }
+
+    // =====================================================
+    // ACTUALIZACIÓN DIRECTA EN TABLAS POSTURA
+    // =====================================================
+
+    /// <summary>
+    /// Determina la fase del lote (Levante/Produccion) combinando tres señales:
+    /// 1. Lote.Fase (campo directo)
+    /// 2. LotePosturaLevante.EstadoCierre == "Cerrado" (levante cerrado → producción obligatoria)
+    /// 3. semana >= 26 (cálculo por semanas como respaldo)
+    /// </summary>
+    private async Task<string> DeterminarFaseLoteAsync(int loteId, Lote lote)
+    {
+        var diasDesdeEncaset = lote.FechaEncaset.HasValue
+            ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days
+            : 0;
+        var etapa = diasDesdeEncaset > 0 ? (diasDesdeEncaset / 7) + 1 : 0;
+
+        var lotePosturaLev = await _context.LotePosturaLevante
+            .AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        var fase = lote.Fase ?? "Levante";
+        if (fase == "Levante")
+        {
+            if (lotePosturaLev?.EstadoCierre == "Cerrado" || etapa >= 26)
+                fase = "Produccion";
+        }
+
+        return fase;
+    }
+
+    /// <summary>
+    /// Actualiza AvesHActual/AvesMActual directamente en la tabla postura correspondiente
+    /// al procesar un movimiento (venta o traslado).
+    /// — Origen (venta o traslado): resta aves según fase del lote origen.
+    /// — Destino (solo traslado): suma aves según fase del lote destino.
+    /// Si el lote levante está cerrado (EstadoCierre=="Cerrado") → Produccion por obligación.
+    /// </summary>
+    private async Task ActualizarAvesActualesEnPosturaAsync(MovimientoAves movimiento)
+    {
+        // --- ORIGEN: restar aves ---
+        if (movimiento.LoteOrigenId.HasValue &&
+            (movimiento.CantidadHembras > 0 || movimiento.CantidadMachos > 0))
+        {
+            var loteOrigen = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == movimiento.LoteOrigenId.Value &&
+                           l.CompanyId == _currentUser.CompanyId &&
+                           l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (loteOrigen != null)
+            {
+                var faseOrigen = await DeterminarFaseLoteAsync(movimiento.LoteOrigenId.Value, loteOrigen);
+
+                if (faseOrigen == "Produccion")
+                {
+                    var posturaProd = await _context.LotePosturaProduccion
+                        .Where(p => p.LoteId == movimiento.LoteOrigenId.Value &&
+                                   p.CompanyId == _currentUser.CompanyId &&
+                                   p.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaProd != null)
+                    {
+                        posturaProd.AvesHActual = Math.Max(0, (posturaProd.AvesHActual ?? 0) - movimiento.CantidadHembras);
+                        posturaProd.AvesMActual = Math.Max(0, (posturaProd.AvesMActual ?? 0) - movimiento.CantidadMachos);
+                        posturaProd.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else // Levante abierto
+                {
+                    var posturaLev = await _context.LotePosturaLevante
+                        .Where(l => l.LoteId == movimiento.LoteOrigenId.Value &&
+                                   l.CompanyId == _currentUser.CompanyId &&
+                                   l.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaLev != null)
+                    {
+                        posturaLev.AvesHActual = Math.Max(0, (posturaLev.AvesHActual ?? 0) - movimiento.CantidadHembras);
+                        posturaLev.AvesMActual = Math.Max(0, (posturaLev.AvesMActual ?? 0) - movimiento.CantidadMachos);
+                        posturaLev.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+
+        // --- DESTINO: sumar aves (solo traslados a otro lote) ---
+        if (movimiento.LoteDestinoId.HasValue && movimiento.TipoMovimiento == "Traslado" &&
+            (movimiento.CantidadHembras > 0 || movimiento.CantidadMachos > 0))
+        {
+            var loteDestino = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == movimiento.LoteDestinoId.Value &&
+                           l.CompanyId == _currentUser.CompanyId &&
+                           l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (loteDestino != null)
+            {
+                var faseDestino = await DeterminarFaseLoteAsync(movimiento.LoteDestinoId.Value, loteDestino);
+
+                if (faseDestino == "Produccion")
+                {
+                    var posturaProd = await _context.LotePosturaProduccion
+                        .Where(p => p.LoteId == movimiento.LoteDestinoId.Value &&
+                                   p.CompanyId == _currentUser.CompanyId &&
+                                   p.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaProd != null)
+                    {
+                        posturaProd.AvesHActual = (posturaProd.AvesHActual ?? 0) + movimiento.CantidadHembras;
+                        posturaProd.AvesMActual = (posturaProd.AvesMActual ?? 0) + movimiento.CantidadMachos;
+                        posturaProd.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else // Levante abierto
+                {
+                    var posturaLev = await _context.LotePosturaLevante
+                        .Where(l => l.LoteId == movimiento.LoteDestinoId.Value &&
+                                   l.CompanyId == _currentUser.CompanyId &&
+                                   l.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaLev != null)
+                    {
+                        posturaLev.AvesHActual = (posturaLev.AvesHActual ?? 0) + movimiento.CantidadHembras;
+                        posturaLev.AvesMActual = (posturaLev.AvesMActual ?? 0) + movimiento.CantidadMachos;
+                        posturaLev.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Revierte los cambios en AvesHActual/AvesMActual en las tablas postura
+    /// al cancelar un movimiento completado.
+    /// — Origen: devuelve las aves (suma).
+    /// — Destino (solo traslado): quita las aves que habían entrado (resta).
+    /// </summary>
+    private async Task RevertirAvesActualesEnPosturaAsync(MovimientoAves movimiento)
+    {
+        // --- ORIGEN: devolver aves (sumar) ---
+        if (movimiento.LoteOrigenId.HasValue &&
+            (movimiento.CantidadHembras > 0 || movimiento.CantidadMachos > 0))
+        {
+            var loteOrigen = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == movimiento.LoteOrigenId.Value &&
+                           l.CompanyId == _currentUser.CompanyId &&
+                           l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (loteOrigen != null)
+            {
+                var faseOrigen = await DeterminarFaseLoteAsync(movimiento.LoteOrigenId.Value, loteOrigen);
+
+                if (faseOrigen == "Produccion")
+                {
+                    var posturaProd = await _context.LotePosturaProduccion
+                        .Where(p => p.LoteId == movimiento.LoteOrigenId.Value &&
+                                   p.CompanyId == _currentUser.CompanyId &&
+                                   p.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaProd != null)
+                    {
+                        posturaProd.AvesHActual = (posturaProd.AvesHActual ?? 0) + movimiento.CantidadHembras;
+                        posturaProd.AvesMActual = (posturaProd.AvesMActual ?? 0) + movimiento.CantidadMachos;
+                        posturaProd.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else // Levante abierto
+                {
+                    var posturaLev = await _context.LotePosturaLevante
+                        .Where(l => l.LoteId == movimiento.LoteOrigenId.Value &&
+                                   l.CompanyId == _currentUser.CompanyId &&
+                                   l.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaLev != null)
+                    {
+                        posturaLev.AvesHActual = (posturaLev.AvesHActual ?? 0) + movimiento.CantidadHembras;
+                        posturaLev.AvesMActual = (posturaLev.AvesMActual ?? 0) + movimiento.CantidadMachos;
+                        posturaLev.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+
+        // --- DESTINO: restar aves que habían entrado (solo traslados) ---
+        if (movimiento.LoteDestinoId.HasValue && movimiento.TipoMovimiento == "Traslado" &&
+            (movimiento.CantidadHembras > 0 || movimiento.CantidadMachos > 0))
+        {
+            var loteDestino = await _context.Lotes
+                .AsNoTracking()
+                .Where(l => l.LoteId == movimiento.LoteDestinoId.Value &&
+                           l.CompanyId == _currentUser.CompanyId &&
+                           l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+
+            if (loteDestino != null)
+            {
+                var faseDestino = await DeterminarFaseLoteAsync(movimiento.LoteDestinoId.Value, loteDestino);
+
+                if (faseDestino == "Produccion")
+                {
+                    var posturaProd = await _context.LotePosturaProduccion
+                        .Where(p => p.LoteId == movimiento.LoteDestinoId.Value &&
+                                   p.CompanyId == _currentUser.CompanyId &&
+                                   p.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaProd != null)
+                    {
+                        posturaProd.AvesHActual = Math.Max(0, (posturaProd.AvesHActual ?? 0) - movimiento.CantidadHembras);
+                        posturaProd.AvesMActual = Math.Max(0, (posturaProd.AvesMActual ?? 0) - movimiento.CantidadMachos);
+                        posturaProd.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else // Levante abierto
+                {
+                    var posturaLev = await _context.LotePosturaLevante
+                        .Where(l => l.LoteId == movimiento.LoteDestinoId.Value &&
+                                   l.CompanyId == _currentUser.CompanyId &&
+                                   l.DeletedAt == null)
+                        .FirstOrDefaultAsync();
+
+                    if (posturaLev != null)
+                    {
+                        posturaLev.AvesHActual = Math.Max(0, (posturaLev.AvesHActual ?? 0) - movimiento.CantidadHembras);
+                        posturaLev.AvesMActual = Math.Max(0, (posturaLev.AvesMActual ?? 0) - movimiento.CantidadMachos);
+                        posturaLev.UpdatedAt = DateTime.UtcNow;
+                        await _context.SaveChangesAsync();
+                    }
+                }
             }
         }
     }

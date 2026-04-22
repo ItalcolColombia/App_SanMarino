@@ -1,11 +1,11 @@
 // src/app/features/reporte-contable/pages/reporte-contable-main/reporte-contable-main.component.ts
-import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { 
-  faFileExcel, 
-  faFileAlt, 
+import {
+  faFileExcel,
+  faFileAlt,
   faCalendarWeek,
   faDownload,
   faSpinner,
@@ -15,17 +15,17 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, finalize } from 'rxjs';
 
-import { 
-  ReporteContableService, 
+import {
+  ReporteContableService,
   ReporteContableCompletoDto,
   GenerarReporteContableRequestDto,
-  ReporteMovimientosHuevosDto
+  ReporteMovimientosHuevosDto,
+  FiltrosContablesDto,
+  GranjaFiltroContableDto,
+  NucleoFiltroContableDto,
+  GalponFiltroContableDto,
+  LoteBaseFiltroContableDto
 } from '../../services/reporte-contable.service';
-import { LoteService, LoteDto } from '../../../lote/services/lote.service';
-import { FiltroSelectComponent } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
-import { FarmService, FarmDto } from '../../../farm/services/farm.service';
-import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.service';
-import { GalponService } from '../../../galpon/services/galpon.service';
 import { TablaDetalleDiarioContableComponent } from '../../components/tabla-detalle-diario-contable/tabla-detalle-diario-contable.component';
 import { TablaAvesContableComponent } from '../../components/tabla-aves-contable/tabla-aves-contable.component';
 import { TablaBultosContableComponent } from '../../components/tabla-bultos-contable/tabla-bultos-contable.component';
@@ -38,7 +38,6 @@ import { TablaMovimientosHuevosComponent } from '../../components/tabla-movimien
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    FiltroSelectComponent,
     TablaDetalleDiarioContableComponent,
     TablaAvesContableComponent,
     TablaBultosContableComponent,
@@ -48,7 +47,6 @@ import { TablaMovimientosHuevosComponent } from '../../components/tabla-movimien
   styleUrls: ['./reporte-contable-main.component.scss']
 })
 export class ReporteContableMainComponent implements OnInit, OnDestroy {
-  // Iconos
   faFileExcel = faFileExcel;
   faFileAlt = faFileAlt;
   faCalendarWeek = faCalendarWeek;
@@ -58,48 +56,41 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   faFilter = faFilter;
   faDollarSign = faDollarSign;
 
-  // Estado
   loading = signal(false);
+  loadingFiltros = signal(false);
   reporte = signal<ReporteContableCompletoDto | null>(null);
   reporteMovimientosHuevos = signal<ReporteMovimientosHuevosDto | null>(null);
   loadingMovimientosHuevos = signal(false);
-  
-  // Filtros de selección (granja, núcleo, galpón, lote)
+
+  // Jerarquía de filtros cargada desde el backend
+  filtrosData: FiltrosContablesDto | null = null;
+
+  // Selecciones en cascada
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
-  selectedLoteId: number | null = null;
-  
-  // Catálogos
-  granjas: FarmDto[] = [];
-  nucleos: NucleoDto[] = [];
-  private allLotes: LoteDto[] = [];
-  lotesPadres: LoteDto[] = []; // Solo lotes padres (sin lotePadreId)
-  selectedLote: LoteDto | null = null;
-  
+  selectedLoteBaseId: number | null = null; // loteId del lote base seleccionado
+
+  // Fase del lote — obligatoria
+  faseDelLote: 'Levante' | 'Produccion' | null = null;
+
   // Filtros de reporte
   semanaContable: number | null = null;
   semanasContablesDisponibles: number[] = [];
   fechaInicio: string | null = null;
   fechaFin: string | null = null;
   usarRangoFechas: boolean = false;
-  
+
   // UI
   error: string | null = null;
-  activeTab: 'resumen' | 'movimientos-huevos' | number = 'resumen'; // Tab activo: 'resumen', 'movimientos-huevos' o número de semana
+  activeTab: 'resumen' | 'movimientos-huevos' | number = 'resumen';
 
   private destroy$ = new Subject<void>();
 
-  constructor(
-    private reporteContableService: ReporteContableService,
-    private loteService: LoteService,
-    private farmService: FarmService,
-    private nucleoService: NucleoService,
-    private galponService: GalponService
-  ) {}
+  constructor(private reporteContableService: ReporteContableService) {}
 
   ngOnInit(): void {
-    this.cargarGranjas();
+    this.cargarFiltros();
   }
 
   ngOnDestroy(): void {
@@ -107,182 +98,166 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private cargarGranjas(): void {
-    this.farmService.getAll()
-      .pipe(takeUntil(this.destroy$))
+  private cargarFiltros(): void {
+    this.loadingFiltros.set(true);
+    this.reporteContableService.getFiltrosDisponibles()
+      .pipe(takeUntil(this.destroy$), finalize(() => this.loadingFiltros.set(false)))
       .subscribe({
-        next: (granjas) => {
-          this.granjas = granjas || [];
-        },
-        error: (err) => {
-          console.error('Error al cargar granjas:', err);
-          this.granjas = [];
-        }
+        next: (data) => { this.filtrosData = data; },
+        error: () => { this.filtrosData = null; }
       });
+  }
+
+  // ================== CASCADA DE FILTROS ==================
+
+  get granjas(): GranjaFiltroContableDto[] {
+    return this.filtrosData?.granjas ?? [];
+  }
+
+  get nucleos(): NucleoFiltroContableDto[] {
+    if (!this.selectedGranjaId || !this.filtrosData) return [];
+    return this.filtrosData.granjas.find(g => g.granjaId === this.selectedGranjaId)?.nucleos ?? [];
+  }
+
+  get galpones(): GalponFiltroContableDto[] {
+    if (!this.filtrosData) return [];
+    const granja = this.filtrosData.granjas.find(g => g.granjaId === this.selectedGranjaId);
+    if (!granja) return [];
+    if (!this.selectedNucleoId) {
+      return granja.nucleos.flatMap(n => n.galpones);
+    }
+    return granja.nucleos.find(n => n.nucleoId === this.selectedNucleoId)?.galpones ?? [];
+  }
+
+  get lotesBase(): LoteBaseFiltroContableDto[] {
+    if (!this.filtrosData) return [];
+    const granja = this.filtrosData.granjas.find(g => g.granjaId === this.selectedGranjaId);
+    if (!granja) return [];
+
+    const nucleosFiltro = this.selectedNucleoId
+      ? granja.nucleos.filter(n => n.nucleoId === this.selectedNucleoId)
+      : granja.nucleos;
+
+    const galponesFiltro = this.selectedGalponId
+      ? nucleosFiltro.flatMap(n => n.galpones).filter(g => g.galponId === this.selectedGalponId)
+      : nucleosFiltro.flatMap(n => n.galpones);
+
+    return galponesFiltro.flatMap(g => g.lotesBase);
+  }
+
+  get selectedLoteBase(): LoteBaseFiltroContableDto | null {
+    return this.lotesBase.find(l => l.loteId === this.selectedLoteBaseId) ?? null;
+  }
+
+  get selectedGranjaNombre(): string {
+    return this.granjas.find(g => g.granjaId === this.selectedGranjaId)?.granjaNombre ?? '';
+  }
+
+  get selectedNucleoNombre(): string {
+    return this.nucleos.find(n => n.nucleoId === this.selectedNucleoId)?.nucleoNombre ?? '';
+  }
+
+  get selectedGalponNombre(): string {
+    return this.galpones.find(g => g.galponId === this.selectedGalponId)?.galponNombre ?? '';
+  }
+
+  get selectedLoteBaseNombre(): string {
+    return this.selectedLoteBase?.loteNombre ?? '';
   }
 
   // ================== EVENTOS DE FILTRO ==================
+
   onGranjaChange(granjaId: number | null): void {
-    this.selectedGranjaId = granjaId;
+    this.selectedGranjaId = granjaId ? Number(granjaId) : null;
     this.selectedNucleoId = null;
     this.selectedGalponId = null;
-    this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteBaseId = null;
     this.reporte.set(null);
-    this.nucleos = [];
-    this.lotesPadres = [];
-
-    if (!this.selectedGranjaId) return;
-
-    this.nucleoService.getByGranja(this.selectedGranjaId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (rows) => (this.nucleos = rows || []),
-        error: () => (this.nucleos = [])
-      });
-
-    this.reloadLotes();
+    this.resetReporteConfig();
   }
 
   onNucleoChange(nucleoId: string | null): void {
-    this.selectedNucleoId = nucleoId;
+    this.selectedNucleoId = nucleoId || null;
     this.selectedGalponId = null;
-    this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedLoteBaseId = null;
     this.reporte.set(null);
-    this.applyFiltersToLotes();
+    this.resetReporteConfig();
   }
 
   onGalponChange(galponId: string | null): void {
-    this.selectedGalponId = galponId;
-    this.selectedLoteId = null;
-    this.selectedLote = null;
+    this.selectedGalponId = galponId || null;
+    this.selectedLoteBaseId = null;
     this.reporte.set(null);
-    this.applyFiltersToLotes();
+    this.resetReporteConfig();
   }
 
-  onLoteChange(loteId: number | null): void {
-    this.selectedLoteId = loteId;
+  onLoteBaseChange(loteId: number | null): void {
+    this.selectedLoteBaseId = loteId ? Number(loteId) : null;
+    this.faseDelLote = null;
     this.reporte.set(null);
+    this.resetReporteConfig();
+    this.error = null;
+  }
+
+  onFaseChange(fase: 'Levante' | 'Produccion' | null): void {
+    this.faseDelLote = fase;
+    this.reporte.set(null);
+    this.resetReporteConfig();
+    this.error = null;
+
+    if (this.selectedLoteBaseId && this.faseDelLote) {
+      this.cargarSemanasContables();
+    }
+  }
+
+  private resetReporteConfig(): void {
     this.semanaContable = null;
     this.semanasContablesDisponibles = [];
     this.fechaInicio = null;
     this.fechaFin = null;
     this.usarRangoFechas = false;
-    this.error = null;
-
-    if (!this.selectedLoteId) {
-      this.selectedLote = null;
-      return;
-    }
-
-    // Verificar que el lote seleccionado sea un lote padre
-    const lote = this.lotesPadres.find(l => l.loteId === this.selectedLoteId);
-    if (!lote) {
-      this.error = 'Debe seleccionar un lote padre para generar el reporte contable';
-      this.selectedLoteId = null;
-      return;
-    }
-
-    this.selectedLote = lote;
-    this.cargarSemanasContables();
-  }
-
-  private reloadLotes(): void {
-    if (!this.selectedGranjaId) {
-      this.allLotes = [];
-      this.lotesPadres = [];
-      return;
-    }
-
-    this.loteService.getAll()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (lotes) => {
-          this.allLotes = lotes || [];
-          this.applyFiltersToLotes();
-        },
-        error: () => {
-          this.allLotes = [];
-          this.lotesPadres = [];
-        }
-      });
-  }
-
-  private applyFiltersToLotes(): void {
-    let filtrados = [...this.allLotes];
-
-    // Filtrar por granja
-    if (this.selectedGranjaId) {
-      filtrados = filtrados.filter(l => l.granjaId === this.selectedGranjaId);
-    }
-
-    // Filtrar por núcleo
-    if (this.selectedNucleoId) {
-      filtrados = filtrados.filter(l => l.nucleoId === this.selectedNucleoId);
-    }
-
-    // Filtrar por galpón
-    if (this.selectedGalponId) {
-      filtrados = filtrados.filter(l => l.galponId === this.selectedGalponId);
-    }
-
-    // Solo lotes padres (sin lotePadreId)
-    this.lotesPadres = filtrados.filter(l => !l.lotePadreId);
   }
 
   private cargarSemanasContables(): void {
-    if (!this.selectedLoteId) return;
-
-    this.reporteContableService.obtenerSemanasContables(this.selectedLoteId)
+    if (!this.selectedLoteBaseId) return;
+    this.reporteContableService.obtenerSemanasContables(this.selectedLoteBaseId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (semanas) => {
-          this.semanasContablesDisponibles = semanas || [];
-          if (semanas && semanas.length > 0) {
-            // Seleccionar la última semana por defecto
+          this.semanasContablesDisponibles = semanas ?? [];
+          if (semanas?.length > 0) {
             this.semanaContable = semanas[semanas.length - 1];
           }
         },
-        error: (err) => {
-          console.error('Error al cargar semanas contables:', err);
-          this.semanasContablesDisponibles = [];
-        }
+        error: () => { this.semanasContablesDisponibles = []; }
       });
   }
 
   // ================== GENERAR REPORTE ==================
+
   generarReporte(): void {
-    if (!this.validarFiltros()) {
-      return;
-    }
+    if (!this.validarFiltros()) return;
 
     this.loading.set(true);
     this.error = null;
 
-    // Si se usa rango de fechas, limpiar semana contable
-    // Si se usa semana contable, limpiar rango de fechas
     const request: GenerarReporteContableRequestDto = {
-      lotePadreId: this.selectedLoteId!,
-      semanaContable: this.usarRangoFechas ? undefined : (this.semanaContable || undefined),
-      fechaInicio: this.usarRangoFechas ? (this.fechaInicio || undefined) : undefined,
-      fechaFin: this.usarRangoFechas ? (this.fechaFin || undefined) : undefined
+      lotePadreId: this.selectedLoteBaseId!,
+      faseDelLote: this.faseDelLote!,
+      semanaContable: this.usarRangoFechas ? undefined : (this.semanaContable ?? undefined),
+      fechaInicio: this.usarRangoFechas ? (this.fechaInicio ?? undefined) : undefined,
+      fechaFin: this.usarRangoFechas ? (this.fechaFin ?? undefined) : undefined
     };
 
     this.reporteContableService.generarReporte(request)
-      .pipe(
-        finalize(() => this.loading.set(false)),
-        takeUntil(this.destroy$)
-      )
+      .pipe(finalize(() => this.loading.set(false)), takeUntil(this.destroy$))
       .subscribe({
         next: (reporte) => {
           this.reporte.set(reporte);
           this.error = null;
-          // Cargar también el reporte de movimientos de huevos
           this.cargarReporteMovimientosHuevos(request);
         },
         error: (err) => {
-          console.error('Error al generar reporte contable:', err);
           this.error = err.error?.message || 'Error al generar el reporte contable';
           this.reporte.set(null);
         }
@@ -292,35 +267,24 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   private cargarReporteMovimientosHuevos(request: GenerarReporteContableRequestDto): void {
     this.loadingMovimientosHuevos.set(true);
     this.reporteContableService.obtenerReporteMovimientosHuevos(request)
-      .pipe(
-        finalize(() => this.loadingMovimientosHuevos.set(false)),
-        takeUntil(this.destroy$)
-      )
+      .pipe(finalize(() => this.loadingMovimientosHuevos.set(false)), takeUntil(this.destroy$))
       .subscribe({
-        next: (reporte) => {
-          this.reporteMovimientosHuevos.set(reporte);
-        },
-        error: (err) => {
-          console.error('Error al cargar reporte de movimientos de huevos:', err);
-          this.reporteMovimientosHuevos.set(null);
-        }
+        next: (reporte) => { this.reporteMovimientosHuevos.set(reporte); },
+        error: () => { this.reporteMovimientosHuevos.set(null); }
       });
   }
 
   private validarFiltros(): boolean {
-    if (!this.selectedLoteId) {
-      this.error = 'Debe seleccionar un lote padre';
+    if (!this.selectedLoteBaseId) {
+      this.error = 'Debe seleccionar un lote base para generar el reporte contable';
       return false;
     }
 
-    // Verificar que el lote seleccionado sea un lote padre
-    const lote = this.lotesPadres.find(l => l.loteId === this.selectedLoteId);
-    if (!lote) {
-      this.error = 'Debe seleccionar un lote padre (no un sublote)';
+    if (!this.faseDelLote) {
+      this.error = 'Debe seleccionar la fase del lote (Levante o Producción)';
       return false;
     }
 
-    // Validar rango de fechas si se está usando
     if (this.usarRangoFechas || this.fechaInicio || this.fechaFin) {
       if (this.fechaInicio && this.fechaFin) {
         const inicio = new Date(this.fechaInicio);
@@ -329,9 +293,8 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
           this.error = 'La fecha de inicio debe ser anterior a la fecha de fin';
           return false;
         }
-        // Validar que el rango no sea excesivamente grande (máximo 1 año)
-        const diasDiferencia = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
-        if (diasDiferencia > 365) {
+        const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+        if (dias > 365) {
           this.error = 'El rango de fechas no puede ser mayor a 365 días';
           return false;
         }
@@ -348,47 +311,43 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     return true;
   }
 
+  puedeGenerarReporte(): boolean {
+    return this.validarFiltros();
+  }
+
   // ================== EXPORTAR EXCEL ==================
+
   exportarExcel(): void {
-    if (!this.validarFiltros()) {
-      return;
-    }
+    if (!this.validarFiltros()) return;
 
     this.loading.set(true);
     this.error = null;
 
-    // Usar la misma lógica que generarReporte para determinar qué filtros enviar
     const request: GenerarReporteContableRequestDto = {
-      lotePadreId: this.selectedLoteId!,
-      semanaContable: this.usarRangoFechas ? undefined : (this.semanaContable || undefined),
-      fechaInicio: this.usarRangoFechas ? (this.fechaInicio || undefined) : undefined,
-      fechaFin: this.usarRangoFechas ? (this.fechaFin || undefined) : undefined
+      lotePadreId: this.selectedLoteBaseId!,
+      faseDelLote: this.faseDelLote!,
+      semanaContable: this.usarRangoFechas ? undefined : (this.semanaContable ?? undefined),
+      fechaInicio: this.usarRangoFechas ? (this.fechaInicio ?? undefined) : undefined,
+      fechaFin: this.usarRangoFechas ? (this.fechaFin ?? undefined) : undefined
     };
 
     this.reporteContableService.exportarExcel(request)
-      .pipe(
-        finalize(() => this.loading.set(false)),
-        takeUntil(this.destroy$)
-      )
+      .pipe(finalize(() => this.loading.set(false)), takeUntil(this.destroy$))
       .subscribe({
         next: (blob) => {
           const url = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          
           const reporte = this.reporte();
-          const nombreArchivo = reporte 
+          link.download = reporte
             ? `Reporte_Contable_${reporte.lotePadreNombre}_Semana_${this.semanaContable || 'Actual'}.xlsx`
-            : `Reporte_Contable_${this.selectedLoteId}_${new Date().toISOString().split('T')[0]}.xlsx`;
-          
-          link.download = nombreArchivo;
+            : `Reporte_Contable_${this.selectedLoteBaseId}_${new Date().toISOString().split('T')[0]}.xlsx`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
         },
         error: (err) => {
-          console.error('Error al exportar reporte contable:', err);
           this.error = err.error?.message || 'Error al exportar el reporte contable';
         }
       });
@@ -397,10 +356,11 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   limpiarReporte(): void {
     this.reporte.set(null);
     this.error = null;
-    this.activeTab = 'resumen'; // Resetear al tab de resumen
+    this.activeTab = 'resumen';
   }
 
-  // ================== MÉTODOS PARA TABS ==================
+  // ================== TABS ==================
+
   setActiveTab(tab: 'resumen' | 'movimientos-huevos' | number): void {
     this.activeTab = tab;
   }
@@ -412,94 +372,101 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
   getTabLabel(semana: number): string {
     const reporte = this.reporte();
     if (!reporte) return `Semana ${semana}`;
-    
-    const reporteSemanal = reporte.reportesSemanales.find(r => r.semanaContable === semana);
-    if (!reporteSemanal) return `Semana ${semana}`;
-    
-    const fechaInicio = this.formatDateShort(reporteSemanal.fechaInicio);
-    const fechaFin = this.formatDateShort(reporteSemanal.fechaFin);
-    return `Sem ${semana} (${fechaInicio}-${fechaFin})`;
+    const r = reporte.reportesSemanales.find(r => r.semanaContable === semana);
+    if (!r) return `Semana ${semana}`;
+    return `Sem ${semana} (${this.formatDateShort(r.fechaInicio)}-${this.formatDateShort(r.fechaFin)})`;
   }
 
-  formatDateShort(date: string | Date | null | undefined): string {
-    if (!date) return '';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
-  }
+  // ================== EVENTOS DE FECHAS / SEMANA ==================
 
   onSemanaChange(): void {
-    // Si se selecciona una semana, desactivar rango de fechas
     if (this.semanaContable !== null) {
       this.usarRangoFechas = false;
       this.fechaInicio = null;
       this.fechaFin = null;
-    } else {
-      // Si se deselecciona la semana, permitir usar rango de fechas si ya hay fechas
-      if (this.fechaInicio || this.fechaFin) {
-        this.usarRangoFechas = true;
-      }
+    } else if (this.fechaInicio || this.fechaFin) {
+      this.usarRangoFechas = true;
     }
     this.limpiarReporte();
   }
 
   onFechaInicioChange(): void {
-    // Si se selecciona fecha inicio, activar rango de fechas y limpiar semana
     if (this.fechaInicio) {
       this.usarRangoFechas = true;
       this.semanaContable = null;
-    } else {
-      // Si se limpia fecha inicio y no hay fecha fin, desactivar rango de fechas
-      if (!this.fechaFin) {
-        this.usarRangoFechas = false;
-      }
+    } else if (!this.fechaFin) {
+      this.usarRangoFechas = false;
     }
     this.limpiarReporte();
   }
 
   onFechaFinChange(): void {
-    // Si se selecciona fecha fin, activar rango de fechas y limpiar semana
     if (this.fechaFin) {
       this.usarRangoFechas = true;
       this.semanaContable = null;
-    } else {
-      // Si se limpia fecha fin y no hay fecha inicio, desactivar rango de fechas
-      if (!this.fechaInicio) {
-        this.usarRangoFechas = false;
-      }
+    } else if (!this.fechaInicio) {
+      this.usarRangoFechas = false;
     }
     this.limpiarReporte();
   }
 
-  // ================== COMPUTED PROPERTIES ==================
-  get selectedGranjaName(): string {
-    if (!this.selectedGranjaId) return '';
-    return this.granjas.find(g => g.id === this.selectedGranjaId)?.name || '';
+  // ================== TOTALES ==================
+
+  getTotalMortalidad(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.mortalidadHembrasSemanal + s.mortalidadMachosSemanal, 0);
   }
 
-  get selectedNucleoNombre(): string {
-    if (!this.selectedNucleoId) return '';
-    return this.nucleos.find(n => n.nucleoId === this.selectedNucleoId)?.nucleoNombre || '';
+  getTotalTraslados(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.trasladosHembrasSemanal + s.trasladosMachosSemanal, 0);
   }
 
-  get selectedGalponNombre(): string {
-    // Obtener nombre del galpón desde el lote seleccionado si está disponible
-    if (this.selectedLote?.galponId) {
-      return this.selectedLote.galponId;
-    }
-    return this.selectedGalponId || '';
+  getTotalVentas(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.ventasHembrasSemanal + s.ventasMachosSemanal, 0);
   }
 
-  get selectedLoteNombre(): string {
-    return this.selectedLote?.loteNombre || '';
+  getTotalAlimento(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalAlimento, 0);
   }
 
-  get isFormValid(): boolean {
-    return this.validarFiltros();
+  getTotalAgua(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalAgua, 0);
   }
 
-  puedeGenerarReporte(): boolean {
-    return this.validarFiltros();
+  getTotalMedicamento(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalMedicamento, 0);
   }
+
+  getTotalVacuna(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.consumoTotalVacuna, 0);
+  }
+
+  getTotalOtros(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.otrosConsumos, 0);
+  }
+
+  getTotalGeneral(): number {
+    const r = this.reporte();
+    if (!r) return 0;
+    return r.reportesSemanales.reduce((t, s) => t + s.totalGeneral, 0);
+  }
+
+  // ================== HELPERS ==================
 
   formatDate(date: string | Date | null | undefined): string {
     if (!date) return 'N/A';
@@ -507,69 +474,9 @@ export class ReporteContableMainComponent implements OnInit, OnDestroy {
     return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  // ================== MÉTODOS PARA TOTALES DEL RESUMEN ==================
-  getTotalMortalidad(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.mortalidadHembrasSemanal + semanal.mortalidadMachosSemanal, 0);
+  formatDateShort(date: string | Date | null | undefined): string {
+    if (!date) return '';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
   }
-
-  getTotalTraslados(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.trasladosHembrasSemanal + semanal.trasladosMachosSemanal, 0);
-  }
-
-  getTotalVentas(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.ventasHembrasSemanal + semanal.ventasMachosSemanal, 0);
-  }
-
-  getTotalAlimento(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.consumoTotalAlimento, 0);
-  }
-
-  getTotalAgua(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.consumoTotalAgua, 0);
-  }
-
-  getTotalMedicamento(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.consumoTotalMedicamento, 0);
-  }
-
-  getTotalVacuna(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.consumoTotalVacuna, 0);
-  }
-
-  getTotalOtros(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.otrosConsumos, 0);
-  }
-
-  getTotalGeneral(): number {
-    const reporte = this.reporte();
-    if (!reporte) return 0;
-    return reporte.reportesSemanales.reduce((total, semanal) => 
-      total + semanal.totalGeneral, 0);
-  }
-
 }
-

@@ -185,6 +185,8 @@ public record ReporteContableCompletoDto
 public record GenerarReporteContableRequestDto
 {
     public int LotePadreId { get; init; }
+    /// <summary>Fase del lote: "Levante" o "Produccion"</summary>
+    public string FaseLote { get; init; } = string.Empty;
     public int? SemanaContable { get; init; }
     public DateTime? FechaInicio { get; init; }
     public DateTime? FechaFin { get; init; }

@@ -149,9 +149,40 @@ export interface ReporteContableCompletoDto {
 
 export interface GenerarReporteContableRequestDto {
   lotePadreId: number;
+  /** "Levante" o "Produccion" */
+  faseDelLote: string;
   semanaContable?: number;
   fechaInicio?: string;
   fechaFin?: string;
+}
+
+export interface LoteBaseFiltroContableDto {
+  loteId: number;
+  loteNombre: string;
+  lotePosturaBaseId?: number | null;
+  codigoErp?: string | null;
+}
+
+export interface GalponFiltroContableDto {
+  galponId?: string | null;
+  galponNombre: string;
+  lotesBase: LoteBaseFiltroContableDto[];
+}
+
+export interface NucleoFiltroContableDto {
+  nucleoId?: string | null;
+  nucleoNombre: string;
+  galpones: GalponFiltroContableDto[];
+}
+
+export interface GranjaFiltroContableDto {
+  granjaId: number;
+  granjaNombre: string;
+  nucleos: NucleoFiltroContableDto[];
+}
+
+export interface FiltrosContablesDto {
+  granjas: GranjaFiltroContableDto[];
 }
 
 @Injectable({
@@ -167,7 +198,8 @@ export class ReporteContableService {
    */
   generarReporte(request: GenerarReporteContableRequestDto): Observable<ReporteContableCompletoDto> {
     let params = new HttpParams()
-      .set('lotePadreId', request.lotePadreId.toString());
+      .set('lotePadreId', request.lotePadreId.toString())
+      .set('faseLote', request.faseDelLote);
 
     if (request.semanaContable) {
       params = params.set('semanaContable', request.semanaContable.toString());
@@ -194,7 +226,8 @@ export class ReporteContableService {
    */
   exportarExcel(request: GenerarReporteContableRequestDto): Observable<Blob> {
     let params = new HttpParams()
-      .set('lotePadreId', request.lotePadreId.toString());
+      .set('lotePadreId', request.lotePadreId.toString())
+      .set('faseLote', request.faseDelLote);
 
     if (request.semanaContable) {
       params = params.set('semanaContable', request.semanaContable.toString());
@@ -210,6 +243,13 @@ export class ReporteContableService {
       params,
       responseType: 'blob'
     });
+  }
+
+  /**
+   * Retorna la jerarquía granjas → núcleos → galpones → lotes base para los filtros del reporte
+   */
+  getFiltrosDisponibles(): Observable<FiltrosContablesDto> {
+    return this.http.get<FiltrosContablesDto>(`${this.apiUrl}/filtros-disponibles`);
   }
 
   /**
