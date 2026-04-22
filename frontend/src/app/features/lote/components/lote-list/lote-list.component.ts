@@ -314,6 +314,14 @@ export class LoteListComponent implements OnInit {
       }
     });
 
+    // Cuando cambia el galpón, regenerar nombre si ya hay lote base seleccionado
+    this.form.get('galponId')!.valueChanges.subscribe(() => {
+      if (this.selectedBaseLote) {
+        const generatedName = this.generateNextLoteNameFromBase(this.selectedBaseLote.loteNombre);
+        this.form.patchValue({ loteNombre: generatedName }, { emitEvent: false });
+      }
+    });
+
     // Totales (encasetadas)
     this.form.get('hembrasL')!.valueChanges.subscribe(() => this.actualizarEncasetadas());
     this.form.get('machosL')!.valueChanges.subscribe(() => this.actualizarEncasetadas());
@@ -880,18 +888,27 @@ export class LoteListComponent implements OnInit {
     const cleanBase = (baseName ?? '').toString().trim();
     if (!cleanBase) return '';
 
+    // Scope to the currently selected location in the form
+    const currentGranjaId = this.form.get('granjaId')?.value != null
+      ? Number(this.form.get('granjaId')?.value) : null;
+    const currentNucleoId = this.form.get('nucleoId')?.value != null
+      ? String(this.form.get('nucleoId')?.value) : null;
+    const currentGalponId = this.form.get('galponId')?.value != null
+      ? String(this.form.get('galponId')?.value) : null;
+
     const taken = new Set<string>();
     for (const l of this.lotes ?? []) {
       const name = (l.loteNombre ?? '').toString().trim();
-      if (!name) continue;
-      if (!name.startsWith(cleanBase)) continue;
+      if (!name || !name.startsWith(cleanBase)) continue;
 
-      // Formato esperado: K324A, K324B... (sin espacios)
+      // Only count letters used in the same granja+nucleo+galpon
+      const sameGranja = currentGranjaId == null || l.granjaId === currentGranjaId;
+      const sameNucleo = currentNucleoId == null || String(l.nucleoId ?? '') === currentNucleoId;
+      const sameGalpon = currentGalponId == null || String(l.galponId ?? '') === currentGalponId;
+      if (!sameGranja || !sameNucleo || !sameGalpon) continue;
+
       const suffix = name.substring(cleanBase.length).trim();
-      if (!suffix) {
-        taken.add(''); // base sin sufijo
-        continue;
-      }
+      if (!suffix) { taken.add(''); continue; }
       const letter = suffix.substring(0, 1).toUpperCase();
       if (/^[A-Z]$/.test(letter)) taken.add(letter);
     }

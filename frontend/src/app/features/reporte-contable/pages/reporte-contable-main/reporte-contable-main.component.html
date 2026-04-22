@@ -20,7 +20,7 @@
 
           <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
             <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
+            Granja: {{ selectedGranjaNombre || selectedGranjaId }}
           </span>
 
           <span class="chip chip--muted" *ngIf="selectedNucleoId">
@@ -31,9 +31,14 @@
             Galpón: {{ selectedGalponNombre }}
           </span>
 
-          <span class="chip chip--info" *ngIf="selectedLoteId">
+          <span class="chip chip--info" *ngIf="selectedLoteBaseId">
             <span class="chip__dot" aria-hidden="true"></span>
-            Lote Padre: {{ selectedLoteNombre }}
+            Lote Base: {{ selectedLoteBaseNombre }}
+          </span>
+
+          <span class="chip chip--warning" *ngIf="faseDelLote">
+            <span class="chip__dot" aria-hidden="true"></span>
+            Fase: {{ faseDelLote === 'Levante' ? 'Levante' : 'Producción' }}
           </span>
 
           <span class="chip chip--success" *ngIf="semanaContable">
@@ -48,7 +53,7 @@
           class="btn btn--primary"
           (click)="generarReporte()"
           [disabled]="loading() || !puedeGenerarReporte()"
-          [title]="!puedeGenerarReporte() ? 'Selecciona un lote padre para generar el reporte' : 'Generar reporte contable'">
+          [title]="!puedeGenerarReporte() ? 'Selecciona un lote base y la fase del lote para generar el reporte' : 'Generar reporte contable'">
           <fa-icon *ngIf="loading()" [icon]="faSpinner" class="spinning"></fa-icon>
           <fa-icon *ngIf="!loading()" [icon]="faSearch"></fa-icon>
           Generar Reporte
@@ -66,21 +71,109 @@
       </div>
     </header>
 
-    <!-- Filtros de selección -->
-    <app-filtro-select
-      [selectedGranjaId]="selectedGranjaId"
-      [selectedNucleoId]="selectedNucleoId"
-      [selectedGalponId]="selectedGalponId"
-      [selectedLoteId]="selectedLoteId"
-      [soloLotesPadres]="true"
-      (granjaChange)="onGranjaChange($event)"
-      (nucleoChange)="onNucleoChange($event)"
-      (galponChange)="onGalponChange($event)"
-      (loteChange)="onLoteChange($event)">
-    </app-filtro-select>
+    <!-- Filtros de selección jerárquicos -->
+    <section class="ux-card">
+      @if (loadingFiltros()) {
+        <div class="loading-state">
+          <fa-icon [icon]="faSpinner" [animation]="'spin'"></fa-icon>
+          <span>Cargando filtros...</span>
+        </div>
+      } @else {
+        <div class="ux-form">
+          <div class="grid grid-2">
+            <!-- Granja -->
+            <div class="form-field">
+              <label class="ux-label">Granja</label>
+              <div class="ux-select">
+                <select class="ux-input"
+                  [ngModel]="selectedGranjaId"
+                  (ngModelChange)="onGranjaChange($event)">
+                  <option [ngValue]="null">Selecciona una granja</option>
+                  @for (g of granjas; track g.granjaId) {
+                    <option [ngValue]="g.granjaId">{{ g.granjaNombre }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <!-- Núcleo -->
+            <div class="form-field">
+              <label class="ux-label">Núcleo</label>
+              <div class="ux-select">
+                <select class="ux-input"
+                  [ngModel]="selectedNucleoId"
+                  (ngModelChange)="onNucleoChange($event)"
+                  [disabled]="!selectedGranjaId">
+                  <option [ngValue]="null">Todos los núcleos</option>
+                  @for (n of nucleos; track n.nucleoId) {
+                    <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <!-- Galpón -->
+            <div class="form-field">
+              <label class="ux-label">Galpón</label>
+              <div class="ux-select">
+                <select class="ux-input"
+                  [ngModel]="selectedGalponId"
+                  (ngModelChange)="onGalponChange($event)"
+                  [disabled]="!selectedGranjaId">
+                  <option [ngValue]="null">Todos los galpones</option>
+                  @for (g of galpones; track g.galponId) {
+                    <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <!-- Lote Base -->
+            <div class="form-field">
+              <label class="ux-label">Lote Base</label>
+              <div class="ux-select">
+                <select class="ux-input"
+                  [ngModel]="selectedLoteBaseId"
+                  (ngModelChange)="onLoteBaseChange($event)"
+                  [disabled]="!selectedGranjaId">
+                  <option [ngValue]="null">Selecciona un lote base</option>
+                  @for (l of lotesBase; track l.loteId) {
+                    <option [ngValue]="l.loteId">
+                      {{ l.loteNombre }}{{ l.codigoErp ? ' — ' + l.codigoErp : '' }}
+                    </option>
+                  }
+                </select>
+              </div>
+            </div>
+
+            <!-- Fase del lote — requerida -->
+            @if (selectedLoteBaseId) {
+              <div class="form-field">
+                <label class="ux-label">
+                  Fase del Lote <span style="color: var(--color-danger, #e53e3e);">*</span>
+                </label>
+                <div class="ux-select">
+                  <select class="ux-input"
+                    [ngModel]="faseDelLote"
+                    (ngModelChange)="onFaseChange($event)">
+                    <option [ngValue]="null">Selecciona la fase</option>
+                    <option value="Levante">Levante</option>
+                    <option value="Produccion">Producción</option>
+                  </select>
+                </div>
+                <small class="ux-hint">
+                  Levante: datos desde <strong>lote_postura_levante</strong> y <strong>seguimiento_diario</strong>.
+                  Producción: datos desde <strong>produccion_diaria</strong>.
+                </small>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </section>
 
     <!-- Filtros de Reporte -->
-    <section class="ux-card" *ngIf="selectedLoteId">
+    <section class="ux-card" *ngIf="selectedLoteBaseId && faseDelLote">
       <h3 class="sr-only">Configuración del Reporte Contable</h3>
       
       <div class="ux-form">
@@ -106,19 +199,18 @@
             </small>
           </div>
 
-          <!-- Información del Lote Padre -->
-          <div class="form-field" *ngIf="selectedLote">
-            <label class="ux-label">Información del Lote Padre</label>
-            <div class="info-display">
-              <p><strong>Lote:</strong> {{ selectedLote.loteNombre }}</p>
-              <p *ngIf="selectedLote.fechaEncaset">
-                <strong>Fecha Encaset:</strong> {{ formatDate(selectedLote.fechaEncaset) }}
-              </p>
-              <p *ngIf="selectedLote.raza">
-                <strong>Raza:</strong> {{ selectedLote.raza }}
-              </p>
+          <!-- Información del Lote Base -->
+          @if (selectedLoteBase) {
+            <div class="form-field">
+              <label class="ux-label">Información del Lote Base</label>
+              <div class="info-display">
+                <p><strong>Lote:</strong> {{ selectedLoteBase.loteNombre }}</p>
+                @if (selectedLoteBase.codigoErp) {
+                  <p><strong>Código ERP:</strong> {{ selectedLoteBase.codigoErp }}</p>
+                }
+              </div>
             </div>
-          </div>
+          }
         </div>
 
         <!-- Filtro por Rango de Fechas -->
@@ -395,12 +487,13 @@
     </section>
 
     <!-- Mensaje cuando no hay reporte -->
-    <div *ngIf="!reporte() && !loading() && selectedLoteId" class="ux-card ux-card--empty">
+    <div *ngIf="!reporte() && !loading() && selectedLoteBaseId && faseDelLote" class="ux-card ux-card--empty">
       <div class="empty-state">
         <fa-icon [icon]="faFileAlt" class="empty-icon"></fa-icon>
-        <p>Selecciona un lote padre y genera el reporte contable</p>
+        <p>Selecciona los filtros y genera el reporte contable</p>
         <p class="empty-hint">
-          El reporte contable se genera solo para lotes padres y consolida todos sus sublotes
+          El reporte consolida todos los sublotes del lote base seleccionado para la fase
+          <strong>{{ faseDelLote === 'Levante' ? 'Levante' : 'Producción' }}</strong>
         </p>
       </div>
     </div>

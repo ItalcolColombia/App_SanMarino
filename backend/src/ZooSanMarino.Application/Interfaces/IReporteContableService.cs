@@ -26,5 +26,11 @@ public interface IReporteContableService
     Task<ReporteMovimientosHuevosDto> ObtenerReporteMovimientosHuevosAsync(
         ObtenerReporteMovimientosHuevosRequestDto request,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Retorna la jerarquía granjas → núcleos → galpones → lotes base disponibles para filtrar
+    /// el reporte contable. Muestra el nombre del LotePosturaBase si el lote lo tiene asignado.
+    /// </summary>
+    Task<FiltrosContablesDto> GetFiltrosDisponiblesAsync(CancellationToken ct = default);
 }
 
