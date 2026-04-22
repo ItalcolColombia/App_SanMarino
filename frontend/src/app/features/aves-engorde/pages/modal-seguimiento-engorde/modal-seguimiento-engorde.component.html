@@ -131,6 +131,12 @@
 
             <div class="data-group">
               <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
+              <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                <strong>Dia de pesaje semanal obligatorio.</strong>
+                La fecha seleccionada corresponde a una semana completa de seguimiento. El peso promedio
+                <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
+                es obligatorio para guardar este registro.
+              </p>
               <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles && (bloqueoHembrasPorAves || bloqueoMachosPorAves)" style="margin: 0 0 0.75rem 0;">
                 Peso, uniformidad y CV solo aplican al sexo con aves disponibles.
                 <ng-container *ngIf="bloqueoHembrasPorAves"><strong> Hembras:</strong> sin aves (campos deshabilitados).</ng-container>
@@ -141,9 +147,12 @@
                 <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
                 <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
 
-                <div class="compare-grid__row-title">Peso promedio (kg)</div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
+                <div class="compare-grid__row-title">
+                  Peso promedio (kg)
+                  <span *ngIf="esDiaPesoObligatorio && !editing" style="color: #d32f2f; font-weight: 700;" title="Obligatorio este día"> *</span>
+                </div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoHembrasPorAves && !form.get('pesoPromH')?.value"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
+                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoMachosPorAves && !form.get('pesoPromM')?.value"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
 
                 <div class="compare-grid__row-title">Uniformidad (%)</div>
                 <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
@@ -228,7 +237,7 @@
 
       <footer class="ux-modal__footer">
         <button type="button" class="btn btn--ghost" (click)="onClose()" [disabled]="loading || loadingRecord">Cancelar</button>
-        <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida">
+        <button type="submit" class="btn btn--primary" [disabled]="loading || loadingRecord || form.invalid || hasCantidadExcedida || pesoPendienteEnDiaSemanal">
           <ng-container *ngIf="loadingRecord">Cargando registro…</ng-container>
           <ng-container *ngIf="!loadingRecord && loading">{{ editing ? 'Actualizando…' : 'Guardando…' }}</ng-container>
           <ng-container *ngIf="!loadingRecord && !loading">{{ editing ? 'Actualizar registro' : 'Guardar' }}</ng-container>

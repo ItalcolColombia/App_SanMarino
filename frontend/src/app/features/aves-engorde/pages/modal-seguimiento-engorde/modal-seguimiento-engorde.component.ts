@@ -531,6 +531,34 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     return !!this.editing && this.hembrasSoloAlimento;
   }
 
+  /**
+   * True si la fecha del registro cae exactamente en un múltiplo de 7 días desde fechaEncaset
+   * (día 7, 14, 21, 28...). Solo aplica en nuevo registro, no en edición.
+   */
+  get esDiaPesoObligatorio(): boolean {
+    if (this.editing) return false;
+    const loteId = this.form?.get('loteId')?.value;
+    const fechaStr = this.form?.get('fechaRegistro')?.value;
+    if (!loteId || !fechaStr) return false;
+    const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
+    if (!lote?.fechaEncaset) return false;
+    const encaset = new Date(lote.fechaEncaset.substring(0, 10) + 'T00:00:00');
+    const registro = new Date(fechaStr + 'T00:00:00');
+    if (isNaN(encaset.getTime()) || isNaN(registro.getTime())) return false;
+    const diffDias = Math.round((registro.getTime() - encaset.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDias > 0 && diffDias % 7 === 0;
+  }
+
+  /** True si es día semanal de pesaje obligatorio pero falta el peso en algún sexo activo. */
+  get pesoPendienteEnDiaSemanal(): boolean {
+    if (!this.esDiaPesoObligatorio) return false;
+    const pesoH = this.form?.get('pesoPromH')?.value;
+    const pesoM = this.form?.get('pesoPromM')?.value;
+    const faltaH = !this.bloqueoHembrasPorAves && (pesoH === null || pesoH === '' || pesoH === undefined);
+    const faltaM = !this.bloqueoMachosPorAves && (pesoM === null || pesoM === '' || pesoM === undefined);
+    return faltaH || faltaM;
+  }
+
   // Obtener texto completo del ítem con cantidad disponible para mostrar en el dropdown
   getItemDisplayText(item: CatalogItemDto): string {
     const cantidad = this.getCantidadDisponible(item.id);
@@ -1608,6 +1636,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
   onSave(): void {
     if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    if (this.pesoPendienteEnDiaSemanal) {
       this.form.markAllAsTouched();
       return;
     }
