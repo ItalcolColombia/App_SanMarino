@@ -208,9 +208,40 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
     private async Task<IReadOnlyList<LoteRegistroHistoricoUnificadoDto>> QueryHistoricoUnificadoDtosAsync(int loteId, int companyId)
     {
+        // Resolve the lote's physical location (granja / nucleo / galpon).
+        // This is the source of truth used to filter by event type:
+        //   - VENTA_AVES       → lote level  (lote_ave_engorde_id)
+        //   - food movements   → galpon level (farm_id + nucleo_id + galpon_id)
+        //     (food is received at galpon level; lote_ave_engorde_id may be NULL if the
+        //      trigger ran before the lote was created — this covers that case too)
+        var loteInfo = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId })
+            .SingleOrDefaultAsync();
+
+        if (loteInfo is null)
+            return Array.Empty<LoteRegistroHistoricoUnificadoDto>();
+
+        int farmId      = loteInfo.GranjaId;
+        string nucleoId = (loteInfo.NucleoId ?? "").Trim();
+        string galponId = (loteInfo.GalponId ?? "").Trim();
+
         var rows = await _ctx.LoteRegistroHistoricoUnificados
             .AsNoTracking()
-            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado)
+            .Where(h => h.CompanyId == companyId
+                && !h.Anulado
+                && !((h.Referencia != null && h.Referencia.Contains("devolución por eliminación"))
+                     || (h.Referencia != null && h.Referencia.Contains("devolucion por eliminacion")))
+                && (
+                    // Bird sales: scoped to the specific lote
+                    (h.TipoEvento == "VENTA_AVES" && h.LoteAveEngordeId == loteId)
+                    ||
+                    // Food movements: scoped to the galpon regardless of lote assignment
+                    (h.TipoEvento != "VENTA_AVES"
+                        && h.FarmId == farmId
+                        && (h.NucleoId == null ? "" : h.NucleoId.Trim()) == nucleoId
+                        && (h.GalponId == null ? "" : h.GalponId.Trim()) == galponId)
+                ))
             .OrderBy(h => h.FechaOperacion)
             .ThenBy(h => h.Id)
             .ToListAsync();
