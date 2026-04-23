@@ -40,6 +40,57 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         _inventarioGestionService = inventarioGestionService;
     }
 
+    private static readonly string[] _docMetadataKeys =
+        ["documento", "documentoAlimento", "nroDocumento", "numeroDocumento"];
+
+    /// <summary>
+    /// Limpia campos de documento en la metadata que fueron contaminados con la referencia
+    /// "devolución por eliminación" generada al borrar un seguimiento anterior en la misma fecha.
+    /// Modifica la entidad en memoria; no persiste cambios.
+    /// </summary>
+    private static void SanitizeContaminatedDocumentMetadata(SeguimientoDiarioAvesEngorde s)
+    {
+        if (s.Metadata is null) return;
+        try
+        {
+            var root = s.Metadata.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return;
+
+            var needsClean = false;
+            foreach (var key in _docMetadataKeys)
+            {
+                if (root.TryGetProperty(key, out var v)
+                    && v.ValueKind == JsonValueKind.String)
+                {
+                    var text = v.GetString() ?? "";
+                    if (text.Contains("devolución por eliminación", StringComparison.OrdinalIgnoreCase)
+                     || text.Contains("devolucion por eliminacion", StringComparison.OrdinalIgnoreCase))
+                    {
+                        needsClean = true;
+                        break;
+                    }
+                }
+            }
+            if (!needsClean) return;
+
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(root.GetRawText())
+                       ?? new Dictionary<string, JsonElement>();
+            foreach (var key in _docMetadataKeys)
+            {
+                if (dict.TryGetValue(key, out var v)
+                    && v.ValueKind == JsonValueKind.String)
+                {
+                    var text = v.GetString() ?? "";
+                    if (text.Contains("devolución por eliminación", StringComparison.OrdinalIgnoreCase)
+                     || text.Contains("devolucion por eliminacion", StringComparison.OrdinalIgnoreCase))
+                        dict.Remove(key);
+                }
+            }
+            s.Metadata = JsonDocument.Parse(JsonSerializer.Serialize(dict));
+        }
+        catch { /* metadata malformado: no modificar */ }
+    }
+
     private static SeguimientoLoteLevanteDto MapToDto(SeguimientoDiarioAvesEngorde e)
     {
         return new SeguimientoLoteLevanteDto(
@@ -96,6 +147,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             .Where(s => s.LoteAveEngordeId == loteId)
             .OrderBy(s => s.Fecha)
             .ToListAsync();
+        foreach (var s in list)
+            SanitizeContaminatedDocumentMetadata(s);
         var seguimientos = list.Select(MapToDto).ToList();
 
         var historico = await QueryHistoricoUnificadoDtosAsync(loteId, companyId);
@@ -851,6 +904,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                 && x.LoteAveEngordeId == loteId
                 && x.FechaOperacion == day
                 && !x.Anulado
+                && !((x.Referencia != null && x.Referencia.Contains("devolución por eliminación"))
+                     || (x.Referencia != null && x.Referencia.Contains("devolucion por eliminacion")))
                 && (x.TipoEvento == "INV_INGRESO"
                     || x.TipoEvento == "INV_TRASLADO_ENTRADA"
                     || x.TipoEvento == "VENTA_AVES"))
