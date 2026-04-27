@@ -80,10 +80,22 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             Conductor = dto.Conductor,
             PesoBruto = dto.PesoBruto,
             PesoTara = dto.PesoTara,
+            PesoBrutoGlobal = dto.PesoBrutoGlobal,
+            PesoTaraGlobal = dto.PesoTaraGlobal,
+            PesoNetoGlobal = dto.PesoNetoGlobal,
+            // Peso individual: usa el prorrateado cuando lo provee CreateVentaGranjaDespachoAsync;
+            // en movimientos simples calcula desde PesoBruto - PesoTara.
+            PesoNeto = dto.PesoNetoIndividual
+                ?? (dto.PesoBruto.HasValue && dto.PesoTara.HasValue ? dto.PesoBruto.Value - dto.PesoTara.Value : null),
+            PromedioPesoAve = dto.PromedioPesoAveIndividual,
             CompanyId = _currentUser.CompanyId,
             CreatedByUserId = _currentUser.UserId,
             CreatedAt = DateTime.UtcNow
         };
+
+        // Para movimientos simples sin peso prorrateado, calcula el promedio por ave.
+        if (!movimiento.PromedioPesoAve.HasValue && movimiento.PesoNeto.HasValue && movimiento.TotalAves > 0)
+            movimiento.PromedioPesoAve = movimiento.PesoNeto.Value / movimiento.TotalAves;
 
         await RellenarOrigenDesdeLoteOrigenSiFaltaAsync(movimiento, dto);
 
@@ -207,6 +219,14 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         var loteDestinoNombre = m.LoteAveEngordeDestinoId.HasValue
             ? m.LoteAveEngordeDestino?.LoteNombre
             : m.LoteReproductoraAveEngordeDestinoId.HasValue ? m.LoteReproductoraAveEngordeDestino?.NombreLote : null;
+
+        // Backward compat: registros históricos tienen PesoNeto/PromedioPesoAve null (antes eran computed/ignored).
+        // En ese caso los calculamos sobre la marcha desde PesoBruto/PesoTara para no romper reportes existentes.
+        var pesoNeto = m.PesoNeto
+            ?? (m.PesoBruto.HasValue && m.PesoTara.HasValue ? m.PesoBruto.Value - m.PesoTara.Value : null);
+        var promedioPesoAve = m.PromedioPesoAve
+            ?? (pesoNeto.HasValue && m.TotalAves > 0 ? pesoNeto.Value / m.TotalAves : null);
+
         return new MovimientoPolloEngordeDto(
             m.Id,
             m.NumeroMovimiento,
@@ -246,8 +266,11 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             m.Conductor,
             m.PesoBruto,
             m.PesoTara,
-            m.PesoNeto,
-            m.PromedioPesoAve
+            pesoNeto,
+            promedioPesoAve,
+            m.PesoBrutoGlobal,
+            m.PesoTaraGlobal,
+            m.PesoNetoGlobal
         );
     }
 
@@ -1598,12 +1621,27 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             }
         }
 
+        // Calcular peso global y prorrateado por ave antes de entrar a la transacción.
+        var pesoBrutoGlobal = dto.PesoBruto ?? 0d;
+        var pesoTaraGlobal = dto.PesoTara ?? 0d;
+        var tienePeso = dto.PesoBruto.HasValue || dto.PesoTara.HasValue;
+
+        if (tienePeso && pesoBrutoGlobal < pesoTaraGlobal)
+            throw new InvalidOperationException("El peso bruto no puede ser menor que el peso tara.");
+
+        var pesoNetoGlobal = pesoBrutoGlobal - pesoTaraGlobal;
+        var totalAvesDespacho = lineas.Sum(l => l.CantidadHembras + l.CantidadMachos + l.CantidadMixtas);
+        var pesoPorAve = tienePeso && totalAvesDespacho > 0 ? pesoNetoGlobal / totalAvesDespacho : 0d;
+
         await using var tx = await _ctx.Database.BeginTransactionAsync();
         try
         {
             var results = new List<MovimientoPolloEngordeDto>();
             foreach (var linea in lineas)
             {
+                var cantidadLinea = linea.CantidadHembras + linea.CantidadMachos + linea.CantidadMixtas;
+                var pesoNetoLinea = tienePeso ? cantidadLinea * pesoPorAve : (double?)null;
+
                 var single = new CreateMovimientoPolloEngordeDto
                 {
                     FechaMovimiento = dto.FechaMovimiento,
@@ -1635,7 +1673,14 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
                     Ayuno = dto.Ayuno,
                     Conductor = dto.Conductor,
                     PesoBruto = dto.PesoBruto,
-                    PesoTara = dto.PesoTara
+                    PesoTara = dto.PesoTara,
+                    // Peso global del despacho: idéntico en todos los movimientos generados.
+                    PesoBrutoGlobal = tienePeso ? dto.PesoBruto : null,
+                    PesoTaraGlobal = tienePeso ? dto.PesoTara : null,
+                    PesoNetoGlobal = tienePeso ? pesoNetoGlobal : null,
+                    // Peso individual: proporcional a las aves de esta línea respecto al total del camión.
+                    PesoNetoIndividual = pesoNetoLinea,
+                    PromedioPesoAveIndividual = tienePeso && pesoPorAve > 0 ? pesoPorAve : null,
                 };
                 var created = await CreateAsync(single);
                 results.Add(created);
@@ -1678,5 +1723,121 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             await tx.RollbackAsync();
             throw;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<OrganizarPesoResponse> OrganizarPesoAsync(OrganizarPesoRequest request)
+    {
+        var companyId = _currentUser.CompanyId;
+
+        // Traer todas las ventas con peso registrado que aplican al scope pedido.
+        var query = _ctx.MovimientoPolloEngorde
+            .Where(m =>
+                m.CompanyId == companyId
+                && m.DeletedAt == null
+                && (m.TipoMovimiento == "Venta" || m.TipoMovimiento == "Despacho" || m.TipoMovimiento == "Retiro")
+                && (m.PesoBruto != null || m.PesoTara != null));
+
+        if (request.GranjaId.HasValue)
+        {
+            var gId = request.GranjaId.Value;
+            query = query.Where(m => m.GranjaOrigenId == gId);
+        }
+
+        if (!request.ReprocesarTodo)
+            query = query.Where(m => m.PesoNetoGlobal == null);
+
+        var movimientos = await query
+            .OrderBy(m => m.NumeroDespacho ?? "")
+            .ThenBy(m => m.Id)
+            .ToListAsync();
+
+        if (movimientos.Count == 0)
+        {
+            return new OrganizarPesoResponse
+            {
+                DryRun = request.DryRun,
+                Mensaje = request.ReprocesarTodo
+                    ? "No hay ventas con peso registrado en el scope indicado."
+                    : "No hay ventas pendientes de organizar (todas ya tienen PesoNetoGlobal asignado). Use ReprocesarTodo=true para forzar.",
+                DespachosProcesados = 0,
+                MovimientosActualizados = 0,
+                MovimientosOmitidos = 0
+            };
+        }
+
+        // Agrupar por NumeroDespacho. Los que no tienen NumeroDespacho se tratan uno a uno (su propio "despacho").
+        var grupos = movimientos
+            .GroupBy(m => m.NumeroDespacho ?? $"__sin_despacho_{m.Id}__")
+            .ToList();
+
+        var despachos = new List<OrganizarPesoDespachoDetalle>();
+        var totalActualizados = 0;
+        var totalOmitidos = 0;
+
+        foreach (var grupo in grupos)
+        {
+            var items = grupo.ToList();
+
+            // El peso global lo tomamos del primer movimiento del grupo (deberían ser iguales en todos).
+            var pesoBruto = items.FirstOrDefault(m => m.PesoBruto.HasValue)?.PesoBruto ?? 0d;
+            var pesoTara = items.FirstOrDefault(m => m.PesoTara.HasValue)?.PesoTara ?? 0d;
+
+            if (pesoBruto == 0d && pesoTara == 0d)
+            {
+                totalOmitidos += items.Count;
+                continue;
+            }
+
+            if (pesoBruto < pesoTara)
+                pesoTara = pesoBruto; // evitar neto negativo en datos corruptos; registrar sin error.
+
+            var pesoNetoGlobal = pesoBruto - pesoTara;
+            var totalAves = items.Sum(m => m.TotalAves);
+            var pesoPorAve = totalAves > 0 ? pesoNetoGlobal / totalAves : 0d;
+
+            var detalle = new OrganizarPesoDespachoDetalle
+            {
+                NumeroDespacho = items[0].NumeroDespacho,
+                CantidadMovimientos = items.Count,
+                TotalAves = totalAves,
+                PesoBrutoGlobal = pesoBruto > 0 ? pesoBruto : null,
+                PesoTaraGlobal = pesoTara > 0 ? pesoTara : null,
+                PesoNetoGlobal = pesoNetoGlobal,
+                PesoPorAve = pesoPorAve > 0 ? pesoPorAve : null,
+                MovimientoIds = items.Select(m => m.Id).ToList()
+            };
+            despachos.Add(detalle);
+
+            if (!request.DryRun)
+            {
+                foreach (var m in items)
+                {
+                    m.PesoBrutoGlobal = pesoBruto > 0 ? pesoBruto : null;
+                    m.PesoTaraGlobal = pesoTara > 0 ? pesoTara : null;
+                    m.PesoNetoGlobal = pesoNetoGlobal;
+                    m.PesoNeto = pesoPorAve > 0 ? m.TotalAves * pesoPorAve : null;
+                    m.PromedioPesoAve = pesoPorAve > 0 ? pesoPorAve : null;
+                    m.UpdatedByUserId = _currentUser.UserId;
+                    m.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            totalActualizados += items.Count;
+        }
+
+        if (!request.DryRun && totalActualizados > 0)
+            await _ctx.SaveChangesAsync();
+
+        var modo = request.DryRun ? "Simulación" : "Aplicado";
+        return new OrganizarPesoResponse
+        {
+            DryRun = request.DryRun,
+            DespachosProcesados = despachos.Count,
+            MovimientosActualizados = totalActualizados,
+            MovimientosOmitidos = totalOmitidos,
+            Mensaje = $"{modo}: {despachos.Count} despacho(s), {totalActualizados} movimiento(s) {(request.DryRun ? "a procesar" : "actualizados")}.",
+            Despachos = despachos
+        };
     }
 }

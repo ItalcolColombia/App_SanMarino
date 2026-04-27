@@ -161,6 +161,55 @@ public class MovimientoPolloEngordeController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Ventas (Venta/Despacho/Retiro) de un lote Ave Engorde con información completa de peso
+    /// (pesoNeto individual, pesoBrutoGlobal, pesoTaraGlobal, pesoNetoGlobal, promedioPesoAve).
+    /// Ordenadas por fecha de movimiento ascendente.
+    /// </summary>
+    [HttpGet("por-lote/{loteId:int}/ventas-con-peso")]
+    [ProducesResponseType(typeof(IEnumerable<MovimientoPolloEngordeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetVentasConPeso(int loteId)
+    {
+        if (loteId <= 0) return BadRequest(new { error = "loteId inválido." });
+        var result = await _service.SearchAsync(new MovimientoPolloEngordeSearchRequest(
+            LoteAveEngordeOrigenId: loteId,
+            Page: 1,
+            PageSize: 1000,
+            SortBy: "FechaMovimiento",
+            SortDesc: false
+        ));
+        // Filtramos solo movimientos de tipo venta/salida que no estén anulados/cancelados.
+        var ventas = (result.Items ?? Enumerable.Empty<MovimientoPolloEngordeDto>())
+            .Where(m =>
+                (m.TipoMovimiento == "Venta" || m.TipoMovimiento == "Despacho" || m.TipoMovimiento == "Retiro")
+                && m.Estado != "Cancelado" && m.Estado != "Anulado")
+            .ToList();
+        return Ok(ventas);
+    }
+
+    /// <summary>
+    /// Organiza (o simula) la corrección masiva de peso prorrateado en ventas históricas.
+    /// Agrupa ventas por NumeroDespacho y recalcula PesoNeto / PromedioPesoAve proporcional a las aves de cada movimiento.
+    /// Use DryRun=true (default) para previsualizar sin guardar cambios.
+    /// </summary>
+    [HttpPost("organizar-peso")]
+    [ProducesResponseType(typeof(OrganizarPesoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PostOrganizarPeso([FromBody] OrganizarPesoRequest request)
+    {
+        if (request is null) return BadRequest(new { error = "Body requerido." });
+        try
+        {
+            var res = await _service.OrganizarPesoAsync(request);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     /// <summary>Completa varios movimientos Pendiente en una transacción.</summary>
     [HttpPost("completar-batch")]
     [ProducesResponseType(typeof(IReadOnlyList<MovimientoPolloEngordeDto>), StatusCodes.Status200OK)]

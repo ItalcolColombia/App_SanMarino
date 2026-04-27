@@ -119,41 +119,90 @@
           </div>
 
           <ng-container *ngIf="verVentasRegistros">
-            <p *ngIf="loadingVentasRegistros" class="liq-lote__hint">Cargando registros de venta…</p>
-            <p *ngIf="ventasRegistrosError" class="liq-lote__err" role="alert">{{ ventasRegistrosError }}</p>
-            <div *ngIf="!loadingVentasRegistros && !ventasRegistrosError">
+            <p *ngIf="loadingVentasConPeso" class="liq-lote__hint">
+              <span class="liq-lote__spinner"></span> Cargando ventas…
+            </p>
+            <p *ngIf="ventasConPesoError" class="liq-lote__err" role="alert">{{ ventasConPesoError }}</p>
+
+            <div *ngIf="!loadingVentasConPeso && !ventasConPesoError">
+
+              <!-- Totales de la tabla -->
               <p class="liq-lote__hint liq-lote__hint--mb">
-                Totales en tabla: H {{ ventasRegistrosTotH | number:'1.0-0' }}, M {{ ventasRegistrosTotM | number:'1.0-0' }}, X {{ ventasRegistrosTotX | number:'1.0-0' }}.
+                Aves: H {{ ventasRegistrosTotH | number:'1.0-0' }},
+                M {{ ventasRegistrosTotM | number:'1.0-0' }},
+                X {{ ventasRegistrosTotX | number:'1.0-0' }},
+                Total {{ ventasRegistrosTotAves | number:'1.0-0' }}.
+                <ng-container *ngIf="tienePesoRegistrado">
+                  Peso neto total: <strong>{{ ventasTotPesoNeto | number:'1.2-2' }} kg</strong>.
+                </ng-container>
                 <ng-container *ngIf="diffVentasH !== 0 || diffVentasM !== 0">
                   Diferencia vs resumen: H {{ diffVentasH | number:'1.0-0' }}, M {{ diffVentasM | number:'1.0-0' }}.
                 </ng-container>
               </p>
-              <div class="liq-lote__table-wrap" *ngIf="ventasRegistros.length > 0">
+
+              <!-- Tabla de ventas con peso -->
+              <div class="liq-lote__table-wrap" *ngIf="ventasConPeso.length > 0">
                 <table class="ux-table liq-lote__table">
                   <thead>
                     <tr>
                       <th>Fecha</th>
-                      <th>Origen</th>
-                      <th>Documento</th>
+                      <th>Movimiento</th>
+                      <th>Despacho</th>
+                      <th>Estado</th>
                       <th class="text-right">H</th>
                       <th class="text-right">M</th>
                       <th class="text-right">X</th>
+                      <th class="text-right">Total aves</th>
+                      <th class="text-right">Peso neto (kg)</th>
+                      <th class="text-right">Kg/ave</th>
+                      <th class="text-right">Peso global (kg)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr *ngFor="let r of ventasRegistros">
-                      <td>{{ r.fechaOperacion | date:'yyyy-MM-dd' }}</td>
-                      <td>{{ r.origenTabla }} #{{ r.origenId }}</td>
-                      <td>{{ r.numeroDocumento || r.referencia || '—' }}</td>
-                      <td class="text-right">{{ (r.cantidadHembras ?? 0) | number:'1.0-0' }}</td>
-                      <td class="text-right">{{ (r.cantidadMachos ?? 0) | number:'1.0-0' }}</td>
-                      <td class="text-right">{{ (r.cantidadMixtas ?? 0) | number:'1.0-0' }}</td>
+                    <tr *ngFor="let r of ventasConPeso">
+                      <td>{{ r.fechaMovimiento | date:'yyyy-MM-dd' }}</td>
+                      <td>{{ r.numeroMovimiento }}</td>
+                      <td>{{ r.numeroDespacho || '—' }}</td>
+                      <td>
+                        <span class="liq-badge"
+                          [class.liq-badge--ok]="r.estado === 'Completado'"
+                          [class.liq-badge--warn]="r.estado === 'Pendiente'">
+                          {{ r.estado }}
+                        </span>
+                      </td>
+                      <td class="text-right">{{ r.cantidadHembras | number:'1.0-0' }}</td>
+                      <td class="text-right">{{ r.cantidadMachos | number:'1.0-0' }}</td>
+                      <td class="text-right">{{ r.cantidadMixtas | number:'1.0-0' }}</td>
+                      <td class="text-right"><strong>{{ r.totalAves | number:'1.0-0' }}</strong></td>
+                      <td class="text-right">
+                        {{ r.pesoNeto != null ? (r.pesoNeto | number:'1.2-2') : '—' }}
+                      </td>
+                      <td class="text-right">
+                        {{ r.promedioPesoAve != null ? (r.promedioPesoAve | number:'1.3-3') : '—' }}
+                      </td>
+                      <td class="text-right liq-lote__muted">
+                        {{ r.pesoNetoGlobal != null ? (r.pesoNetoGlobal | number:'1.2-2') : '—' }}
+                      </td>
                     </tr>
                   </tbody>
+                  <!-- Fila de totales -->
+                  <tfoot *ngIf="tienePesoRegistrado">
+                    <tr class="liq-lote__tfoot">
+                      <td colspan="4"><strong>Total</strong></td>
+                      <td class="text-right"><strong>{{ ventasRegistrosTotH | number:'1.0-0' }}</strong></td>
+                      <td class="text-right"><strong>{{ ventasRegistrosTotM | number:'1.0-0' }}</strong></td>
+                      <td class="text-right"><strong>{{ ventasRegistrosTotX | number:'1.0-0' }}</strong></td>
+                      <td class="text-right"><strong>{{ ventasRegistrosTotAves | number:'1.0-0' }}</strong></td>
+                      <td class="text-right"><strong>{{ ventasTotPesoNeto | number:'1.2-2' }} kg</strong></td>
+                      <td class="text-right"></td>
+                      <td class="text-right"></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
-              <div *ngIf="ventasRegistros.length === 0" class="liq-lote__hint">
-                No hay registros VENTA_AVES en el histórico unificado para este lote.
+
+              <div *ngIf="ventasConPeso.length === 0" class="liq-lote__hint">
+                No hay ventas registradas para este lote.
               </div>
             </div>
           </ng-container>

@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260427061140_AddHistoricoConsumoAlimentoSeguimientoDiarioAvesEngorde")]
+    partial class AddHistoricoConsumoAlimentoSeguimientoDiarioAvesEngorde
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4711,25 +4714,9 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("double precision")
                         .HasColumnName("peso_bruto");
 
-                    b.Property<double?>("PesoBrutoGlobal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("peso_bruto_global");
-
-                    b.Property<double?>("PesoNeto")
-                        .HasColumnType("double precision")
-                        .HasColumnName("peso_neto");
-
-                    b.Property<double?>("PesoNetoGlobal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("peso_neto_global");
-
                     b.Property<double?>("PesoTara")
                         .HasColumnType("double precision")
                         .HasColumnName("peso_tara");
-
-                    b.Property<double?>("PesoTaraGlobal")
-                        .HasColumnType("double precision")
-                        .HasColumnName("peso_tara_global");
 
                     b.Property<string>("Placa")
                         .HasMaxLength(20)
@@ -4740,10 +4727,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("planta_destino");
-
-                    b.Property<double?>("PromedioPesoAve")
-                        .HasColumnType("double precision")
-                        .HasColumnName("promedio_peso_ave");
 
                     b.Property<string>("Raza")
                         .HasMaxLength(100)

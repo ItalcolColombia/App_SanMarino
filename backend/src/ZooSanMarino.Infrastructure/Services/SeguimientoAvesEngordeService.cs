@@ -126,7 +126,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             ConsumoAguaOrp: e.ConsumoAguaOrp,
             ConsumoAguaTemperatura: e.ConsumoAguaTemperatura,
             CreatedByUserId: e.CreatedByUserId,
-            SaldoAlimentoKg: e.SaldoAlimentoKg.HasValue ? (double)e.SaldoAlimentoKg.Value : null
+            SaldoAlimentoKg: e.SaldoAlimentoKg.HasValue ? (double)e.SaldoAlimentoKg.Value : null,
+            HistoricoConsumoAlimento: e.HistoricoConsumoAlimento
         );
     }
 
@@ -559,6 +560,63 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         return list.Select(MapToDto);
     }
 
+    /// <summary>
+    /// Construye el histórico de consumo de alimento por ítem para el campo historico_consumo_alimento.
+    /// saldo_inicial = stock actual + oldConsumo (para edición, para restituir al estado pre-consumo del registro anterior).
+    /// </summary>
+    private async Task<JsonDocument?> BuildHistoricoConsumoAlimentoAsync(
+        JsonDocument? metadata,
+        int farmId, string? nucleoId, string? galponId,
+        Dictionary<int, decimal>? oldByItemId = null)
+    {
+        if (metadata is null) return null;
+
+        var newByItemId = ParseMetadataItemsToKg(metadata.RootElement);
+        if (newByItemId.Count == 0) return null;
+
+        var itemIds = newByItemId.Keys.ToList();
+
+        var catalogItems = await _ctx.ItemInventarioEcuador
+            .AsNoTracking()
+            .Where(i => itemIds.Contains(i.Id))
+            .ToDictionaryAsync(i => i.Id, i => i.Nombre);
+
+        var nucleoIdN = (nucleoId ?? "").Trim();
+        var galponIdN = (galponId ?? "").Trim();
+        var stockByItem = await _ctx.InventarioGestionStock
+            .AsNoTracking()
+            .Where(s =>
+                s.FarmId == farmId &&
+                (s.NucleoId == null ? "" : s.NucleoId.Trim()) == nucleoIdN &&
+                (s.GalponId == null ? "" : s.GalponId.Trim()) == galponIdN &&
+                itemIds.Contains(s.ItemInventarioEcuadorId))
+            .ToDictionaryAsync(s => s.ItemInventarioEcuadorId, s => s.Quantity);
+
+        var historico = new List<object>();
+        foreach (var kv in newByItemId)
+        {
+            var itemId = kv.Key;
+            var consumo = kv.Value;
+            var nombre = catalogItems.GetValueOrDefault(itemId, $"Ítem #{itemId}");
+            var oldConsumo = oldByItemId?.GetValueOrDefault(itemId, 0m) ?? 0m;
+            var currentStock = stockByItem.GetValueOrDefault(itemId, 0m);
+            var saldoInicial = currentStock + oldConsumo;
+            var saldoFinal = Math.Max(0, saldoInicial - consumo);
+
+            historico.Add(new
+            {
+                nombre_alimento = nombre,
+                saldo_inicial = saldoInicial,
+                consumo = consumo,
+                saldo_final = saldoFinal,
+                unidad_medida = "kg"
+            });
+        }
+
+        if (historico.Count == 0) return null;
+        return JsonDocument.Parse(JsonSerializer.Serialize(historico));
+    }
+
     public async Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto)
     {
         var lote = await _ctx.LoteAveEngorde.AsNoTracking()
@@ -598,6 +656,10 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         var stockPatch = await BuildStockMetadataPatchAsync(dto.LoteId, dto.FechaRegistro.Date);
         var metadataForEntity = MergeMetadataWithPatch(dto.Metadata, stockPatch);
 
+        // Snapshot del consumo por ítem antes de descontar del inventario.
+        var historicoConsumo = await BuildHistoricoConsumoAlimentoAsync(
+            dto.Metadata, lote.GranjaId, lote.NucleoId, lote.GalponId);
+
         var ent = new SeguimientoDiarioAvesEngorde
         {
             LoteAveEngordeId = dto.LoteId,
@@ -631,7 +693,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             ProtAveH = protAveH,
             CreatedByUserId = dto.CreatedByUserId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = null
+            UpdatedAt = null,
+            HistoricoConsumoAlimento = historicoConsumo
         };
         _ctx.SeguimientoDiarioAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
@@ -739,6 +802,10 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         ent.ConsumoAguaTemperatura = dto.ConsumoAguaTemperatura;
         var oldByItemId = ent.Metadata != null ? ParseMetadataItemsToKg(ent.Metadata.RootElement) : new Dictionary<int, decimal>();
 
+        // Reconstruir snapshot de consumo por ítem (saldo_inicial = stock actual + consumo anterior del registro).
+        var historicoConsumoUpdate = await BuildHistoricoConsumoAlimentoAsync(
+            dto.Metadata, lote.GranjaId, lote.NucleoId, lote.GalponId, oldByItemId);
+
         // Patch de metadata (Ingreso/Traslado/Documento/Despacho) desde histórico unificado.
         var stockPatch = await BuildStockMetadataPatchAsync(dto.LoteId, dto.FechaRegistro.Date);
         var metadataForSave = MergeMetadataWithPatch(dto.Metadata, stockPatch);
@@ -746,6 +813,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         // jsonb + JsonDocument: forzar persistencia; si no, EF puede no marcar Metadata como modificado y el inventario sí aplica el diff desde dto.Metadata.
         ent.Metadata = CloneJsonDocument(metadataForSave);
         ent.ItemsAdicionales = CloneJsonDocument(dto.ItemsAdicionales);
+        ent.HistoricoConsumoAlimento = CloneJsonDocument(historicoConsumoUpdate);
         ent.KcalAlH = kcalAlH;
         ent.ProtAlH = protAlH;
         ent.KcalAveH = kcalAlH is null ? null : Math.Round(consumoKgH * kcalAlH.Value, 3);
@@ -755,6 +823,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         _ctx.Entry(ent).State = EntityState.Modified;
         _ctx.Entry(ent).Property(e => e.Metadata).IsModified = true;
         _ctx.Entry(ent).Property(e => e.ItemsAdicionales).IsModified = true;
+        _ctx.Entry(ent).Property(e => e.HistoricoConsumoAlimento).IsModified = true;
         await _ctx.SaveChangesAsync();
 
         if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
