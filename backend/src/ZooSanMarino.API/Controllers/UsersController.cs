@@ -113,7 +113,7 @@ public class UsersController : ControllerBase
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Cambiar contraseña (endpoint dedicado)
+    // Cambiar contraseña (endpoint dedicado — el propio usuario)
     // ─────────────────────────────────────────────────────────────────────
     [HttpPatch("{id:guid}/password")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -124,6 +124,30 @@ public class UsersController : ControllerBase
         {
             await _auth.ChangePasswordAsync(id, dto);
             return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Restablecer contraseña por administrador (sin requerir contraseña actual)
+    // ─────────────────────────────────────────────────────────────────────
+    [HttpPost("{id:guid}/admin-reset-password")]
+    [ProducesResponseType(typeof(AdminResetPasswordResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AdminResetPassword(Guid id, [FromBody] AdminResetPasswordDto dto)
+    {
+        try
+        {
+            var result = await _auth.AdminResetPasswordAsync(id, dto.NewPassword);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Usuario no encontrado." });
         }
         catch (InvalidOperationException ex)
         {

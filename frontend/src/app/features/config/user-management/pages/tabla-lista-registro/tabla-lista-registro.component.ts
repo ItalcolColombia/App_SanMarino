@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
   faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
-  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit
+  faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock
 } from '@fortawesome/free-solid-svg-icons';
 
 import { forkJoin, of, interval, Subject, Observable } from 'rxjs';
@@ -29,6 +29,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   @Output() createUser = new EventEmitter<void>();
   @Output() editUser = new EventEmitter<UserListItem>();
   @Output() assignFarms = new EventEmitter<UserListItem>();
+  @Output() resetPassword = new EventEmitter<UserListItem>();
 
   // Iconos
   faUserPlus = faUserPlus;
@@ -43,6 +44,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   faSearch = faSearch;
   faBuilding = faBuilding;
   faEdit = faEdit;
+  faLock = faLock;
 
   // Estado
   loading = false;
@@ -72,7 +74,7 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
   constructor(private library: FaIconLibrary) {
     library.addIcons(
       faUserPlus, faUser, faUsers, faIdCard, faEnvelope, faPhone,
-      faSave, faTimes, faTrash, faSearch, faBuilding, faEdit
+      faSave, faTimes, faTrash, faSearch, faBuilding, faEdit, faLock
     );
   }
 
@@ -154,6 +156,10 @@ export class TablaListaRegistroComponent implements OnInit, OnDestroy {
 
   onEditUserClick(user: UserListItem): void {
     this.editUser.emit(user);
+  }
+
+  onResetPasswordClick(user: UserListItem): void {
+    this.resetPassword.emit(user);
   }
 
   deleteUser(user: UserListItem): void {

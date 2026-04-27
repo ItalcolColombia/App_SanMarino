@@ -374,6 +374,12 @@
     border-color: var(--ital-orange-100);
   }
 
+  &.reset-btn:hover {
+    background: #eff6ff;
+    color: #1e3a8a;
+    border-color: #bfdbfe;
+  }
+
   &.delete-btn:hover {
     background: var(--ital-orange-50);
     color: var(--ital-orange-dark);

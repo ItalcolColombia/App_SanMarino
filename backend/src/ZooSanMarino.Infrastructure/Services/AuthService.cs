@@ -623,6 +623,54 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task<AdminResetPasswordResponseDto> AdminResetPasswordAsync(Guid userId, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
+            throw new InvalidOperationException("La nueva contraseña debe tener al menos 6 caracteres");
+
+        var loginData = await _ctx.UserLogins
+            .Include(ul => ul.Login)
+            .Include(ul => ul.User)
+            .Where(ul => ul.UserId == userId)
+            .Select(ul => new { ul.Login, ul.User })
+            .FirstOrDefaultAsync()
+            ?? throw new KeyNotFoundException("Usuario no encontrado");
+
+        loginData.Login.PasswordHash = _hasher.HashPassword(loginData.Login, newPassword);
+        await _ctx.SaveChangesAsync();
+
+        int? emailQueueId = null;
+        bool emailQueued = false;
+
+        try
+        {
+            var userName = $"{loginData.User.firstName} {loginData.User.surName}".Trim();
+            if (string.IsNullOrWhiteSpace(userName))
+                userName = loginData.Login.email;
+
+            emailQueueId = await _emailService.SendPasswordRecoveryEmailAsync(
+                loginData.Login.email,
+                newPassword,
+                userName
+            );
+            emailQueued = emailQueueId.HasValue;
+        }
+        catch (Exception)
+        {
+            // La contraseña ya fue actualizada; el correo fallará silenciosamente
+        }
+
+        return new AdminResetPasswordResponseDto
+        {
+            Success = true,
+            Message = emailQueued
+                ? "Contraseña restablecida y notificación enviada al correo del usuario."
+                : "Contraseña restablecida. No se pudo enviar la notificación por correo.",
+            EmailQueueId = emailQueueId,
+            EmailQueued = emailQueued
+        };
+    }
+
     private string GenerateRandomPassword(int length = 12)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
