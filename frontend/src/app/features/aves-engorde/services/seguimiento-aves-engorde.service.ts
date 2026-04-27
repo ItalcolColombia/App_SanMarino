@@ -2,6 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+import type { MovimientoPolloEngordeDto } from '../../movimientos-pollo-engorde/services/movimiento-pollo-engorde.service';
+
+export type { MovimientoPolloEngordeDto };
 
 // Reutilizamos los mismos DTOs que Levante (misma estructura de datos)
 import type {
@@ -74,6 +77,7 @@ export interface LoteRegistroHistoricoUnificadoDto {
 @Injectable({ providedIn: 'root' })
 export class SeguimientoAvesEngordeService {
   private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
+  private readonly movUrl = `${environment.apiUrl}/MovimientoPolloEngorde`;
 
   constructor(private http: HttpClient) {}
 
@@ -98,6 +102,16 @@ export class SeguimientoAvesEngordeService {
   getResumenLiquidacion(loteId: number): Observable<LiquidacionLoteEngordeResumenDto> {
     return this.http.get<LiquidacionLoteEngordeResumenDto>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/resumen-liquidacion`
+    );
+  }
+
+  /**
+   * Ventas (Venta/Despacho/Retiro) del lote con información completa de peso individual y global.
+   * Usa el endpoint MovimientoPolloEngorde/por-lote/{loteId}/ventas-con-peso.
+   */
+  getVentasConPeso(loteId: number): Observable<MovimientoPolloEngordeDto[]> {
+    return this.http.get<MovimientoPolloEngordeDto[]>(
+      `${this.movUrl}/por-lote/${encodeURIComponent(loteId.toString())}/ventas-con-peso`
     );
   }
 

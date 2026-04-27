@@ -9,7 +9,8 @@ import {
   MovimientoPolloEngordeDto,
   ResumenAvesLoteDto,
   AuditoriaVentasEngordeResponse,
-  CorregirVentasCompletadasResponse
+  CorregirVentasCompletadasResponse,
+  OrganizarPesoResponse
 } from '../../services/movimiento-pollo-engorde.service';
 import { FarmDto } from '../../../farm/services/farm.service';
 import { NucleoDto } from '../../../lote-produccion/services/nucleo.service';
@@ -132,6 +133,9 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   auditoriaModalOpen = false;
   auditoriaResult: AuditoriaVentasEngordeResponse | null = null;
   auditoriaLoteMetaById: Record<number, { galponLabel: string; loteLabel: string }> = {};
+
+  loadingOrganizarPeso = false;
+  organizarPesoPending = false;
 
   get selectedGranjaName(): string {
     const g = this.granjas.find((x) => x.id === this.selectedGranjaId);
@@ -390,6 +394,13 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   onConfirmAuditoria(): void {
+    if (this.organizarPesoPending) {
+      this.organizarPesoPending = false;
+      this.showConfirmationModal = false;
+      this.auditoriaToRun = null;
+      this.ejecutarOrganizarPeso();
+      return;
+    }
     if (this.correccionCompletadosPending) {
       this.correccionCompletadosPending = false;
       this.showConfirmationModal = false;
@@ -402,6 +413,45 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.showConfirmationModal = false;
     if (!a) return;
     this.auditarVentas(a.dryRun, a.aplicarCorreccion);
+  }
+
+  solicitarOrganizarPeso(): void {
+    if (!this.selectedGranjaId) return;
+    if (this.loadingOrganizarPeso) return;
+    this.organizarPesoPending = true;
+    this.confirmationModalData = {
+      title: 'Organizar Peso',
+      message:
+        'Esta acción recalcula el peso individual prorrateado de TODAS las ventas de la granja seleccionada que tengan peso registrado. ' +
+        'Agrupa los movimientos por número de despacho y distribuye el PesoNeto proporcionalmente a las aves de cada lote. ' +
+        'Los datos de peso bruto y tara originales no se modifican. ¿Desea continuar?',
+      type: 'warning',
+      confirmText: 'Sí, organizar peso',
+      cancelText: 'Cancelar',
+      showCancel: true
+    };
+    this.showConfirmationModal = true;
+  }
+
+  private ejecutarOrganizarPeso(): void {
+    if (!this.selectedGranjaId) return;
+    this.loadingOrganizarPeso = true;
+    this.movimientoSvc
+      .postOrganizarPeso({ granjaId: this.selectedGranjaId, dryRun: false, reprocesarTodo: true })
+      .pipe(finalize(() => (this.loadingOrganizarPeso = false)))
+      .subscribe({
+        next: (res: OrganizarPesoResponse) => {
+          if (res.movimientosActualizados === 0) {
+            this.toastService.info(res.mensaje || 'No había peso pendiente de organizar.');
+          } else {
+            this.toastService.success(
+              `Peso organizado: ${res.despachosProcesados} despacho(s) · ${res.movimientosActualizados} movimiento(s) actualizados.`
+            );
+            this.loadMovimientos();
+          }
+        },
+        error: (err) => this.toastService.error(err?.message ?? 'Error al organizar el peso.')
+      });
   }
 
   ngOnInit(): void {

@@ -56,6 +56,14 @@
         </button>
         <button
           type="button"
+          class="btn-italfoods-secondary"
+          (click)="solicitarOrganizarPeso()"
+          [disabled]="!selectedGranjaId || loadingOrganizarPeso"
+          [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Recalcula el peso prorrateado por lote en todos los despachos de la granja'">
+          {{ loadingOrganizarPeso ? 'Organizando...' : 'Organizar Peso' }}
+        </button>
+        <button
+          type="button"
           (click)="create()"
           class="btn-italfoods-primary"
           [disabled]="!canOpenNuevoRegistro"
@@ -463,7 +471,7 @@
 <app-confirmation-modal
   [isOpen]="showConfirmationModal"
   [data]="confirmationModalData"
-  (confirmed)="auditoriaToRun ? onConfirmAuditoria() : (movimientoToDelete || movimientoToDeleteGroup?.length ? onConfirmDelete() : movimientoToComplete || movimientoToCompleteGroup?.length ? onConfirmCompletar() : onConfirmationModalClose())"
+  (confirmed)="organizarPesoPending || correccionCompletadosPending || auditoriaToRun ? onConfirmAuditoria() : (movimientoToDelete || movimientoToDeleteGroup?.length ? onConfirmDelete() : movimientoToComplete || movimientoToCompleteGroup?.length ? onConfirmCompletar() : onConfirmationModalClose())"
   (cancelled)="onCancelDelete()"
   (closed)="onConfirmationModalClose()">
 </app-confirmation-modal>

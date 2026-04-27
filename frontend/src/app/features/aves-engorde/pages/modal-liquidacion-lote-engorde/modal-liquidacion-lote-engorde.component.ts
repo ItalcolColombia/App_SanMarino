@@ -11,7 +11,8 @@ import { GestionInventarioService, InventarioGestionStockDto } from '../../../ge
 import {
   SeguimientoAvesEngordeService,
   LiquidacionLoteEngordeResumenDto,
-  LoteRegistroHistoricoUnificadoDto
+  LoteRegistroHistoricoUnificadoDto,
+  MovimientoPolloEngordeDto
 } from '../../services/seguimiento-aves-engorde.service';
 import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import {
@@ -53,6 +54,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   ventasRegistrosError: string | null = null;
   ventasRegistros: LoteRegistroHistoricoUnificadoDto[] = [];
 
+  /** Ventas con información completa de peso (reemplaza ventasRegistros en la tabla detallada). */
+  ventasConPeso: MovimientoPolloEngordeDto[] = [];
+  loadingVentasConPeso = false;
+  ventasConPesoError: string | null = null;
+
   /** Stock de alimento (inventario-gestion) en la ubicación del lote (EC/PA). */
   stockAlimento: InventarioGestionStockDto[] = [];
   loadingStock = false;
@@ -82,6 +88,9 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.loadingVentasRegistros = false;
     this.ventasRegistrosError = null;
     this.ventasRegistros = [];
+    this.ventasConPeso = [];
+    this.loadingVentasConPeso = false;
+    this.ventasConPesoError = null;
     this.stockAlimento = [];
     this.loadingStock = false;
     this.stockError = null;
@@ -144,48 +153,48 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
 
   toggleVerVentasRegistros(): void {
     this.verVentasRegistros = !this.verVentasRegistros;
-    if (this.verVentasRegistros) {
-      this.cargarVentasRegistros();
+    if (this.verVentasRegistros && this.ventasConPeso.length === 0 && !this.loadingVentasConPeso) {
+      this.cargarVentasConPeso();
     }
   }
 
-  private cargarVentasRegistros(): void {
+  private cargarVentasConPeso(): void {
     if (!this.loteId) return;
-    this.loadingVentasRegistros = true;
-    this.ventasRegistrosError = null;
-    this.ventasRegistros = [];
+    this.loadingVentasConPeso = true;
+    this.ventasConPesoError = null;
+    this.ventasConPeso = [];
     this.seg
-      .getHistoricoUnificadoPorLote(this.loteId)
-      .pipe(finalize(() => (this.loadingVentasRegistros = false)))
+      .getVentasConPeso(this.loteId)
+      .pipe(finalize(() => (this.loadingVentasConPeso = false)))
       .subscribe({
-        next: rows => {
-          const list = (rows ?? []).filter(r => String(r.tipoEvento || '').toUpperCase() === 'VENTA_AVES' && !r.anulado);
-          // Orden: fecha operación asc, id asc
-          list.sort((a, b) => {
-            const da = String(a.fechaOperacion ?? '');
-            const db = String(b.fechaOperacion ?? '');
-            if (da !== db) return da.localeCompare(db);
-            return (a.id ?? 0) - (b.id ?? 0);
-          });
-          this.ventasRegistros = list;
-        },
+        next: rows => { this.ventasConPeso = rows ?? []; },
         error: err => {
-          this.ventasRegistrosError =
+          this.ventasConPesoError =
             err?.error?.message ?? err?.error?.error ?? err?.message ?? 'No se pudieron cargar los registros de venta.';
-          this.ventasRegistros = [];
         }
       });
   }
 
   /** Totales calculados desde los registros (para comparar con el resumen). */
   get ventasRegistrosTotH(): number {
-    return (this.ventasRegistros ?? []).reduce((s, r) => s + (Number(r.cantidadHembras) || 0), 0);
+    return this.ventasConPeso.reduce((s, r) => s + (r.cantidadHembras || 0), 0);
   }
   get ventasRegistrosTotM(): number {
-    return (this.ventasRegistros ?? []).reduce((s, r) => s + (Number(r.cantidadMachos) || 0), 0);
+    return this.ventasConPeso.reduce((s, r) => s + (r.cantidadMachos || 0), 0);
   }
   get ventasRegistrosTotX(): number {
-    return (this.ventasRegistros ?? []).reduce((s, r) => s + (Number(r.cantidadMixtas) || 0), 0);
+    return this.ventasConPeso.reduce((s, r) => s + (r.cantidadMixtas || 0), 0);
+  }
+  get ventasRegistrosTotAves(): number {
+    return this.ventasConPeso.reduce((s, r) => s + (r.totalAves || 0), 0);
+  }
+  /** Suma de PesoNeto individual por movimiento (peso prorrateado real de cada lote). */
+  get ventasTotPesoNeto(): number {
+    return this.ventasConPeso.reduce((s, r) => s + (r.pesoNeto ?? 0), 0);
+  }
+  /** PesoNetoGlobal del primer movimiento con despacho (el global es igual en todos del mismo despacho). */
+  get tienePesoRegistrado(): boolean {
+    return this.ventasConPeso.some(r => r.pesoNeto != null || r.pesoBruto != null);
   }
   get diffVentasH(): number {
     return (Number(this.resumen?.ventasTotalHembras ?? 0) - this.ventasRegistrosTotH) || 0;

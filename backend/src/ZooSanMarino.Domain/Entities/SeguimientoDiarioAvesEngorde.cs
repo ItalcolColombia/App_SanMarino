@@ -55,5 +55,11 @@ public class SeguimientoDiarioAvesEngorde
     /// </summary>
     public decimal? SaldoAlimentoKg { get; set; }
 
+    /// <summary>
+    /// Histórico de consumo por ítem de alimento registrado en el día.
+    /// Estructura: [{ nombre_alimento, saldo_inicial, consumo, saldo_final, unidad_medida }]
+    /// </summary>
+    public JsonDocument? HistoricoConsumoAlimento { get; set; }
+
     public virtual LoteAveEngorde? LoteAveEngorde { get; set; }
 }

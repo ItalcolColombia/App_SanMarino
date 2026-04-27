@@ -56,10 +56,16 @@ public class MovimientoPolloEngorde : AuditableEntity
     public double? PesoBruto { get; set; }
     public double? PesoTara { get; set; }
 
-    public int TotalAves => CantidadHembras + CantidadMachos + CantidadMixtas;
+    // Peso global del despacho: mismo valor en todos los movimientos generados para un despacho multi-galpón.
+    public double? PesoBrutoGlobal { get; set; }
+    public double? PesoTaraGlobal { get; set; }
+    public double? PesoNetoGlobal { get; set; }
 
-    public double? PesoNeto => PesoBruto.HasValue && PesoTara.HasValue ? PesoBruto.Value - PesoTara.Value : null;
-    public double? PromedioPesoAve => PesoNeto.HasValue && TotalAves > 0 ? PesoNeto.Value / TotalAves : null;
+    // Peso individual prorrateado: proporcional a las aves de cada movimiento dentro del despacho.
+    public double? PesoNeto { get; set; }
+    public double? PromedioPesoAve { get; set; }
+
+    public int TotalAves => CantidadHembras + CantidadMachos + CantidadMixtas;
 
     // Navegación
     public LoteAveEngorde? LoteAveEngordeOrigen { get; set; }

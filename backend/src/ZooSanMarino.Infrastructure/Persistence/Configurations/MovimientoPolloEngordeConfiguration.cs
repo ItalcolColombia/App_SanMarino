@@ -57,6 +57,11 @@ public class MovimientoPolloEngordeConfiguration : IEntityTypeConfiguration<Movi
         b.Property(x => x.Conductor).HasColumnName("conductor").HasMaxLength(200);
         b.Property(x => x.PesoBruto).HasColumnName("peso_bruto");
         b.Property(x => x.PesoTara).HasColumnName("peso_tara");
+        b.Property(x => x.PesoBrutoGlobal).HasColumnName("peso_bruto_global");
+        b.Property(x => x.PesoTaraGlobal).HasColumnName("peso_tara_global");
+        b.Property(x => x.PesoNetoGlobal).HasColumnName("peso_neto_global");
+        b.Property(x => x.PesoNeto).HasColumnName("peso_neto");
+        b.Property(x => x.PromedioPesoAve).HasColumnName("promedio_peso_ave");
 
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();
@@ -95,7 +100,5 @@ public class MovimientoPolloEngordeConfiguration : IEntityTypeConfiguration<Movi
         b.HasIndex(x => x.Estado).HasDatabaseName("ix_movimiento_pollo_engorde_estado");
         b.HasIndex(x => x.CompanyId).HasDatabaseName("ix_movimiento_pollo_engorde_company_id");
         b.Ignore(x => x.TotalAves);
-        b.Ignore(x => x.PesoNeto);
-        b.Ignore(x => x.PromedioPesoAve);
     }
 }

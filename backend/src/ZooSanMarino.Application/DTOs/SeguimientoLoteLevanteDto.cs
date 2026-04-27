@@ -25,5 +25,6 @@ public record SeguimientoLoteLevanteDto(
     double? ConsumoAguaOrp, // Nivel de ORP (Oxidación-Reducción Potencial) del agua en mV
     double? ConsumoAguaTemperatura, // Temperatura del agua en °C
     string? CreatedByUserId = null, // ID del usuario que crea (para tabla unificada seguimiento_diario)
-    double? SaldoAlimentoKg = null // Saldo alimento (kg) al cierre del día; aves de engorde (inventario unificado)
+    double? SaldoAlimentoKg = null, // Saldo alimento (kg) al cierre del día; aves de engorde (inventario unificado)
+    JsonDocument? HistoricoConsumoAlimento = null // Histórico de consumo por ítem: [{ nombre_alimento, saldo_inicial, consumo, saldo_final, unidad_medida }]
 );

@@ -55,4 +55,11 @@ public interface IMovimientoPolloEngordeService
 
     /// <summary>Completa varios movimientos Pendiente en una transacción (descuenta inventario por lote).</summary>
     Task<IReadOnlyList<MovimientoPolloEngordeDto>> CompletarBatchAsync(IReadOnlyList<int> movimientoIds);
+
+    /// <summary>
+    /// Corrección masiva de peso: recalcula PesoNeto prorrateado para ventas históricas donde el peso
+    /// global se guardó igual en todos los movimientos de un mismo despacho.
+    /// Agrupa por NumeroDespacho y distribuye el peso proporcional a las aves de cada movimiento.
+    /// </summary>
+    Task<OrganizarPesoResponse> OrganizarPesoAsync(OrganizarPesoRequest request);
 }

@@ -45,7 +45,10 @@ public record MovimientoPolloEngordeDto(
     double? PesoBruto = null,
     double? PesoTara = null,
     double? PesoNeto = null,
-    double? PromedioPesoAve = null
+    double? PromedioPesoAve = null,
+    double? PesoBrutoGlobal = null,
+    double? PesoTaraGlobal = null,
+    double? PesoNetoGlobal = null
 );
 
 /// <summary>
@@ -89,6 +92,13 @@ public sealed class CreateMovimientoPolloEngordeDto
     public string? Conductor { get; set; }
     public double? PesoBruto { get; set; }
     public double? PesoTara { get; set; }
+    // Peso global del despacho: solo lo popula CreateVentaGranjaDespachoAsync antes de llamar a CreateAsync.
+    public double? PesoBrutoGlobal { get; set; }
+    public double? PesoTaraGlobal { get; set; }
+    public double? PesoNetoGlobal { get; set; }
+    // Peso individual prorrateado: cuando viene poblado, tiene precedencia sobre el calculado de PesoBruto-PesoTara.
+    public double? PesoNetoIndividual { get; set; }
+    public double? PromedioPesoAveIndividual { get; set; }
 }
 
 /// <summary>
@@ -227,4 +237,37 @@ public sealed class VentaGranjaDespachoResultDto
 public sealed class CompletarMovimientosBatchRequest
 {
     public List<int> MovimientoIds { get; set; } = new();
+}
+
+/// <summary>Parámetros para reorganizar el peso en ventas históricas (corrección masiva de prorrateado).</summary>
+public sealed class OrganizarPesoRequest
+{
+    /// <summary>Si se indica, procesa solo ventas de esa granja; si es null, procesa toda la compañía.</summary>
+    public int? GranjaId { get; set; }
+    /// <summary>Si true, solo calcula sin guardar cambios.</summary>
+    public bool DryRun { get; set; } = true;
+    /// <summary>Si true, reprocesa despachos que ya tienen PesoNetoGlobal asignado (default: solo procesa los pendientes).</summary>
+    public bool ReprocesarTodo { get; set; } = false;
+}
+
+public sealed class OrganizarPesoDespachoDetalle
+{
+    public string? NumeroDespacho { get; set; }
+    public int CantidadMovimientos { get; set; }
+    public int TotalAves { get; set; }
+    public double? PesoBrutoGlobal { get; set; }
+    public double? PesoTaraGlobal { get; set; }
+    public double? PesoNetoGlobal { get; set; }
+    public double? PesoPorAve { get; set; }
+    public List<int> MovimientoIds { get; set; } = new();
+}
+
+public sealed class OrganizarPesoResponse
+{
+    public bool DryRun { get; set; }
+    public int DespachosProcesados { get; set; }
+    public int MovimientosActualizados { get; set; }
+    public int MovimientosOmitidos { get; set; }
+    public string Mensaje { get; set; } = string.Empty;
+    public List<OrganizarPesoDespachoDetalle> Despachos { get; set; } = new();
 }

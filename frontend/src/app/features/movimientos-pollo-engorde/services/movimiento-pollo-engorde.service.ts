@@ -56,6 +56,9 @@ export interface MovimientoPolloEngordeDto {
   pesoTara?: number | null;
   pesoNeto?: number | null;
   promedioPesoAve?: number | null;
+  pesoBrutoGlobal?: number | null;
+  pesoTaraGlobal?: number | null;
+  pesoNetoGlobal?: number | null;
 }
 
 export interface ResumenAvesLoteDto {
@@ -305,6 +308,32 @@ export interface PagedResult<T> {
   items: T[];
 }
 
+export interface OrganizarPesoRequest {
+  granjaId?: number | null;
+  dryRun?: boolean;
+  reprocesarTodo?: boolean;
+}
+
+export interface OrganizarPesoDespachoDetalle {
+  numeroDespacho: string | null;
+  cantidadMovimientos: number;
+  totalAves: number;
+  pesoBrutoGlobal: number | null;
+  pesoTaraGlobal: number | null;
+  pesoNetoGlobal: number | null;
+  pesoPorAve: number | null;
+  movimientoIds: number[];
+}
+
+export interface OrganizarPesoResponse {
+  dryRun: boolean;
+  despachosProcesados: number;
+  movimientosActualizados: number;
+  movimientosOmitidos: number;
+  mensaje: string;
+  despachos: OrganizarPesoDespachoDetalle[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class MovimientoPolloEngordeService {
   private readonly base = `${environment.apiUrl}/MovimientoPolloEngorde`;
@@ -433,6 +462,16 @@ export class MovimientoPolloEngordeService {
   completarBatch(movimientoIds: number[]): Observable<MovimientoPolloEngordeDto[]> {
     return this.http
       .post<MovimientoPolloEngordeDto[]>(`${this.base}/completar-batch`, { movimientoIds })
+      .pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Corrección masiva de peso: recalcula PesoNeto prorrateado para ventas históricas.
+   * Usa dryRun=true para previsualizar sin aplicar cambios.
+   */
+  postOrganizarPeso(body: OrganizarPesoRequest): Observable<OrganizarPesoResponse> {
+    return this.http
+      .post<OrganizarPesoResponse>(`${this.base}/organizar-peso`, body)
       .pipe(catchError(this.handleError));
   }
 
