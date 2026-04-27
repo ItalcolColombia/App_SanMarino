@@ -10,12 +10,13 @@ import {
 import { TablaListaRegistroComponent } from './pages/tabla-lista-registro/tabla-lista-registro.component';
 import { ModalCreateEditComponent } from './components/modal-create-edit/modal-create-edit.component';
 import { AsignarUsuarioGranjaComponent } from './components/asignar-usuario-granja/asignar-usuario-granja.component';
+import { ModalResetPasswordComponent } from './components/modal-reset-password/modal-reset-password.component';
 import { UserListItem } from '../../../core/services/user/user.service';
 
 @Component({
   selector: 'app-user-management',
   standalone: true,
-  imports: [CommonModule, FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent],
+  imports: [CommonModule, FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent],
   templateUrl: './user-management.component.html',
   styleUrls: ['./user-management.component.scss']
 })
@@ -37,6 +38,10 @@ export class UserManagementComponent implements OnInit {
   // Modal de asignación de granjas
   farmModalOpen = false;
   selectedUserForFarms: UserListItem | null = null;
+
+  // Modal de reset de contraseña
+  resetPasswordModalOpen = false;
+  selectedUserForReset: UserListItem | null = null;
 
   constructor(private library: FaIconLibrary) {
     library.addIcons(
@@ -76,7 +81,16 @@ export class UserManagementComponent implements OnInit {
 
   onFarmsUpdated(): void {
     console.log('Granjas actualizadas');
-    // Aquí podrías recargar la lista de usuarios si es necesario
+  }
+
+  openResetPasswordModal(user: UserListItem): void {
+    this.selectedUserForReset = user;
+    this.resetPasswordModalOpen = true;
+  }
+
+  closeResetPasswordModal(): void {
+    this.resetPasswordModalOpen = false;
+    this.selectedUserForReset = null;
   }
 
   getUserCompanyId(user: UserListItem): number {

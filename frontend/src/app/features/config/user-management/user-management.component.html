@@ -27,6 +27,7 @@
         (createUser)="navigateToCreate()"
         (editUser)="navigateToEdit($event)"
         (assignFarms)="navigateToAssignFarms($event)"
+        (resetPassword)="openResetPasswordModal($event)"
       ></app-tabla-lista-registro>
 
       <!-- Formulario de Creación -->
@@ -79,3 +80,11 @@
   (close)="closeFarmModal()"
   (granjasUpdated)="onFarmsUpdated()"
 ></app-asignar-usuario-granja>
+
+<!-- Modal de Restablecer Contraseña -->
+<app-modal-reset-password
+  [isOpen]="resetPasswordModalOpen"
+  [user]="selectedUserForReset"
+  (close)="closeResetPasswordModal()"
+  (passwordReset)="closeResetPasswordModal()"
+></app-modal-reset-password>
