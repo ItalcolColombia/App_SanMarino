@@ -117,8 +117,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   /** Columnas de la tabla de registros diarios (sin Acciones). */
   get colspanRegistroDiario(): number {
-    // 29 columnas visibles (incluye despachoH/M, ingreso, traslado, documento, agua) + (histórico: 3)
-    return 29 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    // 28 columnas visibles (incluye despachoH/M, ingreso, traslado, documento, agua) + (histórico: 3)
+    return 28 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFilaEngorde) => f.seg.id;

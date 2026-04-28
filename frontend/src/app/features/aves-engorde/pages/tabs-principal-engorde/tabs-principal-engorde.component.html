@@ -137,7 +137,6 @@
                   <th scope="col" class="th-diario th-diario--num">Consumo kg </th>
                   <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">% pérdidas <span class="th-diario__sub">del día</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
@@ -189,7 +188,6 @@
                   <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
                   <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
                   <td class="num">{{ f.seg.consumoAguaDiario != null ? (f.seg.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
-                  <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
                   <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
