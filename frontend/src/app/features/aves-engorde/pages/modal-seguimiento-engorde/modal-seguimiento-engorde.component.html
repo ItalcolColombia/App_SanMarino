@@ -131,8 +131,14 @@
 
             <div class="data-group">
               <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
-              <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
-                <strong>Dia de pesaje semanal obligatorio.</strong>
+              <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                <strong>Pesaje diario obligatorio (primeros 7 días).</strong>
+                Durante los primeros 7 días desde el encasetamiento el peso es obligatorio cada día. El peso promedio
+                <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
+                es obligatorio para guardar este registro.
+              </p>
+              <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && !esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                <strong>Día de pesaje semanal obligatorio.</strong>
                 La fecha seleccionada corresponde a una semana completa de seguimiento. El peso promedio
                 <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
                 es obligatorio para guardar este registro.

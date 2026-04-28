@@ -288,10 +288,6 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   }
 
   /**
-   * Delta de kg por movimiento de histórico (un término de la fórmula en `saldo-alimento-engorde.util.ts`).
-   * INV_OTRO: AjusteStock usa la cantidad con signo; EliminacionStock siempre resta.
-   */
-  /**
    * Fecha calendario (YYYY-MM-DD) para agrupar y ordenar movimientos del histórico.
    * Si `referencia` trae la fecha real del movimiento (p. ej. "Seguimiento aves engorde #336 2026-03-05"),
    * se usa en lugar de `fechaOperacion` cuando el backend consolidó muchas líneas en un solo día.
@@ -318,6 +314,10 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     return Number.isFinite(t) ? t : (seg.id ?? 0) * 1e9;
   }
 
+  // Solo movimientos físicos de alimento afectan el saldo: INV_INGRESO, INV_TRASLADO_ENTRADA,
+  // INV_TRASLADO_SALIDA. INV_OTRO (AjusteStock / EliminacionStock) son correcciones administrativas
+  // del registro de stock en el módulo de inventario-gestión y no representan alimento físico
+  // que entre o salga del galpón; incluirlos inflaría el saldo de forma incorrecta.
   private deltaHistoricoMovimientoStock(
     h: LoteRegistroHistoricoUnificadoDto
   ): { delta: number; ord: number } | null {
@@ -333,15 +333,6 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       case 'INV_TRASLADO_SALIDA':
         if (kg === 0) return null;
         return { delta: -Math.abs(kg), ord: 2 };
-      case 'INV_OTRO': {
-        const mt = (h.movementTypeOriginal ?? '').trim();
-        if (mt === 'AjusteStock') return { delta: kg, ord: 2 };
-        if (mt === 'EliminacionStock') {
-          if (kg === 0) return null;
-          return { delta: -Math.abs(kg), ord: 2 };
-        }
-        return null;
-      }
       default:
         return null;
     }

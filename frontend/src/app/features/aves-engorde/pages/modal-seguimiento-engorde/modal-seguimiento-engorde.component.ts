@@ -532,21 +532,41 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   }
 
   /**
-   * True si la fecha del registro cae exactamente en un múltiplo de 7 días desde fechaEncaset
-   * (día 7, 14, 21, 28...). Solo aplica en nuevo registro, no en edición.
+   * Días transcurridos desde fechaEncaset para la fecha seleccionada. -1 si no aplica.
+   */
+  private get diasDesdeEncaset(): number {
+    const loteId = this.form?.get('loteId')?.value;
+    const fechaStr = this.form?.get('fechaRegistro')?.value;
+    if (!loteId || !fechaStr) return -1;
+    const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
+    if (!lote?.fechaEncaset) return -1;
+    const encaset = new Date(lote.fechaEncaset.substring(0, 10) + 'T00:00:00');
+    const registro = new Date(fechaStr + 'T00:00:00');
+    if (isNaN(encaset.getTime()) || isNaN(registro.getTime())) return -1;
+    return Math.round((registro.getTime() - encaset.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * True si la fecha está dentro de los primeros 7 días desde fechaEncaset (días 1–7).
+   * En este período el peso es obligatorio cada día.
+   */
+  get esPrimeraSemana(): boolean {
+    if (this.editing) return false;
+    const d = this.diasDesdeEncaset;
+    return d >= 1 && d <= 7;
+  }
+
+  /**
+   * True si la fecha del registro cae en un día de pesaje obligatorio:
+   * - Días 1–7 desde fechaEncaset: obligatorio cada día (primera semana).
+   * - A partir del día 8: obligatorio cada múltiplo de 7 (día 14, 21, 28…).
+   * Solo aplica en nuevo registro, no en edición.
    */
   get esDiaPesoObligatorio(): boolean {
     if (this.editing) return false;
-    const loteId = this.form?.get('loteId')?.value;
-    const fechaStr = this.form?.get('fechaRegistro')?.value;
-    if (!loteId || !fechaStr) return false;
-    const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
-    if (!lote?.fechaEncaset) return false;
-    const encaset = new Date(lote.fechaEncaset.substring(0, 10) + 'T00:00:00');
-    const registro = new Date(fechaStr + 'T00:00:00');
-    if (isNaN(encaset.getTime()) || isNaN(registro.getTime())) return false;
-    const diffDias = Math.round((registro.getTime() - encaset.getTime()) / (1000 * 60 * 60 * 24));
-    return diffDias > 0 && diffDias % 7 === 0;
+    const d = this.diasDesdeEncaset;
+    if (d < 0) return false;
+    return (d >= 1 && d <= 7) || (d > 7 && d % 7 === 0);
   }
 
   /** True si es día semanal de pesaje obligatorio pero falta el peso en algún sexo activo. */
