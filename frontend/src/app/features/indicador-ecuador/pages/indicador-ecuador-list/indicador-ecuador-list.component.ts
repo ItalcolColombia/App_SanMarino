@@ -21,7 +21,7 @@ interface FilterDataResponse {
   farms: Array<{ id: number; name: string }>;
   nucleos: Array<{ nucleoId: string; nucleoNombre?: string; granjaId: number }>;
   galpones: Array<{ galponId: string; galponNombre?: string; nucleoId: string; granjaId: number }>;
-  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null }>;
+  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null; fechaEncaset?: string | null }>;
 }
 
 /** Filter-data Pollo Engorde: granjas, núcleos, galpones y lotes ave engorde (LoteReproductoraAveEngorde/filter-data). */
@@ -95,6 +95,16 @@ export class IndicadorEcuadorListComponent implements OnInit {
   rangoGranjaId: number | null = null;
   rangoNucleoId: string | null = null;
 
+  /** Filtro de tiempo por fecha de encaset en el selector de lotes (Un Lote). */
+  tipoFiltroFechaPollo: 'todos' | 'rango' | 'anio' | 'meses' = 'todos';
+  filtroAnioPollo: number | null = null;
+  filtroMesesPollo: number[] = [];
+  filtroEncDesde: string = '';
+  filtroEncHasta: string = '';
+
+  /** Tab activa en la planilla de resultados: 'consolidado' o loteAveEngordeId. */
+  tabActivaLiquidacion: 'consolidado' | number = 'consolidado';
+
   resultadoLiquidacionPollo: LiquidacionPolloEngordeReporteDto | null = null;
   mostrarLiquidacionPollo = false;
 
@@ -114,10 +124,10 @@ export class IndicadorEcuadorListComponent implements OnInit {
   granjas: Array<{ id: number; name: string }> = [];
   nucleos: Array<{ nucleoId: string; nucleoNombre?: string; granjaId: number }> = [];
   galpones: Array<{ galponId: string; galponNombre?: string; nucleoId: string; granjaId: number }> = [];
-  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null }> = [];
+  lotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null; fechaEncaset?: string | null }> = [];
   private allNucleos: Array<{ nucleoId: string; nucleoNombre?: string; granjaId: number }> = [];
   private allGalpones: Array<{ galponId: string; galponNombre?: string; nucleoId: string; granjaId: number }> = [];
-  private allLotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null }> = [];
+  private allLotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null; fechaEncaset?: string | null }> = [];
 
   // UI
   loading = false;
@@ -235,6 +245,11 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.peGalponId = null;
     this.peLoteAveEngordeId = null;
     this.peTodosLotesLiquidados = false;
+    this.tipoFiltroFechaPollo = 'todos';
+    this.filtroAnioPollo = null;
+    this.filtroMesesPollo = [];
+    this.filtroEncDesde = '';
+    this.filtroEncHasta = '';
     this.applyPeCascade();
     this.aplicarNucleoUnicoPorDefecto();
   }
@@ -546,6 +561,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
         this.resultadoLiquidacionPollo = res;
       }
       this.mostrarLiquidacionPollo = true;
+      this.tabActivaLiquidacion = 'consolidado';
     } catch (err: any) {
       this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al generar la liquidación.';
       this.resultadoLiquidacionPollo = null;
@@ -682,9 +698,85 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.polloAlcance = 'TodasLasGranjas';
     this.rangoGranjaId = null;
     this.rangoNucleoId = null;
+    this.tipoFiltroFechaPollo = 'todos';
+    this.filtroAnioPollo = null;
+    this.filtroMesesPollo = [];
+    this.filtroEncDesde = '';
+    this.filtroEncHasta = '';
+    this.tabActivaLiquidacion = 'consolidado';
     this.applyPeCascade();
     this.resultadoLiquidacionPollo = null;
     this.mostrarLiquidacionPollo = false;
+  }
+
+  /** Lotes del selector filtrados por fecha de encaset según el tipo de filtro activo. */
+  get peLotesFiltradosPorFecha(): PeLoteAveEngordeItem[] {
+    const base = this.peLotesAveEngorde;
+    switch (this.tipoFiltroFechaPollo) {
+      case 'anio':
+        if (!this.filtroAnioPollo) return base;
+        return base.filter(l => l.fechaEncaset && new Date(l.fechaEncaset).getFullYear() === this.filtroAnioPollo);
+      case 'meses':
+        if (!this.filtroMesesPollo.length) return base;
+        return base.filter(l => {
+          if (!l.fechaEncaset) return false;
+          return this.filtroMesesPollo.includes(new Date(l.fechaEncaset).getMonth() + 1);
+        });
+      case 'rango':
+        if (!this.filtroEncDesde || !this.filtroEncHasta) return base;
+        return base.filter(l => {
+          if (!l.fechaEncaset) return false;
+          const d = l.fechaEncaset.substring(0, 10);
+          return d >= this.filtroEncDesde && d <= this.filtroEncHasta;
+        });
+      default:
+        return base;
+    }
+  }
+
+  get aniosDisponiblesPollo(): number[] {
+    const s = new Set<number>();
+    this.peLotesAveEngorde.forEach(l => { if (l.fechaEncaset) s.add(new Date(l.fechaEncaset).getFullYear()); });
+    return Array.from(s).sort((a, b) => b - a);
+  }
+
+  get mesesNombres(): Array<{ num: number; nombre: string }> {
+    return [
+      { num: 1, nombre: 'Ene' }, { num: 2, nombre: 'Feb' }, { num: 3, nombre: 'Mar' },
+      { num: 4, nombre: 'Abr' }, { num: 5, nombre: 'May' }, { num: 6, nombre: 'Jun' },
+      { num: 7, nombre: 'Jul' }, { num: 8, nombre: 'Ago' }, { num: 9, nombre: 'Sep' },
+      { num: 10, nombre: 'Oct' }, { num: 11, nombre: 'Nov' }, { num: 12, nombre: 'Dic' }
+    ];
+  }
+
+  toggleMesFiltro(mes: number): void {
+    const idx = this.filtroMesesPollo.indexOf(mes);
+    if (idx === -1) this.filtroMesesPollo.push(mes);
+    else this.filtroMesesPollo.splice(idx, 1);
+    this.peLoteAveEngordeId = null;
+  }
+
+  onTipoFiltroFechaChange(): void {
+    this.filtroAnioPollo = null;
+    this.filtroMesesPollo = [];
+    this.filtroEncDesde = '';
+    this.filtroEncHasta = '';
+    this.peLoteAveEngordeId = null;
+  }
+
+  seleccionarTab(tab: 'consolidado' | number): void {
+    this.tabActivaLiquidacion = tab;
+  }
+
+  etiquetaTabLote(item: LiquidacionPolloEngordeItemDto): string {
+    const g = String(item.indicador.galponNombre || item.indicador.galponId || '—').trim();
+    return `${g} · ${item.loteNombre || 'Lote ' + item.loteAveEngordeId}`;
+  }
+
+  formatearFechaLote(fecha: string | null | undefined): string {
+    if (!fecha) return '—';
+    const d = new Date(fecha);
+    return isNaN(d.getTime()) ? fecha : d.toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   formatearNumero(valor: number | null | undefined, decimales: number = 2): string {
