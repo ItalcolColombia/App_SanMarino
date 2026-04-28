@@ -10,7 +10,8 @@
  * - INV_TRASLADO_ENTRADA → +cantidad
  * - INV_TRASLADO_SALIDA → −cantidad
  * - Consumo del seguimiento del día → −(consumoKgHembras + consumoKgMachos)
- * - INV_OTRO (ajuste/eliminación de stock) → delta según tipo (no duplicar INV_CONSUMO de bodega)
+ * - INV_OTRO (AjusteStock / EliminacionStock) → EXCLUIDO: son correcciones administrativas del
+ *   registro de stock, no movimientos físicos de alimento; incluirlos inflaría el saldo.
  *
  * Tras cada movimiento se aplica **mínimo 0 kg**: no hay inventario negativo; un ingreso o traslado de entrada suma sobre el saldo disponible (nunca sobre una “deuda” de alimento).
  */

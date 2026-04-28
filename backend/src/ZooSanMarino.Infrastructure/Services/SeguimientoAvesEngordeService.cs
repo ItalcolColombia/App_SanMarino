@@ -336,6 +336,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
     /// <summary>
     /// Delta de kg por movimiento de histórico (sin INV_CONSUMO: el consumo va en el seguimiento diario).
+    /// Solo se consideran movimientos físicos de alimento: INV_INGRESO, INV_TRASLADO_ENTRADA, INV_TRASLADO_SALIDA.
+    /// INV_OTRO (AjusteStock / EliminacionStock) son correcciones administrativas del registro de stock
+    /// y NO representan alimento físico que entre o salga del galpón; incluirlos inflaría el saldo.
     /// Alineado con <c>deltaHistoricoMovimientoStock</c> en el front.
     /// </summary>
     private static bool TryGetHistDeltaAndOrd(LoteRegistroHistoricoUnificado h, out decimal delta, out int ord)
@@ -362,24 +365,6 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                 delta = -Math.Abs(kg);
                 ord = 2;
                 return true;
-            case "INV_OTRO":
-                {
-                    var mt = (h.MovementTypeOriginal ?? "").Trim();
-                    if (string.Equals(mt, "AjusteStock", StringComparison.OrdinalIgnoreCase))
-                    {
-                        delta = kg;
-                        ord = 2;
-                        return true;
-                    }
-                    if (string.Equals(mt, "EliminacionStock", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (kg == 0) return false;
-                        delta = -Math.Abs(kg);
-                        ord = 2;
-                        return true;
-                    }
-                    return false;
-                }
             default:
                 return false;
         }
@@ -430,14 +415,27 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     {
         var lote = await _ctx.LoteAveEngorde.AsNoTracking()
             .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
-            .Select(l => new { l.FechaEncaset })
+            .Select(l => new { l.FechaEncaset, l.GranjaId, l.NucleoId, l.GalponId })
             .FirstOrDefaultAsync(ct);
         if (lote is null)
             return;
 
+        // Usar scope de galpón (misma lógica que QueryHistoricoUnificadoDtosAsync y el frontend):
+        // los movimientos de alimento (INV_INGRESO, INV_TRASLADO_*) se registran a nivel galpón
+        // y pueden tener lote_ave_engorde_id nulo cuando el trigger corre antes de que exista el lote.
+        var farmId     = lote.GranjaId;
+        var nucleoId   = (lote.NucleoId ?? "").Trim();
+        var galponId   = (lote.GalponId ?? "").Trim();
+
         var hist = await _ctx.LoteRegistroHistoricoUnificados
             .AsNoTracking()
-            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado)
+            .Where(h =>
+                h.CompanyId == companyId
+                && !h.Anulado
+                && h.TipoEvento != "VENTA_AVES"
+                && h.FarmId == farmId
+                && (h.NucleoId == null ? "" : h.NucleoId.Trim()) == nucleoId
+                && (h.GalponId == null ? "" : h.GalponId.Trim()) == galponId)
             .OrderBy(h => h.FechaOperacion)
             .ThenBy(h => h.Id)
             .ToListAsync(ct);
