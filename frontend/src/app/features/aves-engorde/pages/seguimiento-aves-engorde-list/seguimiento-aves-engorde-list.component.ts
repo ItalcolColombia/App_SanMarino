@@ -33,6 +33,7 @@ import {
 import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
+import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 
 @Component({
   selector: 'app-seguimiento-aves-engorde-list',
@@ -47,7 +48,8 @@ import { environment } from '../../../../../environments/environment';
     ModalDetalleSeguimientoLevanteComponent,
     FiltroSelectComponent,
     TabsPrincipalEngordeComponent,
-    ConfirmationModalComponent
+    ConfirmationModalComponent,
+    HasPermissionDirective
   ],
   templateUrl: './seguimiento-aves-engorde-list.component.html',
   styleUrls: ['./seguimiento-aves-engorde-list.component.scss']

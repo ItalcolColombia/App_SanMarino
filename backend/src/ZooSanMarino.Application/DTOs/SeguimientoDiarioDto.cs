@@ -67,6 +67,11 @@ public record SeguimientoDiarioDto(
     decimal? Uniformidad,
     decimal? CoeficienteVariacion,
     string? ObservacionesPesaje,
+    // Movimientos de aves
+    int? TrasladoAvesEntrante,
+    int? TrasladoAvesSalida,
+    int? VentaAvesCantidad,
+    string? VentaAvesMotivo,
     // Auditoría
     string? CreatedByUserId,
     DateTime CreatedAt,
@@ -132,6 +137,10 @@ public record CreateSeguimientoDiarioDto(
     decimal? Uniformidad,
     decimal? CoeficienteVariacion,
     string? ObservacionesPesaje,
+    int? TrasladoAvesEntrante,
+    int? TrasladoAvesSalida,
+    int? VentaAvesCantidad,
+    string? VentaAvesMotivo,
     string? CreatedByUserId
 );
 
@@ -194,5 +203,9 @@ public record UpdateSeguimientoDiarioDto(
     decimal? PesoM,
     decimal? Uniformidad,
     decimal? CoeficienteVariacion,
-    string? ObservacionesPesaje
+    string? ObservacionesPesaje,
+    int? TrasladoAvesEntrante,
+    int? TrasladoAvesSalida,
+    int? VentaAvesCantidad,
+    string? VentaAvesMotivo
 );

@@ -25,6 +25,7 @@ public interface IMovimientoAvesService
     // Operaciones de movimiento
     Task<ResultadoMovimientoDto> ProcesarMovimientoAsync(ProcesarMovimientoDto dto);
     Task<ResultadoMovimientoDto> CancelarMovimientoAsync(CancelarMovimientoDto dto);
+    Task<ResultadoMovimientoDto> EliminarMovimientoAsync(int id);
     Task<ResultadoMovimientoDto> TrasladoRapidoAsync(TrasladoRapidoDto dto);
     
     // Traslados específicos
@@ -58,4 +59,11 @@ public interface IMovimientoAvesService
     Task<MovimientoAvesCompletoDto?> GetCompletoByIdAsync(int id);
     Task<IEnumerable<ResumenTrasladoDto>> GetResumenesRecientesAsync(int dias = 7, int limite = 10);
     Task<EstadisticasTrasladoDto> GetEstadisticasCompletasAsync(DateTime? fechaDesde = null, DateTime? fechaHasta = null);
+
+    // Ejecución directa de movimientos desde seguimiento diario
+    Task<ResultadoMovimientoDto> EjecutarVentaAsync(EjecutarVentaAvesRequest request);
+    Task<ResultadoMovimientoDto> EjecutarTrasladoAsync(EjecutarTrasladoAvesRequest request);
+
+    // Cierre de lote levante → traslado a producción
+    Task<ResultadoMovimientoDto> EjecutarTrasladoCierreLevanteAsync(TrasladoCierreLevanteRequest request);
 }

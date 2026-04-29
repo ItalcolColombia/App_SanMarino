@@ -337,6 +337,59 @@ public class MovimientoAvesService : IMovimientoAvesService
         }
     }
 
+    public async Task<ResultadoMovimientoDto> EliminarMovimientoAsync(int id)
+    {
+        var movimiento = await _context.MovimientoAves
+            .Where(m => m.Id == id && m.CompanyId == _currentUser.CompanyId && m.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (movimiento == null)
+            return new ResultadoMovimientoDto(false, "Movimiento no encontrado", null, null, new List<string> { "Movimiento no encontrado" }, null);
+
+        try
+        {
+            // Si estaba Completado, revertir su efecto en las tablas postura y en InventarioAves
+            if (movimiento.Estado == "Completado")
+            {
+                await RevertirAvesActualesEnPosturaAsync(movimiento);
+
+                if (movimiento.LoteOrigenId.HasValue && movimiento.GranjaOrigenId.HasValue)
+                {
+                    var inventarioOrigen = await ObtenerOCrearInventarioAsync(
+                        movimiento.LoteOrigenId.Value, movimiento.GranjaOrigenId.Value,
+                        movimiento.NucleoOrigenId, movimiento.GalponOrigenId, crearSiNoExiste: false);
+                    if (inventarioOrigen != null)
+                    {
+                        inventarioOrigen.AplicarMovimientoEntrada(movimiento.CantidadHembras, movimiento.CantidadMachos, movimiento.CantidadMixtas);
+                        inventarioOrigen.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+
+                if (movimiento.LoteDestinoId.HasValue && movimiento.GranjaDestinoId.HasValue && movimiento.TipoMovimiento == "Traslado")
+                {
+                    var inventarioDestino = await ObtenerOCrearInventarioAsync(
+                        movimiento.LoteDestinoId.Value, movimiento.GranjaDestinoId.Value,
+                        movimiento.NucleoDestinoId, movimiento.GalponDestinoId, crearSiNoExiste: false);
+                    if (inventarioDestino != null)
+                    {
+                        inventarioDestino.AplicarMovimientoSalida(movimiento.CantidadHembras, movimiento.CantidadMachos, movimiento.CantidadMixtas);
+                        inventarioDestino.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+
+            // Eliminación lógica
+            movimiento.DeletedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return new ResultadoMovimientoDto(true, "Movimiento eliminado exitosamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), null);
+        }
+        catch (Exception ex)
+        {
+            return new ResultadoMovimientoDto(false, "Error al eliminar movimiento", movimiento.Id, movimiento.NumeroMovimiento, new List<string> { ex.Message }, null);
+        }
+    }
+
     public async Task<ResultadoMovimientoDto> TrasladoRapidoAsync(TrasladoRapidoDto dto)
     {
         try
@@ -1927,6 +1980,14 @@ public class MovimientoAvesService : IMovimientoAvesService
     /// </summary>
     private async Task<string> DeterminarFaseLoteAsync(int loteId, Lote lote)
     {
+        // Si existe un registro LotePosturaProduccion, es Produccion de forma definitiva
+        var tienePosturaProduccion = await _context.LotePosturaProduccion
+            .AsNoTracking()
+            .AnyAsync(p => p.LoteId == loteId && p.CompanyId == _currentUser.CompanyId && p.DeletedAt == null);
+
+        if (tienePosturaProduccion)
+            return "Produccion";
+
         var diasDesdeEncaset = lote.FechaEncaset.HasValue
             ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days
             : 0;
@@ -1981,8 +2042,17 @@ public class MovimientoAvesService : IMovimientoAvesService
 
                     if (posturaProd != null)
                     {
-                        posturaProd.AvesHActual = Math.Max(0, (posturaProd.AvesHActual ?? 0) - movimiento.CantidadHembras);
-                        posturaProd.AvesMActual = Math.Max(0, (posturaProd.AvesMActual ?? 0) - movimiento.CantidadMachos);
+                        // Usar valor inicial como base si AvesHActual/AvesMActual aún no fue inicializado
+                        var avesHBase = posturaProd.AvesHActual
+                            ?? posturaProd.AvesHInicial
+                            ?? posturaProd.HembrasInicialesProd
+                            ?? 0;
+                        var avesMBase = posturaProd.AvesMActual
+                            ?? posturaProd.AvesMInicial
+                            ?? posturaProd.MachosInicialesProd
+                            ?? 0;
+                        posturaProd.AvesHActual = Math.Max(0, avesHBase - movimiento.CantidadHembras);
+                        posturaProd.AvesMActual = Math.Max(0, avesMBase - movimiento.CantidadMachos);
                         posturaProd.UpdatedAt = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
                     }
@@ -1997,8 +2067,10 @@ public class MovimientoAvesService : IMovimientoAvesService
 
                     if (posturaLev != null)
                     {
-                        posturaLev.AvesHActual = Math.Max(0, (posturaLev.AvesHActual ?? 0) - movimiento.CantidadHembras);
-                        posturaLev.AvesMActual = Math.Max(0, (posturaLev.AvesMActual ?? 0) - movimiento.CantidadMachos);
+                        var avesHBaseLev = posturaLev.AvesHActual ?? posturaLev.AvesHInicial ?? 0;
+                        var avesMBaseLev = posturaLev.AvesMActual ?? posturaLev.AvesMInicial ?? 0;
+                        posturaLev.AvesHActual = Math.Max(0, avesHBaseLev - movimiento.CantidadHembras);
+                        posturaLev.AvesMActual = Math.Max(0, avesMBaseLev - movimiento.CantidadMachos);
                         posturaLev.UpdatedAt = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
                     }
@@ -2031,8 +2103,16 @@ public class MovimientoAvesService : IMovimientoAvesService
 
                     if (posturaProd != null)
                     {
-                        posturaProd.AvesHActual = (posturaProd.AvesHActual ?? 0) + movimiento.CantidadHembras;
-                        posturaProd.AvesMActual = (posturaProd.AvesMActual ?? 0) + movimiento.CantidadMachos;
+                        var avesHBase = posturaProd.AvesHActual
+                            ?? posturaProd.AvesHInicial
+                            ?? posturaProd.HembrasInicialesProd
+                            ?? 0;
+                        var avesMBase = posturaProd.AvesMActual
+                            ?? posturaProd.AvesMInicial
+                            ?? posturaProd.MachosInicialesProd
+                            ?? 0;
+                        posturaProd.AvesHActual = avesHBase + movimiento.CantidadHembras;
+                        posturaProd.AvesMActual = avesMBase + movimiento.CantidadMachos;
                         posturaProd.UpdatedAt = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
                     }
@@ -2047,8 +2127,10 @@ public class MovimientoAvesService : IMovimientoAvesService
 
                     if (posturaLev != null)
                     {
-                        posturaLev.AvesHActual = (posturaLev.AvesHActual ?? 0) + movimiento.CantidadHembras;
-                        posturaLev.AvesMActual = (posturaLev.AvesMActual ?? 0) + movimiento.CantidadMachos;
+                        var avesHBaseLevDest = posturaLev.AvesHActual ?? posturaLev.AvesHInicial ?? 0;
+                        var avesMBaseLevDest = posturaLev.AvesMActual ?? posturaLev.AvesMInicial ?? 0;
+                        posturaLev.AvesHActual = avesHBaseLevDest + movimiento.CantidadHembras;
+                        posturaLev.AvesMActual = avesMBaseLevDest + movimiento.CantidadMachos;
                         posturaLev.UpdatedAt = DateTime.UtcNow;
                         await _context.SaveChangesAsync();
                     }
@@ -2164,5 +2246,185 @@ public class MovimientoAvesService : IMovimientoAvesService
                 }
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Ejecución directa desde seguimiento diario
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public async Task<ResultadoMovimientoDto> EjecutarVentaAsync(EjecutarVentaAvesRequest request)
+    {
+        try
+        {
+            if (request.CantidadHembras <= 0 && request.CantidadMachos <= 0)
+                return new ResultadoMovimientoDto(false, "Debe indicar al menos una ave para vender", null, null, new List<string> { "Cantidades inválidas" }, null);
+
+            var lote = await _context.Lotes.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == request.LoteOrigenId &&
+                                          l.CompanyId == _currentUser.CompanyId &&
+                                          l.DeletedAt == null);
+            if (lote is null)
+                return new ResultadoMovimientoDto(false, $"Lote {request.LoteOrigenId} no encontrado", null, null, new List<string> { "Lote no existe" }, null);
+
+            var dto = new CreateMovimientoAvesDto
+            {
+                FechaMovimiento    = request.Fecha,
+                TipoMovimiento     = "Venta",
+                LoteOrigenId       = request.LoteOrigenId,
+                GranjaOrigenId     = lote.GranjaId,
+                NucleoOrigenId     = lote.NucleoId,
+                GalponOrigenId     = lote.GalponId,
+                CantidadHembras    = request.CantidadHembras,
+                CantidadMachos     = request.CantidadMachos,
+                CantidadMixtas     = 0,
+                MotivoMovimiento   = request.Motivo ?? "Venta desde seguimiento diario",
+                Observaciones      = request.Observaciones,
+                UsuarioMovimientoId = _currentUser.UserId
+            };
+
+            var movimiento = await CreateAsync(dto);
+            return new ResultadoMovimientoDto(true, "Venta registrada correctamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimiento);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al ejecutar venta para lote {LoteId}", request.LoteOrigenId);
+            return new ResultadoMovimientoDto(false, ex.Message, null, null, new List<string> { ex.Message }, null);
+        }
+    }
+
+    public async Task<ResultadoMovimientoDto> EjecutarTrasladoAsync(EjecutarTrasladoAvesRequest request)
+    {
+        try
+        {
+            if (request.CantidadHembras <= 0 && request.CantidadMachos <= 0)
+                return new ResultadoMovimientoDto(false, "Debe indicar al menos una ave para trasladar", null, null, new List<string> { "Cantidades inválidas" }, null);
+
+            var loteOrigen = await _context.Lotes.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == request.LoteOrigenId &&
+                                          l.CompanyId == _currentUser.CompanyId &&
+                                          l.DeletedAt == null);
+            if (loteOrigen is null)
+                return new ResultadoMovimientoDto(false, $"Lote origen {request.LoteOrigenId} no encontrado", null, null, new List<string> { "Lote origen no existe" }, null);
+
+            var loteDestino = await _context.Lotes.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == request.LoteDestinoId &&
+                                          l.CompanyId == _currentUser.CompanyId &&
+                                          l.DeletedAt == null);
+            if (loteDestino is null)
+                return new ResultadoMovimientoDto(false, $"Lote destino {request.LoteDestinoId} no encontrado", null, null, new List<string> { "Lote destino no existe" }, null);
+
+            var dto = new CreateMovimientoAvesDto
+            {
+                FechaMovimiento    = request.Fecha,
+                TipoMovimiento     = "Traslado",
+                LoteOrigenId       = request.LoteOrigenId,
+                GranjaOrigenId     = loteOrigen.GranjaId,
+                NucleoOrigenId     = loteOrigen.NucleoId,
+                GalponOrigenId     = loteOrigen.GalponId,
+                LoteDestinoId      = request.LoteDestinoId,
+                GranjaDestinoId    = loteDestino.GranjaId,
+                NucleoDestinoId    = loteDestino.NucleoId,
+                GalponDestinoId    = loteDestino.GalponId,
+                CantidadHembras    = request.CantidadHembras,
+                CantidadMachos     = request.CantidadMachos,
+                CantidadMixtas     = 0,
+                MotivoMovimiento   = "Traslado desde seguimiento diario",
+                Observaciones      = request.Observaciones,
+                UsuarioMovimientoId = _currentUser.UserId
+            };
+
+            var movimiento = await CreateAsync(dto);
+            return new ResultadoMovimientoDto(true, "Traslado registrado correctamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimiento);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al ejecutar traslado {LoteOrigen}→{LoteDestino}", request.LoteOrigenId, request.LoteDestinoId);
+            return new ResultadoMovimientoDto(false, ex.Message, null, null, new List<string> { ex.Message }, null);
+        }
+    }
+
+    public async Task<ResultadoMovimientoDto> EjecutarTrasladoCierreLevanteAsync(TrasladoCierreLevanteRequest request)
+    {
+        try
+        {
+            if (request.HembrasTraslado <= 0 && request.MachosTraslado <= 0)
+                return new ResultadoMovimientoDto(true, "Sin aves para trasladar en el cierre", null, null, new List<string>(), null);
+
+            // Obtener el LoteId real desde LotePosturaLevante
+            var posLevante = await _context.LotePosturaLevante.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.LotePosturaLevanteId == request.LotePosturaLevanteId &&
+                                          p.CompanyId == _currentUser.CompanyId &&
+                                          p.DeletedAt == null);
+            if (posLevante is null)
+                return new ResultadoMovimientoDto(false, $"LotePosturaLevante {request.LotePosturaLevanteId} no encontrado", null, null, new List<string> { "Postura levante no existe" }, null);
+
+            if (posLevante.LoteId is null)
+                return new ResultadoMovimientoDto(false, "LotePosturaLevante no tiene LoteId asociado", null, null, new List<string> { "LoteId nulo" }, null);
+
+            var loteOrigen = await _context.Lotes.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.LoteId == posLevante.LoteId &&
+                                          l.CompanyId == _currentUser.CompanyId &&
+                                          l.DeletedAt == null);
+            if (loteOrigen is null)
+                return new ResultadoMovimientoDto(false, $"Lote {posLevante.LoteId} no encontrado", null, null, new List<string> { "Lote origen no existe" }, null);
+
+            var dto = new CreateMovimientoAvesDto
+            {
+                FechaMovimiento  = request.Fecha,
+                TipoMovimiento   = "Traslado",
+                LoteOrigenId     = posLevante.LoteId.Value,
+                GranjaOrigenId   = loteOrigen.GranjaId,
+                NucleoOrigenId   = loteOrigen.NucleoId,
+                GalponOrigenId   = loteOrigen.GalponId,
+                CantidadHembras  = request.HembrasTraslado,
+                CantidadMachos   = request.MachosTraslado,
+                CantidadMixtas   = 0,
+                MotivoMovimiento = "Traslado por cierre de lote levante",
+                Observaciones    = BuildObsCierreLevante(request),
+                UsuarioMovimientoId = _currentUser.UserId
+            };
+
+            // Si hay lote de producción destino, completar datos de destino
+            if (request.LotePosturaProduccionId.HasValue)
+            {
+                var posProduccion = await _context.LotePosturaProduccion.AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.LotePosturaProduccionId == request.LotePosturaProduccionId &&
+                                              p.CompanyId == _currentUser.CompanyId &&
+                                              p.DeletedAt == null);
+
+                if (posProduccion?.LoteId != null)
+                {
+                    var loteDestino = await _context.Lotes.AsNoTracking()
+                        .FirstOrDefaultAsync(l => l.LoteId == posProduccion.LoteId &&
+                                                  l.CompanyId == _currentUser.CompanyId &&
+                                                  l.DeletedAt == null);
+                    if (loteDestino != null)
+                    {
+                        dto.LoteDestinoId   = loteDestino.LoteId;
+                        dto.GranjaDestinoId = loteDestino.GranjaId;
+                        dto.NucleoDestinoId = loteDestino.NucleoId;
+                        dto.GalponDestinoId = loteDestino.GalponId;
+                    }
+                }
+            }
+
+            var movimiento = await CreateAsync(dto);
+            return new ResultadoMovimientoDto(true, "Traslado de cierre registrado correctamente", movimiento.Id, movimiento.NumeroMovimiento, new List<string>(), movimiento);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al ejecutar traslado de cierre levante {LotePosturaLevanteId}", request.LotePosturaLevanteId);
+            return new ResultadoMovimientoDto(false, ex.Message, null, null, new List<string> { ex.Message }, null);
+        }
+    }
+
+    private static string BuildObsCierreLevante(TrasladoCierreLevanteRequest r)
+    {
+        var sb = new System.Text.StringBuilder("Cierre de lote levante");
+        if (r.LiquidacionCierreId.HasValue)
+            sb.Append($" (Liquidación #{r.LiquidacionCierreId})");
+        if (!string.IsNullOrWhiteSpace(r.Observaciones))
+            sb.Append($" — {r.Observaciones}");
+        return sb.ToString();
     }
 }

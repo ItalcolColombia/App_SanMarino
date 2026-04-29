@@ -738,12 +738,27 @@
   .tabs-content {
     padding: var(--space-4);
   }
-  
+
   .resumen-card {
     flex-direction: column; text-align: center;
   }
-  
+
   .resumen-icon {
     font-size: 1.5rem;
   }
+}
+
+// ── Columnas de movimientos de aves (Phase 4) ──
+.th-diario--mov   { background: #f0fdf4; color: #166534; }
+.th-diario--venta { background: #fffbeb; color: #92400e; }
+
+.cell-mov {
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #6b7280;
+
+  &--entrada.cell-mov--valor { color: #16a34a; font-weight: 700; }
+  &--salida.cell-mov--valor  { color: #dc2626; font-weight: 700; }
+  &--venta.cell-mov--valor   { color: #d97706; font-weight: 700; }
 }

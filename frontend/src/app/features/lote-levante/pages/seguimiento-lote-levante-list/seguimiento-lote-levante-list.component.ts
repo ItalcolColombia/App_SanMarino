@@ -44,6 +44,10 @@ import {
   LiquidacionCierreLoteLevanteService,
   LiquidacionCierreLoteLevanteDto
 } from '../../services/liquidacion-cierre-lote-levante.service';
+import {
+  MovimientosAvesService,
+  TrasladoCierreLevanteRequest
+} from '../../../movimientos-aves/services/movimientos-aves.service';
 
 
 
@@ -144,6 +148,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private catalogSvc: CatalogoAlimentosService,
     private auth: AuthService,
     private liquidacionCierreSvc: LiquidacionCierreLoteLevanteService,
+    private movimientosAvesSvc: MovimientosAvesService,
   ) {}
 
   // ================== INIT ==================
@@ -814,8 +819,21 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
       .pipe(finalize(() => (this.loadingCierreLote = false)))
       .subscribe({
         next: () => {
-          // Guardar liquidación de cierre (best-effort, no bloquea flujo)
+          // Guardar liquidación de cierre (best-effort)
           this.liquidacionCierreSvc.guardar(id).subscribe();
+
+          // Registrar traslado de cierre levante → producción (best-effort)
+          const r = this.resumenCierre;
+          if (r && (r.avesHembrasDisponibles > 0 || r.avesMachosDisponibles > 0)) {
+            const req: TrasladoCierreLevanteRequest = {
+              lotePosturaLevanteId: id,
+              fecha: new Date().toISOString(),
+              hembrasTraslado: r.avesHembrasDisponibles,
+              machosTraslado: r.avesMachosDisponibles,
+            };
+            this.movimientosAvesSvc.ejecutarTrasladoCierreLevante(req).subscribe();
+          }
+
           this.closeCerrarLoteModal();
           this.onLoteChange(this.selectedLoteId);
         },

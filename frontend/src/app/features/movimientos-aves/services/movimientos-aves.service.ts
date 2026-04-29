@@ -118,6 +118,45 @@ export interface MovimientoAvesDto {
   promedioPesoAve?: number;
 }
 
+export interface ResultadoMovimientoDto {
+  success: boolean;
+  message: string;
+  movimientoId?: number;
+  numeroMovimiento?: string;
+  errores: string[];
+  movimiento?: MovimientoAvesDto;
+}
+
+export interface EjecutarVentaAvesRequest {
+  loteOrigenId: number;
+  seguimientoId: number;
+  fecha: string; // ISO date string
+  cantidadHembras: number;
+  cantidadMachos: number;
+  motivo?: string;
+  observaciones?: string;
+}
+
+export interface EjecutarTrasladoAvesRequest {
+  loteOrigenId: number;
+  seguimientoOrigenId: number;
+  loteDestinoId: number;
+  fecha: string;
+  cantidadHembras: number;
+  cantidadMachos: number;
+  observaciones?: string;
+}
+
+export interface TrasladoCierreLevanteRequest {
+  lotePosturaLevanteId: number;
+  lotePosturaProduccionId?: number;
+  fecha: string;
+  hembrasTraslado: number;
+  machosTraslado: number;
+  liquidacionCierreId?: number;
+  observaciones?: string;
+}
+
 export interface InformacionLoteDto {
   loteId: number;
   loteNombre: string;
@@ -214,9 +253,30 @@ export class MovimientosAvesService {
       .pipe(catchError(this.handleError));
   }
 
+  // Eliminar movimiento (eliminación lógica + reversión de aves)
+  eliminarMovimientoAves(movimientoId: number): Observable<ResultadoMovimientoDto> {
+    return this.http.delete<ResultadoMovimientoDto>(`${this.movimientosUrl}/${movimientoId}`)
+      .pipe(catchError(this.handleError));
+  }
+
   // Procesar movimiento de aves
   procesarMovimientoAves(movimientoId: number): Observable<boolean> {
     return this.http.post<boolean>(`${this.movimientosUrl}/${movimientoId}/procesar`, {})
+      .pipe(catchError(this.handleError));
+  }
+
+  ejecutarVenta(request: EjecutarVentaAvesRequest): Observable<ResultadoMovimientoDto> {
+    return this.http.post<ResultadoMovimientoDto>(`${this.movimientosUrl}/ejecutar-venta`, request)
+      .pipe(catchError(this.handleError));
+  }
+
+  ejecutarTraslado(request: EjecutarTrasladoAvesRequest): Observable<ResultadoMovimientoDto> {
+    return this.http.post<ResultadoMovimientoDto>(`${this.movimientosUrl}/ejecutar-traslado`, request)
+      .pipe(catchError(this.handleError));
+  }
+
+  ejecutarTrasladoCierreLevante(request: TrasladoCierreLevanteRequest): Observable<ResultadoMovimientoDto> {
+    return this.http.post<ResultadoMovimientoDto>(`${this.movimientosUrl}/ejecutar-traslado-cierre-levante`, request)
       .pipe(catchError(this.handleError));
   }
 

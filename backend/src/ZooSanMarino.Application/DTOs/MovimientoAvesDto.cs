@@ -232,3 +232,54 @@ public record ResultadoMovimientoDto(
     List<string> Errores,
     MovimientoAvesDto? Movimiento
 );
+
+/// <summary>Request para ejecutar una venta de aves desde el seguimiento diario.</summary>
+public sealed class EjecutarVentaAvesRequest
+{
+    public int LoteOrigenId { get; set; }
+    public long SeguimientoId { get; set; }
+    public DateTime Fecha { get; set; }
+    public int CantidadHembras { get; set; }
+    public int CantidadMachos { get; set; }
+    public string? Motivo { get; set; }
+    public string? Observaciones { get; set; }
+}
+
+/// <summary>Request para ejecutar un traslado de aves entre lotes desde el seguimiento diario.</summary>
+public sealed class EjecutarTrasladoAvesRequest
+{
+    public int LoteOrigenId { get; set; }
+    public long SeguimientoOrigenId { get; set; }
+    public int LoteDestinoId { get; set; }
+    public DateTime Fecha { get; set; }
+    public int CantidadHembras { get; set; }
+    public int CantidadMachos { get; set; }
+    public string? Observaciones { get; set; }
+}
+
+/// <summary>Request para ejecutar el traslado de aves al cerrar un lote levante hacia producción.</summary>
+public sealed class TrasladoCierreLevanteRequest
+{
+    /// <summary>ID de LotePosturaLevante que se cierra.</summary>
+    public int LotePosturaLevanteId { get; set; }
+    /// <summary>ID de LotePosturaProduccion destino. Null si el traslado es a venta directa.</summary>
+    public int? LotePosturaProduccionId { get; set; }
+    public DateTime Fecha { get; set; }
+    public int HembrasTraslado { get; set; }
+    public int MachosTraslado { get; set; }
+    /// <summary>ID de la liquidación de cierre ya guardada, para trazabilidad.</summary>
+    public int? LiquidacionCierreId { get; set; }
+    public string? Observaciones { get; set; }
+}
+
+/// <summary>Granja simplificada para selector de destino.</summary>
+public sealed record GranjaDestinoDto(int GranjaId, string GranjaNombre);
+
+/// <summary>Núcleo simplificado para selector de destino.</summary>
+public sealed record NucleoDestinoDto(string NucleoId, string NucleoNombre);
+
+/// <summary>Galpón simplificado para selector de destino.</summary>
+public sealed record GalponDestinoDto(string GalponId, string GalponNombre);
+
+/// <summary>Lote simplificado para selector de destino.</summary>
+public sealed record LoteDestinoDto(int LoteId, string LoteNombre, string? Fase);

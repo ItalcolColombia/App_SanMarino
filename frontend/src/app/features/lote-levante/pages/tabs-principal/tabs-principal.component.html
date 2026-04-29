@@ -203,6 +203,9 @@
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov">Traslado <span class="th-diario__sub">entrante</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov">Traslado <span class="th-diario__sub">salida</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--venta">Venta <span class="th-diario__sub">aves</span></th>
                   <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                 </tr>
               </thead>
@@ -240,6 +243,22 @@
                   <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
                   <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
+                  <!-- Movimientos de aves -->
+                  <td class="num cell-mov cell-mov--entrada"
+                      [class.cell-mov--valor]="f.seg.trasladoAvesEntrante"
+                      [title]="f.seg.trasladoAvesEntrante ? 'Entrante: ' + f.seg.trasladoAvesEntrante + ' aves' : ''">
+                    {{ f.seg.trasladoAvesEntrante != null && f.seg.trasladoAvesEntrante > 0 ? ('+' + (f.seg.trasladoAvesEntrante | number:'1.0-0')) : '—' }}
+                  </td>
+                  <td class="num cell-mov cell-mov--salida"
+                      [class.cell-mov--valor]="f.seg.trasladoAvesSalida"
+                      [title]="f.seg.trasladoAvesSalida ? 'Salida: ' + f.seg.trasladoAvesSalida + ' aves' : ''">
+                    {{ f.seg.trasladoAvesSalida != null && f.seg.trasladoAvesSalida > 0 ? ('-' + (f.seg.trasladoAvesSalida | number:'1.0-0')) : '—' }}
+                  </td>
+                  <td class="num cell-mov cell-mov--venta"
+                      [class.cell-mov--valor]="f.seg.ventaAvesCantidad"
+                      [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">
+                    {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
+                  </td>
                   <td class="text-right">
                     <div class="btn-group">
                       <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>

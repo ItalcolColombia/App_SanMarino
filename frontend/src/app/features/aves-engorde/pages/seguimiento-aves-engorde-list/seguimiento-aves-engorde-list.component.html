@@ -46,23 +46,29 @@
       </div>
 
       <div class="ux-header__actions">
-        <button
-          type="button"
-          class="btn btn--outline"
-          *ngIf="selectedLoteId && !loteOperativoCerrado"
-          [title]="'Liquidar lote (resumen y cierre operativo)'"
-          (click)="liquidacionOpen = true">
-          Liquidar lote
-        </button>
+        <ng-container *appHasPermission="'liquidar_lote'">
+          @if (selectedLoteId && !loteOperativoCerrado) {
+            <button
+              type="button"
+              class="btn btn--outline"
+              [title]="'Liquidar lote (resumen y cierre operativo)'"
+              (click)="liquidacionOpen = true">
+              Liquidar lote
+            </button>
+          }
+        </ng-container>
 
-        <button
-          type="button"
-          class="btn btn--outline"
-          *ngIf="selectedLoteId && loteOperativoCerrado"
-          [title]="'Abrir lote liquidado (motivo obligatorio)'"
-          (click)="liquidacionOpen = true">
-          Abrir lote
-        </button>
+        <ng-container *appHasPermission="'abrir_lote'">
+          @if (selectedLoteId && loteOperativoCerrado) {
+            <button
+              type="button"
+              class="btn btn--outline"
+              [title]="'Abrir lote liquidado (motivo obligatorio)'"
+              (click)="liquidacionOpen = true">
+              Abrir lote
+            </button>
+          }
+        </ng-container>
 
         <button
           type="button"

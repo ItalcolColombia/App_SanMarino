@@ -126,6 +126,10 @@ public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
             Uniformidad: null,
             CoeficienteVariacion: null,
             ObservacionesPesaje: null,
+            TrasladoAvesEntrante: null,
+            TrasladoAvesSalida: null,
+            VentaAvesCantidad: null,
+            VentaAvesMotivo: null,
             CreatedByUserId: createdByUserId
         );
     }
@@ -189,7 +193,11 @@ public class LoteSeguimientoService : AppInterfaces.ILoteSeguimientoService
             PesoM: null,
             Uniformidad: null,
             CoeficienteVariacion: null,
-            ObservacionesPesaje: null
+            ObservacionesPesaje: null,
+            TrasladoAvesEntrante: null,
+            TrasladoAvesSalida: null,
+            VentaAvesCantidad: null,
+            VentaAvesMotivo: null
         );
     }
 

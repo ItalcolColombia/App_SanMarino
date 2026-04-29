@@ -23,6 +23,7 @@ import {
   MovimientoPolloEngordeSaveDetail
 } from '../../components/modal-movimiento-pollo-engorde/modal-movimiento-pollo-engorde.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 
 /** Opción del dropdown Lote (solo Ave Engorde). */
 export interface LoteOption {
@@ -56,7 +57,8 @@ export type FilaTablaMovimiento = FilaDespachoGrupo | FilaMovimientoSimple;
     FormsModule,
     ConfirmationModalComponent,
     AuditoriaVentasModalComponent,
-    ModalMovimientoPolloEngordeComponent
+    ModalMovimientoPolloEngordeComponent,
+    HasPermissionDirective
   ],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
   styleUrls: ['./movimientos-pollo-engorde-list.component.scss']

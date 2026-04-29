@@ -189,12 +189,16 @@
                   <button type="button" (click)="openDetail(l)" class="le-icon-btn" title="Ver detalle" aria-label="Ver detalle">
                     <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
                   </button>
-                  <button type="button" (click)="openModal(l)" class="le-icon-btn" title="Editar" aria-label="Editar">
-                    <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
-                  </button>
-                  <button type="button" (click)="delete(l)" class="le-icon-btn le-icon-btn--danger" title="Eliminar" aria-label="Eliminar">
-                    <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
-                  </button>
+                  <ng-container *appHasPermission="'editar_registro'">
+                    <button type="button" (click)="openModal(l)" class="le-icon-btn" title="Editar" aria-label="Editar">
+                      <fa-icon [icon]="faPen" aria-hidden="true"></fa-icon>
+                    </button>
+                  </ng-container>
+                  <ng-container *appHasPermission="'eliminar_registro'">
+                    <button type="button" (click)="delete(l)" class="le-icon-btn le-icon-btn--danger" title="Eliminar" aria-label="Eliminar">
+                      <fa-icon [icon]="faTrash" aria-hidden="true"></fa-icon>
+                    </button>
+                  </ng-container>
                 </div>
               </td>
             </tr>

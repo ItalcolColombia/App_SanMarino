@@ -278,24 +278,28 @@
                       </td>
                       <td class="text-right">
                         <div class="btn-group btn-group--despacho">
-                          <button
-                            type="button"
-                            class="action-btn action-btn--success"
-                            title="Completar despacho: desconta en cada lote"
-                            (click)="completarGrupoDespacho(fila)"
-                            [disabled]="!puedeCompletarGrupo(fila.movimientos)">
-                            <span class="action-icon">✓</span>
-                            <span class="action-label">Completar despacho</span>
-                          </button>
-                          <button
-                            type="button"
-                            class="action-btn action-btn--delete"
-                            title="Eliminar todos los movimientos del despacho (si estaban completados, el inventario se revierte en cada lote)"
-                            (click)="cancelarGrupoDespacho(fila)"
-                            [disabled]="!puedeCancelarGrupo(fila.movimientos)">
-                            <span class="action-icon">🗑</span>
-                            <span class="action-label">Eliminar despacho</span>
-                          </button>
+                          <ng-container *appHasPermission="'confirmar_despacho'">
+                            <button
+                              type="button"
+                              class="action-btn action-btn--success"
+                              title="Completar despacho: desconta en cada lote"
+                              (click)="completarGrupoDespacho(fila)"
+                              [disabled]="!puedeCompletarGrupo(fila.movimientos)">
+                              <span class="action-icon">✓</span>
+                              <span class="action-label">Completar despacho</span>
+                            </button>
+                          </ng-container>
+                          <ng-container *appHasPermission="'eliminar_registro'">
+                            <button
+                              type="button"
+                              class="action-btn action-btn--delete"
+                              title="Eliminar todos los movimientos del despacho (si estaban completados, el inventario se revierte en cada lote)"
+                              (click)="cancelarGrupoDespacho(fila)"
+                              [disabled]="!puedeCancelarGrupo(fila.movimientos)">
+                              <span class="action-icon">🗑</span>
+                              <span class="action-label">Eliminar despacho</span>
+                            </button>
+                          </ng-container>
                         </div>
                       </td>
                     </tr>
@@ -338,27 +342,33 @@
                                     <button type="button" (click)="viewDetail(m)" class="action-btn action-btn--view" title="Ver">
                                       <span class="action-icon">👁</span>
                                     </button>
-                                    <button
-                                      type="button"
-                                      (click)="editMovimiento(m)"
-                                      class="action-btn action-btn--edit"
-                                      [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
-                                      <span class="action-icon">✎</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      (click)="completarMovimiento(m)"
-                                      class="action-btn action-btn--success"
-                                      [disabled]="m.estado !== 'Pendiente'">
-                                      <span class="action-icon">✓</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      (click)="deleteMovimiento(m)"
-                                      class="action-btn action-btn--delete"
-                                      [disabled]="m.estado === 'Cancelado'">
-                                      <span class="action-icon">🗑</span>
-                                    </button>
+                                    <ng-container *appHasPermission="'editar_registro'">
+                                      <button
+                                        type="button"
+                                        (click)="editMovimiento(m)"
+                                        class="action-btn action-btn--edit"
+                                        [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
+                                        <span class="action-icon">✎</span>
+                                      </button>
+                                    </ng-container>
+                                    <ng-container *appHasPermission="'confirmar_despacho'">
+                                      <button
+                                        type="button"
+                                        (click)="completarMovimiento(m)"
+                                        class="action-btn action-btn--success"
+                                        [disabled]="m.estado !== 'Pendiente'">
+                                        <span class="action-icon">✓</span>
+                                      </button>
+                                    </ng-container>
+                                    <ng-container *appHasPermission="'eliminar_registro'">
+                                      <button
+                                        type="button"
+                                        (click)="deleteMovimiento(m)"
+                                        class="action-btn action-btn--delete"
+                                        [disabled]="m.estado === 'Cancelado'">
+                                        <span class="action-icon">🗑</span>
+                                      </button>
+                                    </ng-container>
                                   </div>
                                 </td>
                               </tr>
@@ -407,32 +417,38 @@
                           <span class="action-icon">👁</span>
                           <span class="action-label">Ver</span>
                         </button>
-                        <button
-                          type="button"
-                          (click)="editMovimiento(fila.movimiento)"
-                          class="action-btn action-btn--edit"
-                          title="Editar"
-                          [disabled]="fila.movimiento.estado === 'Completado' || fila.movimiento.estado === 'Cancelado'">
-                          <span class="action-icon">✎</span>
-                          <span class="action-label">Editar</span>
-                        </button>
-                        <button
-                          type="button"
-                          (click)="completarMovimiento(fila.movimiento)"
-                          class="action-btn action-btn--success"
-                          title="Completar (descontar aves del lote)"
-                          [disabled]="fila.movimiento.estado !== 'Pendiente'">
-                          <span class="action-icon">✓</span>
-                          <span class="action-label">Completar</span>
-                        </button>
-                        <button
-                          type="button"
-                          (click)="deleteMovimiento(fila.movimiento)"
-                          class="action-btn action-btn--delete"
-                          title="Eliminar movimiento (si estaba completado, las aves vuelven al inventario del lote)">
-                          <span class="action-icon">🗑</span>
-                          <span class="action-label">Eliminar</span>
-                        </button>
+                        <ng-container *appHasPermission="'editar_registro'">
+                          <button
+                            type="button"
+                            (click)="editMovimiento(fila.movimiento)"
+                            class="action-btn action-btn--edit"
+                            title="Editar"
+                            [disabled]="fila.movimiento.estado === 'Completado' || fila.movimiento.estado === 'Cancelado'">
+                            <span class="action-icon">✎</span>
+                            <span class="action-label">Editar</span>
+                          </button>
+                        </ng-container>
+                        <ng-container *appHasPermission="'confirmar_despacho'">
+                          <button
+                            type="button"
+                            (click)="completarMovimiento(fila.movimiento)"
+                            class="action-btn action-btn--success"
+                            title="Completar (descontar aves del lote)"
+                            [disabled]="fila.movimiento.estado !== 'Pendiente'">
+                            <span class="action-icon">✓</span>
+                            <span class="action-label">Completar</span>
+                          </button>
+                        </ng-container>
+                        <ng-container *appHasPermission="'eliminar_registro'">
+                          <button
+                            type="button"
+                            (click)="deleteMovimiento(fila.movimiento)"
+                            class="action-btn action-btn--delete"
+                            title="Eliminar movimiento (si estaba completado, las aves vuelven al inventario del lote)">
+                            <span class="action-icon">🗑</span>
+                            <span class="action-label">Eliminar</span>
+                          </button>
+                        </ng-container>
                       </div>
                     </td>
                   </tr>

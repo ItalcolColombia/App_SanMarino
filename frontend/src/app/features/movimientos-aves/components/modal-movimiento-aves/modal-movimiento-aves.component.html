@@ -1,721 +1,340 @@
-<!-- Modal de Movimiento de Aves -->
-<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="movimiento-aves-modal-title" (click)="onOverlayClick($event)">
+<!-- Modal de Movimiento de Aves — Phase 4 refactor -->
+<div *ngIf="isOpen" class="ux-modal" role="dialog" aria-modal="true"
+     aria-labelledby="mov-aves-title" (click)="onOverlayClick($event)">
   <div class="ux-modal__dialog ux-modal__dialog--xl" (click)="$event.stopPropagation()">
+
+    <!-- ═══ HEADER ═══ -->
     <header class="ux-modal__header">
-      <h2 id="movimiento-aves-modal-title">
+      <h2 id="mov-aves-title">
         {{ modalTitle() }}
-        <span *ngIf="editingMovimiento" class="modal-subtitle">
-          - {{ editingMovimiento.numeroMovimiento }}
-        </span>
+        <span *ngIf="editingMovimiento" class="modal-subtitle">— {{ editingMovimiento.numeroMovimiento }}</span>
       </h2>
       <button type="button" class="icon-btn" (click)="closeModal()" aria-label="Cerrar">✕</button>
     </header>
 
+    <!-- ═══ BODY ═══ -->
     <div class="ux-modal__body">
-      <!-- Mensajes de error y éxito -->
-      <div *ngIf="error()" class="alert alert-error">
-        {{ error() }}
+
+      <!-- Tarjeta de información del lote -->
+      <div class="lote-info-banner" *ngIf="!loadingInfo() && informacionLote()">
+        <div class="lote-info-banner__row">
+          <span class="lote-info-banner__chip"
+                [class.chip--levante]="informacionLote()!.tipoLote === 'Levante'"
+                [class.chip--produccion]="informacionLote()!.tipoLote === 'Produccion'">
+            {{ informacionLote()!.tipoLote }}
+          </span>
+          <strong>{{ informacionLote()!.loteNombre }}</strong>
+          <span class="sep">·</span>
+          <span>{{ informacionLote()!.granjaNombre }}</span>
+          <span *ngIf="informacionLote()?.nucleoNombre" class="sep">·</span>
+          <span *ngIf="informacionLote()?.nucleoNombre">{{ informacionLote()!.nucleoNombre }}</span>
+          <span *ngIf="informacionLote()?.galponNombre" class="sep">·</span>
+          <span *ngIf="informacionLote()?.galponNombre">{{ informacionLote()!.galponNombre }}</span>
+        </div>
+        <div class="lote-info-banner__aves">
+          <div class="aves-stat">
+            <span class="aves-stat__label">Hembras disp.</span>
+            <span class="aves-stat__value">{{ informacionLote()!.cantidadHembras | number }}</span>
+          </div>
+          <div class="aves-stat">
+            <span class="aves-stat__label">Machos disp.</span>
+            <span class="aves-stat__value">{{ informacionLote()!.cantidadMachos | number }}</span>
+          </div>
+          <div class="aves-stat aves-stat--total">
+            <span class="aves-stat__label">Total disp.</span>
+            <span class="aves-stat__value">{{ informacionLote()!.totalAves | number }}</span>
+          </div>
+          <div class="aves-stat aves-stat--edad" *ngIf="informacionLote()?.etapa">
+            <span class="aves-stat__label">Sem.</span>
+            <span class="aves-stat__value">{{ informacionLote()!.etapa }}</span>
+          </div>
+        </div>
       </div>
-      <div *ngIf="success()" class="alert alert-success">
-        {{ success() }}
-      </div>
+      <div *ngIf="loadingInfo()" class="loading-placeholder">Cargando información del lote…</div>
 
-      <!-- Información del Lote (siempre visible) -->
-      <div class="form-section">
-        <h3>Información del Lote</h3>
-
-          <!-- Información de Disponibilidad de Aves -->
-          <div *ngIf="loadingInfo()" class="loading-info">
-            Cargando información del lote...
-          </div>
-
-          <!-- Información del Lote Seleccionado -->
-          <div *ngIf="informacionLote() && !loadingInfo()" class="lote-info-card">
-            <div class="lote-info-grid">
-              <div class="lote-info-item">
-                <span class="label">Lote:</span>
-                <span class="value">{{ informacionLote()!.loteNombre }} (ID: {{ informacionLote()!.loteId }})</span>
-              </div>
-              <div class="lote-info-item">
-                <span class="label">Granja:</span>
-                <span class="value">{{ informacionLote()!.granjaNombre || 'N/A' }}</span>
-              </div>
-              <div class="lote-info-item" *ngIf="informacionLote()?.nucleoNombre">
-                <span class="label">Núcleo:</span>
-                <span class="value">{{ informacionLote()!.nucleoNombre }}</span>
-              </div>
-              <div class="lote-info-item" *ngIf="informacionLote()?.galponNombre">
-                <span class="label">Galpón:</span>
-                <span class="value">{{ informacionLote()!.galponNombre }}</span>
-              </div>
-              <div class="lote-info-item" *ngIf="informacionLote()?.diasDesdeEncasetamiento !== undefined">
-                <span class="label">Edad:</span>
-                <span class="value">{{ informacionLote()!.diasDesdeEncasetamiento }} días ({{ informacionLote()!.etapa }} semanas)</span>
-              </div>
-              <div class="lote-info-item">
-                <span class="label">Etapa:</span>
-                <span class="value badge" [class.badge--info]="informacionLote()!.tipoLote === 'Levante'" [class.badge--success]="informacionLote()!.tipoLote === 'Produccion'">
-                  {{ informacionLote()!.tipoLote }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Información de Aves Iniciales Registradas en el Lote -->
-          <div *ngIf="informacionLote() && !loadingInfo()" class="aves-registradas-card">
-            <h4>Inventario Inicial del Lote</h4>
-            <div class="aves-registradas-grid">
-              <div class="aves-registradas-item">
-                <span class="label">Hembras Iniciales:</span>
-                <span class="value">{{ informacionLote()!.hembrasIniciales || 0 }}</span>
-              </div>
-              <div class="aves-registradas-item">
-                <span class="label">Machos Iniciales:</span>
-                <span class="value">{{ informacionLote()!.machosIniciales || 0 }}</span>
-              </div>
-              <div class="aves-registradas-item">
-                <span class="label">Total Inicial:</span>
-                <span class="value highlight">{{ (informacionLote()!.hembrasIniciales || 0) + (informacionLote()!.machosIniciales || 0) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Disponibilidad Actual de Aves (calculada desde registros diarios) -->
-          <div *ngIf="informacionLote() && !loadingInfo()" class="disponibilidad-card">
-            <h4>Disponibilidad Actual de Aves</h4>
-            <p class="disponibilidad-subtitle">Calculado desde registros diarios de {{ informacionLote()!.tipoLote }}</p>
-            <div class="disponibilidad-grid">
-              <div class="disponibilidad-item">
-                <span class="label">Total Aves Disponibles:</span>
-                <span class="value highlight">{{ informacionLote()!.totalAves || 0 }}</span>
-              </div>
-              <div class="disponibilidad-item">
-                <span class="label">Hembras Disponibles:</span>
-                <span class="value">{{ informacionLote()!.cantidadHembras || 0 }}</span>
-              </div>
-              <div class="disponibilidad-item">
-                <span class="label">Machos Disponibles:</span>
-                <span class="value">{{ informacionLote()!.cantidadMachos || 0 }}</span>
-              </div>
-              <div class="disponibilidad-item">
-                <span class="label">Mixtas Disponibles:</span>
-                <span class="value">{{ informacionLote()!.cantidadMixtas || 0 }}</span>
-              </div>
-            </div>
-          </div>
-      </div>
-
-      <!-- Formulario con Tabs -->
+      <!-- ═══ FORMULARIO ═══ -->
       <form [formGroup]="formMovimiento" (ngSubmit)="onSubmitMovimiento()" class="movimiento-form">
-        <!-- Tabs -->
-        <div class="ux-tabs" role="tablist" aria-label="Secciones del movimiento">
-          <input type="radio" name="movTab" id="tab-general" [checked]="activeTab === 'general'" (change)="onTabChange('general')" />
-          <label class="ux-tab" [class.active]="activeTab === 'general'" id="lab-general" for="tab-general" role="tab" tabindex="0" aria-controls="panel-general" [attr.aria-selected]="activeTab === 'general'">
-            <span class="tab-icon">⚙️</span>
-            <span>General</span>
-          </label>
 
-          <input type="radio" name="movTab" id="tab-cantidades" [checked]="activeTab === 'cantidades'" (change)="onTabChange('cantidades')" />
-          <label class="ux-tab" [class.active]="activeTab === 'cantidades'" id="lab-cantidades" for="tab-cantidades" role="tab" tabindex="0" aria-controls="panel-cantidades" [attr.aria-selected]="activeTab === 'cantidades'">
-            <span class="tab-icon">🐔</span>
-            <span>Cantidades</span>
-          </label>
-
-          <input *ngIf="isEcuador()" type="radio" name="movTab" id="tab-despacho" [checked]="activeTab === 'despacho'" (change)="onTabChange('despacho')" />
-          <label *ngIf="isEcuador()" class="ux-tab" [class.active]="activeTab === 'despacho'" id="lab-despacho" for="tab-despacho" role="tab" tabindex="0" aria-controls="panel-despacho" [attr.aria-selected]="activeTab === 'despacho'">
-            <span class="tab-icon">🚚</span>
-            <span>Despacho</span>
-          </label>
-        </div>
-
-        <!-- Contenido de los tabs -->
-        <div class="ux-tab-panels">
-          <!-- TAB GENERAL -->
-          <section id="panel-general" class="ux-tab-panel" *ngIf="activeTab === 'general'" role="tabpanel" aria-labelledby="lab-general">
-            <div class="form-section">
-              <h3>Datos del Movimiento</h3>
-
+        <!-- ── Paso 1: Tipo de movimiento + Fecha ── -->
+        <div class="form-row form-row--2col">
           <div class="form-group">
-            <label for="fechaMovimiento">Fecha de Movimiento <span class="required">*</span></label>
-            <input 
-              type="date" 
-              id="fechaMovimiento" 
-              formControlName="fechaMovimiento" 
-              class="form-control"
-              [readonly]="isReadOnly()">
-          </div>
-
-          <div class="form-group">
-            <label for="tipoMovimiento">Tipo de Movimiento <span class="required">*</span></label>
-            <select 
-              id="tipoMovimiento" 
-              formControlName="tipoMovimiento" 
-              class="form-control"
-              [disabled]="isReadOnly()">
-              <option value="">Selecciona un tipo</option>
-              <option *ngFor="let tipo of tiposMovimiento()" [value]="tipo">
+            <label class="form-label" for="tipoMovimiento">Tipo de Movimiento <span class="req">*</span></label>
+            <div class="tipo-mov-buttons" role="group" aria-label="Tipo de movimiento">
+              <button type="button"
+                      *ngFor="let tipo of tiposMovimiento()"
+                      class="tipo-btn"
+                      [class.tipo-btn--venta]="esTipoVenta(tipo)"
+                      [class.tipo-btn--traslado]="esTipoTraslado(tipo)"
+                      [class.tipo-btn--active]="formMovimiento.get('tipoMovimiento')?.value === tipo"
+                      [disabled]="isReadOnly()"
+                      (click)="formMovimiento.patchValue({ tipoMovimiento: tipo })">
+                <span *ngIf="esTipoVenta(tipo)">💰</span>
+                <span *ngIf="esTipoTraslado(tipo)">🔄</span>
                 {{ tipo }}
-              </option>
-            </select>
-            <div *ngIf="formMovimiento.get('tipoMovimiento')?.invalid && formMovimiento.get('tipoMovimiento')?.touched" class="error-message">
-              El tipo de movimiento es requerido
+              </button>
             </div>
+            <div *ngIf="formMovimiento.get('tipoMovimiento')?.invalid && formMovimiento.get('tipoMovimiento')?.touched"
+                 class="field-error">Selecciona un tipo de movimiento</div>
           </div>
 
-          <!-- Campos para Traslado -->
-          <div *ngIf="esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)">
-            <div class="form-group">
-              <label for="tipoDestino">Tipo de Destino <span class="required">*</span></label>
-              <select 
-                id="tipoDestino" 
-                formControlName="tipoDestino" 
-                class="form-control"
-                [disabled]="isReadOnly()">
-                <option value="">Selecciona tipo</option>
-                <option value="Granja">Granja</option>
-                <option value="Lote">Lote</option>
-                <option value="Planta">Planta</option>
-              </select>
-              <div *ngIf="formMovimiento.get('tipoDestino')?.invalid && formMovimiento.get('tipoDestino')?.touched" class="error-message">
-                El tipo de destino es requerido para traslados
-              </div>
-            </div>
-
-            <!-- Mostrar select de Granja si el tipo de destino es "Granja" -->
-            <div class="form-group" *ngIf="esTipoGranja(formMovimiento.get('tipoDestino')?.value)">
-              <label for="granjaDestinoId">Granja Destino <span class="required">*</span></label>
-              <select 
-                id="granjaDestinoId" 
-                formControlName="granjaDestinoId" 
-                class="form-control"
-                [disabled]="isReadOnly()">
-                <option value="">Selecciona una granja</option>
-                <option *ngFor="let granja of granjas()" [value]="granja.id">
-                  {{ granja.name }}
-                </option>
-              </select>
-              <div *ngIf="formMovimiento.get('granjaDestinoId')?.invalid && formMovimiento.get('granjaDestinoId')?.touched" class="error-message">
-                La granja destino es requerida
-              </div>
-
-              <!-- Filtros para seleccionar lote destino (solo cuando hay granja seleccionada) -->
-              <div *ngIf="formMovimiento.get('granjaDestinoId')?.value" class="lote-destino-filters" style="margin-top: 1rem; padding: 1rem; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
-                <label style="display: block; margin-bottom: 0.75rem; font-weight: 600; color: #333;">Lote Destino (Opcional)</label>
-                <app-filtro-select
-                  [selectedGranjaId]="formMovimiento.get('granjaDestinoId')?.value"
-                  [selectedNucleoId]="selectedNucleoDestinoId"
-                  [selectedGalponId]="selectedGalponDestinoId"
-                  [selectedLoteId]="selectedLoteDestinoId"
-                  (granjaChange)="onGranjaDestinoChange($event)"
-                  (nucleoChange)="onNucleoDestinoChange($event)"
-                  (galponChange)="onGalponDestinoChange($event)"
-                  (loteChange)="onLoteDestinoChange($event)">
-                </app-filtro-select>
-              </div>
-            </div>
-
-            <!-- Mostrar filtros para seleccionar lote destino si el tipo de destino es "Lote" -->
-            <div class="form-group" *ngIf="formMovimiento.get('tipoDestino')?.value === 'Lote'">
-              <label>Lote Destino <span class="required">*</span></label>
-              <app-filtro-select
-                [selectedGranjaId]="selectedGranjaDestinoId"
-                [selectedNucleoId]="selectedNucleoDestinoId"
-                [selectedGalponId]="selectedGalponDestinoId"
-                [selectedLoteId]="selectedLoteDestinoId"
-                (granjaChange)="onGranjaDestinoChange($event)"
-                (nucleoChange)="onNucleoDestinoChange($event)"
-                (galponChange)="onGalponDestinoChange($event)"
-                (loteChange)="onLoteDestinoChange($event)">
-              </app-filtro-select>
-              <div *ngIf="formMovimiento.get('loteDestinoId')?.invalid && formMovimiento.get('loteDestinoId')?.touched" class="error-message">
-                El lote destino es requerido
-              </div>
-            </div>
-
-            <!-- Mostrar select de Planta si el tipo de destino es "Planta" -->
-            <div class="form-group" *ngIf="esTipoPlanta(formMovimiento.get('tipoDestino')?.value)">
-              <label for="plantaDestino">Planta Destino <span class="required">*</span></label>
-              <select 
-                id="plantaDestino" 
-                formControlName="plantaDestino" 
-                class="form-control"
-                [disabled]="isReadOnly()">
-                <option value="">Selecciona una planta</option>
-                <option *ngFor="let planta of plantasDestino()" [value]="planta">
-                  {{ planta }}
-                </option>
-              </select>
-              <div *ngIf="formMovimiento.get('plantaDestino')?.invalid && formMovimiento.get('plantaDestino')?.touched" class="error-message">
-                La planta destino es requerida
-              </div>
-            </div>
+          <div class="form-group">
+            <label class="form-label" for="fechaMovimiento">Fecha <span class="req">*</span></label>
+            <input type="date" id="fechaMovimiento" formControlName="fechaMovimiento"
+                   class="form-control" [readonly]="isReadOnly()">
           </div>
-
-          <!-- Campos para Venta -->
-          <div *ngIf="esTipoVenta(formMovimiento.get('tipoMovimiento')?.value)">
-            <div class="form-group">
-              <label for="motivoMovimiento">Motivo de Venta <span class="required">*</span></label>
-              <select 
-                id="motivoMovimiento" 
-                formControlName="motivoMovimiento" 
-                class="form-control"
-                [disabled]="isReadOnly()">
-                <option value="">Selecciona un motivo</option>
-                <option *ngFor="let motivo of motivosMovimiento()" [value]="motivo">
-                  {{ motivo }}
-                </option>
-              </select>
-              <div *ngIf="formMovimiento.get('motivoMovimiento')?.invalid && formMovimiento.get('motivoMovimiento')?.touched" class="error-message">
-                El motivo de venta es requerido
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="descripcion">Descripción <span class="required">*</span></label>
-              <textarea 
-                id="descripcion" 
-                formControlName="descripcion" 
-                class="form-control" 
-                rows="3" 
-                placeholder="Describe los detalles de la venta"
-                [readonly]="isReadOnly()"></textarea>
-              <div *ngIf="formMovimiento.get('descripcion')?.invalid && formMovimiento.get('descripcion')?.touched" class="error-message">
-                La descripción es requerida para ventas
-              </div>
-            </div>
-          </div>
-
-
-              <div class="form-group">
-                <label for="observaciones">Observaciones</label>
-                <textarea 
-                  id="observaciones" 
-                  formControlName="observaciones" 
-                  class="form-control" 
-                  rows="3"
-                  placeholder="Observaciones adicionales sobre el movimiento"
-                  [readonly]="isReadOnly()">
-                </textarea>
-              </div>
-            </div>
-
-            <!-- Sección de Despacho (solo para Ecuador) -->
-            <div *ngIf="isEcuador()" class="form-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid var(--warm-200);">
-              <h3>Información de Despacho</h3>
-              
-              <div class="grid grid-2">
-                <div class="form-group">
-                  <label for="numeroDespacho">Número de Despacho</label>
-                  <input 
-                    type="text" 
-                    id="numeroDespacho" 
-                    formControlName="numeroDespacho" 
-                    class="form-control"
-                    readonly>
-                  <small class="ux-hint">Número generado automáticamente desde el último ID</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="edadAves">Edad de las Aves (días)</label>
-                  <input 
-                    type="number" 
-                    id="edadAves" 
-                    formControlName="edadAves" 
-                    class="form-control"
-                    min="0"
-                    placeholder="Ej: 45"
-                    [readonly]="isReadOnly()"
-                    (blur)="autoCompletarEdad()">
-                  <small class="ux-hint">Edad calculada desde el lote (semana 26 para producción)</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="raza">Raza</label>
-                  <input 
-                    type="text" 
-                    id="raza" 
-                    formControlName="raza" 
-                    class="form-control"
-                    placeholder="Ej: Ross 308"
-                    readonly>
-                  <small class="ux-hint">Raza del lote inicial (cargada automáticamente)</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="anoTablaGenetica">Año Tabla Genética</label>
-                  <input 
-                    type="number" 
-                    id="anoTablaGenetica" 
-                    formControlName="anoTablaGenetica" 
-                    class="form-control"
-                    readonly>
-                  <small class="ux-hint">Año genético del lote (cargado automáticamente)</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="totalPollosGalpon">Total de Pollos por Galpón</label>
-                  <input 
-                    type="text" 
-                    id="totalPollosGalpon" 
-                    class="form-control"
-                    [value]="informacionLote()?.totalAves || 0"
-                    readonly
-                    disabled>
-                  <small class="ux-hint">Total de aves disponibles en el lote (solo lectura)</small>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- TAB CANTIDADES -->
-          <section id="panel-cantidades" class="ux-tab-panel" *ngIf="activeTab === 'cantidades'" role="tabpanel" aria-labelledby="lab-cantidades">
-            <div class="form-section">
-              <h3>Cantidades de Aves</h3>
-              
-              <!-- Información de Aves Disponibles -->
-              <div *ngIf="informacionLote()" class="disponibilidad-resumen" style="margin-bottom: 1.5rem; padding: 1rem; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px;">
-                <h4 style="margin: 0 0 0.75rem 0; color: #0369a1;">Aves Disponibles en el Lote</h4>
-                <div class="grid grid-3" style="gap: 1rem;">
-                  <div>
-                    <span style="font-weight: 600; color: #0369a1;">Hembras Disponibles:</span>
-                    <span style="font-size: 1.25rem; font-weight: 700; color: #0ea5e9; margin-left: 0.5rem;">
-                      {{ informacionLote()!.cantidadHembras || 0 }}
-                    </span>
-                  </div>
-                  <div>
-                    <span style="font-weight: 600; color: #0369a1;">Machos Disponibles:</span>
-                    <span style="font-size: 1.25rem; font-weight: 700; color: #0ea5e9; margin-left: 0.5rem;">
-                      {{ informacionLote()!.cantidadMachos || 0 }}
-                    </span>
-                  </div>
-                  <div>
-                    <span style="font-weight: 600; color: #0369a1;">Total Disponible:</span>
-                    <span style="font-size: 1.25rem; font-weight: 700; color: #0ea5e9; margin-left: 0.5rem;">
-                      {{ informacionLote()!.totalAves || 0 }}
-                    </span>
-                  </div>
-                </div>
-                <div *ngIf="informacionLote()?.tipoLote === 'Levante'" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #bae6fd;">
-                  <small style="color: #0369a1;">
-                    <strong>Aves Iniciales:</strong> 
-                    Hembras: {{ informacionLote()!.hembrasIniciales || 0 }}, 
-                    Machos: {{ informacionLote()!.machosIniciales || 0 }}, 
-                    Total: {{ (informacionLote()!.hembrasIniciales || 0) + (informacionLote()!.machosIniciales || 0) }}
-                  </small>
-                </div>
-                <div *ngIf="informacionLote()?.tipoLote === 'Produccion'" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #bae6fd;">
-                  <small style="color: #0369a1;">
-                    <strong>Aves Iniciales (Semana 26):</strong> 
-                    Hembras: {{ informacionLote()!.hembrasIniciales || 0 }}, 
-                    Machos: {{ informacionLote()!.machosIniciales || 0 }}, 
-                    Total: {{ (informacionLote()!.hembrasIniciales || 0) + (informacionLote()!.machosIniciales || 0) }}
-                  </small>
-                </div>
-              </div>
-
-              <p *ngIf="informacionLote()?.tipoLote === 'Produccion'" class="info-message" style="margin-bottom: 1rem; padding: 0.75rem; background: #fff3cd; border-left: 4px solid #ffc107; color: #856404;">
-                <strong>Nota:</strong> En Producción solo se puede mover hembras O machos, no ambos ni mixtas.
-              </p>
-              
-              <!-- Para Producción: Solo hembras O machos -->
-              <div *ngIf="informacionLote()?.tipoLote === 'Produccion'" class="aves-cantidades-grid">
-                <div class="form-group-ave">
-                  <label for="cantidadHembras">
-                    Hembras
-                    <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadHembras || 0 }})</span>
-                  </label>
-                  <input
-                    type="number"
-                    id="cantidadHembras"
-                    formControlName="cantidadHembras"
-                    class="form-control"
-                    [max]="informacionLote()?.cantidadHembras || 0"
-                    min="0"
-                    [readonly]="isReadOnly()"
-                    (input)="onCantidadProduccionChange('hembras')">
-                  <div *ngIf="formMovimiento.get('cantidadHembras')?.invalid && formMovimiento.get('cantidadHembras')?.touched" class="error-message">
-                    Cantidad inválida
-                  </div>
-                </div>
-
-                <div class="form-group-ave">
-                  <label for="cantidadMachos">
-                    Machos
-                    <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadMachos || 0 }})</span>
-                  </label>
-                  <input
-                    type="number"
-                    id="cantidadMachos"
-                    formControlName="cantidadMachos"
-                    class="form-control"
-                    [max]="informacionLote()?.cantidadMachos || 0"
-                    min="0"
-                    [readonly]="isReadOnly()"
-                    (input)="onCantidadProduccionChange('machos')">
-                  <div *ngIf="formMovimiento.get('cantidadMachos')?.invalid && formMovimiento.get('cantidadMachos')?.touched" class="error-message">
-                    Cantidad inválida
-                  </div>
-                </div>
-              </div>
-
-              <!-- Para Levante: Hembras, machos y mixtas -->
-              <div *ngIf="informacionLote()?.tipoLote === 'Levante'" class="aves-cantidades-grid">
-                <div class="form-group-ave">
-                  <label for="cantidadHembras">
-                    Hembras
-                    <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadHembras || 0 }})</span>
-                  </label>
-                  <input
-                    type="number"
-                    id="cantidadHembras"
-                    formControlName="cantidadHembras"
-                    class="form-control"
-                    [max]="informacionLote()?.cantidadHembras || 0"
-                    min="0"
-                    [readonly]="isReadOnly()">
-                  <div *ngIf="formMovimiento.get('cantidadHembras')?.invalid && formMovimiento.get('cantidadHembras')?.touched" class="error-message">
-                    Cantidad inválida
-                  </div>
-                </div>
-
-                <div class="form-group-ave">
-                  <label for="cantidadMachos">
-                    Machos
-                    <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadMachos || 0 }})</span>
-                  </label>
-                  <input
-                    type="number"
-                    id="cantidadMachos"
-                    formControlName="cantidadMachos"
-                    class="form-control"
-                    [max]="informacionLote()?.cantidadMachos || 0"
-                    min="0"
-                    [readonly]="isReadOnly()">
-                  <div *ngIf="formMovimiento.get('cantidadMachos')?.invalid && formMovimiento.get('cantidadMachos')?.touched" class="error-message">
-                    Cantidad inválida
-                  </div>
-                </div>
-
-                <div class="form-group-ave">
-                  <label for="cantidadMixtas">
-                    Mixtas
-                    <span class="disponible" *ngIf="informacionLote()">(Disponible: {{ informacionLote()!.cantidadMixtas || 0 }})</span>
-                  </label>
-                  <input
-                    type="number"
-                    id="cantidadMixtas"
-                    formControlName="cantidadMixtas"
-                    class="form-control"
-                    [max]="informacionLote()?.cantidadMixtas || 0"
-                    min="0"
-                    [readonly]="isReadOnly()">
-                  <div *ngIf="formMovimiento.get('cantidadMixtas')?.invalid && formMovimiento.get('cantidadMixtas')?.touched" class="error-message">
-                    Cantidad inválida
-                  </div>
-                </div>
-              </div>
-
-              <!-- Mensajes de error de validación -->
-              <div *ngIf="formMovimiento.hasError('sinCantidad') && formMovimiento.touched" class="error-message">
-                Debe ingresar al menos una cantidad de aves
-              </div>
-              <div *ngIf="formMovimiento.hasError('excedeHembras') && formMovimiento.touched" class="error-message">
-                La cantidad de hembras excede la disponibilidad
-              </div>
-              <div *ngIf="formMovimiento.hasError('excedeMachos') && formMovimiento.touched" class="error-message">
-                La cantidad de machos excede la disponibilidad
-              </div>
-              <div *ngIf="formMovimiento.hasError('excedeMixtas') && formMovimiento.touched" class="error-message">
-                La cantidad de mixtas excede la disponibilidad
-              </div>
-              <div *ngIf="formMovimiento.hasError('produccionNoMixto') && formMovimiento.touched" class="error-message">
-                En Producción no se pueden mover hembras y machos al mismo tiempo. Debe seleccionar solo uno.
-              </div>
-              <div *ngIf="formMovimiento.hasError('produccionNoMixtas') && formMovimiento.touched" class="error-message">
-                En Producción no se pueden mover aves mixtas.
-              </div>
-            </div>
-          </section>
-
-          <!-- TAB DESPACHO (Solo para Ecuador) -->
-          <section id="panel-despacho" class="ux-tab-panel" *ngIf="activeTab === 'despacho' && isEcuador()" role="tabpanel" aria-labelledby="lab-despacho">
-            <div class="form-section">
-              <h3>Información de Despacho</h3>
-              <p class="info-message" style="margin-bottom: 1.5rem; padding: 0.75rem; background: #e3f2fd; border-left: 4px solid #2196f3; color: #1565c0;">
-                <strong>Información:</strong> Estos campos son específicos para movimientos de despacho en Ecuador.
-              </p>
-
-              <div class="grid grid-2">
-
-                <div class="form-group">
-                  <label for="placa">Placa del Vehículo</label>
-                  <input 
-                    type="text" 
-                    id="placa" 
-                    formControlName="placa" 
-                    class="form-control"
-                    placeholder="Ej: ABC-1234"
-                    maxlength="20"
-                    [readonly]="isReadOnly()">
-                  <small class="ux-hint">Placa del vehículo utilizado para el despacho</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="horaSalida">Hora de Salida</label>
-                  <input 
-                    type="time" 
-                    id="horaSalida" 
-                    formControlName="horaSalida" 
-                    class="form-control"
-                    [readonly]="isReadOnly()">
-                  <small class="ux-hint">Hora de salida del vehículo con las aves</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="guiaAgrocalidad">Guía Agrocalidad</label>
-                  <input 
-                    type="text" 
-                    id="guiaAgrocalidad" 
-                    formControlName="guiaAgrocalidad" 
-                    class="form-control"
-                    placeholder="Ej: GA-2024-001234"
-                    maxlength="100"
-                    [readonly]="isReadOnly()">
-                  <small class="ux-hint">Número de guía Agrocalidad para el despacho</small>
-                </div>
-
-                <div class="form-group">
-                  <label for="conductor">Conductor</label>
-                  <input 
-                    type="text" 
-                    id="conductor" 
-                    formControlName="conductor" 
-                    class="form-control"
-                    placeholder="Nombre del conductor"
-                    maxlength="200"
-                    [readonly]="isReadOnly()">
-                  <small class="ux-hint">Nombre del conductor del vehículo de despacho</small>
-                </div>
-
-                <div class="form-group form-field--full">
-                  <label for="sellos">Sellos</label>
-                  <textarea 
-                    id="sellos" 
-                    formControlName="sellos" 
-                    class="form-control" 
-                    rows="2"
-                    placeholder="Información de sellos aplicados al despacho"
-                    maxlength="500"
-                    [readonly]="isReadOnly()">
-                  </textarea>
-                  <small class="ux-hint">Información de sellos aplicados al despacho</small>
-                </div>
-
-                <div class="form-group form-field--full">
-                  <label for="ayuno">Ayuno</label>
-                  <input 
-                    type="text" 
-                    id="ayuno" 
-                    formControlName="ayuno" 
-                    class="form-control"
-                    placeholder="Ej: 8 horas o Sí/No"
-                    maxlength="50"
-                    [readonly]="isReadOnly()">
-                  <small class="ux-hint">Información sobre el ayuno de las aves (horas o indicador)</small>
-                </div>
-              </div>
-
-              <!-- Sección de Pesos -->
-              <div class="form-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid var(--warm-200);">
-                <h4 style="margin-bottom: 1rem; color: var(--brand-red);">Información de Pesos</h4>
-                
-                <div class="grid grid-2">
-                  <div class="form-group">
-                    <label for="pesoBruto">Peso Bruto (kg) <span class="required">*</span></label>
-                    <input 
-                      type="number" 
-                      id="pesoBruto" 
-                      formControlName="pesoBruto" 
-                      class="form-control"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ej: 5000.50"
-                      [readonly]="isReadOnly()"
-                      (input)="formMovimiento.updateValueAndValidity()">
-                    <small class="ux-hint">Peso bruto del despacho en kilogramos</small>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="pesoTara">Peso Tara (kg) <span class="required">*</span></label>
-                    <input 
-                      type="number" 
-                      id="pesoTara" 
-                      formControlName="pesoTara" 
-                      class="form-control"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ej: 2000.00"
-                      [readonly]="isReadOnly()"
-                      (input)="formMovimiento.updateValueAndValidity()">
-                    <small class="ux-hint">Peso tara (peso del vehículo/contenedor vacío) en kilogramos</small>
-                  </div>
-
-                  <!-- Campos calculados (siempre readonly) -->
-                  <div class="form-group">
-                    <label for="pesoNeto">Peso Neto (kg)</label>
-                    <input 
-                      type="text" 
-                      id="pesoNeto" 
-                      class="form-control"
-                      [value]="formatearNumero(calcularPesoNeto())"
-                      readonly
-                      disabled
-                      style="background-color: var(--warm-100); color: var(--warm-600); font-weight: 600;">
-                    <small class="ux-hint">Calculado automáticamente: Peso Bruto - Peso Tara</small>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="promedioPesoAve">Promedio Peso por Ave (kg)</label>
-                    <input 
-                      type="text" 
-                      id="promedioPesoAve" 
-                      class="form-control"
-                      [value]="formatearNumero(calcularPromedioPesoAve())"
-                      readonly
-                      disabled
-                      style="background-color: var(--warm-100); color: var(--warm-600); font-weight: 600;">
-                    <small class="ux-hint">Calculado automáticamente: Peso Neto / Total de Aves</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
+
+        <!-- ── Paso 2: Cantidades ── -->
+        <div class="form-section-card" *ngIf="formMovimiento.get('tipoMovimiento')?.value">
+          <h3 class="section-title">
+            <span class="section-icon">🐔</span>
+            Cantidades a {{ esTipoVenta(formMovimiento.get('tipoMovimiento')?.value) ? 'vender' : 'trasladar' }}
+          </h3>
+
+          <p *ngIf="informacionLote()?.tipoLote === 'Produccion'" class="info-note info-note--warning">
+            En Producción solo se puede mover hembras <strong>o</strong> machos, no ambos.
+          </p>
+
+          <div class="cantidades-grid"
+               [class.cantidades-grid--2col]="informacionLote()?.tipoLote === 'Produccion'">
+
+            <!-- Hembras -->
+            <div class="form-group form-group--ave">
+              <label class="form-label" for="cantH">
+                Hembras
+                <span class="disponible-badge" *ngIf="informacionLote()">
+                  / {{ informacionLote()!.cantidadHembras | number }} disp.
+                </span>
+              </label>
+              <input type="number" id="cantH" formControlName="cantidadHembras"
+                     class="form-control" min="0"
+                     [max]="informacionLote()?.cantidadHembras ?? 9999"
+                     [readonly]="isReadOnly()"
+                     (input)="onCantidadProduccionChange('hembras')">
+            </div>
+
+            <!-- Machos -->
+            <div class="form-group form-group--ave">
+              <label class="form-label" for="cantM">
+                Machos
+                <span class="disponible-badge" *ngIf="informacionLote()">
+                  / {{ informacionLote()!.cantidadMachos | number }} disp.
+                </span>
+              </label>
+              <input type="number" id="cantM" formControlName="cantidadMachos"
+                     class="form-control" min="0"
+                     [max]="informacionLote()?.cantidadMachos ?? 9999"
+                     [readonly]="isReadOnly()"
+                     (input)="onCantidadProduccionChange('machos')">
+            </div>
+
+            <!-- Mixtas (solo levante) -->
+            <div class="form-group form-group--ave"
+                 *ngIf="informacionLote()?.tipoLote !== 'Produccion'">
+              <label class="form-label" for="cantX">
+                Mixtas
+                <span class="disponible-badge" *ngIf="informacionLote()">
+                  / {{ informacionLote()!.cantidadMixtas | number }} disp.
+                </span>
+              </label>
+              <input type="number" id="cantX" formControlName="cantidadMixtas"
+                     class="form-control" min="0"
+                     [max]="informacionLote()?.cantidadMixtas ?? 9999"
+                     [readonly]="isReadOnly()">
+            </div>
+          </div>
+
+          <!-- Errores de validación de cantidades -->
+          <div class="field-error" *ngIf="formMovimiento.hasError('sinCantidad') && formMovimiento.touched">
+            Indica al menos una cantidad de aves.
+          </div>
+          <div class="field-error" *ngIf="formMovimiento.hasError('excedeHembras') && formMovimiento.touched">
+            Las hembras indicadas superan la disponibilidad.
+          </div>
+          <div class="field-error" *ngIf="formMovimiento.hasError('excedeMachos') && formMovimiento.touched">
+            Los machos indicados superan la disponibilidad.
+          </div>
+          <div class="field-error" *ngIf="formMovimiento.hasError('excedeMixtas') && formMovimiento.touched">
+            Las mixtas indicadas superan la disponibilidad.
+          </div>
+          <div class="field-error" *ngIf="formMovimiento.hasError('produccionNoMixto') && formMovimiento.touched">
+            En Producción solo se puede mover hembras o machos, no ambos.
+          </div>
+        </div>
+
+        <!-- ── Paso 3A: Datos de VENTA ── -->
+        <div class="form-section-card"
+             *ngIf="esTipoVenta(formMovimiento.get('tipoMovimiento')?.value)">
+          <h3 class="section-title"><span class="section-icon">💰</span> Datos de la Venta</h3>
+
+          <div class="form-row form-row--2col">
+            <div class="form-group">
+              <label class="form-label" for="motivoVenta">Motivo <span class="req">*</span></label>
+              <select id="motivoVenta" formControlName="motivoMovimiento"
+                      class="form-control" [disabled]="isReadOnly()">
+                <option value="">Selecciona un motivo</option>
+                <option *ngFor="let m of motivosMovimiento()" [value]="m">{{ m }}</option>
+              </select>
+              <div *ngIf="formMovimiento.get('motivoMovimiento')?.invalid && formMovimiento.get('motivoMovimiento')?.touched"
+                   class="field-error">El motivo es requerido</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="descripcionVenta">Descripción <span class="req">*</span></label>
+              <textarea id="descripcionVenta" formControlName="descripcion"
+                        class="form-control" rows="2"
+                        placeholder="Detalles de la venta"
+                        [readonly]="isReadOnly()"></textarea>
+              <div *ngIf="formMovimiento.get('descripcion')?.invalid && formMovimiento.get('descripcion')?.touched"
+                   class="field-error">La descripción es requerida</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Paso 3B: Destino del TRASLADO ── -->
+        <div class="form-section-card"
+             *ngIf="esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)">
+          <h3 class="section-title"><span class="section-icon">📍</span> Destino del Traslado</h3>
+          <p class="section-hint">Selecciona la jerarquía del destino: Granja → Núcleo → Galpón → Lote</p>
+
+          <app-filtro-select
+            [selectedGranjaId]="selectedGranjaDestinoId"
+            [selectedNucleoId]="selectedNucleoDestinoId"
+            [selectedGalponId]="selectedGalponDestinoId"
+            [selectedLoteId]="selectedLoteDestinoId"
+            (granjaChange)="onGranjaDestinoChange($event)"
+            (nucleoChange)="onNucleoDestinoChange($event)"
+            (galponChange)="onGalponDestinoChange($event)"
+            (loteChange)="onLoteDestinoChange($event)">
+          </app-filtro-select>
+
+          <!-- Opción planta (toggle) -->
+          <div class="planta-toggle" *ngIf="!isReadOnly()">
+            <label class="toggle-label">
+              <input type="checkbox" [checked]="usarPlantaDestino"
+                     (change)="togglePlantaDestino()">
+              Destino es una Planta de Proceso
+            </label>
+          </div>
+
+          <div class="form-group" *ngIf="usarPlantaDestino">
+            <label class="form-label" for="plantaDestino">Planta Destino <span class="req">*</span></label>
+            <select id="plantaDestino" formControlName="plantaDestino"
+                    class="form-control" [disabled]="isReadOnly()">
+              <option value="">Selecciona una planta</option>
+              <option *ngFor="let p of plantasDestino()" [value]="p">{{ p }}</option>
+            </select>
+            <div *ngIf="formMovimiento.get('plantaDestino')?.invalid && formMovimiento.get('plantaDestino')?.touched"
+                 class="field-error">Selecciona la planta destino</div>
+          </div>
+        </div>
+
+        <!-- ── Observaciones (siempre) ── -->
+        <div class="form-group" *ngIf="formMovimiento.get('tipoMovimiento')?.value">
+          <label class="form-label" for="observaciones">Observaciones</label>
+          <textarea id="observaciones" formControlName="observaciones"
+                    class="form-control" rows="2"
+                    placeholder="Notas adicionales sobre el movimiento"
+                    [readonly]="isReadOnly()"></textarea>
+        </div>
+
+        <!-- ── Despacho Ecuador ── -->
+        <div class="form-section-card form-section-card--despacho" *ngIf="isEcuador()">
+          <h3 class="section-title"><span class="section-icon">🚚</span> Información de Despacho</h3>
+
+          <div class="form-row form-row--2col">
+            <div class="form-group">
+              <label class="form-label">N° Despacho</label>
+              <input type="text" formControlName="numeroDespacho" class="form-control" readonly>
+              <small class="field-hint">Generado automáticamente</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edadAves">Edad (días)</label>
+              <input type="number" id="edadAves" formControlName="edadAves"
+                     class="form-control" min="0" [readonly]="isReadOnly()"
+                     (blur)="autoCompletarEdad()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Raza</label>
+              <input type="text" formControlName="raza" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="placa">Placa Vehículo</label>
+              <input type="text" id="placa" formControlName="placa"
+                     class="form-control" placeholder="ABC-1234" maxlength="20" [readonly]="isReadOnly()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="horaSalida">Hora Salida</label>
+              <input type="time" id="horaSalida" formControlName="horaSalida"
+                     class="form-control" [readonly]="isReadOnly()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="conductor">Conductor</label>
+              <input type="text" id="conductor" formControlName="conductor"
+                     class="form-control" placeholder="Nombre del conductor" [readonly]="isReadOnly()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="guiaAgrocalidad">Guía Agrocalidad</label>
+              <input type="text" id="guiaAgrocalidad" formControlName="guiaAgrocalidad"
+                     class="form-control" placeholder="GA-2024-001234" [readonly]="isReadOnly()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ayuno">Ayuno</label>
+              <input type="text" id="ayuno" formControlName="ayuno"
+                     class="form-control" placeholder="Ej: 8 horas" maxlength="50" [readonly]="isReadOnly()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="pesoBruto">Peso Bruto (kg)</label>
+              <input type="number" id="pesoBruto" formControlName="pesoBruto"
+                     class="form-control" step="0.01" min="0" [readonly]="isReadOnly()"
+                     (input)="formMovimiento.updateValueAndValidity()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="pesoTara">Peso Tara (kg)</label>
+              <input type="number" id="pesoTara" formControlName="pesoTara"
+                     class="form-control" step="0.01" min="0" [readonly]="isReadOnly()"
+                     (input)="formMovimiento.updateValueAndValidity()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Peso Neto (kg)</label>
+              <input type="text" class="form-control form-control--calculated"
+                     [value]="formatearNumero(calcularPesoNeto())" readonly disabled>
+              <small class="field-hint">Bruto − Tara</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prom. Peso/Ave (kg)</label>
+              <input type="text" class="form-control form-control--calculated"
+                     [value]="formatearNumero(calcularPromedioPesoAve())" readonly disabled>
+              <small class="field-hint">Neto / Total aves</small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="sellos">Sellos</label>
+            <textarea id="sellos" formControlName="sellos" class="form-control" rows="2"
+                      placeholder="Información de sellos aplicados" maxlength="500"
+                      [readonly]="isReadOnly()"></textarea>
+          </div>
+        </div>
+
       </form>
     </div>
 
+    <!-- ═══ FOOTER ═══ -->
     <footer class="ux-modal__footer">
       <div class="ux-modal__footer-actions">
-        <button 
-          type="button" 
-          class="btn btn--secondary" 
-          (click)="closeModal()">
-          Cancelar
-        </button>
-        <button 
-          *ngIf="!isReadOnly()" 
-          type="button" 
-          class="btn btn--primary" 
-          (click)="onSubmitMovimiento()"
-          [disabled]="formMovimiento.invalid || loading()">
-          <span *ngIf="loading()">Guardando...</span>
+        <button type="button" class="btn btn--secondary" (click)="closeModal()">Cancelar</button>
+
+        <button *ngIf="!isReadOnly()" type="button" class="btn btn--primary"
+                (click)="onSubmitMovimiento()"
+                [disabled]="formMovimiento.invalid || loading()">
+          <span *ngIf="loading()">Guardando…</span>
           <span *ngIf="!loading()">{{ saveButtonText() }}</span>
         </button>
-        <button 
-          *ngIf="isReadOnly() && editingMovimiento?.estado === 'Pendiente'" 
-          type="button" 
-          class="btn btn--primary" 
-          (click)="isEditMode.set(true); formMovimiento.enable()">
+
+        <button *ngIf="isReadOnly() && editingMovimiento?.estado === 'Pendiente'"
+                type="button" class="btn btn--primary"
+                (click)="isEditMode.set(true); formMovimiento.enable()">
           Editar
         </button>
       </div>
@@ -723,7 +342,7 @@
   </div>
 </div>
 
-<!-- Modal de Confirmación (reutilizable para éxito, error y confirmación) -->
+<!-- Modal de confirmación / éxito / error -->
 <app-confirmation-modal
   [isOpen]="showConfirmationModal()"
   [data]="confirmationModalData()"

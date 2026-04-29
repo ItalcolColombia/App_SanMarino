@@ -9,6 +9,7 @@ import { faPlus, faPen, faTrash, faTimes, faEye, faFilter, faMagnifyingGlass } f
 import { ThousandSeparatorDirective } from '../../../lote/components/lote-list/lote-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 
 import {
   LoteEngordeService,
@@ -35,7 +36,8 @@ import { GuiaGeneticaEcuadorFiltersDto, GuiaGeneticaEcuadorService } from '../..
     FontAwesomeModule,
     FormsModule,
     ThousandSeparatorDirective,
-    ConfirmationModalComponent
+    ConfirmationModalComponent,
+    HasPermissionDirective
   ],
   templateUrl: './lote-engorde-list.component.html',
   styleUrls: ['./lote-engorde-list.component.scss']
