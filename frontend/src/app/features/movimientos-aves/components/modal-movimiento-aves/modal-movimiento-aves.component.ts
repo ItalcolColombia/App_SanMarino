@@ -82,8 +82,9 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   selectedGalponDestinoId: string | null = null;
   selectedLoteDestinoId: number | null = null;
 
-  // Tipo de destino: 'Granja', 'Lote' o 'Planta'
-  tipoDestino: 'Granja' | 'Lote' | 'Planta' = 'Granja';
+  // Para traslado: siempre usamos el cascade directo (Granja→Núcleo→Galpón→Lote)
+  // Si el usuario quiere destino planta, marca el checkbox y selecciona de lista
+  usarPlantaDestino = false;
 
   // Modal de confirmación
   showConfirmationModal = signal<boolean>(false);
@@ -170,7 +171,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       cantidadHembras: [0, [Validators.required, Validators.min(0)]],
       cantidadMachos: [0, [Validators.required, Validators.min(0)]],
       cantidadMixtas: [0, [Validators.required, Validators.min(0)]],
-      motivoMovimiento: [null],
+      motivoMovimiento: ['Venta a cliente'],
       descripcion: [null],
       observaciones: [null],
       // Campos específicos para despacho (Ecuador)
@@ -196,8 +197,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     });
 
     // Cuando cambia el tipo de destino, actualizar validadores
-    this.formMovimiento.get('tipoDestino')?.valueChanges.subscribe(tipo => {
-      this.tipoDestino = tipo;
+    this.formMovimiento.get('tipoDestino')?.valueChanges.subscribe(() => {
       this.actualizarValidadoresDestino();
     });
 
@@ -249,29 +249,27 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
 
   private actualizarValidadoresDestino(): void {
     const tipoMovimiento = this.formMovimiento.get('tipoMovimiento')?.value;
-    if (!this.esTipoTraslado(tipoMovimiento)) return;
-
-    const granjaDestino = this.formMovimiento.get('granjaDestinoId');
-    const loteDestino = this.formMovimiento.get('loteDestinoId');
     const plantaDestino = this.formMovimiento.get('plantaDestino');
-    const tipoDestino = this.formMovimiento.get('tipoDestino')?.value;
 
-    // Limpiar todos primero
-    granjaDestino?.clearValidators();
-    loteDestino?.clearValidators();
-    plantaDestino?.clearValidators();
-
-    if (tipoDestino === 'Granja') {
-      granjaDestino?.setValidators([Validators.required]);
-    } else if (tipoDestino === 'Lote') {
-      loteDestino?.setValidators([Validators.required]);
-    } else if (tipoDestino === 'Planta') {
-      plantaDestino?.setValidators([Validators.required]);
+    // Para traslado: planta es requerida solo si usarPlantaDestino está activo
+    if (!this.esTipoTraslado(tipoMovimiento)) {
+      plantaDestino?.clearValidators();
+    } else {
+      if (this.usarPlantaDestino) {
+        plantaDestino?.setValidators([Validators.required]);
+      } else {
+        plantaDestino?.clearValidators();
+      }
     }
-
-    granjaDestino?.updateValueAndValidity();
-    loteDestino?.updateValueAndValidity();
     plantaDestino?.updateValueAndValidity();
+  }
+
+  togglePlantaDestino(): void {
+    this.usarPlantaDestino = !this.usarPlantaDestino;
+    if (!this.usarPlantaDestino) {
+      this.formMovimiento.patchValue({ plantaDestino: null });
+    }
+    this.actualizarValidadoresDestino();
   }
 
   private validarMovimiento(control: AbstractControl): ValidationErrors | null {
@@ -452,15 +450,14 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     if (anoTablaGeneticaControl) anoTablaGeneticaControl.disable({ emitEvent: false });
     if (numeroDespachoControl) numeroDespachoControl.disable({ emitEvent: false });
 
-    this.tipoDestino = tipoDestino;
-
-    // Si hay granja destino, inicializar los filtros
-    if (m.destino?.granjaId && tipoDestino === 'Granja') {
+    // Inicializar filtros de destino
+    if (m.destino?.granjaId) {
       this.selectedGranjaDestinoId = m.destino.granjaId;
     }
-    if (m.destino?.loteId && tipoDestino === 'Lote') {
+    if (m.destino?.loteId) {
       this.selectedLoteDestinoId = m.destino.loteId;
     }
+    this.usarPlantaDestino = !!(m as any).plantaDestino;
   }
 
   private resetForm(): void {
@@ -485,7 +482,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       cantidadHembras: 0,
       cantidadMachos: 0,
       cantidadMixtas: 0,
-      motivoMovimiento: null,
+      motivoMovimiento: 'Venta a cliente',
       descripcion: null,
       observaciones: null,
       // Campos específicos para despacho (Ecuador)
@@ -606,20 +603,30 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     });
   }
 
+  /** Motivos fijos de venta de aves en granja. */
+  private readonly MOTIVOS_VENTA_AVES = [
+    'Venta a cliente',
+    'Descarte sanitario',
+    'Cierre de lote',
+    'Venta de emergencia',
+    'Donación',
+    'Exportación',
+    'Otros',
+  ];
+
   private cargarMotivosMovimiento(): void {
-    // Usar directamente la clave que sabemos que existe (traslado_de_huevos_venta_motivo)
-    // Si en el futuro se crea una específica para movimientos de aves, se puede cambiar
-    this.masterListService.getByKey('traslado_de_huevos_venta_motivo').subscribe({
+    this.masterListService.getByKey('movimiento_aves_motivo_venta').subscribe({
       next: (masterList) => {
-        if (masterList && (masterList.optionValues ?? masterList.options?.length)) {
-          this.motivosMovimiento.set(masterList.optionValues ?? (masterList.options as { value?: string }[]).map(o => o?.value ?? ''));
+        const valores = masterList?.optionValues
+          ?? (masterList?.options as { value?: string }[] | undefined)?.map(o => o?.value ?? '');
+        if (valores?.length) {
+          this.motivosMovimiento.set(valores);
         } else {
-          this.motivosMovimiento.set([]);
+          this.motivosMovimiento.set(this.MOTIVOS_VENTA_AVES);
         }
       },
-      error: (error) => {
-        console.warn('No se pudo cargar motivos de movimiento desde lista maestra. Continuando sin motivos.', error);
-        this.motivosMovimiento.set([]);
+      error: () => {
+        this.motivosMovimiento.set(this.MOTIVOS_VENTA_AVES);
       }
     });
   }
@@ -730,12 +737,13 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
 
     if (this.editingMovimiento && this.isEditMode()) {
       // Actualizar movimiento
+      const esTraslado = this.esTipoTraslado(formValue.tipoMovimiento);
       const dto: ActualizarMovimientoAvesDto = {
         fechaMovimiento: fechaMovimiento,
         tipoMovimiento: formValue.tipoMovimiento,
-        granjaDestinoId: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Granja' ? formValue.granjaDestinoId : null,
-        loteDestinoId: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Lote' ? formValue.loteDestinoId : null,
-        plantaDestino: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Planta' ? formValue.plantaDestino : null,
+        granjaDestinoId: esTraslado ? (this.selectedGranjaDestinoId ?? undefined) : undefined,
+        loteDestinoId: esTraslado ? (this.selectedLoteDestinoId ?? undefined) : undefined,
+        plantaDestino: esTraslado && this.usarPlantaDestino ? formValue.plantaDestino : undefined,
         cantidadHembras: formValue.cantidadHembras,
         cantidadMachos: formValue.cantidadMachos,
         cantidadMixtas: formValue.cantidadMixtas,
@@ -774,13 +782,14 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
       });
     } else {
       // Crear movimiento
+      const esTraslado = this.esTipoTraslado(formValue.tipoMovimiento);
       const dto: CrearMovimientoAvesDto = {
         fechaMovimiento: fechaMovimiento,
         tipoMovimiento: formValue.tipoMovimiento,
         loteOrigenId: this.loteId || undefined,
         granjaOrigenId: this.informacionLote()?.granjaId || undefined,
-        granjaDestinoId: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Granja' ? formValue.granjaDestinoId : undefined,
-        loteDestinoId: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Lote' ? formValue.loteDestinoId : undefined,
+        granjaDestinoId: esTraslado ? (this.selectedGranjaDestinoId ?? undefined) : undefined,
+        loteDestinoId: esTraslado ? (this.selectedLoteDestinoId ?? undefined) : undefined,
         cantidadHembras: formValue.cantidadHembras,
         cantidadMachos: formValue.cantidadMachos,
         cantidadMixtas: formValue.cantidadMixtas,
@@ -799,7 +808,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
         totalPollosGalpon: formValue.totalPollosGalpon || undefined,
         pesoBruto: formValue.pesoBruto || undefined,
         pesoTara: formValue.pesoTara || undefined,
-        plantaDestino: this.esTipoTraslado(formValue.tipoMovimiento) && formValue.tipoDestino === 'Planta' ? formValue.plantaDestino : undefined
+        plantaDestino: esTraslado && this.usarPlantaDestino ? formValue.plantaDestino : undefined
       };
 
       // Validar DTO antes de enviar

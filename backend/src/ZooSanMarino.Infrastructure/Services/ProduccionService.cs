@@ -559,25 +559,52 @@ public class ProduccionService : IProduccionService
         var mortalidadSeleccionH = (agg?.MortalidadH ?? 0) + (agg?.SelH ?? 0);
         var mortalidadSeleccionM = (agg?.MortalidadM ?? 0) + (agg?.SelM ?? 0);
 
-        // Si el lote NO tiene aves actuales guardadas, o quedaron "estáticas" igual al inicial
-        // (y ya existen bajas), las calculamos 1 vez y persistimos.
-        var actualesHIgualInicial = loteEntity.AvesHActual.HasValue && loteEntity.AvesHActual.Value == avesInicialesH;
-        var actualesMIgualInicial = loteEntity.AvesMActual.HasValue && loteEntity.AvesMActual.Value == avesInicialesM;
-        var hayBajasH = mortalidadSeleccionH > 0;
-        var hayBajasM = mortalidadSeleccionM > 0;
+        // Sumar salidas por movimientos completados (ventas, traslados desde este lote)
+        var movSalidas = loteEntity.LoteId.HasValue
+            ? await _context.MovimientoAves
+                .AsNoTracking()
+                .Where(m => m.LoteOrigenId == loteEntity.LoteId.Value
+                         && m.Estado == "Completado"
+                         && m.CompanyId == companyId
+                         && m.DeletedAt == null)
+                .GroupBy(_ => 1)
+                .Select(g => new { H = g.Sum(x => (int?)x.CantidadHembras) ?? 0, M = g.Sum(x => (int?)x.CantidadMachos) ?? 0 })
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false)
+            : null;
 
-        if (!loteEntity.AvesHActual.HasValue || !loteEntity.AvesMActual.HasValue
-            || (actualesHIgualInicial && hayBajasH)
-            || (actualesMIgualInicial && hayBajasM))
+        // Sumar entradas por traslados hacia este lote
+        var movEntradas = loteEntity.LoteId.HasValue
+            ? await _context.MovimientoAves
+                .AsNoTracking()
+                .Where(m => m.LoteDestinoId == loteEntity.LoteId.Value
+                         && m.TipoMovimiento == "Traslado"
+                         && m.Estado == "Completado"
+                         && m.CompanyId == companyId
+                         && m.DeletedAt == null)
+                .GroupBy(_ => 1)
+                .Select(g => new { H = g.Sum(x => (int?)x.CantidadHembras) ?? 0, M = g.Sum(x => (int?)x.CantidadMachos) ?? 0 })
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false)
+            : null;
+
+        var totalSalidasH = movSalidas?.H ?? 0;
+        var totalSalidasM = movSalidas?.M ?? 0;
+        var totalEntradasH = movEntradas?.H ?? 0;
+        var totalEntradasM = movEntradas?.M ?? 0;
+
+        // Calcular aves actuales incluyendo mortalidad y movimientos
+        var avesActualesH = Math.Max(0, avesInicialesH - mortalidadSeleccionH - totalSalidasH + totalEntradasH);
+        var avesActualesM = Math.Max(0, avesInicialesM - mortalidadSeleccionM - totalSalidasM + totalEntradasM);
+
+        // Persistir si el valor almacenado difiere del calculado
+        if (loteEntity.AvesHActual != avesActualesH || loteEntity.AvesMActual != avesActualesM)
         {
-            loteEntity.AvesHActual = Math.Max(0, avesInicialesH - mortalidadSeleccionH);
-            loteEntity.AvesMActual = Math.Max(0, avesInicialesM - mortalidadSeleccionM);
+            loteEntity.AvesHActual = avesActualesH;
+            loteEntity.AvesMActual = avesActualesM;
             loteEntity.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync().ConfigureAwait(false);
         }
-
-        var avesActualesH = loteEntity.AvesHActual ?? Math.Max(0, avesInicialesH - mortalidadSeleccionH);
-        var avesActualesM = loteEntity.AvesMActual ?? Math.Max(0, avesInicialesM - mortalidadSeleccionM);
 
         var edadSemanasProduccion = 0;
         if (loteEntity.FechaEncaset.HasValue)

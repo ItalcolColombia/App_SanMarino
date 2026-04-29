@@ -237,42 +237,14 @@ public class MovimientoAvesController : ControllerBase
     {
         try
         {
-            // Obtener información del lote
-            var lote = await _context.Lotes
-                .AsNoTracking()
-                .Include(l => l.Farm)
-                .Include(l => l.Nucleo)
-                .Include(l => l.Galpon)
-                .Where(l => l.LoteId == loteId && 
-                           l.CompanyId == _currentUser.CompanyId && 
-                           l.DeletedAt == null)
-                .FirstOrDefaultAsync();
-
-            if (lote == null)
+            var ctx = await ObtenerContextoLoteAsync(loteId);
+            if (ctx == null)
                 return NotFound(new { error = $"Lote {loteId} no encontrado" });
 
-            // Calcular semanas desde encasetamiento (señal complementaria de fase)
-            var diasDesdeEncaset = lote.FechaEncaset.HasValue
-                ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days
-                : 0;
-            var etapa = diasDesdeEncaset > 0 ? (diasDesdeEncaset / 7) + 1 : 0;
-
-            // Cargar registro de levante (si existe) para verificar EstadoCierre
-            var lotePosturaLev = await _context.LotePosturaLevante
-                .AsNoTracking()
-                .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
-                .FirstOrDefaultAsync();
-
-            // Determinar fase con tres señales combinadas:
-            // 1. Lote.Fase (campo directo)
-            // 2. LotePosturaLevante.EstadoCierre == "Cerrado" (levante cerrado → pasó a producción)
-            // 3. etapa >= 26 (cálculo por semanas como respaldo)
-            var tipoLote = lote.Fase ?? "Levante";
-            if (tipoLote == "Levante")
-            {
-                if (lotePosturaLev?.EstadoCierre == "Cerrado" || etapa >= 26)
-                    tipoLote = "Produccion";
-            }
+            var lote = ctx.Lote;
+            var etapa = ctx.Etapa;
+            var tipoLote = ctx.TipoLote;
+            var lotePosturaLev = ctx.LotePosturaLevante;
 
             int hembrasIniciales = 0;
             int machosIniciales = 0;
@@ -282,22 +254,47 @@ public class MovimientoAvesController : ControllerBase
 
             if (tipoLote == "Produccion")
             {
-                // Fuente principal: tabla lote_postura_produccion
-                var lotePosturaProd = await _context.LotePosturaProduccion
-                    .AsNoTracking()
-                    .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
-                    .FirstOrDefaultAsync();
+                var lotePosturaProd = ctx.LotePosturaProduccion;
 
                 if (lotePosturaProd != null)
                 {
-                    hembrasIniciales = lotePosturaProd.AvesHInicial ?? 0;
-                    machosIniciales = lotePosturaProd.AvesMInicial ?? 0;
-                    hembrasActuales = lotePosturaProd.AvesHActual ?? 0;
-                    machosActuales = lotePosturaProd.AvesMActual ?? 0;
+                    hembrasIniciales = lotePosturaProd.AvesHInicial ?? lotePosturaProd.HembrasInicialesProd ?? 0;
+                    machosIniciales = lotePosturaProd.AvesMInicial ?? lotePosturaProd.MachosInicialesProd ?? 0;
+
+                    var mortalidadProd = await _context.SeguimientoProduccion
+                        .AsNoTracking()
+                        .Where(s => s.LoteId == loteId)
+                        .GroupBy(_ => 1)
+                        .Select(g => new {
+                            MortH = g.Sum(x => (int?)x.MortalidadH) ?? 0,
+                            MortM = g.Sum(x => (int?)x.MortalidadM) ?? 0,
+                            SelH  = g.Sum(x => (int?)x.SelH) ?? 0,
+                            SelM  = g.Sum(x => (int?)x.SelM) ?? 0
+                        })
+                        .FirstOrDefaultAsync();
+
+                    var movSalidaProd = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteOrigenId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                        .ToListAsync();
+
+                    var movEntradaProd = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteDestinoId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                        .ToListAsync();
+
+                    hembrasActuales = Math.Max(0, hembrasIniciales
+                        - (mortalidadProd?.MortH ?? 0) - (mortalidadProd?.SelH ?? 0)
+                        - movSalidaProd.Sum(m => m.CantidadHembras)
+                        + movEntradaProd.Sum(m => m.CantidadHembras));
+                    machosActuales = Math.Max(0, machosIniciales
+                        - (mortalidadProd?.MortM ?? 0) - (mortalidadProd?.SelM ?? 0)
+                        - movSalidaProd.Sum(m => m.CantidadMachos)
+                        + movEntradaProd.Sum(m => m.CantidadMachos));
+                    mixtasActuales = movEntradaProd.Sum(m => m.CantidadMixtas);
                 }
                 else
                 {
-                    // Fallback: calcular desde seguimientos de producción
                     var loteProd = lote.Fase == "Produccion" ? lote : await _context.Lotes
                         .AsNoTracking()
                         .FirstOrDefaultAsync(l => l.LotePadreId == loteId && l.Fase == "Produccion" && l.DeletedAt == null);
@@ -340,17 +337,49 @@ public class MovimientoAvesController : ControllerBase
             }
             else
             {
-                // Fuente principal: registro de lote_postura_levante ya cargado
                 if (lotePosturaLev != null)
                 {
                     hembrasIniciales = lotePosturaLev.AvesHInicial ?? 0;
                     machosIniciales = lotePosturaLev.AvesMInicial ?? 0;
-                    hembrasActuales = lotePosturaLev.AvesHActual ?? 0;
-                    machosActuales = lotePosturaLev.AvesMActual ?? 0;
+                    var mortCajaHLev = lote.MortCajaH ?? 0;
+                    var mortCajaMlev = lote.MortCajaM ?? 0;
+
+                    var mortalidadLev = await _context.SeguimientoLoteLevante
+                        .AsNoTracking()
+                        .Where(s => s.LoteId == loteId)
+                        .GroupBy(_ => 1)
+                        .Select(g => new {
+                            MortH = g.Sum(x => (int?)x.MortalidadHembras) ?? 0,
+                            MortM = g.Sum(x => (int?)x.MortalidadMachos) ?? 0,
+                            SelH  = g.Sum(x => (int?)x.SelH) ?? 0,
+                            SelM  = g.Sum(x => (int?)x.SelM) ?? 0,
+                            ErrH  = g.Sum(x => (int?)x.ErrorSexajeHembras) ?? 0,
+                            ErrM  = g.Sum(x => (int?)x.ErrorSexajeMachos) ?? 0
+                        })
+                        .FirstOrDefaultAsync();
+
+                    var movSalidaLev = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteOrigenId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                        .ToListAsync();
+
+                    var movEntradaLev = await _context.MovimientoAves
+                        .AsNoTracking()
+                        .Where(m => m.LoteDestinoId == loteId && m.Estado == "Completado" && m.DeletedAt == null)
+                        .ToListAsync();
+
+                    hembrasActuales = Math.Max(0, hembrasIniciales - mortCajaHLev
+                        - (mortalidadLev?.MortH ?? 0) - (mortalidadLev?.SelH ?? 0) - (mortalidadLev?.ErrH ?? 0)
+                        - movSalidaLev.Sum(m => m.CantidadHembras)
+                        + movEntradaLev.Sum(m => m.CantidadHembras));
+                    machosActuales = Math.Max(0, machosIniciales - mortCajaMlev
+                        - (mortalidadLev?.MortM ?? 0) - (mortalidadLev?.SelM ?? 0) - (mortalidadLev?.ErrM ?? 0)
+                        - movSalidaLev.Sum(m => m.CantidadMachos)
+                        + movEntradaLev.Sum(m => m.CantidadMachos));
+                    mixtasActuales = movEntradaLev.Sum(m => m.CantidadMixtas);
                 }
                 else
                 {
-                    // Fallback: calcular desde seguimientos de levante
                     hembrasIniciales = lote.HembrasL ?? 0;
                     machosIniciales = lote.MachosL ?? 0;
                     var mortCajaH = lote.MortCajaH ?? 0;
@@ -391,7 +420,7 @@ public class MovimientoAvesController : ControllerBase
             var totalAvesActuales = hembrasActuales + machosActuales + mixtasActuales;
 
             DateTime? fechaInicioProduccion = null;
-            if (tipoLote == "Produccion" && lote != null)
+            if (tipoLote == "Produccion")
             {
                 var loteProdFecha = lote.Fase == "Produccion" ? lote : await _context.Lotes
                     .AsNoTracking()
@@ -399,33 +428,25 @@ public class MovimientoAvesController : ControllerBase
                 fechaInicioProduccion = loteProdFecha?.FechaInicioProduccion;
             }
 
-            // Obtener raza y año genético: si el lote tiene LotePadreId, obtener del lote padre
             string? raza = lote!.Raza;
             int? anoTablaGenetica = lote.AnoTablaGenetica;
             if (lote.LotePadreId.HasValue && (string.IsNullOrEmpty(raza) || !anoTablaGenetica.HasValue))
             {
                 var lotePadre = await _context.Lotes
                     .AsNoTracking()
-                    .Where(l => l.LoteId == lote.LotePadreId.Value && 
-                               l.CompanyId == _currentUser.CompanyId && 
-                               l.DeletedAt == null)
+                    .Where(l => l.LoteId == lote.LotePadreId.Value && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
                     .FirstOrDefaultAsync();
-                
+
                 if (lotePadre != null)
                 {
-                    // Usar raza y año genético del lote padre si no están en el lote actual
                     if (string.IsNullOrEmpty(raza) && !string.IsNullOrEmpty(lotePadre.Raza))
-                    {
                         raza = lotePadre.Raza;
-                    }
                     if (!anoTablaGenetica.HasValue && lotePadre.AnoTablaGenetica.HasValue)
-                    {
                         anoTablaGenetica = lotePadre.AnoTablaGenetica;
-                    }
                 }
             }
 
-            var informacion = new
+            return Ok(new
             {
                 loteId = lote.LoteId,
                 loteNombre = lote.LoteNombre,
@@ -435,31 +456,173 @@ public class MovimientoAvesController : ControllerBase
                 nucleoNombre = lote.Nucleo?.NucleoNombre,
                 galponId = lote.GalponId,
                 galponNombre = lote.Galpon?.GalponNombre,
-                etapa = etapa,
-                tipoLote = tipoLote,
-                // Aves iniciales
-                hembrasIniciales = hembrasIniciales,
-                machosIniciales = machosIniciales,
-                // Aves actuales calculadas desde registros diarios
+                etapa,
+                tipoLote,
+                lotePosturaLevanteId = ctx.LotePosturaLevante?.LotePosturaLevanteId,
+                lotePosturaProduccionId = ctx.LotePosturaProduccion?.LotePosturaProduccionId,
+                hembrasIniciales,
+                machosIniciales,
                 cantidadHembras = hembrasActuales,
                 cantidadMachos = machosActuales,
                 cantidadMixtas = mixtasActuales,
                 totalAves = totalAvesActuales,
                 fechaEncasetamiento = lote.FechaEncaset,
-                fechaInicioProduccion = fechaInicioProduccion, // Fecha de semana 26 para producción
-                diasDesdeEncasetamiento = diasDesdeEncaset,
-                // Información genética del lote (o del lote padre si existe)
-                raza = raza,
-                anoTablaGenetica = anoTablaGenetica
-            };
-
-            return Ok(informacion);
+                fechaInicioProduccion,
+                diasDesdeEncasetamiento = ctx.DiasDesdeEncaset,
+                raza,
+                anoTablaGenetica
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al obtener información del lote {LoteId}", loteId);
             return StatusCode(500, new { error = "Error interno del servidor", details = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Valida que exista un registro de Seguimiento Diario para el lote en la fecha indicada.
+    /// Requisito previo obligatorio para registrar cualquier movimiento de aves.
+    /// </summary>
+    [HttpGet("lote/{loteId}/validar-fecha-seguimiento")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> ValidarFechaSeguimiento(int loteId, [FromQuery] DateTime fecha)
+    {
+        try
+        {
+            var ctx = await ObtenerContextoLoteAsync(loteId);
+            if (ctx == null)
+                return NotFound(new { error = $"Lote {loteId} no encontrado" });
+
+            var fechaNorm = fecha.Date;
+            var loteIdStr = loteId.ToString();
+
+            ZooSanMarino.Domain.Entities.SeguimientoDiario? registro = null;
+
+            if (ctx.TipoLote == "Produccion")
+            {
+                // Para producción: buscar por LotePosturaProduccionId si existe, o por lote_id + tipo
+                if (ctx.LotePosturaProduccion?.LotePosturaProduccionId is int lppId)
+                {
+                    registro = await _context.SeguimientoDiario
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s =>
+                            s.LotePosturaProduccionId == lppId &&
+                            s.TipoSeguimiento == "produccion" &&
+                            s.Fecha.Date == fechaNorm);
+                }
+
+                registro ??= await _context.SeguimientoDiario
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        s.LoteId == loteIdStr &&
+                        s.TipoSeguimiento == "produccion" &&
+                        s.Fecha.Date == fechaNorm);
+            }
+            else
+            {
+                // Para levante: buscar por LotePosturaLevanteId si existe, o por lote_id + tipo
+                if (ctx.LotePosturaLevante?.LotePosturaLevanteId is int lplId)
+                {
+                    registro = await _context.SeguimientoDiario
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(s =>
+                            s.LotePosturaLevanteId == lplId &&
+                            s.TipoSeguimiento == "levante" &&
+                            s.Fecha.Date == fechaNorm);
+                }
+
+                registro ??= await _context.SeguimientoDiario
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s =>
+                        s.LoteId == loteIdStr &&
+                        s.TipoSeguimiento == "levante" &&
+                        s.Fecha.Date == fechaNorm);
+            }
+
+            if (registro is null)
+            {
+                var fechaDisplay = fechaNorm.ToString("dd/MM/yyyy");
+                return UnprocessableEntity(new
+                {
+                    existe = false,
+                    error = $"No existe registro de Seguimiento Diario para el lote {loteId} en la fecha {fechaDisplay}. " +
+                            "Cree el seguimiento del día antes de registrar el movimiento.",
+                    loteId,
+                    fecha = fechaNorm,
+                    tipoLote = ctx.TipoLote
+                });
+            }
+
+            return Ok(new
+            {
+                existe = true,
+                seguimientoId = registro.Id,
+                tipoSeguimiento = registro.TipoSeguimiento,
+                lotePosturaLevanteId = registro.LotePosturaLevanteId,
+                lotePosturaProduccionId = registro.LotePosturaProduccionId,
+                fecha = registro.Fecha,
+                trasladoAvesEntrante = registro.TrasladoAvesEntrante,
+                trasladoAvesSalida = registro.TrasladoAvesSalida,
+                ventaAvesCantidad = registro.VentaAvesCantidad,
+                ventaAvesMotivo = registro.VentaAvesMotivo
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al validar fecha de seguimiento para lote {LoteId}", loteId);
+            return StatusCode(500, new { error = "Error interno del servidor", details = ex.Message });
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private sealed record ContextoLote(
+        ZooSanMarino.Domain.Entities.Lote Lote,
+        int DiasDesdeEncaset,
+        int Etapa,
+        string TipoLote,
+        ZooSanMarino.Domain.Entities.LotePosturaLevante? LotePosturaLevante,
+        ZooSanMarino.Domain.Entities.LotePosturaProduccion? LotePosturaProduccion);
+
+    private async Task<ContextoLote?> ObtenerContextoLoteAsync(int loteId)
+    {
+        var lote = await _context.Lotes
+            .AsNoTracking()
+            .Include(l => l.Farm)
+            .Include(l => l.Nucleo)
+            .Include(l => l.Galpon)
+            .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        if (lote is null) return null;
+
+        var diasDesdeEncaset = lote.FechaEncaset.HasValue
+            ? (DateTime.UtcNow.Date - lote.FechaEncaset.Value.Date).Days
+            : 0;
+        var etapa = diasDesdeEncaset > 0 ? (diasDesdeEncaset / 7) + 1 : 0;
+
+        var lotePosturaLev = await _context.LotePosturaLevante
+            .AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+            .FirstOrDefaultAsync();
+
+        var tipoLote = lote.Fase ?? "Levante";
+        if (tipoLote == "Levante" && (lotePosturaLev?.EstadoCierre == "Cerrado" || etapa >= 26))
+            tipoLote = "Produccion";
+
+        ZooSanMarino.Domain.Entities.LotePosturaProduccion? lotePosturaProd = null;
+        if (tipoLote == "Produccion")
+        {
+            lotePosturaProd = await _context.LotePosturaProduccion
+                .AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+                .FirstOrDefaultAsync();
+        }
+
+        return new ContextoLote(lote, diasDesdeEncaset, etapa, tipoLote, lotePosturaLev, lotePosturaProd);
     }
 
     /// <summary>
@@ -524,6 +687,29 @@ public class MovimientoAvesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al procesar movimiento {Id}", id);
+            return StatusCode(500, new { error = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Elimina (lógicamente) un movimiento y revierte su efecto sobre el inventario de aves
+    /// </summary>
+    [HttpDelete("{id}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Eliminar(int id)
+    {
+        try
+        {
+            var resultado = await _movimientoService.EliminarMovimientoAsync(id);
+            if (!resultado.Success)
+                return BadRequest(resultado);
+            return Ok(resultado);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al eliminar movimiento {Id}", id);
             return StatusCode(500, new { error = "Error interno del servidor" });
         }
     }
@@ -690,6 +876,54 @@ public class MovimientoAvesController : ControllerBase
     /// <summary>
     /// Obtiene estadísticas de movimientos
     /// </summary>
+    [HttpPost("ejecutar-venta")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]
+    public async Task<IActionResult> EjecutarVenta([FromBody] EjecutarVentaAvesRequest request)
+    {
+        try
+        {
+            var resultado = await _movimientoService.EjecutarVentaAsync(request);
+            return resultado.Success ? Ok(resultado) : BadRequest(resultado);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al ejecutar venta");
+            return StatusCode(500, new { error = "Error interno del servidor" });
+        }
+    }
+
+    [HttpPost("ejecutar-traslado")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]
+    public async Task<IActionResult> EjecutarTraslado([FromBody] EjecutarTrasladoAvesRequest request)
+    {
+        try
+        {
+            var resultado = await _movimientoService.EjecutarTrasladoAsync(request);
+            return resultado.Success ? Ok(resultado) : BadRequest(resultado);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al ejecutar traslado");
+            return StatusCode(500, new { error = "Error interno del servidor" });
+        }
+    }
+
+    [HttpPost("ejecutar-traslado-cierre-levante")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ResultadoMovimientoDto))]
+    public async Task<IActionResult> EjecutarTrasladoCierreLevante([FromBody] TrasladoCierreLevanteRequest request)
+    {
+        try
+        {
+            var resultado = await _movimientoService.EjecutarTrasladoCierreLevanteAsync(request);
+            return resultado.Success ? Ok(resultado) : BadRequest(resultado);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al ejecutar traslado de cierre levante");
+            return StatusCode(500, new { error = "Error interno del servidor" });
+        }
+    }
+
     [HttpGet("estadisticas")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(EstadisticasMovimientoDto))]
     public async Task<IActionResult> GetEstadisticas([FromQuery] DateTime? fechaDesde = null, [FromQuery] DateTime? fechaHasta = null)

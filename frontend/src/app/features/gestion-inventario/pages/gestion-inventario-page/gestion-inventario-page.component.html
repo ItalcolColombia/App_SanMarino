@@ -118,22 +118,26 @@
             <td>{{ s.quantity }}</td>
             <td>{{ s.unit }}</td>
             <td class="actions-cell">
-              <button
-                type="button"
-                class="btn-italfoods-secondary btn-sm"
-                (click)="openStockEdit(s)"
-                title="Editar cantidad o unidad"
-              >
-                <fa-icon [icon]="faPen"></fa-icon>
-              </button>
-              <button
-                type="button"
-                class="btn-italfoods-secondary btn-sm btn-danger-outline"
-                (click)="beginDeleteStock(s)"
-                title="Eliminar registro de stock"
-              >
-                <fa-icon [icon]="faTrash"></fa-icon>
-              </button>
+              <ng-container *appHasPermission="'editar_registro'">
+                <button
+                  type="button"
+                  class="btn-italfoods-secondary btn-sm"
+                  (click)="openStockEdit(s)"
+                  title="Editar cantidad o unidad"
+                >
+                  <fa-icon [icon]="faPen"></fa-icon>
+                </button>
+              </ng-container>
+              <ng-container *appHasPermission="'eliminar_registro'">
+                <button
+                  type="button"
+                  class="btn-italfoods-secondary btn-sm btn-danger-outline"
+                  (click)="beginDeleteStock(s)"
+                  title="Eliminar registro de stock"
+                >
+                  <fa-icon [icon]="faTrash"></fa-icon>
+                </button>
+              </ng-container>
             </td>
           </tr>
         </tbody>

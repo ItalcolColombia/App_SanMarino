@@ -21,6 +21,7 @@ import {
   faChevronUp
 } from '@fortawesome/free-solid-svg-icons';
 
+import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -37,7 +38,7 @@ type TrasladoModo = 'mismaGranja' | 'interGranja';
 @Component({
   selector: 'app-gestion-inventario-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, FontAwesomeModule],
+  imports: [CommonModule, FormsModule, FontAwesomeModule, HasPermissionDirective],
   templateUrl: './gestion-inventario-page.component.html',
   styleUrls: ['./gestion-inventario-page.component.scss']
 })

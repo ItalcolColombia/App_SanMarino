@@ -54,6 +54,7 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             x.HuevoTot, x.HuevoInc, x.HuevoLimpio, x.HuevoTratado, x.HuevoSucio, x.HuevoDeforme,
             x.HuevoBlanco, x.HuevoDobleYema, x.HuevoPiso, x.HuevoPequeno, x.HuevoRoto, x.HuevoDesecho, x.HuevoOtro,
             x.PesoHuevo, x.Etapa, x.PesoH, x.PesoM, x.Uniformidad, x.CoeficienteVariacion, x.ObservacionesPesaje,
+            x.TrasladoAvesEntrante, x.TrasladoAvesSalida, x.VentaAvesCantidad, x.VentaAvesMotivo,
             x.CreatedByUserId, x.CreatedAt, x.UpdatedAt
         );
     }
@@ -265,6 +266,10 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
             Uniformidad = dto.Uniformidad,
             CoeficienteVariacion = dto.CoeficienteVariacion,
             ObservacionesPesaje = dto.ObservacionesPesaje,
+            TrasladoAvesEntrante = dto.TrasladoAvesEntrante,
+            TrasladoAvesSalida = dto.TrasladoAvesSalida,
+            VentaAvesCantidad = dto.VentaAvesCantidad,
+            VentaAvesMotivo = dto.VentaAvesMotivo,
             CreatedByUserId = createdBy,
             CreatedAt = DateTime.UtcNow
         };
@@ -436,6 +441,10 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         ent.Uniformidad = dto.Uniformidad;
         ent.CoeficienteVariacion = dto.CoeficienteVariacion;
         ent.ObservacionesPesaje = dto.ObservacionesPesaje;
+        ent.TrasladoAvesEntrante = dto.TrasladoAvesEntrante;
+        ent.TrasladoAvesSalida = dto.TrasladoAvesSalida;
+        ent.VentaAvesCantidad = dto.VentaAvesCantidad;
+        ent.VentaAvesMotivo = dto.VentaAvesMotivo;
         ent.UpdatedAt = DateTime.UtcNow;
 
         if (useLppFlow && ent.LotePosturaProduccionId.HasValue)

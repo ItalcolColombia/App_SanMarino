@@ -80,6 +80,12 @@ public class SeguimientoDiario
     public decimal? CoeficienteVariacion { get; set; }
     public string? ObservacionesPesaje { get; set; }
 
+    // Movimientos de aves (traslados y ventas)
+    public int? TrasladoAvesEntrante { get; set; }
+    public int? TrasladoAvesSalida { get; set; }
+    public int? VentaAvesCantidad { get; set; }
+    public string? VentaAvesMotivo { get; set; }
+
     // Auditoría
     public string? CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }

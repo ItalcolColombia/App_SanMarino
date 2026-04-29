@@ -428,17 +428,12 @@ export class MovimientosAvesListComponent implements OnInit {
   }
 
   deleteMovimiento(movimiento: MovimientoAvesDto): void {
-    if (movimiento.estado === 'Cancelado') {
-      this.showErrorMessage('No se puede cancelar un movimiento que ya está cancelado');
-      return;
-    }
-
     this.movimientoToDelete = movimiento;
     this.confirmationModalData = {
-      title: 'Confirmar Cancelación',
-      message: `¿Estás seguro de que deseas cancelar el movimiento ${movimiento.numeroMovimiento}? Esta acción no se puede deshacer.`,
+      title: 'Confirmar Eliminación',
+      message: `¿Estás seguro de que deseas eliminar el movimiento ${movimiento.numeroMovimiento}? Esta acción revertirá el efecto sobre el inventario de aves y no se puede deshacer.`,
       type: 'warning',
-      confirmText: 'Sí, Cancelar',
+      confirmText: 'Sí, Eliminar',
       cancelText: 'No',
       showCancel: true
     };
@@ -452,16 +447,16 @@ export class MovimientosAvesListComponent implements OnInit {
     this.showConfirmationModal = false;
     this.loading = true;
 
-    this.movimientosService.cancelarMovimientoAves(movimiento.id, 'Cancelado por usuario').subscribe({
+    this.movimientosService.eliminarMovimientoAves(movimiento.id).subscribe({
       next: () => {
         this.loading = false;
-        this.showSuccessMessage(`Movimiento ${movimiento.numeroMovimiento} cancelado exitosamente`);
+        this.showSuccessMessage(`Movimiento ${movimiento.numeroMovimiento} eliminado exitosamente`);
         this.loadMovimientos();
         this.movimientoToDelete = null;
       },
       error: (err) => {
         this.loading = false;
-        this.showErrorMessage('Error al cancelar el movimiento: ' + (err.message || 'Error desconocido'));
+        this.showErrorMessage('Error al eliminar el movimiento: ' + (err.message || 'Error desconocido'));
         this.movimientoToDelete = null;
       }
     });
@@ -497,6 +492,29 @@ export class MovimientosAvesListComponent implements OnInit {
   onConfirmationModalClose(): void {
     this.showConfirmationModal = false;
     this.movimientoToDelete = null;
+  }
+
+  // ================== COMPUTED STATS ==================
+  get ventasCount(): number {
+    return this.movimientos.filter(m => this.esTipoVenta(m.tipoMovimiento)).length;
+  }
+
+  get trasladosCount(): number {
+    return this.movimientos.filter(m => this.esTipoTraslado(m.tipoMovimiento)).length;
+  }
+
+  get totalAvesMovidas(): number {
+    return this.movimientos.reduce((sum, m) => sum + (m.totalAves || 0), 0);
+  }
+
+  esTipoVenta(tipo: string | null | undefined): boolean {
+    if (!tipo) return false;
+    return tipo.toLowerCase().includes('venta') || tipo.toLowerCase().includes('sale');
+  }
+
+  esTipoTraslado(tipo: string | null | undefined): boolean {
+    if (!tipo) return false;
+    return tipo.toLowerCase().includes('traslado') || tipo.toLowerCase().includes('transfer');
   }
 
   // ================== HELPERS ==================

@@ -48,10 +48,16 @@ export interface SeguimientoLoteLevanteDto {
   kcalAveH?: number | null;
   protAveH?: number | null;
   ciclo: string;                  // "Normal" | "Reforzado"
-  tipoAlimentoHembras?: number | null; // (calculo interno, no se envía en create/update)
-  tipoAlimentoMachos?: number | null;  // (calculo interno, no se envía en create/update)
+  tipoAlimentoHembras?: number | null;
+  tipoAlimentoMachos?: number | null;
   /** Saldo de alimento (kg) al cierre del día en bodega; solo pollo de engorde (API). */
   saldoAlimentoKg?: number | null;
+
+  // Movimientos de aves registrados en este día
+  trasladoAvesEntrante?: number | null;
+  trasladoAvesSalida?: number | null;
+  ventaAvesCantidad?: number | null;
+  ventaAvesMotivo?: string | null;
 }
 
 // Representa un ítem individual en el seguimiento

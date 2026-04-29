@@ -76,6 +76,11 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
         b.Property(x => x.CoeficienteVariacion).HasColumnName("coeficiente_variacion").HasPrecision(5, 2);
         b.Property(x => x.ObservacionesPesaje).HasColumnName("observaciones_pesaje");
 
+        b.Property(x => x.TrasladoAvesEntrante).HasColumnName("traslado_aves_entrante");
+        b.Property(x => x.TrasladoAvesSalida).HasColumnName("traslado_aves_salida");
+        b.Property(x => x.VentaAvesCantidad).HasColumnName("venta_aves_cantidad");
+        b.Property(x => x.VentaAvesMotivo).HasColumnName("venta_aves_motivo");
+
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").HasMaxLength(64);
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");

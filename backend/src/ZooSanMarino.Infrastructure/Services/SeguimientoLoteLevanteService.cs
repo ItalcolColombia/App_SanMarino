@@ -142,6 +142,10 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             Uniformidad: null,
             CoeficienteVariacion: null,
             ObservacionesPesaje: null,
+            TrasladoAvesEntrante: null,
+            TrasladoAvesSalida: null,
+            VentaAvesCantidad: null,
+            VentaAvesMotivo: null,
             CreatedByUserId: dto.CreatedByUserId
         );
     }
@@ -205,7 +209,11 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             PesoM: null,
             Uniformidad: null,
             CoeficienteVariacion: null,
-            ObservacionesPesaje: null
+            ObservacionesPesaje: null,
+            TrasladoAvesEntrante: null,
+            TrasladoAvesSalida: null,
+            VentaAvesCantidad: null,
+            VentaAvesMotivo: null
         );
     }
 

@@ -137,7 +137,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
 
   /** Columnas de la tabla de registros diarios (incluye despacho mixtas y consumo bodega si engorde). Sin despacho H/M, ingreso, traslado, documento ni agua. */
   get colspanRegistroDiario(): number {
-    return 20 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    return 23 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;

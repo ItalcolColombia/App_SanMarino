@@ -1,60 +1,42 @@
 <div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
-  <div></div>
-
   <div class="ux-main">
+
+    <!-- ── Header ── -->
     <header class="ux-header">
       <div class="ux-header__title">
         <h1>Movimientos de Aves</h1>
-
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
+          <ng-container *ngIf="selectedGranjaId; else noGranja">
+            <span class="chip chip--info">
+              <span class="chip__dot"></span>{{ selectedGranjaName || selectedGranjaId }}
+            </span>
+            <span class="chip chip--muted" *ngIf="selectedNucleoId">{{ selectedNucleoNombre || selectedNucleoId }}</span>
+            <span class="chip chip--muted" *ngIf="selectedGalponId">{{ selectedGalponNombre }}</span>
+            <span class="chip chip--primary" *ngIf="selectedLoteId">
+              <span class="chip__dot"></span>{{ selectedLoteNombre }}
+            </span>
+            <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
+              {{ calcularEdadDiasDesdeEncasetamiento() }} días
+            </span>
+          </ng-container>
+          <ng-template #noGranja>
             <span class="chip chip--warning">
-              <span class="chip__dot" aria-hidden="true"></span>
-              Selecciona una granja
+              <span class="chip__dot"></span>Selecciona una granja para comenzar
             </span>
           </ng-template>
-
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
-
-          <span class="chip chip--info" *ngIf="selectedLoteId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedLoteId && selectedLote?.fechaEncaset">
-            {{ calcularEdadDiasDesdeEncasetamiento() }} días desde encasetamiento
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedLoteId">
-            {{ filteredMovimientos.length || 0 }} de {{ movimientos.length || 0 }} registro(s)
-          </span>
         </div>
       </div>
 
       <div class="ux-header__actions">
-        <button
-          type="button"
-          (click)="create()"
-          class="btn btn--primary"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
-          Nuevo registro
+        <button type="button" (click)="create()" class="btn btn--primary"
+                [disabled]="!selectedLoteId"
+                [title]="!selectedLoteId ? 'Selecciona un lote primero' : 'Registrar nuevo movimiento'">
+          + Nuevo movimiento
         </button>
       </div>
     </header>
 
-    <!-- Filtros de selección -->
+    <!-- ── Filtro cascade ── -->
     <app-filtro-select
       [selectedGranjaId]="selectedGranjaId"
       [selectedNucleoId]="selectedNucleoId"
@@ -66,50 +48,80 @@
       (loteChange)="onLoteChange($event)">
     </app-filtro-select>
 
-    <!-- Mensaje de error -->
-    <div *ngIf="error" class="alert alert-error">
-      {{ error }}
+    <!-- ── Error ── -->
+    <div *ngIf="error" class="alert alert-error" role="alert">
+      <span class="alert__icon">⚠</span>
+      <span>{{ error }}</span>
     </div>
 
-    <!-- Tabla de movimientos -->
+    <!-- ── Stats bar ── -->
+    <div class="stats-bar" *ngIf="selectedLoteId && !loading && movimientos.length > 0">
+      <div class="stat-card">
+        <div class="stat-card__icon stat-card__icon--total">📦</div>
+        <div class="stat-card__body">
+          <span class="stat-card__value">{{ movimientos.length }}</span>
+          <span class="stat-card__label">Total registros</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__icon stat-card__icon--venta">💰</div>
+        <div class="stat-card__body">
+          <span class="stat-card__value">{{ ventasCount }}</span>
+          <span class="stat-card__label">Ventas</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__icon stat-card__icon--traslado">🔄</div>
+        <div class="stat-card__body">
+          <span class="stat-card__value">{{ trasladosCount }}</span>
+          <span class="stat-card__label">Traslados</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__icon stat-card__icon--aves">🐔</div>
+        <div class="stat-card__body">
+          <span class="stat-card__value">{{ totalAvesMovidas | number }}</span>
+          <span class="stat-card__label">Aves movidas</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tabla / Lista ── -->
     <section class="ux-card" *ngIf="selectedLoteId">
+
       <div class="ux-card__header">
-        <h2>Registros de Movimientos de Aves</h2>
+        <h2>Historial de movimientos</h2>
+        <span class="ux-card__count" *ngIf="!loading">
+          {{ filteredMovimientos.length }}
+          de {{ movimientos.length }} registro{{ movimientos.length !== 1 ? 's' : '' }}
+        </span>
       </div>
 
-      <!-- Filtros de tabla -->
+      <!-- Filtros -->
       <div class="ux-card__filters">
-        <div class="filters-row">
-          <div class="filter-group">
-            <label for="filtroBusqueda">Buscar</label>
-            <input 
-              type="text" 
-              id="filtroBusqueda"
-              [(ngModel)]="filtroBusqueda"
-              (ngModelChange)="onFiltroChange()"
-              placeholder="Buscar por número, tipo, destino..."
-              class="filter-input">
+        <div class="filters-grid">
+          <div class="filter-group filter-group--search">
+            <label class="filter-label" for="filtroBusqueda">Buscar</label>
+            <input type="text" id="filtroBusqueda"
+                   [(ngModel)]="filtroBusqueda" (ngModelChange)="onFiltroChange()"
+                   placeholder="N° mov., destino, motivo…"
+                   class="filter-input">
           </div>
 
           <div class="filter-group">
-            <label for="filtroTipoMovimiento">Tipo</label>
-            <select 
-              id="filtroTipoMovimiento"
-              [(ngModel)]="filtroTipoMovimiento"
-              (ngModelChange)="onFiltroChange()"
-              class="filter-select">
+            <label class="filter-label" for="filtroTipo">Tipo</label>
+            <select id="filtroTipo" [(ngModel)]="filtroTipoMovimiento"
+                    (ngModelChange)="onFiltroChange()" class="filter-select">
               <option value="">Todos</option>
+              <option value="Venta">Venta</option>
               <option value="Traslado">Traslado</option>
             </select>
           </div>
 
           <div class="filter-group">
-            <label for="filtroEstado">Estado</label>
-            <select 
-              id="filtroEstado"
-              [(ngModel)]="filtroEstado"
-              (ngModelChange)="onFiltroChange()"
-              class="filter-select">
+            <label class="filter-label" for="filtroEstado">Estado</label>
+            <select id="filtroEstado" [(ngModel)]="filtroEstado"
+                    (ngModelChange)="onFiltroChange()" class="filter-select">
               <option value="">Todos</option>
               <option value="Pendiente">Pendiente</option>
               <option value="Completado">Completado</option>
@@ -117,12 +129,10 @@
             </select>
           </div>
 
-          <div class="filter-group">
-            <button 
-              type="button" 
-              class="btn btn--outline"
-              (click)="limpiarFiltros()"
-              [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
+          <div class="filter-group filter-group--clear">
+            <button type="button" class="btn btn--ghost btn--sm"
+                    (click)="limpiarFiltros()"
+                    [disabled]="!filtroBusqueda && !filtroTipoMovimiento && !filtroEstado">
               Limpiar
             </button>
           </div>
@@ -130,142 +140,219 @@
       </div>
 
       <div class="ux-card__body">
-        <!-- Estado de carga -->
+
+        <!-- Loading -->
         <div *ngIf="loading" class="loading-state">
-          <p>Cargando movimientos...</p>
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <p>Cargando movimientos…</p>
         </div>
 
-        <!-- Tabla -->
-        <div *ngIf="!loading" class="table-container">
-          <div class="ux-scroll">
-            <table class="ux-table">
-              <thead>
-                <tr>
-                  <th>Número</th>
-                  <th>Fecha</th>
-                  <th>Tipo</th>
-                  <th>Origen</th>
-                  <th>Destino</th>
-                  <th>Total Aves</th>
-                  <th>Hembras</th>
-                  <th>Machos</th>
-                  <th>Mixtas</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngIf="movimientos.length === 0">
-                  <td colspan="11" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🐔</div>
-                    <p>No hay registros de movimientos para este lote.</p>
-                    <button type="button" class="btn btn--outline" (click)="create()">
-                      Crear el primero
-                    </button>
-                  </td>
-                </tr>
+        <ng-container *ngIf="!loading">
 
-                <tr *ngIf="movimientos.length > 0 && filteredMovimientos.length === 0">
-                  <td colspan="11" class="empty-state">
-                    <div class="empty-illustration" aria-hidden="true">🔍</div>
-                    <p>No se encontraron registros con los filtros aplicados.</p>
-                    <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
-                      Limpiar filtros
-                    </button>
-                  </td>
-                </tr>
-
-                <tr *ngFor="let movimiento of filteredMovimientos" class="ux-row">
-                  <td>
-                    <strong>{{ movimiento.numeroMovimiento }}</strong>
-                  </td>
-                  <td>{{ movimiento.fechaMovimiento | date:'dd/MM/yyyy' }}</td>
-                  <td>
-                    <span class="badge badge--info">
-                      {{ movimiento.tipoMovimiento }}
-                    </span>
-                  </td>
-                  <td>
-                    <div *ngIf="movimiento.origen">
-                      <div>{{ movimiento.origen.granjaNombre || 'N/A' }}</div>
-                      <small class="text-muted" *ngIf="movimiento.origen.loteNombre">
-                        Lote: {{ movimiento.origen.loteNombre }}
-                      </small>
-                    </div>
-                    <div *ngIf="!movimiento.origen">N/A</div>
-                  </td>
-                  <td>
-                    <div *ngIf="movimiento.destino">
-                      <div>{{ movimiento.destino.granjaNombre || 'N/A' }}</div>
-                      <small class="text-muted" *ngIf="movimiento.destino.loteNombre">
-                        Lote: {{ movimiento.destino.loteNombre }}
-                      </small>
-                    </div>
-                    <div *ngIf="!movimiento.destino">N/A</div>
-                  </td>
-                  <td class="number-cell">
-                    <strong>{{ formatearNumero(movimiento.totalAves) }}</strong>
-                  </td>
-                  <td class="number-cell">{{ formatearNumero(movimiento.cantidadHembras) }}</td>
-                  <td class="number-cell">{{ formatearNumero(movimiento.cantidadMachos) }}</td>
-                  <td class="number-cell">{{ formatearNumero(movimiento.cantidadMixtas) }}</td>
-                  <td>
-                    <span class="badge" 
-                          [class.badge--success]="movimiento.estado === 'Completado'"
-                          [class.badge--warning]="movimiento.estado === 'Pendiente'"
-                          [class.badge--danger]="movimiento.estado === 'Cancelado'">
-                      {{ movimiento.estado }}
-                    </span>
-                  </td>
-                  <td class="text-right">
-                    <div class="btn-group">
-                      <button 
-                        type="button" 
-                        (click)="viewDetail(movimiento)" 
-                        class="action-btn action-btn--view" 
-                        title="Ver detalle">
-                        <span class="action-icon">👁</span>
-                        <span class="action-label">Ver</span>
-                      </button>
-                      <button 
-                        type="button" 
-                        (click)="editMovimiento(movimiento)" 
-                        class="action-btn action-btn--edit" 
-                        title="Editar"
-                        [disabled]="movimiento.estado === 'Completado'">
-                        <span class="action-icon">✎</span>
-                        <span class="action-label">Editar</span>
-                      </button>
-                      <button 
-                        type="button" 
-                        (click)="deleteMovimiento(movimiento)" 
-                        class="action-btn action-btn--delete" 
-                        title="Eliminar"
-                        [disabled]="movimiento.estado === 'Cancelado'">
-                        <span class="action-icon">🗑</span>
-                        <span class="action-label">Eliminar</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- Sin registros -->
+          <div *ngIf="movimientos.length === 0" class="empty-state">
+            <div class="empty-illustration" aria-hidden="true">🐔</div>
+            <h3>Sin movimientos</h3>
+            <p>Este lote no tiene movimientos de aves registrados.</p>
+            <button type="button" class="btn btn--primary" (click)="create()">
+              + Registrar el primero
+            </button>
           </div>
-        </div>
+
+          <!-- Sin resultados por filtros -->
+          <div *ngIf="movimientos.length > 0 && filteredMovimientos.length === 0" class="empty-state">
+            <div class="empty-illustration" aria-hidden="true">🔍</div>
+            <h3>Sin resultados</h3>
+            <p>Ningún movimiento coincide con los filtros aplicados.</p>
+            <button type="button" class="btn btn--outline" (click)="limpiarFiltros()">
+              Limpiar filtros
+            </button>
+          </div>
+
+          <ng-container *ngIf="filteredMovimientos.length > 0">
+
+            <!-- ═══ DESKTOP: tabla ═══ -->
+            <div class="table-scroll">
+              <table class="ux-table" role="table">
+                <thead>
+                  <tr>
+                    <th scope="col">N° / Fecha</th>
+                    <th scope="col">Tipo / Motivo</th>
+                    <th scope="col">Origen → Destino</th>
+                    <th scope="col" class="th--num">Aves</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col" class="th--actions">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let m of filteredMovimientos" class="ux-row"
+                      [class.ux-row--venta]="esTipoVenta(m.tipoMovimiento)"
+                      [class.ux-row--cancelado]="m.estado === 'Cancelado'">
+
+                    <!-- N° / Fecha -->
+                    <td>
+                      <div class="cell-num-fecha">
+                        <strong class="mov-num">{{ m.numeroMovimiento }}</strong>
+                        <span class="mov-fecha">{{ m.fechaMovimiento | date:'dd/MM/yyyy' }}</span>
+                      </div>
+                    </td>
+
+                    <!-- Tipo + Motivo -->
+                    <td>
+                      <div class="cell-tipo">
+                        <span class="tipo-pill"
+                              [class.tipo-pill--venta]="esTipoVenta(m.tipoMovimiento)"
+                              [class.tipo-pill--traslado]="esTipoTraslado(m.tipoMovimiento)">
+                          {{ esTipoVenta(m.tipoMovimiento) ? '💰' : '🔄' }}
+                          {{ m.tipoMovimiento }}
+                        </span>
+                        <span class="motivo-tag" *ngIf="m.motivoMovimiento">{{ m.motivoMovimiento }}</span>
+                      </div>
+                    </td>
+
+                    <!-- Origen → Destino -->
+                    <td>
+                      <div class="cell-lugar">
+                        <div class="lugar-row" *ngIf="m.origen">
+                          <span class="lugar-icon">📍</span>
+                          <span class="lugar-nombre">{{ m.origen.granjaNombre || '—' }}</span>
+                          <span class="lugar-lote" *ngIf="m.origen.loteNombre">· {{ m.origen.loteNombre }}</span>
+                        </div>
+                        <div class="lugar-arrow" *ngIf="m.destino || esTipoVenta(m.tipoMovimiento)">↓</div>
+                        <div class="lugar-row" *ngIf="m.destino">
+                          <span class="lugar-icon">🏭</span>
+                          <span class="lugar-nombre">{{ m.destino.granjaNombre || '—' }}</span>
+                          <span class="lugar-lote" *ngIf="m.destino.loteNombre">· {{ m.destino.loteNombre }}</span>
+                        </div>
+                        <div class="lugar-row" *ngIf="!m.destino && esTipoVenta(m.tipoMovimiento)">
+                          <span class="lugar-muted">Venta directa</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Aves -->
+                    <td class="td--num">
+                      <div class="cell-aves">
+                        <strong class="aves-total">{{ formatearNumero(m.totalAves) }}</strong>
+                        <div class="aves-detail">
+                          <span *ngIf="m.cantidadHembras > 0" class="aves-chip aves-chip--h">H {{ formatearNumero(m.cantidadHembras) }}</span>
+                          <span *ngIf="m.cantidadMachos > 0" class="aves-chip aves-chip--m">M {{ formatearNumero(m.cantidadMachos) }}</span>
+                          <span *ngIf="m.cantidadMixtas > 0" class="aves-chip aves-chip--x">X {{ formatearNumero(m.cantidadMixtas) }}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Estado -->
+                    <td>
+                      <span class="estado-pill"
+                            [class.estado-pill--completado]="m.estado === 'Completado'"
+                            [class.estado-pill--pendiente]="m.estado === 'Pendiente'"
+                            [class.estado-pill--cancelado]="m.estado === 'Cancelado'">
+                        {{ m.estado }}
+                      </span>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td class="td--actions">
+                      <div class="action-group">
+                        <button type="button" (click)="viewDetail(m)"
+                                class="act-btn act-btn--view" title="Ver detalle">
+                          Ver
+                        </button>
+                        <button type="button" (click)="editMovimiento(m)"
+                                class="act-btn act-btn--edit" title="Editar"
+                                [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">
+                          Editar
+                        </button>
+                        <button type="button" (click)="deleteMovimiento(m)"
+                                class="act-btn act-btn--delete" title="Cancelar"
+                                [disabled]="m.estado === 'Cancelado'">
+                          Cancelar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- ═══ MOBILE: cards ═══ -->
+            <div class="mov-cards">
+              <article *ngFor="let m of filteredMovimientos" class="mov-card"
+                       [class.mov-card--venta]="esTipoVenta(m.tipoMovimiento)"
+                       [class.mov-card--cancelado]="m.estado === 'Cancelado'">
+
+                <div class="mov-card__top">
+                  <div class="mov-card__tipo-estado">
+                    <span class="tipo-pill"
+                          [class.tipo-pill--venta]="esTipoVenta(m.tipoMovimiento)"
+                          [class.tipo-pill--traslado]="esTipoTraslado(m.tipoMovimiento)">
+                      {{ esTipoVenta(m.tipoMovimiento) ? '💰' : '🔄' }} {{ m.tipoMovimiento }}
+                    </span>
+                    <span class="estado-pill"
+                          [class.estado-pill--completado]="m.estado === 'Completado'"
+                          [class.estado-pill--pendiente]="m.estado === 'Pendiente'"
+                          [class.estado-pill--cancelado]="m.estado === 'Cancelado'">
+                      {{ m.estado }}
+                    </span>
+                  </div>
+                  <div class="mov-card__meta">
+                    <strong class="mov-num">{{ m.numeroMovimiento }}</strong>
+                    <span class="mov-fecha">{{ m.fechaMovimiento | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                </div>
+
+                <div class="mov-card__body">
+                  <div class="mov-card__lugar">
+                    <div class="lugar-row" *ngIf="m.origen">
+                      <span>📍</span>
+                      <span>{{ m.origen.granjaNombre }}{{ m.origen.loteNombre ? ' · ' + m.origen.loteNombre : '' }}</span>
+                    </div>
+                    <div class="lugar-row" *ngIf="m.destino">
+                      <span>→</span>
+                      <span>{{ m.destino.granjaNombre }}{{ m.destino.loteNombre ? ' · ' + m.destino.loteNombre : '' }}</span>
+                    </div>
+                  </div>
+
+                  <div class="mov-card__aves">
+                    <span class="aves-total">🐔 {{ formatearNumero(m.totalAves) }} aves</span>
+                    <div class="aves-detail">
+                      <span *ngIf="m.cantidadHembras > 0" class="aves-chip aves-chip--h">H {{ formatearNumero(m.cantidadHembras) }}</span>
+                      <span *ngIf="m.cantidadMachos > 0" class="aves-chip aves-chip--m">M {{ formatearNumero(m.cantidadMachos) }}</span>
+                      <span *ngIf="m.cantidadMixtas > 0" class="aves-chip aves-chip--x">X {{ formatearNumero(m.cantidadMixtas) }}</span>
+                    </div>
+                    <span *ngIf="m.motivoMovimiento" class="motivo-tag">{{ m.motivoMovimiento }}</span>
+                  </div>
+                </div>
+
+                <div class="mov-card__actions">
+                  <button type="button" (click)="viewDetail(m)" class="act-btn act-btn--view">Ver</button>
+                  <button type="button" (click)="editMovimiento(m)" class="act-btn act-btn--edit"
+                          [disabled]="m.estado === 'Completado' || m.estado === 'Cancelado'">Editar</button>
+                  <button type="button" (click)="deleteMovimiento(m)" class="act-btn act-btn--delete"
+                          [disabled]="m.estado === 'Cancelado'">Cancelar</button>
+                </div>
+              </article>
+            </div>
+
+          </ng-container>
+        </ng-container>
       </div>
     </section>
 
-    <!-- Mensaje cuando no hay lote seleccionado -->
-    <section class="ux-card" *ngIf="!selectedLoteId">
+    <!-- ── Sin lote seleccionado ── -->
+    <section class="ux-card empty-hero" *ngIf="!selectedLoteId">
       <div class="empty-state">
-        <div class="empty-illustration" aria-hidden="true">🔍</div>
-        <p>Selecciona un lote para ver sus movimientos de aves</p>
+        <div class="empty-illustration" aria-hidden="true">🐔</div>
+        <h3>Selecciona un lote</h3>
+        <p>Usa los selectores de arriba para elegir la granja, núcleo, galpón y lote.</p>
       </div>
     </section>
+
   </div>
 </div>
 
-<!-- Modal para crear/editar movimiento -->
+<!-- Modal crear / editar -->
 <app-modal-movimiento-aves
   [isOpen]="modalOpen"
   [loteId]="selectedLoteId"
@@ -274,7 +361,7 @@
   (save)="onMovimientoSaved()">
 </app-modal-movimiento-aves>
 
-<!-- Modal de Confirmación (para eliminar, éxito y errores) -->
+<!-- Modal confirmación -->
 <app-confirmation-modal
   [isOpen]="showConfirmationModal"
   [data]="confirmationModalData"
