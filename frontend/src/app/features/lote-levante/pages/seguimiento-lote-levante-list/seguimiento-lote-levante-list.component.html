@@ -151,7 +151,7 @@
 
 <!-- ================= MODAL: CERRAR LOTE → PRODUCCIÓN ================= -->
 <div *ngIf="cerrarLoteModalOpen" class="ux-modal" role="dialog" aria-modal="true" aria-labelledby="cerrar-lote-lev-title">
-  <div class="ux-modal__dialog ux-modal__dialog--sm ux-modal__dialog--cerrar-levante">
+  <div class="ux-modal__dialog ux-modal__dialog--lg ux-modal__dialog--cerrar-levante">
     <header class="ux-modal__header">
       <h2 id="cerrar-lote-lev-title">Cerrar lote de levante</h2>
       <button type="button" class="icon-btn" (click)="closeCerrarLoteModal()" [disabled]="loadingCierreLote" aria-label="Cerrar">✕</button>
@@ -190,6 +190,144 @@
             </div>
           </div>
         </div>
+
+        <!-- ===== LIQUIDACIÓN TÉCNICA — semana 25 vs guía genética ===== -->
+        <div class="liquidacion-cierre-section">
+          <p class="liquidacion-cierre-title">
+            <strong>Liquidación técnica — Semana 25</strong>
+            <span *ngIf="loadingLiquidacion" class="chip chip--muted" style="margin-left:0.5rem;">Calculando…</span>
+            <span *ngIf="!loadingLiquidacion && liquidacionCierre?.tieneGuiaGenetica" class="chip chip--info" style="margin-left:0.5rem;">
+              Guía: {{ liquidacionCierre?.raza }} {{ liquidacionCierre?.anoTablaGenetica }}
+            </span>
+            <span *ngIf="!loadingLiquidacion && liquidacionCierre && !liquidacionCierre.tieneGuiaGenetica" class="chip chip--warning" style="margin-left:0.5rem;">
+              Sin guía genética
+            </span>
+          </p>
+
+          <div *ngIf="loadingLiquidacion" class="liquidacion-loading">
+            <span class="spinner" aria-hidden="true"></span>
+          </div>
+
+          <ng-container *ngIf="!loadingLiquidacion && liquidacionCierre as liq">
+            <div class="liq-info-row">
+              <span>Hembras encasetadas: <strong>{{ liq.hembrasEncasetadas ?? '—' }}</strong></span>
+              <span>Machos encasetados: <strong>{{ liq.machosEncasetados ?? '—' }}</strong></span>
+              <span *ngIf="liq.semanaUltimoRegistro">Último registro: <strong>Semana {{ liq.semanaUltimoRegistro }}</strong></span>
+              <span>Registros: <strong>{{ liq.totalRegistrosSeguimiento }}</strong></span>
+            </div>
+
+            <table class="liq-table">
+              <thead>
+                <tr>
+                  <th>Variable</th>
+                  <th class="col-real">Real</th>
+                  <th class="col-guia">Guía</th>
+                  <th class="col-dif">% Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>% Mortalidad acumulado hembras</td>
+                  <td class="col-real">{{ liq.porcentajeMortalidadHembras | number:'1.2-2' }}%</td>
+                  <td class="col-guia">—</td>
+                  <td class="col-dif">—</td>
+                </tr>
+                <tr>
+                  <td>% Selección hembras acumulado</td>
+                  <td class="col-real">{{ liq.porcentajeSeleccionHembras | number:'1.2-2' }}%</td>
+                  <td class="col-guia">—</td>
+                  <td class="col-dif">—</td>
+                </tr>
+                <tr>
+                  <td>% Error de sexaje hembras acumulado</td>
+                  <td class="col-real">{{ liq.porcentajeErrorSexajeHembras | number:'1.2-2' }}%</td>
+                  <td class="col-guia">—</td>
+                  <td class="col-dif">—</td>
+                </tr>
+                <tr class="liq-row--highlight">
+                  <td>% Retiro acumulado (Mort + Sel + Error)</td>
+                  <td class="col-real">{{ liq.porcentajeRetiroAcumulado | number:'1.2-2' }}%</td>
+                  <td class="col-guia">
+                    <ng-container *ngIf="liq.porcentajeRetiroGuia != null; else noGuia">
+                      {{ liq.porcentajeRetiroGuia | number:'1.2-2' }}%
+                    </ng-container>
+                  </td>
+                  <td class="col-dif">
+                    <ng-container *ngIf="liq.porcentajeRetiroGuia != null">
+                      <span [class]="(liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) > 0 ? 'dif-neg' : 'dif-pos'">
+                        {{ (liq.porcentajeRetiroAcumulado - (liq.porcentajeRetiroGuia ?? 0)) | number:'1.2-2' }}pp
+                      </span>
+                    </ng-container>
+                    <ng-container *ngIf="liq.porcentajeRetiroGuia == null">—</ng-container>
+                  </td>
+                </tr>
+                <tr class="liq-row--highlight">
+                  <td>Consumo alimento acumulado (g)</td>
+                  <td class="col-real">{{ liq.consumoAlimentoRealGramos | number:'1.0-0' }} g</td>
+                  <td class="col-guia">
+                    <ng-container *ngIf="liq.consumoAlimentoGuiaGramos != null; else noGuia">
+                      {{ liq.consumoAlimentoGuiaGramos | number:'1.0-0' }} g
+                    </ng-container>
+                  </td>
+                  <td class="col-dif">
+                    <ng-container *ngIf="liq.porcentajeDiferenciaConsumo != null">
+                      <span [class]="liq.porcentajeDiferenciaConsumo < 0 ? 'dif-neg' : 'dif-pos'">
+                        {{ liq.porcentajeDiferenciaConsumo > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaConsumo | number:'1.2-2' }}%
+                      </span>
+                    </ng-container>
+                    <ng-container *ngIf="liq.porcentajeDiferenciaConsumo == null">—</ng-container>
+                  </td>
+                </tr>
+                <tr class="liq-row--highlight">
+                  <td>Peso semana 25 (g)</td>
+                  <td class="col-real">
+                    <ng-container *ngIf="liq.pesoSemana25Real != null; else noGuia">
+                      {{ liq.pesoSemana25Real | number:'1.1-1' }} g
+                    </ng-container>
+                  </td>
+                  <td class="col-guia">
+                    <ng-container *ngIf="liq.pesoSemana25Guia != null; else noGuia">
+                      {{ liq.pesoSemana25Guia | number:'1.1-1' }} g
+                    </ng-container>
+                  </td>
+                  <td class="col-dif">
+                    <ng-container *ngIf="liq.porcentajeDiferenciaPeso != null">
+                      <span [class]="liq.porcentajeDiferenciaPeso < 0 ? 'dif-neg' : 'dif-pos'">
+                        {{ liq.porcentajeDiferenciaPeso > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaPeso | number:'1.2-2' }}%
+                      </span>
+                    </ng-container>
+                    <ng-container *ngIf="liq.porcentajeDiferenciaPeso == null">—</ng-container>
+                  </td>
+                </tr>
+                <tr class="liq-row--highlight">
+                  <td>Uniformidad (%)</td>
+                  <td class="col-real">
+                    <ng-container *ngIf="liq.uniformidadReal != null; else noGuia">
+                      {{ liq.uniformidadReal | number:'1.1-1' }}%
+                    </ng-container>
+                  </td>
+                  <td class="col-guia">
+                    <ng-container *ngIf="liq.uniformidadGuia != null; else noGuia">
+                      {{ liq.uniformidadGuia | number:'1.1-1' }}%
+                    </ng-container>
+                  </td>
+                  <td class="col-dif">
+                    <ng-container *ngIf="liq.porcentajeDiferenciaUniformidad != null">
+                      <span [class]="liq.porcentajeDiferenciaUniformidad < 0 ? 'dif-neg' : 'dif-pos'">
+                        {{ liq.porcentajeDiferenciaUniformidad > 0 ? '+' : '' }}{{ liq.porcentajeDiferenciaUniformidad | number:'1.2-2' }}%
+                      </span>
+                    </ng-container>
+                    <ng-container *ngIf="liq.porcentajeDiferenciaUniformidad == null">—</ng-container>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <ng-template #noGuia><span class="text-muted">—</span></ng-template>
+          </ng-container>
+        </div>
+        <!-- ===== FIN LIQUIDACIÓN ===== -->
+
         <p *ngIf="r.yaExisteLoteProduccion" class="chip chip--warning" role="alert">
           Ya existe un lote de producción vinculado; no se puede cerrar de nuevo desde aquí.
         </p>

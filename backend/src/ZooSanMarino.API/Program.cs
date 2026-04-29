@@ -263,6 +263,9 @@ builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEcuadorService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEcuadorService>();
 
+// Liquidación Cierre Lote Levante
+builder.Services.AddScoped<ILiquidacionCierreLoteLevanteService, LiquidacionCierreLoteLevanteService>();
+
 // Reporte Técnico Service
 builder.Services.AddScoped<IReporteTecnicoService, ReporteTecnicoService>();
 builder.Services.AddScoped<ReporteTecnicoExcelService>();

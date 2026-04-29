@@ -40,6 +40,10 @@ import {
 import { EMPTY } from 'rxjs';
 import { expand, map, reduce } from 'rxjs/operators';
 import { environment } from '../../../../../environments/environment';
+import {
+  LiquidacionCierreLoteLevanteService,
+  LiquidacionCierreLoteLevanteDto
+} from '../../services/liquidacion-cierre-lote-levante.service';
 
 
 
@@ -118,6 +122,10 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   loadingCierreLote = false;
   errorCierreLote: string | null = null;
 
+  /** Liquidación técnica calculada al abrir el modal de cierre. */
+  liquidacionCierre: LiquidacionCierreLoteLevanteDto | null = null;
+  loadingLiquidacion = false;
+
   /** True si el lote levante está cerrado (no se permite crear/editar/eliminar registros). */
   get isLoteCerrado(): boolean {
     const v = this.selectedLote?.estadoCierre ?? '';
@@ -135,6 +143,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     private galponSvc: GalponService,
     private catalogSvc: CatalogoAlimentosService,
     private auth: AuthService,
+    private liquidacionCierreSvc: LiquidacionCierreLoteLevanteService,
   ) {}
 
   // ================== INIT ==================
@@ -722,6 +731,9 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
     this.loadingCierreLote = true;
     this.errorCierreLote = null;
     this.resumenCierre = null;
+    this.liquidacionCierre = null;
+    this.loadingLiquidacion = true;
+
     this.lotePosturaLevanteSvc.getResumenCierre(id).subscribe({
       next: r => {
         this.resumenCierre = r;
@@ -739,8 +751,20 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
       },
       error: err => {
         this.loadingCierreLote = false;
+        this.loadingLiquidacion = false;
         this.errorCierreLote = err?.error?.message ?? err?.message ?? 'No se pudo cargar el resumen.';
         this.cerrarLoteModalOpen = true;
+      }
+    });
+
+    // Carga la liquidación en paralelo (no bloquea el modal)
+    this.liquidacionCierreSvc.calcular(id).subscribe({
+      next: liq => {
+        this.liquidacionCierre = liq;
+        this.loadingLiquidacion = false;
+      },
+      error: () => {
+        this.loadingLiquidacion = false;
       }
     });
   }
@@ -748,6 +772,7 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   closeCerrarLoteModal(): void {
     this.cerrarLoteModalOpen = false;
     this.resumenCierre = null;
+    this.liquidacionCierre = null;
     this.errorCierreLote = null;
   }
 
@@ -789,6 +814,8 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
       .pipe(finalize(() => (this.loadingCierreLote = false)))
       .subscribe({
         next: () => {
+          // Guardar liquidación de cierre (best-effort, no bloquea flujo)
+          this.liquidacionCierreSvc.guardar(id).subscribe();
           this.closeCerrarLoteModal();
           this.onLoteChange(this.selectedLoteId);
         },
