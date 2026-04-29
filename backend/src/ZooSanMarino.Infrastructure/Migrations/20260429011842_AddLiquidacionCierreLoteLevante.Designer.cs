@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260429011842_AddLiquidacionCierreLoteLevante")]
+    partial class AddLiquidacionCierreLoteLevante
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2194,10 +2197,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ano_guia");
 
-                    b.Property<int?>("ClosedByUserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("closed_by_user_id");
-
                     b.Property<int>("CompanyId")
                         .HasColumnType("integer")
                         .HasColumnName("company_id");
@@ -2209,10 +2208,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<decimal>("ConsumoAlimentoRealGramos")
                         .HasColumnType("numeric")
                         .HasColumnName("consumo_alimento_real_gramos");
-
-                    b.Property<decimal?>("ConsumoGrAveDiaSemana25Guia")
-                        .HasColumnType("numeric")
-                        .HasColumnName("consumo_gr_ave_dia_semana25guia");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")

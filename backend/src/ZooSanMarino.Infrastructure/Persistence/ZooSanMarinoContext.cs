@@ -93,6 +93,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LotePosturaBase> LotePosturaBases => Set<LotePosturaBase>();
         public DbSet<HistoricoLotePostura> HistoricoLotePostura => Set<HistoricoLotePostura>();
         public DbSet<EspejoHuevoProduccion> EspejoHuevoProduccion => Set<EspejoHuevoProduccion>();
+        public DbSet<LiquidacionCierreLoteLevante> LiquidacionCierreLoteLevante => Set<LiquidacionCierreLoteLevante>();
 
         // Gastos/consumos de inventario (Ecuador)
         public DbSet<InventarioGasto> InventarioGastos => Set<InventarioGasto>();

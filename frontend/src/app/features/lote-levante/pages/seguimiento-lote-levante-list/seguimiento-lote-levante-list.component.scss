@@ -448,3 +448,62 @@
 
 
 
+
+/* ===== Liquidación técnica en modal de cierre ===== */
+.liquidacion-cierre-section {
+  margin: 1rem 0 0.5rem;
+  border-top: 1px solid var(--ital-green-100, #e0ece3);
+  padding-top: 0.75rem;
+}
+
+.liquidacion-cierre-title {
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.liquidacion-loading {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+
+.liq-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  font-size: 0.82rem;
+  color: var(--ital-muted, #6b7280);
+  margin-bottom: 0.5rem;
+}
+
+.liq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  th, td {
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--ital-green-100, #e0ece3);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    background: var(--ital-green-50, #f2f8f4);
+    font-weight: 600;
+    color: var(--ital-text, #1a2e1a);
+    font-size: 0.78rem;
+  }
+
+  .col-real  { text-align: right; width: 12%; }
+  .col-guia  { text-align: right; width: 12%; color: var(--ital-muted, #6b7280); }
+  .col-dif   { text-align: right; width: 12%; font-weight: 600; }
+
+  .liq-row--highlight td { background: var(--ital-cream-50, #fdfcf9); }
+}
+
+.dif-pos { color: #15803d; }
+.dif-neg { color: #b91c1c; }
