@@ -74,6 +74,59 @@ export interface LoteRegistroHistoricoUnificadoDto {
   createdAt: string;
 }
 
+// ── DTOs Cuadrar Saldos ────────────────────────────────────────────────────
+
+export interface FilaExcelCuadrarSaldosDto {
+  fecha: string;
+  saldoAlimentoKg: number | null;
+  ingresoAlimentoKg: number | null;
+  trasladoEntradaKg: number | null;
+  trasladoSalidaKg: number | null;
+  documento: string | null;
+  consumoKg: number | null;
+  consumoAcumuladoKg: number | null;
+}
+
+export interface InconsistenciaCuadrarSaldosDto {
+  fecha: string;
+  tipo: string;
+  descripcion: string;
+  valorExcel: number | null;
+  valorSistema: number | null;
+  historicoId: number | null;
+  documentoExcel: string | null;
+  documentoSistema: string | null;
+}
+
+export interface AccionCorreccionCuadrarSaldosDto {
+  tipoAccion: string;
+  historicoId: number | null;
+  nuevaFecha: string | null;
+  fechaInsertar: string | null;
+  tipoEvento: string | null;
+  cantidadKg: number | null;
+  documento: string | null;
+  descripcion: string | null;
+}
+
+export interface CuadrarSaldosValidarResponseDto {
+  loteId: number;
+  filasExcel: number;
+  inconsistenciasCount: number;
+  inconsistencias: InconsistenciaCuadrarSaldosDto[];
+  accionesSugeridas: AccionCorreccionCuadrarSaldosDto[];
+}
+
+export interface CuadrarSaldosAplicarResponseDto {
+  loteId: number;
+  fechasAjustadas: number;
+  registrosAnulados: number;
+  registrosInsertados: number;
+  mensaje: string;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 @Injectable({ providedIn: 'root' })
 export class SeguimientoAvesEngordeService {
   private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
@@ -140,6 +193,26 @@ export class SeguimientoAvesEngordeService {
   private toIso(d: string | Date): string {
     const dd = typeof d === 'string' ? new Date(d) : d;
     return dd.toISOString();
+  }
+
+  cuadrarSaldosValidar(
+    loteId: number,
+    filasExcel: FilaExcelCuadrarSaldosDto[]
+  ): Observable<CuadrarSaldosValidarResponseDto> {
+    return this.http.post<CuadrarSaldosValidarResponseDto>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/validar`,
+      { filasExcel }
+    );
+  }
+
+  cuadrarSaldosAplicar(
+    loteId: number,
+    acciones: AccionCorreccionCuadrarSaldosDto[]
+  ): Observable<CuadrarSaldosAplicarResponseDto> {
+    return this.http.post<CuadrarSaldosAplicarResponseDto>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/aplicar`,
+      { acciones }
+    );
   }
 
   getResultado(params: {

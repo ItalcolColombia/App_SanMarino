@@ -31,4 +31,21 @@ public interface ISeguimientoAvesEngordeService
 
     /// <summary>Resumen para modal Liquidar lote (ventas, aves inicio, saldo alimento).</summary>
     Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId);
+
+    /// <summary>
+    /// Valida las filas del Excel contra el histórico unificado del lote.
+    /// Devuelve inconsistencias y acciones de corrección sugeridas (sin modificar datos).
+    /// </summary>
+    Task<CuadrarSaldosValidarResponseDto> ValidarCuadrarSaldosAsync(
+        int loteId,
+        IReadOnlyList<FilaExcelCuadrarSaldosDto> filasExcel);
+
+    /// <summary>
+    /// Aplica las acciones de corrección sobre lote_registro_historico_unificado:
+    /// ajusta fechas, anula registros sobrantes e inserta los faltantes.
+    /// No modifica stocks reales de inventario.
+    /// </summary>
+    Task<CuadrarSaldosAplicarResponseDto> AplicarCuadrarSaldosAsync(
+        int loteId,
+        IReadOnlyList<AccionCorreccionCuadrarSaldosDto> acciones);
 }

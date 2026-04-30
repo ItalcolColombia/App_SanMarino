@@ -55,6 +55,15 @@
                   <span class="sr-only">Ayuda sobre el seguimiento diario</span>
                 </button>
                 <button
+                  *ngIf="enriquecerTablaConHistoricoInventario"
+                  type="button"
+                  class="btn btn--secondary registro-diario__cuadrar"
+                  [disabled]="loading || !seguimientos.length"
+                  (click)="modalCuadrarSaldosAbierto = true"
+                  title="Cargar un Excel para validar y corregir ingresos, traslados y saldos de alimento">
+                  ⚖️ Cuadrar Saldos
+                </button>
+                <button
                   *ngIf="showExportSeguimientoExcel"
                   type="button"
                   class="btn btn--outline registro-diario__export"
@@ -255,4 +264,12 @@
     </div>
   </div>
 </section>
+
+<!-- Modal Cuadrar Saldos -->
+<app-modal-cuadrar-saldos-engorde
+  [isOpen]="modalCuadrarSaldosAbierto"
+  [selectedLote]="selectedLote"
+  (cerrar)="modalCuadrarSaldosAbierto = false"
+  (saldosAplicados)="modalCuadrarSaldosAbierto = false; saldosCuadrados.emit()">
+</app-modal-cuadrar-saldos-engorde>
 

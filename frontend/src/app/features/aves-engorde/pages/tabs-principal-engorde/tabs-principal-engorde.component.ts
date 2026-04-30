@@ -10,6 +10,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
 import { LoteRegistroHistoricoUnificadoDto } from '../../services/seguimiento-aves-engorde.service';
 import { TEXTO_FORMULA_SALDO_ALIMENTO_TOOLTIP } from '../../utils/saldo-alimento-engorde.util';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { ModalCuadrarSaldosEngordeComponent } from '../modal-cuadrar-saldos-engorde/modal-cuadrar-saldos-engorde.component';
 
 /** Texto explicativo del saldo de alimento (modal de ayuda en seguimiento diario). */
 export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado. El saldo de alimento (kg) parte del stock ya registrado en el histórico con fecha anterior al primer día de seguimiento; a partir de ahí se aplican ingresos, traslados de entrada, ajustes; restas por traslado de salida, eliminaciones y consumo del día en seguimiento (hembras + machos); no se duplica INV_CONSUMO del histórico. Tras cada movimiento el saldo no baja de 0 kg: si el consumo supera lo disponible, queda en 0 y los ingresos o traslados de entrada posteriores suman sobre ese saldo disponible.`;
@@ -54,7 +55,7 @@ export interface RegistroDiarioTablaFilaEngorde {
 @Component({
   selector: 'app-tabs-principal-engorde',
   standalone: true,
-  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, HasPermissionDirective],
+  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent],
   templateUrl: './tabs-principal-engorde.component.html',
   styleUrls: ['./tabs-principal-engorde.component.scss']
 })
@@ -74,6 +75,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
   @Output() delete = new EventEmitter<number>();
   @Output() viewDetail = new EventEmitter<SeguimientoLoteLevanteDto>();
+  /** Emitido cuando se aplicaron correcciones de cuadre de saldos y hay que recargar datos. */
+  @Output() saldosCuadrados = new EventEmitter<void>();
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
   isAdmin: boolean = false;
@@ -89,6 +92,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   /** Modal ayuda (saldo / histórico). */
   modalAyudaSeguimientoAbierto = false;
+  /** Modal cuadrar saldos. */
+  modalCuadrarSaldosAbierto = false;
 
   /** Filtros tabla seguimiento (solo vista; no altera datos del servidor). */
   filtroFechaDesde = '';
@@ -327,6 +332,9 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     switch (h.tipoEvento) {
       case 'INV_INGRESO':
         if (kg === 0) return null;
+        // Defensa frontend: excluir INV_INGRESO generados por el sistema de seguimiento
+        // (devoluciones por eliminación / ajustes a la baja). Espeja el filtro del backend.
+        if ((h.referencia ?? '').startsWith('Seguimiento aves engorde #')) return null;
         return { delta: kg, ord: 0 };
       case 'INV_TRASLADO_ENTRADA':
         if (kg === 0) return null;
@@ -492,6 +500,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
       switch (h.tipoEvento) {
         case 'INV_INGRESO':
+          // Defensa frontend: excluir devoluciones generadas por el sistema de seguimiento.
+          if ((h.referencia ?? '').startsWith('Seguimiento aves engorde #')) break;
           a.ingresoKg += kg;
           {
             const key = (h.itemResumen ?? '').trim() || '(sin ítem)';
