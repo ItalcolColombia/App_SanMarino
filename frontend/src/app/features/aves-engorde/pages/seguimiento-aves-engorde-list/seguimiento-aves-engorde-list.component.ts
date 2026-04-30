@@ -506,6 +506,10 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     });
   }
 
+  onSaldosCuadrados(): void {
+    if (this.selectedLoteId) this.onLoteChange(this.selectedLoteId);
+  }
+
   cancel(): void {
     this.modalOpen = false;
     this.editing = null;

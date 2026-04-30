@@ -219,4 +219,55 @@ public class SeguimientoAvesEngordeController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Valida las filas del Excel contra el histórico unificado del lote.
+    /// Devuelve inconsistencias y acciones sugeridas sin modificar datos.
+    /// </summary>
+    [HttpPost("por-lote/{loteId}/cuadrar-saldos/validar")]
+    [ProducesResponseType(typeof(CuadrarSaldosValidarResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CuadrarSaldosValidarResponseDto>> CuadrarSaldosValidar(
+        int loteId,
+        [FromBody] CuadrarSaldosValidarRequestDto req)
+    {
+        if (req?.FilasExcel == null || req.FilasExcel.Count == 0)
+            return BadRequest(new { message = "Se requiere al menos una fila del Excel." });
+        try
+        {
+            var result = await _svc.ValidarCuadrarSaldosAsync(loteId, req.FilasExcel);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Aplica correcciones sobre lote_registro_historico_unificado:
+    /// ajusta fechas, anula sobrantes e inserta faltantes.
+    /// No modifica stocks reales de inventario.
+    /// </summary>
+    [HttpPost("por-lote/{loteId}/cuadrar-saldos/aplicar")]
+    [ProducesResponseType(typeof(CuadrarSaldosAplicarResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CuadrarSaldosAplicarResponseDto>> CuadrarSaldosAplicar(
+        int loteId,
+        [FromBody] CuadrarSaldosAplicarRequestDto req)
+    {
+        if (req?.Acciones == null || req.Acciones.Count == 0)
+            return BadRequest(new { message = "Se requiere al menos una acción de corrección." });
+        try
+        {
+            var result = await _svc.AplicarCuadrarSaldosAsync(loteId, req.Acciones);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
 }

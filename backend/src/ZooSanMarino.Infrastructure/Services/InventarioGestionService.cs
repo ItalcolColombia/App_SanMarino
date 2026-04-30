@@ -1772,12 +1772,76 @@ public class InventarioGestionService : IInventarioGestionService
             .Take(2000)
             .ToListAsync(ct);
 
-        if (list.Count == 0)
+        // Query orphaned historico records: food ingresos cuyo inventario_gestion_movimiento
+        // fue eliminado físicamente pero cuyo registro en lote_registro_historico_unificado
+        // quedó con anulado=false (el lookup en EliminarIngresoAsync no lo encontró).
+        var ingresoTiposHist = new[] { "INV_INGRESO", "INV_TRASLADO_ENTRADA" };
+
+        IQueryable<LoteRegistroHistoricoUnificado> orphanedQuery = _db.LoteRegistroHistoricoUnificados
+            .AsNoTracking()
+            .Where(h => h.CompanyId == companyId.Value
+                && h.OrigenTabla == "inventario_gestion_movimiento"
+                && ingresoTiposHist.Contains(h.TipoEvento)
+                && !h.Anulado
+                && allowedFarmIds.Contains(h.FarmId)
+                && !_db.InventarioGestionMovimientos.Any(m => m.Id == h.OrigenId));
+
+        if (farmId.HasValue)
+            orphanedQuery = orphanedQuery.Where(h => h.FarmId == farmId.Value);
+
+        if (fechaDesde.HasValue)
+        {
+            var startO = fechaDesde.Value.Date;
+            orphanedQuery = orphanedQuery.Where(h => h.FechaOperacion >= startO);
+        }
+
+        if (fechaHasta.HasValue)
+        {
+            var endO = fechaHasta.Value.Date.AddDays(1);
+            orphanedQuery = orphanedQuery.Where(h => h.FechaOperacion < endO);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLowerInvariant();
+            orphanedQuery = orphanedQuery.Where(h => (h.ItemResumen ?? "").ToLower().Contains(s));
+        }
+
+        if (!string.IsNullOrWhiteSpace(itemTipoItem))
+        {
+            var t = itemTipoItem.Trim().ToLowerInvariant();
+            orphanedQuery = orphanedQuery.Where(h =>
+                h.ItemInventarioEcuadorId != null &&
+                _db.ItemInventarioEcuador.Any(i => i.Id == h.ItemInventarioEcuadorId &&
+                    ((i.Concepto != null && i.Concepto.Trim().ToLower() == t) ||
+                     (i.TipoItem != null && i.TipoItem.Trim().ToLower() == t))));
+        }
+
+        if (!string.IsNullOrWhiteSpace(nucleoId))
+            orphanedQuery = orphanedQuery.Where(h => h.NucleoId == nucleoId);
+
+        if (!string.IsNullOrWhiteSpace(galponId))
+            orphanedQuery = orphanedQuery.Where(h => h.GalponId == galponId);
+
+        var orphaned = await orphanedQuery
+            .OrderByDescending(h => h.CreatedAt)
+            .Take(500)
+            .ToListAsync(ct);
+
+        if (list.Count == 0 && orphaned.Count == 0)
             return new List<InventarioGestionIngresoListDto>();
 
-        var farmIds = list.Select(x => x.FarmId).Distinct().ToList();
-        var nucleoIds = list.Where(x => !string.IsNullOrWhiteSpace(x.NucleoId)).Select(x => x.NucleoId!).Distinct().ToList();
-        var galponIds = list.Where(x => !string.IsNullOrWhiteSpace(x.GalponId)).Select(x => x.GalponId!).Distinct().ToList();
+        var farmIds = list.Select(x => x.FarmId)
+            .Concat(orphaned.Select(h => h.FarmId))
+            .Distinct().ToList();
+
+        var nucleoIds = list.Where(x => !string.IsNullOrWhiteSpace(x.NucleoId)).Select(x => x.NucleoId!)
+            .Concat(orphaned.Where(h => !string.IsNullOrWhiteSpace(h.NucleoId)).Select(h => h.NucleoId!))
+            .Distinct().ToList();
+
+        var galponIds = list.Where(x => !string.IsNullOrWhiteSpace(x.GalponId)).Select(x => x.GalponId!)
+            .Concat(orphaned.Where(h => !string.IsNullOrWhiteSpace(h.GalponId)).Select(h => h.GalponId!))
+            .Distinct().ToList();
 
         var nucleos = nucleoIds.Count > 0
             ? await _db.Nucleos.AsNoTracking()
@@ -1791,7 +1855,25 @@ public class InventarioGestionService : IInventarioGestionService
                 .ToDictionaryAsync(g => (g.GalponId, g.GranjaId), g => g.GalponNombre, ct)
             : new Dictionary<(string, int), string>();
 
-        return list.Select(x =>
+        // Farms y items para registros huérfanos (list ya tiene Farm cargado via Include)
+        var orphanedFarmIds = orphaned.Select(h => h.FarmId).Distinct().ToList();
+        var orphanedFarms = orphanedFarmIds.Count > 0
+            ? await _db.Farms.AsNoTracking()
+                .Where(f => orphanedFarmIds.Contains(f.Id))
+                .ToDictionaryAsync(f => f.Id, f => f.Name, ct)
+            : new Dictionary<int, string>();
+
+        var orphanedItemIds = orphaned
+            .Where(h => h.ItemInventarioEcuadorId.HasValue)
+            .Select(h => h.ItemInventarioEcuadorId!.Value)
+            .Distinct().ToList();
+        var orphanedItems = orphanedItemIds.Count > 0
+            ? await _db.ItemInventarioEcuador.AsNoTracking()
+                .Where(i => orphanedItemIds.Contains(i.Id))
+                .ToDictionaryAsync(i => i.Id, ct)
+            : new Dictionary<int, ItemInventarioEcuador>();
+
+        var mainDtos = list.Select(x =>
         {
             string? nucleoNombre = x.NucleoId != null && nucleos.TryGetValue((x.NucleoId, x.FarmId), out var nn) ? nn : null;
             string? galponNombre = x.GalponId != null && galpones.TryGetValue((x.GalponId, x.FarmId), out var gn) ? gn : null;
@@ -1816,7 +1898,51 @@ public class InventarioGestionService : IInventarioGestionService
                 x.Estado,
                 x.CreatedAt,
                 x.CreatedAt);
-        }).ToList();
+        });
+
+        var orphanedDtos = orphaned.Select(h =>
+        {
+            orphanedItems.TryGetValue(h.ItemInventarioEcuadorId ?? 0, out var item);
+
+            // ItemResumen viene del trigger como "codigo — nombre"
+            string itemCodigo = item?.Codigo ?? "";
+            string itemNombre = item?.Nombre ?? "";
+            if (string.IsNullOrEmpty(itemCodigo) && !string.IsNullOrEmpty(h.ItemResumen))
+            {
+                var parts = h.ItemResumen.Split('—', 2);
+                itemCodigo = parts[0].Trim();
+                itemNombre = parts.Length > 1 ? parts[1].Trim() : h.ItemResumen;
+            }
+
+            string? nucleoNombre = h.NucleoId != null && nucleos.TryGetValue((h.NucleoId, h.FarmId), out var nn) ? nn : null;
+            string? galponNombre = h.GalponId != null && galpones.TryGetValue((h.GalponId, h.FarmId), out var gn) ? gn : null;
+            orphanedFarms.TryGetValue(h.FarmId, out var farmName);
+
+            return new InventarioGestionIngresoListDto(
+                h.OrigenId,
+                h.FarmId,
+                farmName,
+                h.NucleoId,
+                nucleoNombre,
+                h.GalponId,
+                galponNombre,
+                h.ItemInventarioEcuadorId ?? 0,
+                itemCodigo,
+                itemNombre,
+                item?.Concepto ?? item?.TipoItem ?? "alimento",
+                item?.TipoItem ?? "alimento",
+                h.CantidadKg ?? 0,
+                h.Unidad ?? "kg",
+                h.Referencia,
+                null,
+                null,
+                new DateTimeOffset(h.FechaOperacion, TimeSpan.Zero),
+                h.CreatedAt);
+        });
+
+        return mainDtos.Concat(orphanedDtos)
+            .OrderByDescending(d => d.CreatedAt)
+            .ToList();
     }
 
     public async Task<InventarioGestionIngresoListDto> ActualizarFechaIngresoAsync(
@@ -1924,8 +2050,28 @@ public class InventarioGestionService : IInventarioGestionService
 
         var mov = await _db.InventarioGestionMovimientos
             .FirstOrDefaultAsync(x => x.Id == movimientoId && x.CompanyId == companyId.Value, ct);
+
+        // Caso huérfano: el movimiento ya fue eliminado físicamente pero quedó un registro
+        // en lote_registro_historico_unificado con anulado=false. Solo marcarlo anulado.
         if (mov == null)
-            throw new InvalidOperationException("No se encontró el ingreso indicado.");
+        {
+            var ingresoTiposHist = new[] { "INV_INGRESO", "INV_TRASLADO_ENTRADA" };
+            var histHuerfano = await _db.LoteRegistroHistoricoUnificados
+                .FirstOrDefaultAsync(h =>
+                    h.OrigenTabla == "inventario_gestion_movimiento"
+                    && h.OrigenId == movimientoId
+                    && h.CompanyId == companyId.Value
+                    && ingresoTiposHist.Contains(h.TipoEvento)
+                    && !h.Anulado
+                    && allowedFarmIds.Contains(h.FarmId), ct);
+
+            if (histHuerfano == null)
+                throw new InvalidOperationException("No se encontró el ingreso indicado.");
+
+            histHuerfano.Anulado = true;
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
 
         var tiposIngreso = new HashSet<string>(StringComparer.Ordinal)
             { "Ingreso", "TrasladoEntrada", "TrasladoInterGranjaEntrada" };

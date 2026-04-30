@@ -1,0 +1,306 @@
+<div
+  *ngIf="isOpen"
+  class="cs-overlay"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="cs-modal-title"
+  (click)="onCerrar()">
+
+  <div class="cs-dialog" (click)="$event.stopPropagation()">
+
+    <!-- ── Encabezado ── -->
+    <header class="cs-header">
+      <div class="cs-header__left">
+        <span class="cs-header__icon">⚖️</span>
+        <div>
+          <h2 id="cs-modal-title" class="cs-header__title">Cuadrar Saldos de Alimento</h2>
+          <p class="cs-header__sub" *ngIf="selectedLote">
+            Lote: <strong>{{ selectedLote.loteNombre }}</strong>
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="cs-close"
+        (click)="onCerrar()"
+        [disabled]="step === 'validating' || step === 'applying'"
+        aria-label="Cerrar">✕</button>
+    </header>
+
+    <!-- ── Indicador de paso ── -->
+    <div class="cs-stepper">
+      <div class="cs-stepper__item" [class.active]="step === 'upload'" [class.done]="step !== 'upload'">
+        <span class="cs-stepper__num">1</span>
+        <span class="cs-stepper__label">Cargar Excel</span>
+      </div>
+      <div class="cs-stepper__sep"></div>
+      <div class="cs-stepper__item"
+        [class.active]="step === 'validating' || step === 'validated'"
+        [class.done]="step === 'applying' || step === 'applied'">
+        <span class="cs-stepper__num">2</span>
+        <span class="cs-stepper__label">Validar</span>
+      </div>
+      <div class="cs-stepper__sep"></div>
+      <div class="cs-stepper__item"
+        [class.active]="step === 'applying' || step === 'applied'">
+        <span class="cs-stepper__num">3</span>
+        <span class="cs-stepper__label">Aplicar</span>
+      </div>
+    </div>
+
+    <!-- ── Cuerpo scrolleable ── -->
+    <div class="cs-body">
+
+      <!-- Error global -->
+      <div *ngIf="errorMensaje" class="cs-alert cs-alert--error" role="alert">
+        {{ errorMensaje }}
+      </div>
+
+      <!-- ════════ PASO 1: Cargar Excel ════════ -->
+      <div *ngIf="step === 'upload'">
+        <div class="cs-section">
+          <h3 class="cs-section__title">Formato del Excel</h3>
+          <p class="cs-section__desc">
+            El archivo debe tener una fila de encabezado con al menos la columna
+            <strong>Fecha</strong> y las columnas de alimento:
+            <em>Saldo Alimento, Ingreso Alimento, Traslado Entrada, Traslado Salida, Documento, Consumo en Kilos, Consumo Acumulado.</em>
+            Las fechas deben estar en formato DD/MM/YYYY o YYYY-MM-DD.
+          </p>
+        </div>
+
+        <div class="cs-upload-zone">
+          <label for="cs-file-input" class="cs-upload-label">
+            <span class="cs-upload-label__icon">📂</span>
+            <span class="cs-upload-label__text">
+              {{ archivoNombre || 'Haz clic para seleccionar el archivo Excel (.xlsx, .xls)' }}
+            </span>
+          </label>
+          <input
+            id="cs-file-input"
+            type="file"
+            accept=".xlsx,.xls"
+            class="cs-file-input"
+            (change)="onFileChange($event)" />
+        </div>
+
+        <!-- Vista previa de las primeras filas -->
+        <div *ngIf="filasPreview.length > 0" class="cs-preview">
+          <h4 class="cs-preview__title">Vista previa (primeras {{ filasPreview.length }} filas de {{ filasExcel.length }} total)</h4>
+          <div class="cs-scroll">
+            <table class="cs-table cs-table--sm">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Saldo (kg)</th>
+                  <th>Ingreso (kg)</th>
+                  <th>Tr. Entrada (kg)</th>
+                  <th>Tr. Salida (kg)</th>
+                  <th>Documento</th>
+                  <th>Consumo (kg)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let f of filasPreview">
+                  <td>{{ formatDMY(f.fecha) }}</td>
+                  <td class="num">{{ formatNum(f.saldoAlimentoKg) }}</td>
+                  <td class="num">{{ formatNum(f.ingresoAlimentoKg) }}</td>
+                  <td class="num">{{ formatNum(f.trasladoEntradaKg) }}</td>
+                  <td class="num">{{ formatNum(f.trasladoSalidaKg) }}</td>
+                  <td>{{ f.documento || '—' }}</td>
+                  <td class="num">{{ formatNum(f.consumoKg) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ PASO 2: Validando ════════ -->
+      <div *ngIf="step === 'validating'" class="cs-loading">
+        <div class="cs-spinner"></div>
+        <p>Validando {{ filasExcel.length }} filas contra el histórico del sistema…</p>
+      </div>
+
+      <!-- ════════ PASO 2: Resultado validación ════════ -->
+      <div *ngIf="step === 'validated'">
+
+        <!-- Sin inconsistencias -->
+        <div *ngIf="!hayInconsistencias" class="cs-ok-banner">
+          <span class="cs-ok-banner__icon">✅</span>
+          <div>
+            <strong>Sin inconsistencias</strong>
+            <p>El Excel concuerda con el histórico del sistema para las {{ validarResponse?.filasExcel }} filas revisadas.</p>
+          </div>
+        </div>
+
+        <!-- Con inconsistencias -->
+        <div *ngIf="hayInconsistencias">
+          <div class="cs-summary-bar">
+            <span class="cs-badge cs-badge--danger">{{ inconsistencias.length }} inconsistencia{{ inconsistencias.length !== 1 ? 's' : '' }}</span>
+            <span class="cs-badge cs-badge--info" *ngIf="accionesSugeridas.length > 0">
+              {{ accionesSugeridas.length }} acción{{ accionesSugeridas.length !== 1 ? 'es' : '' }} sugerida{{ accionesSugeridas.length !== 1 ? 's' : '' }}
+            </span>
+          </div>
+
+          <!-- Tabla inconsistencias -->
+          <h4 class="cs-section__title">Inconsistencias encontradas</h4>
+          <div class="cs-scroll">
+            <table class="cs-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Descripción</th>
+                  <th class="num">Valor Excel</th>
+                  <th class="num">Valor sistema</th>
+                  <th>Doc. Excel</th>
+                  <th>Doc. sistema</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let inc of inconsistencias">
+                  <td class="nowrap">{{ formatDMY(inc.fecha) }}</td>
+                  <td>
+                    <span class="cs-badge cs-badge--warn cs-badge--sm">{{ etiquetaTipoInconsistencia(inc.tipo) }}</span>
+                  </td>
+                  <td class="cs-cell--desc">{{ inc.descripcion }}</td>
+                  <td class="num">{{ formatNum(inc.valorExcel) }}</td>
+                  <td class="num">{{ formatNum(inc.valorSistema) }}</td>
+                  <td>{{ inc.documentoExcel || '—' }}</td>
+                  <td>{{ inc.documentoSistema || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Tabla acciones sugeridas -->
+          <div *ngIf="accionesSugeridas.length > 0" class="cs-acciones">
+            <div class="cs-acciones__header">
+              <h4 class="cs-section__title">Acciones de corrección sugeridas</h4>
+              <div class="cs-acciones__sel-btns">
+                <button type="button" class="btn btn--ghost btn--xs" (click)="seleccionarTodasAcciones()">Seleccionar todo</button>
+                <button type="button" class="btn btn--ghost btn--xs" (click)="deseleccionarTodasAcciones()">Quitar todo</button>
+              </div>
+            </div>
+            <div class="cs-scroll">
+              <table class="cs-table">
+                <thead>
+                  <tr>
+                    <th class="th-check">Aplicar</th>
+                    <th>Acción</th>
+                    <th>Descripción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let acc of accionesSugeridas; let i = index"
+                    [class.cs-row--selected]="accionesSeleccionadas.has(i)">
+                    <td class="th-check">
+                      <input
+                        type="checkbox"
+                        [checked]="accionesSeleccionadas.has(i)"
+                        (change)="toggleAccion(i)"
+                        [id]="'acc-' + i" />
+                    </td>
+                    <td>
+                      <span class="cs-badge cs-badge--sm" [ngClass]="badgeAccion(acc.tipoAccion)">
+                        {{ etiquetaTipoAccion(acc.tipoAccion) }}
+                      </span>
+                    </td>
+                    <td class="cs-cell--desc">{{ acc.descripcion }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="cs-acciones__hint">
+              {{ accionesParaAplicar.length }} de {{ accionesSugeridas.length }} acciones seleccionadas para aplicar.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════════ PASO 3: Aplicando ════════ -->
+      <div *ngIf="step === 'applying'" class="cs-loading">
+        <div class="cs-spinner"></div>
+        <p>Aplicando {{ accionesParaAplicar.length }} corrección{{ accionesParaAplicar.length !== 1 ? 'es' : '' }} en el histórico…</p>
+      </div>
+
+      <!-- ════════ PASO 3: Resultado aplicación ════════ -->
+      <div *ngIf="step === 'applied' && aplicarResponse" class="cs-result">
+        <div class="cs-ok-banner">
+          <span class="cs-ok-banner__icon">✅</span>
+          <div>
+            <strong>Correcciones aplicadas correctamente</strong>
+            <p>{{ aplicarResponse.mensaje }}</p>
+          </div>
+        </div>
+        <ul class="cs-result__list">
+          <li>
+            <span class="cs-badge cs-badge--info">{{ aplicarResponse.fechasAjustadas }}</span>
+            fecha{{ aplicarResponse.fechasAjustadas !== 1 ? 's' : '' }} ajustada{{ aplicarResponse.fechasAjustadas !== 1 ? 's' : '' }}
+          </li>
+          <li>
+            <span class="cs-badge cs-badge--danger">{{ aplicarResponse.registrosAnulados }}</span>
+            registro{{ aplicarResponse.registrosAnulados !== 1 ? 's' : '' }} anulado{{ aplicarResponse.registrosAnulados !== 1 ? 's' : '' }}
+          </li>
+          <li>
+            <span class="cs-badge cs-badge--success">{{ aplicarResponse.registrosInsertados }}</span>
+            registro{{ aplicarResponse.registrosInsertados !== 1 ? 's' : '' }} insertado{{ aplicarResponse.registrosInsertados !== 1 ? 's' : '' }}
+          </li>
+        </ul>
+        <p class="cs-result__note">Los saldos de alimento han sido recalculados. La tabla de seguimiento se actualizará al cerrar.</p>
+      </div>
+
+    </div><!-- /cs-body -->
+
+    <!-- ── Pie ── -->
+    <footer class="cs-footer">
+
+      <!-- Paso upload -->
+      <ng-container *ngIf="step === 'upload'">
+        <button type="button" class="btn btn--ghost" (click)="onCerrar()">Cancelar</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          [disabled]="!puedeValidar"
+          (click)="onValidar()">
+          Validar ({{ filasExcel.length }} filas)
+        </button>
+      </ng-container>
+
+      <!-- Paso validating -->
+      <ng-container *ngIf="step === 'validating'">
+        <button type="button" class="btn btn--ghost" disabled>Validando…</button>
+      </ng-container>
+
+      <!-- Paso validated -->
+      <ng-container *ngIf="step === 'validated'">
+        <button type="button" class="btn btn--ghost" (click)="volverAUpload()">← Cambiar Excel</button>
+        <button
+          *ngIf="hayInconsistencias && accionesParaAplicar.length > 0"
+          type="button"
+          class="btn btn--warning"
+          (click)="onAplicar()">
+          Aplicar {{ accionesParaAplicar.length }} corrección{{ accionesParaAplicar.length !== 1 ? 'es' : '' }}
+        </button>
+        <button
+          *ngIf="!hayInconsistencias || accionesParaAplicar.length === 0"
+          type="button"
+          class="btn btn--primary"
+          (click)="onCerrar()">
+          Cerrar
+        </button>
+      </ng-container>
+
+      <!-- Paso applying -->
+      <ng-container *ngIf="step === 'applying'">
+        <button type="button" class="btn btn--ghost" disabled>Aplicando…</button>
+      </ng-container>
+
+      <!-- Paso applied -->
+      <ng-container *ngIf="step === 'applied'">
+        <button type="button" class="btn btn--primary" (click)="onCerrar()">Cerrar y recargar</button>
+      </ng-container>
+
+    </footer>
+  </div>
+</div>
