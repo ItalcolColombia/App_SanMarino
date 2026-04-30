@@ -54,15 +54,17 @@
                   <span aria-hidden="true">ⓘ</span>
                   <span class="sr-only">Ayuda sobre el seguimiento diario</span>
                 </button>
-                <button
-                  *ngIf="enriquecerTablaConHistoricoInventario"
-                  type="button"
-                  class="btn btn--secondary registro-diario__cuadrar"
-                  [disabled]="loading || !seguimientos.length"
-                  (click)="modalCuadrarSaldosAbierto = true"
-                  title="Cargar un Excel para validar y corregir ingresos, traslados y saldos de alimento">
-                  ⚖️ Cuadrar Saldos
-                </button>
+                <ng-container *appHasPermission="'cuadrar_ingresos_traslados_seguimiento'">
+                  <button
+                    *ngIf="enriquecerTablaConHistoricoInventario"
+                    type="button"
+                    class="btn btn--secondary registro-diario__cuadrar"
+                    [disabled]="loading || !seguimientos.length"
+                    (click)="modalCuadrarSaldosAbierto = true"
+                    title="Cargar un Excel para validar y corregir ingresos, traslados y saldos de alimento">
+                    ⚖️ Cuadrar Saldos
+                  </button>
+                </ng-container>
                 <button
                   *ngIf="showExportSeguimientoExcel"
                   type="button"

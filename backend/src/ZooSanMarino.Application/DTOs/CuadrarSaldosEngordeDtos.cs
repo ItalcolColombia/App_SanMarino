@@ -50,11 +50,13 @@ public sealed record CuadrarSaldosValidarResponseDto(
     IReadOnlyList<AccionCorreccionCuadrarSaldosDto> AccionesSugeridas);
 
 public sealed record CuadrarSaldosAplicarRequestDto(
-    IReadOnlyList<AccionCorreccionCuadrarSaldosDto> Acciones);
+    IReadOnlyList<AccionCorreccionCuadrarSaldosDto> Acciones,
+    IReadOnlyList<FilaExcelCuadrarSaldosDto>? FilasExcel = null);
 
 public sealed record CuadrarSaldosAplicarResponseDto(
     int LoteId,
     int FechasAjustadas,
     int RegistrosAnulados,
     int RegistrosInsertados,
+    int MetadataSegLimpiados,
     string Mensaje);

@@ -246,6 +246,10 @@
             <span class="cs-badge cs-badge--success">{{ aplicarResponse.registrosInsertados }}</span>
             registro{{ aplicarResponse.registrosInsertados !== 1 ? 's' : '' }} insertado{{ aplicarResponse.registrosInsertados !== 1 ? 's' : '' }}
           </li>
+          <li *ngIf="aplicarResponse.metadataSegLimpiados > 0">
+            <span class="cs-badge cs-badge--warn">{{ aplicarResponse.metadataSegLimpiados }}</span>
+            seguimiento{{ aplicarResponse.metadataSegLimpiados !== 1 ? 's' : '' }} con metadata de documento limpiada
+          </li>
         </ul>
         <p class="cs-result__note">Los saldos de alimento han sido recalculados. La tabla de seguimiento se actualizará al cerrar.</p>
       </div>

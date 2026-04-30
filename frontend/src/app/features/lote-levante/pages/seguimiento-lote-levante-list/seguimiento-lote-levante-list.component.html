@@ -255,7 +255,7 @@
                   <td class="col-dif">
                     <ng-container *ngIf="liq.porcentajeRetiroGuia != null">
                       <span [class]="(liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) > 0 ? 'dif-neg' : 'dif-pos'">
-                        {{ (liq.porcentajeRetiroAcumulado - (liq.porcentajeRetiroGuia ?? 0)) | number:'1.2-2' }}pp
+                        {{ (liq.porcentajeRetiroAcumulado - liq.porcentajeRetiroGuia) | number:'1.2-2' }}pp
                       </span>
                     </ng-container>
                     <ng-container *ngIf="liq.porcentajeRetiroGuia == null">—</ng-container>
