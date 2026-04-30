@@ -284,7 +284,7 @@ export class ModalCuadrarSaldosEngordeComponent implements OnChanges {
     this.step = 'applying';
     this.errorMensaje = '';
 
-    this.segSvc.cuadrarSaldosAplicar(this.loteId, acciones).subscribe({
+    this.segSvc.cuadrarSaldosAplicar(this.loteId, acciones, this.filasExcel).subscribe({
       next: res => {
         this.aplicarResponse = res;
         this.step = 'applied';

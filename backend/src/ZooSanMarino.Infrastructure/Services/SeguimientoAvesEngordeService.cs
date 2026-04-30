@@ -280,7 +280,12 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         string nucleoId = (loteInfo.NucleoId ?? "").Trim();
         string galponId = (loteInfo.GalponId ?? "").Trim();
 
-        var rows = await _ctx.LoteRegistroHistoricoUnificados
+        // Calcular rango de fechas del ciclo de vida del lote:
+        // Límite inferior: min(fecha de seguimiento) — Límite superior: max(fecha de seguimiento)
+        // Esto aísla el histórico del lote actual de registros de lotes previos en el mismo galpón.
+        var (fechaMinSeg, fechaMaxSeg) = await CalcularRangoFechasLoteAsync(loteId);
+
+        var query = _ctx.LoteRegistroHistoricoUnificados
             .AsNoTracking()
             .Where(h => h.CompanyId == companyId
                 && !h.Anulado
@@ -302,12 +307,41 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                         && h.FarmId == farmId
                         && (h.NucleoId == null ? "" : h.NucleoId.Trim()) == nucleoId
                         && (h.GalponId == null ? "" : h.GalponId.Trim()) == galponId)
-                ))
+                ));
+
+        // Aplicar filtro de rango de fechas (ciclo de vida del lote)
+        if (fechaMinSeg.HasValue)
+            query = query.Where(h => h.FechaOperacion >= fechaMinSeg.Value.Date);
+        if (fechaMaxSeg.HasValue)
+            query = query.Where(h => h.FechaOperacion <= fechaMaxSeg.Value.Date.AddDays(1).AddTicks(-1));
+
+        var rows = await query
             .OrderBy(h => h.FechaOperacion)
             .ThenBy(h => h.Id)
             .ToListAsync();
 
         return rows.Select(MapHistoricoUnificado).ToList();
+    }
+
+    /// <summary>
+    /// Calcula el rango de fechas del ciclo de vida de un lote basado en sus registros de seguimiento.
+    /// Retorna (fechaMin, fechaMax) donde:
+    ///   - fechaMin = fecha del primer seguimiento registrado para este lote
+    ///   - fechaMax = fecha del último seguimiento registrado para este lote
+    /// Si el lote no tiene seguimientos, ambos son null.
+    /// Este rango aísla el histórico del lote actual de registros de lotes previos en el mismo galpón.
+    /// </summary>
+    private async Task<(DateTime?, DateTime?)> CalcularRangoFechasLoteAsync(int loteId)
+    {
+        var segFechas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .Select(s => s.Fecha)
+            .ToListAsync();
+
+        if (segFechas.Count == 0)
+            return (null, null);
+
+        return (segFechas.Min(), segFechas.Max());
     }
 
     /// <summary>
@@ -1001,15 +1035,21 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     /// <summary>
     /// Calcula totales de Ingreso/Traslado (alimento) y Despacho (ventas aves)
     /// para el lote+fecha del seguimiento, desde la tabla unificada.
+    /// Filtra por el rango de fechas del ciclo de vida del lote para evitar duplicación
+    /// de datos de lotes anteriores en el mismo galpón.
     /// </summary>
     private async Task<Dictionary<string, object?>> BuildStockMetadataPatchAsync(int loteId, DateTime fecha)
     {
         var day = fecha.Date;
+        var companyId = _current.CompanyId;
 
-        var agg = await _ctx.LoteRegistroHistoricoUnificados
+        // Calcular rango de fechas del lote (ciclo de vida) para aislar de lotes previos
+        var (fechaMinSeg, fechaMaxSeg) = await CalcularRangoFechasLoteAsync(loteId);
+
+        var query = _ctx.LoteRegistroHistoricoUnificados
             .AsNoTracking()
             .Where(x =>
-                x.CompanyId == _current.CompanyId
+                x.CompanyId == companyId
                 && x.LoteAveEngordeId == loteId
                 && x.FechaOperacion == day
                 && !x.Anulado
@@ -1022,7 +1062,15 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                      && x.Referencia.StartsWith("Seguimiento aves engorde #"))
                 && (x.TipoEvento == "INV_INGRESO"
                     || x.TipoEvento == "INV_TRASLADO_ENTRADA"
-                    || x.TipoEvento == "VENTA_AVES"))
+                    || x.TipoEvento == "VENTA_AVES"));
+
+        // Aplicar filtro de rango de fechas (ciclo de vida del lote)
+        if (fechaMinSeg.HasValue)
+            query = query.Where(x => x.FechaOperacion >= fechaMinSeg.Value.Date);
+        if (fechaMaxSeg.HasValue)
+            query = query.Where(x => x.FechaOperacion <= fechaMaxSeg.Value.Date.AddDays(1).AddTicks(-1));
+
+        var agg = await query
             .GroupBy(_ => 1)
             .Select(g => new
             {
@@ -1301,13 +1349,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
         // Rango de fechas: primer y último seguimiento registrado en la aplicación para este lote.
         // Esto evita mezclar registros de otros lotes que hayan usado el mismo galpón en otras épocas.
-        var segFechas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
-            .Where(s => s.LoteAveEngordeId == loteId)
-            .Select(s => s.Fecha)
-            .ToListAsync();
-
-        DateTime? fechaMinSeg = segFechas.Count > 0 ? segFechas.Min() : null;
-        DateTime? fechaMaxSeg = segFechas.Count > 0 ? segFechas.Max() : null;
+        var (fechaMinSeg, fechaMaxSeg) = await CalcularRangoFechasLoteAsync(loteId);
 
         // Si no hay seguimientos en la aplicación, usar el rango que trae el propio Excel
         if (fechaMinSeg == null && filasExcel.Count > 0)
@@ -1613,7 +1655,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
     public async Task<CuadrarSaldosAplicarResponseDto> AplicarCuadrarSaldosAsync(
         int loteId,
-        IReadOnlyList<AccionCorreccionCuadrarSaldosDto> acciones)
+        IReadOnlyList<AccionCorreccionCuadrarSaldosDto> acciones,
+        IReadOnlyList<FilaExcelCuadrarSaldosDto>? filasExcel = null)
     {
         var companyId = _current.CompanyId;
 
@@ -1737,13 +1780,90 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
 
         await RecalcularSaldoAlimentoPorLoteAsync(loteId, companyId);
 
+        var metadataLimpiados = filasExcel != null && filasExcel.Count > 0
+            ? await ReconciliarMetadataDocumentoAsync(loteId, filasExcel)
+            : 0;
+
         return new CuadrarSaldosAplicarResponseDto(
             loteId,
             fechasAjustadas,
             registrosAnulados,
             registrosInsertados,
+            metadataLimpiados,
             $"Correcciones aplicadas: {fechasAjustadas} fecha(s) ajustada(s), " +
             $"{registrosAnulados} registro(s) anulado(s), " +
-            $"{registrosInsertados} registro(s) insertado(s).");
+            $"{registrosInsertados} registro(s) insertado(s)" +
+            (metadataLimpiados > 0 ? $", {metadataLimpiados} seguimiento(s) con metadata corregida." : "."));
+    }
+
+    /// <summary>
+    /// Limpia las claves de documento (documento, documentoAlimento, nroDocumento, numeroDocumento)
+    /// de la metadata de seguimientos cuyas fechas no tienen movimientos reales en el Excel.
+    /// Esto elimina "fechas fantasma" donde el histórico fue corregido pero la metadata del
+    /// seguimiento diario todavía referencia el documento anterior.
+    /// </summary>
+    private async Task<int> ReconciliarMetadataDocumentoAsync(
+        int loteId,
+        IReadOnlyList<FilaExcelCuadrarSaldosDto> filasExcel)
+    {
+        // Fechas del Excel donde hay al menos un movimiento real (ingreso, traslado o documento)
+        var fechasValidasExcel = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var fila in filasExcel)
+        {
+            var tieneMovimiento = (fila.IngresoAlimentoKg.HasValue && fila.IngresoAlimentoKg > 0)
+                || (fila.TrasladoEntradaKg.HasValue && fila.TrasladoEntradaKg > 0)
+                || (fila.TrasladoSalidaKg.HasValue && fila.TrasladoSalidaKg > 0)
+                || !string.IsNullOrWhiteSpace(fila.Documento);
+            if (tieneMovimiento)
+                fechasValidasExcel.Add(fila.Fecha); // YYYY-MM-DD
+        }
+
+        if (fechasValidasExcel.Count == 0) return 0;
+
+        var seguimientos = await _ctx.SeguimientoDiarioAvesEngorde
+            .Where(s => s.LoteAveEngordeId == loteId && s.Metadata != null)
+            .ToListAsync();
+
+        int limpiados = 0;
+        foreach (var seg in seguimientos)
+        {
+            if (seg.Metadata is null) continue;
+
+            var fechaSeg = seg.Fecha.ToString("yyyy-MM-dd");
+            if (fechasValidasExcel.Contains(fechaSeg)) continue;
+
+            try
+            {
+                var root = seg.Metadata.RootElement;
+                if (root.ValueKind != JsonValueKind.Object) continue;
+
+                var tieneClaveDoc = _docMetadataKeys.Any(k => root.TryGetProperty(k, out _));
+                if (!tieneClaveDoc) continue;
+
+                var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(root.GetRawText())
+                           ?? new Dictionary<string, JsonElement>();
+
+                var modificado = false;
+                foreach (var key in _docMetadataKeys)
+                {
+                    if (dict.Remove(key))
+                        modificado = true;
+                }
+
+                if (modificado)
+                {
+                    seg.Metadata = dict.Count > 0
+                        ? JsonDocument.Parse(JsonSerializer.Serialize(dict))
+                        : null;
+                    limpiados++;
+                }
+            }
+            catch { /* metadata malformado: no modificar */ }
+        }
+
+        if (limpiados > 0)
+            await _ctx.SaveChangesAsync();
+
+        return limpiados;
     }
 }

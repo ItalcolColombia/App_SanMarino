@@ -122,6 +122,7 @@ export interface CuadrarSaldosAplicarResponseDto {
   fechasAjustadas: number;
   registrosAnulados: number;
   registrosInsertados: number;
+  metadataSegLimpiados: number;
   mensaje: string;
 }
 
@@ -207,11 +208,12 @@ export class SeguimientoAvesEngordeService {
 
   cuadrarSaldosAplicar(
     loteId: number,
-    acciones: AccionCorreccionCuadrarSaldosDto[]
+    acciones: AccionCorreccionCuadrarSaldosDto[],
+    filasExcel?: FilaExcelCuadrarSaldosDto[]
   ): Observable<CuadrarSaldosAplicarResponseDto> {
     return this.http.post<CuadrarSaldosAplicarResponseDto>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/aplicar`,
-      { acciones }
+      { acciones, filasExcel: filasExcel ?? [] }
     );
   }
 

@@ -241,13 +241,12 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       const ymd = this.toYMD(seg.fechaRegistro);
       const agg = ymd && histPorFecha ? histPorFecha.get(ymd) : undefined;
 
-      const metaIng = this.metaStr(seg, 'ingresoAlimento', 'ingreso_alimento', 'ingresoAlimentoKg');
       const metaTras = this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto');
       const metaDoc = this.metaStr(seg, 'documento', 'documentoAlimento', 'nroDocumento', 'numeroDocumento');
       const metaDh = this.metaNum(seg, 'despachoHembras', 'despachoH', 'despacho_hembra');
       const metaDm = this.metaNum(seg, 'despachoMachos', 'despachoM', 'despacho_macho');
 
-      let ingresoAlimento = metaIng;
+      let ingresoAlimento = '';
       let traslado = metaTras;
       let documento = metaDoc;
       let despachoH = metaDh;
@@ -492,6 +491,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     };
 
     for (const h of this.historicoUnificado ?? []) {
+      if (h.anulado) continue;
       const ymd =
         h.tipoEvento === 'VENTA_AVES' ? this.toYMD(h.fechaOperacion) : this.ymdHistoricoEfectivo(h);
       if (!ymd) continue;

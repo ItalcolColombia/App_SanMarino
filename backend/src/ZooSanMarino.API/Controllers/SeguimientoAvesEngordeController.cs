@@ -262,7 +262,7 @@ public class SeguimientoAvesEngordeController : ControllerBase
             return BadRequest(new { message = "Se requiere al menos una acción de corrección." });
         try
         {
-            var result = await _svc.AplicarCuadrarSaldosAsync(loteId, req.Acciones);
+            var result = await _svc.AplicarCuadrarSaldosAsync(loteId, req.Acciones, req.FilasExcel);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

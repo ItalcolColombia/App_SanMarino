@@ -47,5 +47,6 @@ public interface ISeguimientoAvesEngordeService
     /// </summary>
     Task<CuadrarSaldosAplicarResponseDto> AplicarCuadrarSaldosAsync(
         int loteId,
-        IReadOnlyList<AccionCorreccionCuadrarSaldosDto> acciones);
+        IReadOnlyList<AccionCorreccionCuadrarSaldosDto> acciones,
+        IReadOnlyList<FilaExcelCuadrarSaldosDto>? filasExcel = null);
 }
