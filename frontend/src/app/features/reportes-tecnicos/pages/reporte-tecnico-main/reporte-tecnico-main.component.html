@@ -4,37 +4,38 @@
   <div class="ux-main">
     <header class="ux-header">
       <div class="ux-header__title">
-        <h1>Reporte Técnico Levante ItalGranja</h1>
+        <h1>Reporte Técnico ItalGranja</h1>
 
         <div class="ux-header__meta">
-          <ng-template #noGranjaChip>
-            <span class="chip chip--warning">
+          <!-- Badge de Etapa -->
+          <span class="chip"
+            [class.chip--levante]="filterSvc.selectedEtapa() === 'LEVANTE'"
+            [class.chip--produccion]="filterSvc.selectedEtapa() === 'PRODUCCION'">
+            <span class="chip__dot" aria-hidden="true"></span>
+            {{ filterSvc.selectedEtapa() === 'LEVANTE' ? '🐣 Levante' : '🥚 Producción' }}
+          </span>
+
+          @if (filterSvc.selectedGranjaId()) {
+            <span class="chip chip--info">Granja: {{ filterSvc.selectedGranjaNombre() }}</span>
+          }
+          @if (filterSvc.selectedNucleoId()) {
+            <span class="chip chip--muted">Núcleo: {{ filterSvc.selectedNucleoNombre() }}</span>
+          }
+          @if (filterSvc.selectedGalponId()) {
+            <span class="chip chip--muted">Galpón: {{ filterSvc.selectedGalponNombre() }}</span>
+          }
+          @if (filterSvc.selectedLoteBaseId()) {
+            <span class="chip chip--info">
               <span class="chip__dot" aria-hidden="true"></span>
-              Selecciona una granja
+              Lote Base: {{ filterSvc.selectedLoteNombre() }}
             </span>
-          </ng-template>
-
-          <span class="chip chip--info" *ngIf="selectedGranjaId; else noGranjaChip">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Granja: {{ selectedGranjaName || selectedGranjaId }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">
-            Núcleo: {{ selectedNucleoNombre || selectedNucleoId }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedGalponId">
-            Galpón: {{ selectedGalponNombre }}
-          </span>
-
-          <span class="chip chip--info" *ngIf="selectedLoteId">
-            <span class="chip__dot" aria-hidden="true"></span>
-            Lote: {{ selectedLoteNombre }}
-          </span>
-
-          <span class="chip chip--muted" *ngIf="selectedLoteId && (reporteLevanteConTabs()?.informacionLote?.fechaEncaset)">
-            {{ calcularEdadDias(reporteLevanteConTabs()!.informacionLote!.fechaEncaset) }} días
-          </span>
+          }
+          @if (tipoReporte === 'sublote' && filterSvc.selectedSubloteId()) {
+            <span class="chip chip--info">
+              {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Sublote' : 'Lote Prod.' }}:
+              {{ filterSvc.selectedSubloteNombre() }}
+            </span>
+          }
         </div>
       </div>
 
@@ -51,9 +52,12 @@
           class="btn btn--primary"
           (click)="generarReporte()"
           [disabled]="loading() || !puedeGenerarReporte()"
-          [title]="!puedeGenerarReporte() ? 'Selecciona un lote y completa los filtros' : 'Generar reporte'">
-          <fa-icon *ngIf="loading()" [icon]="faSpinner" class="spinning"></fa-icon>
-          <fa-icon *ngIf="!loading()" [icon]="faSearch"></fa-icon>
+          [title]="!puedeGenerarReporte() ? 'Complete los filtros requeridos' : 'Generar reporte'">
+          @if (loading()) {
+            <fa-icon [icon]="faSpinner" class="spinning"></fa-icon>
+          } @else {
+            <fa-icon [icon]="faSearch"></fa-icon>
+          }
           Generar Reporte
         </button>
 
@@ -61,243 +65,520 @@
           type="button"
           class="btn btn--outline"
           (click)="exportarExcel()"
-          [disabled]="loading() || !selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona un lote y genera un reporte' : 'Exportar todos los tabs a Excel'">
+          [disabled]="loading() || !puedeDescargarExcel()"
+          [title]="!puedeDescargarExcel() ? 'Genera el reporte primero' : 'Descargar Excel'">
           <fa-icon [icon]="faFileExcel"></fa-icon>
-          Exportar Excel
+          Descargar Excel
         </button>
       </div>
     </header>
 
-    <!-- Filtros de selección (filter-data: Granja → Núcleo → Galpón → Lote LPL) -->
-    <app-filtro-select
-      [filterDataUrl]="filterDataUrl"
-      [selectedGranjaId]="selectedGranjaId"
-      [selectedNucleoId]="selectedNucleoId"
-      [selectedGalponId]="selectedGalponId"
-      [selectedLoteId]="selectedLoteId"
-      (granjaChange)="onGranjaChange($event)"
-      (nucleoChange)="onNucleoChange($event)"
-      (galponChange)="onGalponChange($event)"
-      (loteChange)="onLoteChange($event)"
-      (filterDataLoaded)="onFilterDataLoaded($event)">
-    </app-filtro-select>
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         FILTROS EN CASCADA
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <section class="ux-card">
+      <h3 class="sr-only">Filtros de Selección</h3>
 
-    <!-- Filtros de Reporte -->
-    <section class="ux-card" *ngIf="selectedLoteId">
-      <h3 class="sr-only">Configuración del Reporte</h3>
-      
+      @if (filterSvc.loading()) {
+        <p class="ux-hint" style="text-align:center;padding:8px;">Cargando filtros…</p>
+      }
+      @if (filterSvc.errorCarga()) {
+        <div class="alert alert-danger" style="margin-bottom:8px;">{{ filterSvc.errorCarga() }}</div>
+      }
+
       <div class="ux-form">
-        <div class="grid grid-2">
-          <!-- Tipo de Consolidación -->
+
+        <!-- Fase del Ciclo Productivo -->
+        <div class="filter-fase">
+          <span class="ux-label">Fase del Ciclo Productivo</span>
+          <div class="radio-group radio-group--fase">
+            <label class="radio-label radio-label--fase"
+              [class.active]="filterSvc.selectedEtapa() === 'LEVANTE'">
+              <input type="radio" name="etapa" value="LEVANTE"
+                [ngModel]="filterSvc.selectedEtapa()" (ngModelChange)="onEtapaChange($event)">
+              <span class="fase-icon">🐣</span>
+              <span class="fase-body">
+                <strong>LEVANTE</strong>
+                <small>Cría · semanas 1–25</small>
+              </span>
+            </label>
+            <label class="radio-label radio-label--fase"
+              [class.active]="filterSvc.selectedEtapa() === 'PRODUCCION'">
+              <input type="radio" name="etapa" value="PRODUCCION"
+                [ngModel]="filterSvc.selectedEtapa()" (ngModelChange)="onEtapaChange($event)">
+              <span class="fase-icon">🥚</span>
+              <span class="fase-body">
+                <strong>PRODUCCIÓN</strong>
+                <small>Postura · etapa productiva</small>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Ubicación y Lote: Granja → Núcleo → Galpón → Lote Base -->
+        <div class="grid grid-4">
+
           <div class="form-field">
-            <label class="ux-label">Tipo de Consolidación</label>
+            <label class="ux-label" for="sel-granja">Granja</label>
+            <div class="ux-select">
+              <select id="sel-granja" class="ux-input"
+                [ngModel]="filterSvc.selectedGranjaId()"
+                (ngModelChange)="onGranjaChange($event)">
+                <option [ngValue]="null">— Selecciona —</option>
+                @for (g of filterSvc.granjas(); track g.id) {
+                  <option [ngValue]="g.id">{{ g.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="ux-label" for="sel-nucleo">Núcleo</label>
+            <div class="ux-select">
+              <select id="sel-nucleo" class="ux-input"
+                [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
+                [ngModel]="filterSvc.selectedNucleoId()"
+                (ngModelChange)="onNucleoChange($event)">
+                <option [ngValue]="null">— Todos —</option>
+                @for (n of filterSvc.nucleosFiltrados(); track n.nucleoId) {
+                  <option [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="ux-label" for="sel-galpon">Galpón</label>
+            <div class="ux-select">
+              <select id="sel-galpon" class="ux-input"
+                [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
+                [ngModel]="filterSvc.selectedGalponId()"
+                (ngModelChange)="onGalponChange($event)">
+                <option [ngValue]="null">— Todos —</option>
+                @for (g of filterSvc.galponesFiltrados(); track g.galponId) {
+                  <option [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="ux-label" for="sel-lote-base">Lote Base</label>
+            <div class="ux-select">
+              <select id="sel-lote-base" class="ux-input"
+                [attr.disabled]="!filterSvc.selectedGranjaId() ? '' : null"
+                [ngModel]="filterSvc.selectedLoteBaseId()"
+                (ngModelChange)="onLoteBaseChange($event)">
+                <option [ngValue]="null">— Selecciona —</option>
+                @for (item of filterSvc.lotesPaso4(); track item.id) {
+                  <option [ngValue]="item.id">{{ item.nombre }}</option>
+                }
+              </select>
+            </div>
+            @if (filterSvc.selectedGranjaId() && filterSvc.lotesPaso4().length === 0 && !filterSvc.loading()) {
+              <small class="ux-hint ux-hint--warn">Sin lotes base en esta ubicación.</small>
+            }
+          </div>
+
+        </div>
+
+        <!-- Configuración del reporte: Tipo · Sublote/LoteProd · Periodicidad · Fechas -->
+        <div class="filter-config">
+
+          <!-- Tipo de Reporte — visible en ambas etapas -->
+          <div class="form-field">
+            <span class="ux-label">Tipo de Reporte</span>
             <div class="radio-group">
               <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="tipoConsolidacion" 
-                  value="sublote"
-                  [(ngModel)]="tipoConsolidacion"
-                  (change)="limpiarReporte()">
-                Sublote
+                <input type="radio" name="tipoReporte" value="consolidado"
+                  [(ngModel)]="tipoReporte" (change)="onTipoReporteChange()">
+                Consolidado
               </label>
               <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="tipoConsolidacion" 
-                  value="consolidado"
-                  [(ngModel)]="tipoConsolidacion"
-                  (change)="limpiarReporte()">
-                Consolidado
+                <input type="radio" name="tipoReporte" value="sublote"
+                  [(ngModel)]="tipoReporte" (change)="onTipoReporteChange()">
+                {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Por Sublote' : 'Por Lote' }}
               </label>
             </div>
           </div>
 
-          <!-- Nombre Base del Lote (Consolidado) -->
-          <div class="form-field" *ngIf="tipoConsolidacion === 'consolidado'">
-            <label class="ux-label">Nombre del Lote Base</label>
-            <input 
-              type="text"
-              class="ux-input"
-              [(ngModel)]="loteNombreBase"
-              placeholder="Ej: K326"
-              (blur)="cargarSublotes(loteNombreBase)">
-            <small class="ux-hint">Ingrese el nombre base del lote (sin sublote)</small>
+          <!-- Sublote (LEVANTE) / Lote de Producción (PRODUCCIÓN) -->
+          @if (tipoReporte === 'sublote') {
+            <div class="form-field form-field--sublote">
+              <label class="ux-label" for="sel-sublote">
+                {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'Sublote' : 'Lote de Producción' }}
+              </label>
+              <div class="ux-select">
+                <select id="sel-sublote" class="ux-input"
+                  [attr.disabled]="!filterSvc.selectedLoteBaseId() ? '' : null"
+                  [ngModel]="filterSvc.selectedSubloteId()"
+                  (ngModelChange)="onSubloteChange($event)">
+                  <option [ngValue]="null">— Selecciona —</option>
+                  @for (s of filterSvc.sublotesFiltrados(); track s.loteId) {
+                    <option [ngValue]="s.loteId">{{ s.loteNombre }}</option>
+                  }
+                </select>
+              </div>
+              @if (filterSvc.selectedLoteBaseId() && filterSvc.sublotesFiltrados().length === 0) {
+                <small class="ux-hint ux-hint--warn">
+                  Sin {{ filterSvc.selectedEtapa() === 'LEVANTE' ? 'sublotes' : 'lotes de producción' }} para este lote base.
+                </small>
+              }
+            </div>
+          }
+
+          <!-- Periodicidad — visible en ambas etapas -->
+          <div class="form-field">
+            <label class="ux-label" for="sel-periodicidad">Periodicidad</label>
+            <div class="ux-select">
+              <select id="sel-periodicidad" class="ux-input"
+                [ngModel]="filterSvc.selectedPeriodicidad()"
+                (ngModelChange)="onPeriodicidadChange($event)">
+                <option [ngValue]="'Semanal'">Semanal</option>
+                <option [ngValue]="'Diario'">Diario</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Fechas para reportes diarios -->
           <div class="form-field">
-            <label class="ux-label">Fecha Inicio</label>
-            <input 
-              type="date"
-              class="ux-input"
-              [(ngModel)]="fechaInicio">
+            <label class="ux-label" for="fecha-inicio">Fecha Inicio</label>
+            <input id="fecha-inicio" type="date" class="ux-input" [(ngModel)]="fechaInicio">
           </div>
 
           <div class="form-field">
-            <label class="ux-label">Fecha Fin</label>
-            <input 
-              type="date"
-              class="ux-input"
-              [(ngModel)]="fechaFin">
+            <label class="ux-label" for="fecha-fin">Fecha Fin</label>
+            <input id="fecha-fin" type="date" class="ux-input" [(ngModel)]="fechaFin">
           </div>
+
         </div>
+
       </div>
     </section>
 
     <!-- Mensaje de Error -->
-    <div class="ux-card" *ngIf="error" role="alert">
-      <div class="alert alert-danger">
-        <strong>Error:</strong> {{ error }}
+    @if (error) {
+      <div class="ux-card" role="alert">
+        <div class="alert alert-danger">
+          <strong>Error:</strong> {{ error }}
+        </div>
       </div>
-    </div>
+    }
 
-    <!-- Tabs Internos: Diario Hembras, Diario Machos, Registro Semanal -->
-    <section class="ux-card" *ngIf="reporteLevanteConTabs()">
-      <!-- Tabs Navigation -->
-      <div class="ux-tabs-internos">
-        <input 
-          type="radio" 
-          id="tab-hembras" 
-          name="tab-levante-interno" 
-          [checked]="tabLevanteActivo === 'hembras'"
-          (change)="tabLevanteActivo = 'hembras'">
-        <label for="tab-hembras" class="ux-tab">📊 Diario Hembras</label>
-        
-        <input 
-          type="radio" 
-          id="tab-machos" 
-          name="tab-levante-interno" 
-          [checked]="tabLevanteActivo === 'machos'"
-          (change)="tabLevanteActivo = 'machos'">
-        <label for="tab-machos" class="ux-tab">📊 Diario Machos</label>
-        
-        <input 
-          type="radio" 
-          id="tab-semanal-hembras" 
-          name="tab-levante-interno" 
-          [checked]="tabLevanteActivo === 'semanal-hembras'"
-          (change)="tabLevanteActivo = 'semanal-hembras'">
-        <label for="tab-semanal-hembras" class="ux-tab">📊 Registro Semana Hembras</label>
-        
-        <input 
-          type="radio" 
-          id="tab-semanal-machos" 
-          name="tab-levante-interno" 
-          [checked]="tabLevanteActivo === 'semanal-machos'"
-          (change)="tabLevanteActivo = 'semanal-machos'">
-        <label for="tab-semanal-machos" class="ux-tab">📊 Registro Semana Machos</label>
-      </div>
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         REPORTE LEVANTE — Tabs
+         ═══════════════════════════════════════════════════════════════════════ -->
+    @if (reporteLevante()) {
+      <section class="ux-card">
 
-      <!-- Encabezado del Reporte -->
-      <div class="reporte-header">
-        <div class="reporte-info">
-          <h2>
-            Reporte Técnico Levante ItalGranja - {{ reporteLevanteConTabs()!.informacionLote.loteNombre }}
-            <span *ngIf="reporteLevanteConTabs()!.informacionLote.sublote" class="chip chip--info">
-              {{ reporteLevanteConTabs()!.informacionLote.sublote }}
-            </span>
-            <span *ngIf="reporteLevanteConTabs()!.esConsolidado" class="chip chip--warning">
-              Consolidado
-            </span>
-          </h2>
-          <div class="reporte-metadata">
-            <span><strong>Línea:</strong> {{ reporteLevanteConTabs()!.informacionLote.linea || 'N/A' }}</span>
-            <span><strong>Raza:</strong> {{ reporteLevanteConTabs()!.informacionLote.raza || 'N/A' }}</span>
-            <span><strong>Etapa:</strong> LEVANTE</span>
-            <span *ngIf="reporteLevanteConTabs()!.informacionLote.fechaEncaset">
-              <strong>Encaset:</strong> {{ formatDate(reporteLevanteConTabs()!.informacionLote.fechaEncaset) }}
-            </span>
-            <span *ngIf="reporteLevanteConTabs()!.informacionLote.granjaNombre">
-              <strong>Granja:</strong> {{ reporteLevanteConTabs()!.informacionLote.granjaNombre }}
-            </span>
-            <span *ngIf="reporteLevanteConTabs()!.informacionLote.galpon">
-              <strong>Galpón:</strong> {{ reporteLevanteConTabs()!.informacionLote.galpon }}
-            </span>
-            <span *ngIf="reporteLevanteConTabs()!.informacionLote.numeroHembras">
-              <strong>Número de Hembras:</strong> {{ reporteLevanteConTabs()!.informacionLote.numeroHembras }}
-            </span>
+        <!-- Tabs Navigation -->
+        <div class="ux-tabs-internos">
+          @if (filterSvc.selectedPeriodicidad() === 'Semanal') {
+            <input type="radio" id="tab-semanal-hembras" name="tab-levante-interno"
+              [checked]="tabLevanteActivo === 'semanal-hembras'"
+              (change)="tabLevanteActivo = 'semanal-hembras'">
+            <label for="tab-semanal-hembras" class="ux-tab">📊 Semana Hembras</label>
+
+            <input type="radio" id="tab-semanal-machos" name="tab-levante-interno"
+              [checked]="tabLevanteActivo === 'semanal-machos'"
+              (change)="tabLevanteActivo = 'semanal-machos'">
+            <label for="tab-semanal-machos" class="ux-tab">📊 Semana Machos</label>
+
+            <input type="radio" id="tab-reporte-guia" name="tab-levante-interno"
+              [checked]="tabLevanteActivo === 'reporte-guia'"
+              (change)="tabLevanteActivo = 'reporte-guia'">
+            <label for="tab-reporte-guia" class="ux-tab">📈 Real vs Guía</label>
+          } @else {
+            <input type="radio" id="tab-diario" name="tab-levante-interno"
+              [checked]="tabLevanteActivo === 'diario'"
+              (change)="tabLevanteActivo = 'diario'">
+            <label for="tab-diario" class="ux-tab">📋 Datos Diarios</label>
+          }
+        </div>
+
+        <!-- Encabezado del Reporte -->
+        <div class="reporte-header">
+          <div class="reporte-info">
+            <h2>
+              Reporte Técnico Levante — {{ reporteLevante()!.informacionLote.loteNombre }}
+              @if (reporteLevante()!.informacionLote.sublote) {
+                <span class="chip chip--info">{{ reporteLevante()!.informacionLote.sublote }}</span>
+              }
+              @if (reporteLevante()!.esConsolidado) {
+                <span class="chip chip--warning">Consolidado</span>
+              }
+              <span class="chip chip--muted">{{ filterSvc.selectedPeriodicidad() }}</span>
+            </h2>
+            <div class="reporte-metadata">
+              <span><strong>Línea:</strong> {{ reporteLevante()!.informacionLote.linea   || 'N/A' }}</span>
+              <span><strong>Raza:</strong>  {{ reporteLevante()!.informacionLote.raza    || 'N/A' }}</span>
+              <span><strong>Etapa:</strong> LEVANTE</span>
+              @if (reporteLevante()!.informacionLote.fechaEncaset) {
+                <span><strong>Encaset:</strong> {{ formatDate(reporteLevante()!.informacionLote.fechaEncaset) }}</span>
+              }
+              @if (reporteLevante()!.informacionLote.granjaNombre) {
+                <span><strong>Granja:</strong> {{ reporteLevante()!.informacionLote.granjaNombre }}</span>
+              }
+              @if (reporteLevante()!.informacionLote.galpon) {
+                <span><strong>Galpón:</strong> {{ reporteLevante()!.informacionLote.galpon }}</span>
+              }
+              @if (reporteLevante()!.informacionLote.numeroHembras) {
+                <span><strong>Hembras ini:</strong> {{ reporteLevante()!.informacionLote.numeroHembras | number }}</span>
+              }
+              @if (reporteLevante()!.sublotesIncluidos && reporteLevante()!.sublotesIncluidos.length > 0) {
+                <span><strong>Sublotes:</strong> {{ reporteLevante()!.sublotesIncluidos.join(', ') }}</span>
+              }
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Tab 1: Diario Hembras -->
-      <div class="tab-content" *ngIf="tabLevanteActivo === 'hembras'">
-        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosDiariosHembras.length > 0">
-          <h3>ETAPA DE LEVANTE DIARIO - HEMBRAS</h3>
-          <app-tabla-datos-diarios-hembras 
-            [datos]="reporteLevanteConTabs()!.datosDiariosHembras"
-            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
-          </app-tabla-datos-diarios-hembras>
-        </div>
-        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosDiariosHembras.length === 0">
-          <p>No se encontraron datos diarios de hembras para el período seleccionado.</p>
-        </div>
-      </div>
+        <!-- ── Tab: Semanal Hembras ──────────────────────────────────────────── -->
+        @if (tabLevanteActivo === 'semanal-hembras') {
+          <div class="tab-content">
+            @if (reporteLevante()!.datosSemanales.length > 0) {
+              <div class="datos-section">
+                <h3>REGISTRO SEMANA HEMBRAS</h3>
+                <app-tabla-levante-semanal-hembras
+                  [datos]="reporteLevante()!.datosSemanales"
+                  [informacionLote]="reporteLevante()!.informacionLote">
+                </app-tabla-levante-semanal-hembras>
+              </div>
+            } @else {
+              <div class="empty-state"><p>No hay datos semanales de hembras para el período seleccionado.</p></div>
+            }
+          </div>
+        }
 
-      <!-- Tab 2: Diario Machos -->
-      <div class="tab-content" *ngIf="tabLevanteActivo === 'machos'">
-        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosDiariosMachos.length > 0">
-          <h3>ETAPA DE LEVANTE DIARIO - MACHOS</h3>
-          <app-tabla-datos-diarios-machos 
-            [datos]="reporteLevanteConTabs()!.datosDiariosMachos"
-            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
-          </app-tabla-datos-diarios-machos>
-        </div>
-        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosDiariosMachos.length === 0">
-          <p>No se encontraron datos diarios de machos para el período seleccionado.</p>
-        </div>
-      </div>
+        <!-- ── Tab: Semanal Machos ───────────────────────────────────────────── -->
+        @if (tabLevanteActivo === 'semanal-machos') {
+          <div class="tab-content">
+            @if (reporteLevante()!.datosSemanales.length > 0) {
+              <div class="datos-section">
+                <h3>REGISTRO SEMANA MACHOS</h3>
+                <app-tabla-levante-semanal-machos
+                  [datos]="reporteLevante()!.datosSemanales"
+                  [informacionLote]="reporteLevante()!.informacionLote">
+                </app-tabla-levante-semanal-machos>
+              </div>
+            } @else {
+              <div class="empty-state"><p>No hay datos semanales de machos para el período seleccionado.</p></div>
+            }
+          </div>
+        }
 
-      <!-- Tab 3: Registro Semana Hembras -->
-      <div class="tab-content" *ngIf="tabLevanteActivo === 'semanal-hembras'">
-        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosSemanales.length > 0">
-          <h3>REGISTRO SEMANA HEMBRAS</h3>
-          <app-tabla-levante-semanal-hembras 
-            [datos]="reporteLevanteConTabs()!.datosSemanales"
-            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
-          </app-tabla-levante-semanal-hembras>
-        </div>
-        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosSemanales.length === 0">
-          <p>No se encontraron datos semanales de hembras para el lote seleccionado.</p>
-        </div>
-      </div>
+        <!-- ── Tab: Real vs Guía ─────────────────────────────────────────────── -->
+        @if (tabLevanteActivo === 'reporte-guia') {
+          @let semanalData = reporteLevante()?.datosSemanales ?? [];
+          @if (semanalData.length > 0) {
+            <div class="datos-section">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                <h3 style="margin:0">REPORTE TÉCNICO — REAL vs GUÍA (Semanas 1-25)</h3>
+                <span class="chip chip--muted" style="font-size:11px">{{ semanalData.length }} semana(s)</span>
+              </div>
+              <div style="display:flex;gap:16px;margin-bottom:10px;font-size:11px;flex-wrap:wrap;">
+                <span><span class="cell-success" style="padding:2px 8px;border-radius:3px">▲ Verde</span> Mejor que guía</span>
+                <span><span class="cell-danger"  style="padding:2px 8px;border-radius:3px">▼ Rojo</span>  Peor que guía</span>
+                <span><span class="cell-warning" style="padding:2px 8px;border-radius:3px">◆ Naranja</span> Consumo &gt; guía</span>
+                <span style="color:#888">— Sin guía disponible</span>
+              </div>
+              <div class="reporte-excel-wrapper">
+                <table class="reporte-excel">
+                  <thead>
+                    <tr class="rth1">
+                      <th rowspan="2" class="sticky-col sticky-col--1 rth-id">Sem.</th>
+                      <th rowspan="2" class="sticky-col sticky-col--2 rth-id">Fecha</th>
+                      <th rowspan="2" class="rth-id">Edad<br><small>días</small></th>
+                      <th rowspan="2" class="rth-id">H.Ini</th>
+                      <th rowspan="2" class="rth-id">M.Ini</th>
+                      <th colspan="6" class="rth-hembras">POBLACIÓN HEMBRAS</th>
+                      <th colspan="3" class="rth-hembras">PESO HEMBRAS</th>
+                      <th colspan="4" class="rth-hembras">CONSUMO HEMBRAS</th>
+                      <th colspan="5" class="rth-machos">POBLACIÓN MACHOS</th>
+                      <th colspan="3" class="rth-machos">PESO MACHOS</th>
+                      <th colspan="4" class="rth-machos">CONSUMO MACHOS</th>
+                      <th rowspan="2" class="rth-extra">%Rel<br>M/H</th>
+                    </tr>
+                    <tr class="rth2">
+                      <th class="rth-hembras">Saldo H</th>
+                      <th class="rth-hembras">Mort.H</th>
+                      <th class="rth-hembras">%MortH<br><small>Real</small></th>
+                      <th class="rth-hembras rth-guia">%MortH<br><small>Guía</small></th>
+                      <th class="rth-hembras rth-dif">Dif<br><small>Mort H</small></th>
+                      <th class="rth-hembras">AcMortH</th>
+                      <th class="rth-hembras">Peso H<br><small>kg Real</small></th>
+                      <th class="rth-hembras rth-guia">Peso H<br><small>Guía kg</small></th>
+                      <th class="rth-hembras rth-dif">%Dif<br><small>Peso H</small></th>
+                      <th class="rth-hembras">ConsAc<br><small>gr/ave</small></th>
+                      <th class="rth-hembras rth-guia">ConsAc<br><small>Guía</small></th>
+                      <th class="rth-hembras rth-dif">%Dif<br><small>Cons H</small></th>
+                      <th class="rth-hembras">gr/ave<br><small>/día</small></th>
+                      <th class="rth-machos">Saldo M</th>
+                      <th class="rth-machos">Mort.M</th>
+                      <th class="rth-machos">%MortM<br><small>Real</small></th>
+                      <th class="rth-machos rth-guia">%MortM<br><small>Guía</small></th>
+                      <th class="rth-machos rth-dif">Dif<br><small>Mort M</small></th>
+                      <th class="rth-machos">Peso M<br><small>kg Real</small></th>
+                      <th class="rth-machos rth-guia">Peso M<br><small>Guía kg</small></th>
+                      <th class="rth-machos rth-dif">%Dif<br><small>Peso M</small></th>
+                      <th class="rth-machos">ConsAc<br><small>gr/ave</small></th>
+                      <th class="rth-machos rth-guia">ConsAc<br><small>Guía</small></th>
+                      <th class="rth-machos rth-dif">DifAc<br><small>Cons M</small></th>
+                      <th class="rth-machos">gr/ave<br><small>/día</small></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of semanalData; track row.semana) {
+                      <tr [class.row-sin-guia]="!row.pesoHGUIA && !row.porcMortHGUIA">
+                        <td class="sticky-col sticky-col--1 cell-id">{{ row.semana }}</td>
+                        <td class="sticky-col sticky-col--2 cell-id">{{ row.fecha | date:'dd/MM/yy' }}</td>
+                        <td class="cell-num">{{ row.edad }}</td>
+                        <td class="cell-num">{{ row.hembraIni | number }}</td>
+                        <td class="cell-num">{{ row.machoIni | number }}</td>
+                        <td class="cell-num cell-h">{{ row.hembra | number }}</td>
+                        <td class="cell-num cell-h">{{ row.mortH }}</td>
+                        <td class="cell-num cell-h">{{ row.porcMortH != null ? (row.porcMortH | number:'1.2-2') + '%' : '—' }}</td>
+                        <td class="cell-num cell-h cell-guia">{{ row.porcMortHGUIA != null ? (row.porcMortHGUIA | number:'1.2-2') + '%' : '—' }}</td>
+                        <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.difMortH, 'mort')">{{ row.difMortH != null ? (row.difMortH | number:'1.2-2') : '—' }}</td>
+                        <td class="cell-num cell-h">{{ row.acMortH ?? '—' }}</td>
+                        <td class="cell-num cell-h">{{ row.pesoH != null ? (row.pesoH | number:'1.3-3') : '—' }}</td>
+                        <td class="cell-num cell-h cell-guia">{{ row.pesoHGUIA != null ? (row.pesoHGUIA | number:'1.3-3') : '—' }}</td>
+                        <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.porcDifPesoH, 'peso')">{{ row.porcDifPesoH != null ? (row.porcDifPesoH | number:'1.1-1') + '%' : '—' }}</td>
+                        <td class="cell-num cell-h">{{ row.consAcGrH != null ? (row.consAcGrH | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-h cell-guia">{{ row.consAcGrHGUIA != null ? (row.consAcGrHGUIA | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-h cell-dif" [ngClass]="semaforo(row.porcDifConsH, 'cons')">{{ row.porcDifConsH != null ? (row.porcDifConsH | number:'1.1-1') + '%' : '—' }}</td>
+                        <td class="cell-num cell-h">{{ row.grAveDiaH != null ? (row.grAveDiaH | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-m">{{ row.saldoMacho | number }}</td>
+                        <td class="cell-num cell-m">{{ row.mortM }}</td>
+                        <td class="cell-num cell-m">{{ row.porcMortM != null ? (row.porcMortM | number:'1.2-2') + '%' : '—' }}</td>
+                        <td class="cell-num cell-m cell-guia">{{ row.porcMortMGUIA != null ? (row.porcMortMGUIA | number:'1.2-2') + '%' : '—' }}</td>
+                        <td class="cell-num cell-m cell-dif" [ngClass]="semaforo(row.difMortM, 'mort')">{{ row.difMortM != null ? (row.difMortM | number:'1.2-2') : '—' }}</td>
+                        <td class="cell-num cell-m">{{ row.pesoM != null ? (row.pesoM | number:'1.3-3') : '—' }}</td>
+                        <td class="cell-num cell-m cell-guia">{{ row.pesoMGUIA != null ? (row.pesoMGUIA | number:'1.3-3') : '—' }}</td>
+                        <td class="cell-num cell-m cell-dif" [ngClass]="semaforo(row.porcDifPesoM, 'peso')">{{ row.porcDifPesoM != null ? (row.porcDifPesoM | number:'1.1-1') + '%' : '—' }}</td>
+                        <td class="cell-num cell-m">{{ row.consAcGrM != null ? (row.consAcGrM | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-m cell-guia">{{ row.consAcGrMGUIA != null ? (row.consAcGrMGUIA | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-m cell-dif" [ngClass]="semaforo(row.difConsM, 'cons')">{{ row.difConsM != null ? (row.difConsM | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-m">{{ row.grAveDiaM != null ? (row.grAveDiaM | number:'1.1-1') : '—' }}</td>
+                        <td class="cell-num cell-extra">{{ row.relMH != null ? (row.relMH | number:'1.1-1') + '%' : '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          } @else {
+            <div class="empty-state"><p>No hay datos semanales. Genera con periodicidad Semanal.</p></div>
+          }
+        }
 
-      <!-- Tab 4: Registro Semana Machos -->
-      <div class="tab-content" *ngIf="tabLevanteActivo === 'semanal-machos'">
-        <div class="datos-section" *ngIf="reporteLevanteConTabs()!.datosSemanales.length > 0">
-          <h3>REGISTRO SEMANA MACHOS</h3>
-          <app-tabla-levante-semanal-machos 
-            [datos]="reporteLevanteConTabs()!.datosSemanales"
-            [informacionLote]="reporteLevanteConTabs()!.informacionLote">
-          </app-tabla-levante-semanal-machos>
-        </div>
-        <div class="empty-state" *ngIf="reporteLevanteConTabs()!.datosSemanales.length === 0">
-          <p>No se encontraron datos semanales de machos para el lote seleccionado.</p>
-        </div>
-      </div>
-    </section>
+        <!-- ── Tab: Datos Diarios Levante ────────────────────────────────────── -->
+        @if (tabLevanteActivo === 'diario') {
+          @let diariosData = reporteLevante()?.datosDiarios ?? [];
+          @if (diariosData.length > 0) {
+            <div class="datos-section">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                <h3 style="margin:0">DATOS DIARIOS — LEVANTE</h3>
+                <span class="chip chip--muted" style="font-size:11px">{{ diariosData.length }} registros</span>
+              </div>
+              <div class="reporte-excel-wrapper">
+                <table class="reporte-excel">
+                  <thead>
+                    <tr class="rth1">
+                      <th class="sticky-col sticky-col--1 rth-id">Fecha</th>
+                      <th class="rth-id">Días</th>
+                      <th class="rth-id">Sem.</th>
+                      <th colspan="4" class="rth-hembras">HEMBRAS</th>
+                      <th colspan="3" class="rth-hembras">CONSUMO H</th>
+                      <th colspan="4" class="rth-machos">MACHOS</th>
+                      <th colspan="3" class="rth-machos">CONSUMO M</th>
+                    </tr>
+                    <tr class="rth2">
+                      <th class="sticky-col sticky-col--1 rth-id"></th>
+                      <th></th><th></th>
+                      <th class="rth-hembras">Saldo H</th>
+                      <th class="rth-hembras">Mort.H</th>
+                      <th class="rth-hembras">%Mort H</th>
+                      <th class="rth-hembras">Peso H</th>
+                      <th class="rth-hembras">Cons Kg</th>
+                      <th class="rth-hembras">gr/ave</th>
+                      <th class="rth-hembras">Ac.Cons H</th>
+                      <th class="rth-machos">Saldo M</th>
+                      <th class="rth-machos">Mort.M</th>
+                      <th class="rth-machos">%Mort M</th>
+                      <th class="rth-machos">Peso M</th>
+                      <th class="rth-machos">Cons Kg</th>
+                      <th class="rth-machos">gr/ave</th>
+                      <th class="rth-machos">Ac.Cons M</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of diariosData; track row.fecha) {
+                      <tr>
+                        <td class="sticky-col sticky-col--1 cell-id">{{ row.fecha | date:'dd/MM/yy' }}</td>
+                        <td class="cell-num">{{ row.edadDias }}</td>
+                        <td class="cell-num">{{ row.edadSemanas }}</td>
+                        <td class="cell-num cell-h">{{ row.saldoHembras | number }}</td>
+                        <td class="cell-num cell-h">{{ row.mortalidadHembras }}</td>
+                        <td class="cell-num cell-h">{{ row.porcMortH != null ? (row.porcMortH | number:'1.2-2') + '%' : '—' }}</td>
+                        <td class="cell-num cell-h">{{ row.pesoPromH != null ? (row.pesoPromH | number:'1.3-3') : '—' }}</td>
+                        <td class="cell-num cell-h">{{ row.consumoKgH | number:'1.2-2' }}</td>
+                        <td class="cell-num cell-h">{{ (row.consumoKgH * 1000 / (row.saldoHembras || 1)) | number:'1.1-1' }}</td>
+                        <td class="cell-num cell-h">{{ row.consumoKgHAcumulado | number:'1.2-2' }}</td>
+                        <td class="cell-num cell-m">{{ row.saldoMachos | number }}</td>
+                        <td class="cell-num cell-m">{{ row.mortalidadMachos }}</td>
+                        <td class="cell-num cell-m">{{ row.porcMortM != null ? (row.porcMortM | number:'1.2-2') + '%' : '—' }}</td>
+                        <td class="cell-num cell-m">{{ row.pesoPromM != null ? (row.pesoPromM | number:'1.3-3') : '—' }}</td>
+                        <td class="cell-num cell-m">{{ row.consumoKgM | number:'1.2-2' }}</td>
+                        <td class="cell-num cell-m">{{ (row.consumoKgM * 1000 / (row.saldoMachos || 1)) | number:'1.1-1' }}</td>
+                        <td class="cell-num cell-m">{{ row.consumoKgMAcumulado | number:'1.2-2' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          } @else {
+            <div class="empty-state"><p>No hay datos diarios. Genera con periodicidad Diario.</p></div>
+          }
+        }
+
+      </section>
+    }
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         REPORTE PRODUCCIÓN — Tabs
+         ═══════════════════════════════════════════════════════════════════════ -->
+    @if (filterSvc.selectedEtapa() === 'PRODUCCION' && reporteProduccionTabs()) {
+      <app-reportes-tabs
+        [reporte]="reporteProduccionTabs()!">
+      </app-reportes-tabs>
+    }
 
     <!-- Modal de Fórmulas -->
-    <div class="formulas-modal" *ngIf="mostrarFormulas" (click)="mostrarFormulas = false">
-      <div class="formulas-content" (click)="$event.stopPropagation()">
-        <div class="formulas-header">
-          <h4>📐 Fórmulas de Reportes Técnicos</h4>
-          <button class="btn-close" (click)="mostrarFormulas = false">×</button>
-        </div>
-        <div class="formulas-body">
-          <div class="formula-group" *ngFor="let grupo of gruposFormulas">
-            <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
-            <ul class="formula-list">
-              <li *ngFor="let formula of grupo.formulas" class="formula-item">
-                <strong>{{ formula.nombre }}:</strong>
-                <span class="formula-text">{{ formula.formula }}</span>
-              </li>
-            </ul>
+    @if (mostrarFormulas) {
+      <div class="formulas-modal" (click)="mostrarFormulas = false">
+        <div class="formulas-content" (click)="$event.stopPropagation()">
+          <div class="formulas-header">
+            <h4>📐 Fórmulas de Reportes Técnicos</h4>
+            <button class="btn-close" (click)="mostrarFormulas = false">×</button>
+          </div>
+          <div class="formulas-body">
+            @for (grupo of gruposFormulas; track grupo.titulo) {
+              <div class="formula-group">
+                <h5 class="formula-group-title">{{ grupo.titulo }}</h5>
+                <ul class="formula-list">
+                  @for (formula of grupo.formulas; track formula.nombre) {
+                    <li class="formula-item">
+                      <strong>{{ formula.nombre }}:</strong>
+                      <span class="formula-text">{{ formula.formula }}</span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
           </div>
         </div>
       </div>
-    </div>
+    }
+
   </div>
 </div>

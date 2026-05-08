@@ -21,7 +21,10 @@
       "Bash(grep -v \"^$\")",
       "Bash(PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d zoo_sanmarino_dev -c \"\\\\d lote_registro_historico_unificado\")",
       "Bash(PGPASSWORD=postgres psql -h 127.0.0.1 -p 5432 -U postgres -d zoo_sanmarino_dev -c \"SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'lote_registro_historico_unificado';\")",
-      "Bash(ASPNETCORE_ENVIRONMENT=Production dotnet ef database update --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext)"
+      "Bash(ASPNETCORE_ENVIRONMENT=Production dotnet ef database update --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext)",
+      "Bash(ls /Users/chelsycardona/Documents/App_SanMarino/fase_de_desarrollo/ 2>/dev/null && echo \"---\" && ls /Users/chelsycardona/.claude/plans/ 2>/dev/null)",
+      "Read(//Users/chelsycardona/.claude/plans/**)",
+      "Bash(grep -E \"\\\\.cs$\")"
     ]
   }
 }

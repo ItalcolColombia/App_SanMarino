@@ -83,7 +83,8 @@ public class SeguimientoAvesEngordeFilterDataService : ISeguimientoAvesEngordeFi
             Farms: farms,
             Nucleos: nucleos,
             Galpones: galpones,
-            Lotes: lotes
+            Lotes: lotes,
+            LotesBase: Array.Empty<LoteBaseFilterItemDto>()
         );
     }
 }

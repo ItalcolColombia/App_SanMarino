@@ -299,8 +299,8 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     const soloAlimento = this.hembrasSoloAlimento;
     const itemForm = this.fb.group({
       tipoItem: [soloAlimento ? 'alimento' : null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
+      catalogItemId: [null],
+      cantidad: [0, [Validators.min(0)]],
       unidad: ['kg', Validators.required]
     });
 
@@ -342,8 +342,8 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     const soloAlimento = this.hembrasSoloAlimento;
     const itemForm = this.fb.group({
       tipoItem: [soloAlimento ? 'alimento' : null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
+      catalogItemId: [null],
+      cantidad: [0, [Validators.min(0)]],
       unidad: ['kg', Validators.required]
     });
 

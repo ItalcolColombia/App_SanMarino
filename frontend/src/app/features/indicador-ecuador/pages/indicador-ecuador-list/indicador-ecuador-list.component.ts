@@ -1,5 +1,5 @@
 // frontend/src/app/features/indicador-ecuador/pages/indicador-ecuador-list/indicador-ecuador-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -57,16 +57,15 @@ export class IndicadorEcuadorListComponent implements OnInit {
   /** Vista: indicadores generales o Pollo Engorde. En Ecuador por defecto Pollo Engorde y el select se deshabilita. */
   vistaIndicador: 'general' | 'polloEngorde' = 'general';
   /** En Ecuador true: select Vista deshabilitado y fijado en Pollo Engorde. */
-  vistaSelectDisabled = false;
+  vistaSelectDisabled: boolean = false;
 
-  // Filtros
+  // Filtros - Vista General
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
   selectedLoteId: number | null = null;
   fechaDesde: string = '';
   fechaHasta: string = '';
-  /** Vista general: GET lotes-cerrados + POST calcular/consolidado. true = cierre en rango (GET) o solo aves=0 (POST). */
   soloLotesCerrados: boolean = true;
   tipoLote: string = 'Todos';
 
@@ -102,6 +101,19 @@ export class IndicadorEcuadorListComponent implements OnInit {
   filtroEncDesde: string = '';
   filtroEncHasta: string = '';
 
+  /** Filtros cronológicos (Año-Corrida) */
+  selectedAnio: string | null = null;
+  selectedCorrida: string | null = null;
+  corridasDisponibles: string[] = [
+    '01', '02', '03', '04', '05', '06',
+    '07', '08', '09', '10', '11', '12'
+  ];
+  /** Código concatenado Año+Corrida — vacío si no hay año seleccionado */
+  get loteConvertido(): string {
+    if (!this.selectedAnio) return '';
+    return this.selectedAnio + (this.selectedCorrida ?? '');
+  }
+
   /** Tab activa en la planilla de resultados: 'consolidado' o loteAveEngordeId. */
   tabActivaLiquidacion: 'consolidado' | number = 'consolidado';
 
@@ -130,15 +142,14 @@ export class IndicadorEcuadorListComponent implements OnInit {
   private allLotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null; fechaEncaset?: string | null }> = [];
 
   // UI
-  loading = false;
-  loadingFilterData = true;
+  loading: boolean = false;
+  loadingFilterData: boolean = true;
   error: string | null = null;
 
-  constructor(
-    private indicadorService: IndicadorEcuadorService,
-    private http: HttpClient,
-    private countryFilter: CountryFilterService
-  ) {}
+  // Inyección moderna
+  private indicadorService = inject(IndicadorEcuadorService);
+  private http = inject(HttpClient);
+  private countryFilter = inject(CountryFilterService);
 
   ngOnInit(): void {
     if (this.countryFilter.isEcuador()) {
@@ -205,6 +216,13 @@ export class IndicadorEcuadorListComponent implements OnInit {
     });
   }
 
+  /** Filtra lotes cuyo nombre comienza con el código Año-Corrida */
+  private aplicarFiltroCronologico(lotes: PeLoteAveEngordeItem[]): PeLoteAveEngordeItem[] {
+    const codigo = this.loteConvertido;
+    if (!codigo) return lotes;
+    return lotes.filter(l => l.loteNombre && l.loteNombre.startsWith(codigo));
+  }
+
   /** Cascada Granja → Núcleo → Galpón → Lote (ave engorde). */
   private applyPeCascade(): void {
     if (!this.peGranjaId) {
@@ -230,6 +248,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
     if (!this.peGalponId) return;
     const gpid = String(this.peGalponId).trim();
     this.peLotesAveEngorde = this.peLotesAveEngorde.filter((l) => String(l.galponId || '').trim() === gpid);
+
+    // Aplicar filtro cronológico (Año-Corrida) al final de la cascada
+    this.peLotesAveEngorde = this.aplicarFiltroCronologico(this.peLotesAveEngorde);
   }
 
   /** Si solo hay un núcleo en la granja, se selecciona solo (flujo Ecuador: núcleo 1 implícito). */
@@ -250,6 +271,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroMesesPollo = [];
     this.filtroEncDesde = '';
     this.filtroEncHasta = '';
+    this.selectedAnio = null;
+    this.selectedCorrida = null;
     this.applyPeCascade();
     this.aplicarNucleoUnicoPorDefecto();
   }
@@ -265,14 +288,32 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.applyPeCascade();
   }
 
+  onFiltroAnioChange(value: string | null): void {
+    this.selectedAnio = value;
+    this.selectedCorrida = null;
+    this.peLoteAveEngordeId = null;
+    this.applyPeCascade();
+  }
+
+  onFiltroCorreidaChange(value: string | null): void {
+    this.selectedCorrida = value;
+    this.peLoteAveEngordeId = null;
+    this.applyPeCascade();
+  }
+
   onPeTodosLotesChange(): void {
     if (this.peTodosLotesLiquidados) {
       this.peLoteAveEngordeId = null;
+    } else {
+      this.selectedAnio = null;
+      this.selectedCorrida = null;
     }
   }
 
   onPolloModoChange(): void {
     this.error = null;
+    this.selectedAnio = null;
+    this.selectedCorrida = null;
   }
 
   onPolloAlcanceChange(): void {
@@ -502,14 +543,15 @@ export class IndicadorEcuadorListComponent implements OnInit {
         if (this.peTodosLotesLiquidados) {
           const res = await firstValueFrom(
             this.indicadorService.liquidacionPolloEngordeReporte({
-              modo: 'UnLote',
+              modo: 'TodosLiquidados',
               loteAveEngordeId: null,
               fechaDesde: null,
               fechaHasta: null,
               alcance: 'TodasLasGranjas',
               granjaId: this.peGranjaId,
               nucleoId: this.peNucleoId || null,
-              galponId: this.peGalponId || null
+              galponId: this.peGalponId || null,
+              loteCodigo: this.loteConvertido || null
             })
           );
           this.resultadoLiquidacionPollo = res;
@@ -703,6 +745,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroMesesPollo = [];
     this.filtroEncDesde = '';
     this.filtroEncHasta = '';
+    this.selectedAnio = null;
+    this.selectedCorrida = null;
     this.tabActivaLiquidacion = 'consolidado';
     this.applyPeCascade();
     this.resultadoLiquidacionPollo = null;
@@ -738,6 +782,18 @@ export class IndicadorEcuadorListComponent implements OnInit {
     const s = new Set<number>();
     this.peLotesAveEngorde.forEach(l => { if (l.fechaEncaset) s.add(new Date(l.fechaEncaset).getFullYear()); });
     return Array.from(s).sort((a, b) => b - a);
+  }
+
+  /** Años disponibles extraídos de TODOS los lotes (sin filtro de cascada) para que el dropdown siempre esté poblado */
+  get aniosDisponibles(): string[] {
+    const s = new Set<string>();
+    this.peAllLotesAveEngorde.forEach(l => {
+      if (l.loteNombre && l.loteNombre.length >= 2) {
+        const year = l.loteNombre.substring(0, 2);
+        if (/^\d{2}$/.test(year)) s.add(year);
+      }
+    });
+    return Array.from(s).sort((a, b) => parseInt(b) - parseInt(a));
   }
 
   get mesesNombres(): Array<{ num: number; nombre: string }> {

@@ -320,6 +320,39 @@ public class ReporteTecnicoController : ControllerBase
     }
 
     /// <summary>
+    /// Reporte Técnico de Levante navegando desde LotePosturaBase.
+    /// Consolida todos los lotes levante asociados (o filtra por LoteLevanteId).
+    /// FiltroPeriodicidad: "Semanal" (default, semanas 1-25 con cruce genético) | "Diario" (por fecha calendario).
+    /// </summary>
+    [HttpPost("levante/obtener")]
+    [ProducesResponseType(typeof(ReporteTecnicoLevanteCompletoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReporteTecnicoLevanteCompletoDto>> ObtenerReporteLevante(
+        [FromBody] ObtenerReporteLevanteRequestDto request,
+        CancellationToken ct = default)
+    {
+        if (request.LotePosturaBaseId <= 0)
+            return BadRequest(new { message = "LotePosturaBaseId es obligatorio y debe ser positivo." });
+
+        try
+        {
+            var reporte = await _service.ObtenerReporteLevanteAsync(request, ct);
+            return Ok(reporte);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener reporte de levante para LotePosturaBase {Id}",
+                request.LotePosturaBaseId);
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
     /// Exporta todos los reportes de Levante a Excel (múltiples hojas)
     /// Hoja 1: Diario Hembras, Hoja 2: Diario Machos, Hoja 3: Semanal Hembras, Hoja 4: Semanal Machos
     /// </summary>
@@ -356,6 +389,37 @@ public class ReporteTecnicoController : ControllerBase
         {
             _logger.LogError(ex, "Error al exportar reportes de Levante a Excel para lote {LoteId}", loteId);
             return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Exporta el reporte de levante (nuevo formato TABs) a Excel.
+    /// Recibe el DTO ya generado + metadatos para la hoja "Información".
+    /// </summary>
+    [HttpPost("levante/exportar-excel")]
+    public IActionResult ExportarExcelLevante(
+        [FromBody] ExportarExcelLevanteRequestDto request,
+        [FromServices] IExportacionExcelService exportSvc)
+    {
+        try
+        {
+            var bytes = exportSvc.ExportarReporteLevante(request.Reporte, request.Meta);
+            var etapa    = request.Meta.Etapa;
+            var loteBase = request.Meta.LoteBaseNombre.Replace(" ", "_");
+            var sublote  = request.Meta.LoteSubloteNombre?.Replace(" ", "_");
+            var fecha    = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var nombre   = string.IsNullOrEmpty(sublote)
+                ? $"{etapa}_{loteBase}_{fecha}.xlsx"
+                : $"{etapa}_{loteBase}_{sublote}_{fecha}.xlsx";
+
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                nombre);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al exportar reporte de Levante a Excel");
+            return StatusCode(500, new { message = "Error interno al generar el archivo Excel" });
         }
     }
 }

@@ -1,0 +1,124 @@
+<div class="rt-tabs-container">
+
+  <!-- Header info lote -->
+  <div class="rt-lote-header">
+    <span class="chip chip--produccion">PRODUCCIÓN</span>
+    <span class="lote-nombre">{{ loteInfo.loteNombre }}</span>
+    @if (loteInfo.raza) {
+      <span class="lote-meta">{{ loteInfo.raza }}</span>
+    }
+    @if (loteInfo.granjaNombre) {
+      <span class="lote-meta">{{ loteInfo.granjaNombre }}</span>
+    }
+    <span class="lote-meta sublotes-count">{{ sublotes.length }} sublote(s)</span>
+  </div>
+
+  <!-- Tabs principales: Por Sublote | Consolidado -->
+  <div class="tabs-bar tabs-bar--principal">
+    <button
+      class="tab-btn"
+      [class.active]="tabPrincipal() === 'sublote'"
+      (click)="setPrincipal('sublote')">
+      Por Sublote
+    </button>
+    <button
+      class="tab-btn"
+      [class.active]="tabPrincipal() === 'consolidado'"
+      (click)="setPrincipal('consolidado')">
+      Consolidado
+    </button>
+  </div>
+
+  <!-- ══════════════ POR SUBLOTE ══════════════ -->
+  @if (tabPrincipal() === 'sublote') {
+
+    <!-- Pills de sublotes -->
+    @if (sublotes.length === 0) {
+      <p class="empty-state">No hay sublotes con datos para el período seleccionado.</p>
+    } @else {
+      <div class="sublote-selector">
+        @for (s of sublotes; track s) {
+          <button
+            class="sublote-pill"
+            [class.active]="subloteSeleccionado === s"
+            (click)="setSublote(s)">
+            {{ s }}
+          </button>
+        }
+      </div>
+
+      <!-- Tabs Diario / Semanal del sublote seleccionado -->
+      <div class="tabs-bar tabs-bar--periodo">
+        <button
+          class="tab-btn tab-btn--sm"
+          [class.active]="tabPeriodo() === 'diario'"
+          (click)="setPeriodo('diario')">
+          Diario
+        </button>
+        <button
+          class="tab-btn tab-btn--sm"
+          [class.active]="tabPeriodo() === 'semanal'"
+          (click)="setPeriodo('semanal')">
+          Semanal
+        </button>
+      </div>
+
+      <div class="rt-tabs-content">
+        @if (tabPeriodo() === 'diario') {
+          <app-reporte-diario-galpon
+            [datos]="datosDiario"
+            [galponNombre]="subloteSeleccionado">
+          </app-reporte-diario-galpon>
+        }
+        @if (tabPeriodo() === 'semanal') {
+          <app-reporte-semanal-galpon
+            [datos]="datosSemanal"
+            [galponNombre]="subloteSeleccionado">
+          </app-reporte-semanal-galpon>
+        }
+      </div>
+    }
+  }
+
+  <!-- ══════════════ CONSOLIDADO ══════════════ -->
+  @if (tabPrincipal() === 'consolidado') {
+
+    <!-- Tabs Diario General / Semanal General -->
+    <div class="tabs-bar tabs-bar--periodo">
+      <button
+        class="tab-btn tab-btn--sm"
+        [class.active]="tabPeriodo() === 'diario'"
+        (click)="setPeriodo('diario')">
+        Diario General
+      </button>
+      <button
+        class="tab-btn tab-btn--sm"
+        [class.active]="tabPeriodo() === 'semanal'"
+        (click)="setPeriodo('semanal')">
+        Semanal General
+      </button>
+    </div>
+
+    <div class="rt-tabs-content">
+      @if (tabPeriodo() === 'diario') {
+        @if (reporte.diariosGeneral.length === 0) {
+          <p class="empty-state">Sin datos consolidados para el período seleccionado.</p>
+        } @else {
+          <app-reporte-general-diario
+            [datos]="reporte.diariosGeneral">
+          </app-reporte-general-diario>
+        }
+      }
+      @if (tabPeriodo() === 'semanal') {
+        @if (reporte.semanalesGeneral.length === 0) {
+          <p class="empty-state">Sin datos consolidados para el período seleccionado.</p>
+        } @else {
+          <app-reporte-general-semanal
+            [datos]="reporte.semanalesGeneral">
+          </app-reporte-general-semanal>
+        }
+      }
+    </div>
+  }
+
+</div>

@@ -8,7 +8,7 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
 {
     public void Configure(EntityTypeBuilder<SeguimientoProduccion> builder)
     {
-        builder.ToTable("produccion_diaria");
+        builder.ToTable("seguimiento_diario_produccion_reproductoras");
         
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id)
@@ -25,7 +25,7 @@ public class SeguimientoProduccionConfiguration : IEntityTypeConfiguration<Segui
             .IsRequired(false);
 
         builder.HasIndex(x => x.LotePosturaProduccionId)
-            .HasDatabaseName("ix_produccion_diaria_lote_postura_produccion_id")
+            .HasDatabaseName("ix_seguimiento_diario_produccion_reproductoras_lpp_id")
             .HasFilter("lote_postura_produccion_id IS NOT NULL");
         
         builder.Property(x => x.Fecha)

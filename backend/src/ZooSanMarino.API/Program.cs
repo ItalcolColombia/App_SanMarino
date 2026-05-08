@@ -274,6 +274,10 @@ builder.Services.AddScoped<ReporteTecnicoExcelService>();
 builder.Services.AddScoped<IReporteTecnicoProduccionService, ReporteTecnicoProduccionService>();
 builder.Services.AddScoped<ReporteTecnicoProduccionExcelService>();
 
+// Exportación Excel — Nuevo servicio (LEVANTE tabs + PRODUCCIÓN tabs)
+builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IExportacionExcelService,
+    ZooSanMarino.Infrastructure.Services.ExportacionExcelService>();
+
 // Reporte Contable Service
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IReporteContableService, ZooSanMarino.Infrastructure.Services.ReporteContableService>();
 builder.Services.AddScoped<ZooSanMarino.Infrastructure.Services.ReporteContableExcelService>();
