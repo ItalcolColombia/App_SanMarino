@@ -463,7 +463,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   }
 
   create(): void {
-    if (!this.selectedLoteId || this.noPuedeSeguimiento) return;
+    if (!this.selectedLoteId) return;
     this.editing = null;
     this.modalOpen = true;
   }

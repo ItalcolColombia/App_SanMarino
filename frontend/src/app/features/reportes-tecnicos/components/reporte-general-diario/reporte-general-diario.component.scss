@@ -1,0 +1,45 @@
+.empty-state { text-align: center; color: #999; padding: 2rem; }
+.table-scroll { overflow-x: auto; }
+
+.rt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+  white-space: nowrap;
+
+  th, td {
+    border: 1px solid #e0e0e0;
+    padding: 4px 8px;
+    text-align: right;
+  }
+
+  thead th {
+    background: #f5f5f5;
+    font-weight: 600;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .thead-group th { background: #4a148c; color: #fff; }
+  .thead-sub  th  { background: #f3e5f5; color: #4a148c; font-size: .78rem; }
+
+  .col-sticky {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 1;
+    text-align: left;
+  }
+
+  .col-real { background: #fff8e1; }
+  .col-guia { background: #fffde7; color: #6d4c00; font-style: italic; }
+  .col-dif  { background: #fafafa; color: #555; font-style: italic; }
+  .text-center { text-align: center; }
+
+  tbody tr:hover td { background: #f3e5f522; }
+  .cell-success { background: #c8e6c9 !important; color: #1b5e20; }
+  .cell-warning { background: #fff3e0 !important; color: #e65100; }
+  .cell-danger  { background: #ffcdd2 !important; color: #b71c1c; }
+}

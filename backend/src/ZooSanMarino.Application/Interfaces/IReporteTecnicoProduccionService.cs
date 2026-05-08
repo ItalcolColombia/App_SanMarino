@@ -46,5 +46,22 @@ public interface IReporteTecnicoProduccionService
         DateTime? fechaFin,
         bool consolidarSublotes = false,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera reporte técnico de producción navegando desde LotePosturaBase → LPL → LPP.
+    /// Lee seguimientos desde la tabla produccion_diaria (SeguimientoProduccion).
+    /// Si LotePosturaProduccionId está presente, genera reporte individual; si no, consolida todos.
+    /// </summary>
+    Task<ReporteTecnicoProduccionCompletoDto> ObtenerReporteProduccionAsync(
+        ObtenerReporteProduccionRequestDto request,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Genera reporte técnico de producción con estructura de TABs (Fase 4 — SOLO PRODUCCIÓN).
+    /// Retorna datos desglosados por galpón + consolidados (general), con valores guía STANDARD.
+    /// </summary>
+    Task<ReporteTecnicoProduccionTabsDto> ObtenerReporteProduccionTabsAsync(
+        ObtenerReporteProduccionRequestDto request,
+        CancellationToken ct = default);
 }
 

@@ -5401,18 +5401,18 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnName("valor_150");
 
                     b.HasKey("Id")
-                        .HasName("pk_produccion_avicola_raw");
+                        .HasName("pk_guia_genetica_sanmarino_colombia");
 
                     b.HasIndex("AnioGuia")
-                        .HasDatabaseName("ix_produccion_avicola_raw_anio_guia");
+                        .HasDatabaseName("ix_guia_genetica_sanmarino_colombia_anio_guia");
 
                     b.HasIndex("CompanyId")
-                        .HasDatabaseName("ix_produccion_avicola_raw_company_id");
+                        .HasDatabaseName("ix_guia_genetica_sanmarino_colombia_company_id");
 
                     b.HasIndex("Raza")
-                        .HasDatabaseName("ix_produccion_avicola_raw_raza");
+                        .HasDatabaseName("ix_guia_genetica_sanmarino_colombia_raza");
 
-                    b.ToTable("produccion_avicola_raw", (string)null);
+                    b.ToTable("guia_genetica_sanmarino_colombia", (string)null);
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.ProduccionDiaria", b =>
@@ -6533,9 +6533,9 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnName("venta_aves_motivo");
 
                     b.HasKey("Id")
-                        .HasName("pk_seguimiento_diario");
+                        .HasName("pk_seguimiento_diario_levante_reproductoras");
 
-                    b.ToTable("seguimiento_diario", "public");
+                    b.ToTable("seguimiento_diario_levante_reproductoras", "public");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.SeguimientoDiarioAvesEngorde", b =>
@@ -7187,17 +7187,17 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnName("uniformidad");
 
                     b.HasKey("Id")
-                        .HasName("pk_produccion_diaria");
+                        .HasName("pk_seguimiento_diario_produccion_reproductoras");
 
                     b.HasIndex("LotePosturaProduccionId")
-                        .HasDatabaseName("ix_produccion_diaria_lote_postura_produccion_id")
+                        .HasDatabaseName("ix_seguimiento_diario_produccion_reproductoras_lpp_id")
                         .HasFilter("lote_postura_produccion_id IS NOT NULL");
 
                     b.HasIndex("LoteId", "Fecha")
                         .IsUnique()
-                        .HasDatabaseName("ix_produccion_diaria_lote_id_fecha_registro");
+                        .HasDatabaseName("ix_seguimiento_diario_produccion_reproductoras_lote_id_fecha_r");
 
-                    b.ToTable("produccion_diaria", (string)null);
+                    b.ToTable("seguimiento_diario_produccion_reproductoras", (string)null);
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.SystemConfiguration", b =>

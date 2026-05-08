@@ -94,6 +94,17 @@ public interface IReporteTecnicoService
         DateTime? fechaFin = null,
         bool consolidarSublotes = false,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Obtiene el reporte de Levante navegando desde LotePosturaBase → lotes → lote_postura_levante.
+    /// Si LoteLevanteId es null, consolida TODOS los lotes levante del base sumando mortalidades
+    /// y recalculando porcentajes sobre el total unificado de aves_h_inicial + aves_m_inicial.
+    /// Si LoteLevanteId tiene valor, retorna solo ese lote (modo individual).
+    /// FiltroPeriodicidad: "Semanal" (semanas 1-25) o "Diario" (por fecha de registro).
+    /// </summary>
+    Task<ReporteTecnicoLevanteCompletoDto> ObtenerReporteLevanteAsync(
+        ObtenerReporteLevanteRequestDto request,
+        CancellationToken ct = default);
 }
 
 

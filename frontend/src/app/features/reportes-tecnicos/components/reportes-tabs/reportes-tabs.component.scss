@@ -1,0 +1,117 @@
+.rt-tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+// ── Lote header ───────────────────────────────────────────────────────────────
+.rt-lote-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.chip { border-radius: 12px; padding: 2px 10px; font-size: .75rem; font-weight: 600; }
+.chip--produccion { background: #e8f5e9; color: #2d7a3e; }
+
+.lote-nombre { font-weight: 700; font-size: 1rem; }
+.lote-meta   { font-size: .82rem; color: #666; }
+
+// ── Tab bars ──────────────────────────────────────────────────────────────────
+.tabs-bar {
+  display: flex;
+  gap: .25rem;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 2px;
+
+  &--periodo {
+    .tab-btn.active {
+      border-bottom-color: #2d7a3e;
+      color: #2d7a3e;
+      font-weight: 700;
+    }
+  }
+
+  &--principal {
+    .tab-btn.active {
+      border-bottom-color: #1565c0;
+      color: #1565c0;
+      font-weight: 700;
+    }
+  }
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: .4rem .9rem;
+  cursor: pointer;
+  font-size: .9rem;
+  color: #555;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -2px;
+
+  &--sm { font-size: .82rem; padding: .3rem .7rem; }
+
+  &:hover { color: #333; }
+}
+
+// ── Sublote pills ─────────────────────────────────────────────────────────────
+.sublote-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  padding: .25rem 0;
+}
+
+.sublote-pill {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 16px;
+  padding: 3px 14px;
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+
+  &.active {
+    background: #1565c0;
+    color: #fff;
+    border-color: #1565c0;
+    font-weight: 700;
+  }
+
+  &:hover:not(.active) {
+    background: #e3f2fd;
+    border-color: #1565c0;
+    color: #1565c0;
+  }
+}
+
+.sublotes-count {
+  margin-left: auto;
+  color: #999;
+  font-size: .75rem;
+}
+
+// ── Empty states ─────────────────────────────────────────────────────────────
+.empty-state {
+  text-align: center;
+  color: #999;
+  padding: 2rem;
+}
+
+// ── Content area ─────────────────────────────────────────────────────────────
+.rt-tabs-content {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: .75rem;
+  overflow: hidden;
+}

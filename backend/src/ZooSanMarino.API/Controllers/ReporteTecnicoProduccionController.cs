@@ -28,17 +28,81 @@ public class ReporteTecnicoProduccionController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene los datos para filtros (granjas, núcleos, galpones, lotes) desde lote_postura_produccion.
-    /// Una sola petición retorna toda la información necesaria para el módulo.
+    /// Obtiene los datos para filtros (granjas, núcleos, galpones, lotes base, lotes producción).
+    /// Cadena resuelta: lote_postura_produccion → lote_postura_levante → lote → lote_postura_base.
     /// </summary>
     [HttpGet("filter-data")]
-    [ProducesResponseType(typeof(SeguimientoProduccionFilterDataDto), StatusCodes.Status200OK)]
-    public async Task<ActionResult<SeguimientoProduccionFilterDataDto>> GetFilterData(CancellationToken ct = default)
+    [ProducesResponseType(typeof(LoteReproductoraFilterDataDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<LoteReproductoraFilterDataDto>> GetFilterData(CancellationToken ct = default)
     {
         using var scope = _serviceProvider.CreateScope();
         var filterDataSvc = scope.ServiceProvider.GetRequiredService<ILoteProduccionFilterDataService>();
         var data = await filterDataSvc.GetFilterDataAsync(ct);
         return Ok(data);
+    }
+
+    /// <summary>
+    /// Genera reporte técnico de producción navegando desde LotePosturaBase.
+    /// Lee desde produccion_diaria. Si LotePosturaProduccionId está presente, genera individual; si no, consolida.
+    /// </summary>
+    [HttpPost("obtener")]
+    [ProducesResponseType(typeof(ReporteTecnicoProduccionCompletoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerReporte(
+        [FromBody] ObtenerReporteProduccionRequestDto request,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var reporte = await _service.ObtenerReporteProduccionAsync(request, ct);
+            return Ok(reporte);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener reporte técnico de producción");
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Genera reporte técnico de producción con sistema de TABs (Fase 4 — SOLO PRODUCCIÓN).
+    /// Retorna datos desglosados por galpón + consolidados (general), con valores guía STANDARD.
+    /// </summary>
+    [HttpPost("obtener-tabs")]
+    [ProducesResponseType(typeof(ReporteTecnicoProduccionTabsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ObtenerReporteTabs(
+        [FromBody] ObtenerReporteProduccionRequestDto request,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var reporte = await _service.ObtenerReporteProduccionTabsAsync(request, ct);
+            return Ok(reporte);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener reporte tabs de producción");
+            return StatusCode(500, new { message = "Error interno del servidor" });
+        }
     }
 
     /// <summary>
@@ -264,6 +328,37 @@ public class ReporteTecnicoProduccionController : ControllerBase
         {
             _logger.LogError(ex, "Error al exportar reportes de producción a Excel para lote {LoteId}", loteId);
             return StatusCode(500, new { message = "Error interno del servidor" });
+        }
+    }
+
+    /// <summary>
+    /// Exporta el reporte de producción TABS (nuevo formato) a Excel.
+    /// Recibe el DTO ya generado + metadatos para la hoja "Información".
+    /// </summary>
+    [HttpPost("exportar-excel-tabs")]
+    public IActionResult ExportarExcelProduccionTabs(
+        [FromBody] ExportarExcelProduccionTabsRequestDto request,
+        [FromServices] IExportacionExcelService exportSvc)
+    {
+        try
+        {
+            var bytes = exportSvc.ExportarReporteProduccionTabs(request.Reporte, request.Meta);
+            var etapa    = request.Meta.Etapa;
+            var loteBase = request.Meta.LoteBaseNombre.Replace(" ", "_");
+            var sublote  = request.Meta.LoteSubloteNombre?.Replace(" ", "_");
+            var fecha    = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var nombre   = string.IsNullOrEmpty(sublote)
+                ? $"{etapa}_{loteBase}_{fecha}.xlsx"
+                : $"{etapa}_{loteBase}_{sublote}_{fecha}.xlsx";
+
+            return File(bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                nombre);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al exportar reporte de Producción TABS a Excel");
+            return StatusCode(500, new { message = "Error interno al generar el archivo Excel" });
         }
     }
 }

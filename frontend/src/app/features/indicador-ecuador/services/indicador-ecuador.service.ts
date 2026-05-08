@@ -119,7 +119,7 @@ export interface IndicadorPolloEngordePorLotePadreDto {
 
 /** POST liquidacion-pollo-engorde-reporte: solo lote padre liquidado (sin reproductoras). */
 export interface LiquidacionPolloEngordeReporteRequest {
-  modo: 'UnLote' | 'Rango';
+  modo: 'UnLote' | 'Rango' | 'TodosLiquidados';
   loteAveEngordeId?: number | null;
   fechaDesde?: string | null;
   fechaHasta?: string | null;
@@ -129,6 +129,8 @@ export interface LiquidacionPolloEngordeReporteRequest {
   nucleoId?: string | null;
   /** Modo UnLote sin lote: acota por galpón (opcional). */
   galponId?: string | null;
+  /** Modo TodosLiquidados: prefijo YYCC del nombre del lote (ej: "2601"). Opcional. */
+  loteCodigo?: string | null;
 }
 
 export interface LiquidacionPolloEngordeItemDto {

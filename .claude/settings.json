@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make up *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker-compose ps *)",
+      "Bash(docker start *)",
+      "Bash(docker exec *)",
+      "Bash(psql -U postgres -h localhost -p 5432 -d zoo_sanmarino_dev -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY';\")",
+      "Bash(/opt/homebrew/bin/psql -U postgres -h localhost -p 5432 -d zoo_sanmarino_dev -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY';\")",
+      "Bash(/usr/local/bin/psql -U postgres -h localhost -d zoo_sanmarino_dev -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY';\")",
+      "Bash(find /usr /opt /Applications -name \"psql\" 2>/dev/null | head -5)",
+      "Read(//usr/**)",
+      "Bash(/opt/homebrew/Cellar/libpq/17.4_1/bin/psql -U postgres -h localhost -p 5432 -d zoo_sanmarino_dev -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY'; SELECT indexname FROM pg_indexes WHERE tablename = 'produccion_avicola_raw';\")",
+      "Bash(PGPASSWORD=postgres /opt/homebrew/Cellar/libpq/17.4_1/bin/psql -U postgres -h localhost -p 5432 -d zoo_sanmarino_dev -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY'; SELECT indexname FROM pg_indexes WHERE tablename = 'produccion_avicola_raw';\")",
+      "Bash(PGPASSWORD=123456789 /opt/homebrew/Cellar/libpq/17.4_1/bin/psql -U postgres -h localhost -p 5432 -d sanmarinoapplocal -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY'; SELECT indexname FROM pg_indexes WHERE tablename = 'produccion_avicola_raw';\")",
+      "Bash(/opt/homebrew/Cellar/libpq/17.4_1/bin/psql -U postgres -h localhost -p 5432 -d sanmarinoapplocal -c ' *)",
+      "Bash(dotnet run *)",
+      "Bash(wait)"
+    ]
+  }
+}
