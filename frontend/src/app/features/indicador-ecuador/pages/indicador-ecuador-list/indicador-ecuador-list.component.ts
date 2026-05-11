@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import * as XLSX from 'xlsx';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import {
   IndicadorEcuadorService,
@@ -843,5 +844,100 @@ export class IndicadorEcuadorListComponent implements OnInit {
   formatearPorcentaje(valor: number | null | undefined): string {
     if (valor == null) return '-';
     return `${valor.toFixed(2)}%`;
+  }
+
+  exportarExcel(): void {
+    const datos = this.resultadoLiquidacionPollo;
+    if (!datos?.items?.length) return;
+
+    const tot = this.liquidacionTotales();
+    const wb = XLSX.utils.book_new();
+
+    const fn = (v: number | null | undefined, d: number) => this.formatearNumero(v, d);
+    const fp = (v: number | null | undefined) => this.formatearPorcentaje(v);
+    const n0 = (v: number | null | undefined) => (v ?? 0).toLocaleString('es-EC');
+
+    // ── Hoja Consolidado ──────────────────────────────────────────
+    const encCols = datos.items.map(it => this.etiquetaColumnaLiquidacion(it));
+    const fila = (label: string, getter: (r: IndicadorEcuadorDto) => string, totVal: string): string[] =>
+      [label, ...datos.items.map(it => getter(it.indicador)), totVal];
+
+    const first = datos.items[0]?.indicador;
+    const pesoAj = fn(first?.pesoAjusteVariable, 1);
+    const divAj  = fn(first?.divisorAjusteVariable, 1);
+
+    const rowsConsolidado: string[][] = [
+      ['ECUADOR ITALCOL — Liquidación Técnica Pollo Engorde'],
+      ['Indicador', ...encCols, 'TOTAL'],
+      fila('Granja', r => r.granjaNombre, tot?.granjaNombre ?? ''),
+      fila('Aves encasetadas',           r => n0(r.avesEncasetadas),           n0(tot?.avesEncasetadas)),
+      fila('Aves vendidas / despacho',   r => n0(r.avesSacrificadas),          n0(tot?.avesSacrificadas)),
+      fila('Mortalidad (unidades)',       r => n0(r.mortalidad),                n0(tot?.mortalidad)),
+      fila('Mortalidad (%)',              r => fp(r.mortalidadPorcentaje),      fp(tot?.mortalidadPorcentaje)),
+      fila('Supervivencia (%)',           r => fp(r.supervivenciaPorcentaje),   fp(tot?.supervivenciaPorcentaje)),
+      fila('Consumo total alimento (kg)', r => fn(r.consumoTotalAlimentoKg, 2), fn(tot?.consumoTotalAlimentoKg, 2)),
+      fila('Consumo ave (g)',             r => fn(r.consumoAveGramos, 2),       fn(tot?.consumoAveGramos, 2)),
+      fila('Kg carne pollo',             r => fn(r.kgCarnePollos, 2),          fn(tot?.kgCarnePollos, 2)),
+      fila('Peso promedio (kg)',          r => fn(r.pesoPromedioKilos, 3),      fn(tot?.pesoPromedioKilos, 3)),
+      fila('Conversión',                 r => fn(r.conversion, 3),             fn(tot?.conversion, 3)),
+      fila(`Conv. ajustada (${pesoAj}/${divAj})`, r => fn(r.conversionAjustada2700, 3), fn(tot?.conversionAjustada2700, 3)),
+      fila('Edad (días, ciclo)',         r => fn(r.edadPromedio, 1),           fn(tot?.edadPromedio, 1)),
+      fila('Metros cuadrados',           r => fn(r.metrosCuadrados, 2),        fn(tot?.metrosCuadrados, 2)),
+      fila('Aves / m²',                  r => fn(r.avesPorMetroCuadrado, 2),   fn(tot?.avesPorMetroCuadrado, 2)),
+      fila('Kg / m²',                    r => fn(r.kgPorMetroCuadrado, 2),     fn(tot?.kgPorMetroCuadrado, 2)),
+      fila('Eficiencia americana',        r => fn(r.eficienciaAmericana, 2),    fn(tot?.eficienciaAmericana, 2)),
+      fila('Eficiencia europea',          r => fn(r.eficienciaEuropea, 2),      fn(tot?.eficienciaEuropea, 2)),
+      fila('Í. Productividad',           r => fn(r.indiceProductividad, 2),    fn(tot?.indiceProductividad, 2)),
+      fila('Ganancia / día (g)',          r => fn(r.gananciaDia, 2),            fn(tot?.gananciaDia, 2)),
+      fila('Conv. tabla según peso (guía)', _ => '—',                          '—'),
+    ];
+
+    const wsConsolidado = XLSX.utils.aoa_to_sheet(rowsConsolidado);
+    XLSX.utils.book_append_sheet(wb, wsConsolidado, 'Consolidado');
+
+    // ── Hojas individuales por lote ───────────────────────────────
+    for (const it of datos.items) {
+      const ind = it.indicador;
+      const rowsLote: string[][] = [
+        ['Indicador', 'Valor'],
+        ['Granja',                       ind.granjaNombre],
+        ['Galpón',                       ind.galponNombre || ind.galponId || '—'],
+        ['Fecha encasetamiento',         ind.fechaInicioLote ? this.formatearFechaLote(ind.fechaInicioLote) : '—'],
+        ['Fecha cierre',                 ind.fechaCierreLote ? this.formatearFechaLote(ind.fechaCierreLote) : '—'],
+        ['Aves encasetadas',             n0(ind.avesEncasetadas)],
+        ['Aves vendidas / despacho',     n0(ind.avesSacrificadas)],
+        ['Mortalidad (unidades)',         n0(ind.mortalidad)],
+        ['Mortalidad (%)',               fp(ind.mortalidadPorcentaje)],
+        ['Supervivencia (%)',            fp(ind.supervivenciaPorcentaje)],
+        ['Consumo total alimento (kg)', fn(ind.consumoTotalAlimentoKg, 2)],
+        ['Consumo ave (g)',              fn(ind.consumoAveGramos, 2)],
+        ['Kg carne pollo',              fn(ind.kgCarnePollos, 2)],
+        ['Peso promedio (kg)',           fn(ind.pesoPromedioKilos, 3)],
+        ['Conversión',                  fn(ind.conversion, 3)],
+        [`Conv. ajustada (${fn(ind.pesoAjusteVariable, 1)}/${fn(ind.divisorAjusteVariable, 1)})`, fn(ind.conversionAjustada2700, 3)],
+        ['Edad (días, ciclo)',          fn(ind.edadPromedio, 1)],
+        ['Metros cuadrados',            fn(ind.metrosCuadrados, 2)],
+        ['Aves / m²',                   fn(ind.avesPorMetroCuadrado, 2)],
+        ['Kg / m²',                     fn(ind.kgPorMetroCuadrado, 2)],
+        ['Eficiencia americana',         fn(ind.eficienciaAmericana, 2)],
+        ['Eficiencia europea',           fn(ind.eficienciaEuropea, 2)],
+        ['Í. Productividad',            fn(ind.indiceProductividad, 2)],
+        ['Ganancia / día (g)',           fn(ind.gananciaDia, 2)],
+        ['Conv. tabla según peso (guía)', '—'],
+      ];
+
+      const wsLote = XLSX.utils.aoa_to_sheet(rowsLote);
+      const sheetName = this.sanitizarNombreHoja(
+        `${ind.galponNombre || ind.galponId || 'Gal'} ${it.loteNombre || it.loteAveEngordeId}`
+      );
+      XLSX.utils.book_append_sheet(wb, wsLote, sheetName);
+    }
+
+    const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    XLSX.writeFile(wb, `Reporte_Tecnico_Ecuador_${yyyymmdd}.xlsx`);
+  }
+
+  private sanitizarNombreHoja(nombre: string): string {
+    return nombre.replace(/[\\\/\?\*\[\]\:]/g, '').substring(0, 31).trim();
   }
 }
