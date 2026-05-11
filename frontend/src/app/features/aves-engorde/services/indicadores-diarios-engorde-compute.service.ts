@@ -134,7 +134,16 @@ export class IndicadoresDiariosEngordeComputeService {
       const difPesoVsTablaPct =
         pesoTablaG > 0 && pesoReal > 0 ? ((pesoReal - pesoTablaG) / pesoTablaG) * 100 : 0;
 
-      avesTotal = Math.max(0, avesTotal - mort - sel - errH - errM);
+      // Despachos del día desde metadata de seguimiento (lotes con sistema de despacho antiguo).
+      const despachosDia = regs.reduce((s, r) => {
+        const meta = (r as any).metadata as Record<string, unknown> | null | undefined;
+        if (!meta || typeof meta !== 'object') return s;
+        const dh = Number(meta['despachoHembras'] ?? meta['despachoH'] ?? meta['despacho_hembra'] ?? 0) || 0;
+        const dm = Number(meta['despachoMachos'] ?? meta['despachoM'] ?? meta['despacho_macho'] ?? 0) || 0;
+        return s + dh + dm;
+      }, 0);
+
+      avesTotal = Math.max(0, avesTotal - mort - sel - errH - errM - despachosDia);
 
       const avesFin = avesTotal;
       const mortAcumPct = inicialAves > 0 ? ((inicialAves - avesFin) / inicialAves) * 100 : 0;
@@ -143,6 +152,7 @@ export class IndicadoresDiariosEngordeComputeService {
         fechaYmd: ymd,
         dia,
         avesInicioDia: avesInicio,
+        avesFinDia: avesFin,
         avesHembrasInicioDia: 0,
         avesMachosInicioDia: 0,
         mixtoSinDesgloseSexo,
