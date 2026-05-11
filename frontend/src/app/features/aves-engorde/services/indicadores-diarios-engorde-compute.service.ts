@@ -7,7 +7,7 @@ import {
   GuiaGeneticaEcuadorDetalleDto,
   GuiaGeneticaEcuadorService
 } from '../../config/guia-genetica-ecuador/guia-genetica-ecuador.service';
-import { IndicadorDiarioFila } from '../../lote-levante/services/indicadores-diarios.models';
+import { IndicadorDiarioFilaEngorde } from './indicadores-diarios-engorde.models';
 
 interface MetadataItem {
   unidad?: string;
@@ -16,7 +16,7 @@ interface MetadataItem {
 }
 
 export interface IndicadoresDiariosEngordeComputeResult {
-  filas: IndicadorDiarioFila[];
+  filas: IndicadorDiarioFilaEngorde[];
   errorGuia: string | null;
   guiaOk: boolean;
   etiquetaGuiaCargada: string;
@@ -90,7 +90,7 @@ export class IndicadoresDiariosEngordeComputeService {
     let acumMix = 0;
     let ultimoPesoMedido = pesoIni;
 
-    const out: IndicadorDiarioFila[] = [];
+    const out: IndicadorDiarioFilaEngorde[] = [];
 
     for (const { ymd, regs } of diasOrdenados) {
       const fechaRef = regs[0]?.fechaRegistro ?? ymd;
