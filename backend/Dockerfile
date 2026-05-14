@@ -36,6 +36,14 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS restore
 WORKDIR /src
 
+# Cert corporativo opcional — solo activo en Windows con SSL inspection (ej. Kaspersky)
+# En Mac: secret no provisto → bloque sin efecto. En Windows: cert inyectado antes del restore.
+RUN --mount=type=secret,id=corporate_ca,required=false \
+    if [ -f /run/secrets/corporate_ca ] && [ -s /run/secrets/corporate_ca ]; then \
+      cp /run/secrets/corporate_ca /usr/local/share/ca-certificates/corporate-ca.crt && \
+      update-ca-certificates; \
+    fi
+
 # Copiar solución y archivos .csproj para optimizar cache de restore
 COPY ./ZooSanMarino.sln ./
 COPY ./src/ZooSanMarino.API/ZooSanMarino.API.csproj ./src/ZooSanMarino.API/

@@ -69,10 +69,26 @@ if ! $AWS_CMD ecr get-login-password --region $REGION | $DOCKER_CMD login --user
 fi
 success "Login exitoso"
 
-# Build y push (igual que backend: buildx --push)
+# Build + Push
 log "2/7) Building imagen para linux/amd64..."
-if ! $DOCKER_CMD buildx build --platform linux/amd64 --provenance=false --sbom=false -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest --push .; then
-    error "Fallo en docker buildx build/push"
+
+# Cert corporativo opcional: se pasa solo si existe (Windows/Kaspersky). En Mac se omite.
+SECRET_ARG=""
+if [ -f "$DEPLOY_DIR/corporate-ca.crt" ] && [ -s "$DEPLOY_DIR/corporate-ca.crt" ]; then
+    SECRET_ARG="--secret id=corporate_ca,src=$DEPLOY_DIR/corporate-ca.crt"
+    log "Cert corporativo detectado — se inyectará en el build"
+fi
+
+if ! $DOCKER_CMD build --platform linux/amd64 $SECRET_ARG -t ${ECR_URI}:${TAG} -t ${ECR_URI}:latest .; then
+    error "Fallo en docker build"
+fi
+
+log "Pusheando imagen a ECR..."
+if ! $DOCKER_CMD push ${ECR_URI}:${TAG}; then
+    error "Fallo en docker push (tag)"
+fi
+if ! $DOCKER_CMD push ${ECR_URI}:latest; then
+    error "Fallo en docker push (latest)"
 fi
 success "Imagen pusheada"
 

@@ -1,3 +1,6 @@
+# Certificado corporativo local (Kaspersky SSL inspection — solo Windows, no commitear)
+**/corporate-ca.crt
+
 # Dependencies
 frontend/package-lock.json
 node_modules/

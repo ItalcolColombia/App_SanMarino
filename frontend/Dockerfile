@@ -2,6 +2,15 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
+# Cert corporativo opcional — solo activo en Windows con SSL inspection (ej. Kaspersky)
+RUN --mount=type=secret,id=corporate_ca,required=false \
+    touch /tmp/corporate-ca.crt && \
+    if [ -f /run/secrets/corporate_ca ] && [ -s /run/secrets/corporate_ca ]; then \
+      cat /run/secrets/corporate_ca >> /etc/ssl/certs/ca-certificates.crt && \
+      cp /run/secrets/corporate_ca /tmp/corporate-ca.crt; \
+    fi
+ENV NODE_EXTRA_CA_CERTS=/tmp/corporate-ca.crt
+
 # Instalar yarn de forma más eficiente
 RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
@@ -19,6 +28,15 @@ RUN yarn install \
 # ---------- build (optimizado) ----------
 FROM node:20-alpine AS build
 WORKDIR /app
+
+# Cert corporativo opcional — Angular descarga Google Fonts durante el build
+RUN --mount=type=secret,id=corporate_ca,required=false \
+    touch /tmp/corporate-ca.crt && \
+    if [ -f /run/secrets/corporate_ca ] && [ -s /run/secrets/corporate_ca ]; then \
+      cat /run/secrets/corporate_ca >> /etc/ssl/certs/ca-certificates.crt && \
+      cp /run/secrets/corporate_ca /tmp/corporate-ca.crt; \
+    fi
+ENV NODE_EXTRA_CA_CERTS=/tmp/corporate-ca.crt
 
 # Copiar dependencias y código fuente
 COPY --from=deps /app/node_modules ./node_modules
