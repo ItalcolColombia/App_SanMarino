@@ -9,7 +9,7 @@ public class ProduccionAvicolaRawConfiguration : IEntityTypeConfiguration<Produc
 {
     public void Configure(EntityTypeBuilder<ProduccionAvicolaRaw> builder)
     {
-        builder.ToTable("produccion_avicola_raw");
+        builder.ToTable("guia_genetica_sanmarino_colombia");
 
         // Clave primaria
         builder.HasKey(x => x.Id);
@@ -228,12 +228,12 @@ public class ProduccionAvicolaRawConfiguration : IEntityTypeConfiguration<Produc
 
         // Índices para mejorar rendimiento en búsquedas
         builder.HasIndex(x => x.AnioGuia)
-            .HasDatabaseName("ix_produccion_avicola_raw_anio_guia");
+            .HasDatabaseName("ix_guia_genetica_sanmarino_colombia_anio_guia");
 
         builder.HasIndex(x => x.Raza)
-            .HasDatabaseName("ix_produccion_avicola_raw_raza");
+            .HasDatabaseName("ix_guia_genetica_sanmarino_colombia_raza");
 
         builder.HasIndex(x => x.CompanyId)
-            .HasDatabaseName("ix_produccion_avicola_raw_company_id");
+            .HasDatabaseName("ix_guia_genetica_sanmarino_colombia_company_id");
     }
 }

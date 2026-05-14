@@ -85,27 +85,26 @@
           <ng-container *ngIf="polloModo === 'unLote'">
             <div class="ie-filters">
 
-              <!-- Cascada Granja → Núcleo → Galpón -->
-              <div class="ie-filters__section-label">Cascada de selección</div>
+              <!-- Fila 1: Granja / Núcleo / Galpón -->
               <div class="ie-grid ie-grid--3">
                 <div class="ie-field">
                   <label class="ie-label">🏭 Granja</label>
                   <select [(ngModel)]="peGranjaId" (ngModelChange)="onPeGranjaChange()" class="ie-input">
-                    <option [ngValue]="null">Seleccione granja</option>
+                    <option [ngValue]="null">— Seleccione granja —</option>
                     <option *ngFor="let f of peFarms" [ngValue]="f.id">{{ f.name }}</option>
                   </select>
                 </div>
                 <div class="ie-field">
                   <label class="ie-label">📍 Núcleo</label>
                   <select [(ngModel)]="peNucleoId" (ngModelChange)="onPeNucleoChange()" class="ie-input" [disabled]="!peGranjaId">
-                    <option [ngValue]="null">Todos los núcleos</option>
+                    <option [ngValue]="null">— Todos —</option>
                     <option *ngFor="let n of peNucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre || n.nucleoId }}</option>
                   </select>
                 </div>
                 <div class="ie-field">
                   <label class="ie-label">🐔 Galpón</label>
                   <select [(ngModel)]="peGalponId" (ngModelChange)="onPeGalponChange()" class="ie-input" [disabled]="!peGranjaId">
-                    <option [ngValue]="null">Todos los galpones</option>
+                    <option [ngValue]="null">— Todos —</option>
                     <option *ngFor="let g of peGalpones" [ngValue]="g.galponId">{{ g.galponNombre || g.galponId }}</option>
                   </select>
                 </div>
@@ -121,6 +120,30 @@
                     <span class="ie-check-pill__sub">Lista todos los lotes con aves = 0 dentro de granja / núcleo / galpón seleccionado</span>
                   </span>
                 </label>
+              </div>
+
+              <!-- Fila 2: Año / Corrida / Lote a buscar — solo visible cuando "Todos los lotes liquidados" está activo -->
+              <div class="ie-grid ie-grid--3" *ngIf="peTodosLotesLiquidados">
+                <div class="ie-field">
+                  <label class="ie-label">📅 Año</label>
+                  <select [(ngModel)]="selectedAnio" (ngModelChange)="onFiltroAnioChange($event)" class="ie-input">
+                    <option [ngValue]="null">— Todos los años —</option>
+                    <option *ngFor="let a of aniosDisponibles" [ngValue]="a">{{ a }}</option>
+                  </select>
+                </div>
+                <div class="ie-field">
+                  <label class="ie-label">🔢 Corrida</label>
+                  <select [(ngModel)]="selectedCorrida" (ngModelChange)="onFiltroCorreidaChange($event)"
+                          class="ie-input" [disabled]="!selectedAnio">
+                    <option [ngValue]="null">— Todas —</option>
+                    <option *ngFor="let c of corridasDisponibles" [ngValue]="c">{{ c }}</option>
+                  </select>
+                </div>
+                <div class="ie-field">
+                  <label class="ie-label">🔍 Lote a buscar</label>
+                  <input type="text" [ngModel]="loteConvertido" [disabled]="true" class="ie-input ie-input--readonly"
+                         placeholder="Ej: 2601">
+                </div>
               </div>
 
               <!-- Filtro tiempo encasetamiento -->
@@ -416,6 +439,11 @@
           </div>
           <div class="ie-card__actions">
             <span class="ie-badge ie-badge--green">{{ resultadoLiquidacionPollo.items.length }} lotes</span>
+            <button type="button" class="ie-btn ie-btn--primary ie-btn--sm"
+              (click)="exportarExcel()"
+              [disabled]="!resultadoLiquidacionPollo || !resultadoLiquidacionPollo.items.length">
+              📥 Descargar Reporte
+            </button>
             <button type="button" class="ie-btn ie-btn--ghost ie-btn--sm"
               (click)="mostrarLiquidacionPollo = false; resultadoLiquidacionPollo = null; tabActivaLiquidacion = 'consolidado'">
               ✕ Cerrar
@@ -627,80 +655,117 @@
               <span class="ie-badge ie-badge--closed">Liquidado</span>
             </div>
 
-            <!-- KPIs en tarjetas visuales -->
-            <div class="ie-lote-kpis">
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Aves encasetadas</span>
-                <span class="ie-lote-kpi__val">{{ it.indicador.avesEncasetadas | number:'1.0-0' }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--orange">
-                <span class="ie-lote-kpi__label">Aves vendidas</span>
-                <span class="ie-lote-kpi__val">{{ it.indicador.avesSacrificadas | number:'1.0-0' }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--orange">
-                <span class="ie-lote-kpi__label">Mortalidad</span>
-                <span class="ie-lote-kpi__val">{{ it.indicador.mortalidad | number:'1.0-0' }} ({{ formatearPorcentaje(it.indicador.mortalidadPorcentaje) }})</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Supervivencia</span>
-                <span class="ie-lote-kpi__val">{{ formatearPorcentaje(it.indicador.supervivenciaPorcentaje) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--blue">
-                <span class="ie-lote-kpi__label">Consumo total (kg)</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.consumoTotalAlimentoKg, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--blue">
-                <span class="ie-lote-kpi__label">Consumo ave (g)</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.consumoAveGramos, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Kg carne pollo</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.kgCarnePollos, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Peso promedio (kg)</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.pesoPromedioKilos, 3) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--orange">
-                <span class="ie-lote-kpi__label">Conversión</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.conversion, 3) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--yellow">
-                <span class="ie-lote-kpi__label">Conv. ajustada ({{ it.indicador.pesoAjusteVariable | number:'1.0-1' }}/{{ it.indicador.divisorAjusteVariable | number:'1.0-1' }})</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.conversionAjustada2700, 3) }}</span>
-              </div>
-              <div class="ie-lote-kpi">
-                <span class="ie-lote-kpi__label">Edad (días, ciclo)</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.edadPromedio, 1) }} d</span>
-              </div>
-              <div class="ie-lote-kpi">
-                <span class="ie-lote-kpi__label">Metros cuadrados</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.metrosCuadrados, 0) }} m²</span>
-              </div>
-              <div class="ie-lote-kpi">
-                <span class="ie-lote-kpi__label">Aves / m²</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.avesPorMetroCuadrado, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi">
-                <span class="ie-lote-kpi__label">Kg / m²</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.kgPorMetroCuadrado, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Efic. americana</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.eficienciaAmericana, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Efic. europea</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.eficienciaEuropea, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--green">
-                <span class="ie-lote-kpi__label">Í. Productividad</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.indiceProductividad, 2) }}</span>
-              </div>
-              <div class="ie-lote-kpi ie-lote-kpi--blue">
-                <span class="ie-lote-kpi__label">Ganancia / día (g)</span>
-                <span class="ie-lote-kpi__val">{{ formatearNumero(it.indicador.gananciaDia, 2) }}</span>
-              </div>
+            <!-- Detalle del lote — tabla estilo Consolidado -->
+            <div class="ie-matrix-wrap">
+              <table class="ie-matrix">
+                <thead>
+                  <tr class="ie-matrix__brand-row">
+                    <th colspan="2">ECUADOR ITALCOL — Liquidación Técnica · {{ it.loteNombre || ('Lote ' + it.loteAveEngordeId) }}</th>
+                  </tr>
+                  <tr>
+                    <th class="ie-matrix__indicator-col">Indicador</th>
+                    <th style="text-align:right;min-width:160px;">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Granja</td>
+                    <td class="num">{{ it.indicador.granjaNombre }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Galpón</td>
+                    <td class="num">{{ it.indicador.galponNombre || it.indicador.galponId || '—' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Fecha encasetamiento</td>
+                    <td class="num">{{ it.indicador.fechaInicioLote ? formatearFechaLote(it.indicador.fechaInicioLote) : '—' }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Fecha cierre</td>
+                    <td class="num">{{ it.indicador.fechaCierreLote ? formatearFechaLote(it.indicador.fechaCierreLote) : '—' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Aves encasetadas</td>
+                    <td class="num">{{ it.indicador.avesEncasetadas | number:'1.0-0' }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Aves vendidas / despacho</td>
+                    <td class="num">{{ it.indicador.avesSacrificadas | number:'1.0-0' }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Mortalidad (unidades)</td>
+                    <td class="num">{{ it.indicador.mortalidad | number:'1.0-0' }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Mortalidad (%)</td>
+                    <td class="num">{{ formatearPorcentaje(it.indicador.mortalidadPorcentaje) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Supervivencia (%)</td>
+                    <td class="num text-success">{{ formatearPorcentaje(it.indicador.supervivenciaPorcentaje) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Consumo total alimento (kg)</td>
+                    <td class="num">{{ formatearNumero(it.indicador.consumoTotalAlimentoKg, 2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Consumo ave (g)</td>
+                    <td class="num">{{ formatearNumero(it.indicador.consumoAveGramos, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Kg carne pollo</td>
+                    <td class="num">{{ formatearNumero(it.indicador.kgCarnePollos, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__green">
+                    <td class="ie-matrix__indicator-col">Peso promedio (kg)</td>
+                    <td class="num font-bold">{{ formatearNumero(it.indicador.pesoPromedioKilos, 3) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe ie-matrix__red">
+                    <td class="ie-matrix__indicator-col">Conversión</td>
+                    <td class="num">{{ formatearNumero(it.indicador.conversion, 3) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__yellow ie-matrix__red">
+                    <td class="ie-matrix__indicator-col">Conv. ajustada ({{ it.indicador.pesoAjusteVariable | number:'1.0-1' }}/{{ it.indicador.divisorAjusteVariable | number:'1.0-1' }})</td>
+                    <td class="num">{{ formatearNumero(it.indicador.conversionAjustada2700, 3) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Edad (días, ciclo)</td>
+                    <td class="num">{{ formatearNumero(it.indicador.edadPromedio, 1) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Metros cuadrados</td>
+                    <td class="num">{{ formatearNumero(it.indicador.metrosCuadrados, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Aves / m²</td>
+                    <td class="num">{{ formatearNumero(it.indicador.avesPorMetroCuadrado, 2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Kg / m²</td>
+                    <td class="num">{{ formatearNumero(it.indicador.kgPorMetroCuadrado, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Eficiencia americana</td>
+                    <td class="num">{{ formatearNumero(it.indicador.eficienciaAmericana, 2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Eficiencia europea</td>
+                    <td class="num">{{ formatearNumero(it.indicador.eficienciaEuropea, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__green ie-matrix__red">
+                    <td class="ie-matrix__indicator-col">Í. Productividad</td>
+                    <td class="num">{{ formatearNumero(it.indicador.indiceProductividad, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Ganancia / día (g)</td>
+                    <td class="num">{{ formatearNumero(it.indicador.gananciaDia, 2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Conv. tabla según peso (guía)</td>
+                    <td class="num" style="color:var(--gray-400);">—</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </ng-container>

@@ -70,7 +70,7 @@
         <tr *ngFor="let row of filas" [ngClass]="faseDiaClass(row.dia)">
           <td>{{ formatDMY(row.fechaYmd) }}</td>
           <td>{{ row.dia }}</td>
-          <td class="indicadores-diarios__num">{{ row.avesInicioDia | number:'1.0-0' }}</td>
+          <td class="indicadores-diarios__num">{{ row.avesFinDia | number:'1.0-0' }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--reg">{{ formatNum(row.pesoRealG, 0) }}</td>
           <td class="indicadores-diarios__num indicadores-diarios__cell--guia">{{ formatNum(row.pesoTablaG, 0) }}</td>
           <td class="indicadores-diarios__cell--tag"><span [class]="tagClass(tagPeso(row))">{{ tagLabel(tagPeso(row)) }}</span></td>

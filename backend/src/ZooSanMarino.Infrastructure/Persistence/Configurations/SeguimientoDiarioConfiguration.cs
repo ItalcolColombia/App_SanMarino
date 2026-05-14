@@ -9,7 +9,7 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
 {
     public void Configure(EntityTypeBuilder<SeguimientoDiario> b)
     {
-        b.ToTable("seguimiento_diario", "public");
+        b.ToTable("seguimiento_diario_levante_reproductoras", "public");
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasColumnName("id");
 

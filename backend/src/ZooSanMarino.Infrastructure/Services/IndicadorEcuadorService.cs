@@ -372,7 +372,47 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             return new LiquidacionPolloEngordeReporteDto("Rango", items);
         }
 
-        throw new InvalidOperationException("Modo debe ser UnLote o Rango.");
+        if (string.Equals(request.Modo, "TodosLiquidados", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!request.GranjaId.HasValue || request.GranjaId.Value <= 0)
+                throw new InvalidOperationException("GranjaId es obligatorio para modo TodosLiquidados.");
+
+            var query = _context.LoteAveEngorde
+                .AsNoTracking()
+                .Include(l => l.Farm)
+                .Include(l => l.Galpon)
+                .Where(l => l.CompanyId == _currentUser.CompanyId &&
+                            l.DeletedAt == null &&
+                            l.GranjaId == request.GranjaId.Value);
+
+            if (!string.IsNullOrWhiteSpace(request.NucleoId))
+                query = query.Where(l => l.NucleoId == request.NucleoId);
+
+            if (!string.IsNullOrWhiteSpace(request.GalponId))
+                query = query.Where(l => l.GalponId == request.GalponId);
+
+            if (!string.IsNullOrWhiteSpace(request.LoteCodigo))
+                query = query.Where(l => l.LoteNombre != null && l.LoteNombre.StartsWith(request.LoteCodigo));
+
+            var lotes = await query.OrderBy(l => l.LoteNombre).ToListAsync(ct).ConfigureAwait(false);
+
+            foreach (var lote in lotes)
+            {
+                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                if (ind == null)
+                    continue;
+                var id = lote.LoteAveEngordeId ?? 0;
+                items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
+            }
+
+            if (items.Count == 0)
+                throw new InvalidOperationException(
+                    "No hay lotes liquidados (aves = 0) en el alcance seleccionado. Ajuste granja, núcleo, galpón o código de lote.");
+
+            return new LiquidacionPolloEngordeReporteDto("TodosLiquidados", items);
+        }
+
+        throw new InvalidOperationException("Modo debe ser UnLote, Rango o TodosLiquidados.");
     }
 
     /// <summary>

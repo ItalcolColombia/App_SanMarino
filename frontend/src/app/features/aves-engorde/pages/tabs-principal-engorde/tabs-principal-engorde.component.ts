@@ -205,8 +205,11 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     const saldoPorSegId = saldoCalc?.porSegId ?? null;
     this.advertenciaSaldoSinIngresoPrevio = !!saldoCalc?.sinIngresoPrevioAlPrimerConsumo;
 
+    // Ventas de aves (VENTA_AVES) agrupadas por fecha para descontar del saldo vivo
+    const ventasAvesPorFecha = this.computeVentasAvesPorFecha();
+
     const inicial = this.avesInicialesLote();
-    let acumTodasPerdidas = 0;
+    let saldoActual = inicial;  // saldo corriente: cada día parte del día anterior
     let acumCons = 0;
     const out: RegistroDiarioTablaFilaEngorde[] = [];
 
@@ -219,21 +222,11 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       const erm = seg.errorSexajeMachos ?? 0;
       const totalMortSelDia = mh + mm + selh + selm;
       const perdidasTodasDia = totalMortSelDia + erh + erm;
-      acumTodasPerdidas += perdidasTodasDia;
 
       const ch = Number(seg.consumoKgHembras ?? 0);
       const cm = Number(seg.consumoKgMachos ?? 0);
       const consDia = ch + cm;
       acumCons += consDia;
-
-      const saldo = Math.max(0, inicial - acumTodasPerdidas);
-      const saldoInicioDia = saldo + perdidasTodasDia;
-      const pctPerdidasDia =
-        saldoInicioDia > 0
-          ? (100 * totalMortSelDia) / saldoInicioDia
-          : totalMortSelDia > 0
-            ? 100
-            : null;
 
       const edadDia = this.calcularEdadDias(seg.fechaRegistro);
       const semana = Math.max(1, Math.min(8, Math.ceil((edadDia + 1) / 7)));
@@ -241,10 +234,29 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
       const ymd = this.toYMD(seg.fechaRegistro);
       const agg = ymd && histPorFecha ? histPorFecha.get(ymd) : undefined;
 
-      const metaTras = this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto');
-      const metaDoc = this.metaStr(seg, 'documento', 'documentoAlimento', 'nroDocumento', 'numeroDocumento');
+      // Despachos de seguimiento metadata (lotes con sistema de despacho antiguo)
       const metaDh = this.metaNum(seg, 'despachoHembras', 'despachoH', 'despacho_hembra');
       const metaDm = this.metaNum(seg, 'despachoMachos', 'despachoM', 'despacho_macho');
+
+      // VENTA_AVES del histórico tiene prioridad; fallback a metadata para lotes sin VENTA_AVES.
+      const ventasFromHistorico = ymd ? (ventasAvesPorFecha.get(ymd) ?? 0) : 0;
+      const ventasDelDia = ventasFromHistorico > 0
+        ? ventasFromHistorico
+        : (metaDh ?? 0) + (metaDm ?? 0);
+
+      const perdidoHoy = perdidasTodasDia + ventasDelDia;
+      const saldoInicioDia = saldoActual;          // saldo antes de las pérdidas de hoy
+      saldoActual = Math.max(0, saldoActual - perdidoHoy);
+      const saldo = saldoActual;                   // saldo_anterior - (mort + despachos)
+      const pctPerdidasDia =
+        saldoInicioDia > 0
+          ? (100 * totalMortSelDia) / saldoInicioDia
+          : totalMortSelDia > 0
+            ? 100
+            : null;
+
+      const metaTras = this.metaStr(seg, 'traslado', 'notaTraslado', 'trasladoAlimento', 'textoTraslado', 'trasladoTexto');
+      const metaDoc = this.metaStr(seg, 'documento', 'documentoAlimento', 'nroDocumento', 'numeroDocumento');
 
       let ingresoAlimento = '';
       let traslado = metaTras;
@@ -464,6 +476,18 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     return null;
   }
 
+  private computeVentasAvesPorFecha(): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const h of this.historicoUnificado ?? []) {
+      if (h.anulado || h.tipoEvento !== 'VENTA_AVES') continue;
+      const ymd = this.toYMD(h.fechaOperacion);
+      if (!ymd) continue;
+      const birds = (h.cantidadHembras ?? 0) + (h.cantidadMachos ?? 0) + (h.cantidadMixtas ?? 0);
+      map.set(ymd, (map.get(ymd) ?? 0) + birds);
+    }
+    return map;
+  }
+
   private aggregateHistoricoPorFecha(): Map<string, AggregadoHistoricoDia> {
     const map = new Map<string, AggregadoHistoricoDia>();
     const ensure = (ymd: string): AggregadoHistoricoDia => {
@@ -554,12 +578,35 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   private avesInicialesLote(): number {
     const l = this.selectedLote as Record<string, unknown> | null;
     if (!l) return 0;
+    const av = Number(l['avesEncasetadas'] ?? 0);
     const h = Number(l['hembrasL'] ?? 0);
     const m = Number(l['machosL'] ?? 0);
-    if (h + m > 0) return Math.round(h + m);
-    const av = l['avesEncasetadas'];
-    if (av != null && av !== '') return Math.round(Number(av));
-    return 0;
+    const x = Number(l['mixtas'] ?? 0);
+    const suma = h + m + x;
+
+    if (av > 0 && suma === 0) return av;
+    if (suma > 0 && av === 0) return suma;
+    if (av === suma) return av;
+
+    // av y suma difieren: para lotes Cerrados el saldo final debe ser 0,
+    // por lo que inicial = total pérdidas + total despachos (auto-corrige inconsistencias de BD).
+    const estado = String(l['estadoOperativoLote'] ?? '').trim().toLowerCase();
+    if (estado === 'cerrado') {
+      let totalOut = 0;
+      for (const seg of this.seguimientos) {
+        totalOut += (seg.mortalidadHembras ?? 0) + (seg.mortalidadMachos ?? 0)
+          + (seg.selH ?? 0) + (seg.selM ?? 0)
+          + (seg.errorSexajeHembras ?? 0) + (seg.errorSexajeMachos ?? 0);
+      }
+      for (const ev of this.historicoUnificado ?? []) {
+        if (ev.anulado || ev.tipoEvento !== 'VENTA_AVES') continue;
+        totalOut += (ev.cantidadHembras ?? 0) + (ev.cantidadMachos ?? 0) + (ev.cantidadMixtas ?? 0);
+      }
+      return totalOut > 0 ? totalOut : suma;
+    }
+
+    // Lote Abierto (activo): avesEncasetadas es el campo canónico.
+    return av;
   }
 
   private metaStr(seg: SeguimientoLoteLevanteDto, ...keys: string[]): string {

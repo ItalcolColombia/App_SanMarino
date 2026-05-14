@@ -1,9 +1,10 @@
 // frontend/src/app/features/indicador-ecuador/pages/indicador-ecuador-list/indicador-ecuador-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import * as XLSX from 'xlsx';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import {
   IndicadorEcuadorService,
@@ -57,16 +58,15 @@ export class IndicadorEcuadorListComponent implements OnInit {
   /** Vista: indicadores generales o Pollo Engorde. En Ecuador por defecto Pollo Engorde y el select se deshabilita. */
   vistaIndicador: 'general' | 'polloEngorde' = 'general';
   /** En Ecuador true: select Vista deshabilitado y fijado en Pollo Engorde. */
-  vistaSelectDisabled = false;
+  vistaSelectDisabled: boolean = false;
 
-  // Filtros
+  // Filtros - Vista General
   selectedGranjaId: number | null = null;
   selectedNucleoId: string | null = null;
   selectedGalponId: string | null = null;
   selectedLoteId: number | null = null;
   fechaDesde: string = '';
   fechaHasta: string = '';
-  /** Vista general: GET lotes-cerrados + POST calcular/consolidado. true = cierre en rango (GET) o solo aves=0 (POST). */
   soloLotesCerrados: boolean = true;
   tipoLote: string = 'Todos';
 
@@ -102,6 +102,19 @@ export class IndicadorEcuadorListComponent implements OnInit {
   filtroEncDesde: string = '';
   filtroEncHasta: string = '';
 
+  /** Filtros cronológicos (Año-Corrida) */
+  selectedAnio: string | null = null;
+  selectedCorrida: string | null = null;
+  corridasDisponibles: string[] = [
+    '01', '02', '03', '04', '05', '06',
+    '07', '08', '09', '10', '11', '12'
+  ];
+  /** Código concatenado Año+Corrida — vacío si no hay año seleccionado */
+  get loteConvertido(): string {
+    if (!this.selectedAnio) return '';
+    return this.selectedAnio + (this.selectedCorrida ?? '');
+  }
+
   /** Tab activa en la planilla de resultados: 'consolidado' o loteAveEngordeId. */
   tabActivaLiquidacion: 'consolidado' | number = 'consolidado';
 
@@ -130,15 +143,14 @@ export class IndicadorEcuadorListComponent implements OnInit {
   private allLotes: Array<{ loteId: number; loteNombre: string; granjaId: number; nucleoId?: string | null; galponId?: string | null; fechaEncaset?: string | null }> = [];
 
   // UI
-  loading = false;
-  loadingFilterData = true;
+  loading: boolean = false;
+  loadingFilterData: boolean = true;
   error: string | null = null;
 
-  constructor(
-    private indicadorService: IndicadorEcuadorService,
-    private http: HttpClient,
-    private countryFilter: CountryFilterService
-  ) {}
+  // Inyección moderna
+  private indicadorService = inject(IndicadorEcuadorService);
+  private http = inject(HttpClient);
+  private countryFilter = inject(CountryFilterService);
 
   ngOnInit(): void {
     if (this.countryFilter.isEcuador()) {
@@ -205,6 +217,13 @@ export class IndicadorEcuadorListComponent implements OnInit {
     });
   }
 
+  /** Filtra lotes cuyo nombre comienza con el código Año-Corrida */
+  private aplicarFiltroCronologico(lotes: PeLoteAveEngordeItem[]): PeLoteAveEngordeItem[] {
+    const codigo = this.loteConvertido;
+    if (!codigo) return lotes;
+    return lotes.filter(l => l.loteNombre && l.loteNombre.startsWith(codigo));
+  }
+
   /** Cascada Granja → Núcleo → Galpón → Lote (ave engorde). */
   private applyPeCascade(): void {
     if (!this.peGranjaId) {
@@ -230,6 +249,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
     if (!this.peGalponId) return;
     const gpid = String(this.peGalponId).trim();
     this.peLotesAveEngorde = this.peLotesAveEngorde.filter((l) => String(l.galponId || '').trim() === gpid);
+
+    // Aplicar filtro cronológico (Año-Corrida) al final de la cascada
+    this.peLotesAveEngorde = this.aplicarFiltroCronologico(this.peLotesAveEngorde);
   }
 
   /** Si solo hay un núcleo en la granja, se selecciona solo (flujo Ecuador: núcleo 1 implícito). */
@@ -250,6 +272,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroMesesPollo = [];
     this.filtroEncDesde = '';
     this.filtroEncHasta = '';
+    this.selectedAnio = null;
+    this.selectedCorrida = null;
     this.applyPeCascade();
     this.aplicarNucleoUnicoPorDefecto();
   }
@@ -265,14 +289,32 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.applyPeCascade();
   }
 
+  onFiltroAnioChange(value: string | null): void {
+    this.selectedAnio = value;
+    this.selectedCorrida = null;
+    this.peLoteAveEngordeId = null;
+    this.applyPeCascade();
+  }
+
+  onFiltroCorreidaChange(value: string | null): void {
+    this.selectedCorrida = value;
+    this.peLoteAveEngordeId = null;
+    this.applyPeCascade();
+  }
+
   onPeTodosLotesChange(): void {
     if (this.peTodosLotesLiquidados) {
       this.peLoteAveEngordeId = null;
+    } else {
+      this.selectedAnio = null;
+      this.selectedCorrida = null;
     }
   }
 
   onPolloModoChange(): void {
     this.error = null;
+    this.selectedAnio = null;
+    this.selectedCorrida = null;
   }
 
   onPolloAlcanceChange(): void {
@@ -502,14 +544,15 @@ export class IndicadorEcuadorListComponent implements OnInit {
         if (this.peTodosLotesLiquidados) {
           const res = await firstValueFrom(
             this.indicadorService.liquidacionPolloEngordeReporte({
-              modo: 'UnLote',
+              modo: 'TodosLiquidados',
               loteAveEngordeId: null,
               fechaDesde: null,
               fechaHasta: null,
               alcance: 'TodasLasGranjas',
               granjaId: this.peGranjaId,
               nucleoId: this.peNucleoId || null,
-              galponId: this.peGalponId || null
+              galponId: this.peGalponId || null,
+              loteCodigo: this.loteConvertido || null
             })
           );
           this.resultadoLiquidacionPollo = res;
@@ -703,6 +746,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.filtroMesesPollo = [];
     this.filtroEncDesde = '';
     this.filtroEncHasta = '';
+    this.selectedAnio = null;
+    this.selectedCorrida = null;
     this.tabActivaLiquidacion = 'consolidado';
     this.applyPeCascade();
     this.resultadoLiquidacionPollo = null;
@@ -738,6 +783,18 @@ export class IndicadorEcuadorListComponent implements OnInit {
     const s = new Set<number>();
     this.peLotesAveEngorde.forEach(l => { if (l.fechaEncaset) s.add(new Date(l.fechaEncaset).getFullYear()); });
     return Array.from(s).sort((a, b) => b - a);
+  }
+
+  /** Años disponibles extraídos de TODOS los lotes (sin filtro de cascada) para que el dropdown siempre esté poblado */
+  get aniosDisponibles(): string[] {
+    const s = new Set<string>();
+    this.peAllLotesAveEngorde.forEach(l => {
+      if (l.loteNombre && l.loteNombre.length >= 2) {
+        const year = l.loteNombre.substring(0, 2);
+        if (/^\d{2}$/.test(year)) s.add(year);
+      }
+    });
+    return Array.from(s).sort((a, b) => parseInt(b) - parseInt(a));
   }
 
   get mesesNombres(): Array<{ num: number; nombre: string }> {
@@ -787,5 +844,100 @@ export class IndicadorEcuadorListComponent implements OnInit {
   formatearPorcentaje(valor: number | null | undefined): string {
     if (valor == null) return '-';
     return `${valor.toFixed(2)}%`;
+  }
+
+  exportarExcel(): void {
+    const datos = this.resultadoLiquidacionPollo;
+    if (!datos?.items?.length) return;
+
+    const tot = this.liquidacionTotales();
+    const wb = XLSX.utils.book_new();
+
+    const fn = (v: number | null | undefined, d: number) => this.formatearNumero(v, d);
+    const fp = (v: number | null | undefined) => this.formatearPorcentaje(v);
+    const n0 = (v: number | null | undefined) => (v ?? 0).toLocaleString('es-EC');
+
+    // ── Hoja Consolidado ──────────────────────────────────────────
+    const encCols = datos.items.map(it => this.etiquetaColumnaLiquidacion(it));
+    const fila = (label: string, getter: (r: IndicadorEcuadorDto) => string, totVal: string): string[] =>
+      [label, ...datos.items.map(it => getter(it.indicador)), totVal];
+
+    const first = datos.items[0]?.indicador;
+    const pesoAj = fn(first?.pesoAjusteVariable, 1);
+    const divAj  = fn(first?.divisorAjusteVariable, 1);
+
+    const rowsConsolidado: string[][] = [
+      ['ECUADOR ITALCOL — Liquidación Técnica Pollo Engorde'],
+      ['Indicador', ...encCols, 'TOTAL'],
+      fila('Granja', r => r.granjaNombre, tot?.granjaNombre ?? ''),
+      fila('Aves encasetadas',           r => n0(r.avesEncasetadas),           n0(tot?.avesEncasetadas)),
+      fila('Aves vendidas / despacho',   r => n0(r.avesSacrificadas),          n0(tot?.avesSacrificadas)),
+      fila('Mortalidad (unidades)',       r => n0(r.mortalidad),                n0(tot?.mortalidad)),
+      fila('Mortalidad (%)',              r => fp(r.mortalidadPorcentaje),      fp(tot?.mortalidadPorcentaje)),
+      fila('Supervivencia (%)',           r => fp(r.supervivenciaPorcentaje),   fp(tot?.supervivenciaPorcentaje)),
+      fila('Consumo total alimento (kg)', r => fn(r.consumoTotalAlimentoKg, 2), fn(tot?.consumoTotalAlimentoKg, 2)),
+      fila('Consumo ave (g)',             r => fn(r.consumoAveGramos, 2),       fn(tot?.consumoAveGramos, 2)),
+      fila('Kg carne pollo',             r => fn(r.kgCarnePollos, 2),          fn(tot?.kgCarnePollos, 2)),
+      fila('Peso promedio (kg)',          r => fn(r.pesoPromedioKilos, 3),      fn(tot?.pesoPromedioKilos, 3)),
+      fila('Conversión',                 r => fn(r.conversion, 3),             fn(tot?.conversion, 3)),
+      fila(`Conv. ajustada (${pesoAj}/${divAj})`, r => fn(r.conversionAjustada2700, 3), fn(tot?.conversionAjustada2700, 3)),
+      fila('Edad (días, ciclo)',         r => fn(r.edadPromedio, 1),           fn(tot?.edadPromedio, 1)),
+      fila('Metros cuadrados',           r => fn(r.metrosCuadrados, 2),        fn(tot?.metrosCuadrados, 2)),
+      fila('Aves / m²',                  r => fn(r.avesPorMetroCuadrado, 2),   fn(tot?.avesPorMetroCuadrado, 2)),
+      fila('Kg / m²',                    r => fn(r.kgPorMetroCuadrado, 2),     fn(tot?.kgPorMetroCuadrado, 2)),
+      fila('Eficiencia americana',        r => fn(r.eficienciaAmericana, 2),    fn(tot?.eficienciaAmericana, 2)),
+      fila('Eficiencia europea',          r => fn(r.eficienciaEuropea, 2),      fn(tot?.eficienciaEuropea, 2)),
+      fila('Í. Productividad',           r => fn(r.indiceProductividad, 2),    fn(tot?.indiceProductividad, 2)),
+      fila('Ganancia / día (g)',          r => fn(r.gananciaDia, 2),            fn(tot?.gananciaDia, 2)),
+      fila('Conv. tabla según peso (guía)', _ => '—',                          '—'),
+    ];
+
+    const wsConsolidado = XLSX.utils.aoa_to_sheet(rowsConsolidado);
+    XLSX.utils.book_append_sheet(wb, wsConsolidado, 'Consolidado');
+
+    // ── Hojas individuales por lote ───────────────────────────────
+    for (const it of datos.items) {
+      const ind = it.indicador;
+      const rowsLote: string[][] = [
+        ['Indicador', 'Valor'],
+        ['Granja',                       ind.granjaNombre],
+        ['Galpón',                       ind.galponNombre || ind.galponId || '—'],
+        ['Fecha encasetamiento',         ind.fechaInicioLote ? this.formatearFechaLote(ind.fechaInicioLote) : '—'],
+        ['Fecha cierre',                 ind.fechaCierreLote ? this.formatearFechaLote(ind.fechaCierreLote) : '—'],
+        ['Aves encasetadas',             n0(ind.avesEncasetadas)],
+        ['Aves vendidas / despacho',     n0(ind.avesSacrificadas)],
+        ['Mortalidad (unidades)',         n0(ind.mortalidad)],
+        ['Mortalidad (%)',               fp(ind.mortalidadPorcentaje)],
+        ['Supervivencia (%)',            fp(ind.supervivenciaPorcentaje)],
+        ['Consumo total alimento (kg)', fn(ind.consumoTotalAlimentoKg, 2)],
+        ['Consumo ave (g)',              fn(ind.consumoAveGramos, 2)],
+        ['Kg carne pollo',              fn(ind.kgCarnePollos, 2)],
+        ['Peso promedio (kg)',           fn(ind.pesoPromedioKilos, 3)],
+        ['Conversión',                  fn(ind.conversion, 3)],
+        [`Conv. ajustada (${fn(ind.pesoAjusteVariable, 1)}/${fn(ind.divisorAjusteVariable, 1)})`, fn(ind.conversionAjustada2700, 3)],
+        ['Edad (días, ciclo)',          fn(ind.edadPromedio, 1)],
+        ['Metros cuadrados',            fn(ind.metrosCuadrados, 2)],
+        ['Aves / m²',                   fn(ind.avesPorMetroCuadrado, 2)],
+        ['Kg / m²',                     fn(ind.kgPorMetroCuadrado, 2)],
+        ['Eficiencia americana',         fn(ind.eficienciaAmericana, 2)],
+        ['Eficiencia europea',           fn(ind.eficienciaEuropea, 2)],
+        ['Í. Productividad',            fn(ind.indiceProductividad, 2)],
+        ['Ganancia / día (g)',           fn(ind.gananciaDia, 2)],
+        ['Conv. tabla según peso (guía)', '—'],
+      ];
+
+      const wsLote = XLSX.utils.aoa_to_sheet(rowsLote);
+      const sheetName = this.sanitizarNombreHoja(
+        `${ind.galponNombre || ind.galponId || 'Gal'} ${it.loteNombre || it.loteAveEngordeId}`
+      );
+      XLSX.utils.book_append_sheet(wb, wsLote, sheetName);
+    }
+
+    const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    XLSX.writeFile(wb, `Reporte_Tecnico_Ecuador_${yyyymmdd}.xlsx`);
+  }
+
+  private sanitizarNombreHoja(nombre: string): string {
+    return nombre.replace(/[\\\/\?\*\[\]\:]/g, '').substring(0, 31).trim();
   }
 }
