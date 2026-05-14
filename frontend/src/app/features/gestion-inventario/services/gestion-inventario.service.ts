@@ -484,4 +484,9 @@ export class GestionInventarioService {
     if (activo !== undefined) httpParams = httpParams.set('activo', String(activo));
     return this.http.get<ItemInventarioEcuadorDto[]>(`${this.api}/item-inventario-ecuador`, { params: httpParams });
   }
+
+  /** Obtiene un ítem de inventario Ecuador por su ID. */
+  getItemById(id: number): Observable<ItemInventarioEcuadorDto> {
+    return this.http.get<ItemInventarioEcuadorDto>(`${this.api}/item-inventario-ecuador/${id}`);
+  }
 }

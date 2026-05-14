@@ -531,6 +531,11 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     return !!this.editing && this.hembrasSoloAlimento;
   }
 
+  /** El formulario muestra solo Fecha y Observaciones: en edición o cuando no hay aves disponibles. */
+  get soloFechaObservacion(): boolean {
+    return this.camposCalculoBloqueadosEnEdicion || this.bloqueoAmbosSexosPorAves;
+  }
+
   /**
    * Días transcurridos desde fechaEncaset para la fecha seleccionada. -1 si no aplica.
    */

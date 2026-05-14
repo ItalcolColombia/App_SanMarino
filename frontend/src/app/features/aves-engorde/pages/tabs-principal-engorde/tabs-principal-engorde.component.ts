@@ -65,6 +65,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Input() resumenLevante: LoteMortalidadResumenDto | null = null;
   @Input() loading: boolean = false;
   @Input() disableCreateEditDelete: boolean = false;
+  /** Solo bloquea editar/eliminar (lote cerrado operativamente). No impide crear nuevos registros. */
+  @Input() disableEditDelete: boolean = false;
   @Input() showExportSeguimientoExcel: boolean = false;
   @Input() exportSeguimientoLoteNombre: string = '';
   @Input() historicoUnificado: LoteRegistroHistoricoUnificadoDto[] = [];
