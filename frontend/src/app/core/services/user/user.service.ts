@@ -139,7 +139,7 @@ export class UserService extends BaseHttpService {
 
   /** Restablecer contraseña por administrador */
   adminResetPassword(id: string, newPassword: string): Observable<{ success: boolean; message: string; emailQueueId: number | null; emailQueued: boolean }> {
-    return this.post(`${this.baseUrl}/${id}/admin-reset-password`, { newPassword }, {
+    return this.post(`${this.baseUrl}/${id}/reset-password`, { newPassword }, {
       context: 'UserService.adminResetPassword'
     });
   }
