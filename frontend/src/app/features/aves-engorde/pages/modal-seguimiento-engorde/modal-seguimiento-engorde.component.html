@@ -3,7 +3,7 @@
   <div class="ux-modal__dialog">
     <header class="ux-modal__header">
       <h2 id="seguimiento-modal-title">
-        {{ loadingRecord ? 'Cargando…' : (editing ? 'Editar seguimiento (pollo engorde)' : 'Nuevo seguimiento (pollo engorde)') }}
+        {{ loadingRecord ? 'Cargando…' : (editing ? 'Editar seguimiento (pollo engorde)' : (bloqueoAmbosSexosPorAves ? 'Registro de novedad sin aves (pollo engorde)' : 'Nuevo seguimiento (pollo engorde)')) }}
       </h2>
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
@@ -13,15 +13,26 @@
           <!-- GENERAL -->
           <section class="ux-panel-section">
             <p class="ux-hint" *ngIf="camposCalculoBloqueadosEnEdicion" style="margin: 0 0 1rem 0;">
-              En edición no puede modificar <strong>alimento</strong>, <strong>mortalidad</strong>, <strong>selección</strong> ni <strong>error de sexaje</strong>. Puede actualizar fecha, lote, observaciones, peso, uniformidad, agua y demás campos del registro.
+              En edición solo puede modificar la <strong>Fecha</strong> y las <strong>Observaciones</strong>.
             </p>
+            <div *ngIf="bloqueoAmbosSexosPorAves && !editing" style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:6px;padding:0.85rem 1rem;margin:0 0 1.25rem 0;">
+              <p style="margin:0 0 0.4rem 0;font-weight:700;color:#92400e;">¿Por qué crear un registro sin aves?</p>
+              <p style="margin:0 0 0.5rem 0;color:#78350f;font-size:0.92rem;">
+                Este lote ya no tiene aves disponibles, pero si se realizó un <strong>traslado de alimento</strong> u otro movimiento de inventario en una fecha determinada,
+                ese movimiento <strong>solo aparecerá en la tabla de seguimiento diario</strong> si existe un registro para esa fecha.
+              </p>
+              <p style="margin:0;color:#78350f;font-size:0.92rem;">
+                <strong>¿Qué hacer?</strong> Seleccione la <strong>fecha en que se realizó el traslado</strong>, agregue una observación descriptiva
+                (p. ej. <em>"Traslado de alimento al galpón X"</em>) y guarde. El movimiento quedará visible en la tabla.
+              </p>
+            </div>
             <div class="grid grid-2">
               <div class="form-field">
                 <label for="f-fecha">Fecha</label>
                 <input id="f-fecha" type="date" formControlName="fechaRegistro" />
               </div>
 
-              <div class="form-field">
+              <div class="form-field" *ngIf="!editing">
                 <label for="f-lote">Lote</label>
                 <div class="ux-select">
                   <select id="f-lote" formControlName="loteId">
@@ -38,7 +49,7 @@
             </div>
           </section>
 
-          <section class="ux-panel-section">
+          <section class="ux-panel-section" *ngIf="!soloFechaObservacion">
             <div class="data-group">
               <h3 class="data-group-title">📦 Alimento</h3>
               <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
@@ -172,6 +183,7 @@
           </section>
 
           <!-- AGUA (solo para Ecuador y Panamá) -->
+          <ng-container *ngIf="!soloFechaObservacion">
           <section class="ux-panel-section" *appShowIfEcuadorPanama>
             <div class="data-group">
               <h3 class="data-group-title">💧 Información del Agua</h3>
@@ -239,6 +251,7 @@
               </div>
             </div>
           </section>
+          </ng-container>
       </div>
 
       <footer class="ux-modal__footer">

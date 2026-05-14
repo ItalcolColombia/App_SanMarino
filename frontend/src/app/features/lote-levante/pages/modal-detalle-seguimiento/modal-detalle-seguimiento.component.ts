@@ -1,11 +1,13 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { catchError, finalize, map } from 'rxjs/operators';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faTimes, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { SeguimientoLoteLevanteDto, SeguimientoLoteLevanteService, ItemSeguimientoDto } from '../../services/seguimiento-lote-levante.service';
 import { CatalogoAlimentosService } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
+import { GestionInventarioService } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 
 @Component({
@@ -34,6 +36,8 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
   constructor(
     private seguimientoService: SeguimientoLoteLevanteService,
     private catalogService: CatalogoAlimentosService,
+    private gestionInventarioSvc: GestionInventarioService,
+    private countryFilter: CountryFilterService,
     private cdr: ChangeDetectorRef
   ) {}
 
@@ -93,7 +97,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     if (metadata.itemsHembras && Array.isArray(metadata.itemsHembras)) {
       this.itemsHembras = metadata.itemsHembras.map((item: any) => ({
         tipoItem: item.tipoItem || 'alimento',
-        catalogItemId: item.catalogItemId,
+        catalogItemId: item.catalogItemId ?? item.itemInventarioEcuadorId,
         cantidad: item.cantidad || item.cantidadKg || 0,
         unidad: item.unidad || 'kg'
       }));
@@ -117,7 +121,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     if (metadata.itemsMachos && Array.isArray(metadata.itemsMachos)) {
       this.itemsMachos = metadata.itemsMachos.map((item: any) => ({
         tipoItem: item.tipoItem || 'alimento',
-        catalogItemId: item.catalogItemId,
+        catalogItemId: item.catalogItemId ?? item.itemInventarioEcuadorId,
         cantidad: item.cantidad || item.cantidadKg || 0,
         unidad: item.unidad || 'kg'
       }));
@@ -140,7 +144,7 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
     if (metadata.itemsGenerales && Array.isArray(metadata.itemsGenerales)) {
       this.itemsGenerales = metadata.itemsGenerales.map((item: any) => ({
         tipoItem: item.tipoItem || 'consumible',
-        catalogItemId: item.catalogItemId,
+        catalogItemId: item.catalogItemId ?? item.itemInventarioEcuadorId,
         cantidad: item.cantidad || item.cantidadKg || 0,
         unidad: item.unidad || 'unidades'
       }));
@@ -155,16 +159,26 @@ export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChange
 
   private loadItemNames(): void {
     const ids = new Set<number>();
-    this.itemsHembras.forEach(i => ids.add(i.catalogItemId));
-    this.itemsMachos.forEach(i => ids.add(i.catalogItemId));
-    this.itemsGenerales.forEach(i => ids.add(i.catalogItemId));
+    this.itemsHembras.forEach(i => { if (i.catalogItemId) ids.add(i.catalogItemId); });
+    this.itemsMachos.forEach(i => { if (i.catalogItemId) ids.add(i.catalogItemId); });
+    this.itemsGenerales.forEach(i => { if (i.catalogItemId) ids.add(i.catalogItemId); });
     if (ids.size === 0) return;
 
-    const requests = Array.from(ids).map(id =>
-      this.catalogService.getById(id).pipe(
+    const isEcuador = this.countryFilter.isEcuadorOrPanama();
+
+    const requests = Array.from(ids).map(id => {
+      if (isEcuador) {
+        return this.gestionInventarioSvc.getItemById(id).pipe(
+          map(item => item ? { nombre: item.nombre, codigo: item.codigo } : null),
+          catchError(() => of(null))
+        );
+      }
+      return this.catalogService.getById(id).pipe(
+        map(item => item ? { nombre: item.nombre, codigo: item.codigo } : null),
         catchError(() => of(null))
-      )
-    );
+      );
+    });
+
     forkJoin(requests).pipe(
       finalize(() => this.cdr.markForCheck())
     ).subscribe(results => {

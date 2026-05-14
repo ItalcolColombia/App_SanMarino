@@ -21,7 +21,7 @@ import { NucleoService, NucleoDto } from '../../../lote-levante/services/nucleo.
 import { ModalLiquidacionLoteEngordeComponent } from '../modal-liquidacion-lote-engorde/modal-liquidacion-lote-engorde.component';
 import { ModalCalculosComponent } from '../../../lote-levante/pages/modal-calculos/modal-calculos.component';
 import { ModalSeguimientoEngordeComponent } from '../modal-seguimiento-engorde/modal-seguimiento-engorde.component';
-import { ModalDetalleSeguimientoLevanteComponent } from '../../../lote-levante/pages/modal-detalle-seguimiento/modal-detalle-seguimiento.component';
+import { ModalDetalleSeguimientoEngordeComponent } from '../modal-detalle-seguimiento-engorde/modal-detalle-seguimiento-engorde.component';
 import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
 import { TabsPrincipalEngordeComponent } from '../tabs-principal-engorde/tabs-principal-engorde.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
@@ -45,7 +45,7 @@ import { HasPermissionDirective } from '../../../../core/auth/has-permission.dir
     ModalLiquidacionLoteEngordeComponent,
     ModalCalculosComponent,
     ModalSeguimientoEngordeComponent,
-    ModalDetalleSeguimientoLevanteComponent,
+    ModalDetalleSeguimientoEngordeComponent,
     FiltroSelectComponent,
     TabsPrincipalEngordeComponent,
     ConfirmationModalComponent,
@@ -103,6 +103,18 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     type: 'error',
     confirmText: 'Entendido',
     showCancel: false
+  };
+
+  /** Modal de confirmación para eliminar un registro de seguimiento. */
+  deleteModalOpen = false;
+  private deleteTargetId: number | null = null;
+  readonly deleteModalData: ConfirmationModalData = {
+    title: 'Eliminar registro',
+    message: '¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.',
+    type: 'warning',
+    confirmText: 'Sí, eliminar',
+    cancelText: 'Cancelar',
+    showCancel: true
   };
 
   hasSinGalpon = false;
@@ -469,7 +481,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   }
 
   edit(seg: SeguimientoLoteLevanteDto): void {
-    if (this.noPuedeSeguimiento) return;
+    if (this.loteOperativoCerrado) return;
     // Cargar registro completo (metadata + ítems) para que el modal pueda editar alimentos y el resto
     this.loading = true;
     this.segSvc.getById(seg.id).pipe(finalize(() => (this.loading = false))).subscribe({
@@ -490,8 +502,16 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   }
 
   delete(id: number): void {
-    if (this.noPuedeSeguimiento) return;
-    if (!confirm('¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.')) return;
+    if (this.loteOperativoCerrado) return;
+    this.deleteTargetId = id;
+    this.deleteModalOpen = true;
+  }
+
+  onDeleteConfirmed(): void {
+    const id = this.deleteTargetId;
+    this.deleteModalOpen = false;
+    this.deleteTargetId = null;
+    if (id == null) return;
     this.loading = true;
     this.segSvc.delete(id).subscribe({
       next: () => {
@@ -500,10 +520,19 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
       },
       error: err => {
         this.loading = false;
-        alert(err?.error?.message || err?.message || 'Error al eliminar el registro.');
+        this.errorModalData = {
+          ...this.errorModalData,
+          message: err?.error?.message || err?.message || 'Error al eliminar el registro.'
+        };
+        this.errorModalOpen = true;
         this.onLoteChange(this.selectedLoteId);
       }
     });
+  }
+
+  onDeleteCancelled(): void {
+    this.deleteModalOpen = false;
+    this.deleteTargetId = null;
   }
 
   onSaldosCuadrados(): void {

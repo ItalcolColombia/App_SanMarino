@@ -206,10 +206,10 @@
                     <div class="btn-group">
                       <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
                       <ng-container *appHasPermission="'editar_registro'">
-                        <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableCreateEditDelete" title="Editar">✎</button>
+                        <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
                       </ng-container>
                       <ng-container *appHasPermission="'eliminar_registro'">
-                        <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableCreateEditDelete" title="Eliminar">🗑️</button>
+                        <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
                       </ng-container>
                     </div>
                   </td>

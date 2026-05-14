@@ -136,6 +136,7 @@
       [resumenLevante]="resumenSelected"
       [loading]="loading"
       [disableCreateEditDelete]="noPuedeSeguimiento"
+      [disableEditDelete]="loteOperativoCerrado"
       [showExportSeguimientoExcel]="true"
       [exportSeguimientoLoteNombre]="selectedLoteNombre"
       (create)="create()"
@@ -159,12 +160,11 @@
   (save)="onSave($event)">
 </app-modal-seguimiento-engorde>
 
-<app-modal-detalle-seguimiento-levante
+<app-modal-detalle-seguimiento-engorde
   [isOpen]="detailModalOpen"
   [seguimiento]="editing"
-  [skipFetch]="true"
   (close)="detailModalOpen = false; editing = null;">
-</app-modal-detalle-seguimiento-levante>
+</app-modal-detalle-seguimiento-engorde>
 
 <app-modal-calculos
   [isOpen]="calcsOpen"
@@ -184,6 +184,14 @@
   (close)="closeLiquidacion()"
   (loteActualizado)="onLoteLiquidacionActualizado()">
 </app-modal-liquidacion-lote-engorde>
+
+<app-confirmation-modal
+  [isOpen]="deleteModalOpen"
+  [data]="deleteModalData"
+  (confirmed)="onDeleteConfirmed()"
+  (cancelled)="onDeleteCancelled()"
+  (closed)="onDeleteCancelled()">
+</app-confirmation-modal>
 
 <app-confirmation-modal
   [isOpen]="errorModalOpen"
