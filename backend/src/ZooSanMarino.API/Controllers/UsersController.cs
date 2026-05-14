@@ -134,7 +134,7 @@ public class UsersController : ControllerBase
     // ─────────────────────────────────────────────────────────────────────
     // Restablecer contraseña por administrador (sin requerir contraseña actual)
     // ─────────────────────────────────────────────────────────────────────
-    [HttpPost("{id:guid}/admin-reset-password")]
+    [HttpPost("{id:guid}/reset-password")]
     [ProducesResponseType(typeof(AdminResetPasswordResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
