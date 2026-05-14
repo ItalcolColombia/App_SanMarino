@@ -1,0 +1,21 @@
+{
+  "_comment": "Trust policy para el rol IAM github-actions-deploy. Permite que GitHub Actions asuma este rol SOLO desde el repositorio y rama correctos (OIDC).",
+
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "GitHubActionsOIDC",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::196080479890:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:ItalcolColombia/App_SanMarino:ref:refs/heads/main-produccion"
+        }
+      }
+    }
+  ]
+}
