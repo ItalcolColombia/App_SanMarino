@@ -1,25 +1,46 @@
 # Memoria de Desarrollo — Tracker Activo
 
-**Feature Actual:** BUG — Conciliación de Saldo Inicial de Aves (Pollo Engorde)  
-**Fase Actual:** Correcciones aplicadas — pendiente verificación de datos en BD  
-**Módulo:** `aves-engorde` — `tabs-principal-engorde` + `SeguimientoAvesEngordeService`  
-**Archivo de tarea:** `fase_de_desarrollo/07_bug_conciliacion_saldo_inicial_aves.md`
+**Feature Actual:** Deploy Cross-Platform Mac + Windows  
+**Fase Actual:** Plan definido — pendiente implementación  
+**Módulo:** `Makefile` + `backend/scripts/deploy-backend-ecs.sh` + `frontend/scripts/deploy-frontend-ecs.sh`  
+**Archivo de tarea:** `fase_de_desarrollo/08_deploy_cross_platform.md`
+
+---
+
+> Feature anterior (en espera): BUG Conciliación Saldo Inicial Aves — `fase_de_desarrollo/07_bug_conciliacion_saldo_inicial_aves.md`
 
 > Historial de features completadas: `tracker_historico/`
 
 ---
 
-## Estado de Implementación
+## Estado de Implementación — Deploy Cross-Platform (08)
 
-| ID | Actividad | Estado | Resultado de validación |
-|----|-----------|--------|------------------------|
-| BUG-01 | Verificar `aves_encasetadas` / `hembras_l` / `machos_l` / `mixtas` en lote 2602 (DB) | ⚠️ Bloqueado | Sin acceso a BD en este momento. El código ya usa `aves_encasetadas` correctamente tras BUG-02. Pendiente confirmar valores reales. |
-| BUG-02 | Corregir `avesInicialesLote()` — priorizar `avesEncasetadas` sobre `hembrasL + machosL` | ✅ Validado v2 | Fix refactorizado por regresión en lote 2601. Lotes **Cerrado**: `inicial = Σ(mort+sel+err+VENTA_AVES)` auto-corrige inconsistencias de BD. Lotes **Abierto**: usa `avesEncasetadas`. Si solo uno está poblado o son iguales, usa ese. TS sin errores. |
-| BUG-03 | Auditar seguimientos con `Fecha < FechaEncaset` en backend | ⚠️ Riesgo confirmado en código | `GetByLoteAsync` (L146-150) no filtra por `FechaEncaset`. Si existen registros con fecha anterior al encasetamiento, se acumulan en las pérdidas. No se puede descartar sin inspección de BD. Impacto práctico bajo si los datos son correctos. |
-| BUG-04 | Confirmar valores del registro `Inicio` en `historial_lote_pollo_engorde` | ✅ No aplica a tabla diaria | `HistorialLotePolloEngorde` solo lo usa `GetLiquidacionResumenAsync` (endpoint de liquidación). La tabla diaria usa `avesInicialesLote()` en el frontend, ya corregida en BUG-02. BUG-04 aplica solo si el resumen de liquidación muestra valores incorrectos. |
-| BUG-05 | Descontar despachos (VENTA_AVES) del saldo vivo en `buildDiarioFilas()` | ✅ Validado v2 | Fix ampliado por regresión en lote 2601. Lotes nuevos: `VENTA_AVES` del `historicoUnificado`. Lotes viejos (despachos en metadata de seguimiento): fallback a `metaDh + metaDm`. Prioridad: historicoUnificado > metadata. `metaDh/Dm` movidos antes del cálculo de saldo. Sin doble conteo. TS sin errores. |
+| ID | Tarea | Estado | Notas |
+|----|-------|--------|-------|
+| T1 | Makefile: variables `OPEN_CMD` / `CHECK_PORT` según OS | ⏳ Pendiente | Usar `ifeq ($(OS),Windows_NT)` en Makefile |
+| T2 | `deploy-backend-ecs.sh`: `sed` portable Mac/Linux | ⏳ Pendiente | Reemplazar `sed -i.bak` por bloque `darwin*/else`; eliminar `.bak` |
+| T3 | `deploy-frontend-ecs.sh`: verificar `sed` portable | ✅ Ya implementado | El script ya tiene detección `darwin*/else` en L96-102 |
+| T4 | Limpiar builder `sanmarino-builder` (buildx obsoleto) | ⏳ Pendiente | `docker buildx rm sanmarino-builder` — 1 comando manual |
+
+### Fixes ya aplicados en esta sesión (pre-plan)
+| Fix | Archivo | Descripción |
+|-----|---------|-------------|
+| Endpoint rename | `UsersController.cs` + `user.service.ts` | `admin-reset-password` → `reset-password` (AWS WAF bloqueaba "admin") |
+| make instalado | PowerShell profile | GnuWin32 + PATH + UTF-8 (`chcp 65001`) |
+| buildx → docker build | `deploy-backend-ecs.sh` + `deploy-frontend-ecs.sh` | Evita error TLS de cert corporativo en container buildx |
 
 ---
+
+## Próximos Pasos
+
+1. Implementar T4 (limpiar buildx): `docker buildx rm sanmarino-builder`
+2. Implementar T2 (sed backend): editar `backend/scripts/deploy-backend-ecs.sh`
+3. Implementar T1 (Makefile OS detect): editar `Makefile` raíz
+4. QA: correr `make deploy-all` en Windows → correr en Mac y confirmar ambos OK
+
+---
+
+## Contexto de Feature Anterior (BUG-07 — en espera)
 
 ## Resumen de Correcciones en Código
 
