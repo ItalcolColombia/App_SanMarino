@@ -21,6 +21,7 @@ export interface FilterDataResponse {
     galponId: string | null;
     loteErp?: string | null;
     estadoOperativoLote?: string | null;
+    lotePosturaLevantePadreId?: number | null;
   }>;
 }
 
@@ -113,7 +114,9 @@ export class FiltroSelectComponent implements OnInit {
           nucleoId: l.nucleoId ?? undefined,
           galponId: l.galponId ?? undefined,
           loteErp: l.loteErp ?? undefined,
-          estadoOperativoLote: l.estadoOperativoLote ?? undefined
+          estadoOperativoLote: l.estadoOperativoLote ?? undefined,
+          // Para lotes levante: se usa como lotePadreId para que soloLotesPadres funcione
+          lotePadreId: l.lotePosturaLevantePadreId ?? undefined
         })) as LoteDto[];
         this.galponNameById.clear();
         (data.galpones ?? []).forEach(g => {

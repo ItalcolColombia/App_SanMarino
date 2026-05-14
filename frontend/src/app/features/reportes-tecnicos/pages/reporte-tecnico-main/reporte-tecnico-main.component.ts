@@ -1,12 +1,11 @@
 // src/app/features/reportes-tecnicos/pages/reporte-tecnico-main/reporte-tecnico-main.component.ts
-import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { 
-  faFileExcel, 
-  faFileAlt, 
-  faCalendarDay, 
+import {
+  faFileExcel,
+  faCalendarDay,
   faCalendarWeek,
   faDownload,
   faSpinner,
@@ -15,18 +14,19 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, finalize } from 'rxjs';
 
-import { 
-  ReporteTecnicoService, 
-  ReporteTecnicoLevanteConTabsDto
+import {
+  ReporteTecnicoService,
+  ReporteTecnicoLevanteCompletoDto,
+  ObtenerReporteLevanteRequestDto,
+  ReporteTecnicoProduccionCompletoDto,
+  ObtenerReporteProduccionRequestDto,
+  ReporteTecnicoProduccionTabsDto,
+  ExportarExcelMetaDto
 } from '../../services/reporte-tecnico.service';
-import { TablaDatosDiariosHembrasComponent } from '../../components/tabla-datos-diarios-hembras/tabla-datos-diarios-hembras.component';
-import { TablaDatosDiariosMachosComponent } from '../../components/tabla-datos-diarios-machos/tabla-datos-diarios-machos.component';
+import { ReporteTecnicoLevanteFilterService } from '../../services/reporte-tecnico-levante-filter.service';
 import { TablaLevanteSemanalHembrasComponent } from '../../components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component';
 import { TablaLevanteSemanalMachosComponent } from '../../components/tabla-levante-semanal-machos/tabla-levante-semanal-machos.component';
-import { FiltroSelectComponent, FilterDataResponse } from '../../../lote-levante/pages/filtro-select/filtro-select.component';
-import { FarmDto } from '../../../farm/services/farm.service';
-import { NucleoDto } from '../../../lote-levante/services/nucleo.service';
-import { environment } from '../../../../../environments/environment';
+import { ReportesTabsComponent } from '../../components/reportes-tabs/reportes-tabs.component';
 
 @Component({
   selector: 'app-reporte-tecnico-main',
@@ -35,74 +35,48 @@ import { environment } from '../../../../../environments/environment';
     CommonModule,
     FormsModule,
     FontAwesomeModule,
-    FiltroSelectComponent,
-    TablaDatosDiariosHembrasComponent,
-    TablaDatosDiariosMachosComponent,
     TablaLevanteSemanalHembrasComponent,
-    TablaLevanteSemanalMachosComponent
+    TablaLevanteSemanalMachosComponent,
+    ReportesTabsComponent
   ],
   templateUrl: './reporte-tecnico-main.component.html',
   styleUrls: ['./reporte-tecnico-main.component.scss']
 })
 export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
-  // Iconos
-  faFileExcel = faFileExcel;
-  faFileAlt = faFileAlt;
-  faCalendarDay = faCalendarDay;
+  faFileExcel    = faFileExcel;
+  faCalendarDay  = faCalendarDay;
   faCalendarWeek = faCalendarWeek;
-  faDownload = faDownload;
-  faSpinner = faSpinner;
-  faSearch = faSearch;
-  faFilter = faFilter;
+  faDownload     = faDownload;
+  faSpinner      = faSpinner;
+  faSearch       = faSearch;
+  faFilter       = faFilter;
 
-  // Estado
-  loading = signal(false);
-  reporteLevanteConTabs = signal<ReporteTecnicoLevanteConTabsDto | null>(null);
-  sublotes = signal<string[]>([]);
-  
-  // filter-data: una sola llamada para Granja → Núcleo → Galpón → Lote LPL (lote_postura_levante)
-  readonly filterDataUrl = `${environment.apiUrl}/ReporteTecnico/levante/filter-data`;
-  
-  // Filtros de selección (granja, núcleo, galpón, lote LPL)
-  selectedGranjaId: number | null = null;
-  selectedNucleoId: string | null = null;
-  selectedGalponId: string | null = null;
-  /** ID de lote_postura_levante (LoteId en respuesta filter-data = lotePosturaLevanteId) */
-  selectedLoteId: number | null = null;
-  
-  // Catálogos (desde filter-data)
-  granjas: FarmDto[] = [];
-  nucleos: NucleoDto[] = [];
-  private filterData: FilterDataResponse | null = null;
-  /** Info del lote LPL seleccionado (para display; loteNombre desde filter-data) */
-  selectedLoteInfo: { loteNombre: string } | null = null;
-  
-  // Tab activo interno (Diario Hembras, Diario Machos, Registro Semana Hembras, Registro Semana Machos)
-  tabLevanteActivo: 'hembras' | 'machos' | 'semanal-hembras' | 'semanal-machos' = 'hembras';
+  readonly filterSvc        = inject(ReporteTecnicoLevanteFilterService);
+  private readonly reporteService = inject(ReporteTecnicoService);
 
-  // Filtros de reporte
-  tipoConsolidacion: 'sublote' | 'consolidado' = 'sublote';
-  loteNombreBase: string = '';
-  subloteSeleccionado: string | null = null;
+  loading               = signal(false);
+  reporteLevante        = signal<ReporteTecnicoLevanteCompletoDto | null>(null);
+  reporteProduccion     = signal<ReporteTecnicoProduccionCompletoDto | null>(null);
+  reporteProduccionTabs = signal<ReporteTecnicoProduccionTabsDto | null>(null);
+
+  // Paso 5: tipo de reporte
+  tipoReporte: 'consolidado' | 'sublote' = 'consolidado';
+
+  // Paso 8: fechas
   fechaInicio: string = '';
-  fechaFin: string = '';
-  
-  // UI
-  error: string | null = null;
+  fechaFin: string    = '';
+
+  // Tabs activos
+  tabLevanteActivo: 'semanal-hembras' | 'semanal-machos' | 'reporte-guia' | 'diario' = 'reporte-guia';
+  tabProduccionActivo: 'semanal' | 'diario' = 'semanal';
+
+  error: string | null     = null;
   mostrarFormulas: boolean = false;
 
   private destroy$ = new Subject<void>();
 
-  constructor(private reporteService: ReporteTecnicoService) {}
-
   ngOnInit(): void {
-    this.establecerFechasPorDefecto();
-  }
-
-  onFilterDataLoaded(data: FilterDataResponse): void {
-    this.granjas = data.farms ?? [];
-    this.nucleos = data.nucleos ?? [];
-    this.filterData = data;
+    this.filterSvc.loadFilterData();
   }
 
   ngOnDestroy(): void {
@@ -110,536 +84,297 @@ export class ReporteTecnicoMainComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private establecerFechasPorDefecto(): void {
-    const hoy = new Date();
-    const hace30Dias = new Date();
-    hace30Dias.setDate(hoy.getDate() - 30);
-    
-    this.fechaFin = hoy.toISOString().split('T')[0];
-    this.fechaInicio = hace30Dias.toISOString().split('T')[0];
+  // ── PASO 0: Etapa ────────────────────────────────────────────────────────────
+
+  onEtapaChange(etapa: 'LEVANTE' | 'PRODUCCION'): void {
+    this.filterSvc.setEtapa(etapa);
+    this.tipoReporte = 'consolidado';
+    this.limpiarReporte();
   }
 
-  // ================== EVENTOS DE FILTRO ==================
-  onGranjaChange(granjaId: number | null): void {
-    this.selectedGranjaId = granjaId;
-    this.selectedNucleoId = null;
-    this.selectedGalponId = null;
-    this.selectedLoteId = null;
-    this.selectedLoteInfo = null;
-    this.reporteLevanteConTabs.set(null);
-    if (this.filterData) {
-      const gid = Number(granjaId);
-      this.nucleos = (this.filterData.nucleos ?? []).filter((n: any) => n.granjaId === gid);
-    }
+  // ── PASOS 1-3: Ubicación ─────────────────────────────────────────────────────
+
+  onGranjaChange(id: number | null): void {
+    this.filterSvc.setGranja(id);
+    this.limpiarReporte();
   }
 
-  onNucleoChange(nucleoId: string | null): void {
-    this.selectedNucleoId = nucleoId;
-    this.selectedGalponId = null;
-    this.selectedLoteId = null;
-    this.selectedLoteInfo = null;
-    this.reporteLevanteConTabs.set(null);
+  onNucleoChange(id: string | null): void {
+    this.filterSvc.setNucleo(id);
+    this.limpiarReporte();
   }
 
-  onGalponChange(galponId: string | null): void {
-    this.selectedGalponId = galponId;
-    this.selectedLoteId = null;
-    this.selectedLoteInfo = null;
-    this.reporteLevanteConTabs.set(null);
+  onGalponChange(id: string | null): void {
+    this.filterSvc.setGalpon(id);
+    this.limpiarReporte();
   }
 
-  onLoteChange(loteId: number | null): void {
-    this.selectedLoteId = loteId;
-    this.reporteLevanteConTabs.set(null);
+  // ── PASO 4: Lote Base ────────────────────────────────────────────────────────
 
-    if (!this.selectedLoteId) {
-      this.selectedLoteInfo = null;
-      return;
-    }
-
-    const lote = (this.filterData?.lotes ?? []).find((l: any) => l.loteId === this.selectedLoteId);
-    this.selectedLoteInfo = lote ? { loteNombre: lote.loteNombre } : null;
-    if (lote?.loteNombre) {
-      const nombreBase = this.extraerNombreBase(lote.loteNombre);
-      this.loteNombreBase = nombreBase;
-      this.cargarSublotes(nombreBase);
-    }
+  onLoteBaseChange(id: number | null): void {
+    this.filterSvc.setLoteBase(id);
+    this.limpiarReporte();
   }
 
-  private extraerNombreBase(loteNombre: string): string {
-    // Extraer el nombre base del lote (ej: "K326 A" -> "K326")
-    const partes = loteNombre.trim().split(' ');
-    if (partes.length > 1 && partes[partes.length - 1].length === 1) {
-      // La última parte es probablemente el sublote
-      return partes.slice(0, -1).join(' ');
-    }
-    return loteNombre;
+  // ── PASOS 5-7: Configuración del reporte ─────────────────────────────────────
+
+  onTipoReporteChange(): void {
+    this.filterSvc.setSublote(null);
+    this.limpiarReporte();
   }
 
-  cargarSublotes(loteNombreBase: string): void {
-    this.reporteService.obtenerSublotes(loteNombreBase)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (sublotes) => {
-          this.sublotes.set(sublotes);
-        },
-        error: (err) => {
-          console.error('Error al cargar sublotes:', err);
-        }
-      });
+  onSubloteChange(id: number | null): void {
+    this.filterSvc.setSublote(id);
+    this.limpiarReporte();
   }
+
+  onPeriodicidadChange(p: 'Semanal' | 'Diario'): void {
+    this.filterSvc.setPeriodicidad(p);
+    this.limpiarReporte();
+  }
+
+  // ── Validación y generación ───────────────────────────────────────────────────
 
   puedeGenerarReporte(): boolean {
-    if (!this.selectedLoteId) return false;
-    // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
-    if (this.tipoConsolidacion === 'consolidado' && !this.selectedLoteId && !this.loteNombreBase.trim()) return false;
-    if (!this.fechaInicio || !this.fechaFin) return false;
+    if (!this.filterSvc.selectedLoteBaseId()) return false;
+    if (this.tipoReporte === 'sublote' && !this.filterSvc.selectedSubloteId()) return false;
     return true;
   }
 
   generarReporte(): void {
-    if (!this.validarFiltros()) {
-      return;
+    if (!this.validarFiltros()) return;
+    if (this.filterSvc.selectedEtapa() === 'LEVANTE') {
+      this._generarReporteLevante();
+    } else {
+      this._generarReporteProduccion();
     }
+  }
 
+  private _generarReporteLevante(): void {
     this.loading.set(true);
     this.error = null;
 
-    if (!this.selectedLoteId) {
-      this.error = 'Debe seleccionar un lote';
-      this.loading.set(false);
-      return;
-    }
+    const request: ObtenerReporteLevanteRequestDto = {
+      lotePosturaBaseId: this.filterSvc.selectedLoteBaseId()!,
+      loteLevanteId: this.tipoReporte === 'sublote'
+        ? (this.filterSvc.selectedSubloteId() ?? null)
+        : null,
+      filtroPeriodicidad: this.filterSvc.selectedPeriodicidad(),
+      fechaInicio: this.fechaInicio || null,
+      fechaFin:    this.fechaFin    || null,
+    };
 
-    // Generar reporte con tabs (diario hembras, diario machos, semanal)
-    this.reporteService.generarReporteLevanteConTabs(
-      this.selectedLoteId,
-      this.fechaInicio || undefined,
-      this.fechaFin || undefined,
-      this.tipoConsolidacion === 'consolidado'
-    )
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading.set(false))
-      )
+    this.reporteService.obtenerReporteLevante(request)
+      .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
       .subscribe({
         next: (reporte) => {
-          this.reporteLevanteConTabs.set(reporte);
+          this.reporteLevante.set(reporte);
           this.error = null;
+          this.tabLevanteActivo = this.filterSvc.selectedPeriodicidad() === 'Semanal'
+            ? 'reporte-guia'
+            : 'diario';
         },
         error: (err) => {
-          console.error('Error al generar reporte con tabs:', err);
-          this.error = err.error?.message || 'Error al generar el reporte';
-          this.reporteLevanteConTabs.set(null);
+          this.error = err.error?.message || 'Error al generar el reporte de levante';
+          this.reporteLevante.set(null);
         }
       });
   }
 
-
-  exportarExcel(): void {
-    if (!this.selectedLoteId) {
-      this.error = 'Debe seleccionar un lote primero';
-      return;
-    }
-
+  private _generarReporteProduccion(): void {
     this.loading.set(true);
     this.error = null;
 
-    const fechaInicio = this.fechaInicio ? new Date(this.fechaInicio).toISOString() : null;
-    const fechaFin = this.fechaFin ? new Date(this.fechaFin).toISOString() : null;
+    const request: ObtenerReporteProduccionRequestDto = {
+      lotePosturaBaseId: this.filterSvc.selectedLoteBaseId()!,
+      lotePosturaProduccionId: this.tipoReporte === 'sublote'
+        ? (this.filterSvc.selectedSubloteId() ?? null)
+        : null,
+      filtroPeriodicidad: this.filterSvc.selectedPeriodicidad(),
+      fechaInicio: this.fechaInicio || null,
+      fechaFin:    this.fechaFin    || null,
+    };
 
-    this.reporteService.exportarExcelCompletoLevante(
-      this.selectedLoteId,
-      fechaInicio,
-      fechaFin,
-      this.tipoConsolidacion === 'consolidado'
-    )
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => this.loading.set(false))
-      )
+    this.reporteService.obtenerReporteProduccionTabs(request)
+      .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (blob) => {
-          // Crear URL del blob y descargar
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          
-          // Generar nombre de archivo
-          const loteNombre = (this.selectedLoteInfo?.loteNombre ?? this.reporteLevanteConTabs()?.informacionLote?.loteNombre)?.replace(/\s+/g, '_') || 'Lote';
-          const fecha = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-          link.download = `Reporte_Tecnico_Levante_${loteNombre}_${fecha}.xlsx`;
-          
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          
+        next: (reporte) => {
+          this.reporteProduccionTabs.set(reporte);
           this.error = null;
         },
         error: (err) => {
-          console.error('Error al exportar a Excel:', err);
-          this.error = err.error?.message || 'Error al exportar el archivo Excel';
+          this.error = err.error?.message || 'Error al generar el reporte de producción';
+          this.reporteProduccionTabs.set(null);
         }
       });
+  }
+
+  puedeDescargarExcel(): boolean {
+    const etapa = this.filterSvc.selectedEtapa();
+    if (etapa === 'LEVANTE')    return !!this.reporteLevante();
+    if (etapa === 'PRODUCCION') return !!this.reporteProduccionTabs();
+    return false;
+  }
+
+  exportarExcel(): void {
+    const etapa = this.filterSvc.selectedEtapa();
+    if (etapa === 'LEVANTE')    { this._exportarLevante();    return; }
+    if (etapa === 'PRODUCCION') { this._exportarProduccion(); return; }
+  }
+
+  private _buildMeta(): ExportarExcelMetaDto {
+    const loteInfo = this.reporteLevante()?.informacionLote
+                  ?? this.reporteProduccionTabs()?.loteInfo;
+    return {
+      etapa:             this.filterSvc.selectedEtapa(),
+      loteBaseNombre:    this.filterSvc.selectedLoteNombre() || loteInfo?.loteNombre || 'Lote',
+      loteSubloteNombre: this.tipoReporte === 'sublote'
+        ? (this.filterSvc.selectedSubloteNombre() || null)
+        : null,
+      granjaNombre:      loteInfo?.granjaNombre ?? null,
+      nucleoNombre:      loteInfo?.nucleoNombre ?? null,
+      fechaInicio:       this.fechaInicio || null,
+      fechaFin:          this.fechaFin    || null,
+      totalAvesInicio:   (loteInfo as any)?.numeroHembras
+                      ?? (loteInfo as any)?.numeroHembrasIniciales
+                      ?? null,
+      periodicidad:      this.filterSvc.selectedPeriodicidad(),
+    };
+  }
+
+  private _exportarLevante(): void {
+    if (!this.reporteLevante()) return;
+    this.loading.set(true);
+    this.error = null;
+
+    this.reporteService.exportarExcelLevanteNuevo(this.reporteLevante()!, this._buildMeta())
+      .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (blob) => this._descargarBlob(blob, this._nombreArchivo()),
+        error: (err) => { this.error = err.error?.message || 'Error al exportar Excel'; }
+      });
+  }
+
+  private _exportarProduccion(): void {
+    if (!this.reporteProduccionTabs()) return;
+    this.loading.set(true);
+    this.error = null;
+
+    this.reporteService.exportarExcelProduccionTabs(this.reporteProduccionTabs()!, this._buildMeta())
+      .pipe(takeUntil(this.destroy$), finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: (blob) => this._descargarBlob(blob, this._nombreArchivo()),
+        error: (err) => { this.error = err.error?.message || 'Error al exportar Excel'; }
+      });
+  }
+
+  private _nombreArchivo(): string {
+    const etapa    = this.filterSvc.selectedEtapa();
+    const base     = (this.filterSvc.selectedLoteNombre() || 'LOTE').replace(/\s+/g, '_');
+    const sublote  = this.tipoReporte === 'sublote'
+      ? (this.filterSvc.selectedSubloteNombre() || '').replace(/\s+/g, '_')
+      : '';
+    const ahora    = new Date();
+    const fecha    = ahora.toISOString().slice(0, 10).replace(/-/g, '');
+    const hora     = ahora.toTimeString().slice(0, 8).replace(/:/g, '');
+    return sublote
+      ? `${etapa}_${base}_${sublote}_${fecha}_${hora}.xlsx`
+      : `${etapa}_${base}_${fecha}_${hora}.xlsx`;
+  }
+
+  private _descargarBlob(blob: Blob, filename: string): void {
+    const url  = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href  = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    this.error = null;
   }
 
   private validarFiltros(): boolean {
-    if (this.tipoConsolidacion === 'consolidado') {
-      // Para consolidado, puede usar loteId (nueva lógica) o loteNombreBase (compatibilidad)
-      if (!this.selectedLoteId && !this.loteNombreBase.trim()) {
-        this.error = 'Debe seleccionar un lote o ingresar el nombre del lote base';
-        return false;
-      }
-    } else {
-      if (!this.selectedLoteId) {
-        this.error = 'Debe seleccionar un lote';
-        return false;
-      }
-    }
+    const etapa = this.filterSvc.selectedEtapa();
 
-    if (!this.fechaInicio || !this.fechaFin) {
-      this.error = 'Debe seleccionar fecha de inicio y fin';
+    if (!this.filterSvc.selectedLoteBaseId()) {
+      this.error = 'Debe seleccionar un Lote Base';
       return false;
     }
-    if (new Date(this.fechaInicio) > new Date(this.fechaFin)) {
+    if (this.tipoReporte === 'sublote' && !this.filterSvc.selectedSubloteId()) {
+      this.error = etapa === 'LEVANTE'
+        ? 'Debe seleccionar un sublote para el tipo "Por Sublote"'
+        : 'Debe seleccionar un lote de producción para el tipo "Por Lote"';
+      return false;
+    }
+    if (this.fechaInicio && this.fechaFin && new Date(this.fechaInicio) > new Date(this.fechaFin)) {
       this.error = 'La fecha de inicio debe ser anterior a la fecha de fin';
       return false;
     }
-
     return true;
   }
 
   limpiarReporte(): void {
-    this.reporteLevanteConTabs.set(null);
+    this.reporteLevante.set(null);
+    this.reporteProduccion.set(null);
+    this.reporteProduccionTabs.set(null);
     this.error = null;
   }
 
   formatDate(date: string | Date | null | undefined): string {
     if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
+    return new Date(date).toLocaleDateString('es-ES', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
     });
   }
 
   calcularEdadDias(fechaEncaset: string | Date | null | undefined): number {
     if (!fechaEncaset) return 0;
-    const encaset = new Date(fechaEncaset);
-    const hoy = new Date();
-    const diffTime = hoy.getTime() - encaset.getTime();
+    const encaset  = new Date(fechaEncaset);
+    const diffTime = Date.now() - encaset.getTime();
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  // Getters para nombres
-  get selectedGranjaName(): string {
-    const g = this.granjas.find(x => x.id === this.selectedGranjaId);
-    return g?.name ?? '';
-  }
-
-  get selectedNucleoNombre(): string {
-    const n = this.nucleos.find(x => x.nucleoId === this.selectedNucleoId);
-    return n?.nucleoNombre ?? '';
-  }
-
-  get selectedGalponNombre(): string {
-    // El componente filtro-select maneja esto
-    return '';
-  }
-
-  get selectedLoteNombre(): string {
-    return this.selectedLoteInfo?.loteNombre ?? this.reporteLevanteConTabs()?.informacionLote?.loteNombre ?? '';
-  }
-
-  extraerSublote(loteNombre: string): string {
-    const partes = loteNombre.trim().split(' ');
-    if (partes.length > 1 && partes[partes.length - 1].length === 1) {
-      return partes[partes.length - 1];
+  semaforo(value: number | null | undefined, tipo: 'mort' | 'peso' | 'cons'): Record<string, boolean> {
+    if (value === null || value === undefined || value === 0) return {};
+    switch (tipo) {
+      case 'mort': return { 'cell-danger': value > 0, 'cell-success': value < 0 };
+      case 'peso': return { 'cell-success': value > 0, 'cell-danger': value < 0 };
+      case 'cons': return { 'cell-warning': value > 0.5, 'cell-success': value <= 0 };
+      default:     return {};
     }
-    return '';
   }
 
-  // ================== FÓRMULAS DE REPORTES TÉCNICOS (Estructura Excel) ==================
   get gruposFormulas() {
     return [
       {
         titulo: '📅 Información Básica',
         formulas: [
-          {
-            nombre: 'Edad en Días',
-            formula: 'Fecha Registro - Fecha Encaset'
-          },
-          {
-            nombre: 'Edad en Semanas',
-            formula: 'Edad en Días / 7 (redondeado hacia arriba)'
-          },
-          {
-            nombre: 'Semana del Año',
-            formula: 'Semana del año calendario (ISO 8601)'
-          }
+          { nombre: 'Edad en Días',    formula: 'Fecha Registro - Fecha Encaset' },
+          { nombre: 'Edad en Semanas', formula: 'Edad en Días / 7 (redondeado hacia arriba)' },
+          { nombre: 'Semana del Año',  formula: 'Semana del año calendario (ISO 8601)' }
         ]
       },
       {
-        titulo: '🐔 Cálculos de Eficiencia y Rendimiento - HEMBRAS',
+        titulo: '🐔 Cálculos — HEMBRAS',
         formulas: [
-          {
-            nombre: 'KcalAveH',
-            formula: 'SI(Hembra>0; (KcalAlH*ConsKgH)/(Hembra); 0)'
-          },
-          {
-            nombre: 'ProtAveH',
-            formula: 'SI(Hembra>0; (%ProtAlH*ConsKgH)/(Hembra); 0)'
-          },
-          {
-            nombre: '%RelM/H',
-            formula: 'SI(Hembra>0; (SaldoMacho/Hembra*100); "")'
-          },
-          {
-            nombre: '%MortH',
-            formula: '(MortH/HEMBRAINI)*100'
-          },
-          {
-            nombre: 'DifMortH',
-            formula: '%MortH - %MortHGUIA'
-          },
-          {
-            nombre: '%SelH',
-            formula: '(SelH/HEMBRAINI)*100'
-          },
-          {
-            nombre: '%ErrH',
-            formula: '(ErrorH/HEMBRAINI)*100'
-          },
-          {
-            nombre: 'M+S+EH',
-            formula: 'MortH + SelH + ErrorH'
-          },
-          {
-            nombre: 'RetAcH',
-            formula: 'ACMortH + ACSelH + ACErrH'
-          },
-          {
-            nombre: '%RetiroH',
-            formula: '(RetAcH/HEMBRAINI)*100'
-          },
-          {
-            nombre: 'ConsAcGrH',
-            formula: '(AcConsH*1000)/HEMBRAINI'
-          },
-          {
-            nombre: 'GrAveDiaH',
-            formula: 'SI(Hembra>0; (ConsKgH*1000)/Hembra/7; 0)'
-          },
-          {
-            nombre: 'IncrConsH',
-            formula: 'Diferencia con semana anterior (ConsAcGrH - ConsAcGrH anterior)'
-          },
-          {
-            nombre: '%DifConsH',
-            formula: 'SI(ConsAcGrHGUIA>0; (ConsAcGrH-ConsAcGrHGUIA)/(ConsAcGrHGUIA*100); 0)'
-          },
-          {
-            nombre: '%DifPesoH',
-            formula: 'SI(PesoHGUIA>0; (PesoH-PesoHGUIA)/(PesoHGUIA*100); 0)'
-          }
+          { nombre: '%MortH',    formula: '(MortH/HEMBRAINI)*100' },
+          { nombre: 'DifMortH',  formula: '%MortH - %MortHGUIA' },
+          { nombre: 'ConsAcGrH', formula: '(AcConsH*1000)/HEMBRAINI' },
+          { nombre: 'GrAveDiaH', formula: 'SI(Hembra>0; (ConsKgH*1000)/Hembra/7; 0)' },
+          { nombre: '%DifPesoH', formula: 'SI(PesoHGUIA>0; (PesoH-PesoHGUIA)/(PesoHGUIA*100); 0)' }
         ]
       },
       {
-        titulo: '🐓 Cálculos de Eficiencia y Rendimiento - MACHOS',
+        titulo: '🐓 Cálculos — MACHOS',
         formulas: [
-          {
-            nombre: 'KcalAveM',
-            formula: 'SI(SaldoMacho>0; (KcalAlM*ConsKgM)/(SaldoMacho); 0)'
-          },
-          {
-            nombre: 'ProtAveM',
-            formula: 'SI(SaldoMacho>0; (%ProtAlM*ConsKgM)/(SaldoMacho); 0)'
-          },
-          {
-            nombre: '%MortM',
-            formula: '(MortM/MACHOINI)*100'
-          },
-          {
-            nombre: 'DifMortM',
-            formula: '%MortM - %MortMGUIA'
-          },
-          {
-            nombre: '%SelM',
-            formula: '(SelM/MACHOINI)*100'
-          },
-          {
-            nombre: '%ErrM',
-            formula: '(ErrorM/MACHOINI)*100'
-          },
-          {
-            nombre: 'M+S+EM',
-            formula: 'MortM + SelM + ErrorM'
-          },
-          {
-            nombre: 'RetAcM',
-            formula: 'ACMortM + ACSelM + ACErrM'
-          },
-          {
-            nombre: '%RetAcM',
-            formula: '(RetAcM/MACHOINI)*100'
-          },
-          {
-            nombre: 'ConsAcGrM',
-            formula: '(AcConsM*1000)/MACHOINI'
-          },
-          {
-            nombre: 'GrAveDiaM',
-            formula: 'SI(SaldoMacho>0; (ConsKgM*1000)/SaldoMacho/7; 0)'
-          },
-          {
-            nombre: 'IncrConsM',
-            formula: 'Diferencia con semana anterior (ConsAcGrM - ConsAcGrM anterior)'
-          },
-          {
-            nombre: 'DifConsM',
-            formula: 'ConsAcGrM - ConsAcGrMGUIA'
-          },
-          {
-            nombre: '%DifPesoM',
-            formula: 'SI(PesoMGUIA>0; (PesoM-PesoMGUIA)/(PesoMGUIA*100); 0)'
-          }
-        ]
-      },
-      {
-        titulo: '📊 Valores Acumulados',
-        formulas: [
-          {
-            nombre: 'ACMortH',
-            formula: 'Acumulado de MortH desde inicio del lote'
-          },
-          {
-            nombre: 'ACSelH',
-            formula: 'Acumulado de SelH desde inicio del lote'
-          },
-          {
-            nombre: 'ACErrH',
-            formula: 'Acumulado de ErrorH desde inicio del lote'
-          },
-          {
-            nombre: 'ACMortM',
-            formula: 'Acumulado de MortM desde inicio del lote'
-          },
-          {
-            nombre: 'ACSelM',
-            formula: 'Acumulado de SelM desde inicio del lote'
-          },
-          {
-            nombre: 'ACErrM',
-            formula: 'Acumulado de ErrorM desde inicio del lote'
-          },
-          {
-            nombre: 'AcConsH',
-            formula: 'Acumulado de ConsKgH desde inicio del lote'
-          },
-          {
-            nombre: 'AcConsM',
-            formula: 'Acumulado de ConsKgM desde inicio del lote'
-          },
-          {
-            nombre: 'ErrSexAcH',
-            formula: 'Error de sexaje acumulado hembras (manual)'
-          },
-          {
-            nombre: '%ErrSxAcH',
-            formula: '(ErrSexAcH/HEMBRAINI)*100'
-          },
-          {
-            nombre: 'ErrSexAcM',
-            formula: 'Error de sexaje acumulado machos (manual)'
-          },
-          {
-            nombre: '%ErrSxAcM',
-            formula: '(ErrSexAcM/MACHOINI)*100'
-          }
-        ]
-      },
-      {
-        titulo: '🍽️ Datos Nutricionales y Guía - HEMBRAS',
-        formulas: [
-          {
-            nombre: 'KcalSemH',
-            formula: 'KcalAlH * ConsKgH'
-          },
-          {
-            nombre: 'KcalSemAcH',
-            formula: 'Acumulado de KcalSemH desde inicio'
-          },
-          {
-            nombre: 'ProtSemH',
-            formula: '(%ProtAlH/100) * ConsKgH'
-          },
-          {
-            nombre: 'ProtSemAcH',
-            formula: 'Acumulado de ProtSemH desde inicio'
-          },
-          {
-            nombre: 'DifConsAcH',
-            formula: 'AcConsH - ConsAcGrHGUIA'
-          }
-        ]
-      },
-      {
-        titulo: '🍽️ Datos Nutricionales y Guía - MACHOS',
-        formulas: [
-          {
-            nombre: 'KcalSemM',
-            formula: 'KcalAlM * ConsKgM'
-          },
-          {
-            nombre: 'KcalSemAcM',
-            formula: 'Acumulado de KcalSemM desde inicio'
-          },
-          {
-            nombre: 'ProtSemM',
-            formula: '(%ProtAlM/100) * ConsKgM'
-          },
-          {
-            nombre: 'ProtSemAcM',
-            formula: 'Acumulado de ProtSemM desde inicio'
-          },
-          {
-            nombre: 'DifConsAcM',
-            formula: 'AcConsM - ConsAcGrMGUIA'
-          }
-        ]
-      },
-      {
-        titulo: '📋 Campos Manuales (GUIA)',
-        formulas: [
-          {
-            nombre: 'Campos GUIA',
-            formula: 'Valores de referencia manuales para comparación: %MortHGUIA, RetiroHGUIA, ConsAcGrHGUIA, GrAveDiaGUIAH, PesoHGUIA, UnifHGUIA, etc.'
-          },
-          {
-            nombre: 'Campos Manuales Adicionales',
-            formula: 'CODGUÍA, IDLoteRAP, TRASLADO, NÚCLEOL, AÑON, ALIMHGUÍA, ALIMMGUÍA, Observaciones'
-          }
-        ]
-      },
-      {
-        titulo: '🔄 Cálculo de Saldos',
-        formulas: [
-          {
-            nombre: 'Hembra (Saldo Actual)',
-            formula: 'HEMBRAINI - ACMortH - ACSelH - ACErrH'
-          },
-          {
-            nombre: 'SaldoMacho',
-            formula: 'MACHOINI - ACMortM - ACSelM - ACErrM'
-          },
-          {
-            nombre: 'Nota sobre Traslados',
-            formula: 'Los traslados se registran como valores negativos en SelH/SelM y se restan del saldo'
-          }
+          { nombre: '%MortM',    formula: '(MortM/MACHOINI)*100' },
+          { nombre: 'DifMortM',  formula: '%MortM - %MortMGUIA' },
+          { nombre: 'ConsAcGrM', formula: '(AcConsM*1000)/MACHOINI' },
+          { nombre: 'GrAveDiaM', formula: 'SI(SaldoMacho>0; (ConsKgM*1000)/SaldoMacho/7; 0)' },
+          { nombre: 'DifConsM',  formula: 'ConsAcGrM - ConsAcGrMGUIA' }
         ]
       }
     ];
   }
 }
-

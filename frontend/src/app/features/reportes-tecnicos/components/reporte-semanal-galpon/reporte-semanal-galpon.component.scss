@@ -1,0 +1,59 @@
+@use '../reporte-diario-galpon/reporte-diario-galpon.component' as base;
+
+.reporte-galpon {
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .75rem;
+  }
+}
+
+.galpon-badge {
+  font-weight: 600;
+  font-size: .9rem;
+  background: #e3f2fd;
+  color: #0d47a1;
+  border-radius: 4px;
+  padding: 2px 10px;
+}
+
+.row-count { font-size: .8rem; color: #888; }
+.empty-state { text-align: center; color: #999; padding: 2rem; }
+.table-scroll { overflow-x: auto; }
+
+.rt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+  white-space: nowrap;
+
+  th, td {
+    border: 1px solid #e0e0e0;
+    padding: 4px 8px;
+    text-align: right;
+  }
+
+  thead th {
+    background: #f5f5f5;
+    font-weight: 600;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .thead-group th { background: #0d47a1; color: #fff; }
+  .thead-sub  th  { background: #e3f2fd; color: #0d47a1; font-size: .78rem; }
+
+  .col-real { background: #fff8e1; }
+  .col-guia { background: #fffde7; color: #6d4c00; font-style: italic; }
+  .col-dif  { background: #fafafa; color: #555; font-style: italic; }
+  .text-center { text-align: center; }
+  .font-bold   { font-weight: 600; }
+
+  tbody tr:hover td { background: #e3f2fd22; }
+  .cell-success { background: #c8e6c9 !important; color: #1b5e20; }
+  .cell-warning { background: #fff3e0 !important; color: #e65100; }
+  .cell-danger  { background: #ffcdd2 !important; color: #b71c1c; }
+}

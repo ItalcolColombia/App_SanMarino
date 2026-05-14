@@ -6,7 +6,7 @@ import { SeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguim
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { IndicadoresDiariosEngordeComputeService } from '../../services/indicadores-diarios-engorde-compute.service';
-import { IndicadorDiarioFila } from '../../../lote-levante/services/indicadores-diarios.models';
+import { IndicadorDiarioFilaEngorde } from '../../services/indicadores-diarios-engorde.models';
 
 /** Cuatro gráficas fijas (datos del lote vs guía genética), mismo criterio que la tabla de indicadores diarios. */
 @Component({
@@ -24,7 +24,7 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
   cargando = false;
   errorGuia: string | null = null;
   etiquetaGuia = '';
-  filas: IndicadorDiarioFila[] = [];
+  filas: IndicadorDiarioFilaEngorde[] = [];
 
   chart1Data: ChartData<'bar' | 'line'> = { labels: [], datasets: [] };
   chart1Options: ChartConfiguration['options'] = {};
@@ -82,11 +82,11 @@ export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {
     this.chart4Data = empty as ChartData<'bar'>;
   }
 
-  private labels(filas: IndicadorDiarioFila[]): string[] {
+  private labels(filas: IndicadorDiarioFilaEngorde[]): string[] {
     return filas.map(f => `Día ${f.dia}`);
   }
 
-  private buildAllCharts(filas: IndicadorDiarioFila[]): void {
+  private buildAllCharts(filas: IndicadorDiarioFilaEngorde[]): void {
     if (!this.selectedLote) {
       return;
     }

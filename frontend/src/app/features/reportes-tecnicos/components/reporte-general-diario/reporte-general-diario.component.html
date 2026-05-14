@@ -1,0 +1,60 @@
+@if (datos.length === 0) {
+  <p class="empty-state">Sin datos consolidados para el período seleccionado.</p>
+} @else {
+  <div class="table-scroll">
+    <table class="rt-table">
+      <thead>
+        <tr class="thead-group">
+          <th class="col-sticky" rowspan="2">Fecha</th>
+          <th rowspan="2">Sem.</th>
+          <th rowspan="2">Edad</th>
+          <th rowspan="2">SaldoH</th>
+          <th rowspan="2">SaldoM</th>
+          <th colspan="3">Mortalidad</th>
+          <th colspan="2">Consumo kg</th>
+          <th colspan="2">Huevos</th>
+          <th colspan="3">%Postura</th>
+          <th colspan="2">Peso Huevo (g)</th>
+          <th rowspan="2">Unif.</th>
+          <th rowspan="2" class="col-guia">HTAA G</th>
+        </tr>
+        <tr class="thead-sub">
+          <th>H</th><th>M</th><th>%</th>
+          <th>H</th><th>M</th>
+          <th>Tot</th><th>Inc</th>
+          <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
+          <th class="col-real">Real</th><th class="col-guia">Guía</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of datos; track row.fecha) {
+          <tr>
+            <td class="col-sticky">{{ row.fecha | date:'dd/MM/yy' }}</td>
+            <td class="text-center">{{ row.semanaRelativa }}</td>
+            <td class="text-center">{{ row.edadDias }}</td>
+            <td>{{ row.saldoTotalHembras | number }}</td>
+            <td>{{ row.saldoTotalMachos | number }}</td>
+            <td>{{ row.mortalidadTotalHembras }}</td>
+            <td>{{ row.mortalidadTotalMachos }}</td>
+            <td>{{ fmt(row.porcMortalidadPromedio, 2) }}%</td>
+            <td>{{ fmt(row.consKgHTotalKg) }}</td>
+            <td>{{ fmt(row.consKgMTotalKg) }}</td>
+            <td>{{ row.huevosTotTotal | number }}</td>
+            <td>{{ row.huevosIncTotal | number }}</td>
+            <td [class]="semaforo(row.porcentajePosturaPromedio, row.porcentajePosturaGuia)">
+              {{ fmt(row.porcentajePosturaPromedio) }}%
+            </td>
+            <td class="col-guia">{{ fmt(row.porcentajePosturaGuia) }}</td>
+            <td [class]="classDif(row.difPostura)">{{ fmt(row.difPostura) }}</td>
+            <td [class]="semaforo(row.pesoHuevoPromedio, row.pesoHuevoGuia, 3)">
+              {{ fmt(row.pesoHuevoPromedio) }}
+            </td>
+            <td class="col-guia">{{ fmt(row.pesoHuevoGuia) }}</td>
+            <td>{{ fmt(row.uniformidadPromedio) }}</td>
+            <td class="col-guia">{{ fmt(row.htaaGuia) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

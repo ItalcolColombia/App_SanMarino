@@ -128,7 +128,9 @@ public record LiquidacionPolloEngordeReporteRequest(
     int? GranjaId,
     string? NucleoId,
     /// <summary>Modo UnLote sin lote: filtra lotes liquidados por galpón (opcional).</summary>
-    string? GalponId = null
+    string? GalponId = null,
+    /// <summary>Modo TodosLiquidados: filtra por prefijo YYCC del nombre del lote (opcional). Ej: "2601".</summary>
+    string? LoteCodigo = null
 );
 
 public record LiquidacionPolloEngordeItemDto(

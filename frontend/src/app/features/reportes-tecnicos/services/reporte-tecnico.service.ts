@@ -252,6 +252,46 @@ export class ReporteTecnicoService {
   }
 
   /**
+   * Obtiene reporte técnico de producción navegando desde LotePosturaBase.
+   * Lee desde produccion_diaria. Si lotePosturaProduccionId está presente, genera individual; si no, consolida.
+   */
+  obtenerReporteProduccion(
+    request: ObtenerReporteProduccionRequestDto
+  ): Observable<ReporteTecnicoProduccionCompletoDto> {
+    return this.http.post<ReporteTecnicoProduccionCompletoDto>(
+      `${environment.apiUrl}/ReporteTecnicoProduccion/obtener`,
+      request
+    );
+  }
+
+  /**
+   * Obtiene reporte técnico de producción con sistema de TABs (Fase 4 — SOLO PRODUCCIÓN).
+   * Retorna datos desglosados por galpón + consolidados (general), con valores guía STANDARD.
+   */
+  obtenerReporteProduccionTabs(
+    request: ObtenerReporteProduccionRequestDto
+  ): Observable<ReporteTecnicoProduccionTabsDto> {
+    return this.http.post<ReporteTecnicoProduccionTabsDto>(
+      `${environment.apiUrl}/ReporteTecnicoProduccion/obtener-tabs`,
+      request
+    );
+  }
+
+  /**
+   * Obtiene el reporte de Levante navegando desde LotePosturaBase.
+   * Usa el nuevo endpoint POST /levante/obtener con cruce genético Real vs Guía.
+   * Para pasar LotePosturaBaseId=0, el backend lo resolverá desde LoteLevanteId.
+   */
+  obtenerReporteLevante(
+    request: ObtenerReporteLevanteRequestDto
+  ): Observable<ReporteTecnicoLevanteCompletoDto> {
+    return this.http.post<ReporteTecnicoLevanteCompletoDto>(
+      `${this.baseUrl}/levante/obtener`,
+      request
+    );
+  }
+
+  /**
    * Exporta todos los reportes de Levante a Excel (múltiples hojas)
    */
   exportarExcelCompletoLevante(
@@ -272,12 +312,239 @@ export class ReporteTecnicoService {
 
     return this.http.get(
       `${this.baseUrl}/levante/exportar/excel/${loteId}`,
-      { 
+      {
         params,
         responseType: 'blob'
       }
     );
   }
+
+  exportarExcelLevanteNuevo(
+    reporte: ReporteTecnicoLevanteCompletoDto,
+    meta: ExportarExcelMetaDto
+  ): Observable<Blob> {
+    return this.http.post(
+      `${this.baseUrl}/levante/exportar-excel`,
+      { reporte, meta },
+      { responseType: 'blob' }
+    );
+  }
+
+  exportarExcelProduccionTabs(
+    reporte: ReporteTecnicoProduccionTabsDto,
+    meta: ExportarExcelMetaDto
+  ): Observable<Blob> {
+    return this.http.post(
+      `${environment.apiUrl}/ReporteTecnicoProduccion/exportar-excel-tabs`,
+      { reporte, meta },
+      { responseType: 'blob' }
+    );
+  }
+}
+
+// ========== DTOs Exportación Excel (Fase 5) ==========
+
+export interface ExportarExcelMetaDto {
+  etapa: string;
+  loteBaseNombre: string;
+  loteSubloteNombre?: string | null;
+  granjaNombre?: string | null;
+  nucleoNombre?: string | null;
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
+  totalAvesInicio?: number | null;
+  periodicidad?: string | null;
+}
+
+// ========== DTOs para el nuevo endpoint POST /produccion/obtener ==========
+
+export interface ObtenerReporteProduccionRequestDto {
+  lotePosturaBaseId: number;
+  lotePosturaProduccionId?: number | null;
+  filtroPeriodicidad: 'Semanal' | 'Diario';
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
+}
+
+export interface ReporteTecnicoProduccionLoteInfoDto {
+  loteId: number;
+  loteNombre: string;
+  raza?: string | null;
+  linea?: string | null;
+  fechaInicioProduccion?: string | null;
+  numeroHembrasIniciales?: number | null;
+  numeroMachosIniciales?: number | null;
+  galpon?: number | null;
+  tecnico?: string | null;
+  granjaNombre?: string | null;
+  nucleoNombre?: string | null;
+}
+
+export interface ReporteTecnicoProduccionDiarioDto {
+  dia: number;
+  semana: number;
+  fecha: string;
+  mortalidadHembras: number;
+  mortalidadMachos: number;
+  seleccionHembras: number;
+  seleccionMachos: number;
+  ventasHembras: number;
+  ventasMachos: number;
+  trasladosHembras: number;
+  trasladosMachos: number;
+  saldoHembras: number;
+  saldoMachos: number;
+  huevosTotales: number;
+  porcentajePostura: number;
+  kilosAlimentoHembras: number;
+  kilosAlimentoMachos: number;
+  huevosEnviadosPlanta: number;
+  porcentajeEnviadoPlanta: number;
+  huevosIncubables: number;
+  huevosCargados: number;
+  porcentajeNacimientos?: number | null;
+  ventaHuevo?: number | null;
+  pollitosVendidos?: number | null;
+  pesoHembra?: number | null;
+  pesoMachos?: number | null;
+  pesoHuevo: number;
+  porcentajeGrasaCorporal?: number | null;
+  huevoLimpio: number;
+  huevoTratado: number;
+  huevoSucio: number;
+  huevoDeforme: number;
+  huevoBlanco: number;
+  huevoDobleYema: number;
+  huevoPiso: number;
+  huevoPequeno: number;
+  huevoRoto: number;
+  huevoDesecho: number;
+  huevoOtro: number;
+  porcentajeLimpio?: number | null;
+  porcentajeTratado?: number | null;
+  porcentajeSucio?: number | null;
+  porcentajeDeforme?: number | null;
+  porcentajeBlanco?: number | null;
+  porcentajeDobleYema?: number | null;
+  porcentajePiso?: number | null;
+  porcentajePequeno?: number | null;
+  porcentajeRoto?: number | null;
+  porcentajeDesecho?: number | null;
+  porcentajeOtro?: number | null;
+  huevosTrasladadosTotal: number;
+  huevosTrasladadosLimpio: number;
+  huevosTrasladadosTratado: number;
+  huevosTrasladadosSucio: number;
+  huevosTrasladadosDeforme: number;
+  huevosTrasladadosBlanco: number;
+  huevosTrasladadosDobleYema: number;
+  huevosTrasladadosPiso: number;
+  huevosTrasladadosPequeno: number;
+  huevosTrasladadosRoto: number;
+  huevosTrasladadosDesecho: number;
+  huevosTrasladadosOtro: number;
+}
+
+export interface ReporteTecnicoProduccionSemanalDto {
+  semana: number;
+  fechaInicioSemana: string;
+  fechaFinSemana: string;
+  edadInicioSemanas: number;
+  edadFinSemanas: number;
+  mortalidadHembrasSemanal: number;
+  mortalidadMachosSemanal: number;
+  seleccionHembrasSemanal: number;
+  seleccionMachosSemanal: number;
+  ventasHembrasSemanal: number;
+  ventasMachosSemanal: number;
+  trasladosHembrasSemanal: number;
+  trasladosMachosSemanal: number;
+  saldoInicioHembras: number;
+  saldoFinHembras: number;
+  saldoInicioMachos: number;
+  saldoFinMachos: number;
+  huevosTotalesSemanal: number;
+  porcentajePosturaPromedio: number;
+  kilosAlimentoHembrasSemanal: number;
+  kilosAlimentoMachosSemanal: number;
+  huevosEnviadosPlantaSemanal: number;
+  porcentajeEnviadoPlantaPromedio: number;
+  huevosIncubablesSemanal: number;
+  huevosCargadosSemanal: number;
+  porcentajeNacimientosPromedio?: number | null;
+  ventaHuevoSemanal?: number | null;
+  pollitosVendidosSemanal?: number | null;
+  pesoHembraPromedio?: number | null;
+  pesoMachosPromedio?: number | null;
+  pesoHuevoPromedio: number;
+  porcentajeGrasaCorporalPromedio?: number | null;
+  huevoLimpioSemanal: number;
+  huevoTratadoSemanal: number;
+  huevoSucioSemanal: number;
+  huevoDeformeSemanal: number;
+  huevoBlancoSemanal: number;
+  huevoDobleYemaSemanal: number;
+  huevoPisoSemanal: number;
+  huevoPequenoSemanal: number;
+  huevoRotoSemanal: number;
+  huevoDesechoSemanal: number;
+  huevoOtroSemanal: number;
+  detalleDiario: ReporteTecnicoProduccionDiarioDto[];
+}
+
+export interface ReporteTecnicoProduccionCompletoDto {
+  loteInfo: ReporteTecnicoProduccionLoteInfoDto;
+  datosDiarios: ReporteTecnicoProduccionDiarioDto[];
+  datosSemanales: ReporteTecnicoProduccionSemanalDto[];
+}
+
+// ========== DTOs para el nuevo endpoint POST /levante/obtener ==========
+
+export interface ObtenerReporteLevanteRequestDto {
+  /** ID de lote_postura_base (raíz). Puede ser 0 si loteLevanteId está presente y el backend lo resuelve. */
+  lotePosturaBaseId: number;
+  /** ID de lote_postura_levante (opcional). Si se omite, se consolidan todos los lotes del base. */
+  loteLevanteId?: number | null;
+  /** "Semanal" (semanas 1-25 con cruce genético) | "Diario" (por fecha calendario) */
+  filtroPeriodicidad: 'Semanal' | 'Diario';
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
+}
+
+/** Fila de datos diarios del DTO ReporteTecnicoLevanteCompletoDto.DatosDiarios */
+export interface ReporteTecnicoDiarioLevanteDto {
+  fecha: string;
+  edadDias: number;
+  edadSemanas: number;
+  saldoHembras: number;
+  mortalidadHembras: number;
+  mortalidadHembrasAcumulada: number;
+  porcMortH: number;
+  porcMortHAcumulado: number;
+  selH: number;
+  errorSexajeH: number;
+  consumoKgH: number;
+  consumoKgHAcumulado: number;
+  pesoPromH?: number | null;
+  uniformidadH?: number | null;
+  cvH?: number | null;
+  kcalAlH?: number | null;
+  protAlH?: number | null;
+  kcalAveH?: number | null;
+  protAveH?: number | null;
+  saldoMachos: number;
+  mortalidadMachos: number;
+  mortalidadMachosAcumulada: number;
+  porcMortM: number;
+  porcMortMAcumulado: number;
+  selM: number;
+  errorSexajeM: number;
+  consumoKgM: number;
+  consumoKgMAcumulado: number;
+  pesoPromM?: number | null;
+  uniformidadM?: number | null;
+  cvM?: number | null;
+  observaciones?: string | null;
 }
 
 // ========== DTOs para Reporte Técnico Completo de Levante (Estructura Excel) ==========
@@ -411,6 +678,8 @@ export interface ReporteTecnicoLevanteSemanalDto {
 export interface ReporteTecnicoLevanteCompletoDto {
   informacionLote: ReporteTecnicoLoteInfoDto;
   datosSemanales: ReporteTecnicoLevanteSemanalDto[];
+  /** Datos diarios. Solo se puebla cuando FiltroPeriodicidad = "Diario". */
+  datosDiarios: ReporteTecnicoDiarioLevanteDto[];
   esConsolidado: boolean;
   sublotesIncluidos: string[];
 }
@@ -502,6 +771,144 @@ export interface ReporteTecnicoLevanteConTabsDto {
   datosSemanales: ReporteTecnicoLevanteSemanalDto[];
   esConsolidado: boolean;
   sublotesIncluidos: string[];
+}
+
+// ========== DTOs Fase 4 — Sistema de TABs (SOLO PRODUCCIÓN) ==========
+
+export interface ReporteDiarioGalponDto {
+  lotePosturaProduccionId: number;
+  galponId: string;
+  galponNombre: string;
+  loteNombre: string;
+  fecha: string;
+  semanaRelativa: number;
+  edadDias: number;
+  saldoHembras: number;
+  saldoMachos: number;
+  mortalidadHembras: number;
+  mortalidadMachos: number;
+  porcMortalidad: number;
+  consKgH: number;
+  consKgM: number;
+  huevoTot: number;
+  huevoInc: number;
+  porcentajePostura: number;
+  porcentajeIncubables: number;
+  pesoHuevo: number;
+  pesoH?: number | null;
+  pesoM?: number | null;
+  uniformidad?: number | null;
+  htaa?: number | null;
+  // GUIA
+  porcentajePosturaGuia?: number | null;
+  pesoHuevoGuia?: number | null;
+  htaaGuia?: number | null;
+  uniformidadGuia?: number | null;
+  // Diferencias
+  difPostura?: number | null;
+  difPesoHuevo?: number | null;
+  observaciones?: string | null;
+}
+
+export interface ReporteSemanalGalponDto {
+  lotePosturaProduccionId: number;
+  galponId: string;
+  galponNombre: string;
+  loteNombre: string;
+  semana: number;
+  fechaInicioSemana: string;
+  fechaFinSemana: string;
+  edadSemanas: number;
+  saldoInicioHembras: number;
+  saldoInicioMachos: number;
+  saldoFinHembras: number;
+  saldoFinMachos: number;
+  mortalidadHembrasSemanal: number;
+  mortalidadMachosSemanal: number;
+  porcMortalidadSemanal: number;
+  consKgHSemanal: number;
+  consKgMSemanal: number;
+  huevoTotSemanal: number;
+  huevoIncSemanal: number;
+  porcentajePosturaPromedio: number;
+  porcentajeIncubablesPromedio: number;
+  pesoHuevoPromedio: number;
+  pesoHPromedio?: number | null;
+  pesoMPromedio?: number | null;
+  uniformidadPromedio?: number | null;
+  htaaSemanal?: number | null;
+  // GUIA
+  porcentajePosturaGuia?: number | null;
+  pesoHuevoGuia?: number | null;
+  htaaGuia?: number | null;
+  uniformidadGuia?: number | null;
+  // Diferencias
+  difPostura?: number | null;
+  difPesoHuevo?: number | null;
+}
+
+export interface ReporteGeneralDiarioDto {
+  fecha: string;
+  semanaRelativa: number;
+  edadDias: number;
+  saldoTotalHembras: number;
+  saldoTotalMachos: number;
+  mortalidadTotalHembras: number;
+  mortalidadTotalMachos: number;
+  porcMortalidadPromedio: number;
+  consKgHTotalKg: number;
+  consKgMTotalKg: number;
+  huevosTotTotal: number;
+  huevosIncTotal: number;
+  porcentajePosturaPromedio: number;
+  pesoHuevoPromedio: number;
+  uniformidadPromedio?: number | null;
+  // GUIA
+  porcentajePosturaGuia?: number | null;
+  pesoHuevoGuia?: number | null;
+  htaaGuia?: number | null;
+  // Diferencia
+  difPostura?: number | null;
+}
+
+export interface ReporteGeneralSemanalDto {
+  semana: number;
+  fechaInicioSemana: string;
+  fechaFinSemana: string;
+  edadSemanas: number;
+  saldoInicioHembras: number;
+  saldoInicioMachos: number;
+  saldoFinHembras: number;
+  saldoFinMachos: number;
+  mortalidadTotalHembras: number;
+  mortalidadTotalMachos: number;
+  porcMortalidadSemanal: number;
+  consKgHTotal: number;
+  consKgMTotal: number;
+  huevosTotTotal: number;
+  huevosIncTotal: number;
+  porcentajePosturaPromedio: number;
+  pesoHuevoPromedio: number;
+  pesoHPromedio?: number | null;
+  pesoMPromedio?: number | null;
+  uniformidadPromedio?: number | null;
+  htaaSemanal?: number | null;
+  // GUIA
+  porcentajePosturaGuia?: number | null;
+  pesoHuevoGuia?: number | null;
+  htaaGuia?: number | null;
+  uniformidadGuia?: number | null;
+  // Diferencias
+  difPostura?: number | null;
+  difPesoHuevo?: number | null;
+}
+
+export interface ReporteTecnicoProduccionTabsDto {
+  loteInfo: ReporteTecnicoProduccionLoteInfoDto;
+  diariosGalpon: ReporteDiarioGalponDto[];
+  semanalesGalpon: ReporteSemanalGalponDto[];
+  diariosGeneral: ReporteGeneralDiarioDto[];
+  semanalesGeneral: ReporteGeneralSemanalDto[];
 }
 
 

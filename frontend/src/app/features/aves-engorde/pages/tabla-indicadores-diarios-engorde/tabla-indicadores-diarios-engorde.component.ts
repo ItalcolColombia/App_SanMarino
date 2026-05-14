@@ -3,9 +3,9 @@ import { CommonModule } from '@angular/common';
 import { SeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import {
-  IndicadorDiarioFila,
-  ComparativoTag
-} from '../../../lote-levante/services/indicadores-diarios.models';
+  IndicadorDiarioFilaEngorde,
+  ComparativoTagEngorde
+} from '../../services/indicadores-diarios-engorde.models';
 import { IndicadoresDiariosEngordeComputeService } from '../../services/indicadores-diarios-engorde-compute.service';
 import { formatDecimalTrim } from '../../../../shared/utils/format-decimal';
 
@@ -21,7 +21,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
   @Input() selectedLote: LoteDto | null = null;
   @Input() loading = false;
 
-  filas: IndicadorDiarioFila[] = [];
+  filas: IndicadorDiarioFilaEngorde[] = [];
   cargandoGuia = false;
   errorGuia: string | null = null;
   guiaOk = false;
@@ -78,7 +78,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return `${formatDecimalTrim(v, decimals)}%`;
   }
 
-  tagPeso(row: IndicadorDiarioFila): ComparativoTag {
+  tagPeso(row: IndicadorDiarioFilaEngorde): ComparativoTagEngorde {
     if (row.pesoRealG <= 0 || row.pesoTablaG <= 0) {
       return 'na';
     }
@@ -92,7 +92,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return 'bad';
   }
 
-  tagGanancia(row: IndicadorDiarioFila): ComparativoTag {
+  tagGanancia(row: IndicadorDiarioFilaEngorde): ComparativoTagEngorde {
     if (row.gananciaDiariaRealG == null || row.gananciaDiariaTablaG <= 0) {
       return 'na';
     }
@@ -107,7 +107,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return 'bad';
   }
 
-  tagConsumoDiario(row: IndicadorDiarioFila): ComparativoTag {
+  tagConsumoDiario(row: IndicadorDiarioFilaEngorde): ComparativoTagEngorde {
     if (row.consumoDiarioTablaG <= 0) {
       return 'na';
     }
@@ -121,7 +121,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return 'bad';
   }
 
-  tagAlimentoAcum(row: IndicadorDiarioFila): ComparativoTag {
+  tagAlimentoAcum(row: IndicadorDiarioFilaEngorde): ComparativoTagEngorde {
     if (row.alimentoAcumTablaG <= 0) {
       return 'na';
     }
@@ -135,7 +135,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return 'bad';
   }
 
-  tagCa(row: IndicadorDiarioFila): ComparativoTag {
+  tagCa(row: IndicadorDiarioFilaEngorde): ComparativoTagEngorde {
     if (row.caReal == null || row.caTabla <= 0) {
       return 'na';
     }
@@ -149,7 +149,7 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return 'bad';
   }
 
-  tagMortSel(row: IndicadorDiarioFila): ComparativoTag {
+  tagMortSel(row: IndicadorDiarioFilaEngorde): ComparativoTagEngorde {
     if (row.mortSelTablaPct <= 0 && row.mortSelRealPct <= 0) {
       return 'na';
     }
@@ -165,11 +165,11 @@ export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {
     return 'bad';
   }
 
-  tagClass(t: ComparativoTag): string {
+  tagClass(t: ComparativoTagEngorde): string {
     return `cmp-tag cmp-tag--${t}`;
   }
 
-  tagLabel(t: ComparativoTag): string {
+  tagLabel(t: ComparativoTagEngorde): string {
     switch (t) {
       case 'ok':
         return 'OK';

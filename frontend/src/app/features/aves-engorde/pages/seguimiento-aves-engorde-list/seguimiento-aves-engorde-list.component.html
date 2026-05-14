@@ -74,8 +74,8 @@
           type="button"
           (click)="create()"
           class="btn btn--primary"
-          [disabled]="!selectedLoteId || noPuedeSeguimiento"
-          [title]="noPuedeSeguimiento ? 'No hay aves, lote cerrado por reproductoras o lote operativo cerrado' : (!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro')">
+          [disabled]="!selectedLoteId"
+          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Crear nuevo registro'">
           Nuevo registro
         </button>
       </div>

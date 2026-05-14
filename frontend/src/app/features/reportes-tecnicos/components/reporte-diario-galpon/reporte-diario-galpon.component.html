@@ -1,0 +1,76 @@
+<div class="reporte-galpon">
+  <div class="reporte-galpon__header">
+    <span class="galpon-badge">{{ galponNombre || 'Galpón' }}</span>
+    <span class="row-count">{{ datos.length }} registros</span>
+  </div>
+
+  @if (datos.length === 0) {
+    <p class="empty-state">Sin datos para este galpón en el período seleccionado.</p>
+  } @else {
+    <div class="table-scroll">
+      <table class="rt-table">
+        <thead>
+          <tr class="thead-group">
+            <th rowspan="2" class="col-sticky">Fecha</th>
+            <th rowspan="2">Sem.</th>
+            <th rowspan="2">Edad</th>
+            <th colspan="2">Saldo</th>
+            <th colspan="3">Mortalidad</th>
+            <th colspan="2">Consumo kg</th>
+            <th colspan="2">Huevos</th>
+            <th colspan="3">%Postura</th>
+            <th rowspan="2">%Inc.</th>
+            <th colspan="3">Peso Huevo (g)</th>
+            <th colspan="2">Peso Ave (g)</th>
+            <th colspan="4">Calidad</th>
+            <th rowspan="2">Obs.</th>
+          </tr>
+          <tr class="thead-sub">
+            <th>H</th><th>M</th>
+            <th>H</th><th>M</th><th>%</th>
+            <th>H</th><th>M</th>
+            <th>Tot</th><th>Inc</th>
+            <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
+            <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
+            <th>H</th><th>M</th>
+            <th>Unif</th><th class="col-guia">G</th><th>HTAA</th><th class="col-guia">G</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of datos; track row.fecha) {
+            <tr>
+              <td class="col-sticky">{{ row.fecha | date:'dd/MM/yy' }}</td>
+              <td class="text-center">{{ row.semanaRelativa }}</td>
+              <td class="text-center">{{ row.edadDias }}</td>
+              <td>{{ row.saldoHembras | number }}</td>
+              <td>{{ row.saldoMachos | number }}</td>
+              <td>{{ row.mortalidadHembras }}</td>
+              <td>{{ row.mortalidadMachos }}</td>
+              <td>{{ fmt(row.porcMortalidad, 2) }}%</td>
+              <td>{{ fmt(row.consKgH) }}</td>
+              <td>{{ fmt(row.consKgM) }}</td>
+              <td>{{ row.huevoTot | number }}</td>
+              <td>{{ row.huevoInc | number }}</td>
+              <td [class]="semaforo(row.porcentajePostura, row.porcentajePosturaGuia)">
+                {{ fmt(row.porcentajePostura) }}%
+              </td>
+              <td class="col-guia">{{ fmt(row.porcentajePosturaGuia) }}</td>
+              <td [class]="classDif(row.difPostura)">{{ fmt(row.difPostura) }}</td>
+              <td>{{ fmt(row.porcentajeIncubables) }}%</td>
+              <td [class]="semaforo(row.pesoHuevo, row.pesoHuevoGuia, 3)">{{ fmt(row.pesoHuevo) }}</td>
+              <td class="col-guia">{{ fmt(row.pesoHuevoGuia) }}</td>
+              <td [class]="classDif(row.difPesoHuevo)">{{ fmt(row.difPesoHuevo) }}</td>
+              <td>{{ fmt(row.pesoH) }}</td>
+              <td>{{ fmt(row.pesoM) }}</td>
+              <td [class]="semaforo(row.uniformidad, row.uniformidadGuia, 5)">{{ fmt(row.uniformidad) }}</td>
+              <td class="col-guia">{{ fmt(row.uniformidadGuia) }}</td>
+              <td>{{ fmt(row.htaa) }}</td>
+              <td class="col-guia">{{ fmt(row.htaaGuia) }}</td>
+              <td>{{ row.observaciones || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

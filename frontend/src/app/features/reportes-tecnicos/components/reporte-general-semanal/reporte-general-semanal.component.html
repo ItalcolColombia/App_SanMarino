@@ -1,0 +1,73 @@
+@if (datos.length === 0) {
+  <p class="empty-state">Sin datos semanales consolidados para el período seleccionado.</p>
+} @else {
+  <div class="table-scroll">
+    <table class="rt-table">
+      <thead>
+        <tr class="thead-group">
+          <th rowspan="2">Sem.</th>
+          <th rowspan="2">Período</th>
+          <th rowspan="2">Edad</th>
+          <th colspan="4">Saldo</th>
+          <th colspan="3">Mortalidad</th>
+          <th colspan="2">Consumo kg</th>
+          <th colspan="2">Huevos</th>
+          <th colspan="3">%Postura</th>
+          <th colspan="3">Peso Huevo (g)</th>
+          <th colspan="2">Peso Ave (g)</th>
+          <th colspan="4">Calidad</th>
+        </tr>
+        <tr class="thead-sub">
+          <th>IniH</th><th>IniM</th><th>FinH</th><th>FinM</th>
+          <th>H</th><th>M</th><th>%</th>
+          <th>H</th><th>M</th>
+          <th>Tot</th><th>Inc</th>
+          <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
+          <th class="col-real">Real</th><th class="col-guia">Guía</th><th class="col-dif">Dif</th>
+          <th>H</th><th>M</th>
+          <th>Unif</th><th class="col-guia">G</th><th>HTAA</th><th class="col-guia">G</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of datos; track row.semana) {
+          <tr>
+            <td class="text-center font-bold">{{ row.semana }}</td>
+            <td class="text-center">
+              {{ row.fechaInicioSemana | date:'dd/MM' }} – {{ row.fechaFinSemana | date:'dd/MM/yy' }}
+            </td>
+            <td class="text-center">{{ row.edadSemanas }}</td>
+            <td>{{ row.saldoInicioHembras | number }}</td>
+            <td>{{ row.saldoInicioMachos | number }}</td>
+            <td>{{ row.saldoFinHembras | number }}</td>
+            <td>{{ row.saldoFinMachos | number }}</td>
+            <td>{{ row.mortalidadTotalHembras }}</td>
+            <td>{{ row.mortalidadTotalMachos }}</td>
+            <td>{{ fmt(row.porcMortalidadSemanal, 2) }}%</td>
+            <td>{{ fmt(row.consKgHTotal) }}</td>
+            <td>{{ fmt(row.consKgMTotal) }}</td>
+            <td>{{ row.huevosTotTotal | number }}</td>
+            <td>{{ row.huevosIncTotal | number }}</td>
+            <td [class]="semaforo(row.porcentajePosturaPromedio, row.porcentajePosturaGuia)">
+              {{ fmt(row.porcentajePosturaPromedio) }}%
+            </td>
+            <td class="col-guia">{{ fmt(row.porcentajePosturaGuia) }}</td>
+            <td [class]="classDif(row.difPostura)">{{ fmt(row.difPostura) }}</td>
+            <td [class]="semaforo(row.pesoHuevoPromedio, row.pesoHuevoGuia, 3)">
+              {{ fmt(row.pesoHuevoPromedio) }}
+            </td>
+            <td class="col-guia">{{ fmt(row.pesoHuevoGuia) }}</td>
+            <td [class]="classDif(row.difPesoHuevo)">{{ fmt(row.difPesoHuevo) }}</td>
+            <td>{{ fmt(row.pesoHPromedio) }}</td>
+            <td>{{ fmt(row.pesoMPromedio) }}</td>
+            <td [class]="semaforo(row.uniformidadPromedio, row.uniformidadGuia, 5)">
+              {{ fmt(row.uniformidadPromedio) }}
+            </td>
+            <td class="col-guia">{{ fmt(row.uniformidadGuia) }}</td>
+            <td>{{ fmt(row.htaaSemanal) }}</td>
+            <td class="col-guia">{{ fmt(row.htaaGuia) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

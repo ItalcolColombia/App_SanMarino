@@ -9,8 +9,57 @@ public class ReporteTecnicoLevanteCompletoDto
 {
     public ReporteTecnicoLoteInfoDto InformacionLote { get; set; } = new();
     public List<ReporteTecnicoLevanteSemanalDto> DatosSemanales { get; set; } = new();
+    /// <summary>
+    /// Datos diarios consolidados. Solo se puebla cuando FiltroPeriodicidad = "Diario"
+    /// en ObtenerReporteLevanteAsync. Los métodos anteriores lo dejan vacío.
+    /// </summary>
+    public List<ReporteTecnicoDiarioLevanteDto> DatosDiarios { get; set; } = new();
     public bool EsConsolidado { get; set; }
     public List<string> SublotesIncluidos { get; set; } = new();
+}
+
+/// <summary>
+/// Fila de datos diarios consolidados para el reporte de Levante (periodicidad Diaria).
+/// </summary>
+public class ReporteTecnicoDiarioLevanteDto
+{
+    public DateTime Fecha { get; set; }
+    public int EdadDias { get; set; }
+    public int EdadSemanas { get; set; }
+
+    // Hembras
+    public int SaldoHembras { get; set; }
+    public int MortalidadHembras { get; set; }
+    public int MortalidadHembrasAcumulada { get; set; }
+    public double PorcMortH { get; set; }       // % sobre avesHInicialesTotal
+    public double PorcMortHAcumulado { get; set; }
+    public int SelH { get; set; }
+    public int ErrorSexajeH { get; set; }
+    public double ConsumoKgH { get; set; }
+    public double ConsumoKgHAcumulado { get; set; }
+    public double? PesoPromH { get; set; }
+    public double? UniformidadH { get; set; }
+    public double? CvH { get; set; }
+    public double? KcalAlH { get; set; }
+    public double? ProtAlH { get; set; }
+    public double? KcalAveH { get; set; }
+    public double? ProtAveH { get; set; }
+
+    // Machos
+    public int SaldoMachos { get; set; }
+    public int MortalidadMachos { get; set; }
+    public int MortalidadMachosAcumulada { get; set; }
+    public double PorcMortM { get; set; }       // % sobre avesMInicialesTotal
+    public double PorcMortMAcumulado { get; set; }
+    public int SelM { get; set; }
+    public int ErrorSexajeM { get; set; }
+    public double ConsumoKgM { get; set; }
+    public double ConsumoKgMAcumulado { get; set; }
+    public double? PesoPromM { get; set; }
+    public double? UniformidadM { get; set; }
+    public double? CvM { get; set; }
+
+    public string? Observaciones { get; set; }
 }
 
 /// <summary>
