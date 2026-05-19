@@ -16,7 +16,12 @@
       "Bash(PGPASSWORD=123456789 /opt/homebrew/Cellar/libpq/17.4_1/bin/psql -U postgres -h localhost -p 5432 -d sanmarinoapplocal -c \"SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'produccion_avicola_raw' AND constraint_type = 'PRIMARY KEY'; SELECT indexname FROM pg_indexes WHERE tablename = 'produccion_avicola_raw';\")",
       "Bash(/opt/homebrew/Cellar/libpq/17.4_1/bin/psql -U postgres -h localhost -p 5432 -d sanmarinoapplocal -c ' *)",
       "Bash(dotnet run *)",
-      "Bash(wait)"
+      "Bash(wait)",
+      "Bash(git -C /Users/chelsycardona/Desktop/App_SanMarino diff --stat HEAD)",
+      "Bash(git -C /Users/chelsycardona/Desktop/App_SanMarino status --short)",
+      "Bash(find /Users/chelsycardona/Desktop/App_SanMarino/frontend/src/app/features/aves-engorde-panama -type f -name *.ts)",
+      "Bash(xargs sed -i '' -e 's|from '\\\\''../../aves-engorde/services/|from '\\\\''../services/|g' -e 's|from '\\\\''../../../aves-engorde/services/|from '\\\\''../../services/|g')",
+      "Bash(yarn tsc *)"
     ]
   }
 }

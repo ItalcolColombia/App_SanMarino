@@ -223,6 +223,8 @@ builder.Services.AddScoped<IInventarioGastoService, InventarioGastoService>();
 builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevanteService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
+builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();
+builder.Services.AddScoped<ISeguimientoAvesEngordePanamaService, SeguimientoAvesEngordePanamaService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraService, SeguimientoDiarioLoteReproductoraService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, SeguimientoDiarioLoteReproductoraFilterDataService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();
@@ -305,6 +307,9 @@ builder.Services.AddScoped<IReadOnlyQueryService, ReadOnlyQueryService>();
 // DB Studio Service
 builder.Services.AddScoped<IDbStudioService, DbStudioService>();
 builder.Services.AddScoped<IMapaService, MapaService>();
+
+// Gestión de Clientes
+builder.Services.AddScoped<IClienteService, ClienteService>();
 
 
 // ─────────────────────────────────────

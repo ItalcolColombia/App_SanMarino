@@ -26,5 +26,9 @@ public record SeguimientoLoteLevanteDto(
     double? ConsumoAguaTemperatura, // Temperatura del agua en °C
     string? CreatedByUserId = null, // ID del usuario que crea (para tabla unificada seguimiento_diario)
     double? SaldoAlimentoKg = null, // Saldo alimento (kg) al cierre del día; aves de engorde (inventario unificado)
-    JsonDocument? HistoricoConsumoAlimento = null // Histórico de consumo por ítem: [{ nombre_alimento, saldo_inicial, consumo, saldo_final, unidad_medida }]
+    JsonDocument? HistoricoConsumoAlimento = null, // Histórico de consumo por ítem: [{ nombre_alimento, saldo_inicial, consumo, saldo_final, unidad_medida }]
+    // Campos específicos Panamá: cantidad de alimento en quintales por categoría
+    decimal? QqMixtas = null,
+    decimal? QqHembras = null,
+    decimal? QqMachos = null
 );

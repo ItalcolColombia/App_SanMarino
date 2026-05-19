@@ -46,6 +46,9 @@ import { GuiaGeneticaFormComponent } from './features/config/guia-genetica-admin
 import { GuiaGeneticaDetailComponent } from './features/config/guia-genetica-admin/guia-genetica-detail/guia-genetica-detail.component';
 import { GuiaGeneticaEcuadorPageComponent } from './features/config/guia-genetica-ecuador/guia-genetica-ecuador-page/guia-genetica-ecuador-page.component';
 
+// Gestión de Clientes
+import { ClienteListComponent } from './features/clientes/components/cliente-list/cliente-list.component';
+
 export const appConfig: ApplicationConfig = {
   providers: [
     importProvidersFrom(ReactiveFormsModule),
@@ -105,6 +108,12 @@ export const appConfig: ApplicationConfig = {
             loadChildren: () =>
               import('./features/aves-engorde/seguimiento-aves-engorde.module')
                 .then(m => m.SeguimientoAvesEngordeModule)
+          },
+          {
+            path: 'aves-engorde-panama',
+            loadChildren: () =>
+              import('./features/aves-engorde-panama/seguimiento-aves-engorde-panama.module')
+                .then(m => m.SeguimientoAvesEngordePanamaModule)
           }
         ]
       },
@@ -208,7 +217,10 @@ export const appConfig: ApplicationConfig = {
             loadChildren: () =>
               import('./features/config/item-inventario-ecuador/item-inventario-ecuador.module')
                 .then(m => m.ItemInventarioEcuadorModule)
-          }
+          },
+
+          // Gestión de Clientes
+          { path: 'clientes', component: ClienteListComponent }
         ]
       },
       

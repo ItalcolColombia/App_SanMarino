@@ -105,6 +105,14 @@ public class CreateSeguimientoLoteLevanteRequest
     /// </summary>
     public string? CreatedByUserId { get; set; }
 
+    // Campos específicos Panamá: cantidad de alimento en quintales por categoría
+    [JsonPropertyName("qqMixtas")]
+    public decimal? QqMixtas { get; set; }
+    [JsonPropertyName("qqHembras")]
+    public decimal? QqHembras { get; set; }
+    [JsonPropertyName("qqMachos")]
+    public decimal? QqMachos { get; set; }
+
     /// <summary>
     /// Convierte este request a SeguimientoLoteLevanteDto, haciendo la conversión de unidades si es necesario.
     /// Separa los alimentos (que van a campos tradicionales) de otros ítems (que van a ItemsAdicionales).
@@ -202,7 +210,11 @@ public class CreateSeguimientoLoteLevanteRequest
             ConsumoAguaOrp: ConsumoAguaOrp,
             ConsumoAguaTemperatura: ConsumoAguaTemperatura,
             CreatedByUserId: CreatedByUserId,
-            SaldoAlimentoKg: null
+            SaldoAlimentoKg: null,
+            HistoricoConsumoAlimento: null,
+            QqMixtas: QqMixtas,
+            QqHembras: QqHembras,
+            QqMachos: QqMachos
         );
     }
     
