@@ -53,6 +53,11 @@ export interface SeguimientoLoteLevanteDto {
   /** Saldo de alimento (kg) al cierre del día en bodega; solo pollo de engorde (API). */
   saldoAlimentoKg?: number | null;
 
+  // Campos específicos Panamá: cantidad de alimento en quintales por categoría
+  qqMixtas?: number | null;
+  qqHembras?: number | null;
+  qqMachos?: number | null;
+
   // Movimientos de aves registrados en este día
   trasladoAvesEntrante?: number | null;
   trasladoAvesSalida?: number | null;
@@ -142,6 +147,11 @@ export interface CreateSeguimientoLoteLevanteDto {
   createdByUserId?: string | null;
   /** Tipo de seguimiento: siempre "levante" para este módulo. */
   tipoSeguimiento?: 'levante' | null;
+
+  // Campos específicos Panamá: cantidad de alimento en quintales por categoría
+  qqMixtas?: number | null;
+  qqHembras?: number | null;
+  qqMachos?: number | null;
 }
 
 export interface UpdateSeguimientoLoteLevanteDto extends CreateSeguimientoLoteLevanteDto {

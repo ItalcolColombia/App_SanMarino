@@ -1,0 +1,600 @@
+<div class="clientes-container">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="header-title">Gestión de Clientes</h1>
+        <span class="header-count">{{ filteredClientes().length }} registros</span>
+      </div>
+    </div>
+    <button class="btn-create" (click)="openModal()" aria-label="Registrar nuevo cliente">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <line x1="19" y1="8" x2="19" y2="14"/>
+        <line x1="22" y1="11" x2="16" y2="11"/>
+      </svg>
+      <span class="btn-text">Nuevo Cliente</span>
+    </button>
+  </div>
+
+  <!-- ══ SEARCH & FILTERS ═════════════════════════════════════════════════ -->
+  <div class="search-section">
+    <div class="search-container">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        type="text"
+        [ngModel]="filtro()"
+        (ngModelChange)="filtro.set($event)"
+        placeholder="Buscar por nombre, identificación o correo..."
+        class="search-input"
+        aria-label="Buscar clientes"
+      />
+    </div>
+
+    <div class="filters-row">
+      <select
+        [ngModel]="filterTipoCliente()"
+        (ngModelChange)="filterTipoCliente.set($event)"
+        class="filter-select"
+        aria-label="Filtrar por tipo de cliente"
+      >
+        <option value="">Todos los tipos</option>
+        @for (tipo of tiposCliente; track tipo) {
+          <option [value]="tipo">{{ tipo }}</option>
+        }
+      </select>
+
+      <input
+        type="text"
+        [ngModel]="filterPais()"
+        (ngModelChange)="filterPais.set($event)"
+        placeholder="País..."
+        class="filter-input"
+        aria-label="Filtrar por país"
+      />
+
+      @if (hasActiveFilters()) {
+        <button class="btn-clear" (click)="clearFilters()" title="Limpiar filtros">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Limpiar
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ══ TABLE WRAPPER ═══════════════════════════════════════════════════ -->
+  <div class="table-wrapper">
+
+    @if (loading()) {
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Cargando clientes...</p>
+      </div>
+    }
+
+    @if (!loading() && filteredClientes().length === 0) {
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        @if (hasActiveFilters()) {
+          <h3>Sin resultados</h3>
+          <p>No hay clientes que coincidan con los filtros aplicados.</p>
+          <button class="btn-link" (click)="clearFilters()">Limpiar filtros</button>
+        } @else {
+          <h3>Sin clientes registrados</h3>
+          <p>Comienza registrando tu primer cliente.</p>
+          <button class="btn-create-empty" (click)="openModal()">+ Nuevo Cliente</button>
+        }
+      </div>
+    }
+
+    @if (!loading() && filteredClientes().length > 0) {
+
+      <!-- Desktop Table -->
+      <div class="desktop-table">
+        <table class="clientes-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Contacto</th>
+              <th>Tipo / País</th>
+              <th>Documento</th>
+              <th>Estado</th>
+              <th class="th-actions">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (cliente of filteredClientes(); track cliente.id) {
+              <tr class="cliente-row">
+
+                <td class="td-cliente">
+                  <div class="cliente-info">
+                    <div class="cliente-avatar">{{ getInitials(cliente.nombre) }}</div>
+                    <div class="cliente-details">
+                      <button class="name-btn" (click)="openDetail(cliente)">{{ cliente.nombre }}</button>
+                      <span class="cliente-id">{{ cliente.tipoDocumento }}: {{ cliente.numeroIdentificacion }}</span>
+                    </div>
+                  </div>
+                </td>
+
+                <td class="td-contacto">
+                  <div class="contact-stack">
+                    @if (cliente.correo) {
+                      <div class="contact-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="2" y="4" width="20" height="16" rx="2"/>
+                          <polyline points="2,4 12,13 22,4"/>
+                        </svg>
+                        <span>{{ cliente.correo }}</span>
+                      </div>
+                    }
+                    @if (cliente.telefono) {
+                      <div class="contact-row">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.53 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8 8.09a16 16 0 0 0 6 6l.86-.86a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                        </svg>
+                        <span>{{ cliente.telefono }}</span>
+                      </div>
+                    }
+                    @if (!cliente.correo && !cliente.telefono) {
+                      <span class="no-contact">— Sin contacto —</span>
+                    }
+                  </div>
+                </td>
+
+                <td class="td-tipo">
+                  <div class="tipo-stack">
+                    @if (cliente.tipoCliente) {
+                      <span class="badge badge--tipo">{{ cliente.tipoCliente }}</span>
+                    }
+                    @if (cliente.pais) {
+                      <span class="pais-text">{{ cliente.pais }}</span>
+                    }
+                  </div>
+                </td>
+
+                <td class="td-doc">
+                  <span class="badge badge--doc">{{ cliente.tipoDocumento }}</span>
+                </td>
+
+                <td class="td-status">
+                  <span
+                    class="status-badge"
+                    [class.badge-success]="cliente.status === 'A'"
+                    [class.badge-danger]="cliente.status !== 'A'"
+                  >
+                    {{ cliente.status === 'A' ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+
+                <td class="td-actions">
+                  <div class="actions-group">
+                    <button class="action-btn view-btn" (click)="openDetail(cliente)" title="Ver detalle" [attr.aria-label]="'Ver detalle de ' + cliente.nombre">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                    <button class="action-btn edit-btn" (click)="openModal(cliente)" title="Editar" [attr.aria-label]="'Editar ' + cliente.nombre">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                    <button class="action-btn delete-btn" (click)="confirmDelete(cliente.id, cliente.nombre)" title="Eliminar" [attr.aria-label]="'Eliminar ' + cliente.nombre">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6"/><path d="M14 11v6"/>
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="mobile-cards">
+        @for (cliente of filteredClientes(); track cliente.id) {
+          <div class="cliente-card">
+            <div class="card-header">
+              <div class="cliente-info">
+                <div class="cliente-avatar">{{ getInitials(cliente.nombre) }}</div>
+                <div class="cliente-details">
+                  <span class="name-btn" (click)="openDetail(cliente)">{{ cliente.nombre }}</span>
+                  <span class="cliente-id">{{ cliente.tipoDocumento }}: {{ cliente.numeroIdentificacion }}</span>
+                </div>
+              </div>
+              <span
+                class="status-badge"
+                [class.badge-success]="cliente.status === 'A'"
+                [class.badge-danger]="cliente.status !== 'A'"
+              >
+                {{ cliente.status === 'A' ? 'Activo' : 'Inactivo' }}
+              </span>
+            </div>
+
+            <div class="card-body">
+              @if (cliente.correo) {
+                <div class="contact-row">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <polyline points="2,4 12,13 22,4"/>
+                  </svg>
+                  <span>{{ cliente.correo }}</span>
+                </div>
+              }
+              @if (cliente.tipoCliente || cliente.pais) {
+                <div class="card-tags">
+                  @if (cliente.tipoCliente) { <span class="badge badge--tipo">{{ cliente.tipoCliente }}</span> }
+                  @if (cliente.pais) { <span class="pais-text">{{ cliente.pais }}</span> }
+                </div>
+              }
+            </div>
+
+            <div class="card-actions">
+              <button class="action-btn view-btn" (click)="openDetail(cliente)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span>Ver</span>
+              </button>
+              <button class="action-btn edit-btn" (click)="openModal(cliente)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span>Editar</span>
+              </button>
+              <button class="action-btn delete-btn" (click)="confirmDelete(cliente.id, cliente.nombre)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+                <span>Eliminar</span>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+    }
+
+  </div><!-- /table-wrapper -->
+</div><!-- /clientes-container -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL: CREAR / EDITAR
+════════════════════════════════════════════════════════════════════════ -->
+<div
+  class="modal-overlay"
+  [class.active]="modalOpen()"
+  (click)="closeModal()"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="editing() ? 'Editar cliente' : 'Nuevo cliente'"
+>
+  <div class="modal-content" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div class="modal-header-inner">
+        <div class="modal-icon" [class.modal-icon--edit]="editing()">
+          @if (editing()) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <line x1="19" y1="8" x2="19" y2="14"/>
+              <line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+          }
+        </div>
+        <div>
+          <h2 class="modal-title">{{ editing() ? 'Editar Cliente' : 'Nuevo Cliente' }}</h2>
+          @if (editing()) {
+            <p class="modal-subtitle">{{ editing()!.nombre }}</p>
+          }
+        </div>
+      </div>
+      <button class="modal-close" (click)="closeModal()" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="saveCliente()" class="modal-body" novalidate>
+
+      <!-- Sección 1: Identificación -->
+      <div class="form-section">
+        <h3 class="form-section__title">
+          <span class="form-section__num">1</span> Identificación
+        </h3>
+        <div class="form-grid form-grid--2">
+          <div class="field-group">
+            <label class="field-label">Tipo Documento <span class="req">*</span></label>
+            <select formControlName="tipoDocumento" class="form-select" [class.error]="isInvalid('tipoDocumento')">
+              <option value="">Seleccione...</option>
+              @for (td of tiposDocumento; track td) {
+                <option [value]="td">{{ td }}</option>
+              }
+            </select>
+            @if (isInvalid('tipoDocumento')) {
+              <span class="field-error">Requerido</span>
+            }
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">N° Identificación <span class="req">*</span></label>
+            <input
+              type="text"
+              formControlName="numeroIdentificacion"
+              class="form-input"
+              [class.error]="isInvalid('numeroIdentificacion')"
+              placeholder="Ej: 12345678"
+            />
+            @if (isInvalid('numeroIdentificacion')) {
+              <span class="field-error">Requerido (máx. 100 caracteres)</span>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección 2: Datos Personales -->
+      <div class="form-section">
+        <h3 class="form-section__title">
+          <span class="form-section__num">2</span> Datos Personales
+        </h3>
+        <div class="form-grid form-grid--1">
+          <div class="field-group">
+            <label class="field-label">Nombre(s) <span class="req">*</span></label>
+            <input
+              type="text"
+              formControlName="nombre"
+              class="form-input"
+              [class.error]="isInvalid('nombre')"
+              placeholder="Nombre completo del cliente"
+            />
+            @if (isInvalid('nombre')) {
+              <span class="field-error">Requerido (máx. 200 caracteres)</span>
+            }
+          </div>
+        </div>
+        <div class="form-grid form-grid--2">
+          <div class="field-group">
+            <label class="field-label">Correo Electrónico</label>
+            <input
+              type="email"
+              formControlName="correo"
+              class="form-input"
+              [class.error]="isInvalid('correo')"
+              placeholder="correo@ejemplo.com"
+            />
+            @if (isInvalid('correo')) {
+              <span class="field-error">Correo inválido</span>
+            }
+          </div>
+          <div class="field-group">
+            <label class="field-label">Teléfono</label>
+            <input type="text" formControlName="telefono" class="form-input" placeholder="+57 300 000 0000" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Tipo de Cliente</label>
+            <select formControlName="tipoCliente" class="form-select">
+              <option value="">Seleccione...</option>
+              @for (tc of tiposCliente; track tc) {
+                <option [value]="tc">{{ tc }}</option>
+              }
+            </select>
+          </div>
+          @if (editing()) {
+            <div class="field-group">
+              <label class="field-label">Estado</label>
+              <select formControlName="status" class="form-select">
+                <option value="A">Activo</option>
+                <option value="I">Inactivo</option>
+              </select>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Sección 3: Ubicación -->
+      <div class="form-section">
+        <h3 class="form-section__title">
+          <span class="form-section__num">3</span> Ubicación
+        </h3>
+        <div class="form-grid form-grid--2">
+          <div class="field-group">
+            <label class="field-label">País</label>
+            <input type="text" formControlName="pais" class="form-input" placeholder="Ej: Colombia" list="paises-list" />
+            <datalist id="paises-list">
+              @for (p of paises; track p) { <option [value]="p"></option> }
+            </datalist>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Provincia / Departamento</label>
+            <input type="text" formControlName="provincia" class="form-input" placeholder="Ej: Cundinamarca" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Distrito / Ciudad</label>
+            <input type="text" formControlName="distrito" class="form-input" placeholder="Ej: Bogotá" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Planta</label>
+            <input type="text" formControlName="planta" class="form-input" placeholder="Nombre de planta" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">Zona</label>
+            <input type="text" formControlName="zona" class="form-input" placeholder="Ej: Zona Norte" />
+          </div>
+        </div>
+      </div>
+
+    </form>
+
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" (click)="closeModal()" [disabled]="loadingModal()">
+        Cancelar
+      </button>
+      <button type="button" class="btn-primary" (click)="saveCliente()" [disabled]="loadingModal()">
+        @if (loadingModal()) { <span class="spinner spinner--sm"></span> }
+        {{ editing() ? 'Guardar cambios' : 'Registrar cliente' }}
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL: DETALLE
+════════════════════════════════════════════════════════════════════════ -->
+<div
+  class="modal-overlay"
+  [class.active]="detailOpen()"
+  (click)="closeDetail()"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Detalle del cliente"
+>
+  @if (selectedDetail()) {
+    <div class="modal-content" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-inner">
+          <div class="modal-icon modal-icon--detail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="modal-title">Detalle del Cliente</h2>
+            <p class="modal-subtitle">Información completa del registro</p>
+          </div>
+        </div>
+        <button class="modal-close" (click)="closeDetail()" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="detail-body">
+
+        <div class="detail-banner">
+          <div class="detail-avatar">{{ getInitials(selectedDetail()!.nombre) }}</div>
+          <div>
+            <p class="detail-banner__name">{{ selectedDetail()!.nombre }}</p>
+            <div class="detail-banner__tags">
+              <span
+                class="status-badge"
+                [class.badge-success]="selectedDetail()!.status === 'A'"
+                [class.badge-danger]="selectedDetail()!.status !== 'A'"
+              >
+                {{ selectedDetail()!.status === 'A' ? 'Activo' : 'Inactivo' }}
+              </span>
+              @if (selectedDetail()!.tipoCliente) {
+                <span class="badge badge--tipo">{{ selectedDetail()!.tipoCliente }}</span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <p class="detail-section__title">Identificación</p>
+          <div class="detail-rows">
+            <div class="detail-row"><span class="detail-label">Tipo Documento</span><span class="detail-value">{{ selectedDetail()!.tipoDocumento }}</span></div>
+            <div class="detail-row"><span class="detail-label">N° Identificación</span><span class="detail-value detail-value--mono">{{ selectedDetail()!.numeroIdentificacion }}</span></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <p class="detail-section__title">Contacto</p>
+          <div class="detail-rows">
+            <div class="detail-row"><span class="detail-label">Correo</span><span class="detail-value">{{ selectedDetail()!.correo || '—' }}</span></div>
+            <div class="detail-row"><span class="detail-label">Teléfono</span><span class="detail-value">{{ selectedDetail()!.telefono || '—' }}</span></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <p class="detail-section__title">Ubicación</p>
+          <div class="detail-rows">
+            <div class="detail-row"><span class="detail-label">País</span><span class="detail-value">{{ selectedDetail()!.pais || '—' }}</span></div>
+            <div class="detail-row"><span class="detail-label">Provincia</span><span class="detail-value">{{ selectedDetail()!.provincia || '—' }}</span></div>
+            <div class="detail-row"><span class="detail-label">Distrito</span><span class="detail-value">{{ selectedDetail()!.distrito || '—' }}</span></div>
+            <div class="detail-row"><span class="detail-label">Planta</span><span class="detail-value">{{ selectedDetail()!.planta || '—' }}</span></div>
+            <div class="detail-row"><span class="detail-label">Zona</span><span class="detail-value">{{ selectedDetail()!.zona || '—' }}</span></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <p class="detail-section__title">Auditoría</p>
+          <div class="detail-rows">
+            <div class="detail-row"><span class="detail-label">Fecha de registro</span><span class="detail-value">{{ formatDate(selectedDetail()!.createdAt) }}</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeDetail()">Cerrar</button>
+        <button type="button" class="btn-primary" (click)="closeDetail(); openModal(selectedDetail()!)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          Editar
+        </button>
+      </div>
+
+    </div>
+  }
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL: CONFIRMACIÓN ELIMINAR
+════════════════════════════════════════════════════════════════════════ -->
+<app-confirmation-modal
+  [isOpen]="confirmOpen()"
+  [data]="confirmData"
+  (confirmed)="onConfirmDelete()"
+  (cancelled)="onCancelDelete()"
+></app-confirmation-modal>

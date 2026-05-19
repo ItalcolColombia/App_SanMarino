@@ -84,6 +84,8 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<LoteAveEngorde> LoteAveEngorde { get; set; } = null!;
         public DbSet<LoteReproductoraAveEngorde> LoteReproductoraAveEngorde => Set<LoteReproductoraAveEngorde>();
         public DbSet<SeguimientoDiarioAvesEngorde> SeguimientoDiarioAvesEngorde => Set<SeguimientoDiarioAvesEngorde>();
+        public DbSet<SeguimientoDiarioAvesEngordeEcuador> SeguimientoDiarioAvesEngordeEcuador => Set<SeguimientoDiarioAvesEngordeEcuador>();
+        public DbSet<SeguimientoDiarioAvesEngordePanama> SeguimientoDiarioAvesEngordePanama => Set<SeguimientoDiarioAvesEngordePanama>();
         public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();
@@ -99,6 +101,9 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<InventarioGasto> InventarioGastos => Set<InventarioGasto>();
         public DbSet<InventarioGastoDetalle> InventarioGastoDetalles => Set<InventarioGastoDetalle>();
         public DbSet<InventarioGastoAuditoria> InventarioGastoAuditorias => Set<InventarioGastoAuditoria>();
+
+        // Gestión de Clientes
+        public DbSet<Cliente> Clientes => Set<Cliente>();
 
         // Módulo Mapas (documentos de mapeo ERP/CIESA)
         public DbSet<Mapa> Mapas => Set<Mapa>();

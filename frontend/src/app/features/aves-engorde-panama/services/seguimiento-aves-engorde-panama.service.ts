@@ -129,8 +129,8 @@ export interface CuadrarSaldosAplicarResponseDto {
 // ──────────────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
-export class SeguimientoAvesEngordeService {
-  private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngordeEcuador`;
+export class SeguimientoAvesEngordePanamaService {
+  private readonly baseUrl = `${environment.apiUrl}/SeguimientoAvesEngordePanama`;
   private readonly movUrl = `${environment.apiUrl}/MovimientoPolloEngorde`;
 
   constructor(private http: HttpClient) {}
