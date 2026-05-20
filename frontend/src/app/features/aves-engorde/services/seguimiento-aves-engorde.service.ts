@@ -74,6 +74,55 @@ export interface LoteRegistroHistoricoUnificadoDto {
   createdAt: string;
 }
 
+// ── Tabla diaria precalculada (fn_seguimiento_diario_engorde) ────────────────
+
+export interface SeguimientoDiarioTablaFilaDto {
+  segId: number;
+  fecha: string;
+  edadDia: number;
+  semana: number;
+  mortalidadHembras: number;
+  mortalidadMachos: number;
+  selH: number;
+  selM: number;
+  errorSexajeHembras: number;
+  errorSexajeMachos: number;
+  totalMortSelDia: number;
+  perdidasTotalesDia: number;
+  consumoKgHembras: number;
+  consumoKgMachos: number;
+  consumoDiaKg: number;
+  acumConsumoKg: number;
+  saldoAves: number;
+  pctPerdidasDia: number;
+  saldoAlimentoKg: number;
+  ingresoAlimentoKg: number;
+  trasladoEntradaKg: number;
+  trasladoSalidaKg: number;
+  consumoBodegaKg: number;
+  documento: string | null;
+  despachoHembras: number;
+  despachoMachos: number;
+  despachoMixtas: number;
+  tipoAlimento: string | null;
+  pesoPromHembras: number | null;
+  pesoPromMachos: number | null;
+  uniformidadHembras: number | null;
+  uniformidadMachos: number | null;
+  cvHembras: number | null;
+  cvMachos: number | null;
+  consumoAguaDiario: number | null;
+  consumoAguaPh: number | null;
+  consumoAguaOrp: number | null;
+  consumoAguaTemperatura: number | null;
+  observaciones: string | null;
+  ciclo: string | null;
+  metadata: string | null;
+  itemsAdicionales: string | null;
+  historicoConsumoAlimento: string | null;
+  createdByUserId: string | null;
+}
+
 // ── DTOs Cuadrar Saldos ────────────────────────────────────────────────────
 
 export interface FilaExcelCuadrarSaldosDto {
@@ -143,6 +192,13 @@ export class SeguimientoAvesEngordeService {
   getByLoteId(loteId: number): Observable<SeguimientoAvesEngordePorLoteResponseDto> {
     return this.http.get<SeguimientoAvesEngordePorLoteResponseDto>(
       `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}`
+    );
+  }
+
+  /** Tabla diaria calculada por fn_seguimiento_diario_engorde (backend recalcula saldo alimento antes). */
+  getTablaDiaria(loteId: number): Observable<SeguimientoDiarioTablaFilaDto[]> {
+    return this.http.get<SeguimientoDiarioTablaFilaDto[]>(
+      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/tabla-diaria`
     );
   }
 

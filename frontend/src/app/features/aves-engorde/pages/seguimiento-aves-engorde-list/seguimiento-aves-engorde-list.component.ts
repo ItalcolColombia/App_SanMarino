@@ -13,7 +13,8 @@ import {
   SeguimientoLoteLevanteDto,
   CreateSeguimientoLoteLevanteDto,
   UpdateSeguimientoLoteLevanteDto,
-  LoteRegistroHistoricoUnificadoDto
+  LoteRegistroHistoricoUnificadoDto,
+  SeguimientoDiarioTablaFilaDto
 } from '../../services/seguimiento-aves-engorde.service';
 import { LoteReproductoraAveEngordeService, AvesDisponiblesDto, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
@@ -80,6 +81,8 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
   seguimientos: SeguimientoLoteLevanteDto[] = [];
   /** Filas de lote_registro_historico_unificado (inventario + ventas) para la pestaña Seguimiento. */
   historicoUnificado: LoteRegistroHistoricoUnificadoDto[] = [];
+  /** Tabla diaria precalculada por fn_seguimiento_diario_engorde. */
+  tablaFilas: SeguimientoDiarioTablaFilaDto[] = [];
   selectedLote: LoteDto | null = null;
   resumenSelected: LoteMortalidadResumenDto | null = null;
 
@@ -307,6 +310,7 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     this.selectedLoteId = loteId;
     this.seguimientos = [];
     this.historicoUnificado = [];
+    this.tablaFilas = [];
     this.selectedLote = null;
     this.resumenSelected = null;
     this.avesDisponibles = null;
@@ -341,6 +345,10 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
           this.historicoUnificado = res.historicoUnificado ?? [];
         }
       });
+    this.segSvc
+      .getTablaDiaria(id)
+      .pipe(catchError(() => of([] as SeguimientoDiarioTablaFilaDto[])))
+      .subscribe({ next: filas => (this.tablaFilas = filas) });
   }
 
   /** Mapea LoteAveEngordeDto a LoteDto para reutilizar tabs/header (fechaEncaset, avesEncasetadas, etc.). */
