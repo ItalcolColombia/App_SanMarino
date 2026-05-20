@@ -117,12 +117,6 @@
               </button>
             </div>
           </div>
-          <p
-            *ngIf="enriquecerTablaConHistoricoInventario && advertenciaSaldoSinIngresoPrevio"
-            class="registro-diario__alert"
-            role="status">
-            No había ingreso ni traslado de entrada de alimento en el histórico desde la fecha de encasetamiento <strong>antes</strong> del primer consumo registrado en seguimiento: no hay saldo previo del que consumir hasta que existan esas entradas (o revise fechas de encasetamiento e ingresos).
-          </p>
 
           <div class="ux-scroll ux-scroll--diario">
             <table class="ux-table ux-table--registro-diario">
@@ -155,7 +149,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngIf="!loading && (!diarioFilas || diarioFilas.length === 0)">
+                <tr *ngIf="!loading && (!tablaFilas || tablaFilas.length === 0)">
                   <td [attr.colspan]="colspanRegistroDiario" class="empty-state">
                     <div class="empty-illustration" aria-hidden="true">📄</div>
                     <p>Sin registros para este lote.</p>
@@ -172,44 +166,43 @@
                 </tr>
 
                 <tr *ngFor="let f of diarioFilasFiltradas; trackBy: trackByDiarioFila" class="ux-row">
-                  <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
+                  <td>{{ formatDMY(f.fecha) }}</td>
                   <td>{{ f.semana }}</td>
                   <td>{{ f.edadDia }}</td>
-                  <td>{{ f.diaCorto }}</td>
-                  <td>{{ f.seg.mortalidadHembras }}</td>
-                  <td>{{ f.seg.mortalidadMachos }}</td>
-                  <td>{{ f.seg.selH }}</td>
-                  <td>{{ f.seg.selM }}</td>
+                  <td>{{ formatDiaSemanaCorto(f.fecha) }}</td>
+                  <td>{{ f.mortalidadHembras }}</td>
+                  <td>{{ f.mortalidadMachos }}</td>
+                  <td>{{ f.selH }}</td>
+                  <td>{{ f.selM }}</td>
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
-                  <td class="num">{{ f.despachoH != null ? (f.despachoH | number:'1.0-0') : '—' }}</td>
-                  <td class="num">{{ f.despachoM != null ? (f.despachoM | number:'1.0-0') : '—' }}</td>
+                  <td class="num">{{ f.despachoHembras != null ? (f.despachoHembras | number:'1.0-0') : '—' }}</td>
+                  <td class="num">{{ f.despachoMachos != null ? (f.despachoMachos | number:'1.0-0') : '—' }}</td>
 
                   <td
                     *ngIf="enriquecerTablaConHistoricoInventario"
                     class="num"
-                    [class.registro-diario__saldo--warn]="advertenciaSaldoSinIngresoPrevio"
                     [attr.title]="titleSaldoAlimentoCelda(f)">
-                    {{ f.saldoAlimentoKgMostrado != null ? (f.saldoAlimentoKgMostrado | number:'1.0-2') : '—' }}
+                    {{ f.saldoAlimentoKg != null ? (f.saldoAlimentoKg | number:'1.0-2') : '—' }}
                   </td>
                   <td class="num">{{ f.saldoAves | number:'1.0-0' }}</td>
-                  <td>{{ f.tipoAlimentoCorto }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.ingresoAlimento">{{ f.ingresoAlimento || '—' }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.traslado">{{ f.traslado || '—' }}</td>
-                  <td class="cell-text cell-text--wide" [title]="f.documento">{{ f.documento || '—' }}</td>
-                  <td class="num">{{ f.seg.consumoKgHembras | number:'1.0-2' }}</td>
+                  <td>{{ tipoAlimentoCorto(f.tipoAlimento) }}</td>
+                  <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">{{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}</td>
+                  <td class="cell-text cell-text--wide" [title]="buildTrasladoTexto(f)">{{ buildTrasladoTexto(f) || '—' }}</td>
+                  <td class="cell-text cell-text--wide" [title]="f.documento || ''">{{ f.documento || '—' }}</td>
+                  <td class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
-                  <td class="num">{{ f.seg.consumoAguaDiario != null ? (f.seg.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
-                  <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
-                  <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
+                  <td class="num">{{ f.consumoAguaDiario != null ? (f.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
+                  <td class="num">{{ f.pesoPromHembras != null ? (f.pesoPromHembras | number:'1.0-2') : '—' }}</td>
+                  <td class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
+                  <td class="cell-text cell-text--obs" [title]="f.observaciones || ''">{{ (f.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
                     <div class="btn-group">
-                      <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>
+                      <button type="button" (click)="onViewDetailById(f.segId)" class="icon-btn" title="Ver detalle">👁️</button>
                       <ng-container *appHasPermission="'editar_registro'">
-                        <button type="button" (click)="onEdit(f.seg)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                        <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
                       </ng-container>
                       <ng-container *appHasPermission="'eliminar_registro'">
-                        <button type="button" (click)="onDelete(f.seg.id)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
+                        <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
                       </ng-container>
                     </div>
                   </td>

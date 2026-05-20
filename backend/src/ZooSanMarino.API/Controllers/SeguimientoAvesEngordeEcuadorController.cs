@@ -30,6 +30,32 @@ public class SeguimientoAvesEngordeEcuadorController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    /// <summary>Registros diarios del lote + historial unificado (inventario y ventas), orden cronológico.</summary>
+    [HttpGet("por-lote/{loteId:int}")]
+    [ProducesResponseType(typeof(SeguimientoAvesEngordePorLoteResponseDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<SeguimientoAvesEngordePorLoteResponseDto>> GetByLote(int loteId)
+    {
+        var result = await _svc.GetByLoteAsync(loteId);
+        return Ok(result);
+    }
+
+    /// <summary>Tabla diaria calculada vía función SQL (fn_seguimiento_diario_engorde) para el lote indicado.</summary>
+    [HttpGet("por-lote/{loteId:int}/tabla-diaria")]
+    [ProducesResponseType(typeof(IReadOnlyList<SeguimientoDiarioTablaFilaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<SeguimientoDiarioTablaFilaDto>>> GetTablaDiaria([FromRoute] int loteId)
+    {
+        try
+        {
+            var result = await _svc.GetTablaDiariaAsync(loteId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     /// <summary>Filtrar registros por lote y rango de fechas.</summary>
     [HttpGet("filtro")]
     [ProducesResponseType(typeof(IEnumerable<SeguimientoLoteLevanteDto>), StatusCodes.Status200OK)]
