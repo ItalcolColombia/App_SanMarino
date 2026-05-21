@@ -15,6 +15,7 @@ import {
   LiquidacionPolloEngordeReporteDto,
   LiquidacionPolloEngordeItemDto
 } from '../../services/indicador-ecuador.service';
+import { LiquidacionReporteComponent } from '../../components/liquidacion-reporte/liquidacion-reporte.component';
 import { environment } from '../../../../../environments/environment';
 
 /** Misma estructura que devuelve SeguimientoLoteLevante/filter-data (granjas, núcleos, galpones, lotes en una sola llamada). */
@@ -46,7 +47,7 @@ interface FilterDataPolloEngordeResponse {
 @Component({
   selector: 'app-indicador-ecuador-list',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LiquidacionReporteComponent],
   templateUrl: './indicador-ecuador-list.component.html',
   styleUrls: ['./indicador-ecuador-list.component.scss']
 })
@@ -67,7 +68,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
   selectedLoteId: number | null = null;
   fechaDesde: string = '';
   fechaHasta: string = '';
-  soloLotesCerrados: boolean = true;
+  tipoFiltroLotes: 'cerrados' | 'aves_cero' | 'todos' = 'cerrados';
   tipoLote: string = 'Todos';
 
   /** Pollo Engorde – liquidación: un lote (cascada) o rango por fecha de cierre. */
@@ -120,6 +121,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
 
   resultadoLiquidacionPollo: LiquidacionPolloEngordeReporteDto | null = null;
   mostrarLiquidacionPollo = false;
+  showReporte = false;
 
   // Datos
   indicadores: IndicadorEcuadorDto[] = [];
@@ -430,7 +432,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
         loteId: this.selectedLoteId ? Number(this.selectedLoteId) : null,
         fechaDesde: this.fechaDesde || null,
         fechaHasta: this.fechaHasta || null,
-        soloLotesCerrados: this.soloLotesCerrados,
+        tipoFiltroLotes: this.tipoFiltroLotes,
         tipoLote: this.tipoLote
       };
 
@@ -462,7 +464,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
         loteId: this.selectedLoteId ? Number(this.selectedLoteId) : null,
         fechaDesde: this.fechaDesde || null,
         fechaHasta: this.fechaHasta || null,
-        soloLotesCerrados: this.soloLotesCerrados,
+        tipoFiltroLotes: this.tipoFiltroLotes,
         tipoLote: this.tipoLote
       };
 
@@ -495,7 +497,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
           desde,
           hasta,
           this.selectedGranjaId ?? undefined,
-          this.soloLotesCerrados
+          this.tipoFiltroLotes !== 'todos'
         )
       );
       this.mostrarLotesCerrados = true;
@@ -534,6 +536,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.error = null;
     this.mostrarLiquidacionPollo = false;
     this.resultadoLiquidacionPollo = null;
+    this.showReporte = false;
 
     try {
       if (this.polloModo === 'unLote') {
@@ -541,7 +544,24 @@ export class IndicadorEcuadorListComponent implements OnInit {
           this.error = 'Seleccione granja.';
           return;
         }
-        if (this.peTodosLotesLiquidados) {
+        if (this.peLoteAveEngordeId) {
+          // Lote específico seleccionado → consulta individual
+          const res = await firstValueFrom(
+            this.indicadorService.liquidacionPolloEngordeReporte({
+              modo: 'UnLote',
+              loteAveEngordeId: this.peLoteAveEngordeId,
+              fechaDesde: null,
+              fechaHasta: null,
+              alcance: 'TodasLasGranjas',
+              granjaId: null,
+              nucleoId: null,
+              galponId: null,
+              tipoFiltroLotes: this.tipoFiltroLotes
+            })
+          );
+          this.resultadoLiquidacionPollo = res;
+        } else {
+          // Sin lote específico → consulta masiva por alcance (granja / núcleo / galpón)
           const res = await firstValueFrom(
             this.indicadorService.liquidacionPolloEngordeReporte({
               modo: 'TodosLiquidados',
@@ -552,26 +572,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
               granjaId: this.peGranjaId,
               nucleoId: this.peNucleoId || null,
               galponId: this.peGalponId || null,
-              loteCodigo: this.loteConvertido || null
-            })
-          );
-          this.resultadoLiquidacionPollo = res;
-        } else {
-          if (!this.peLoteAveEngordeId) {
-            this.error =
-              'Seleccione un lote liquidado o active «Todos los lotes liquidados» para el alcance (granja / núcleo / galpón).';
-            return;
-          }
-          const res = await firstValueFrom(
-            this.indicadorService.liquidacionPolloEngordeReporte({
-              modo: 'UnLote',
-              loteAveEngordeId: this.peLoteAveEngordeId,
-              fechaDesde: null,
-              fechaHasta: null,
-              alcance: 'TodasLasGranjas',
-              granjaId: null,
-              nucleoId: null,
-              galponId: null
+              loteCodigo: this.loteConvertido || null,
+              tipoFiltroLotes: this.tipoFiltroLotes
             })
           );
           this.resultadoLiquidacionPollo = res;
@@ -598,7 +600,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
             fechaHasta: this.peFechaHasta,
             alcance,
             granjaId: alcance === 'TodasLasGranjas' ? null : this.rangoGranjaId,
-            nucleoId: alcance === 'Nucleo' ? this.rangoNucleoId : null
+            nucleoId: alcance === 'Nucleo' ? this.rangoNucleoId : null,
+            tipoFiltroLotes: this.tipoFiltroLotes
           })
         );
         this.resultadoLiquidacionPollo = res;
@@ -722,7 +725,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.selectedLoteId = null;
     this.establecerFechasPorDefecto();
     this.establecerFechasLiquidacionPorDefecto();
-    this.soloLotesCerrados = true;
+    this.tipoFiltroLotes = 'cerrados';
     this.tipoLote = 'Todos';
     this.applyFilterCascade();
     this.indicadores = [];

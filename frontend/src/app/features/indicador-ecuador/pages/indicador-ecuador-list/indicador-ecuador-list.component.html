@@ -11,7 +11,8 @@
           <div class="ie-header__text">
             <h1 class="ie-header__title">Indicador Ecuador</h1>
             <p class="ie-header__subtitle" *ngIf="vistaIndicador === 'polloEngorde'">
-              Liquidación técnica · Pollo Engorde · Solo lotes liquidados (aves = 0)
+              Liquidación técnica · Pollo Engorde ·
+              {{ tipoFiltroLotes === 'cerrados' ? 'Lotes cerrados administrativamente' : tipoFiltroLotes === 'aves_cero' ? 'Solo lotes con aves = 0' : 'Todos los lotes' }}
             </p>
             <p class="ie-header__subtitle" *ngIf="vistaIndicador === 'general'">
               Liquidación técnica de cierre · Conglomerado de todas las granjas
@@ -85,8 +86,8 @@
           <ng-container *ngIf="polloModo === 'unLote'">
             <div class="ie-filters">
 
-              <!-- Fila 1: Granja / Núcleo / Galpón -->
-              <div class="ie-grid ie-grid--3">
+              <!-- Fila principal: Granja / Núcleo / Galpón / Estado de lote -->
+              <div class="ie-grid ie-grid--4">
                 <div class="ie-field">
                   <label class="ie-label">🏭 Granja</label>
                   <select [(ngModel)]="peGranjaId" (ngModelChange)="onPeGranjaChange()" class="ie-input">
@@ -108,22 +109,18 @@
                     <option *ngFor="let g of peGalpones" [ngValue]="g.galponId">{{ g.galponNombre || g.galponId }}</option>
                   </select>
                 </div>
+                <div class="ie-field">
+                  <label class="ie-label">🔍 Estado de lote</label>
+                  <select [(ngModel)]="tipoFiltroLotes" class="ie-input ie-input--filter-state" [disabled]="!peGranjaId">
+                    <option value="cerrados">Lotes Cerrados (Fin de Ciclo)</option>
+                    <option value="aves_cero">Lotes con Aves = 0</option>
+                    <option value="todos">Mostrar Todos los Lotes</option>
+                  </select>
+                </div>
               </div>
 
-              <!-- Checkbox: todos los lotes liquidados -->
-              <div class="ie-span-full" style="margin-bottom:.75rem;">
-                <label class="ie-check-pill" [style.opacity]="!peGranjaId ? '.5' : '1'">
-                  <input type="checkbox" [(ngModel)]="peTodosLotesLiquidados"
-                    (ngModelChange)="onPeTodosLotesChange()" [disabled]="!peGranjaId">
-                  <span class="ie-check-pill__text">
-                    Todos los lotes liquidados del alcance (sin elegir uno)
-                    <span class="ie-check-pill__sub">Lista todos los lotes con aves = 0 dentro de granja / núcleo / galpón seleccionado</span>
-                  </span>
-                </label>
-              </div>
-
-              <!-- Fila 2: Año / Corrida / Lote a buscar — solo visible cuando "Todos los lotes liquidados" está activo -->
-              <div class="ie-grid ie-grid--3" *ngIf="peTodosLotesLiquidados">
+              <!-- Filtro Año / Corrida — visible cuando no hay lote específico elegido -->
+              <div class="ie-grid ie-grid--3" *ngIf="peGranjaId && !peLoteAveEngordeId">
                 <div class="ie-field">
                   <label class="ie-label">📅 Año</label>
                   <select [(ngModel)]="selectedAnio" (ngModelChange)="onFiltroAnioChange($event)" class="ie-input">
@@ -140,14 +137,14 @@
                   </select>
                 </div>
                 <div class="ie-field">
-                  <label class="ie-label">🔍 Lote a buscar</label>
+                  <label class="ie-label">🔍 Prefijo de lote</label>
                   <input type="text" [ngModel]="loteConvertido" [disabled]="true" class="ie-input ie-input--readonly"
                          placeholder="Ej: 2601">
                 </div>
               </div>
 
               <!-- Filtro tiempo encasetamiento -->
-              <div class="ie-span-full" *ngIf="peGranjaId && !peTodosLotesLiquidados">
+              <div class="ie-span-full" *ngIf="peGranjaId">
                 <div class="ie-encaset-filter">
                   <div class="ie-encaset-filter__title">📅 Filtrar lotes por fecha de encasetamiento</div>
                   <div class="ie-mode-chips">
@@ -198,16 +195,19 @@
                 </div>
               </div>
 
-              <!-- Selector de lote -->
-              <div class="ie-field ie-span-full" *ngIf="!peTodosLotesLiquidados">
-                <label class="ie-label">📋 Lote liquidado (aves = 0)</label>
+              <!-- Selector de lote (opcional) -->
+              <div class="ie-field ie-span-full">
+                <label class="ie-label">
+                  📋 Lote específico
+                  <span class="ie-hint-inline">· Opcional — sin selección, la consulta abarca todo el alcance</span>
+                </label>
                 <select [(ngModel)]="peLoteAveEngordeId" class="ie-input" [disabled]="!peGranjaId">
-                  <option [ngValue]="null">— Seleccione lote —</option>
+                  <option [ngValue]="null">— Sin filtro de lote (consulta masiva por alcance) —</option>
                   <option *ngFor="let l of peLotesFiltradosPorFecha" [ngValue]="l.loteAveEngordeId">
                     {{ etiquetaLoteFiltro(l) }}
                   </option>
                 </select>
-                <p class="ie-hint">Solo lotes con aves = 0 · formato: galpón · línea · lote · enc. fecha</p>
+                <p class="ie-hint">Deja sin selección para procesar todos los lotes del estado elegido · formato: galpón · línea · lote · enc. fecha</p>
               </div>
             </div>
           </ng-container>
@@ -340,18 +340,41 @@
                   <option value="Reproductora">Reproductora</option>
                 </select>
               </div>
-              <div class="ie-field" style="justify-content:flex-end;">
-                <label class="ie-check-pill" style="margin-top:auto;">
-                  <input type="checkbox" [(ngModel)]="soloLotesCerrados">
-                  <span class="ie-check-pill__text" style="color:var(--orange-dark);">
-                    Solo lotes cerrados (aves = 0)
+            </div>
+
+            <!-- Selector dual de filtro de lotes -->
+            <div style="margin-top:0.75rem;">
+              <p class="ie-label" style="color:var(--orange-dark); margin-bottom:0.5rem; font-weight:700;">🔍 Filtro de lotes</p>
+              <div style="display:flex; gap:0.65rem; flex-wrap:wrap;">
+
+                <label style="display:flex; align-items:flex-start; gap:0.55rem; padding:0.6rem 0.9rem; border-radius:10px; border:2px solid; cursor:pointer; flex:1; min-width:220px; transition:border-color 0.15s, background 0.15s;"
+                       [style.border-color]="tipoFiltroLotes === 'cerrados' ? 'var(--orange-dark)' : '#d1d5db'"
+                       [style.background]="tipoFiltroLotes === 'cerrados' ? '#fff8f5' : '#fff'">
+                  <input type="radio" name="tipoFiltroLotes" value="cerrados" [(ngModel)]="tipoFiltroLotes"
+                         style="margin-top:0.2rem; accent-color:var(--orange-dark); flex-shrink:0;">
+                  <span>
+                    <strong style="display:block; font-size:0.85rem; color:var(--orange-dark); line-height:1.3;">Todos los lotes cerrados administrativamente</strong>
+                    <small style="color:#6b7280; font-size:0.77rem; line-height:1.4;">Muestra lotes con ciclo finalizado, incluso si conservan algún saldo residual de aves.</small>
                   </span>
                 </label>
+
+                <label style="display:flex; align-items:flex-start; gap:0.55rem; padding:0.6rem 0.9rem; border-radius:10px; border:2px solid; cursor:pointer; flex:1; min-width:220px; transition:border-color 0.15s, background 0.15s;"
+                       [style.border-color]="tipoFiltroLotes === 'aves_cero' ? 'var(--orange-dark)' : '#d1d5db'"
+                       [style.background]="tipoFiltroLotes === 'aves_cero' ? '#fff8f5' : '#fff'">
+                  <input type="radio" name="tipoFiltroLotes" value="aves_cero" [(ngModel)]="tipoFiltroLotes"
+                         style="margin-top:0.2rem; accent-color:var(--orange-dark); flex-shrink:0;">
+                  <span>
+                    <strong style="display:block; font-size:0.85rem; line-height:1.3;">Solo lotes con saldo de aves en cero (0)</strong>
+                    <small style="color:#6b7280; font-size:0.77rem; line-height:1.4;">Comportamiento físico estricto. Muestra lotes donde el inventario llegó exactamente a cero.</small>
+                  </span>
+                </label>
+
               </div>
             </div>
-            <p class="ie-hint">
+
+            <p class="ie-hint" style="margin-top:0.65rem;">
               <strong>Calcular / Consolidado:</strong> Fecha desde/hasta = encaset. ·
-              <strong>Ver lotes (botón amarillo):</strong> con checkbox = fecha cierre; sin checkbox = encaset (incluye abiertos).
+              <strong>Ver lotes (botón):</strong> "Cerrados admin." o "Aves en cero" = fecha cierre; "todos" = encaset (incluye abiertos).
             </p>
           </div>
 
@@ -364,7 +387,7 @@
             </button>
             <button (click)="verLotesCerrados()" [disabled]="loading" class="ie-btn ie-btn--orange">
               <span class="ie-btn__icon">✅</span>
-              {{ soloLotesCerrados ? 'Lotes cerrados (cierre en rango)' : 'Lotes en rango (encaset)' }}
+              {{ tipoFiltroLotes !== 'todos' ? 'Lotes cerrados (cierre en rango)' : 'Lotes en rango (encaset)' }}
             </button>
             <button (click)="limpiarFiltros()" class="ie-btn ie-btn--ghost">
               <span class="ie-btn__icon">↺</span> Limpiar
@@ -442,10 +465,15 @@
             <button type="button" class="ie-btn ie-btn--primary ie-btn--sm"
               (click)="exportarExcel()"
               [disabled]="!resultadoLiquidacionPollo || !resultadoLiquidacionPollo.items.length">
-              📥 Descargar Reporte
+              📥 Exportar Excel
+            </button>
+            <button type="button" class="ie-btn ie-btn--secondary ie-btn--sm"
+              (click)="showReporte = !showReporte"
+              [disabled]="!resultadoLiquidacionPollo.items.length">
+              🖨️ {{ showReporte ? 'Ocultar Reporte' : 'Ver Reporte / Imprimir' }}
             </button>
             <button type="button" class="ie-btn ie-btn--ghost ie-btn--sm"
-              (click)="mostrarLiquidacionPollo = false; resultadoLiquidacionPollo = null; tabActivaLiquidacion = 'consolidado'">
+              (click)="mostrarLiquidacionPollo = false; resultadoLiquidacionPollo = null; tabActivaLiquidacion = 'consolidado'; showReporte = false">
               ✕ Cerrar
             </button>
           </div>
@@ -779,6 +807,15 @@
       </div>
 
       <!-- ═══════════════════════════════════════════
+           REPORTE DE LIQUIDACIÓN (ficha técnica imprimible)
+           ═══════════════════════════════════════════ -->
+      @if (showReporte && resultadoLiquidacionPollo && resultadoLiquidacionPollo.items.length) {
+        <app-liquidacion-reporte
+          [items]="resultadoLiquidacionPollo.items">
+        </app-liquidacion-reporte>
+      }
+
+      <!-- ═══════════════════════════════════════════
            RESULTADO — INDICADORES GENERALES
            ═══════════════════════════════════════════ -->
       <div *ngIf="!loading && !mostrarConsolidado && !mostrarLotesCerrados && !mostrarLiquidacion && !mostrarLiquidacionPollo && indicadores.length > 0"
@@ -837,7 +874,7 @@
            ═══════════════════════════════════════════ -->
       <div *ngIf="!loading && mostrarLotesCerrados" class="ie-card ie-card--elevated">
         <div class="ie-card__head">
-          <h2 class="ie-card__title">{{ soloLotesCerrados ? '✅ Lotes cerrados (cierre en el rango)' : '📋 Lotes en rango de encaset' }}</h2>
+          <h2 class="ie-card__title">{{ tipoFiltroLotes !== 'todos' ? '✅ Lotes cerrados (cierre en el rango)' : '📋 Lotes en rango de encaset' }}</h2>
           <div class="ie-card__actions">
             <span class="ie-badge ie-badge--green">{{ lotesCerrados.length }} lote(s)</span>
             <button (click)="mostrarLotesCerrados = false" class="ie-btn ie-btn--ghost ie-btn--sm">✕ Cerrar</button>
@@ -875,7 +912,7 @@
         </div>
         <div class="ie-empty" *ngIf="lotesCerrados.length === 0">
           <div class="ie-empty__icon">🔍</div>
-          <p class="ie-empty__msg">{{ soloLotesCerrados ? 'No hay lotes cerrados con fecha de cierre en el rango.' : 'No hay lotes con encaset en el rango.' }}</p>
+          <p class="ie-empty__msg">{{ tipoFiltroLotes !== 'todos' ? 'No hay lotes cerrados con fecha de cierre en el rango.' : 'No hay lotes con encaset en el rango.' }}</p>
         </div>
       </div>
 

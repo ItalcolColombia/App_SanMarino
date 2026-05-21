@@ -12,6 +12,7 @@ public sealed record LoteAveEngordeDetailDto(
     string? GalponId,
     string? Regional,
     DateTime? FechaEncaset,
+    DateTime? FechaAlistamiento,
     int? HembrasL,
     int? MachosL,
     double? PesoInicialH,

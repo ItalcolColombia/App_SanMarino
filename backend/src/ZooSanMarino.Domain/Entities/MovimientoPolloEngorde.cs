@@ -62,6 +62,8 @@ public class MovimientoPolloEngorde : AuditableEntity
     public double? PesoNetoGlobal { get; set; }
 
     // Peso individual prorrateado: proporcional a las aves de cada movimiento dentro del despacho.
+    public double? PesoBrutoReal { get; set; }
+    public double? PesoTaraReal { get; set; }
     public double? PesoNeto { get; set; }
     public double? PromedioPesoAve { get; set; }
 

@@ -306,6 +306,32 @@
   }
 }
 
+.ie-hint-inline {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--gray-400);
+  margin-left: .25rem;
+}
+
+.ie-input--filter-state {
+  border-color: var(--orange-100);
+  background: var(--orange-50);
+  color: var(--orange-dark);
+  font-weight: 600;
+
+  &:focus {
+    outline: none;
+    border-color: var(--orange-dark);
+    box-shadow: 0 0 0 3px rgba(232,92,37,.12);
+  }
+
+  &:disabled {
+    background: var(--gray-100);
+    color: var(--gray-400);
+    border-color: var(--gray-200);
+  }
+}
+
 .ie-input--readonly {
   background: #f3f4f6;
   color: #374151;

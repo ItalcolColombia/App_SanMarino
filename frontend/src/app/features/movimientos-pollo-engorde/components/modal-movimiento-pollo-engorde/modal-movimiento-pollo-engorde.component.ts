@@ -805,6 +805,69 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     return neto / total;
   }
 
+  /** Líneas de venta granja con al menos una ave asignada. */
+  get prorateoLineasActivas(): VentaLineaGranja[] {
+    return this.ventaLineasGranja.filter(l => l.h + l.m + l.x > 0);
+  }
+
+  /** Distribución proporcional de pesos por línea (espejo del algoritmo backend con ajuste de residuo). */
+  get prorateoPreview(): Array<{
+    galponLabel: string; loteNombre: string; aves: number; pct: number;
+    bruto: number | null; tara: number | null; neto: number | null;
+  }> {
+    const lineas = this.prorateoLineasActivas;
+    if (lineas.length < 2) return [];
+    const v = this.form?.getRawValue();
+    if (!v) return [];
+    const pesoBruto = v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null;
+    const pesoTara  = v.pesoTara  != null && v.pesoTara  !== '' ? Number(v.pesoTara)  : null;
+    const pesoNeto  = pesoBruto != null && pesoTara != null ? pesoBruto - pesoTara : null;
+    const totalAves = lineas.reduce((s, l) => s + l.h + l.m + l.x, 0);
+
+    const rows = lineas.map(l => {
+      const aves   = l.h + l.m + l.x;
+      const factor = totalAves > 0 ? aves / totalAves : 0;
+      return {
+        galponLabel : l.galponLabel,
+        loteNombre  : l.loteNombre,
+        aves,
+        pct         : totalAves > 0 ? factor * 100 : 0,
+        bruto       : pesoBruto != null ? Math.round(pesoBruto * factor * 1000) / 1000 : null,
+        tara        : pesoTara  != null ? Math.round(pesoTara  * factor * 1000) / 1000 : null,
+        neto        : pesoNeto  != null ? Math.round(pesoNeto  * factor * 1000) / 1000 : null,
+      };
+    });
+
+    // Ajuste de residuo al lote con mayor cantidad de aves (espejo del backend)
+    if (pesoBruto != null) {
+      const maxIdx   = rows.reduce((mi, r, i, a) => r.aves > a[mi].aves ? i : mi, 0);
+      const resBruto = Math.round((pesoBruto - rows.reduce((s, r) => s + (r.bruto ?? 0), 0)) * 1000) / 1000;
+      const resTara  = pesoTara  != null ? Math.round((pesoTara  - rows.reduce((s, r) => s + (r.tara  ?? 0), 0)) * 1000) / 1000 : 0;
+      const resNeto  = pesoNeto  != null ? Math.round((pesoNeto  - rows.reduce((s, r) => s + (r.neto  ?? 0), 0)) * 1000) / 1000 : 0;
+      rows[maxIdx] = {
+        ...rows[maxIdx],
+        bruto: rows[maxIdx].bruto != null ? Math.round((rows[maxIdx].bruto + resBruto) * 1000) / 1000 : null,
+        tara : rows[maxIdx].tara  != null ? Math.round((rows[maxIdx].tara  + resTara)  * 1000) / 1000 : null,
+        neto : rows[maxIdx].neto  != null ? Math.round((rows[maxIdx].neto  + resNeto)  * 1000) / 1000 : null,
+      };
+    }
+    return rows;
+  }
+
+  /** Fila de totales para la tabla de prorrateo. */
+  get prorateoTotales(): { aves: number; pct: number; bruto: number | null; tara: number | null; neto: number | null } {
+    const rows = this.prorateoPreview;
+    if (rows.length === 0) return { aves: 0, pct: 0, bruto: null, tara: null, neto: null };
+    const hayPeso = rows.some(r => r.bruto != null);
+    return {
+      aves  : rows.reduce((s, r) => s + r.aves, 0),
+      pct   : rows.reduce((s, r) => s + r.pct, 0),
+      bruto : hayPeso ? Math.round(rows.reduce((s, r) => s + (r.bruto ?? 0), 0) * 1000) / 1000 : null,
+      tara  : hayPeso ? Math.round(rows.reduce((s, r) => s + (r.tara  ?? 0), 0) * 1000) / 1000 : null,
+      neto  : hayPeso ? Math.round(rows.reduce((s, r) => s + (r.neto  ?? 0), 0) * 1000) / 1000 : null,
+    };
+  }
+
   formatearNumero(n: number): string {
     return new Intl.NumberFormat('es-CO').format(n);
   }

@@ -11,6 +11,7 @@ export interface LoteAveEngordeDto {
   galponId?: string | null;
   regional?: string;
   fechaEncaset?: string;
+  fechaAlistamiento?: string | null;
   hembrasL?: number;
   machosL?: number;
   mixtas?: number | null;

@@ -214,6 +214,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
             GalponId = galponId,
             Regional = dto.Regional,
             FechaEncaset = dto.FechaEncaset?.ToUniversalTime(),
+            FechaAlistamiento = dto.FechaAlistamiento?.ToUniversalTime(),
             HembrasL = dto.HembrasL,
             MachosL = dto.MachosL,
             PesoInicialH = dto.PesoInicialH,
@@ -343,6 +344,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.GalponId = galponId ?? ent.GalponId;
         ent.Regional = dto.Regional;
         ent.FechaEncaset = dto.FechaEncaset?.ToUniversalTime();
+        ent.FechaAlistamiento = dto.FechaAlistamiento?.ToUniversalTime();
         ent.HembrasL = dto.HembrasL;
         ent.MachosL = dto.MachosL;
         ent.PesoInicialH = dto.PesoInicialH;
@@ -525,6 +527,7 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 l.GalponId,
                 l.Regional,
                 l.FechaEncaset,
+                l.FechaAlistamiento,
                 l.HembrasL,
                 l.MachosL,
                 l.PesoInicialH,

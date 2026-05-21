@@ -11,7 +11,7 @@ export interface IndicadorEcuadorRequest {
   loteId?: number | null;
   fechaDesde?: string | null;
   fechaHasta?: string | null;
-  soloLotesCerrados?: boolean;
+  tipoFiltroLotes?: 'cerrados' | 'aves_cero' | 'todos';
   tipoLote?: string; // "Produccion", "Levante", "Reproductora", "Todos"
   pesoAjusteVariable?: number | null; // default 2.7 (Conv. Ajustada)
   divisorAjusteVariable?: number | null; // default 4.5
@@ -46,9 +46,10 @@ export interface IndicadorEcuadorDto {
   indiceProductividad: number;
   gananciaDia: number;
   fechaInicioLote: string | null;
-  fechaCierreLote: string | null; // Fecha último despacho (cierre de lote)
+  fechaCierreLote: string | null;
   /** true si aves actuales = 0 (según reglas del backend) */
   loteCerrado: boolean;
+  fechaAlistamiento?: string | null;
 }
 
 export interface IndicadorEcuadorConsolidadoDto {
@@ -131,6 +132,8 @@ export interface LiquidacionPolloEngordeReporteRequest {
   galponId?: string | null;
   /** Modo TodosLiquidados: prefijo YYCC del nombre del lote (ej: "2601"). Opcional. */
   loteCodigo?: string | null;
+  /** "cerrados" (default) | "aves_cero" | "todos" */
+  tipoFiltroLotes?: 'cerrados' | 'aves_cero' | 'todos';
 }
 
 export interface LiquidacionPolloEngordeItemDto {

@@ -83,6 +83,8 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             PesoBrutoGlobal = dto.PesoBrutoGlobal,
             PesoTaraGlobal = dto.PesoTaraGlobal,
             PesoNetoGlobal = dto.PesoNetoGlobal,
+            PesoBrutoReal = dto.PesoBrutoRealIndividual,
+            PesoTaraReal = dto.PesoTaraRealIndividual,
             // Peso individual: usa el prorrateado cuando lo provee CreateVentaGranjaDespachoAsync;
             // en movimientos simples calcula desde PesoBruto - PesoTara.
             PesoNeto = dto.PesoNetoIndividual
@@ -270,7 +272,9 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             promedioPesoAve,
             m.PesoBrutoGlobal,
             m.PesoTaraGlobal,
-            m.PesoNetoGlobal
+            m.PesoNetoGlobal,
+            m.PesoBrutoReal,
+            m.PesoTaraReal
         );
     }
 
@@ -1631,17 +1635,50 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
 
         var pesoNetoGlobal = pesoBrutoGlobal - pesoTaraGlobal;
         var totalAvesDespacho = lineas.Sum(l => l.CantidadHembras + l.CantidadMachos + l.CantidadMixtas);
-        var pesoPorAve = tienePeso && totalAvesDespacho > 0 ? pesoNetoGlobal / totalAvesDespacho : 0d;
+
+        // --- PRORRATEO: pre-computa bruto/tara/neto real por línea antes de abrir transacción ---
+        var n = lineas.Count;
+        var pesoBrutosPorLinea = new double?[n];
+        var pesoTarasPorLinea  = new double?[n];
+        var pesoNetosPorLinea  = new double?[n];
+        var promediosPorLinea  = new double?[n];
+
+        if (tienePeso && totalAvesDespacho > 0)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                var aves   = lineas[i].CantidadHembras + lineas[i].CantidadMachos + lineas[i].CantidadMixtas;
+                var factor = (double)aves / totalAvesDespacho;
+                pesoBrutosPorLinea[i] = Math.Round(pesoBrutoGlobal * factor, 3);
+                pesoTarasPorLinea[i]  = Math.Round(pesoTaraGlobal  * factor, 3);
+                pesoNetosPorLinea[i]  = Math.Round(pesoNetoGlobal  * factor, 3);
+                promediosPorLinea[i]  = aves > 0 ? pesoNetosPorLinea[i]!.Value / aves : 0d;
+            }
+
+            // Ajuste de residuo de redondeo al lote con mayor cantidad de aves
+            int maxIdx  = 0;
+            int maxAves = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var aves = lineas[i].CantidadHembras + lineas[i].CantidadMachos + lineas[i].CantidadMixtas;
+                if (aves > maxAves) { maxAves = aves; maxIdx = i; }
+            }
+            var residuoBruto = pesoBrutoGlobal - pesoBrutosPorLinea.Sum(x => x ?? 0d);
+            var residuoTara  = pesoTaraGlobal  - pesoTarasPorLinea.Sum(x => x ?? 0d);
+            var residuoNeto  = pesoNetoGlobal  - pesoNetosPorLinea.Sum(x => x ?? 0d);
+            pesoBrutosPorLinea[maxIdx] = Math.Round(pesoBrutosPorLinea[maxIdx]!.Value + residuoBruto, 3);
+            pesoTarasPorLinea[maxIdx]  = Math.Round(pesoTarasPorLinea[maxIdx]!.Value  + residuoTara,  3);
+            pesoNetosPorLinea[maxIdx]  = Math.Round(pesoNetosPorLinea[maxIdx]!.Value  + residuoNeto,  3);
+            promediosPorLinea[maxIdx]  = maxAves > 0 ? pesoNetosPorLinea[maxIdx]!.Value / maxAves : 0d;
+        }
 
         await using var tx = await _ctx.Database.BeginTransactionAsync();
         try
         {
             var results = new List<MovimientoPolloEngordeDto>();
-            foreach (var linea in lineas)
+            for (int i = 0; i < n; i++)
             {
-                var cantidadLinea = linea.CantidadHembras + linea.CantidadMachos + linea.CantidadMixtas;
-                var pesoNetoLinea = tienePeso ? cantidadLinea * pesoPorAve : (double?)null;
-
+                var linea  = lineas[i];
                 var single = new CreateMovimientoPolloEngordeDto
                 {
                     FechaMovimiento = dto.FechaMovimiento,
@@ -1676,11 +1713,13 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
                     PesoTara = dto.PesoTara,
                     // Peso global del despacho: idéntico en todos los movimientos generados.
                     PesoBrutoGlobal = tienePeso ? dto.PesoBruto : null,
-                    PesoTaraGlobal = tienePeso ? dto.PesoTara : null,
-                    PesoNetoGlobal = tienePeso ? pesoNetoGlobal : null,
-                    // Peso individual: proporcional a las aves de esta línea respecto al total del camión.
-                    PesoNetoIndividual = pesoNetoLinea,
-                    PromedioPesoAveIndividual = tienePeso && pesoPorAve > 0 ? pesoPorAve : null,
+                    PesoTaraGlobal  = tienePeso ? dto.PesoTara  : null,
+                    PesoNetoGlobal  = tienePeso ? pesoNetoGlobal : null,
+                    // Peso real prorrateado con ajuste de residuo de redondeo.
+                    PesoBrutoRealIndividual    = pesoBrutosPorLinea[i],
+                    PesoTaraRealIndividual     = pesoTarasPorLinea[i],
+                    PesoNetoIndividual         = pesoNetosPorLinea[i],
+                    PromedioPesoAveIndividual  = promediosPorLinea[i],
                 };
                 var created = await CreateAsync(single);
                 results.Add(created);
