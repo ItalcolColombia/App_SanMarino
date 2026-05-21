@@ -30,6 +30,16 @@ public class SeguimientoAvesEngordeEcuadorController : ControllerBase
         return item is null ? NotFound() : Ok(item);
     }
 
+    /// <summary>Resumen para liquidar lote: aves al inicio, ventas acumuladas, saldo alimento (kg).</summary>
+    [HttpGet("por-lote/{loteId:int}/resumen-liquidacion")]
+    [ProducesResponseType(typeof(LiquidacionLoteEngordeResumenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LiquidacionLoteEngordeResumenDto>> GetResumenLiquidacion(int loteId)
+    {
+        var res = await _svc.GetLiquidacionResumenAsync(loteId);
+        return res is null ? NotFound() : Ok(res);
+    }
+
     /// <summary>Registros diarios del lote + historial unificado (inventario y ventas), orden cronológico.</summary>
     [HttpGet("por-lote/{loteId:int}")]
     [ProducesResponseType(typeof(SeguimientoAvesEngordePorLoteResponseDto), StatusCodes.Status200OK)]
