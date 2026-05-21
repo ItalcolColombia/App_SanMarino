@@ -59,6 +59,8 @@ export interface MovimientoPolloEngordeDto {
   pesoBrutoGlobal?: number | null;
   pesoTaraGlobal?: number | null;
   pesoNetoGlobal?: number | null;
+  pesoBrutoReal?: number | null;
+  pesoTaraReal?: number | null;
 }
 
 export interface ResumenAvesLoteDto {

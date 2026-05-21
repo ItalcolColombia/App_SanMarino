@@ -11,7 +11,7 @@ public record IndicadorEcuadorRequest(
     int? LoteId = null,
     DateTime? FechaDesde = null,
     DateTime? FechaHasta = null,
-    bool SoloLotesCerrados = false, // Solo lotes con aves = 0
+    string TipoFiltroLotes = "cerrados", // "aves_cero" | "cerrados" | "todos"
     string TipoLote = "Todos", // "Produccion", "Levante", "Reproductora", "Todos"
     decimal? PesoAjusteVariable = null, // Por defecto 2.7 (Conv. Ajustada)
     decimal? DivisorAjusteVariable = null // Por defecto 4.5 (Conv. Ajustada)
@@ -65,7 +65,8 @@ public record IndicadorEcuadorDto(
     // Fechas
     DateTime? FechaInicioLote,
     DateTime? FechaCierreLote,
-    bool LoteCerrado // Indica si el lote tiene aves = 0
+    bool LoteCerrado, // Indica si el lote tiene aves = 0
+    DateTime? FechaAlistamiento = null
 );
 
 /// <summary>
@@ -130,7 +131,12 @@ public record LiquidacionPolloEngordeReporteRequest(
     /// <summary>Modo UnLote sin lote: filtra lotes liquidados por galpón (opcional).</summary>
     string? GalponId = null,
     /// <summary>Modo TodosLiquidados: filtra por prefijo YYCC del nombre del lote (opcional). Ej: "2601".</summary>
-    string? LoteCodigo = null
+    string? LoteCodigo = null,
+    /// <summary>
+    /// Criterio de cierre: "cerrados" (≥90 % despachados o formalmente liquidados, default),
+    /// "aves_cero" (saldo físico = 0 exacto), "todos" (sin filtro de estado).
+    /// </summary>
+    string TipoFiltroLotes = "cerrados"
 );
 
 public record LiquidacionPolloEngordeItemDto(

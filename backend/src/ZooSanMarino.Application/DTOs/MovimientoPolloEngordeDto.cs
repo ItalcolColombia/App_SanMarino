@@ -48,7 +48,9 @@ public record MovimientoPolloEngordeDto(
     double? PromedioPesoAve = null,
     double? PesoBrutoGlobal = null,
     double? PesoTaraGlobal = null,
-    double? PesoNetoGlobal = null
+    double? PesoNetoGlobal = null,
+    double? PesoBrutoReal = null,
+    double? PesoTaraReal = null
 );
 
 /// <summary>
@@ -97,6 +99,8 @@ public sealed class CreateMovimientoPolloEngordeDto
     public double? PesoTaraGlobal { get; set; }
     public double? PesoNetoGlobal { get; set; }
     // Peso individual prorrateado: cuando viene poblado, tiene precedencia sobre el calculado de PesoBruto-PesoTara.
+    public double? PesoBrutoRealIndividual { get; set; }
+    public double? PesoTaraRealIndividual { get; set; }
     public double? PesoNetoIndividual { get; set; }
     public double? PromedioPesoAveIndividual { get; set; }
 }

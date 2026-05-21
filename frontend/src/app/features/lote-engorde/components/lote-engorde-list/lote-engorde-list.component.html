@@ -283,6 +283,10 @@
                 <input type="date" formControlName="fechaEncaset" class="le-input" [class.le-input--invalid]="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched"/>
                 <small class="le-error" *ngIf="form.get('fechaEncaset')?.invalid && form.get('fechaEncaset')?.touched">La fecha es requerida</small>
               </div>
+              <div class="le-field">
+                <label class="le-label">Fecha de alistamiento</label>
+                <input type="date" formControlName="fechaAlistamiento" class="le-input"/>
+              </div>
               <div class="le-field le-field--hidden">
                 <label class="le-label">Regional</label>
                 <input formControlName="regional" class="le-input" placeholder="Regional"/>
@@ -461,6 +465,10 @@
                 <div class="le-detail-field">
                   <label class="le-detail-label">Fecha encasetamiento</label>
                   <input type="text" class="le-detail-input" [value]="selectedLote.fechaEncaset ? (selectedLote.fechaEncaset | date:'dd/MM/yyyy') : '—'" readonly disabled>
+                </div>
+                <div class="le-detail-field">
+                  <label class="le-detail-label">Fecha alistamiento</label>
+                  <input type="text" class="le-detail-input" [value]="selectedLote.fechaAlistamiento ? (selectedLote.fechaAlistamiento | date:'dd/MM/yyyy') : '—'" readonly disabled>
                 </div>
                 <div class="le-detail-field">
                   <label class="le-detail-label">Edad (días)</label>

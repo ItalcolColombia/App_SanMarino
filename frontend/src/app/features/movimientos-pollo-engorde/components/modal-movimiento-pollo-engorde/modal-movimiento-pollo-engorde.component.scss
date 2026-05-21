@@ -399,6 +399,65 @@
   border-top: 1px solid var(--ital-green-100);
 }
 
+// Tabla de preview de prorrateo de pesos (R2)
+.form-section--prorrateo {
+  background: #f0faf4;
+  border: 1px solid var(--ital-green-100);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.prorrateo-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.65rem;
+}
+
+.prorrateo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  th, td {
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid #d1fae5;
+  }
+
+  th {
+    background: #d1fae5;
+    font-weight: 700;
+    color: var(--ital-green-dark, #166534);
+    white-space: nowrap;
+  }
+
+  td.num, th.num {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  td.prorrateo-neto {
+    font-weight: 600;
+    color: var(--ital-green-dark, #166534);
+  }
+
+  tbody tr:hover {
+    background: #ecfdf5;
+  }
+
+  tfoot tr.prorrateo-totals td {
+    background: #bbf7d0;
+    border-top: 2px solid var(--ital-green, #2d7a3e);
+  }
+}
+
+.prorrateo-galpon {
+  font-weight: 600;
+}
+
+.prorrateo-lote {
+  font-size: 0.78rem;
+}
+
 @media (max-width: 768px) {
   .mpe-modal.modal--form {
     max-width: 100%;

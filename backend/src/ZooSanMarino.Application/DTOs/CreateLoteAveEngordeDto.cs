@@ -9,6 +9,7 @@ public class CreateLoteAveEngordeDto
     public string? GalponId { get; set; }
     public string? Regional { get; set; }
     public DateTime? FechaEncaset { get; set; }
+    public DateTime? FechaAlistamiento { get; set; }
     public int? HembrasL { get; set; }
     public int? MachosL { get; set; }
     public double? PesoInicialH { get; set; }

@@ -358,6 +358,52 @@
         </div>
       </section>
 
+      <!-- Preview de prorrateo: visible solo en despacho multi-lote con 2+ líneas activas -->
+      <section class="form-section form-section--prorrateo"
+        *ngIf="ventaPorGranjaMode && !editingMovimiento && prorateoLineasActivas.length >= 2">
+        <h3 class="form-section__title">Distribución de pesos por lote (preview)</h3>
+        <p class="form-hint form-hint--block">
+          Vista previa de cómo se distribuirán los kilos entre los lotes. Los valores se ajustan para que la suma sea exactamente igual al peso global del camión.
+        </p>
+        <div class="prorrateo-table-wrap">
+          <table class="prorrateo-table">
+            <thead>
+              <tr>
+                <th>Galpón / Lote</th>
+                <th class="num">Aves</th>
+                <th class="num">% Part.</th>
+                <th class="num">Bruto (kg)</th>
+                <th class="num">Tara (kg)</th>
+                <th class="num">Neto Real (kg)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of prorateoPreview">
+                <td>
+                  <span class="prorrateo-galpon">{{ row.galponLabel }}</span>
+                  <small class="prorrateo-lote text-muted"> · {{ row.loteNombre }}</small>
+                </td>
+                <td class="num">{{ formatearNumero(row.aves) }}</td>
+                <td class="num">{{ row.pct.toFixed(2) }}%</td>
+                <td class="num">{{ row.bruto != null ? formatearNumero(row.bruto) : '—' }}</td>
+                <td class="num">{{ row.tara  != null ? formatearNumero(row.tara)  : '—' }}</td>
+                <td class="num prorrateo-neto">{{ row.neto != null ? formatearNumero(row.neto) : '—' }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="prorrateo-totals">
+                <td><strong>TOTALES</strong></td>
+                <td class="num"><strong>{{ formatearNumero(prorateoTotales.aves) }}</strong></td>
+                <td class="num"><strong>{{ prorateoTotales.pct.toFixed(2) }}%</strong></td>
+                <td class="num"><strong>{{ prorateoTotales.bruto != null ? formatearNumero(prorateoTotales.bruto) : '—' }}</strong></td>
+                <td class="num"><strong>{{ prorateoTotales.tara  != null ? formatearNumero(prorateoTotales.tara)  : '—' }}</strong></td>
+                <td class="num prorrateo-neto"><strong>{{ prorateoTotales.neto != null ? formatearNumero(prorateoTotales.neto) : '—' }}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
       <div class="modal__actions">
         <button type="button" class="btn-italfoods-secondary" (click)="onClose()">Cancelar</button>
         <button

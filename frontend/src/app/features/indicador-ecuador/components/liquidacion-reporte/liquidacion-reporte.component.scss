@@ -1,0 +1,188 @@
+// liquidacion-reporte.component.scss
+$azul-corp:    #1565C0;
+$azul-oscuro:  #0D47A1;
+$verde-ital:   #1B5E20;
+$rojo-fecha:   #C62828;
+$gris-seccion: #E3F2FD;
+$gris-alt:     #F5F5F5;
+$borde:        #BDBDBD;
+$font:         'Roboto', 'Segoe UI', sans-serif;
+
+// ─── Barra de acciones (pantalla) ───────────────────────────────────────────
+.rep-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+
+.btn-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.25rem;
+  background: $azul-corp;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font: 600 0.875rem $font;
+  cursor: pointer;
+  transition: background 0.2s;
+  &:hover { background: $azul-oscuro; }
+}
+
+.rep-count {
+  font: 0.85rem $font;
+  color: #546E7A;
+}
+
+// ─── Ficha por lote ─────────────────────────────────────────────────────────
+.reporte-lote {
+  font-family: $font;
+  font-size: 11px;
+  max-width: 760px;
+  margin: 0 auto 3rem;
+  border: 1.5px solid $borde;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.10);
+  background: #fff;
+}
+
+// ─── Título principal ────────────────────────────────────────────────────────
+.rep-titulo {
+  background: $azul-corp;
+  color: #fff;
+  font: 700 13px $font;
+  letter-spacing: .5px;
+  text-align: center;
+  padding: 7px 12px;
+  text-transform: uppercase;
+}
+
+// ─── Tabla de encabezado (empresa / granja / lote) ──────────────────────────
+.rep-header-table {
+  width: 100%;
+  border-collapse: collapse;
+  td { padding: 4px 10px; border-bottom: 1px solid #E0E0E0; }
+  tr:first-child td {
+    font: 700 12px $font;
+    background: #E3F2FD;
+    color: $azul-oscuro;
+    padding: 5px 10px;
+  }
+  .rep-label-col { width: 40%; font-weight: 600; color: #37474F; text-transform: uppercase; font-size: 10px; }
+  .rep-value-col { font-weight: 500; color: #212121; }
+}
+
+// ─── Tabla de fechas críticas ────────────────────────────────────────────────
+.rep-dates-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: 2px solid $borde;
+  td { padding: 3px 10px; }
+  .date-label {
+    width: 38%;
+    font: 700 10px $font;
+    color: $rojo-fecha;
+    text-transform: uppercase;
+  }
+  .date-value {
+    width: 22%;
+    font: 600 11px $font;
+    color: #212121;
+  }
+  .date-note {
+    font: italic 9px $font;
+    color: #78909C;
+  }
+}
+
+// ─── Tabla de análisis técnico ───────────────────────────────────────────────
+.rep-analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-top: 2px solid $borde;
+
+  thead tr th {
+    background: $azul-corp;
+    color: #fff;
+    font: 700 12px $font;
+    text-align: center;
+    padding: 6px 10px;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+  }
+
+  tbody {
+    tr { border-bottom: 1px solid #EEEEEE; }
+
+    // filas de sección
+    .section-row td {
+      background: $gris-seccion;
+      color: $azul-oscuro;
+      font: 700 10px $font;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      padding: 4px 10px;
+      border-top: 1px solid $borde;
+    }
+
+    // filas alternas
+    tr.alt { background: $gris-alt; }
+
+    td {
+      padding: 3.5px 10px;
+      color: #212121;
+      font-size: 11px;
+    }
+
+    td.num {
+      text-align: right;
+      width: 120px;
+      font: 500 11px 'Courier New', monospace;
+      letter-spacing: .3px;
+    }
+
+    td.secondary {
+      color: #9E9E9E;
+      width: 100px;
+    }
+  }
+}
+
+// ─── Pie de ficha ────────────────────────────────────────────────────────────
+.rep-footer {
+  background: #ECEFF1;
+  color: #546E7A;
+  font: 9px $font;
+  text-align: right;
+  padding: 4px 10px;
+  border-top: 1px solid $borde;
+}
+
+// ─── ESTILOS DE IMPRESIÓN ────────────────────────────────────────────────────
+@media print {
+  @page { size: A4 portrait; margin: 1cm; }
+
+  .no-print { display: none !important; }
+
+  .reporte-lote {
+    max-width: 100%;
+    margin: 0;
+    box-shadow: none;
+    border: 1px solid #999;
+    border-radius: 0;
+    font-size: 10px;
+  }
+
+  .page-break { page-break-after: always; }
+
+  .rep-titulo { font-size: 12px; padding: 5px; }
+  .rep-analysis-table tbody td { padding: 2.5px 8px; }
+  .rep-analysis-table tbody td.num { font-size: 10px; }
+}

@@ -16,6 +16,15 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
     private const decimal PesoAjusteDefault = 2.7m;
     private const decimal DivisorAjusteDefault = 4.5m;
 
+    // Convierte TipoFiltroLotes en los dos booleanos que consume CalcularIndicadorLoteAveEngordeAsync.
+    private static (bool soloLotesCerrados, bool usarCierreAdministrativo) ResolveFiltroLotes(string? tipo) =>
+        (tipo ?? "cerrados") switch
+        {
+            "todos"    => (false, false),
+            "aves_cero" => (true,  false),
+            _          => (true,  true)   // "cerrados" y cualquier otro valor
+        };
+
     public IndicadorEcuadorService(ZooSanMarinoContext context, ICurrentUser currentUser)
     {
         _context = context;
@@ -189,7 +198,7 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             GranjaId: granjaId,
             FechaDesde: null,
             FechaHasta: null,
-            SoloLotesCerrados: true
+            TipoFiltroLotes: "aves_cero"
         );
 
         var indicadores = await CalcularIndicadoresAsync(request);
@@ -227,7 +236,7 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
                 GranjaId: granjaId,
                 FechaDesde: null,
                 FechaHasta: null,
-                SoloLotesCerrados: true
+                TipoFiltroLotes: "aves_cero"
             );
 
             var indicadores = (await CalcularIndicadoresAsync(request).ConfigureAwait(false)).ToList();
@@ -243,7 +252,7 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             GranjaId: granjaId,
             FechaDesde: fechaDesde,
             FechaHasta: fechaHasta,
-            SoloLotesCerrados: false
+            TipoFiltroLotes: "todos"
         );
 
         return await CalcularIndicadoresAsync(requestAbierto).ConfigureAwait(false);
@@ -276,16 +285,17 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
                 if (lote == null)
                     throw new InvalidOperationException($"No se encontró el lote de ave engorde {request.LoteAveEngordeId}.");
 
-                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                var (soloFiltroUnLote, usarAdmUnLote) = ResolveFiltroLotes(request.TipoFiltroLotes);
+                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, soloFiltroUnLote, pesoAjuste, divisorAjuste, usarAdmUnLote).ConfigureAwait(false);
                 if (ind == null)
-                    throw new InvalidOperationException("El lote no está liquidado (aún tiene aves o no cumple criterios de liquidación). Solo se muestran lotes con aves en cero.");
+                    throw new InvalidOperationException("El lote no cumple el criterio de filtro seleccionado (TipoFiltroLotes).");
 
                 var id = lote.LoteAveEngordeId ?? 0;
                 items.Add(new LiquidacionPolloEngordeItemDto(id, lote.LoteNombre ?? "", ind));
                 return new LiquidacionPolloEngordeReporteDto("UnLote", items);
             }
 
-            // Varios lotes liquidados: granja y opcionalmente núcleo / galpón (sin id de lote)
+            // Varios lotes: granja y opcionalmente núcleo / galpón (sin id de lote)
             if (request.GranjaId.HasValue && request.GranjaId.Value > 0)
             {
                 var query = _context.LoteAveEngorde
@@ -303,10 +313,11 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
                     query = query.Where(l => l.GalponId == request.GalponId);
 
                 var lotes = await query.OrderBy(l => l.LoteNombre).ToListAsync(ct).ConfigureAwait(false);
+                var (soloFiltroMulti, usarAdmMulti) = ResolveFiltroLotes(request.TipoFiltroLotes);
 
                 foreach (var lote in lotes)
                 {
-                    var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                    var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, soloFiltroMulti, pesoAjuste, divisorAjuste, usarAdmMulti).ConfigureAwait(false);
                     if (ind == null)
                         continue;
                     var id = lote.LoteAveEngordeId ?? 0;
@@ -315,7 +326,7 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
 
                 if (items.Count == 0)
                     throw new InvalidOperationException(
-                        "No hay lotes liquidados en el alcance seleccionado (aves = 0). Ajuste granja, núcleo o galpón, o elija un lote en la lista.");
+                        "No hay lotes que cumplan el filtro en el alcance seleccionado. Ajuste granja, núcleo, galpón o TipoFiltroLotes.");
 
                 return new LiquidacionPolloEngordeReporteDto("UnLote", items);
             }
@@ -353,10 +364,11 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             }
 
             var lotes = await query.OrderBy(l => l.LoteNombre).ToListAsync(ct).ConfigureAwait(false);
+            var (soloFiltroRango, usarAdmRango) = ResolveFiltroLotes(request.TipoFiltroLotes);
 
             foreach (var lote in lotes)
             {
-                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, soloFiltroRango, pesoAjuste, divisorAjuste, usarAdmRango).ConfigureAwait(false);
                 if (ind == null)
                     continue;
                 if (!ind.FechaCierreLote.HasValue)
@@ -395,10 +407,11 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
                 query = query.Where(l => l.LoteNombre != null && l.LoteNombre.StartsWith(request.LoteCodigo));
 
             var lotes = await query.OrderBy(l => l.LoteNombre).ToListAsync(ct).ConfigureAwait(false);
+            var (soloFiltroTodos, usarAdmTodos) = ResolveFiltroLotes(request.TipoFiltroLotes);
 
             foreach (var lote in lotes)
             {
-                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, true, pesoAjuste, divisorAjuste).ConfigureAwait(false);
+                var ind = await CalcularIndicadorLoteAveEngordeAsync(lote, null, null, soloFiltroTodos, pesoAjuste, divisorAjuste, usarAdmTodos).ConfigureAwait(false);
                 if (ind == null)
                     continue;
                 var id = lote.LoteAveEngordeId ?? 0;
@@ -407,7 +420,7 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
 
             if (items.Count == 0)
                 throw new InvalidOperationException(
-                    "No hay lotes liquidados (aves = 0) en el alcance seleccionado. Ajuste granja, núcleo, galpón o código de lote.");
+                    "No hay lotes que cumplan el filtro en el alcance seleccionado. Ajuste granja, núcleo, galpón, código de lote o TipoFiltroLotes.");
 
             return new LiquidacionPolloEngordeReporteDto("TodosLiquidados", items);
         }
@@ -470,7 +483,8 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         DateTime? fechaHasta,
         bool soloLotesCerrados,
         decimal pesoAjuste,
-        decimal divisorAjuste)
+        decimal divisorAjuste,
+        bool usarCierreAdministrativo = false)
     {
         var loteId = lote.LoteAveEngordeId ?? 0;
         var avesEncasetadas = lote.AvesEncasetadas ?? (lote.HembrasL ?? 0) + (lote.MachosL ?? 0) + (lote.Mixtas ?? 0);
@@ -506,7 +520,25 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         var cerradoPorReproductoresVendidos = !cerradoPorAvesCero && avesSacrificadas == 0 && mortalidadTotal == 0 &&
             await TodosReproductoresConCeroAvesAsync(loteId);
         var loteCerrado = cerradoPorAvesCero || cerradoPorReproductoresVendidos;
-        if (soloLotesCerrados && !loteCerrado) return null;
+        if (soloLotesCerrados)
+        {
+            if (usarCierreAdministrativo)
+            {
+                // Cierre administrativo: marcado como liquidado en el sistema,
+                // o físicamente cerrado (aves = 0),
+                // o ≥90% de aves cosechadas (cubre lotes con saldo residual mínimo sin cierre formal).
+                var ratioSacrificadas = avesEncasetadas > 0
+                    ? (decimal)avesSacrificadas / avesEncasetadas
+                    : 0m;
+                var adminCerrado = lote.EstadoOperativoLote != "Abierto"
+                                || lote.LiquidadoAt != null
+                                || loteCerrado
+                                || ratioSacrificadas >= 0.9m;
+                if (!adminCerrado) return null;
+            }
+            else if (!loteCerrado)
+                return null;
+        }
 
         var fechaCierre = await FechaCierrePolloEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
         // Sin Venta/Despacho/Retiro la fecha puede ser null aunque el lote esté en cero (p. ej. solo mortalidad/seguimiento).
@@ -543,7 +575,8 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             gananciaDia,
             lote.FechaEncaset,
             fechaCierre,
-            loteCerrado
+            loteCerrado,
+            lote.FechaAlistamiento
         );
     }
 
@@ -953,9 +986,20 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         var avesActuales = await CalcularAvesActualesAsync(loteId);
         var loteCerrado = avesActuales == 0;
 
-        // Si SoloLotesCerrados = true y el lote no está cerrado, retornar null
-        if (request.SoloLotesCerrados && !loteCerrado)
-            return null;
+        // Filtrar según TipoFiltroLotes
+        switch (request.TipoFiltroLotes)
+        {
+            case "aves_cero":
+                // Cierre físico estricto: solo lotes con saldo de aves exactamente 0
+                if (!loteCerrado) return null;
+                break;
+            case "cerrados":
+                // Cierre administrativo: saldo físico cero O producción formalmente finalizada
+                var cerradoAdm = loteCerrado || loteEntity.FechaFinProduccion != null;
+                if (!cerradoAdm) return null;
+                break;
+            // "todos": sin filtro — todos los lotes pasan
+        }
 
         return new IndicadorEcuadorDto(
             lote.GranjaId,
