@@ -60,6 +60,95 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         return entities.Select(MapToDto);
     }
 
+    // ─── Resumen liquidación ─────────────────────────────────────────────────
+
+    public async Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId)
+    {
+        var companyId = _current.CompanyId;
+        var lote = await _ctx.LoteAveEngorde.AsNoTracking()
+            .Where(l => l.LoteAveEngordeId == loteId && l.CompanyId == companyId && l.DeletedAt == null)
+            .Select(l => new
+            {
+                l.LoteAveEngordeId,
+                l.LoteNombre,
+                l.EstadoOperativoLote,
+                l.HembrasL,
+                l.MachosL,
+                l.Mixtas,
+                l.AvesEncasetadas
+            })
+            .SingleOrDefaultAsync();
+        if (lote is null) return null;
+
+        var saldo = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .OrderByDescending(s => s.Fecha)
+            .Select(s => s.SaldoAlimentoKg)
+            .FirstOrDefaultAsync();
+
+        var ventas = await _ctx.LoteRegistroHistoricoUnificados.AsNoTracking()
+            .Where(h => h.LoteAveEngordeId == loteId && h.CompanyId == companyId && !h.Anulado && h.TipoEvento == "VENTA_AVES")
+            .ToListAsync();
+
+        var vh = ventas.Sum(v => v.CantidadHembras ?? 0);
+        var vm = ventas.Sum(v => v.CantidadMachos ?? 0);
+        var vx = ventas.Sum(v => v.CantidadMixtas ?? 0);
+
+        var ini = await _ctx.HistorialLotePolloEngorde.AsNoTracking()
+            .Where(h =>
+                h.CompanyId == companyId &&
+                h.LoteAveEngordeId == loteId &&
+                h.TipoLote == "LoteAveEngorde" &&
+                h.TipoRegistro == "Inicio")
+            .OrderBy(h => h.Id)
+            .FirstOrDefaultAsync();
+
+        int hInicio, mInicio, xInicio;
+        if (ini != null)
+        {
+            hInicio = ini.AvesHembras;
+            mInicio = ini.AvesMachos;
+            xInicio = ini.AvesMixtas;
+        }
+        else
+        {
+            hInicio = lote.HembrasL ?? 0;
+            mInicio = lote.MachosL ?? 0;
+            xInicio = lote.Mixtas ?? 0;
+            if (hInicio + mInicio + xInicio == 0 && lote.AvesEncasetadas.HasValue && lote.AvesEncasetadas.Value > 0)
+                xInicio = lote.AvesEncasetadas.Value;
+        }
+
+        var totalInicio = hInicio + mInicio + xInicio;
+
+        var bajas = await _ctx.SeguimientoDiarioAvesEngorde.AsNoTracking()
+            .Where(s => s.LoteAveEngordeId == loteId)
+            .Select(s =>
+                (s.MortalidadHembras ?? 0) +
+                (s.MortalidadMachos ?? 0) +
+                (s.SelH ?? 0) +
+                (s.SelM ?? 0) +
+                (s.ErrorSexajeHembras ?? 0) +
+                (s.ErrorSexajeMachos ?? 0))
+            .SumAsync();
+        var avesVivas = Math.Max(0, totalInicio - bajas - (vh + vm + vx));
+
+        return new LiquidacionLoteEngordeResumenDto(
+            lote.LoteAveEngordeId ?? loteId,
+            lote.LoteNombre ?? "",
+            lote.EstadoOperativoLote ?? "Abierto",
+            hInicio,
+            mInicio,
+            xInicio,
+            totalInicio,
+            vh,
+            vm,
+            vx,
+            avesVivas,
+            ventas.Count,
+            saldo);
+    }
+
     // ─── Tabla diaria via función SQL ────────────────────────────────────────
 
     public async Task<IReadOnlyList<SeguimientoDiarioTablaFilaDto>> GetTablaDiariaAsync(int loteId)

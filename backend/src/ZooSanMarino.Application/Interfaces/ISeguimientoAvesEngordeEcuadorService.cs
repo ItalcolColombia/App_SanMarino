@@ -11,4 +11,5 @@ public interface ISeguimientoAvesEngordeEcuadorService
     Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto);
     Task<bool> DeleteAsync(int id);
     Task<IReadOnlyList<SeguimientoDiarioTablaFilaDto>> GetTablaDiariaAsync(int loteId);
+    Task<LiquidacionLoteEngordeResumenDto?> GetLiquidacionResumenAsync(int loteId);
 }
