@@ -41,42 +41,16 @@ env:
   ECS_CLUSTER: devSanmarinoZoo
 
 # =============================================================================
-# JOB 1 — Detectar qué cambió (optimiza tiempo de pipeline)
+# JOB 1 — Backend: Build → ECR → ECS
 # =============================================================================
 jobs:
-  changes:
-    name: Detectar cambios
-    runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      # Si el workflow se disparó manualmente, respetar los inputs del usuario.
-      # Si fue un push automático, detectar cambios reales en los directorios.
-      - name: Detectar cambios por path
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'backend/**'
-            frontend:
-              - 'frontend/**'
-
-  # ===========================================================================
-  # JOB 2 — Backend: Build → ECR → ECS
-  # ===========================================================================
   deploy-backend:
     name: "Backend — Build & Deploy"
     runs-on: ubuntu-latest
-    needs: changes
-    # Despliega si hubo cambios en backend O si se activó manualmente
+    # En push automático siempre despliega; en manual respeta el input
     if: |
-      needs.changes.outputs.backend == 'true' ||
-      github.event_name == 'workflow_dispatch' && inputs.deploy_backend == true
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_backend == true)
     timeout-minutes: 30
 
     env:
@@ -195,15 +169,14 @@ jobs:
           echo "- Imagen: \`${{ steps.tags.outputs.image_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
-  # JOB 3 — Frontend: Build → ECR → ECS
+  # JOB 2 — Frontend: Build → ECR → ECS
   # ===========================================================================
   deploy-frontend:
     name: "Frontend — Build & Deploy"
     runs-on: ubuntu-latest
-    needs: changes
     if: |
-      needs.changes.outputs.frontend == 'true' ||
-      github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy_frontend == true)
     timeout-minutes: 30
 
     env:
