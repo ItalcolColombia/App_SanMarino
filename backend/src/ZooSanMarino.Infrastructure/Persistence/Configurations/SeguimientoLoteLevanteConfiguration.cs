@@ -65,6 +65,14 @@ public class SeguimientoLoteLevanteConfiguration : IEntityTypeConfiguration<Segu
                .HasColumnName("consumo_agua_temperatura")
                .HasColumnType("double precision");
 
+        // Traslado de aves (R3)
+        builder.Property(x => x.TrasladoObservaciones).HasMaxLength(500).HasColumnName("traslado_observaciones");
+        builder.Property(x => x.FechaTraslado).HasColumnName("fecha_traslado").HasColumnType("date");
+        builder.Property(x => x.LoteDestinoId).HasColumnName("lote_destino_id");
+        builder.Property(x => x.GranjaDestinoId).HasColumnName("granja_destino_id");
+        builder.Property(x => x.TrasladoHembras).HasColumnName("traslado_hembras");
+        builder.Property(x => x.TrasladoMachos).HasColumnName("traslado_machos");
+
         builder.HasOne(x => x.Lote)
                .WithMany()
                .HasForeignKey(x => x.LoteId)

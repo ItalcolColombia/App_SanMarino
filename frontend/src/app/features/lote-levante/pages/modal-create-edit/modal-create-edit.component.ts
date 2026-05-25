@@ -414,11 +414,15 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   agregarItemHembras(): void {
+    // Feature 13: validators OPCIONALES. El usuario puede agregar el item y guardar
+    // aunque no esté completo — el save filtra automáticamente los items incompletos
+    // (sin tipoItem, sin catalogItemId o sin cantidad). Esto permite guardar el
+    // seguimiento con alimento sólo en hembras, sólo en machos, ambos o ninguno.
     const itemForm = this.fb.group({
-      tipoItem: [this.isEcuadorOrPanama ? null : 'alimento', Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required]
+      tipoItem: [this.isEcuadorOrPanama ? null : 'alimento'],
+      catalogItemId: [null],
+      cantidad: [0, [Validators.min(0)]],
+      unidad: ['kg']
     });
 
     // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
@@ -453,11 +457,12 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   agregarItemMachos(): void {
+    // Feature 13: validators OPCIONALES (ver nota en agregarItemHembras).
     const itemForm = this.fb.group({
-      tipoItem: [this.isEcuadorOrPanama ? null : 'alimento', Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required]
+      tipoItem: [this.isEcuadorOrPanama ? null : 'alimento'],
+      catalogItemId: [null],
+      cantidad: [0, [Validators.min(0)]],
+      unidad: ['kg']
     });
 
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
@@ -477,11 +482,13 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   agregarItemGeneral(): void {
+    // Feature 13: validators OPCIONALES. Si el usuario agrega un item general
+    // y no lo completa, simplemente se ignora al guardar.
     const itemForm = this.fb.group({
-      tipoItem: [null as string | null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['unidades', Validators.required]
+      tipoItem: [null as string | null],
+      catalogItemId: [null],
+      cantidad: [0, [Validators.min(0)]],
+      unidad: ['unidades']
     });
 
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {

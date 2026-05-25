@@ -81,7 +81,21 @@ public class SeguimientoDiarioConfiguration : IEntityTypeConfiguration<Seguimien
         b.Property(x => x.VentaAvesCantidad).HasColumnName("venta_aves_cantidad");
         b.Property(x => x.VentaAvesMotivo).HasColumnName("venta_aves_motivo");
 
+        // Marcado de traslado (Feature 13)
+        b.Property(x => x.EsTraslado).HasColumnName("es_traslado").HasDefaultValue(false).IsRequired();
+        b.Property(x => x.TrasladoLoteContraparteId).HasColumnName("traslado_lote_contraparte_id");
+        b.Property(x => x.TrasladoGranjaContraparteId).HasColumnName("traslado_granja_contraparte_id");
+        b.Property(x => x.TrasladoDireccion).HasColumnName("traslado_direccion").HasMaxLength(10);
+        b.HasIndex(x => x.EsTraslado).HasDatabaseName("idx_seguimiento_diario_lev_es_traslado");
+
+        // Splits H/M dedicados (Feature 13 refinamiento) — separan traslado de mortalidad
+        b.Property(x => x.TrasladoIngresoHembras).HasColumnName("traslado_ingreso_hembras").HasDefaultValue(0).IsRequired();
+        b.Property(x => x.TrasladoIngresoMachos ).HasColumnName("traslado_ingreso_machos" ).HasDefaultValue(0).IsRequired();
+        b.Property(x => x.TrasladoSalidaHembras ).HasColumnName("traslado_salida_hembras" ).HasDefaultValue(0).IsRequired();
+        b.Property(x => x.TrasladoSalidaMachos  ).HasColumnName("traslado_salida_machos"  ).HasDefaultValue(0).IsRequired();
+
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").HasMaxLength(64);
+        b.Property(x => x.UpdatedByUserId).HasColumnName("updated_by_user_id").HasMaxLength(64);
         b.Property(x => x.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
     }

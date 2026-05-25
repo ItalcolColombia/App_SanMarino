@@ -7,8 +7,10 @@ import {
   faUserPlus, faUser, faSave, faTimes, faEnvelope, faPhone, faIdCard, faBuilding, faUsers
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, forkJoin } from 'rxjs';
+import { catchError, of } from 'rxjs';
 
 import { LoteService, LoteDto, CreateLoteDto, UpdateLoteDto } from '../../services/lote.service';
+import { LotePosturaLevanteService } from '../../services/lote-postura-levante.service';
 import { FarmService, FarmDto } from '../../../farm/services/farm.service';
 import { NucleoService, NucleoDto } from '../../../nucleo/services/nucleo.service';
 import { GalponService } from '../../../galpon/services/galpon.service';
@@ -101,6 +103,13 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   selectedNucleoPadreId: string | null = null;
   selectedGalponPadreId: string | null = null;
 
+  // R1: Selector de letra A-F
+  readonly LETRAS_POSIBLES = ['A', 'B', 'C', 'D', 'E', 'F'];
+  letrasOcupadas: string[] = [];
+  letraSeleccionada: string = '';
+  lotePadreNombrePrefix: string = '';
+  cargandoLetras = false;
+
   private destroy$ = new Subject<void>();
 
   constructor(
@@ -113,7 +122,8 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     private companySvc: CompanyService,
     private guiaGeneticaSvc: GuiaGeneticaService,
     private tokenStorage: TokenStorageService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private lotePosturaLevanteSvc: LotePosturaLevanteService
   ) {}
 
   ngOnInit(): void {
@@ -457,6 +467,53 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     this.selectedGalponPadreId = galponId;
     this.form.patchValue({ lotePadreId: null });
     this.filtrarLotesPadres();
+    // Resetear letras al cambiar galpón
+    this.letrasOcupadas = [];
+    this.letraSeleccionada = '';
+    this.lotePadreNombrePrefix = '';
+  }
+
+  // R1: Se llama cuando el usuario selecciona un lotePadreId via FiltroSelect
+  onLotePadreSelected(loteId: number | null): void {
+    this.form.patchValue({ lotePadreId: loteId });
+    this.letraSeleccionada = '';
+    this.letrasOcupadas = [];
+    this.lotePadreNombrePrefix = '';
+    if (!loteId) return;
+
+    const padre = this.lotesPadresDisponibles.find(l => l.loteId === loteId);
+    if (!padre) return;
+
+    this.lotePadreNombrePrefix = padre.loteNombre ?? '';
+    const galponId = this.selectedGalponPadreId ?? this.form.get('galponId')?.value ?? '';
+    if (!galponId || !this.lotePadreNombrePrefix) return;
+
+    this.cargarLetrasDisponibles(galponId, this.lotePadreNombrePrefix);
+  }
+
+  cargarLetrasDisponibles(galponId: string, loteBase: string): void {
+    this.cargandoLetras = true;
+    this.lotePosturaLevanteSvc
+      .getLetrasDisponibles(galponId, loteBase)
+      .pipe(
+        catchError(() => of({ letrasOcupadas: [] as string[], letrasDisponibles: this.LETRAS_POSIBLES })),
+        takeUntil(this.destroy$)
+      )
+      .subscribe(res => {
+        this.letrasOcupadas = res.letrasOcupadas ?? [];
+        this.cargandoLetras = false;
+        this.cdr.detectChanges();
+      });
+  }
+
+  onLetraChange(): void {
+    if (this.lotePadreNombrePrefix && this.letraSeleccionada) {
+      this.form.patchValue({ loteNombre: this.lotePadreNombrePrefix + this.letraSeleccionada });
+    }
+  }
+
+  get usarSelectorLetra(): boolean {
+    return !this.esLotePadre && !!this.form.get('lotePadreId')?.value;
   }
 
   private populateForm(): void {
