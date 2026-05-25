@@ -368,6 +368,41 @@ namespace ZooSanMarino.Infrastructure.Services
             return result;
         }
 
+        // ======================================================
+        // FEATURE 13 — granjas válidas para traslado seguimiento
+        // ======================================================
+        public async Task<IEnumerable<FarmDto>> GetForTrasladoSeguimientoAsync()
+        {
+            // 1) CompanyId resuelto desde el token + header x-active-company
+            var effectiveCompanyId = await GetEffectiveCompanyIdAsync();
+
+            // 2) PaisId desde el header x-active-pais (cae al país asignado al usuario si no llega)
+            var paisId = _current.PaisId;
+
+            // 3) Filtrar: misma empresa + activas (status=A o deleted=null)
+            var query = _ctx.Farms
+                .AsNoTracking()
+                .Where(f => f.CompanyId == effectiveCompanyId && f.DeletedAt == null);
+
+            // Si el modelo expone status, filtrar a "A"
+            // (no rompemos si la columna está vacía/NULL — fallback a no eliminadas)
+            query = query.Where(f => f.Status == null || f.Status == "A");
+
+            // 4) Filtrar por país via Departamento.PaisId si tenemos paisId
+            if (paisId.HasValue)
+            {
+                var pid = paisId.Value;
+                query = query.Where(f =>
+                    _ctx.Set<Departamento>().Any(d => d.DepartamentoId == f.DepartamentoId && d.PaisId == pid)
+                );
+            }
+
+            Console.WriteLine($"=== FarmService.GetForTrasladoSeguimientoAsync - company={effectiveCompanyId}, pais={paisId} ===");
+            var result = await ToFarmDtoListAsync(query);
+            Console.WriteLine($"=== FarmService.GetForTrasladoSeguimientoAsync - Devolviendo {result.Count} granjas ===");
+            return result;
+        }
+
         private async Task<bool> IsUserAdminOrAdministratorAsync(int userId)
         {
             var userIdGuid = _current.UserGuid;

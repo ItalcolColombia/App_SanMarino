@@ -75,7 +75,18 @@ public record SeguimientoDiarioDto(
     // Auditoría
     string? CreatedByUserId,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    string? UpdatedByUserId = null,
+    // Feature 13 — marcado de traslado
+    bool EsTraslado = false,
+    int? TrasladoLoteContraparteId = null,
+    int? TrasladoGranjaContraparteId = null,
+    string? TrasladoDireccion = null,
+    // Feature 13 (refinamiento) — splits H/M dedicados (separan traslado de mortalidad)
+    int TrasladoIngresoHembras = 0,
+    int TrasladoIngresoMachos = 0,
+    int TrasladoSalidaHembras = 0,
+    int TrasladoSalidaMachos = 0
 );
 
 /// <summary>

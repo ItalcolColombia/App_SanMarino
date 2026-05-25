@@ -17,6 +17,7 @@ public class TrasladosController : ControllerBase
     private readonly IDisponibilidadLoteService _disponibilidadService;
     private readonly ITrasladoHuevosService _trasladoHuevosService;
     private readonly IMovimientoAvesService _movimientoAvesService;
+    private readonly ITrasladoAvesDesdeSegService _trasladoAvesDesdeSegService;
     private readonly ICurrentUser _currentUser;
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -24,12 +25,14 @@ public class TrasladosController : ControllerBase
         IDisponibilidadLoteService disponibilidadService,
         ITrasladoHuevosService trasladoHuevosService,
         IMovimientoAvesService movimientoAvesService,
+        ITrasladoAvesDesdeSegService trasladoAvesDesdeSegService,
         ICurrentUser currentUser,
         IServiceScopeFactory scopeFactory)
     {
         _disponibilidadService = disponibilidadService;
         _trasladoHuevosService = trasladoHuevosService;
         _movimientoAvesService = movimientoAvesService;
+        _trasladoAvesDesdeSegService = trasladoAvesDesdeSegService;
         _currentUser = currentUser;
         _scopeFactory = scopeFactory;
     }
@@ -248,6 +251,49 @@ public class TrasladosController : ControllerBase
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Devuelve el stock actual de aves (H y M) de un lote para validar el traslado desde seguimiento diario.
+    /// </summary>
+    [HttpGet("disponibilidad-aves/{loteId:int}")]
+    [ProducesResponseType(typeof(DisponibilidadAvesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DisponibilidadAvesDto>> GetDisponibilidadAves(
+        int loteId,
+        [FromQuery] string tipo = "Levante",
+        CancellationToken ct = default)
+    {
+        var result = await _trasladoAvesDesdeSegService.GetDisponibilidadAvesAsync(loteId, tipo, ct);
+        if (result is null) return NotFound(new { message = $"Lote {loteId} (tipo {tipo}) no encontrado." });
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Ejecuta un traslado de aves desde el registro de seguimiento diario.
+    /// Actualiza seguimiento, decrementa origen, incrementa destino e inserta MovimientoAves.
+    /// </summary>
+    [HttpPost("aves-desde-seguimiento")]
+    [ProducesResponseType(typeof(TrasladoAvesResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<TrasladoAvesResultDto>> EjecutarTrasladoDesdeSegDiario(
+        [FromBody] TrasladoAvesDesdeSegDiarioDto dto,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var resultado = await _trasladoAvesDesdeSegService.EjecutarTrasladoDesdeSegAsync(
+                dto, _currentUser.UserId, ct);
+            return Ok(resultado);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Error interno del servidor.", details = ex.Message });
         }
     }
 

@@ -52,4 +52,12 @@ public class SeguimientoLoteLevante
     public double? ConsumoAguaTemperatura { get; set; } // Temperatura del agua en °C
 
     public Lote Lote { get; set; } = null!;
+
+    // Campos de traslado de aves (R3)
+    public int? TrasladoHembras { get; set; }
+    public int? TrasladoMachos { get; set; }
+    public int? LoteDestinoId { get; set; }
+    public int? GranjaDestinoId { get; set; }
+    public DateTime? FechaTraslado { get; set; }
+    public string? TrasladoObservaciones { get; set; }
 }

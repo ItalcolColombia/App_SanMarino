@@ -615,6 +615,31 @@ public class ProduccionService : IProduccionService
             edadSemanasProduccion = Math.Max(26, weeksDesdeEncaset);
         }
 
+        // Feature 14 — traslados acumulados por fase (Levante + Producción)
+        // Se buscan en LPL (fase levante) y en el propio LPP (fase producción).
+        int levInH = 0, levInM = 0, levOutH = 0, levOutM = 0;
+        if (loteEntity.LotePosturaLevanteId.HasValue)
+        {
+            var lpl = await _context.LotePosturaLevante.AsNoTracking()
+                .Where(l => l.LotePosturaLevanteId == loteEntity.LotePosturaLevanteId.Value && l.DeletedAt == null)
+                .Select(l => new
+                {
+                    l.LevanteTrasladoIngresoHembras,
+                    l.LevanteTrasladoIngresoMachos,
+                    l.LevanteTrasladoSalidaHembras,
+                    l.LevanteTrasladoSalidaMachos
+                })
+                .FirstOrDefaultAsync();
+            levInH  = lpl?.LevanteTrasladoIngresoHembras ?? 0;
+            levInM  = lpl?.LevanteTrasladoIngresoMachos  ?? 0;
+            levOutH = lpl?.LevanteTrasladoSalidaHembras  ?? 0;
+            levOutM = lpl?.LevanteTrasladoSalidaMachos   ?? 0;
+        }
+        int prodInH  = loteEntity.ProduccionTrasladoIngresoHembras;
+        int prodInM  = loteEntity.ProduccionTrasladoIngresoMachos;
+        int prodOutH = loteEntity.ProduccionTrasladoSalidaHembras;
+        int prodOutM = loteEntity.ProduccionTrasladoSalidaMachos;
+
         var dto = new InformacionLoteDto(
             LotePosturaProduccionId: loteEntity.LotePosturaProduccionId ?? 0,
             LoteNombre: loteEntity.LoteNombre ?? "",
@@ -630,7 +655,15 @@ public class ProduccionService : IProduccionService
             MortalidadSeleccionH: mortalidadSeleccionH,
             MortalidadSeleccionM: mortalidadSeleccionM,
             ConsumoAlimentoKgH: agg?.ConsH ?? 0m,
-            ConsumoAlimentoKgM: agg?.ConsM ?? 0m
+            ConsumoAlimentoKgM: agg?.ConsM ?? 0m,
+            LevanteTrasladoIngresoHembras: levInH,
+            LevanteTrasladoIngresoMachos:  levInM,
+            LevanteTrasladoSalidaHembras:  levOutH,
+            LevanteTrasladoSalidaMachos:   levOutM,
+            ProduccionTrasladoIngresoHembras: prodInH,
+            ProduccionTrasladoIngresoMachos:  prodInM,
+            ProduccionTrasladoSalidaHembras:  prodOutH,
+            ProduccionTrasladoSalidaMachos:   prodOutM
         );
 
         return new InformacionLoteResponse(dto);

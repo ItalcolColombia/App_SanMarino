@@ -1,6 +1,8 @@
-Markdown# CLAUDE.md
+# CLAUDE.md
 
-This file provides strict guidance and context to Claude Code (claude.ai/code) when working with code in this repository. 
+This file provides strict guidance, environment context, and testing workflows to Claude Code (`claude.ai/code`) when working with this repository.
+
+---
 
 ## ⚠️ CRITICAL DEVELOPMENT WORKFLOW (MUST FOLLOW)
 
@@ -8,67 +10,139 @@ To prevent hallucinations, ensure architectural integrity, and maintain a clear 
 
 ### STEP 1: Full Planning (`/fase_de_desarrollo/`)
 1. Analyze the user's request thoroughly based on the existing Clean Architecture (Backend) and Angular Standalone architecture (Frontend).
-2. Create a detailed Markdown planning document inside the `./fase_de_desarrollo/` directory (e.g., `./fase_de_desarrollo/feature_name_plan.md`). Absolute path reference: `C:\Users\SAN MARINO\Documents\App_SanMarino_intalcol\App_SanMarino\fase_de_desarrollo\`.
+2. Create a detailed Markdown planning document inside the `./fase_de_desarrollo/` directory (e.g., `./fase_de_desarrollo/feature_name_plan.md`). 
+   * **Absolute Local Path Reference:** `/Users/chelsycardona/Desktop/App_SanMarino/fase_de_desarrollo/`
 3. This document must contain:
-   - Architectural design and technical approach.
-   - Specific files, components, and services to create or modify.
-   - Database migrations or schema changes needed.
-   - Business logic constraints.
+   * Architectural design and technical approach.
+   * Specific files, components, and services to create or modify.
+   * Database changes or raw SQL scripts needed.
+   * Business logic constraints and test cases.
 
 ### STEP 2: State Tracking (`tracker_estado.md`)
-1. Open the `./tracker_estado.md` file (Absolute path: `C:\Users\SAN MARINO\Documents\App_SanMarino_intalcol\App_SanMarino\tracker_estado.md`).
-2. **CLEAR / WIPE** all its previous contents (remove the state of the previous task).
+1. Open the `./tracker_estado.md` file.
+   * **Absolute Local Path Reference:** `/Users/chelsycardona/Desktop/App_SanMarino/tracker_estado.md`
+2. **CLEAR / WIPE** all its previous contents completely (remove the state of the previous task).
 3. Add a clear title and a reference/link to the new planning document created in Step 1.
 4. Break down the development plan into a **granular, step-by-step checklist** of small implementation tasks using Markdown checkboxes (`- [ ]`).
 5. As you implement the code, continually update this file by checking off completed items (`- [x]`) to maintain a single source of truth for the development state.
 
 ---
 
-## Project Overview
+## 🗄️ DATABASE & MIGRATION WORKFLOW (LOCAL DEV)
 
-San Marino App is a full-stack poultry farm management system ("gestión avícola") for tracking farms, pens, batches, inventory, and production across broiler (engorde), layer (reproductoras), and growing-bird (levante) operations. Multi-company support is a core feature.
+> 🚨 **CRITICAL CONTEXT:** The Entity Framework Core migrations mechanism is currently broken/corrupted. Do **NOT** rely solely on `dotnet ef database update` for local sync. Follow this strict protocol to maintain persistence and alignment without errors:
 
-## Commands
+1. **Local Connection Configuration:** All local development environment database configurations must read from and point to:
+   * `/Users/chelsycardona/Desktop/App_SanMarino/backend/src/ZooSanMarino.API/appsettings.Development.json`
+2. **SQL Script Generation:** Every time a schema change (table creation, new column, modified constraint, or seed data) is required:
+   * Write the raw, pure SQL script executing the change.
+   * Save the `.sql` script inside the folder: `/Users/chelsycardona/Desktop/App_SanMarino/backend/sql/`
+   * Use a clear numbering/naming convention for execution order (e.g., `045_add_traslado_fields_to_seguimiento.sql`).
+3. **Manual Execution:** Connect to your local database engine and execute the raw SQL script directly to test and update your local schema.
+4. **Future-Proofing Migrations:** Even though the engine is currently broken, you **MUST** create the equivalent Entity Framework Core migration (`dotnet ef migrations add <Name>`) right after saving the SQL script. This ensures that once migrations are repaired, the C# codebase and snapshot remain aligned with the database schema for future migrations.
 
-### Local Development
+---
 
+## 🧪 TESTING, VALIDATION & SERVICE LIFECYCLE DISCIPLINE
+
+You must always guarantee code quality through immediate backend validation, frontend contract alignment, and clean process handling:
+
+### 1. API & Integration Validation
+* **Backend Validation:** As soon as an API endpoint, controller, or application command/query handler is created or modified, you **MUST** perform integration tests or execute requests against the API to validate inputs, business constraints, outputs, and status codes.
+* **Frontend Validation:** Before attempting to send or map data from Angular, perform explicit validation of the data payload structure against the API contracts to prevent transmission mismatches.
+
+### 2. Service Lifecycle (No Orphan Processes)
+* When spinning up any local service, test runner, mock server, database docker container, or compiler to validate code, **you must explicitly terminate, kill, or stop the service (`make down` or appropriate termination command) as soon as you finish using it.**
+* Do **NOT** leave active, hanging background services or container processes alive on the host machine when tests/tasks are completed.
+
+### 3. Dedicated Testing Folders
+If a feature requires new unit, integration, or structural tests, isolate them inside the designated testing directories:
+* **Backend Tests Location:** `/Users/chelsycardona/Desktop/App_SanMarino/backend/tests/` (or structured project-level equivalent).
+* **Frontend Tests Location:** `/Users/chelsycardona/Desktop/App_SanMarino/frontend/src/tests/`.
+
+---
+
+## 🛠️ Project Commands Reference
+
+### Local Development & Lifecycle
 ```bash
-# Start everything (Docker PostgreSQL + backend + Angular dev server)
+# Start everything (Docker PostgreSQL DB + backend + Angular dev server)
 make up
 
-# Frontend only (from /frontend)
-yarn start          # ng serve on localhost:4200
-yarn start:hmr      # with hot module replacement
-
 # Backend only (from /backend/src/ZooSanMarino.API)
-dotnet run          # runs on port 5002
+dotnet run --launch-profile "Development"    # runs on port 5002
 
-# Stop all containers
+# Frontend only (from /frontend)
+yarn start                                    # ng serve on localhost:4200
+yarn start:hmr                                # with hot module replacement
+
+# STOP ALL SERVICES IMMEDIATELY AFTER TESTING (Avoid living background processes)
 make down
-
-# View logs
-make logs
-BuildingBash# Full production build
-make build-angular  # builds Angular to dist/
+Build & Deployments
+Bash
+# Full production build
+make build-angular                            # builds Angular to dist/
 
 # Frontend (from /frontend)
-yarn build          # production build
-yarn build:prod     # alias
+yarn build                                    # production build
 
 # Backend (from /backend)
 dotnet build
 dotnet publish -c Release
-Testing & MigrationsBash# Frontend unit tests (from /frontend)
-yarn test           # Karma runner
+
+# AWS Deployment
+make deploy-backend                           # build & push backend to ECS
+make deploy-frontend                          # build & push frontend to ECS
+make deploy-all                               # both
+Testing & Temporary Migrations Setup
+Bash
+# Frontend unit tests (from /frontend)
+yarn test                                     # Karma runner
 
 # Backend tests (from /backend)
 dotnet test
 
-# Database Migrations (Run from /backend/src/ZooSanMarino.API/)
+# Database Migrations alignment (Run from /backend/src/ZooSanMarino.API/)
 dotnet ef migrations add <MigrationName> --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext
-dotnet ef database update
 dotnet ef migrations list
-AWS DeploymentBashmake deploy-backend   # build & push backend to ECS
-make deploy-frontend  # build & push frontend to ECS
-make deploy-all       # both
-ArchitectureBackend (.NET 9 — /backend/src/)Clean Architecture with four layers:ZooSanMarino.API — Startup project (port 5002). 60+ REST controllers, JWT auth, Swagger, CORS. Program.cs wires all DI. Entry point for all HTTP traffic.ZooSanMarino.Application — DTOs, service interfaces, business validation (FluentValidation).ZooSanMarino.Infrastructure — EF Core 9 + Npgsql, ZooSanMarinoContext, repository implementations, email, Excel (ClosedXML/EPPlus) services.ZooSanMarino.Domain — Pure entity models and value objects with no external dependencies.Notes: ORM uses snake_case naming via EFCore.NamingConventions. Custom SQL scripts for data migrations live in /backend/sql/.Frontend (Angular 20 — /frontend/src/)Standalone components (no NgModules). Key structure:app/core/ — Auth service, JWT interceptor, encryption, token storage, active-company context.app/features/ — 33+ feature modules (auth, dashboard, farms, batches, inventory, reports, bird/egg transfers, configuration, db-studio, maps, etc.).app/shared/ — Reusable components and utilities.app/services/ — Domain HTTP services.app/app.config.ts — Routes, HTTP client, interceptor registration (the main app configuration file; app.routes.ts is legacy/unused).Database & AuthProduction: AWS RDS PostgreSQL (us-east-1).Local dev: Docker container zoo_sanmarino_db on port 5432, DB zoo_sanmarino_dev, creds postgres/postgres.Auth: JWT Bearer tokens (60-min expiry). The AuthInterceptor automatically attaches tokens. Data at rest uses EncryptionService (crypto-js, AES). reCAPTCHA enabled in prod.StylingTailwind CSS 3 with Italfoods brand palette defined in tailwind.config.js:ital-orange (#e85c25) — accentital-green (#2d7a3e) — primary actionital-cream (#faf8f5) — backgroundInfrastructureAWS: ECS (cluster devSanmarinoZoo), ECR, ALB, CloudFront, S3 (frontend static).Docker: Multi-stage builds for both backend and frontend. Backend runs as non-root appuser, health-checked at /health.Key Configuration FilesFilePurposebackend/src/ZooSanMarino.API/Program.csDI setup, middleware pipelinebackend/src/ZooSanMarino.API/appsettings.Development.jsonLocal dev secrets (DB, JWT, SMTP, keys)frontend/src/app/app.config.tsRoutes, HTTP client, interceptorsfrontend/src/environments/environment.tsAPI base URL per environmentfrontend/tailwind.config.jsBrand colorsMakefileAll top-level dev/deploy shortcuts
+🏛️ Architecture Blueprint
+Backend (.NET 9 — /backend/src/)
+Clean Architecture with four layers:
+
+ZooSanMarino.API: Startup project, REST controllers (60+), JWT auth configuration, Middleware pipeline, Swagger, and DI wiring via Program.cs.
+
+ZooSanMarino.Application: DTOs, CQRS Command/Query handlers, service interfaces, and business validation using FluentValidation.
+
+ZooSanMarino.Infrastructure: EF Core 9 + Npgsql, ZooSanMarinoContext, repository implementations, email, and Excel generation (ClosedXML/EPPlus). Custom raw SQL scripts live in /backend/sql/.
+
+ZooSanMarino.Domain: Pure entity models, Enums, and core domain domain logic with no external dependencies.
+
+Note: ORM uses snake_case naming via EFCore.NamingConventions.
+
+Frontend (Angular 20 — /frontend/src/)
+Modern Angular Standalone architecture (No NgModules):
+
+app/core/: Authentication state, JWT interceptor, token storage, encryption utilities, and active-company context management.
+
+app/features/: 33+ feature modules handling poultry management metrics (farms, batches/lotes, inventory, daily tracking, transfers, etc.).
+
+app/shared/: Reusable UI components, layout elements, and directives.
+
+app/services/: Domain-specific HTTP communication services.
+
+app/app.config.ts: Main application configuration routing, client setup, and interceptor registration.
+
+Database, Styling & Infrastructure
+Production Environment: AWS RDS PostgreSQL (us-east-1), ECS Clusters (devSanmarinoZoo), ECR, ALB, CloudFront, and S3.
+
+Local Dev Environment: Docker container zoo_sanmarino_db on port 5432, DB zoo_sanmarino_dev, credentials postgres/postgres.
+
+Security: JWT Bearer tokens (60-min expiry) attached automatically via AuthInterceptor. Storage data uses EncryptionService (crypto-js, AES).
+
+Styling: Tailwind CSS 3 using the Italfoods corporate brand palette:
+
+ital-orange (#e85c25) — Accent
+
+ital-green (#2d7a3e) — Primary actions
+
+ital-cream (#faf8f5) — Main Background

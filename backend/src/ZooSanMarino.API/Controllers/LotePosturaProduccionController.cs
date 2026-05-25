@@ -37,4 +37,18 @@ public class LotePosturaProduccionController : ControllerBase
         var items = await _svc.GetByLoteIdAsync(loteId, ct);
         return Ok(items);
     }
+
+    /// <summary>
+    /// Feature 14 — obtiene un LPP por ID con datos frescos (aves actuales + acumulados de traslado + loteId).
+    /// Usado al abrir el modal de traslado para mostrar el saldo real.
+    /// </summary>
+    [HttpGet("{id:int}")]
+    [ProducesResponseType(typeof(LotePosturaProduccionDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotePosturaProduccionDetailDto>> GetById(int id, CancellationToken ct = default)
+    {
+        var item = await _svc.GetByIdAsync(id, ct);
+        if (item is null) return NotFound();
+        return Ok(item);
+    }
 }

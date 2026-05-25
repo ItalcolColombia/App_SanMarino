@@ -30,6 +30,10 @@ public class LotePosturaBaseConfiguration : IEntityTypeConfiguration<LotePostura
 
         b.Property(x => x.PaisId).HasColumnName("pais_id");
 
+        b.Property(x => x.FarmId).HasColumnName("farm_id");
+        b.Property(x => x.ErpCreate).HasColumnName("erp_create").HasColumnType("date");
+        b.HasIndex(x => x.FarmId).HasDatabaseName("ix_lote_postura_base_farm_id");
+
         // AuditableEntity
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();

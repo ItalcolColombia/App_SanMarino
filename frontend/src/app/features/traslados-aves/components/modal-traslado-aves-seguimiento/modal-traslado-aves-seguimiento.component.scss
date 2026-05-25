@@ -1,0 +1,389 @@
+/* ─── Overlay backdrop (fixed full-screen) ───────────────────
+   NOTE: .ux-modal from module-styles.scss is scoped by Angular's
+   view encapsulation and does NOT reach into child components.
+   We must define it here so the backdrop renders correctly.
+   ─────────────────────────────────────────────────────────── */
+:host .ux-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+  animation: backdropFadeIn 0.15s ease-out;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ============================================================
+   Modal panel override (tamaño adecuado para el traslado)
+   ============================================================ */
+:host .ux-modal__panel,
+:host .traslado-panel {
+  width: min(600px, 96vw);
+  max-height: min(92vh, 100%);
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+:host .ux-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid #f0ece6;
+}
+
+.modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.modal-subtitle {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+
+.btn-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.875rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  &:hover { background: #e5e7eb; color: #374151; }
+}
+
+/* ─── Body ───────────────────────────────────────────────── */
+:host .ux-modal__body {
+  padding: 1.25rem;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ─── Footer ─────────────────────────────────────────────── */
+:host .ux-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #f0ece6;
+}
+
+/* ─── Origen card ────────────────────────────────────────── */
+.origen-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  padding: 12px 16px;
+
+  &__badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 6px;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  &__nombre {
+    font-size: 0.9375rem;
+    color: #111827;
+  }
+
+  &__tag {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+
+    &.tag--blue  { background: #dbeafe; color: #1e40af; }
+    &.tag--green { background: #d1fae5; color: #065f46; }
+  }
+
+  &__stock {
+    display: flex;
+    gap: 16px;
+    font-size: 0.8125rem;
+    color: #4b5563;
+    flex-wrap: wrap;
+    b { color: #111827; }
+  }
+
+  &__trasladosrow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+}
+
+/* Mini-pills de traslados (Feature 13) */
+.mini-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  b { font-weight: 800; }
+
+  &--in  { background: #ecfdf5; color: #047857; }
+  &--out { background: #fef3c7; color: #92400e; }
+}
+
+/* ─── Section divider ────────────────────────────────────── */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+
+  &::before, &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e5e7eb;
+  }
+
+  &__label { white-space: nowrap; }
+}
+
+/* ─── Radio tipo destino ─────────────────────────────────── */
+.radio-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #374151;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+
+  input[type="radio"] { margin: 0; accent-color: #e85c25; }
+
+  &--active {
+    border-color: #e85c25;
+    background: #fff7f4;
+    color: #9a2c0a;
+    font-weight: 600;
+  }
+
+  &:hover:not(&--active) {
+    border-color: #d1d5db;
+    background: #f9fafb;
+  }
+}
+
+/* ─── Cascade grid ───────────────────────────────────────── */
+.cascade-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.875rem;
+}
+
+/* ─── Form field ─────────────────────────────────────────── */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.field-select,
+.field-input,
+.field-textarea {
+  padding: 7px 10px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #111827;
+  background: #fff;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #e85c25;
+    box-shadow: 0 0 0 3px rgba(232, 92, 37, 0.12);
+  }
+}
+
+.field-textarea { resize: vertical; min-height: 56px; }
+
+.field-input--error {
+  border-color: #ef4444 !important;
+}
+
+.field-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-badge {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.field-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+
+  &.warn { color: #b45309; }
+}
+
+.field-error {
+  font-size: 0.75rem;
+  color: #dc2626;
+  margin: 0;
+}
+
+/* ─── Cantidades grid ────────────────────────────────────── */
+.cantidades-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.875rem;
+}
+
+/* ─── Loading ────────────────────────────────────────────── */
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.875rem;
+  color: #6b7280;
+  padding: 1rem 0;
+}
+
+.mini-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #e85c25;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ─── API error ──────────────────────────────────────────── */
+.api-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+}
+
+/* ─── Footer buttons ─────────────────────────────────────── */
+.btn-cancel {
+  padding: 8px 18px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #f9fafb; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: #e85c25;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  &:hover:not(:disabled) { background: #c94e1e; }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .cascade-grid,
+  .cantidades-grid { grid-template-columns: 1fr; }
+  .radio-group { flex-direction: column; }
+}

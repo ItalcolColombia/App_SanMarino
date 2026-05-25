@@ -17,4 +17,7 @@ public interface ILotePosturaProduccionService
     /// Obtiene los lotes producción asociados a un lote (vía lote_postura_levante.lote_id).
     /// </summary>
     Task<IEnumerable<LotePosturaProduccionDetailDto>> GetByLoteIdAsync(int loteId, CancellationToken ct = default);
+
+    /// <summary>Feature 14 — obtiene un LPP por ID con datos frescos.</summary>
+    Task<LotePosturaProduccionDetailDto?> GetByIdAsync(int id, CancellationToken ct = default);
 }

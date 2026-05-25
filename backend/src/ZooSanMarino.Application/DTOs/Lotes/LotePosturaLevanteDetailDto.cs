@@ -60,5 +60,10 @@ public sealed record LotePosturaLevanteDetailDto(
     NucleoLiteDto? Nucleo,
     GalponLiteDto? Galpon,
     /// <summary>Máxima edad (semanas) con registros en seguimiento_diario (levante). Null si no hay registros.</summary>
-    int?      EdadMaximaSeguimiento = null
+    int?      EdadMaximaSeguimiento = null,
+    // Acumulados de traslado en FASE LEVANTE (Feature 13/14)
+    int       LevanteTrasladoIngresoHembras = 0,
+    int       LevanteTrasladoIngresoMachos  = 0,
+    int       LevanteTrasladoSalidaHembras  = 0,
+    int       LevanteTrasladoSalidaMachos   = 0
 );

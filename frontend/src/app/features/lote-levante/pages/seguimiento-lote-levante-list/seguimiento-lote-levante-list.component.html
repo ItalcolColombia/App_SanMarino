@@ -79,6 +79,15 @@
 
         <button
           type="button"
+          class="btn btn--outline"
+          *ngIf="selectedLoteId && lotePosturaLevanteIdActual != null"
+          (click)="openTrasladoAvesModal()"
+          title="Registrar traslado de aves desde este seguimiento diario">
+          Traslado de Aves
+        </button>
+
+        <button
+          type="button"
           (click)="create()"
           class="btn btn--primary"
           [disabled]="!selectedLoteId || isLoteCerrado"
@@ -420,3 +429,20 @@
 </div>
 
 <!-- Modal de liquidación técnica eliminado en Levante -->
+
+<!-- Modal Traslado de Aves desde Seguimiento Diario (R3) -->
+<app-modal-traslado-aves-seguimiento
+  [isOpen]="trasladoAvesModalOpen"
+  [origen]="trasladoAvesOrigen"
+  (closed)="trasladoAvesModalOpen = false"
+  (trasladoCompletado)="onTrasladoAvesCompletado($event)">
+</app-modal-traslado-aves-seguimiento>
+
+<!-- Modal Confirmación Eliminación Seguimiento (Feature 13) -->
+<app-confirmation-modal
+  [isOpen]="deleteConfirmOpen"
+  [data]="deleteConfirmData"
+  (confirmed)="onDeleteConfirmed()"
+  (cancelled)="onDeleteCancelled()"
+  (closed)="onDeleteCancelled()">
+</app-confirmation-modal>
