@@ -135,6 +135,30 @@ export class FarmService {
     );
   }
 
+  /** Devuelve TODAS las granjas de la empresa (sin filtro de usuario).
+   *  Útil para selects de destino en traslados donde el usuario puede
+   *  enviar a cualquier granja de la compañía, no solo las suyas. */
+  getAllForCompany(): Observable<FarmDto[]> {
+    return this.http.get<FarmDto[]>(this.baseUrl).pipe(
+      catchError(err => {
+        console.error('FarmService.getAllForCompany() error:', err);
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /** Feature 13 — Lista filtrada para el modal de traslado entre seguimientos diarios.
+   *  El backend valida: CompanyId del usuario + PaisId activo (header x-active-pais) +
+   *  solo granjas activas. Endpoint compartido entre Levante y Producción. */
+  getForTrasladoSeguimiento(): Observable<FarmDto[]> {
+    return this.http.get<FarmDto[]>(`${this.baseUrl}/traslado-seguimiento-diario`).pipe(
+      catchError(err => {
+        console.error('FarmService.getForTrasladoSeguimiento() error:', err);
+        return throwError(() => err);
+      })
+    );
+  }
+
   getById(id: number): Observable<FarmDto> {
     return this.http.get<FarmDto>(`${this.baseUrl}/${id}`);
   }

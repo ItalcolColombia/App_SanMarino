@@ -85,6 +85,12 @@ public class LotePosturaProduccion : AuditableEntity
     /// <summary>Abierta = lote en producción activa. Cerrada = producción finalizada.</summary>
     public string? EstadoCierre { get; set; }
 
+    // Acumulados de traslado en FASE PRODUCCIÓN (Feature 14)
+    public int ProduccionTrasladoIngresoHembras { get; set; }
+    public int ProduccionTrasladoIngresoMachos  { get; set; }
+    public int ProduccionTrasladoSalidaHembras  { get; set; }
+    public int ProduccionTrasladoSalidaMachos   { get; set; }
+
     public Farm Farm { get; set; } = null!;
     public Nucleo? Nucleo { get; set; }
     public Galpon? Galpon { get; set; }

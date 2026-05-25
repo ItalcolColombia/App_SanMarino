@@ -201,6 +201,21 @@
   color: #1565c0;
 }
 
+/* 🔀 Feature 13 — variantes Traslado IN/OUT */
+.info-kpi--traslado-in {
+  background: #ecfdf5;             /* green-50 */
+  border-color: #a7f3d0;           /* green-200 */
+}
+.info-kpi--traslado-in .info-kpi__value { color: #047857; } /* green-700 */
+.info-kpi--traslado-in .info-kpi__label { color: #065f46; } /* green-800 */
+
+.info-kpi--traslado-out {
+  background: #fef3c7;             /* amber-100 */
+  border-color: #fde68a;           /* amber-200 */
+}
+.info-kpi--traslado-out .info-kpi__value { color: #b45309; } /* amber-700 */
+.info-kpi--traslado-out .info-kpi__label { color: #78350f; } /* amber-900 */
+
 .info-lote-detalle {
   margin-top: var(--space-3);
   border-radius: var(--radius-md);
@@ -749,8 +764,11 @@
 }
 
 // ── Columnas de movimientos de aves (Phase 4) ──
-.th-diario--mov   { background: #f0fdf4; color: #166534; }
-.th-diario--venta { background: #fffbeb; color: #92400e; }
+.th-diario--mov     { background: #f0fdf4; color: #166534; }
+.th-diario--venta   { background: #fffbeb; color: #92400e; }
+/* 🔀 Feature 13 — headers verde (ingreso) y ámbar (salida) por género */
+.th-diario--mov-in  { background: #ecfdf5 !important; color: #065f46 !important; }
+.th-diario--mov-out { background: #fef3c7 !important; color: #78350f !important; }
 
 .cell-mov {
   font-size: 0.78rem;

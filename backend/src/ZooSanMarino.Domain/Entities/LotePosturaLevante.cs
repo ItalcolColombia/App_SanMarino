@@ -49,6 +49,13 @@ public class LotePosturaLevante : AuditableEntity
     public int? AvesMInicial { get; set; }
     public int? AvesHActual { get; set; }
     public int? AvesMActual { get; set; }
+
+    // Acumulados de traslado en FASE LEVANTE (Feature 13/14)
+    public int LevanteTrasladoIngresoHembras { get; set; }
+    public int LevanteTrasladoIngresoMachos  { get; set; }
+    public int LevanteTrasladoSalidaHembras  { get; set; }
+    public int LevanteTrasladoSalidaMachos   { get; set; }
+
     public int? EmpresaId { get; set; }
     public int? UsuarioId { get; set; }
     public string? Estado { get; set; }

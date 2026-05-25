@@ -56,6 +56,11 @@ public class LotePosturaLevanteConfiguration : IEntityTypeConfiguration<LotePost
         b.Property(x => x.AvesMInicial).HasColumnName("aves_m_inicial");
         b.Property(x => x.AvesHActual).HasColumnName("aves_h_actual");
         b.Property(x => x.AvesMActual).HasColumnName("aves_m_actual");
+        // Acumulados de traslado en FASE LEVANTE (Feature 13/14)
+        b.Property(x => x.LevanteTrasladoIngresoHembras).HasColumnName("levante_traslado_ingreso_hembras").HasDefaultValue(0).IsRequired();
+        b.Property(x => x.LevanteTrasladoIngresoMachos ).HasColumnName("levante_traslado_ingreso_machos" ).HasDefaultValue(0).IsRequired();
+        b.Property(x => x.LevanteTrasladoSalidaHembras ).HasColumnName("levante_traslado_salida_hembras" ).HasDefaultValue(0).IsRequired();
+        b.Property(x => x.LevanteTrasladoSalidaMachos  ).HasColumnName("levante_traslado_salida_machos"  ).HasDefaultValue(0).IsRequired();
         b.Property(x => x.EmpresaId).HasColumnName("empresa_id");
         b.Property(x => x.UsuarioId).HasColumnName("usuario_id");
         b.Property(x => x.Estado).HasColumnName("estado").HasMaxLength(50);

@@ -86,8 +86,29 @@ public class SeguimientoDiario
     public int? VentaAvesCantidad { get; set; }
     public string? VentaAvesMotivo { get; set; }
 
+    // ── Marcado de traslado (Feature 13) ────────────────────────────
+    /// <summary>TRUE si este registro fue creado o modificado por un traslado (visual: fila amarilla).</summary>
+    public bool EsTraslado { get; set; }
+    /// <summary>lote_postura_levante_id (o produccion_id) del lote contraparte.</summary>
+    public int? TrasladoLoteContraparteId { get; set; }
+    /// <summary>granja_id del lote contraparte (para auditoría rápida).</summary>
+    public int? TrasladoGranjaContraparteId { get; set; }
+    /// <summary>SALIDA = aves enviadas; INGRESO = aves recibidas. Útil cuando la fila SÓLO es traslado.</summary>
+    public string? TrasladoDireccion { get; set; }
+
+    // ── Splits H/M dedicados (Feature 13 refinamiento) ─────────────
+    /// <summary>Hembras recibidas por traslado en esta fila (dirección INGRESO).</summary>
+    public int TrasladoIngresoHembras { get; set; }
+    /// <summary>Machos recibidos por traslado en esta fila (dirección INGRESO).</summary>
+    public int TrasladoIngresoMachos { get; set; }
+    /// <summary>Hembras enviadas por traslado en esta fila (dirección SALIDA).</summary>
+    public int TrasladoSalidaHembras { get; set; }
+    /// <summary>Machos enviados por traslado en esta fila (dirección SALIDA).</summary>
+    public int TrasladoSalidaMachos { get; set; }
+
     // Auditoría
     public string? CreatedByUserId { get; set; }
+    public string? UpdatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

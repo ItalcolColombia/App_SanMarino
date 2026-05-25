@@ -103,6 +103,24 @@
             <span class="info-kpi__label">Error sexaje acum.</span>
             <span class="info-kpi__value">{{ totalErrorSexajeAcumulado | number:'1.0-0' }}</span>
           </div>
+
+          <!-- 🔀 Feature 14 — Traslados acumulados en fase LEVANTE -->
+          <div class="info-kpi info-kpi--traslado-in" *ngIf="(resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0">
+            <span class="info-kpi__label">↘ Ingreso Levante (H)</span>
+            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--traslado-in" *ngIf="(resumenLevante.levanteTrasladoIngresoHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoIngresoMachos ?? 0) > 0">
+            <span class="info-kpi__label">↘ Ingreso Levante (M)</span>
+            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--traslado-out" *ngIf="(resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0">
+            <span class="info-kpi__label">↗ Salida Levante (H)</span>
+            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }}</span>
+          </div>
+          <div class="info-kpi info-kpi--traslado-out" *ngIf="(resumenLevante.levanteTrasladoSalidaHembras ?? 0) > 0 || (resumenLevante.levanteTrasladoSalidaMachos ?? 0) > 0">
+            <span class="info-kpi__label">↗ Salida Levante (M)</span>
+            <span class="info-kpi__value">{{ resumenLevante.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</span>
+          </div>
         </div>
 
         <!-- Descuentos sobre el lote en Levante: hembras y machos separados -->
@@ -202,10 +220,14 @@
                   <th scope="col" class="th-diario th-diario--num">% pérdidas <span class="th-diario__sub">del día</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+
+                  <!-- 🔀 Feature 13 — traslados por género (4 columnas dedicadas) -->
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Hembras recibidas por traslado">↘ Ing. <span class="th-diario__sub">hembras</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov-in"  title="Machos recibidos por traslado">↘ Ing. <span class="th-diario__sub">machos</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Hembras enviadas por traslado">↗ Sal. <span class="th-diario__sub">hembras</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">↗ Sal. <span class="th-diario__sub">machos</span></th>
+                  <th scope="col" class="th-diario th-diario--num th-diario--mov-out" title="Machos enviados por traslado">Venta <span class="th-diario__sub">aves</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov">Traslado <span class="th-diario__sub">entrante</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--mov">Traslado <span class="th-diario__sub">salida</span></th>
-                  <th scope="col" class="th-diario th-diario--num th-diario--venta">Venta <span class="th-diario__sub">aves</span></th>
                   <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                 </tr>
               </thead>
@@ -242,23 +264,33 @@
                   <td class="num">{{ f.pctPerdidasDia != null ? (f.pctPerdidasDia | number:'1.0-2') + '%' : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromH != null ? (f.seg.pesoPromH | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ f.seg.pesoPromM != null ? (f.seg.pesoPromM | number:'1.0-2') : '—' }}</td>
-                  <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
-                  <!-- Movimientos de aves -->
+                  <!-- 🔀 Feature 13 — traslados por género -->
                   <td class="num cell-mov cell-mov--entrada"
-                      [class.cell-mov--valor]="f.seg.trasladoAvesEntrante"
-                      [title]="f.seg.trasladoAvesEntrante ? 'Entrante: ' + f.seg.trasladoAvesEntrante + ' aves' : ''">
-                    {{ f.seg.trasladoAvesEntrante != null && f.seg.trasladoAvesEntrante > 0 ? ('+' + (f.seg.trasladoAvesEntrante | number:'1.0-0')) : '—' }}
+                      [class.cell-mov--valor]="(f.seg.trasladoIngresoHembras || 0) > 0"
+                      [title]="(f.seg.trasladoIngresoHembras || 0) > 0 ? 'Ingreso hembras: ' + f.seg.trasladoIngresoHembras : ''">
+                    {{ (f.seg.trasladoIngresoHembras || 0) > 0 ? ('+' + (f.seg.trasladoIngresoHembras | number:'1.0-0')) : '—' }}
+                  </td>
+                  <td class="num cell-mov cell-mov--entrada"
+                      [class.cell-mov--valor]="(f.seg.trasladoIngresoMachos || 0) > 0"
+                      [title]="(f.seg.trasladoIngresoMachos || 0) > 0 ? 'Ingreso machos: ' + f.seg.trasladoIngresoMachos : ''">
+                    {{ (f.seg.trasladoIngresoMachos || 0) > 0 ? ('+' + (f.seg.trasladoIngresoMachos | number:'1.0-0')) : '—' }}
                   </td>
                   <td class="num cell-mov cell-mov--salida"
-                      [class.cell-mov--valor]="f.seg.trasladoAvesSalida"
-                      [title]="f.seg.trasladoAvesSalida ? 'Salida: ' + f.seg.trasladoAvesSalida + ' aves' : ''">
-                    {{ f.seg.trasladoAvesSalida != null && f.seg.trasladoAvesSalida > 0 ? ('-' + (f.seg.trasladoAvesSalida | number:'1.0-0')) : '—' }}
+                      [class.cell-mov--valor]="(f.seg.trasladoSalidaHembras || 0) > 0"
+                      [title]="(f.seg.trasladoSalidaHembras || 0) > 0 ? 'Salida hembras: ' + f.seg.trasladoSalidaHembras : ''">
+                    {{ (f.seg.trasladoSalidaHembras || 0) > 0 ? ('-' + (f.seg.trasladoSalidaHembras | number:'1.0-0')) : '—' }}
+                  </td>
+                  <td class="num cell-mov cell-mov--salida"
+                      [class.cell-mov--valor]="(f.seg.trasladoSalidaMachos || 0) > 0"
+                      [title]="(f.seg.trasladoSalidaMachos || 0) > 0 ? 'Salida machos: ' + f.seg.trasladoSalidaMachos : ''">
+                    {{ (f.seg.trasladoSalidaMachos || 0) > 0 ? ('-' + (f.seg.trasladoSalidaMachos | number:'1.0-0')) : '—' }}
                   </td>
                   <td class="num cell-mov cell-mov--venta"
                       [class.cell-mov--valor]="f.seg.ventaAvesCantidad"
                       [title]="f.seg.ventaAvesCantidad ? 'Venta: ' + f.seg.ventaAvesCantidad + ' aves' + (f.seg.ventaAvesMotivo ? ' — ' + f.seg.ventaAvesMotivo : '') : ''">
                     {{ f.seg.ventaAvesCantidad != null && f.seg.ventaAvesCantidad > 0 ? (f.seg.ventaAvesCantidad | number:'1.0-0') : '—' }}
                   </td>
+                  <td class="cell-text cell-text--obs" [title]="f.seg.observaciones || ''">{{ (f.seg.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
                     <div class="btn-group">
                       <button type="button" (click)="onViewDetail(f.seg)" class="icon-btn" title="Ver detalle">👁️</button>

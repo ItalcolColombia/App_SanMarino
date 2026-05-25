@@ -58,6 +58,21 @@ public class FarmController : ControllerBase
     }
 
     // ===========================
+    // FEATURE 13 — Granjas válidas para traslado entre seguimientos diarios
+    // ===========================
+    // GET /api/Farm/traslado-seguimiento-diario
+    //  • Filtra por CompanyId (token) + PaisId (header x-active-pais) + activas.
+    //  • Compartido entre Levante y Producción.
+    [HttpGet("traslado-seguimiento-diario")]
+    [HttpGet("/Farm/traslado-seguimiento-diario")]
+    [ProducesResponseType(typeof(IEnumerable<FarmDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<FarmDto>>> GetForTrasladoSeguimiento()
+    {
+        var items = await _svc.GetForTrasladoSeguimientoAsync();
+        return Ok(items);
+    }
+
+    // ===========================
     // BÚSQUEDA AVANZADA
     // ===========================
     // /api/Farm/search

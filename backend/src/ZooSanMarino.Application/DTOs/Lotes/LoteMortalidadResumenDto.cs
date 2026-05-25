@@ -20,7 +20,19 @@ public sealed class LoteMortalidadResumenDto
     public int ErrorSexajeAcumHembras { get; init; }
     public int ErrorSexajeAcumMachos  { get; init; }
 
-    // Saldos resultantes (inicio - mort caja - mortalidad - sel - error sexaje)
+    // Saldos resultantes (inicio - mort caja - mortalidad - sel - error sexaje + traslado ingreso - traslado salida)
     public int SaldoHembras     { get; init; }
     public int SaldoMachos      { get; init; }
+
+    // Acumulados de traslado en FASE LEVANTE (desde lote_postura_levante)
+    public int LevanteTrasladoIngresoHembras { get; init; }
+    public int LevanteTrasladoIngresoMachos  { get; init; }
+    public int LevanteTrasladoSalidaHembras  { get; init; }
+    public int LevanteTrasladoSalidaMachos   { get; init; }
+
+    // Acumulados de traslado en FASE PRODUCCIÓN (desde lote_postura_produccion)
+    public int ProduccionTrasladoIngresoHembras { get; init; }
+    public int ProduccionTrasladoIngresoMachos  { get; init; }
+    public int ProduccionTrasladoSalidaHembras  { get; init; }
+    public int ProduccionTrasladoSalidaMachos   { get; init; }
 }
