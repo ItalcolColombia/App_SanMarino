@@ -91,6 +91,12 @@ public class LotePosturaProduccionConfiguration : IEntityTypeConfiguration<LoteP
         b.Property(x => x.Edad).HasColumnName("edad");
         b.Property(x => x.EstadoCierre).HasColumnName("estado_cierre").HasMaxLength(20);
 
+        // Feature 14 — acumulados de traslado en FASE PRODUCCIÓN
+        b.Property(x => x.ProduccionTrasladoIngresoHembras).HasColumnName("produccion_traslado_ingreso_hembras").HasDefaultValue(0).IsRequired();
+        b.Property(x => x.ProduccionTrasladoIngresoMachos ).HasColumnName("produccion_traslado_ingreso_machos" ).HasDefaultValue(0).IsRequired();
+        b.Property(x => x.ProduccionTrasladoSalidaHembras ).HasColumnName("produccion_traslado_salida_hembras" ).HasDefaultValue(0).IsRequired();
+        b.Property(x => x.ProduccionTrasladoSalidaMachos  ).HasColumnName("produccion_traslado_salida_machos"  ).HasDefaultValue(0).IsRequired();
+
         b.HasIndex(x => x.GranjaId).HasDatabaseName("ix_lote_postura_produccion_granja");
         b.HasIndex(x => x.NucleoId).HasDatabaseName("ix_lote_postura_produccion_nucleo");
         b.HasIndex(x => x.GalponId).HasDatabaseName("ix_lote_postura_produccion_galpon");

@@ -63,6 +63,26 @@ export interface SeguimientoLoteLevanteDto {
   trasladoAvesSalida?: number | null;
   ventaAvesCantidad?: number | null;
   ventaAvesMotivo?: string | null;
+
+  // ── Marcado de traslado (Feature 13) ─────────────────────────────
+  /** TRUE si este registro fue creado por un traslado (no por seguimiento manual). */
+  esTraslado?: boolean | null;
+  /** SALIDA | INGRESO */
+  trasladoDireccion?: string | null;
+  /** lote_postura_levante_id del contraparte. */
+  trasladoLoteContraparteId?: number | null;
+  /** granja_id del contraparte (para auditoría). */
+  trasladoGranjaContraparteId?: number | null;
+
+  // ── Splits H/M dedicados (Feature 13 refinamiento) ──────────────
+  /** Hembras recibidas por traslado (cuando esta fila es INGRESO). */
+  trasladoIngresoHembras?: number;
+  /** Machos recibidos por traslado (cuando esta fila es INGRESO). */
+  trasladoIngresoMachos?: number;
+  /** Hembras enviadas por traslado (cuando esta fila es SALIDA). */
+  trasladoSalidaHembras?: number;
+  /** Machos enviados por traslado (cuando esta fila es SALIDA). */
+  trasladoSalidaMachos?: number;
 }
 
 // Representa un ítem individual en el seguimiento
@@ -145,6 +165,12 @@ export interface CreateSeguimientoLoteLevanteDto {
 
   /** ID del usuario en sesión (desde storage). Se envía al backend para guardar en seguimiento_diario.created_by_user_id. */
   createdByUserId?: string | null;
+  /** ID del usuario que hizo la última actualización (Feature 13). */
+  updatedByUserId?: string | null;
+  /** Fecha/hora ISO de creación del registro (auditoría). */
+  createdAt?: string | null;
+  /** Fecha/hora ISO de la última actualización (auditoría). */
+  updatedAt?: string | null;
   /** Tipo de seguimiento: siempre "levante" para este módulo. */
   tipoSeguimiento?: 'levante' | null;
 

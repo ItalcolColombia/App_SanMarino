@@ -518,5 +518,58 @@
   }
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   🔀 Feature 14 — Traslados en Producción
+   Mismas reglas visuales que Levante (Feature 13).
+   ════════════════════════════════════════════════════════════════════════════ */
+:host th.th-prod-trasl-in  { background: #ecfdf5 !important; color: #065f46 !important; }
+:host th.th-prod-trasl-out { background: #fef3c7 !important; color: #78350f !important; }
+
+:host td.prod-cell--in {
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+  font-weight: 700;
+}
+:host td.prod-cell--out {
+  background: #fde68a !important;
+  color: #78350f !important;
+  font-weight: 700;
+}
+
+/* Filas amarillas para traslado */
+:host tr.fila--traslado          { background: #fef3c7; }
+:host tr.fila--traslado-salida   { background: #fee2c0; }
+:host tr.fila--traslado-ingreso  { background: #d1fae5; }
+
+.prod-traslado-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-right: 6px;
+  border-radius: 4px;
+  background: #fcd34d;
+  color: #78350f;
+  font-size: 0.7rem;
+  font-weight: 700;
+
+  &--in {
+    background: #86efac;
+    color: #14532d;
+  }
+}
+
+/* Resumen-cards de traslado en información del lote */
+.resumen-card--traslado-in {
+  border-left: 4px solid #10b981;
+  background: #ecfdf5;
+  .resumen-icon  { color: #065f46; }
+  .resumen-number { color: #065f46; }
+}
+.resumen-card--traslado-out {
+  border-left: 4px solid #f59e0b;
+  background: #fef3c7;
+  .resumen-icon  { color: #78350f; }
+  .resumen-number { color: #78350f; }
+}
+
 
 

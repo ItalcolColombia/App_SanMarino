@@ -5,6 +5,66 @@
   display: block;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   🟡 Feature 13 — Filas amarillas para traslados (SALIDA / INGRESO)
+   ────────────────────────────────────────────────────────────────────────── */
+:host tr.fila--traslado > td {
+  background: #fef3c7 !important;       /* amber-100 */
+  border-color: #fde68a !important;     /* amber-200 */
+}
+:host tr.fila--traslado:hover > td {
+  background: #fde68a !important;       /* amber-200 hover */
+}
+:host tr.fila--traslado-salida > td {
+  /* Borde lateral izquierdo más oscuro para indicar SALIDA */
+  box-shadow: inset 3px 0 0 0 #d97706;  /* amber-600 */
+}
+:host tr.fila--traslado-ingreso > td {
+  /* Borde lateral izquierdo verde para indicar INGRESO */
+  box-shadow: inset 3px 0 0 0 #16a34a;  /* green-600 */
+}
+
+:host .traslado-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: #fbbf24;                  /* amber-400 */
+  color: #78350f;                       /* amber-900 */
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+:host tr.fila--traslado-ingreso .traslado-tag,
+:host .traslado-tag--in {
+  background: #86efac;                  /* green-300 */
+  color: #14532d;                       /* green-900 */
+}
+
+/* Headers de las nuevas columnas dedicadas */
+:host th.th-traslado-in {
+  background: #ecfdf5 !important;
+  color: #065f46 !important;
+}
+:host th.th-traslado-out {
+  background: #fef3c7 !important;
+  color: #78350f !important;
+}
+
+/* Celdas con valor > 0 (resaltadas) */
+:host td.tras-cell--in {
+  background: #d1fae5 !important;
+  color: #065f46 !important;
+  font-weight: 700;
+}
+:host td.tras-cell--out {
+  background: #fde68a !important;
+  color: #78350f !important;
+  font-weight: 700;
+}
+
 /* ==========================================================================
    🎨 Design System / Tokens (solo claro)
    ========================================================================== */

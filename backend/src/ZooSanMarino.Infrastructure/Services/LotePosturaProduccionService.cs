@@ -150,6 +150,16 @@ public class LotePosturaProduccionService : ILotePosturaProduccionService
         return await ProjectToDetail(q).ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<LotePosturaProduccionDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+        var q = _ctx.LotePosturaProduccion
+            .AsNoTracking()
+            .Where(l => l.CompanyId == companyId && l.DeletedAt == null && l.LotePosturaProduccionId == id);
+        return await ProjectToDetail(q).FirstOrDefaultAsync(ct);
+    }
+
     private static IQueryable<LotePosturaProduccionDetailDto> ProjectToDetail(
         IQueryable<LotePosturaProduccion> q)
     {
@@ -213,7 +223,13 @@ public class LotePosturaProduccionService : ILotePosturaProduccionService
                         l.Galpon.GalponNombre ?? l.Galpon.GalponId,
                         l.Galpon.NucleoId ?? "",
                         l.Galpon.GranjaId
-                    )
+                    ),
+                // Feature 14 — orden posicional (LoteId + 4 acumulados producción)
+                l.LoteId,
+                l.ProduccionTrasladoIngresoHembras,
+                l.ProduccionTrasladoIngresoMachos,
+                l.ProduccionTrasladoSalidaHembras,
+                l.ProduccionTrasladoSalidaMachos
             ));
     }
 }

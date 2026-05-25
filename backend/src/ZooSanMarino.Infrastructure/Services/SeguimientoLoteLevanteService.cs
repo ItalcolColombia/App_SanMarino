@@ -79,7 +79,21 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             ConsumoAguaPh: u.ConsumoAguaPh,
             ConsumoAguaOrp: u.ConsumoAguaOrp,
             ConsumoAguaTemperatura: u.ConsumoAguaTemperatura,
-            SaldoAlimentoKg: null
+            SaldoAlimentoKg: null,
+            // Feature 13 — propagar marcado de traslado al frontend
+            EsTraslado: u.EsTraslado,
+            TrasladoDireccion: u.TrasladoDireccion,
+            TrasladoLoteContraparteId: u.TrasladoLoteContraparteId,
+            TrasladoGranjaContraparteId: u.TrasladoGranjaContraparteId,
+            // Splits H/M dedicados (separados de mortalidad)
+            TrasladoIngresoHembras: u.TrasladoIngresoHembras,
+            TrasladoIngresoMachos: u.TrasladoIngresoMachos,
+            TrasladoSalidaHembras: u.TrasladoSalidaHembras,
+            TrasladoSalidaMachos: u.TrasladoSalidaMachos,
+            // Auditoría
+            UpdatedByUserId: u.UpdatedByUserId,
+            CreatedAt: u.CreatedAt,
+            UpdatedAt: u.UpdatedAt
         );
     }
 
@@ -400,16 +414,9 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
             catch (Exception ex) { Console.WriteLine($"Error al registrar consumo inventario (levante): {ex.Message}"); }
         }
 
-        var hembrasRetiro = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
-        var machosRetiro = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
-        if (hembrasRetiro > 0 || machosRetiro > 0)
-        {
-            try
-            {
-                await DescontarAvesEnLotePosturaLevanteAsync(dto.LoteId, dto.LotePosturaLevanteId, hembrasRetiro, machosRetiro);
-            }
-            catch (Exception ex) { Console.WriteLine($"Error al descontar aves en lote postura levante: {ex.Message}"); }
-        }
+        // Feature 13 (refinamiento): el descuento de aves manual (mort+sel+err) sobre
+        // LotePosturaLevante ahora está centralizado dentro de SeguimientoDiarioService.CreateAsync
+        // — se aplica tanto en alta nueva como en merge sobre traslado. Ya no se repite aquí.
 
         return MapToLevanteDto(created);
     }

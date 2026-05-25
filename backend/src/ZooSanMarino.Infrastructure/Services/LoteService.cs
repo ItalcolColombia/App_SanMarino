@@ -698,7 +698,12 @@ namespace ZooSanMarino.Infrastructure.Services
 
             var loteIdStr = loteId.ToString();
 
-            // 2) Sumas de mortalidad desde tabla unificada seguimiento_diario (tipo levante)
+            // 2) Sumas de mortalidad desde tabla unificada seguimiento_diario (tipo levante).
+            //    Feature 13 (refinamiento): NO excluimos filas con es_traslado=true porque
+            //    una fila puede ser MIXTA: tener tanto datos de traslado (en columnas
+            //    dedicadas traslado_ingreso_*/traslado_salida_*) COMO datos manuales
+            //    de mortalidad/selección/error de sexaje. Cada concepto va por su
+            //    propia columna, así que sumamos las mortalidades de TODAS las filas.
             var mort = await _ctx.SeguimientoDiario
                 .AsNoTracking()
                 .Where(s => s.TipoSeguimiento == "levante" && s.LoteId == loteIdStr)
@@ -739,9 +744,45 @@ namespace ZooSanMarino.Infrastructure.Services
             int mortCajaH = lote.MortCajaH ?? 0;
             int mortCajaM = lote.MortCajaM ?? 0;
 
-            // 4) Saldos: base - mort caja - mortalidad - sel - error sexaje
-            int saldoH = Math.Max(0, baseH - mortCajaH - mortH - selH - errH);
-            int saldoM = Math.Max(0, baseM - mortCajaM - mortM - selM - errM);
+            // 3.5) Traslados acumulados por fase (Feature 14): Levante + Producción
+            var lpl = await _ctx.LotePosturaLevante.AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.DeletedAt == null && l.CompanyId == companyId)
+                .Select(l => new
+                {
+                    l.LevanteTrasladoIngresoHembras,
+                    l.LevanteTrasladoIngresoMachos,
+                    l.LevanteTrasladoSalidaHembras,
+                    l.LevanteTrasladoSalidaMachos
+                })
+                .FirstOrDefaultAsync();
+            int levInH  = lpl?.LevanteTrasladoIngresoHembras ?? 0;
+            int levInM  = lpl?.LevanteTrasladoIngresoMachos  ?? 0;
+            int levOutH = lpl?.LevanteTrasladoSalidaHembras  ?? 0;
+            int levOutM = lpl?.LevanteTrasladoSalidaMachos   ?? 0;
+
+            var lpp = await _ctx.LotePosturaProduccion.AsNoTracking()
+                .Where(l => l.LoteId == loteId && l.DeletedAt == null && l.CompanyId == companyId)
+                .Select(l => new
+                {
+                    l.ProduccionTrasladoIngresoHembras,
+                    l.ProduccionTrasladoIngresoMachos,
+                    l.ProduccionTrasladoSalidaHembras,
+                    l.ProduccionTrasladoSalidaMachos
+                })
+                .FirstOrDefaultAsync();
+            int prodInH  = lpp?.ProduccionTrasladoIngresoHembras ?? 0;
+            int prodInM  = lpp?.ProduccionTrasladoIngresoMachos  ?? 0;
+            int prodOutH = lpp?.ProduccionTrasladoSalidaHembras  ?? 0;
+            int prodOutM = lpp?.ProduccionTrasladoSalidaMachos   ?? 0;
+
+            int totInH  = levInH  + prodInH;
+            int totInM  = levInM  + prodInM;
+            int totOutH = levOutH + prodOutH;
+            int totOutM = levOutM + prodOutM;
+
+            // 4) Saldos = base - bajas + ingresos_traslado (ambas fases) - salidas_traslado (ambas fases)
+            int saldoH = Math.Max(0, baseH - mortCajaH - mortH - selH - errH + totInH - totOutH);
+            int saldoM = Math.Max(0, baseM - mortCajaM - mortM - selM - errM + totInM - totOutM);
 
             return new LoteMortalidadResumenDto
             {
@@ -757,7 +798,15 @@ namespace ZooSanMarino.Infrastructure.Services
                 ErrorSexajeAcumHembras = errH,
                 ErrorSexajeAcumMachos = errM,
                 SaldoHembras = saldoH,
-                SaldoMachos = saldoM
+                SaldoMachos = saldoM,
+                LevanteTrasladoIngresoHembras = levInH,
+                LevanteTrasladoIngresoMachos  = levInM,
+                LevanteTrasladoSalidaHembras  = levOutH,
+                LevanteTrasladoSalidaMachos   = levOutM,
+                ProduccionTrasladoIngresoHembras = prodInH,
+                ProduccionTrasladoIngresoMachos  = prodInM,
+                ProduccionTrasladoSalidaHembras  = prodOutH,
+                ProduccionTrasladoSalidaMachos   = prodOutM
             };
         }
 

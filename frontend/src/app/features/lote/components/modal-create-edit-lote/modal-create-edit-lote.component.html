@@ -71,7 +71,7 @@
           (granjaChange)="onGranjaPadreChange($event)"
           (nucleoChange)="onNucleoPadreChange($event)"
           (galponChange)="onGalponPadreChange($event)"
-          (loteChange)="form.patchValue({ lotePadreId: $event })">
+          (loteChange)="onLotePadreSelected($event)">
         </app-filtro-select>
         
         <div *ngIf="loadingLotesPadres" style="margin-top: 12px; color: #065f46; font-weight: 500;">
@@ -127,12 +127,42 @@
         <!-- Nombre del Lote -->
         <div>
           <label class="ux-label">📝 Nombre del Lote <span class="req">*</span></label>
-          <input formControlName="loteNombre" type="text" class="ux-input"
-                 [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"
-                 placeholder="Ej: Lote-001-2024">
-          <div *ngIf="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched" class="ux-error">
-            Nombre del lote es requerido (mínimo 2 caracteres)
-          </div>
+
+          <!-- R1: Selector de letra A-F cuando hay lote padre seleccionado -->
+          <ng-container *ngIf="usarSelectorLetra; else loteNombreLibre">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input [value]="lotePadreNombrePrefix" readonly
+                     class="ux-input" style="flex:1; background:#f3f4f6; cursor:not-allowed;"
+                     placeholder="Prefijo (lote base)">
+              <select [(ngModel)]="letraSeleccionada"
+                      [ngModelOptions]="{standalone: true}"
+                      (change)="onLetraChange()"
+                      class="ux-input" style="width:80px;"
+                      [disabled]="cargandoLetras">
+                <option value="">--</option>
+                <option *ngFor="let letra of LETRAS_POSIBLES"
+                        [value]="letra"
+                        [disabled]="letrasOcupadas.includes(letra)">
+                  {{ letra }}{{ letrasOcupadas.includes(letra) ? ' ✗' : '' }}
+                </option>
+              </select>
+            </div>
+            <div *ngIf="cargandoLetras" class="ux-hint" style="color:#6b7280; font-size:12px; margin-top:4px;">
+              Verificando letras disponibles…
+            </div>
+            <div *ngIf="!letraSeleccionada && form.get('loteNombre')?.touched" class="ux-error">
+              Selecciona una letra para el lote
+            </div>
+          </ng-container>
+
+          <ng-template #loteNombreLibre>
+            <input formControlName="loteNombre" type="text" class="ux-input"
+                   [class.is-invalid]="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched"
+                   placeholder="Ej: Lote-001-2024">
+            <div *ngIf="form.get('loteNombre')?.invalid && form.get('loteNombre')?.touched" class="ux-error">
+              Nombre del lote es requerido (mínimo 2 caracteres)
+            </div>
+          </ng-template>
         </div>
 
         <!-- Fecha de Encaset -->
