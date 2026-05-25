@@ -22,5 +22,11 @@ public class LotePosturaBase : AuditableEntity
     public int CantidadMixtas { get; set; }
 
     public int? PaisId { get; set; }
+
+    /// <summary>Granja a la que pertenece este lote base (opcional).</summary>
+    public int? FarmId { get; set; }
+
+    /// <summary>Fecha de creación del lote en el sistema ERP externo.</summary>
+    public DateTime? ErpCreate { get; set; }
 }
 

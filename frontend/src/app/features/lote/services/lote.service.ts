@@ -20,6 +20,15 @@ export interface LoteMortalidadResumenDto {
   errorSexajeAcumMachos: number;
   saldoHembras: number;
   saldoMachos: number;
+  /** Feature 14 — acumulados de traslado por fase. */
+  levanteTrasladoIngresoHembras?: number;
+  levanteTrasladoIngresoMachos?: number;
+  levanteTrasladoSalidaHembras?: number;
+  levanteTrasladoSalidaMachos?: number;
+  produccionTrasladoIngresoHembras?: number;
+  produccionTrasladoIngresoMachos?: number;
+  produccionTrasladoSalidaHembras?: number;
+  produccionTrasladoSalidaMachos?: number;
 }
 
 export interface LoteDto {

@@ -29,6 +29,12 @@ import { ModalAnalisisComponent } from '../modal-analisis/modal-analisis.compone
 import { ModalLiquidacionComponent } from '../../components/modal-liquidacion/modal-liquidacion.component';
 import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import {
+  ModalTrasladoAvesSeguimientoComponent,
+  OrigenTrasladoInfo
+} from '../../../../features/traslados-aves/components/modal-traslado-aves-seguimiento/modal-traslado-aves-seguimiento.component';
+import { TrasladoAvesResultSegDto } from '../../../../features/traslados-aves/services/traslados-aves.service';
+import { LotePosturaProduccionService } from '../../../lote/services/lote-postura-produccion.service';
 
 @Component({
   selector: 'app-lote-produccion-list',
@@ -44,7 +50,8 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../s
     ModalAnalisisComponent,
     ModalLiquidacionComponent,
     ModalDetalleSeguimientoComponent,
-    ConfirmationModalComponent
+    ConfirmationModalComponent,
+    ModalTrasladoAvesSeguimientoComponent
   ],
   templateUrl: './lote-produccion-list.component.html',
   styleUrls: ['./lote-produccion-list.component.scss']
@@ -106,6 +113,10 @@ export class LoteProduccionListComponent implements OnInit {
   seguimientoIdParaDetalle: number | null = null;
   editingSeguimiento: SeguimientoItemDto | null = null;
 
+  // Traslado de Aves desde Seguimiento Diario (R3)
+  trasladoAvesModalOpen = false;
+  trasladoAvesOrigen: OrigenTrasladoInfo | null = null;
+
   /** Modal de confirmación de eliminación de seguimiento diario */
   showDeleteConfirmModal = false;
   deleteConfirmId: number | null = null;
@@ -126,7 +137,8 @@ export class LoteProduccionListComponent implements OnInit {
     private nucleoSvc: NucleoService,
     private loteSvc: LoteService,
     private produccionSvc: ProduccionService,
-    private galponSvc: GalponService
+    private galponSvc: GalponService,
+    private lppSvc: LotePosturaProduccionService
   ) {}
 
   // ================== INIT ==================
@@ -803,9 +815,86 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
     this.seguimientoIdParaDetalle = null;
   }
 
-  /** Abre el modal de confirmación para eliminar un registro de seguimiento diario */
+  /** Abre el modal de confirmación para eliminar. Arma mensaje detallado si la fila
+   *  tiene traslado (paridad con Levante — Feature 14). */
   deleteDailyTracking(id: number): void {
+    const seg = (this.seguimientos as any[]).find(s => s.id === id);
     this.deleteConfirmId = id;
+
+    const ingH = seg?.trasladoIngresoHembras ?? 0;
+    const ingM = seg?.trasladoIngresoMachos  ?? 0;
+    const salH = seg?.trasladoSalidaHembras  ?? 0;
+    const salM = seg?.trasladoSalidaMachos   ?? 0;
+    const tieneTraslado = (ingH + ingM + salH + salM) > 0;
+    const tieneManual = (seg?.mortalidadH || 0) + (seg?.mortalidadM || 0)
+                      + (seg?.selH || 0) + (seg?.selM || 0)
+                      + (seg?.huevosTotales || 0) > 0
+                   || (seg?.consKgH || 0) > 0 || (seg?.consKgM || 0) > 0;
+
+    if (!tieneTraslado) {
+      const totH = (seg?.mortalidadH || 0) + (seg?.selH || 0);
+      const totM = (seg?.mortalidadM || 0) + (seg?.selM || 0);
+      this.deleteConfirmModalData = {
+        title: '¿Eliminar seguimiento diario?',
+        message:
+`Vas a eliminar el seguimiento diario del lote "${this.selectedLoteNombre}" con fecha ${seg ? new Date(seg.fechaRegistro).toLocaleDateString('es-CO') : ''}.
+
+Las aves descontadas por mortalidad / selección
+(H: ${totH}, M: ${totM}) serán DEVUELTAS al lote.
+
+Esta acción no se puede deshacer.`,
+        confirmText: 'Sí, eliminar',
+        cancelText: 'Cancelar',
+        type: 'warning',
+        showCancel: true,
+        preformatted: true
+      };
+      this.showDeleteConfirmModal = true;
+      return;
+    }
+
+    const esIngreso = (ingH + ingM) > 0;
+    const direccion = esIngreso ? 'INGRESO' : 'SALIDA';
+    const totalH = esIngreso ? ingH : salH;
+    const totalM = esIngreso ? ingM : salM;
+    const contraparteId = seg?.trasladoLoteContraparteId ?? null;
+    const contraLabel = contraparteId
+      ? `LPP #${contraparteId}`
+      : 'Lote contraparte';
+
+    const explicacion = esIngreso
+      ? `• Este lote (${this.selectedLoteNombre}) DEVOLVERÁ ${totalH} hembras y ${totalM} machos al lote origen.
+• ${contraLabel}: RECUPERA ${totalH} hembras y ${totalM} machos.
+• El registro contraparte también será borrado (si no tiene datos manuales).`
+      : `• ${contraLabel}: PIERDE ${totalH} hembras y ${totalM} machos.
+• Este lote (${this.selectedLoteNombre}): RECUPERA ${totalH} hembras y ${totalM} machos.
+• El registro contraparte también será borrado (si no tiene datos manuales).`;
+
+    const extraManual = tieneManual
+      ? `\n\nAdemás, este registro contiene datos manuales (mortalidad / selección).\nEsas aves serán DEVUELTAS a este lote.`
+      : '';
+
+    this.deleteConfirmModalData = {
+      title: `⚠️ Eliminar traslado ${direccion}`,
+      message:
+`Estás eliminando un seguimiento diario que registra un TRASLADO DE ${direccion}:
+
+• Fecha: ${seg ? new Date(seg.fechaRegistro).toLocaleDateString('es-CO') : ''}
+• Aves del traslado: ${totalH} hembras / ${totalM} machos
+• Contraparte: ${contraLabel}
+
+Si continúas, se revertirá la operación en ambos lotes:
+${explicacion}${extraManual}
+
+Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote origen.
+
+¿Deseas continuar con la eliminación?`,
+      confirmText: 'Sí, eliminar y revertir',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      showCancel: true,
+      preformatted: true
+    };
     this.showDeleteConfirmModal = true;
   }
 
@@ -841,5 +930,54 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
   exportarAnalisis(): void {
     // TODO: Implementar exportación de análisis
     console.log('Exportar análisis');
+  }
+
+  // =========== Traslado de Aves desde Seguimiento Diario (R3) ===========
+
+  openTrasladoAvesModal(): void {
+    const lpp = this.selectedLoteLPP;
+    if (!lpp) return;
+
+    // Feature 14: hacemos fetch fresh del LPP para obtener avesHActual + loteId
+    // del backend, porque selectedLoteLPP viene del filter-data que puede tener
+    // valores stale o parciales.
+    this.lppSvc.getById(lpp.lotePosturaProduccionId).subscribe({
+      next: (lppFresh) => {
+        this.trasladoAvesOrigen = {
+          loteId: lpp.lotePosturaProduccionId,
+          loteIdBase: lppFresh.loteId ?? null,
+          tipoLote: 'Produccion',
+          loteNombre: lppFresh.loteNombre || lpp.loteNombre,
+          avesHActual: lppFresh.avesHActual ?? lpp.avesHActual ?? 0,
+          avesMActual: lppFresh.avesMActual ?? lpp.avesMActual ?? 0,
+          fechaSeguimiento: new Date().toISOString().split('T')[0]
+        };
+        this.trasladoAvesModalOpen = true;
+      },
+      error: () => {
+        // Fallback: usar lo que tenemos en selectedLoteLPP
+        this.trasladoAvesOrigen = {
+          loteId: lpp.lotePosturaProduccionId,
+          loteIdBase: null,
+          tipoLote: 'Produccion',
+          loteNombre: lpp.loteNombre,
+          avesHActual: lpp.avesHActual ?? 0,
+          avesMActual: lpp.avesMActual ?? 0,
+          fechaSeguimiento: new Date().toISOString().split('T')[0]
+        };
+        this.trasladoAvesModalOpen = true;
+      }
+    });
+  }
+
+  onTrasladoAvesCompletado(result: TrasladoAvesResultSegDto): void {
+    if (result.exitoso && this.selectedLoteLPP) {
+      this.selectedLoteLPP = {
+        ...this.selectedLoteLPP,
+        avesHActual: result.avesHActualOrigen,
+        avesMActual: result.avesMActualOrigen
+      };
+    }
+    this.trasladoAvesModalOpen = false;
   }
 }

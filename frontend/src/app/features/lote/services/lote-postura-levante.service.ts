@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
@@ -67,6 +67,11 @@ export interface LotePosturaLevanteDto {
   } | null;
   /** Máxima edad (semanas) con registros en seguimiento (solo en detalle por ID). */
   edadMaximaSeguimiento?: number | null;
+  /** Acumulados de traslado en FASE LEVANTE (Feature 13/14). */
+  levanteTrasladoIngresoHembras?: number | null;
+  levanteTrasladoIngresoMachos?: number | null;
+  levanteTrasladoSalidaHembras?: number | null;
+  levanteTrasladoSalidaMachos?: number | null;
 }
 
 /** Resumen API GET .../resumen-cierre */
@@ -123,6 +128,16 @@ export class LotePosturaLevanteService {
     return this.http.post<LotePosturaLevanteDto>(
       `${this.baseUrl}/${encodeURIComponent(String(lotePosturaLevanteId))}/abrir`,
       body
+    );
+  }
+
+  /** Retorna letras A-F ocupadas y disponibles para un galpón + prefijo de lote base. */
+  getLetrasDisponibles(galponId: string, loteBase: string): Observable<{ letrasOcupadas: string[]; letrasDisponibles: string[] }> {
+    const params = new HttpParams()
+      .set('galponId', galponId)
+      .set('loteBase', loteBase);
+    return this.http.get<{ letrasOcupadas: string[]; letrasDisponibles: string[] }>(
+      `${this.baseUrl}/letras-disponibles`, { params }
     );
   }
 }

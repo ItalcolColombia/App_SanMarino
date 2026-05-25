@@ -30,5 +30,19 @@ public record SeguimientoLoteLevanteDto(
     // Campos específicos Panamá: cantidad de alimento en quintales por categoría
     decimal? QqMixtas = null,
     decimal? QqHembras = null,
-    decimal? QqMachos = null
+    decimal? QqMachos = null,
+    // Marcado de traslado (Feature 13)
+    bool EsTraslado = false,
+    string? TrasladoDireccion = null,
+    int? TrasladoLoteContraparteId = null,
+    int? TrasladoGranjaContraparteId = null,
+    // Feature 13 — splits H/M dedicados POR FILA (no por fase del lote — describen la mortalidad/traslado en ese día)
+    int TrasladoIngresoHembras = 0,
+    int TrasladoIngresoMachos  = 0,
+    int TrasladoSalidaHembras  = 0,
+    int TrasladoSalidaMachos   = 0,
+    // Auditoría (Feature 13)
+    string? UpdatedByUserId = null,
+    DateTime? CreatedAt = null,
+    DateTime? UpdatedAt = null
 );

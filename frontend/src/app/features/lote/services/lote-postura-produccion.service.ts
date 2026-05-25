@@ -30,10 +30,17 @@ export interface LotePosturaProduccionDto {
   hembrasInicialesProd?: number | null;
   machosInicialesProd?: number | null;
   lotePosturaLevanteId?: number | null;
+  /** Feature 14 — referencia al Lote base (tabla lotes), necesario para resumen-mortalidad. */
+  loteId?: number | null;
   avesHInicial?: number | null;
   avesMInicial?: number | null;
   avesHActual?: number | null;
   avesMActual?: number | null;
+  /** Acumulados de traslado en FASE PRODUCCIÓN (Feature 14). */
+  produccionTrasladoIngresoHembras?: number | null;
+  produccionTrasladoIngresoMachos?: number | null;
+  produccionTrasladoSalidaHembras?: number | null;
+  produccionTrasladoSalidaMachos?: number | null;
   estado?: string | null;
   etapa?: string | null;
   edad?: number | null;
@@ -67,5 +74,10 @@ export class LotePosturaProduccionService {
 
   getByLoteId(loteId: number): Observable<LotePosturaProduccionDto[]> {
     return this.http.get<LotePosturaProduccionDto[]>(`${this.baseUrl}/por-lote/${loteId}`);
+  }
+
+  /** Feature 14 — Obtiene un LPP completo (con aves actuales y acumulados de traslado). */
+  getById(id: number): Observable<LotePosturaProduccionDto> {
+    return this.http.get<LotePosturaProduccionDto>(`${this.baseUrl}/${id}`);
   }
 }

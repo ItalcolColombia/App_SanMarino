@@ -27,4 +27,11 @@ public interface ILotePosturaLevanteService
 
     /// <summary>Reabre el lote levante si la producción generada no tiene datos dependientes.</summary>
     Task<LotePosturaLevanteDetailDto?> AbrirLoteAsync(int lotePosturaLevanteId, AbrirLoteLevanteRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retorna qué letras (A-F) ya están ocupadas y cuáles están disponibles
+    /// para un prefijo de lote en un galpón específico.
+    /// </summary>
+    Task<LetrasDisponiblesDto> GetLetrasDisponiblesAsync(
+        string galponId, string loteBase, CancellationToken ct = default);
 }

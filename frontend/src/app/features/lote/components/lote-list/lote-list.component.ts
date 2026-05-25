@@ -28,7 +28,7 @@ import { GalponDetailDto } from '../../../galpon/models/galpon.models';
 import { UserService, UserDto, User } from '../../../../core/services/user/user.service';
 import { Company, CompanyService } from '../../../../core/services/company/company.service';
 import { GuiaGeneticaService } from '../../services/guia-genetica.service';
-import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
+import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, UpdateLotePosturaBaseDto } from '../../services/lote-postura-base.service';
 
 /* ============================================================
    Directiva standalone: separador de miles (es-CO) y enteros
@@ -118,6 +118,20 @@ export class LoteListComponent implements OnInit {
   modalOpen = false;
   baseModalOpen = false;
   editing: LoteDto | null = null;
+  // Estado tab Lote Base
+  editingBase: LotePosturaBaseDto | null = null;
+  viewingBase: LotePosturaBaseDto | null = null;
+  viewLotesPosturaBase: LotePosturaBaseDto[] = [];
+  confirmBaseOpen = false;
+  pendingDeleteBase: LotePosturaBaseDto | null = null;
+  confirmBaseData: ConfirmationModalData = {
+    title: 'Eliminar lote base',
+    message: 'Esta acción no se puede deshacer.',
+    confirmText: 'Eliminar',
+    cancelText: 'Cancelar',
+    type: 'warning',
+    showCancel: true,
+  };
   selectedLote: LoteDto | null = null;
   selectedLoteLevante: LotePosturaLevanteDto | null = null;
   selectedLoteProduccion: LotePosturaProduccionDto | null = null;
@@ -127,8 +141,8 @@ export class LoteListComponent implements OnInit {
   loteParaTrasladar: LoteDto | null = null;
   loadingTraslado = false;
 
-  // Pestaña: Lote = lotes (primera por defecto), Levante = lote_postura_levante, Producción = lote_postura_produccion
-  activeTab: 'levante' | 'lote' | 'produccion' = 'lote';
+  // Pestaña: Lote = lotes (primera por defecto), Levante = lote_postura_levante, Producción = lote_postura_produccion, LoteBase = lotes base
+  activeTab: 'levante' | 'lote' | 'produccion' | 'loteBase' = 'lote';
 
   // Búsqueda y orden
   filtro = '';
@@ -154,6 +168,9 @@ export class LoteListComponent implements OnInit {
   razaValida: boolean = true;
   companies: Company[]  = [];
 
+  // Opciones de letra A-F cuando hay lote base seleccionado
+  letrasOptions: { nombre: string; ocupada: boolean }[] = [];
+
   // Parent lot functionality
   esLotePadre: boolean = false;
   lotesPadresDisponibles: LoteDto[] = [];
@@ -177,7 +194,9 @@ export class LoteListComponent implements OnInit {
   viewLotes: LoteDto[] = [];
   // Lotes postura base (creación rápida)
   lotesPosturaBase: LotePosturaBaseDto[] = [];
-  baseLotesOptions: LotePosturaBaseDto[] = [];
+  baseLotesOptions: LotePosturaBaseDto[] = [];          // todos los cargados del servidor
+  filteredBaseLotesOptions: LotePosturaBaseDto[] = []; // filtrados por granja seleccionada
+  sinLoteBaseEnGranja = false;                          // true = granja seleccionada sin base asignada
   selectedBaseLote: LotePosturaBaseDto | null = null;
   // Lotes postura levante (tab Levante = tabla lote_postura_levante)
   lotesLevante: LotePosturaLevanteDto[] = [];
@@ -267,8 +286,10 @@ export class LoteListComponent implements OnInit {
 
     // Chains del modal (usan datos cargados al abrir el modal)
     this.form.get('granjaId')!.valueChanges.subscribe(granjaIdVal => {
-      const granjaId = Number(granjaIdVal);
-      this.nucleosFiltrados = this.nucleos.filter(n => Number(n.granjaId) === granjaId);
+      const granjaId = granjaIdVal != null && granjaIdVal !== '' ? Number(granjaIdVal) : null;
+      const granjaIdNum = granjaId ?? 0;
+
+      this.nucleosFiltrados = this.nucleos.filter(n => Number(n.granjaId) === granjaIdNum);
       this.filteredNucleos = this.nucleosFiltrados;
       this.galponesFiltrados = [];
       this.filteredGalpones = [];
@@ -278,12 +299,20 @@ export class LoteListComponent implements OnInit {
       this.form.patchValue({ nucleoId: primerNucleo });
       if (primerNucleo && this.galpones.length > 0) {
         const filtrados = this.galpones.filter(
-          g => Number(g.granjaId) === granjaId && String(g.nucleoId) === String(primerNucleo)
+          g => Number(g.granjaId) === granjaIdNum && String(g.nucleoId) === String(primerNucleo)
         );
         this.galponesFiltrados = [...filtrados];
         this.filteredGalpones = this.galponesFiltrados;
         const primerGalpon = this.galponesFiltrados[0]?.galponId ?? null;
         this.form.patchValue({ galponId: primerGalpon }, { emitEvent: false });
+      }
+
+      // Filtrar lote base según granja seleccionada
+      this.filterBaseLotesByGranja(granjaId);
+
+      // Recalcular opciones A-F si aún hay lote base seleccionado tras el filtro
+      if (this.selectedBaseLote) {
+        this.buildLetrasOptions(this.selectedBaseLote.loteNombre);
       }
     });
 
@@ -314,11 +343,10 @@ export class LoteListComponent implements OnInit {
       }
     });
 
-    // Cuando cambia el galpón, regenerar nombre si ya hay lote base seleccionado
+    // Cuando cambia el galpón, recalcular opciones A-F si ya hay lote base seleccionado
     this.form.get('galponId')!.valueChanges.subscribe(() => {
       if (this.selectedBaseLote) {
-        const generatedName = this.generateNextLoteNameFromBase(this.selectedBaseLote.loteNombre);
-        this.form.patchValue({ loteNombre: generatedName }, { emitEvent: false });
+        this.buildLetrasOptions(this.selectedBaseLote.loteNombre);
       }
     });
 
@@ -399,11 +427,13 @@ export class LoteListComponent implements OnInit {
 
   private initBaseForm(): void {
     this.baseForm = this.fb.group({
-      loteNombre: ['', [Validators.required, Validators.minLength(2)]],
-      codigoErp: [''],
+      loteNombre:      ['', [Validators.required, Validators.minLength(2)]],
+      codigoErp:       [''],
       cantidadHembras: [0, [Validators.required, Validators.min(0)]],
-      cantidadMachos: [0, [Validators.required, Validators.min(0)]],
-      cantidadMixtas: [0, [Validators.required, Validators.min(0)]],
+      cantidadMachos:  [0, [Validators.required, Validators.min(0)]],
+      cantidadMixtas:  [0, [Validators.required, Validators.min(0)]],
+      farmId:          [null],   // Granja asignada al lote base
+      erpCreate:       [null],   // Fecha de creación en ERP externo
     });
   }
 
@@ -432,6 +462,8 @@ export class LoteListComponent implements OnInit {
           },
           error: () => this.toastService.error('No se pudo cargar la lista de lotes producción.', 'Error')
         });
+    } else if (this.activeTab === 'loteBase') {
+      this.loadLoteBaseTab();
     } else {
       this.loteSvc.getAll()
         .pipe(finalize(() => this.loading = false))
@@ -445,6 +477,27 @@ export class LoteListComponent implements OnInit {
           error: () => this.toastService.error('No se pudo cargar la lista de lotes.', 'Error')
         });
     }
+  }
+
+  /** Carga los lotes base filtrados por las granjas del usuario. */
+  private loadLoteBaseTab(): void {
+    this.loading = true;
+    forkJoin({
+      bases: this.lotePosturaBaseSvc.getAll(),
+      farms: this.farmSvc.getAll(),
+    }).pipe(finalize(() => this.loading = false)).subscribe({
+      next: ({ bases, farms }) => {
+        const userFarmIds = new Set(farms.map(f => f.id));
+        // Mostrar bases cuyo farmId pertenece a las granjas del usuario,
+        // o si farmId es null (sin granja asignada aún, solo si hay bases)
+        this.viewLotesPosturaBase = (bases ?? []).filter(
+          b => b.farmId == null || userFarmIds.has(b.farmId)
+        );
+        // También actualizar farms disponibles para el modal
+        this.farms = farms;
+      },
+      error: () => this.toastService.error('No se pudieron cargar los lotes base.', 'Error')
+    });
   }
 
   private loadLotesPosturaBase(): void {
@@ -463,7 +516,7 @@ export class LoteListComponent implements OnInit {
     return found?.loteNombre ?? `#${id}`;
   }
 
-  setTab(tab: 'levante' | 'lote' | 'produccion'): void {
+  setTab(tab: 'levante' | 'lote' | 'produccion' | 'loteBase'): void {
     if (this.activeTab === tab) return;
     this.activeTab = tab;
     this.loadData();
@@ -847,7 +900,11 @@ export class LoteListComponent implements OnInit {
     this.editing = l ?? null;
     this.modalOpen = true;
     this.selectedBaseLote = null;
+    this.letrasOptions = [];
+    this.filteredBaseLotesOptions = [];
+    this.sinLoteBaseEnGranja = false;
     this.form.patchValue({ lotePosturaBaseId: null }, { emitEvent: false });
+    this.form.get('lotePosturaBaseId')?.enable({ emitEvent: false }); // asegurar habilitado al abrir
     this.loadBaseLotesOptions();
     this.loadModalData();
   }
@@ -856,14 +913,26 @@ export class LoteListComponent implements OnInit {
     this.lotePosturaBaseSvc.getAll().subscribe({
       next: (items) => {
         this.baseLotesOptions = items ?? [];
+
+        // Aplicar filtro por la granja que ya esté seleccionada (p.ej. al editar)
+        const granjaIdVal = this.form.get('granjaId')?.value;
+        const granjaId = granjaIdVal != null && granjaIdVal !== '' ? Number(granjaIdVal) : null;
+        this.filterBaseLotesByGranja(granjaId);
+
         // Si estamos editando y ya hay base asociada, reflejarla en UI
         const currentBaseId = this.form.get('lotePosturaBaseId')?.value;
         const id = currentBaseId != null ? Number(currentBaseId) : null;
         if (id) {
-          this.selectedBaseLote = this.baseLotesOptions.find(b => b.lotePosturaBaseId === id) ?? null;
+          this.selectedBaseLote =
+            this.filteredBaseLotesOptions.find(b => b.lotePosturaBaseId === id) ??
+            this.baseLotesOptions.find(b => b.lotePosturaBaseId === id) ??
+            null;
         }
       },
-      error: () => this.baseLotesOptions = []
+      error: () => {
+        this.baseLotesOptions = [];
+        this.filteredBaseLotesOptions = [];
+      }
     });
   }
 
@@ -871,17 +940,104 @@ export class LoteListComponent implements OnInit {
     const id = baseId != null ? Number(baseId) : null;
     if (!id) {
       this.selectedBaseLote = null;
-      this.form.patchValue({ lotePosturaBaseId: null }, { emitEvent: false });
+      this.letrasOptions = [];
+      this.form.patchValue({ lotePosturaBaseId: null, loteNombre: '' }, { emitEvent: false });
       return;
     }
 
-    const base = this.baseLotesOptions.find(b => b.lotePosturaBaseId === id) ?? null;
+    const base =
+      this.filteredBaseLotesOptions.find(b => b.lotePosturaBaseId === id) ??
+      this.baseLotesOptions.find(b => b.lotePosturaBaseId === id) ??
+      null;
     this.selectedBaseLote = base;
     this.form.patchValue({ lotePosturaBaseId: id }, { emitEvent: false });
     if (!base) return;
 
-    const generatedName = this.generateNextLoteNameFromBase(base.loteNombre);
-    this.form.patchValue({ loteNombre: generatedName }, { emitEvent: false });
+    this.buildLetrasOptions(base.loteNombre);
+  }
+
+  /**
+   * Filtra las opciones de lote base según la granja seleccionada en el formulario.
+   * Si la granja no tiene ningún lote base asignado (farmId), deshabilita el control
+   * y marca sinLoteBaseEnGranja = true para mostrar el aviso informativo.
+   */
+  private filterBaseLotesByGranja(granjaId: number | null): void {
+    const ctrl = this.form.get('lotePosturaBaseId');
+
+    if (!granjaId) {
+      // Sin granja → mostrar todos y habilitar
+      this.filteredBaseLotesOptions = [...this.baseLotesOptions];
+      this.sinLoteBaseEnGranja = false;
+      ctrl?.enable({ emitEvent: false });
+      return;
+    }
+
+    this.filteredBaseLotesOptions = this.baseLotesOptions.filter(b => b.farmId === granjaId);
+    this.sinLoteBaseEnGranja = this.filteredBaseLotesOptions.length === 0;
+
+    if (this.sinLoteBaseEnGranja) {
+      // Deshabilitar + limpiar selección y nombre generado
+      ctrl?.disable({ emitEvent: false });
+      this.form.patchValue({ lotePosturaBaseId: null, loteNombre: '' }, { emitEvent: false });
+      this.selectedBaseLote = null;
+      this.letrasOptions = [];
+    } else {
+      ctrl?.enable({ emitEvent: false });
+      // Si el base actualmente seleccionado no pertenece a esta granja, limpiarlo
+      if (this.selectedBaseLote &&
+          !this.filteredBaseLotesOptions.find(
+            b => b.lotePosturaBaseId === this.selectedBaseLote!.lotePosturaBaseId)) {
+        this.form.patchValue({ lotePosturaBaseId: null, loteNombre: '' }, { emitEvent: false });
+        this.selectedBaseLote = null;
+        this.letrasOptions = [];
+      }
+    }
+  }
+
+  /** Construye las 6 opciones A-F para el select de nombre de lote, marcando las ya ocupadas. */
+  private buildLetrasOptions(baseName: string): void {
+    const cleanBase = (baseName ?? '').toString().trim();
+    if (!cleanBase) {
+      this.letrasOptions = [];
+      return;
+    }
+
+    const currentGranjaId = this.form.get('granjaId')?.value != null
+      ? Number(this.form.get('granjaId')?.value) : null;
+    const currentNucleoId = this.form.get('nucleoId')?.value != null
+      ? String(this.form.get('nucleoId')?.value) : null;
+    const currentGalponId = this.form.get('galponId')?.value != null
+      ? String(this.form.get('galponId')?.value) : null;
+
+    const taken = new Set<string>();
+    for (const l of this.lotes ?? []) {
+      const name = (l.loteNombre ?? '').toString().trim();
+      if (!name || !name.toUpperCase().startsWith(cleanBase.toUpperCase())) continue;
+
+      const sameGranja = currentGranjaId == null || l.granjaId === currentGranjaId;
+      const sameNucleo = currentNucleoId == null || String(l.nucleoId ?? '') === currentNucleoId;
+      const sameGalpon = currentGalponId == null || String(l.galponId ?? '') === currentGalponId;
+      if (!sameGranja || !sameNucleo || !sameGalpon) continue;
+
+      const suffix = name.substring(cleanBase.length).trim();
+      if (suffix.length === 1) {
+        const letter = suffix.toUpperCase();
+        if (/^[A-F]$/.test(letter)) taken.add(letter);
+      }
+    }
+
+    const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F'];
+    this.letrasOptions = LETRAS.map(ch => ({
+      nombre: `${cleanBase}${ch}`,
+      ocupada: taken.has(ch)
+    }));
+
+    // Auto-seleccionar la primera letra disponible
+    const firstFree = this.letrasOptions.find(o => !o.ocupada);
+    this.form.patchValue(
+      { loteNombre: firstFree ? firstFree.nombre : '' },
+      { emitEvent: false }
+    );
   }
 
   private generateNextLoteNameFromBase(baseName: string): string {
@@ -923,39 +1079,112 @@ export class LoteListComponent implements OnInit {
     return `${cleanBase}${i}`;
   }
 
-  openBaseModal(): void {
+  openBaseModal(b?: LotePosturaBaseDto): void {
+    this.editingBase = b ?? null;
     this.baseForm.reset({
-      loteNombre: '',
-      codigoErp: '',
-      cantidadHembras: 0,
-      cantidadMachos: 0,
-      cantidadMixtas: 0,
+      loteNombre:      b?.loteNombre      ?? '',
+      codigoErp:       b?.codigoErp       ?? '',
+      cantidadHembras: b?.cantidadHembras ?? 0,
+      cantidadMachos:  b?.cantidadMachos  ?? 0,
+      cantidadMixtas:  b?.cantidadMixtas  ?? 0,
+      farmId:          b?.farmId          ?? null,
+      erpCreate:       b?.erpCreate
+        ? new Date(b.erpCreate).toISOString().substring(0, 10)
+        : null,
     });
     this.baseModalOpen = true;
+
+    // Cargar granjas del usuario si aún no están disponibles
+    if (this.farms.length === 0) {
+      this.farmSvc.getAll().subscribe({
+        next: (fs) => this.farms = fs,
+        error: () => { /* silencioso, el select quedará vacío */ }
+      });
+    }
   }
 
   saveBase(): void {
     if (this.baseForm.invalid) return;
     const v = this.baseForm.value;
-    const dto: CreateLotePosturaBaseDto = {
-      loteNombre: (v.loteNombre ?? '').toString().trim(),
-      codigoErp: (v.codigoErp ?? '').toString().trim() || null,
+    const payload = {
+      loteNombre:      (v.loteNombre ?? '').toString().trim(),
+      codigoErp:       (v.codigoErp ?? '').toString().trim() || null,
       cantidadHembras: Number(v.cantidadHembras) || 0,
-      cantidadMachos: Number(v.cantidadMachos) || 0,
-      cantidadMixtas: Number(v.cantidadMixtas) || 0,
+      cantidadMachos:  Number(v.cantidadMachos)  || 0,
+      cantidadMixtas:  Number(v.cantidadMixtas)  || 0,
+      farmId:          v.farmId   ? Number(v.farmId)   : null,
+      erpCreate:       v.erpCreate ? String(v.erpCreate) : null,
     };
+
     this.loading = true;
-    this.lotePosturaBaseSvc.create(dto).pipe(finalize(() => this.loading = false)).subscribe({
+    const op$ = this.editingBase
+      ? this.lotePosturaBaseSvc.update(this.editingBase.lotePosturaBaseId, payload as UpdateLotePosturaBaseDto)
+      : this.lotePosturaBaseSvc.create(payload as CreateLotePosturaBaseDto);
+
+    op$.pipe(finalize(() => this.loading = false)).subscribe({
       next: () => {
+        const wasEditing = !!this.editingBase;
         this.baseModalOpen = false;
-        this.toastService.success('Lote base registrado correctamente.', 'Listo');
-        this.loadLotesPosturaBase();
+        this.editingBase = null;
+        this.toastService.success(
+          wasEditing
+            ? 'Lote base actualizado correctamente.'
+            : 'Lote base registrado correctamente.',
+          'Listo'
+        );
+        if (this.activeTab === 'loteBase') {
+          this.loadLoteBaseTab();
+        } else {
+          this.loadLotesPosturaBase();
+        }
       },
       error: (err) => {
         const msg = err?.error?.message || err?.message || 'Error al guardar el lote base.';
         this.toastService.error(msg, 'Error');
       }
     });
+  }
+
+  deleteBase(b: LotePosturaBaseDto): void {
+    this.pendingDeleteBase = b;
+    this.confirmBaseData = {
+      title: 'Eliminar lote base',
+      message: `¿Eliminar el lote base "${b.loteNombre}"? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      showCancel: true,
+    };
+    this.confirmBaseOpen = true;
+  }
+
+  onConfirmDeleteBase(): void {
+    const b = this.pendingDeleteBase;
+    if (b == null) { this.confirmBaseOpen = false; return; }
+    this.confirmBaseOpen = false;
+    this.pendingDeleteBase = null;
+    this.loading = true;
+    this.lotePosturaBaseSvc.delete(b.lotePosturaBaseId)
+      .pipe(finalize(() => this.loading = false))
+      .subscribe({
+        next: () => {
+          this.toastService.success('Lote base eliminado correctamente.', 'Listo');
+          this.loadLoteBaseTab();
+        },
+        error: (err) => {
+          const msg = err?.error?.message || err?.message || 'Error al eliminar el lote base.';
+          this.toastService.error(msg, 'Error');
+        }
+      });
+  }
+
+  onCancelConfirmBase(): void {
+    this.confirmBaseOpen = false;
+    this.pendingDeleteBase = null;
+  }
+
+  openDetailBase(b: LotePosturaBaseDto): void {
+    this.viewingBase = b;
   }
 
   onEsLotePadreChange(event: Event): void {

@@ -48,6 +48,15 @@ import {
   MovimientosAvesService,
   TrasladoCierreLevanteRequest
 } from '../../../movimientos-aves/services/movimientos-aves.service';
+import {
+  ModalTrasladoAvesSeguimientoComponent,
+  OrigenTrasladoInfo
+} from '../../../../features/traslados-aves/components/modal-traslado-aves-seguimiento/modal-traslado-aves-seguimiento.component';
+import { TrasladoAvesResultSegDto } from '../../../../features/traslados-aves/services/traslados-aves.service';
+import {
+  ConfirmationModalComponent,
+  ConfirmationModalData
+} from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 
 
 
@@ -55,7 +64,7 @@ import {
 @Component({
   selector: 'app-seguimiento-lote-levante-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, ModalCalculosComponent, ModalCreateEditComponent, ModalDetalleSeguimientoLevanteComponent, FiltroSelectComponent, TabsPrincipalComponent, ModalTrasladoAvesSeguimientoComponent, ConfirmationModalComponent],
   templateUrl: './seguimiento-lote-levante-list.component.html',
   styleUrls: ['./seguimiento-lote-levante-list.component.scss']
 })
@@ -129,6 +138,25 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   /** Liquidación técnica calculada al abrir el modal de cierre. */
   liquidacionCierre: LiquidacionCierreLoteLevanteDto | null = null;
   loadingLiquidacion = false;
+
+  // Traslado de Aves desde Seguimiento Diario (R3)
+  trasladoAvesModalOpen = false;
+  trasladoAvesOrigen: OrigenTrasladoInfo | null = null;
+
+  // Confirmación de eliminación (Feature 13 refinamiento)
+  deleteConfirmOpen = false;
+  deleteConfirmLoading = false;
+  pendingDeleteId: number | null = null;
+  deleteConfirmData: ConfirmationModalData = {
+    title: '¿Eliminar seguimiento diario?',
+    message: '',
+    icon: 'trash',
+    confirmText: 'Continuar y eliminar',
+    cancelText: 'Cancelar',
+    type: 'warning',
+    showCancel: true,
+    preformatted: true
+  };
 
   /** True si el lote levante está cerrado (no se permite crear/editar/eliminar registros). */
   get isLoteCerrado(): boolean {
@@ -516,13 +544,132 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
   }
 
   delete(id: number): void {
-    if (!confirm('¿Estás seguro de eliminar este registro de seguimiento diario? Esta acción no se puede deshacer.')) return;
+    const seg = this.seguimientos.find(s => s.id === id);
+    if (!seg) return;
+
+    const ingH = seg.trasladoIngresoHembras ?? 0;
+    const ingM = seg.trasladoIngresoMachos  ?? 0;
+    const salH = seg.trasladoSalidaHembras  ?? 0;
+    const salM = seg.trasladoSalidaMachos   ?? 0;
+    const tieneTraslado = (ingH + ingM + salH + salM) > 0;
+    const tieneManual = (seg.mortalidadHembras || 0) + (seg.mortalidadMachos || 0)
+                      + (seg.selH || 0) + (seg.selM || 0)
+                      + (seg.errorSexajeHembras || 0) + (seg.errorSexajeMachos || 0) > 0
+                   || (seg.consumoKgHembras || 0) > 0 || (seg.consumoKgMachos || 0) > 0;
+
+    this.pendingDeleteId = id;
+
+    if (!tieneTraslado) {
+      // Caso simple: solo seguimiento manual
+      this.deleteConfirmData = {
+        title: '¿Eliminar seguimiento diario?',
+        message:
+`Vas a eliminar el seguimiento diario del lote "${this.selectedLoteNombre}" con fecha ${this.formatDMY(seg.fechaRegistro)}.
+
+Las aves descontadas por mortalidad / selección / error de sexaje
+(H: ${(seg.mortalidadHembras || 0) + (seg.selH || 0) + (seg.errorSexajeHembras || 0)}, M: ${(seg.mortalidadMachos || 0) + (seg.selM || 0) + (seg.errorSexajeMachos || 0)})
+serán DEVUELTAS al lote.
+
+Esta acción no se puede deshacer.`,
+        confirmText: 'Sí, eliminar',
+        cancelText: 'Cancelar',
+        type: 'warning',
+        showCancel: true,
+        preformatted: true
+      };
+      this.deleteConfirmOpen = true;
+      return;
+    }
+
+    // Hay traslado — necesitamos info de la contraparte
+    const contraId = seg.trasladoLoteContraparteId ?? null;
+    if (contraId) {
+      this.deleteConfirmLoading = true;
+      this.lotePosturaLevanteSvc.getById(contraId).subscribe({
+        next: (contra) => {
+          this.deleteConfirmLoading = false;
+          this.deleteConfirmData = this.armarMensajeDeleteConTraslado(seg, contra, tieneManual, ingH, ingM, salH, salM);
+          this.deleteConfirmOpen = true;
+        },
+        error: () => {
+          this.deleteConfirmLoading = false;
+          this.deleteConfirmData = this.armarMensajeDeleteConTraslado(seg, null, tieneManual, ingH, ingM, salH, salM);
+          this.deleteConfirmOpen = true;
+        }
+      });
+    } else {
+      this.deleteConfirmData = this.armarMensajeDeleteConTraslado(seg, null, tieneManual, ingH, ingM, salH, salM);
+      this.deleteConfirmOpen = true;
+    }
+  }
+
+  private armarMensajeDeleteConTraslado(
+    seg: SeguimientoLoteLevanteDto,
+    contra: LotePosturaLevanteDto | null,
+    tieneManual: boolean,
+    ingH: number, ingM: number, salH: number, salM: number
+  ): ConfirmationModalData {
+    const fecha = this.formatDMY(seg.fechaRegistro);
+    const esIngreso = (ingH + ingM) > 0;
+    const direccion = esIngreso ? 'INGRESO' : 'SALIDA';
+    const totalH = esIngreso ? ingH : salH;
+    const totalM = esIngreso ? ingM : salM;
+    const contraLabel = contra
+      ? `${contra.loteNombre} (Granja: ${contra.farm?.name ?? '—'}, Núcleo: ${contra.nucleo?.nucleoNombre ?? '—'}, Galpón: ${contra.galpon?.galponNombre ?? '—'})`
+      : `Lote contraparte #${seg.trasladoLoteContraparteId ?? '?'}`;
+
+    const explicacionIngreso = esIngreso
+      ? `• Este lote (${this.selectedLoteNombre}) DEVOLVERÁ ${totalH} hembras y ${totalM} machos al lote origen.
+• Lote origen (${contraLabel}): RECUPERA ${totalH} hembras y ${totalM} machos.
+• El registro contraparte en el lote origen también será borrado (si no tiene datos manuales).`
+      : `• Lote destino (${contraLabel}): PIERDE ${totalH} hembras y ${totalM} machos (se devuelven a este lote).
+• Este lote (${this.selectedLoteNombre}): RECUPERA ${totalH} hembras y ${totalM} machos.
+• El registro contraparte en el lote destino también será borrado (si no tiene datos manuales).`;
+
+    const explicacionManual = tieneManual
+      ? `
+
+Además, este registro contiene datos manuales (mortalidad / selección / error de sexaje):
+• H: ${(seg.mortalidadHembras || 0) + (seg.selH || 0) + (seg.errorSexajeHembras || 0)}, M: ${(seg.mortalidadMachos || 0) + (seg.selM || 0) + (seg.errorSexajeMachos || 0)}.
+Esas aves serán DEVUELTAS a este lote.`
+      : '';
+
+    return {
+      title: `⚠️ Eliminar traslado ${direccion}`,
+      message:
+`Estás eliminando un seguimiento diario que registra un TRASLADO DE ${direccion}:
+
+• Fecha: ${fecha}
+• Aves del traslado: ${totalH} hembras / ${totalM} machos
+• Contraparte: ${contraLabel}
+
+Si continúas, se revertirá la operación en ambos lotes:
+${explicacionIngreso}${explicacionManual}
+
+Para volver a registrar el traslado tendrás que crearlo de nuevo desde el seguimiento del lote origen.
+
+¿Deseas continuar con la eliminación?`,
+      confirmText: 'Sí, eliminar y revertir',
+      cancelText: 'Cancelar',
+      type: 'warning',
+      showCancel: true,
+      preformatted: true
+    };
+  }
+
+  onDeleteConfirmed(): void {
+    if (this.pendingDeleteId == null) {
+      this.deleteConfirmOpen = false;
+      return;
+    }
+    const id = this.pendingDeleteId;
+    this.deleteConfirmOpen = false;
+    this.pendingDeleteId = null;
 
     this.loading = true;
     this.segSvc.delete(id).subscribe({
       next: () => {
         this.loading = false;
-        // Recargar los registros del lote después de eliminar
         this.onLoteChange(this.selectedLoteId);
       },
       error: (err) => {
@@ -530,10 +677,14 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
         console.error('Error al eliminar registro:', err);
         const errorMessage = err?.error?.message || err?.message || 'Error al eliminar el registro. Por favor, intenta nuevamente.';
         alert(errorMessage);
-        // Recargar los registros incluso si hay error para mantener consistencia
         this.onLoteChange(this.selectedLoteId);
       }
     });
+  }
+
+  onDeleteCancelled(): void {
+    this.deleteConfirmOpen = false;
+    this.pendingDeleteId = null;
   }
 
   cancel(): void {
@@ -888,5 +1039,38 @@ export class SeguimientoLoteLevanteListComponent implements OnInit {
           this.errorCierreLote = err?.error?.message ?? err?.message ?? 'No se pudo abrir el lote.';
         }
       });
+  }
+
+  // =========== Traslado de Aves desde Seguimiento Diario (R3) ===========
+
+  openTrasladoAvesModal(): void {
+    const id = this.lotePosturaLevanteIdActual;
+    if (id == null || !this.selectedLote) return;
+    this.trasladoAvesOrigen = {
+      loteId: id,
+      loteIdBase: this.selectedLoteId ?? this.selectedLote.loteId ?? null,
+      tipoLote: 'Levante',
+      loteNombre: this.selectedLote.loteNombre,
+      avesHActual: this.selectedLote.avesHActual ?? 0,
+      avesMActual: this.selectedLote.avesMActual ?? 0,
+      fechaSeguimiento: new Date().toISOString().split('T')[0]
+    };
+    this.trasladoAvesModalOpen = true;
+  }
+
+  onTrasladoAvesCompletado(result: TrasladoAvesResultSegDto): void {
+    if (result.exitoso && this.selectedLote) {
+      this.selectedLote = {
+        ...this.selectedLote,
+        avesHActual: result.avesHActualOrigen,
+        avesMActual: result.avesMActualOrigen
+      };
+    }
+    this.trasladoAvesModalOpen = false;
+    // Feature 13: refrescar seguimientos (aparecerá la fila amarilla SALIDA)
+    //              y resumen mortalidad (recálculo de saldo + acumulados traslado).
+    if (this.selectedLoteId) {
+      this.onLoteChange(this.selectedLoteId);
+    }
   }
 }

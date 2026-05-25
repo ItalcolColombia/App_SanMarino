@@ -44,5 +44,43 @@ public class LotePosturaBaseController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(typeof(LotePosturaBaseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotePosturaBaseDto>> Update(int id, [FromBody] UpdateLotePosturaBaseDto dto)
+    {
+        if (dto is null) return BadRequest(new { message = "El cuerpo de la petición es requerido." });
+        try
+        {
+            var updated = await _svc.UpdateAsync(id, dto);
+            return Ok(updated);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = $"Lote base {id} no encontrado." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            await _svc.DeleteAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = $"Lote base {id} no encontrado." });
+        }
+    }
 }
 
