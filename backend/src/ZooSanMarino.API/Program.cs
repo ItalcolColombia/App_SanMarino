@@ -294,6 +294,7 @@ builder.Services.AddScoped<IGuiaGeneticaEcuadorService, GuiaGeneticaEcuadorServi
 builder.Services.AddScoped<IDisponibilidadLoteService, DisponibilidadLoteService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.IEspejoHuevoProduccionSyncService, ZooSanMarino.Infrastructure.Services.EspejoHuevoProduccionSyncService>();
 builder.Services.AddScoped<ITrasladoHuevosService, TrasladoHuevosService>();
+builder.Services.AddScoped<ITrasladoAvesDesdeSegService, TrasladoAvesDesdeSegService>();
 
 // Proveedores
 builder.Services.AddScoped<IAlimentoNutricionProvider, EfAlimentoNutricionProvider>();

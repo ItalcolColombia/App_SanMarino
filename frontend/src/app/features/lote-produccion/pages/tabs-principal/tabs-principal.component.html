@@ -131,6 +131,49 @@
               <small class="resumen-detail">H: {{ informacionLote.consumoAlimentoKgH | number:'1.0-2' }} | M: {{ informacionLote.consumoAlimentoKgM | number:'1.0-2' }}</small>
             </div>
           </div>
+
+          <!-- 🔀 Feature 14 — acumulados de traslado por FASE -->
+          <!-- Fase Levante (traslados que ocurrieron antes de pasar a producción) -->
+          <div class="resumen-card resumen-card--traslado-in"
+               *ngIf="informacionLote && ((informacionLote.levanteTrasladoIngresoHembras ?? 0) > 0 || (informacionLote.levanteTrasladoIngresoMachos ?? 0) > 0)">
+            <div class="resumen-icon">🐣↘</div>
+            <div class="resumen-content">
+              <h4>Ingreso Levante</h4>
+              <p class="resumen-number">{{ ((informacionLote.levanteTrasladoIngresoHembras ?? 0) + (informacionLote.levanteTrasladoIngresoMachos ?? 0)) | number:'1.0-0' }}</p>
+              <small class="resumen-detail">H: {{ informacionLote.levanteTrasladoIngresoHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.levanteTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</small>
+            </div>
+          </div>
+
+          <div class="resumen-card resumen-card--traslado-out"
+               *ngIf="informacionLote && ((informacionLote.levanteTrasladoSalidaHembras ?? 0) > 0 || (informacionLote.levanteTrasladoSalidaMachos ?? 0) > 0)">
+            <div class="resumen-icon">🐣↗</div>
+            <div class="resumen-content">
+              <h4>Salida Levante</h4>
+              <p class="resumen-number">{{ ((informacionLote.levanteTrasladoSalidaHembras ?? 0) + (informacionLote.levanteTrasladoSalidaMachos ?? 0)) | number:'1.0-0' }}</p>
+              <small class="resumen-detail">H: {{ informacionLote.levanteTrasladoSalidaHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.levanteTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</small>
+            </div>
+          </div>
+
+          <!-- Fase Producción (traslados que ocurren mientras está en producción) -->
+          <div class="resumen-card resumen-card--traslado-in"
+               *ngIf="informacionLote && ((informacionLote.produccionTrasladoIngresoHembras ?? 0) > 0 || (informacionLote.produccionTrasladoIngresoMachos ?? 0) > 0)">
+            <div class="resumen-icon">🥚↘</div>
+            <div class="resumen-content">
+              <h4>Ingreso Producción</h4>
+              <p class="resumen-number">{{ ((informacionLote.produccionTrasladoIngresoHembras ?? 0) + (informacionLote.produccionTrasladoIngresoMachos ?? 0)) | number:'1.0-0' }}</p>
+              <small class="resumen-detail">H: {{ informacionLote.produccionTrasladoIngresoHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.produccionTrasladoIngresoMachos ?? 0 | number:'1.0-0' }}</small>
+            </div>
+          </div>
+
+          <div class="resumen-card resumen-card--traslado-out"
+               *ngIf="informacionLote && ((informacionLote.produccionTrasladoSalidaHembras ?? 0) > 0 || (informacionLote.produccionTrasladoSalidaMachos ?? 0) > 0)">
+            <div class="resumen-icon">🥚↗</div>
+            <div class="resumen-content">
+              <h4>Salida Producción</h4>
+              <p class="resumen-number">{{ ((informacionLote.produccionTrasladoSalidaHembras ?? 0) + (informacionLote.produccionTrasladoSalidaMachos ?? 0)) | number:'1.0-0' }}</p>
+              <small class="resumen-detail">H: {{ informacionLote.produccionTrasladoSalidaHembras ?? 0 | number:'1.0-0' }} | M: {{ informacionLote.produccionTrasladoSalidaMachos ?? 0 | number:'1.0-0' }}</small>
+            </div>
+          </div>
         </div>
 
         <!-- Tabla de Registros (simplificada) -->
@@ -155,6 +198,12 @@
                   <th>Mort. M</th>
                   <th>Sel. H</th>
                   <th>Sel. M</th>
+
+                  <!-- 🔀 Feature 14 — traslados por género dedicados -->
+                  <th class="th-prod-trasl-in" title="Hembras recibidas por traslado">↘ Ing. H</th>
+                  <th class="th-prod-trasl-in" title="Machos recibidos por traslado">↘ Ing. M</th>
+                  <th class="th-prod-trasl-out" title="Hembras enviadas por traslado">↗ Sal. H</th>
+                  <th class="th-prod-trasl-out" title="Machos enviados por traslado">↗ Sal. M</th>
 
                   <th>Cons. H (kg)</th>
                   <th>Cons. M (kg)</th>
@@ -202,8 +251,15 @@
                   </td>
                 </tr>
 
-                <tr *ngFor="let s of seguimientos" class="ux-row">
-                  <td class="mono">{{ s.id }}</td>
+                <tr *ngFor="let s of seguimientos" class="ux-row"
+                    [class.fila--traslado]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)+(s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
+                    [class.fila--traslado-salida]="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0"
+                    [class.fila--traslado-ingreso]="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0">
+                  <td class="mono">
+                    <span *ngIf="((s.trasladoSalidaHembras||0)+(s.trasladoSalidaMachos||0)) > 0" class="prod-traslado-tag" title="Salida de aves por traslado">🔀 SALIDA</span>
+                    <span *ngIf="((s.trasladoIngresoHembras||0)+(s.trasladoIngresoMachos||0)) > 0" class="prod-traslado-tag prod-traslado-tag--in" title="Ingreso de aves por traslado">🔀 INGRESO</span>
+                    {{ s.id }}
+                  </td>
                   <td>{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
                   <td>{{ calcularEdadDias(s.fechaRegistro) }}</td>
                   <td>{{ calcularEdadSemanas(s.fechaRegistro) }}</td>
@@ -213,6 +269,12 @@
                   <td>{{ s.mortalidadM }}</td>
                   <td>{{ s.selH }}</td>
                   <td>{{ s.selM }}</td>
+
+                  <!-- 🔀 Feature 14 — celdas dedicadas de traslado -->
+                  <td [class.prod-cell--in]="(s.trasladoIngresoHembras||0) > 0">{{ s.trasladoIngresoHembras ?? 0 }}</td>
+                  <td [class.prod-cell--in]="(s.trasladoIngresoMachos ||0) > 0">{{ s.trasladoIngresoMachos  ?? 0 }}</td>
+                  <td [class.prod-cell--out]="(s.trasladoSalidaHembras||0) > 0">{{ s.trasladoSalidaHembras ?? 0 }}</td>
+                  <td [class.prod-cell--out]="(s.trasladoSalidaMachos ||0) > 0">{{ s.trasladoSalidaMachos  ?? 0 }}</td>
 
                   <td>{{ s.consKgH | number:'1.0-2' }}</td>
                   <td>{{ s.consKgM | number:'1.0-2' }}</td>

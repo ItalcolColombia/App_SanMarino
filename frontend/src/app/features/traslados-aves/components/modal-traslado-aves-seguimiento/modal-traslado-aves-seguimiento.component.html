@@ -1,0 +1,180 @@
+<div *ngIf="isOpen" class="ux-modal" (click)="onBackdropClick($event)" role="dialog" aria-modal="true" aria-labelledby="traslado-seg-title">
+  <div class="ux-modal__panel traslado-panel" (click)="$event.stopPropagation()">
+
+    <!-- ─── Header ─────────────────────────────────────── -->
+    <div class="ux-modal__header">
+      <div>
+        <h2 id="traslado-seg-title" class="modal-title">🔀 Traslado de Aves ({{ tipoDestino }})</h2>
+        <p class="modal-subtitle" *ngIf="origen">
+          Desde <strong>{{ origen.tipoLote }}</strong>: {{ origen.loteNombre }}
+        </p>
+      </div>
+      <button type="button" class="btn-close" (click)="cerrar()" aria-label="Cerrar">✕</button>
+    </div>
+
+    <!-- ─── Body ───────────────────────────────────────── -->
+    <div class="ux-modal__body">
+
+      <!-- Bloque Origen -->
+      <div class="origen-card" *ngIf="origen">
+        <span class="origen-card__badge">ORIGEN</span>
+        <div class="origen-card__row">
+          <span class="origen-card__tag tag--{{ origen.tipoLote === 'Levante' ? 'blue' : 'green' }}">
+            {{ origen.tipoLote }}
+          </span>
+          <strong class="origen-card__nombre">{{ origen.loteNombre }}</strong>
+        </div>
+
+        <!-- Aves vivas (saldo REAL) -->
+        <div class="origen-card__stock">
+          <span>🐔 Hembras vivas: <b>{{ hembrasDisponibles | number }}</b></span>
+          <span>🐓 Machos vivos: <b>{{ machosDisponibles | number }}</b></span>
+        </div>
+
+        <!-- Acumulados de traslados -->
+        <div class="origen-card__trasladosrow" *ngIf="resumenOrigen">
+          <span class="mini-pill mini-pill--in">↘ Ingreso H: <b>{{ (resumenOrigen.levanteTrasladoIngresoHembras ?? 0) + (resumenOrigen.produccionTrasladoIngresoHembras ?? 0) }}</b></span>
+          <span class="mini-pill mini-pill--in">↘ Ingreso M: <b>{{ (resumenOrigen.levanteTrasladoIngresoMachos  ?? 0) + (resumenOrigen.produccionTrasladoIngresoMachos  ?? 0) }}</b></span>
+          <span class="mini-pill mini-pill--out">↗ Salida H: <b>{{ (resumenOrigen.levanteTrasladoSalidaHembras  ?? 0) + (resumenOrigen.produccionTrasladoSalidaHembras  ?? 0) }}</b></span>
+          <span class="mini-pill mini-pill--out">↗ Salida M: <b>{{ (resumenOrigen.levanteTrasladoSalidaMachos   ?? 0) + (resumenOrigen.produccionTrasladoSalidaMachos   ?? 0) }}</b></span>
+        </div>
+      </div>
+
+      <div class="section-divider">
+        <span class="section-divider__label">Destino del traslado (misma etapa: {{ tipoDestino }})</span>
+      </div>
+
+      <!-- Spinner de carga inicial -->
+      <div *ngIf="loading" class="loading-row">
+        <div class="mini-spinner"></div>
+        <span>Cargando granjas y lotes…</span>
+      </div>
+
+      <ng-container *ngIf="!loading">
+
+        <!-- Cascade: Granja → Núcleo → Galpón → Lote -->
+        <div class="cascade-grid">
+
+          <!-- 1. Granja -->
+          <div class="form-field">
+            <label class="field-label">🏠 Granja destino</label>
+            <select class="field-select" [(ngModel)]="granjaDestinoId" (change)="onGranjaChange()">
+              <option [ngValue]="null">— Seleccionar granja —</option>
+              <option *ngFor="let g of granjas" [ngValue]="g.id">{{ g.name }}</option>
+            </select>
+            <small class="field-hint" *ngIf="!granjaDestinoId">Todas las granjas de la empresa están disponibles.</small>
+          </div>
+
+          <!-- 2. Núcleo (visible cuando hay granja) -->
+          <div class="form-field" *ngIf="granjaDestinoId">
+            <label class="field-label">🏗️ Núcleo (opcional)</label>
+            <select class="field-select" [(ngModel)]="nucleoDestinoId" (change)="onNucleoChange()">
+              <option [ngValue]="null">— Todos los núcleos —</option>
+              <option *ngFor="let n of nucleos" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
+
+          <!-- 3. Galpón (visible cuando hay núcleo) -->
+          <div class="form-field" *ngIf="nucleoDestinoId">
+            <label class="field-label">🐔 Galpón (opcional)</label>
+            <select class="field-select" [(ngModel)]="galponDestinoId" (change)="onGalponChange()">
+              <option [ngValue]="null">— Todos los galpones —</option>
+              <option *ngFor="let g of galpones" [ngValue]="g.galponId">{{ g.galponNombre }}</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- 4. Lote destino (visible cuando hay granja) -->
+        <div class="form-field" *ngIf="granjaDestinoId">
+          <label class="field-label">📋 Lote destino (sólo {{ tipoDestino }})</label>
+          <select class="field-select" [(ngModel)]="loteDestinoId">
+            <option [ngValue]="null">— Seleccionar lote —</option>
+            <option *ngFor="let l of lotesDestino" [ngValue]="getLoteId(l)">
+              {{ getLoteNombre(l) }}<ng-container *ngIf="getLoteGalpon(l)"> — {{ getLoteGalpon(l) }}</ng-container>
+            </option>
+          </select>
+          <p class="field-hint warn" *ngIf="granjaDestinoId && lotesDestino.length === 0">
+            ⚠️ No hay lotes de tipo {{ tipoDestino }} disponibles con los filtros actuales.
+          </p>
+        </div>
+
+        <!-- Divisor -->
+        <div class="section-divider" *ngIf="granjaDestinoId">
+          <span class="section-divider__label">Cantidades a trasladar</span>
+        </div>
+
+        <!-- Cantidades -->
+        <div class="cantidades-grid" *ngIf="granjaDestinoId">
+
+          <div class="form-field">
+            <label class="field-label">Hembras</label>
+            <div class="field-input-wrap">
+              <input
+                type="number" min="0"
+                [max]="hembrasDisponibles"
+                [(ngModel)]="trasladoHembras"
+                class="field-input"
+                [class.field-input--error]="!hembrasValidas"
+                placeholder="0">
+              <span class="field-badge">/ {{ hembrasDisponibles | number }}</span>
+            </div>
+            <p class="field-error" *ngIf="!hembrasValidas">
+              Máx. {{ hembrasDisponibles | number }} hembras vivas disponibles.
+            </p>
+          </div>
+
+          <div class="form-field">
+            <label class="field-label">Machos</label>
+            <div class="field-input-wrap">
+              <input
+                type="number" min="0"
+                [max]="machosDisponibles"
+                [(ngModel)]="trasladoMachos"
+                class="field-input"
+                [class.field-input--error]="!machosValidos"
+                placeholder="0">
+              <span class="field-badge">/ {{ machosDisponibles | number }}</span>
+            </div>
+            <p class="field-error" *ngIf="!machosValidos">
+              Máx. {{ machosDisponibles | number }} machos vivos disponibles.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Observaciones -->
+        <div class="form-field" *ngIf="granjaDestinoId">
+          <label class="field-label">Observaciones (opcional)</label>
+          <textarea
+            class="field-textarea"
+            rows="2"
+            [(ngModel)]="observaciones"
+            maxlength="500"
+            placeholder="Motivo del traslado, notas adicionales…"></textarea>
+        </div>
+
+      </ng-container>
+
+      <!-- Error de API -->
+      <div class="api-error" *ngIf="errorMsg">{{ errorMsg }}</div>
+
+    </div><!-- /body -->
+
+    <!-- ─── Footer ──────────────────────────────────────── -->
+    <div class="ux-modal__footer">
+      <button type="button" class="btn-cancel" (click)="cerrar()" [disabled]="enviando">
+        Cancelar
+      </button>
+      <button
+        type="button"
+        class="btn-confirm"
+        (click)="onConfirmar()"
+        [disabled]="!formularioValido || enviando">
+        <span *ngIf="enviando" class="btn-spinner"></span>
+        {{ enviando ? 'Procesando…' : 'Confirmar Traslado' }}
+      </button>
+    </div>
+
+  </div>
+</div>

@@ -135,9 +135,11 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     }
   }
 
-  /** Columnas de la tabla de registros diarios (incluye despacho mixtas y consumo bodega si engorde). Sin despacho H/M, ingreso, traslado, documento ni agua. */
+  /** Columnas de la tabla de registros diarios. Feature 13: ahora son 4 columnas
+   *  por género (↘ Ing.H, ↘ Ing.M, ↗ Sal.H, ↗ Sal.M) en lugar de 2 totales,
+   *  por lo que sumamos +2 columnas al cómputo base. */
   get colspanRegistroDiario(): number {
-    return 23 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    return 25 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;
@@ -189,6 +191,9 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     const inicial = this.avesInicialesLote();
     /** Acumulado de todas las bajas (mort + sel + err. sexaje) para saldo de aves. */
     let acumTodasPerdidas = 0;
+    /** Acumulado de traslados ingresos (+) y salidas (-) — Feature 13. */
+    let acumTrasIn = 0;
+    let acumTrasOut = 0;
     let acumCons = 0;
     const out: RegistroDiarioTablaFila[] = [];
 
@@ -203,12 +208,19 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       const perdidasTodasDia = totalMortSelDia + erh + erm;
       acumTodasPerdidas += perdidasTodasDia;
 
+      // 🔀 Feature 13 — acumular traslados por fila (en orden cronológico)
+      const tIn  = (seg.trasladoIngresoHembras ?? 0) + (seg.trasladoIngresoMachos ?? 0);
+      const tOut = (seg.trasladoSalidaHembras  ?? 0) + (seg.trasladoSalidaMachos  ?? 0);
+      acumTrasIn  += tIn;
+      acumTrasOut += tOut;
+
       const ch = Number(seg.consumoKgHembras ?? 0);
       const cm = Number(seg.consumoKgMachos ?? 0);
       const consDia = ch + cm;
       acumCons += consDia;
 
-      const saldo = Math.max(0, inicial - acumTodasPerdidas);
+      // saldo = inicial − bajas + ingresos_traslado − salidas_traslado
+      const saldo = Math.max(0, inicial - acumTodasPerdidas + acumTrasIn - acumTrasOut);
       const saldoInicioDia = saldo + perdidasTodasDia;
       const pctPerdidasDia =
         saldoInicioDia > 0
@@ -497,9 +509,60 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
     this.viewDetail.emit(seg);
   }
 
-  /** Exporta las mismas columnas que la tabla «Registros Diarios» (sin Acciones). */
+  /** Exporta las mismas columnas que la tabla «Registros Diarios» + cabecera detallada del lote.
+   *  Feature 13: incluye traslados por género, saldo de aves vivas por fila, y usuario que registró. */
   exportSeguimientoDiarioExcel(): void {
     if (!this.showExportSeguimientoExcel || !this.diarioFilas?.length) return;
+
+    // ─── Cabecera detallada del lote ───────────────────────────────────
+    const sel = this.selectedLote as any;
+    const r = this.resumenLevante;
+    const lpl = sel && 'lotePosturaLevanteId' in (sel ?? {}) ? sel as any : null;
+
+    const granjaNombre = sel?.farm?.name ?? lpl?.farm?.name ?? '—';
+    const nucleoNombre = sel?.nucleo?.nucleoNombre ?? lpl?.nucleo?.nucleoNombre ?? '—';
+    const galponNombre = sel?.galpon?.galponNombre ?? lpl?.galpon?.galponNombre ?? '—';
+    const fase = lpl ? 'Levante' : (sel?.fase ?? 'Levante');
+    const raza = sel?.raza ?? lpl?.raza ?? '—';
+    const fechaEncaset = sel?.fechaEncaset ?? lpl?.fechaEncaset ?? null;
+    const hembrasIni = (r?.hembrasIniciales ?? sel?.hembrasL ?? 0) as number;
+    const machosIni  = (r?.machosIniciales  ?? sel?.machosL  ?? 0) as number;
+    const avesIni = hembrasIni + machosIni;
+    const saldoH = r?.saldoHembras ?? 0;
+    const saldoM = r?.saldoMachos  ?? 0;
+    const totMortAcumH = r?.mortalidadAcumHembras ?? 0;
+    const totMortAcumM = r?.mortalidadAcumMachos  ?? 0;
+    const totSelAcumH  = r?.selAcumHembras ?? 0;
+    const totSelAcumM  = r?.selAcumMachos  ?? 0;
+    const trasInH  = (r as any)?.levanteTrasladoIngresoHembras ?? 0;
+    const trasInM  = (r as any)?.levanteTrasladoIngresoMachos  ?? 0;
+    const trasOutH = (r as any)?.levanteTrasladoSalidaHembras  ?? 0;
+    const trasOutM = (r as any)?.levanteTrasladoSalidaMachos   ?? 0;
+
+    const loteNombre = this.exportSeguimientoLoteNombre.trim();
+    const fechaGen = new Date();
+    const fechaGenStr = `${String(fechaGen.getDate()).padStart(2,'0')}/${String(fechaGen.getMonth()+1).padStart(2,'0')}/${fechaGen.getFullYear()} ${String(fechaGen.getHours()).padStart(2,'0')}:${String(fechaGen.getMinutes()).padStart(2,'0')}`;
+
+    const cabecera: (string | number)[][] = [
+      ['Seguimiento Diario de Levante'],
+      [`Generado: ${fechaGenStr}`],
+      [],
+      ['INFORMACIÓN DEL LOTE'],
+      ['Lote:', loteNombre || '—', '', 'Fase:', fase],
+      ['Granja:', granjaNombre, '', 'Núcleo:', nucleoNombre, '', 'Galpón:', galponNombre],
+      ['Raza:', raza, '', 'Fecha encasetamiento:', fechaEncaset ? this.formatDMY(fechaEncaset) : '—'],
+      ['Hembras encasetadas:', hembrasIni, '', 'Machos encasetados:', machosIni, '', 'Total encasetadas:', avesIni],
+      ['Aves vivas (H):', saldoH, '', 'Aves vivas (M):', saldoM, '', 'Total vivas:', saldoH + saldoM],
+      ['Mortalidad acum. (H):', totMortAcumH, '', 'Mortalidad acum. (M):', totMortAcumM],
+      ['Selección acum. (H):', totSelAcumH, '', 'Selección acum. (M):', totSelAcumM],
+      ['Ingreso traslados (H):', trasInH, '', 'Ingreso traslados (M):', trasInM, '', 'Total ingresos:', trasInH + trasInM],
+      ['Salida traslados (H):',  trasOutH, '', 'Salida traslados (M):',  trasOutM, '', 'Total salidas:',  trasOutH + trasOutM],
+      [],
+      ['REGISTROS DIARIOS'],
+      []
+    ];
+
+    // ─── Encabezados de tabla ──────────────────────────────────────────
     const headers = [
       'Fecha',
       'Semana',
@@ -509,7 +572,14 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Mortalidad machos',
       'Selección hembras',
       'Selección machos',
+      'Error sexaje hembras',
+      'Error sexaje machos',
       'TOTAL MORT+ SEL / DÍA',
+      // 🔀 Feature 13 — traslados dedicados por género
+      'Ingreso traslado hembras',
+      'Ingreso traslado machos',
+      'Salida traslado hembras',
+      'Salida traslado machos',
       ...(this.enriquecerTablaConHistoricoInventario
         ? ['Despacho mixtas', 'Consumo bodega (kg)', 'Saldo alimento (kg)']
         : []),
@@ -522,20 +592,32 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       '% pérdidas del día',
       'Peso prom. hembras (kg)',
       'Peso prom. machos (kg)',
-      'Observaciones'
+      'Observaciones',
+      // Auditoría
+      'Registrado por',
+      'Fecha registro',
+      'Última actualización',
+      'Actualizado por'
     ];
+
     const rows = this.diarioFilas.map(f => {
-      const s = f.seg;
+      const s: any = f.seg;
       return [
         this.formatDMY(s.fechaRegistro),
         f.semana,
         f.edadDia,
         f.diaCorto,
-        s.mortalidadHembras ?? '',
-        s.mortalidadMachos ?? '',
-        s.selH ?? '',
-        s.selM ?? '',
+        s.mortalidadHembras ?? 0,
+        s.mortalidadMachos ?? 0,
+        s.selH ?? 0,
+        s.selM ?? 0,
+        s.errorSexajeHembras ?? 0,
+        s.errorSexajeMachos ?? 0,
         f.totalMortSelDia,
+        s.trasladoIngresoHembras ?? 0,
+        s.trasladoIngresoMachos  ?? 0,
+        s.trasladoSalidaHembras  ?? 0,
+        s.trasladoSalidaMachos   ?? 0,
         ...(this.enriquecerTablaConHistoricoInventario
           ? [
               f.despachoX ?? '',
@@ -545,22 +627,28 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
           : []),
         f.saldoAves,
         f.tipoAlimentoCorto,
-        s.consumoKgHembras ?? '',
+        s.consumoKgHembras ?? 0,
         s.consumoKgMachos ?? 0,
         f.consumoDiaKg,
         f.acumConsumoKg,
         f.pctPerdidasDia != null ? Math.round(f.pctPerdidasDia * 100) / 100 : '',
         s.pesoPromH != null ? s.pesoPromH : '',
         s.pesoPromM != null ? s.pesoPromM : '',
-        (s.observaciones || '').trim()
+        (s.observaciones || '').trim() || '—',
+        s.createdByUserId ?? '—',
+        s.createdAt ? this.formatDMY(s.createdAt) : '—',
+        s.updatedAt ? this.formatDMY(s.updatedAt) : '—',
+        s.updatedByUserId ?? '—'
       ];
     });
-    const loteNombre = this.exportSeguimientoLoteNombre.trim();
-    const title = loteNombre
-      ? `Seguimiento Diario de Levante — Lote: ${loteNombre}`
-      : 'Seguimiento Diario de Levante';
-    const aoa: (string | number)[][] = [[title], [], headers, ...rows];
+
+    const aoa: (string | number)[][] = [...cabecera, headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Anchos de columnas razonables para que el Excel se vea bien al abrir
+    const colCount = headers.length;
+    (ws as any)['!cols'] = Array.from({ length: colCount }, (_, i) => ({ wch: i === 0 ? 14 : i === headers.length - 4 ? 28 : 18 }));
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Seguimiento');
     const safe = (loteNombre || 'lote').replace(/[\\/:*?"<>|]/g, '_');

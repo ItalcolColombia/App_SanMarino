@@ -86,6 +86,25 @@ public class LotePosturaLevanteController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Retorna qué letras A-F están ocupadas y disponibles para un prefijo de lote en un galpón.
+    /// Se usa para el selector de letra al crear un nuevo LotePosturaLevante.
+    /// </summary>
+    [HttpGet("letras-disponibles")]
+    [ProducesResponseType(typeof(LetrasDisponiblesDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<LetrasDisponiblesDto>> GetLetrasDisponibles(
+        [FromQuery] string galponId,
+        [FromQuery] string loteBase,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(galponId) || string.IsNullOrWhiteSpace(loteBase))
+            return BadRequest(new { message = "galponId y loteBase son requeridos." });
+
+        var result = await _svc.GetLetrasDisponiblesAsync(galponId.Trim(), loteBase.Trim(), ct);
+        return Ok(result);
+    }
+
     /// <summary>Reabre el lote levante (solo si el lote producción no tiene registros dependientes).</summary>
     [HttpPost("{id:int}/abrir")]
     [ProducesResponseType(typeof(LotePosturaLevanteDetailDto), StatusCodes.Status200OK)]

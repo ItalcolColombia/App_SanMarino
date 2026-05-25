@@ -48,6 +48,15 @@
 
         <button
           type="button"
+          class="btn btn--outline"
+          *ngIf="selectedLoteId && selectedLoteLPP"
+          (click)="openTrasladoAvesModal()"
+          title="Registrar traslado de aves desde este seguimiento diario">
+          Traslado de Aves
+        </button>
+
+        <button
+          type="button"
           (click)="create()"
           class="btn btn--primary"
           [disabled]="!selectedLoteId"
@@ -192,3 +201,11 @@
   (closed)="closeDeleteConfirmModal()"
   (cancelled)="closeDeleteConfirmModal()">
 </app-confirmation-modal>
+
+<!-- Modal Traslado de Aves desde Seguimiento Diario (R3) -->
+<app-modal-traslado-aves-seguimiento
+  [isOpen]="trasladoAvesModalOpen"
+  [origen]="trasladoAvesOrigen"
+  (closed)="trasladoAvesModalOpen = false"
+  (trasladoCompletado)="onTrasladoAvesCompletado($event)">
+</app-modal-traslado-aves-seguimiento>

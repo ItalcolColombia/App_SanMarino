@@ -161,6 +161,22 @@ export interface SeguimientoItemDto {
   uniformidad?: number;
   coeficienteVariacion?: number;
   observacionesPesaje?: string;
+  // Feature 14 — splits H/M dedicados de traslado
+  trasladoIngresoHembras?: number;
+  trasladoIngresoMachos?: number;
+  trasladoSalidaHembras?: number;
+  trasladoSalidaMachos?: number;
+  // Feature 14 — flags traslado
+  esTraslado?: boolean;
+  trasladoDireccion?: 'SALIDA' | 'INGRESO' | null;
+  trasladoLoteContraparteId?: number | null;
+  trasladoGranjaContraparteId?: number | null;
+  // Auditoría
+  createdByUserId?: number | null;
+  updatedByUserId?: number | null;
+  // Error sexaje (paridad con Levante)
+  errorSexajeHembras?: number;
+  errorSexajeMachos?: number;
 }
 
 export interface ListaSeguimientoResponse {
@@ -184,6 +200,15 @@ export interface InformacionLoteDto {
   mortalidadSeleccionM: number;
   consumoAlimentoKgH: number;
   consumoAlimentoKgM: number;
+  // Feature 14 — acumulados de traslado por fase del lote
+  levanteTrasladoIngresoHembras?: number;
+  levanteTrasladoIngresoMachos?: number;
+  levanteTrasladoSalidaHembras?: number;
+  levanteTrasladoSalidaMachos?: number;
+  produccionTrasladoIngresoHembras?: number;
+  produccionTrasladoIngresoMachos?: number;
+  produccionTrasladoSalidaHembras?: number;
+  produccionTrasladoSalidaMachos?: number;
 }
 
 export interface InformacionLoteResponse {

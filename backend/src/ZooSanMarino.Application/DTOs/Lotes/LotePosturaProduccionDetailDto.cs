@@ -46,5 +46,12 @@ public sealed record LotePosturaProduccionDetailDto(
     // Relaciones
     FarmLiteDto    Farm,
     NucleoLiteDto? Nucleo,
-    GalponLiteDto? Galpon
+    GalponLiteDto? Galpon,
+    // Feature 14 — referencia al Lote base (para resumen-mortalidad)
+    int?      LoteId = null,
+    // Acumulados de traslado en FASE PRODUCCIÓN
+    int       ProduccionTrasladoIngresoHembras = 0,
+    int       ProduccionTrasladoIngresoMachos  = 0,
+    int       ProduccionTrasladoSalidaHembras  = 0,
+    int       ProduccionTrasladoSalidaMachos   = 0
 );

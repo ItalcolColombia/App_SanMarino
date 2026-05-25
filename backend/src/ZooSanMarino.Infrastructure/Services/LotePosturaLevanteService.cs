@@ -259,7 +259,11 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
                         l.Galpon.NucleoId ?? "",
                         l.Galpon.GranjaId
                     ),
-                (int?)null // EdadMaximaSeguimiento: solo se calcula en GetByIdAsync
+                (int?)null, // EdadMaximaSeguimiento: solo se calcula en GetByIdAsync
+                l.LevanteTrasladoIngresoHembras,
+                l.LevanteTrasladoIngresoMachos,
+                l.LevanteTrasladoSalidaHembras,
+                l.LevanteTrasladoSalidaMachos
             ));
     }
 
@@ -446,5 +450,38 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
         }
 
         return lev;
+    }
+
+    /// <inheritdoc />
+    public async Task<LetrasDisponiblesDto> GetLetrasDisponiblesAsync(
+        string galponId, string loteBase, CancellationToken ct = default)
+    {
+        var todas = new[] { "A", "B", "C", "D", "E", "F" };
+
+        var companyId = await GetEffectiveCompanyIdAsync(ct);
+
+        var prefijo = loteBase.Trim().ToUpperInvariant();
+
+        var ocupadas = await _ctx.LotePosturaLevante
+            .AsNoTracking()
+            .Where(l => l.CompanyId == companyId
+                     && l.GalponId == galponId
+                     && l.DeletedAt == null
+                     && l.LoteNombre.StartsWith(prefijo))
+            .Select(l => l.LoteNombre.Substring(prefijo.Length, 1).ToUpper())
+            .Distinct()
+            .ToListAsync(ct);
+
+        var reales = ocupadas
+            .Where(c => todas.Contains(c))
+            .Distinct()
+            .OrderBy(c => c)
+            .ToList();
+
+        var disponibles = todas
+            .Where(c => !reales.Contains(c))
+            .ToList();
+
+        return new LetrasDisponiblesDto(reales, disponibles);
     }
 }

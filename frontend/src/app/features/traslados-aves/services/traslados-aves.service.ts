@@ -355,6 +355,39 @@ export interface TrasladoHuevosDto {
   updatedAt?: Date;
 }
 
+// Disponibilidad aves para traslado desde seguimiento diario (R3)
+export interface DisponibilidadAvesSegDto {
+  loteId: number;
+  loteNombre: string;
+  tipoLote: string;
+  avesHActual: number;
+  avesMActual: number;
+  granjaId?: number | null;
+  granjaNombre?: string | null;
+  galponId?: string | null;
+  galponNombre?: string | null;
+}
+
+export interface TrasladoAvesDesdeSegDiarioDto {
+  loteOrigenId: number;
+  tipoOrigen: string;            // "Levante" | "Produccion"
+  fechaSeguimiento: string;      // ISO date
+  trasladoHembras: number;
+  trasladoMachos: number;
+  loteDestinoId: number;
+  tipoDestino: string;           // "Levante" | "Produccion"
+  granjaDestinoId?: number | null;
+  observaciones?: string | null;
+}
+
+export interface TrasladoAvesResultSegDto {
+  exitoso: boolean;
+  mensaje: string;
+  movimientoAvesId?: number | null;
+  avesHActualOrigen: number;
+  avesMActualOrigen: number;
+}
+
 // Resultado paginado
 export interface PagedResult<T> {
   items: T[];
@@ -630,6 +663,22 @@ export class TrasladosAvesService {
   getHistorialTrasladosLotesPorGranja(granjaId: number): Observable<HistorialTrasladoLoteDto[]> {
     return this.http.get<HistorialTrasladoLoteDto[]>(`${environment.apiUrl}/Lote/historial-traslados/granja/${granjaId}`)
       .pipe(catchError(this.handleError));
+  }
+
+  // =====================================================
+  // TRASLADO DESDE SEGUIMIENTO DIARIO (R3)
+  // =====================================================
+
+  getDisponibilidadAves(loteId: number, tipo: string): Observable<DisponibilidadAvesSegDto> {
+    return this.http.get<DisponibilidadAvesSegDto>(
+      `${this.trasladosUrl}/disponibilidad-aves/${loteId}?tipo=${encodeURIComponent(tipo)}`
+    ).pipe(catchError(this.handleError));
+  }
+
+  ejecutarTrasladoDesdeSegDiario(dto: TrasladoAvesDesdeSegDiarioDto): Observable<TrasladoAvesResultSegDto> {
+    return this.http.post<TrasladoAvesResultSegDto>(
+      `${this.trasladosUrl}/aves-desde-seguimiento`, dto
+    ).pipe(catchError(this.handleError));
   }
 
   // Manejo de errores

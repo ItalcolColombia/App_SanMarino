@@ -26,6 +26,17 @@ public interface IFarmService
     Task<IEnumerable<FarmDto>> GetAssignedFarmsForCompanyAsync(Guid userId, int companyId, int? paisId = null);
 
     Task<IEnumerable<FarmDto>> GetAllAsync(Guid? userId = null, int? companyId = null);
+
+    /// <summary>
+    /// Feature 13: lista de granjas válidas como destino de traslado de aves
+    /// entre seguimientos diarios. Filtra automáticamente por:
+    ///   • CompanyId del usuario actual (token).
+    ///   • PaisId del usuario actual (header x-active-pais).
+    ///   • Status='A' y DeletedAt == null (granjas activas).
+    /// Endpoint compartido entre Levante y Producción.
+    /// </summary>
+    Task<IEnumerable<FarmDto>> GetForTrasladoSeguimientoAsync();
+
     Task<FarmDto?>             GetByIdAsync(int id);
     Task<FarmDto>              CreateAsync(CreateFarmDto dto);
     Task<FarmDto?>             UpdateAsync(UpdateFarmDto dto);
