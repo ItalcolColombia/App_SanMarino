@@ -164,3 +164,4 @@ Feature 14 — Traslado de Aves en Producción
 - **Modal de confirmación de delete** en `lote-produccion-list` con mensaje detallado (contraparte, dirección, cantidades, efecto en ambos lotes).
 - **Backend** 0 errores, arranca HTTP 200.
 - **Frontend** 0 errores.
+ 
