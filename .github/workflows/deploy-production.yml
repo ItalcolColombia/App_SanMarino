@@ -14,11 +14,12 @@
 name: Deploy to Production
 
 on:
-  # Despliega cuando un PR es mergeado a main-produccion
-  pull_request:
+  # Dispara en push directo a main-produccion (incluye merges de PR).
+  # OIDC subject claim para push: repo:ItalcolColombia/App_SanMarino:ref:refs/heads/main-produccion
+  # (el trigger pull_request:closed emite subject "pull_request", que el rol IAM rechaza)
+  push:
     branches:
       - main-produccion
-    types: [closed]
   # Permite disparar manualmente desde la pestaña Actions de GitHub
   workflow_dispatch:
     inputs:
@@ -49,9 +50,8 @@ jobs:
   changes:
     name: Detectar cambios
     runs-on: ubuntu-latest
-    # Solo corre si el PR fue mergeado (closed sin merge = PR rechazado, no despliega)
     if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch'
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
