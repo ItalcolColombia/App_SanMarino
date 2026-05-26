@@ -105,7 +105,12 @@
       "Bash(curl -sS --max-time 10 -i -X OPTIONS https://zootecnico.sanmarino.com.co/api/LotePosturaBase/2 -H \"Origin: https://zootecnico.sanmarino.com.co\" -H \"Access-Control-Request-Method: PUT\")",
       "Bash(echo \"=== Migraciones en código \\(archivos .cs sin Designer ni snapshot\\) ===\" && ls /Users/chelsycardona/Desktop/App_SanMarino/backend/src/ZooSanMarino.Infrastructure/Migrations/*.cs 2>/dev/null | grep -v Designer | grep -v ContextModelSnapshot | xargs -I{} basename {} .cs | sort > /tmp/migrations_code.txt && wc -l /tmp/migrations_code.txt && echo \"\" && echo \"=== Migraciones en RDS prod __EFMigrationsHistory ===\" && docker run --rm postgres:16-alpine psql \"postgresql://repropesa01:dcc4M5fyV3x%2A@reproductoras-pesadas.cmau6iitrzvz.us-east-1.rds.amazonaws.com:5432/sanmarinoappprod?sslmode=require\" -A -t -c \"SELECT migration_id FROM public.\\\\\"__EFMigrationsHistory\\\\\" ORDER BY migration_id;\" 2>&1 | grep -v \"^$\" > /tmp/migrations_prod.txt && wc -l /tmp/migrations_prod.txt)",
       "Bash(git log *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(gh auth *)",
+      "Bash(git remote *)",
+      "Bash(ssh -T -o StrictHostKeyChecking=accept-new git@github.com)",
+      "Bash(git fetch *)",
+      "Bash(git rev-parse *)"
     ]
   }
 }
