@@ -89,7 +89,20 @@
       "Bash(PGPASSWORD=123456789 /opt/homebrew/Cellar/libpq/17.4_1/bin/psql -h localhost -p 5432 -U postgres -d sanmarinoapplocal -c \"\\\\d lote_postura_produccion\")",
       "Bash(PGPASSWORD=123456789 /opt/homebrew/Cellar/libpq/17.4_1/bin/psql -h localhost -p 5432 -U postgres -d sanmarinoapplocal -f /Users/chelsycardona/Desktop/App_SanMarino/backend/sql/050_add_traslado_acumulados_lote_postura_produccion.sql)",
       "Bash(PGPASSWORD=123456789 /opt/homebrew/Cellar/libpq/17.4_1/bin/psql -h localhost -p 5432 -U postgres -d sanmarinoapplocal -f /Users/chelsycardona/Desktop/App_SanMarino/backend/sql/051_add_traslado_columns_produccion_seguimiento.sql)",
-      "Bash(PATH=__TRACKED_VAR__/.dotnet/tools:__TRACKED_VAR__ dotnet ef migrations add AddTrasladoAcumuladosLPPandSeguimiento --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext)"
+      "Bash(PATH=__TRACKED_VAR__/.dotnet/tools:__TRACKED_VAR__ dotnet ef migrations add AddTrasladoAcumuladosLPPandSeguimiento --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext)",
+      "Bash(gh run *)",
+      "Bash(git add *)",
+      "Bash(aws ecs *)",
+      "Bash(aws logs *)",
+      "Bash(docker --version)",
+      "Bash(docker run *)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(xargs -I{} basename {} .cs)",
+      "Bash(awk '{print $6, $7, $8, $9}')",
+      "Bash(echo \"=== 1\\) Obtener TaskDef:92 y modificar RunMigrations a false ===\" && aws ecs describe-task-definition --task-definition sanmarino-back-task:92 --region us-east-2 --query 'taskDefinition' --output json 2>&1 | jq 'del\\(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy\\) | .containerDefinitions[0].environment |= map\\(if .name == \"Database__RunMigrations\" then .value = \"false\" else . end\\)' > /tmp/td-93.json && echo \"JSON generado\" && echo \"\" && echo \"=== 2\\) Verificar que el cambio quedo ===\" && jq '.containerDefinitions[0].environment[] | select\\(.name == \"Database__RunMigrations\"\\)' /tmp/td-93.json)",
+      "Bash(python3)",
+      "Bash(curl -sS --max-time 10 -o /dev/null -w \"HTTP %{http_code} en %{time_total}s\\\\n\" https://zootecnico.sanmarino.com.co/health)",
+      "Bash(curl -sS --max-time 10 -i -X OPTIONS https://zootecnico.sanmarino.com.co/api/LotePosturaBase/2 -H \"Origin: https://zootecnico.sanmarino.com.co\" -H \"Access-Control-Request-Method: PUT\")"
     ]
   }
 }
