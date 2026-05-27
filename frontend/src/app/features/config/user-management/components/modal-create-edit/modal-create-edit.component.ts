@@ -77,6 +77,13 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   roles: Role[] = [];
   filteredRoles: Role[] = [];
 
+  // Opciones para selector de Zona (aplica principalmente a Panamá)
+  zonas: { value: string; label: string }[] = [
+    { value: '', label: 'Sin restricción' },
+    { value: 'Zona 1', label: 'Zona 1' },
+    { value: 'Zona 2', label: 'Zona 2' }
+  ];
+
   // Formulario
   userForm!: FormGroup;
 
@@ -117,6 +124,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       cedula: ['', [Validators.required, Validators.pattern(/^\d{7,10}$/)]],
       telefono: ['', [Validators.pattern(/^\d{10}$/)]],
       ubicacion: [''],
+      zona: ['', [Validators.maxLength(20)]],
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]],
       confirmPassword: ['', [Validators.required, match('password')]],
@@ -201,6 +209,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
             cedula: userDetail.cedula,
             telefono: userDetail.telefono,
             ubicacion: userDetail.ubicacion,
+            zona: userDetail.zona ?? '',
             email: this.editingUser?.email || '', // Usar email del usuario original
             companyIds: userDetail.companyIds || [],
             roleIds: this.mapRoleNamesToIds(userDetail.roles || [])
@@ -229,6 +238,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       cedula: '',
       telefono: '',
       ubicacion: '',
+      zona: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -275,6 +285,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
         cedula: formValue.cedula,
         telefono: formValue.telefono,
         ubicacion: formValue.ubicacion,
+        zona: formValue.zona || null,
         companyIds: formValue.companyIds,
         roleIds: formValue.roleIds
       };
@@ -301,6 +312,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
         cedula: formValue.cedula,
         telefono: formValue.telefono,
         ubicacion: formValue.ubicacion,
+        zona: formValue.zona || null,
         email: formValue.email,
         password: formValue.password,
         companyIds: formValue.companyIds,
@@ -522,6 +534,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       cedula: 'Cédula',
       telefono: 'Teléfono',
       ubicacion: 'Ubicación',
+      zona: 'Zona',
       email: 'Email',
       password: 'Contraseña',
       confirmPassword: 'Confirmar contraseña',

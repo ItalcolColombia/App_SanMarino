@@ -61,5 +61,10 @@ public class SeguimientoDiarioAvesEngorde
     /// </summary>
     public JsonDocument? HistoricoConsumoAlimento { get; set; }
 
+    // Panamá: cantidad de alimento por categoría (quintales) — visible solo en formularios de Panamá
+    public decimal? QqMixtas { get; set; }
+    public decimal? QqHembras { get; set; }
+    public decimal? QqMachos { get; set; }
+
     public virtual LoteAveEngorde? LoteAveEngorde { get; set; }
 }

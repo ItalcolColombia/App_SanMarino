@@ -23,6 +23,11 @@ export class ClienteService {
     return this.http.get<ClienteDto>(`${this.baseUrl}/${id}`);
   }
 
+  /**
+   * Búsqueda paginada de clientes. Acepta filtros opcionales (search, tipoCliente,
+   * pais, zona, tipoDocumento, soloActivos, sort/page). Se serializan como query
+   * params solo si tienen valor no vacío.
+   */
   search(req: ClienteSearchRequest = {}): Observable<PagedResult<ClienteDto>> {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(req)) {

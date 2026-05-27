@@ -115,6 +115,17 @@ namespace ZooSanMarino.Infrastructure.Services
                 );
             }
 
+            // ⬅️ NUEVO: filtros Panamá por Zona y ClienteId
+            if (!string.IsNullOrWhiteSpace(req.Zona))
+            {
+                var zona = req.Zona.Trim();
+                q = q.Where(f => f.Zona == zona);
+            }
+            if (req.ClienteId.HasValue)
+            {
+                q = q.Where(f => f.ClienteId == req.ClienteId.Value);
+            }
+
             q = ApplyOrder(q, req.SortBy, req.SortDesc);
 
             var page     = req.Page     <= 0 ? 1  : req.Page;
@@ -164,7 +175,12 @@ namespace ZooSanMarino.Infrastructure.Services
                 f.Name,
                 f.RegionalId,     // ⬅️ es int? y el DTO acepta int?, no forzar 0
                 f.DepartamentoId,
-                f.MunicipioId
+                f.MunicipioId,
+                f.ClienteId,
+                f.Zona,
+                f.CertificadoGab,
+                f.Latitud,
+                f.Longitud
             ))
             .SingleOrDefaultAsync();
 
@@ -270,7 +286,12 @@ namespace ZooSanMarino.Infrastructure.Services
                     _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
                     _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
                     f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
-                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault()
+                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault(),
+                    f.ClienteId,
+                    f.Zona,
+                    f.CertificadoGab,
+                    f.Latitud,
+                    f.Longitud
                 ))
                 .ToListAsync();
 
@@ -285,7 +306,7 @@ namespace ZooSanMarino.Infrastructure.Services
                 {
                     if (f.RegionalNombre != null || !f.RegionalId.HasValue) return f;
                     if (nombresOpcion.TryGetValue(f.RegionalId!.Value, out var nombre) && !string.IsNullOrWhiteSpace(nombre))
-                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre);
+                        return new FarmDto(f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.CiudadId, f.DepartamentoNombre, f.CiudadNombre, nombre, f.CompanyNombre, f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud);
                     return f;
                 }).ToList();
             }
@@ -459,7 +480,12 @@ namespace ZooSanMarino.Infrastructure.Services
                     _ctx.Set<Departamento>().Where(d => d.DepartamentoId == f.DepartamentoId).Select(d => d.DepartamentoNombre).FirstOrDefault(),
                     _ctx.Set<Municipio>().Where(m => m.MunicipioId == f.MunicipioId).Select(m => m.MunicipioNombre).FirstOrDefault(),
                     f.RegionalId.HasValue ? _ctx.Regionales.Where(r => r.RegionalCia == f.CompanyId && r.RegionalId == f.RegionalId.Value).Select(r => r.RegionalNombre).FirstOrDefault() : null,
-                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault()
+                    _ctx.Companies.Where(c => c.Id == f.CompanyId).Select(c => c.Name).FirstOrDefault(),
+                    f.ClienteId,
+                    f.Zona,
+                    f.CertificadoGab,
+                    f.Latitud,
+                    f.Longitud
                 ))
                 .SingleOrDefaultAsync();
 
@@ -468,7 +494,7 @@ namespace ZooSanMarino.Infrastructure.Services
             {
                 var nombreOpcion = await _ctx.MasterListOptions.AsNoTracking().Where(o => o.Id == dto.RegionalId.Value).Select(o => o.Value).FirstOrDefaultAsync();
                 if (!string.IsNullOrWhiteSpace(nombreOpcion))
-                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre);
+                    dto = new FarmDto(dto.Id, dto.CompanyId, dto.Name, dto.RegionalId, dto.Status, dto.DepartamentoId, dto.CiudadId, dto.DepartamentoNombre, dto.CiudadNombre, nombreOpcion, dto.CompanyNombre, dto.ClienteId, dto.Zona, dto.CertificadoGab, dto.Latitud, dto.Longitud);
             }
             return dto;
         }
@@ -564,6 +590,12 @@ namespace ZooSanMarino.Infrastructure.Services
                 Status          = normalizedStatus,          // 'A'/'I'
                 DepartamentoId  = dto.DepartamentoId!.Value,
                 MunicipioId     = dto.CiudadId!.Value,       // DTO ciudadId → entidad MunicipioId
+                // Nuevos campos (Panamá)
+                ClienteId       = dto.ClienteId,
+                Zona            = string.IsNullOrWhiteSpace(dto.Zona) ? null : dto.Zona!.Trim(),
+                CertificadoGab  = dto.CertificadoGab,         // default false si no viene (DTO ya lo trae como false)
+                Latitud         = dto.Latitud,
+                Longitud        = dto.Longitud,
                 CreatedByUserId = _current.UserId,
                 CreatedAt       = DateTime.UtcNow
             };
@@ -647,7 +679,12 @@ namespace ZooSanMarino.Infrastructure.Services
                 departamentoNombre,
                 ciudadNombre,
                 regionalNombre,
-                companyNombre
+                companyNombre,
+                entity.ClienteId,
+                entity.Zona,
+                entity.CertificadoGab,
+                entity.Latitud,
+                entity.Longitud
             );
         }
 
@@ -686,6 +723,12 @@ namespace ZooSanMarino.Infrastructure.Services
             entity.Status         = NormalizeStatus(dto.Status);    // 'A'/'I'
             entity.DepartamentoId = dto.DepartamentoId!.Value;
             entity.MunicipioId    = dto.CiudadId!.Value;
+            // Nuevos campos (Panamá)
+            entity.ClienteId      = dto.ClienteId;
+            entity.Zona           = string.IsNullOrWhiteSpace(dto.Zona) ? null : dto.Zona!.Trim();
+            entity.CertificadoGab = dto.CertificadoGab;
+            entity.Latitud        = dto.Latitud;
+            entity.Longitud       = dto.Longitud;
             entity.UpdatedByUserId= _current.UserId;
             entity.UpdatedAt      = DateTime.UtcNow;
 
@@ -729,7 +772,12 @@ namespace ZooSanMarino.Infrastructure.Services
                 departamentoNombre,
                 ciudadNombre,
                 regionalNombre,
-                companyNombre
+                companyNombre,
+                entity.ClienteId,
+                entity.Zona,
+                entity.CertificadoGab,
+                entity.Latitud,
+                entity.Longitud
             );
         }
 
@@ -759,6 +807,63 @@ namespace ZooSanMarino.Infrastructure.Services
         }
 
         // ======================================================
+        // PANAMÁ — Filtro de granjas por zona del usuario logueado
+        // ======================================================
+        /// <summary>
+        /// Devuelve granjas filtradas por zona del usuario logueado cuando el país activo
+        /// es PANAMA. Para otros países, conserva el comportamiento existente (granjas
+        /// asignadas vía UserFarm).
+        /// </summary>
+        public async Task<IEnumerable<FarmDto>> GetByZonaUsuarioAsync(string? paisActivo, CancellationToken ct = default)
+        {
+            var companyId = await GetEffectiveCompanyIdAsync();
+            var userGuid  = _current.UserGuid;          // Guid del usuario (PK en tabla users)
+
+            // Lee la zona del usuario actual (si la tiene)
+            string? userZona = null;
+            if (userGuid.HasValue)
+            {
+                userZona = await _ctx.Users
+                    .AsNoTracking()
+                    .Where(u => u.Id == userGuid.Value)
+                    .Select(u => u.Zona)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            var query = _ctx.Farms
+                .AsNoTracking()
+                .Where(f => f.CompanyId == companyId && f.DeletedAt == null);
+
+            var esPanama = !string.IsNullOrWhiteSpace(paisActivo) &&
+                           string.Equals(paisActivo.Trim(), "PANAMA", StringComparison.OrdinalIgnoreCase);
+
+            if (esPanama && !string.IsNullOrWhiteSpace(userZona))
+            {
+                // Filtrado por zona: el usuario solo ve granjas de su zona asignada
+                query = query.Where(f => f.Zona == userZona);
+            }
+            else if (userGuid.HasValue)
+            {
+                // Comportamiento normal: granjas asignadas al usuario vía UserFarm (PK Guid)
+                query = query.Where(f => _ctx.UserFarms.Any(uf =>
+                    uf.UserId == userGuid.Value && uf.FarmId == f.Id));
+            }
+            else
+            {
+                // Sin Guid disponible — no devolver nada (evita exponer granjas sin contexto)
+                query = query.Where(f => false);
+            }
+
+            return await query
+                .OrderBy(f => f.Name)
+                .Select(f => new FarmDto(
+                    f.Id, f.CompanyId, f.Name, f.RegionalId, f.Status, f.DepartamentoId, f.MunicipioId,
+                    null, null, null, null,
+                    f.ClienteId, f.Zona, f.CertificadoGab, f.Latitud, f.Longitud))
+                .ToListAsync(ct);
+        }
+
+        // ======================================================
         // Helpers
         // ======================================================
         private static string NormalizeStatus(string? status)
@@ -783,7 +888,12 @@ namespace ZooSanMarino.Infrastructure.Services
                 f.UpdatedAt,
                 f.Nucleos.Count(),
                 f.Nucleos.SelectMany(n => n.Galpones).Count(),
-                f.Lotes.Count()
+                f.Lotes.Count(),
+                f.ClienteId,
+                f.Zona,
+                f.CertificadoGab,
+                f.Latitud,
+                f.Longitud
             ));
         }
 

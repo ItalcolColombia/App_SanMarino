@@ -12,6 +12,11 @@ public class UserListDto
     public string Telefono { get; set; } = string.Empty;
     public string Ubicacion { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Zona de restricción (Panamá): 'Zona 1' | 'Zona 2' | null = sin restricción.
+    /// </summary>
+    public string? Zona { get; set; }
+
     // Ya existía:
     public List<string> Roles { get; set; } = new();
 

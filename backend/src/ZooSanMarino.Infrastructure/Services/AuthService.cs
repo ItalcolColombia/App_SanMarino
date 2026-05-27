@@ -58,6 +58,7 @@ public class AuthService : IAuthService
             cedula    = dto.Cedula,
             telefono  = dto.Telefono,
             ubicacion = dto.Ubicacion,
+            Zona      = string.IsNullOrWhiteSpace(dto.Zona) ? null : dto.Zona.Trim(),
             IsActive  = true,
             CreatedAt = DateTime.UtcNow
         };

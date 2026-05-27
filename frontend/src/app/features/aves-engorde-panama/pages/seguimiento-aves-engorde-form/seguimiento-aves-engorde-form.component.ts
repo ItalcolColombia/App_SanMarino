@@ -65,7 +65,11 @@ export class SeguimientoAvesEngordePanamaFormComponent implements OnInit {
       tipoAlimento: ['', Validators.required],
       consumoKgHembras: [0, [Validators.required, Validators.min(0)]],
       observaciones: [''],
-      ciclo: ['Normal', Validators.required]
+      ciclo: ['Normal', Validators.required],
+      // Campos específicos Panamá: cantidad de alimento en quintales (QQ) por categoría
+      qqMixtas: [null],
+      qqHembras: [null],
+      qqMachos: [null]
     });
 
     const navState = (this.router.getCurrentNavigation()?.extras?.state || {}) as { seguimiento?: SeguimientoLoteLevanteDto };
@@ -84,7 +88,10 @@ export class SeguimientoAvesEngordePanamaFormComponent implements OnInit {
         tipoAlimento: seg.tipoAlimento,
         consumoKgHembras: seg.consumoKgHembras,
         observaciones: seg.observaciones,
-        ciclo: seg.ciclo || 'Normal'
+        ciclo: seg.ciclo || 'Normal',
+        qqMixtas: seg.qqMixtas ?? null,
+        qqHembras: seg.qqHembras ?? null,
+        qqMachos: seg.qqMachos ?? null
       });
     } else if (this.lotes.length === 1) {
       this.form.get('loteId')?.setValue(this.lotes[0].loteId);
@@ -117,7 +124,11 @@ export class SeguimientoAvesEngordePanamaFormComponent implements OnInit {
       protAlH: null,
       kcalAveH: null,
       protAveH: null,
-      ciclo: raw.ciclo
+      ciclo: raw.ciclo,
+      // QQ (quintales de alimento) — específicos del módulo Panamá
+      qqMixtas: this.toNumOrNull(raw.qqMixtas),
+      qqHembras: this.toNumOrNull(raw.qqHembras),
+      qqMachos: this.toNumOrNull(raw.qqMachos)
     };
     this.loading = true;
     const op$ = this.isEdit
@@ -184,5 +195,12 @@ export class SeguimientoAvesEngordePanamaFormComponent implements OnInit {
 
   maxDateForInput(): string {
     return this.todayISO();
+  }
+
+  /** Convierte un valor opcional del formulario a número o null (vacío => null). */
+  private toNumOrNull(v: unknown): number | null {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
   }
 }

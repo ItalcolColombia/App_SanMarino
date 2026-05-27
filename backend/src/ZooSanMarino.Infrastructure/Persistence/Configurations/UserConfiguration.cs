@@ -39,6 +39,14 @@ namespace ZooSanMarino.Infrastructure.Persistence.Configurations
              .IsRequired()
              .HasMaxLength(100);
 
+            // Panamá: zona del usuario (filtra granjas visibles)
+            e.Property(u => u.Zona)
+             .HasColumnName("zona")
+             .HasMaxLength(20)
+             .IsRequired(false);
+
+            e.HasIndex(u => u.Zona).HasDatabaseName("ix_users_zona");
+
             e.Property(u => u.IsActive)
              .HasDefaultValue(true);
 

@@ -111,7 +111,10 @@
       "Bash(ssh -T -o StrictHostKeyChecking=accept-new git@github.com)",
       "Bash(git fetch *)",
       "Bash(git rev-parse *)",
-      "Bash(gh api *)"
+      "Bash(gh api *)",
+      "Bash(which pandoc *)",
+      "Bash(python3 \"/Users/chelsycardona/Library/Application Support/Claude/local-agent-mode-sessions/skills-plugin/0ae3133b-a0d3-4d84-9615-a7bba5b296cd/ab3f4d48-750f-4981-bd60-a1791bd751fb/skills/docx/scripts/office/unpack.py\" \"/Users/chelsycardona/Downloads/Plande Desarrollo Panama.docx\" /tmp/panama_plan/)",
+      "Bash(unzip -o \"/Users/chelsycardona/Downloads/Plande Desarrollo Panama.docx\" -d /tmp/panama_plan/)"
     ]
   }
 }

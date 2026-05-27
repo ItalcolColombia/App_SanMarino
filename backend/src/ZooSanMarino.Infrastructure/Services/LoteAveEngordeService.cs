@@ -568,7 +568,12 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                     l.Farm.Name,
                     l.Farm.RegionalId,
                     l.Farm.DepartamentoId,
-                    l.Farm.MunicipioId
+                    l.Farm.MunicipioId,
+                    l.Farm.ClienteId,
+                    l.Farm.Zona,
+                    l.Farm.CertificadoGab,
+                    l.Farm.Latitud,
+                    l.Farm.Longitud
                 ),
                 l.Nucleo == null ? null : new NucleoLiteDto(l.Nucleo.NucleoId, l.Nucleo.NucleoNombre, l.Nucleo.GranjaId),
                 l.Galpon == null ? null : new GalponLiteDto(l.Galpon.GalponId, l.Galpon.GalponNombre, l.Galpon.NucleoId, l.Galpon.GranjaId)

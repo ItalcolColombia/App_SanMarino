@@ -28,6 +28,7 @@ public class ClienteController : ControllerBase
         [FromQuery] string?  tipoCliente   = null,
         [FromQuery] string?  pais          = null,
         [FromQuery] string?  tipoDocumento = null,
+        [FromQuery] string?  zona          = null,
         [FromQuery] bool     soloActivos   = true,
         [FromQuery] string   sortBy        = "nombre",
         [FromQuery] bool     sortDesc      = false,
@@ -35,7 +36,7 @@ public class ClienteController : ControllerBase
         [FromQuery] int      pageSize      = 20,
         CancellationToken ct = default)
     {
-        var req = new ClienteSearchRequest(search, tipoCliente, pais, tipoDocumento, soloActivos, sortBy, sortDesc, page, pageSize);
+        var req = new ClienteSearchRequest(search, tipoCliente, pais, tipoDocumento, zona, soloActivos, sortBy, sortDesc, page, pageSize);
         return Ok(await _service.SearchAsync(req, ct));
     }
 
