@@ -175,7 +175,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="form-label">Nombre <span class="text-red-600">*</span></label>
-          <input formControlName="name" class="form-input" [class.form-input--invalid]="form.get('name')?.invalid && form.get('name')?.touched" />
+          <input formControlName="name" class="form-input" placeholder="Ej. Granja Central" [class.form-input--invalid]="form.get('name')?.invalid && form.get('name')?.touched" />
         </div>
 
         <div>
@@ -188,7 +188,43 @@
 
         <div class="md:col-span-2">
           <label class="form-label">Dirección</label>
-          <input formControlName="address" class="form-input" />
+          <input formControlName="address" class="form-input" placeholder="Calle, referencia" />
+        </div>
+      </div>
+
+      <!-- Sección Panamá (tarjeta) -->
+      <div *ngIf="isPanama" class="mt-4 p-4 border rounded-lg bg-ital-cream">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-semibold text-ital-green">INFORMACIÓN PANAMÁ</div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Cliente</label>
+            <select formControlName="clienteId" class="form-input" (change)="onClienteChange($any($event.target).value)">
+              <option [ngValue]="null">-- Seleccionar cliente --</option>
+              <option *ngFor="let cl of clients" [ngValue]="cl.id">{{ cl.nombre || cl.name || cl.id }}</option>
+            </select>
+            <div *ngIf="loadingClients" class="text-xs text-gray-500">Cargando clientes…</div>
+            <p class="text-xs text-ital-muted mt-1">Al seleccionar un cliente se autopobla la zona.</p>
+          </div>
+
+          <div>
+            <label class="form-label">Zona</label>
+            <input formControlName="zona" class="form-input" placeholder="Se auto llena al elegir cliente" readonly />
+          </div>
+
+          <div>
+            <label class="form-label">Certificado GAB</label>
+            <select formControlName="certificadoGab" class="form-input">
+              <option [ngValue]="false">No</option>
+              <option [ngValue]="true">Sí</option>
+            </select>
+          </div>
+
+          <div class="flex items-end">
+            <button type="button" class="btn-ghost" (click)="capturarUbicacion()">Capturar ubicación actual</button>
+          </div>
         </div>
       </div>
 

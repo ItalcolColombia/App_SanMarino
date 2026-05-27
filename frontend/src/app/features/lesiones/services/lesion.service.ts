@@ -72,7 +72,7 @@ export class LesionService {
   }
 
   /** Construye HttpParams a partir de un objeto, omitiendo valores vacíos. */
-  private toHttpParams(obj: Record<string, unknown>): HttpParams {
+  private toHttpParams<T extends object>(obj: T): HttpParams {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(obj)) {
       if (v !== undefined && v !== null && v !== '') {

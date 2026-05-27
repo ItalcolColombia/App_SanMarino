@@ -10,7 +10,6 @@ import { CountryFilterService } from '../../../../core/services/country/country-
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { catchError, finalize } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 
 interface CatalogItemExtended {
   id: number;
@@ -40,8 +39,7 @@ interface ItemSeguimientoDto {
     FormsModule,
     ReactiveFormsModule,
     ShowIfEcuadorPanamaDirective,
-    ShowIfCountryDirective,
-    LesionTabComponent
+    ShowIfCountryDirective
   ],
   templateUrl: './modal-seguimiento-reproductora.component.html',
   styleUrls: ['./modal-seguimiento-reproductora.component.scss']
