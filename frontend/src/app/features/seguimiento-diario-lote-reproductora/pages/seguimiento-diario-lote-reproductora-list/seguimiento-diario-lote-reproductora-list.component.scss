@@ -409,6 +409,35 @@
   transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
 
+/* Pestañas inline para el módulo de Seguimiento Diario */
+:host .tabs-inline {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  padding: .6rem;
+}
+:host .tabs-inline .tab-btn {
+  background: transparent;
+  border: 1px solid var(--warm-200);
+  padding: .45rem .75rem;
+  border-radius: .5rem;
+  font-weight: 800;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease, transform .12s ease;
+}
+:host .tabs-inline .tab-btn:hover { transform: translateY(-2px); }
+:host .tabs-inline .tab-btn.active {
+  background: var(--white);
+  border-color: var(--ital-green);
+  color: var(--ital-green-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+:host .tab-panel { padding: .75rem 0; }
+:host .lote-card { padding: .8rem; background: var(--warm-50); border-radius: .5rem; }
+:host .ux-empty { padding: .8rem; color: var(--ink-muted); }
+
 :host .ux-input:hover { background: var(--warm-50); }
 :host .ux-input:focus {
   border-color: var(--ital-orange);

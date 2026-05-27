@@ -23,10 +23,19 @@
           [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado' : (!selectedLoteReproductoraId ? 'Selecciona Lote Aves Engorde y Reproductora Aves Engorde' : 'Nuevo registro')">
           Nuevo registro
         </button>
+        <button
+          *appShowIfCountry="'PANAMA'"
+          type="button"
+          class="btn btn--secondary"
+          (click)="openLesionCreate()"
+          [disabled]="!selectedLoteReproductoraId"
+          title="Registrar lesión">
+          + Registrar Lesión
+        </button>
       </div>
     </header>
 
-    <section class="ux-card">
+    <section class="ux-card" *ngIf="activeTab==='seguimiento'">
       <h2 class="ux-card__title">
         <fa-icon [icon]="faFilter" class="ux-card__title-icon" aria-hidden="true"></fa-icon>
         Filtros
@@ -69,6 +78,42 @@
           <span class="ux-field-hint ux-field-hint--warning" *ngIf="selectedLoteId && !loading && lotesReproductoraFiltered.length === 0">
             No hay reproductoras aves engorde asignadas a este lote. Crea una en «Lote Reproductora Aves de Engorde».
           </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pestañas: Seguimiento / Lesiones / Lote (solo Panamá muestra Lesiones) -->
+    <section class="ux-card">
+      <div class="tabs-inline">
+        <button type="button" class="tab-btn" [class.active]="activeTab==='seguimiento'" (click)="activeTab='seguimiento'">Seguimiento</button>
+        <button type="button" class="tab-btn" [class.active]="activeTab==='lesiones'" (click)="activeTab='lesiones'" *appShowIfCountry="'PANAMA'">Lesiones</button>
+        <button type="button" class="tab-btn" [class.active]="activeTab==='lote'" (click)="activeTab='lote'">Lote</button>
+      </div>
+
+      <div class="tab-panel" *ngIf="activeTab==='seguimiento'">
+        <!-- contenido de seguimiento (ya renderizado más abajo) -->
+      </div>
+
+      <div class="tab-panel" *ngIf="activeTab==='lesiones'">
+        <div *ngIf="selectedLoteReproductoraId">
+          <app-lesion-tab
+            [moduloOrigen]="'REPRODUCTORA'"
+            [farmId]="selectedGranjaId"
+            [loteId]="selectedLoteId"
+            [galponId]="selectedGalponId"
+            [loteReproductoraId]="selectedLoteReproductoraId"
+            [loteNombre]="selectedLoteReproductoraNombre">
+          </app-lesion-tab>
+        </div>
+        <div *ngIf="!selectedLoteReproductoraId" class="ux-empty">Selecciona una reproductora para ver/registrar lesiones.</div>
+      </div>
+
+      <div class="tab-panel" *ngIf="activeTab==='lote'">
+        <div class="lote-card">
+          <h3>Información del Lote Reproductora</h3>
+          <p><strong>Nombre:</strong> {{ selectedLoteReproductoraNombre || '—' }}</p>
+          <p><strong>Código:</strong> {{ selectedReproductoraDetail?.reproductoraId || '—' }}</p>
+          <p><strong>Estado:</strong> {{ selectedReproductoraDetail?.estado || '—' }}</p>
         </div>
       </div>
     </section>

@@ -264,7 +264,10 @@
             <h3 id="lesion-modal-title" class="text-base font-semibold text-ital-green-dark">
               {{ editing() ? 'Editar lesión' : 'Registrar lesión' }}
             </h3>
-            <p class="text-xs text-ital-muted mt-0.5">Módulo {{ moduloOrigen }} · Granja {{ farmId ?? '—' }}</p>
+            <p class="text-xs text-ital-muted mt-0.5">
+              Módulo {{ moduloOrigen }} · Granja {{ farmId ?? '—' }}
+              <span *ngIf="loteNombre">· Lote: {{ loteNombre }}</span>
+            </p>
           </div>
           <button
             type="button"

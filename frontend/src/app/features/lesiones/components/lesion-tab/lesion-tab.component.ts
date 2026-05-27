@@ -53,11 +53,13 @@ type TabKey = 'listado' | 'resumen';
 export class LesionTabComponent implements OnInit, OnChanges {
   // ── Inputs ──────────────────────────────────────────────────────────────
   @Input({ required: true }) moduloOrigen!: ModuloOrigenLesion;
-  @Input() farmId?: number;
-  @Input() clienteId?: number;
-  @Input() loteId?: number;
-  @Input() galponId?: string;
-  @Input() loteReproductoraId?: string;
+  @Input() farmId?: number | null | undefined;
+  @Input() clienteId?: number | null | undefined;
+  @Input() loteId?: number | null | undefined;
+  @Input() galponId?: string | null | undefined;
+  @Input() loteReproductoraId?: number | string | null | undefined;
+  /** Nombre del lote reproductora para mostrar en el modal/header */
+  @Input() loteNombre?: string | null | undefined;
 
   // ── Dependencies ────────────────────────────────────────────────────────
   private readonly svc = inject(LesionService);
@@ -98,6 +100,9 @@ export class LesionTabComponent implements OnInit, OnChanges {
   ngOnInit(): void {
     this.buildForm();
     this.loadAll();
+    // Suscribirse a señales globales del servicio (abrir modal / refrescar listado)
+    this.svc.openCreate$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.openCreate());
+    this.svc.refresh$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.loadAll());
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -151,11 +156,11 @@ export class LesionTabComponent implements OnInit, OnChanges {
     this.svc
       .search({
         moduloOrigen: this.moduloOrigen,
-        farmId: this.farmId,
-        loteId: this.loteId,
-        clienteId: this.clienteId,
-        galponId: this.galponId,
-        loteReproductoraId: this.loteReproductoraId,
+        farmId: this.farmId ?? undefined,
+        loteId: this.loteId ?? undefined,
+        clienteId: this.clienteId ?? undefined,
+        galponId: this.galponId ?? undefined,
+        loteReproductoraId: this.loteReproductoraId == null ? undefined : String(this.loteReproductoraId),
         page: this.page(),
         pageSize: this.pageSize(),
         sortBy: 'fechaRegistro',
@@ -181,11 +186,11 @@ export class LesionTabComponent implements OnInit, OnChanges {
     this.svc
       .getResumen({
         moduloOrigen: this.moduloOrigen,
-        farmId: this.farmId,
-        loteId: this.loteId,
-        clienteId: this.clienteId,
-        galponId: this.galponId,
-        loteReproductoraId: this.loteReproductoraId
+        farmId: this.farmId ?? undefined,
+        loteId: this.loteId ?? undefined,
+        clienteId: this.clienteId ?? undefined,
+        galponId: this.galponId ?? undefined,
+        loteReproductoraId: this.loteReproductoraId == null ? undefined : String(this.loteReproductoraId)
       })
       .pipe(
         finalize(() => this.loadingResumen.set(false)),

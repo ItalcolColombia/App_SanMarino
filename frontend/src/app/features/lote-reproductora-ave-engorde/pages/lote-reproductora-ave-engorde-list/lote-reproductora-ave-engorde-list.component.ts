@@ -16,8 +16,7 @@ import {
 } from '../../services/lote-reproductora-ave-engorde.service';
 import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
-import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
-import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
+// ShowIfCountryDirective removed — not used in this component
 
 @Component({
   selector: 'app-lote-reproductora-ave-engorde-list',
@@ -29,9 +28,7 @@ import { ShowIfCountryDirective } from '../../../../core/directives/show-if-coun
     FormsModule,
     ReactiveFormsModule,
     FontAwesomeModule,
-    ConfirmationModalComponent,
-    LesionTabComponent,
-    ShowIfCountryDirective
+    ConfirmationModalComponent
   ]
 })
 export class LoteReproductoraAveEngordeListComponent implements OnInit {

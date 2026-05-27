@@ -138,22 +138,7 @@
       <div *ngIf="loading" class="lrae-loading"><span>Cargando…</span></div>
     </section>
 
-    <!-- Lesiones (solo Panamá) — registro y consulta dentro del contexto del lote seleccionado -->
-    <section
-      *appShowIfCountry="'PANAMA'"
-      class="lrae-card lrae-card--lesiones">
-      <ng-container *ngIf="selectedLoteAveEngordeId">
-        <app-lesion-tab
-          [moduloOrigen]="'APOYO'"
-          [loteId]="loteIdActual"
-          [farmId]="farmIdActual"
-          [galponId]="galponIdActual">
-        </app-lesion-tab>
-      </ng-container>
-      <p *ngIf="!selectedLoteAveEngordeId" class="lrae-empty">
-        Seleccione un Lote Aves de Engorde para registrar y consultar lesiones.
-      </p>
-    </section>
+    <!-- Lesiones: sección movida a Seguimiento diario reproductora aves de engorde -->
 
     <!-- Modal Editar: mismo diseño que crear (una sola tarjeta), código siempre deshabilitado -->
     <div *ngIf="modalOpen && editing" class="lrae-modal" role="dialog" aria-labelledby="lrae-edit-modal-title">

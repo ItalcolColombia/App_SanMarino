@@ -1,7 +1,7 @@
 // src/app/features/lesiones/services/lesion.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject, tap } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import {
   LesionDto,
@@ -21,6 +21,10 @@ import {
 export class LesionService {
   private readonly baseUrl = `${environment.apiUrl}/lesiones`;
   private readonly http = inject(HttpClient);
+  /** Subject para abrir el modal de creación de lesión desde otros componentes */
+  readonly openCreate$ = new Subject<void>();
+  /** Subject que emite cuando se debe refrescar el histórico/listados */
+  readonly refresh$ = new Subject<void>();
 
   /**
    * Búsqueda paginada de lesiones. Cualquier filtro vacío/undefined se omite
@@ -40,17 +44,23 @@ export class LesionService {
 
   /** Crea una nueva lesión. */
   create(dto: CreateLesionRequest): Observable<LesionDto> {
-    return this.http.post<LesionDto>(this.baseUrl, dto);
+    return this.http.post<LesionDto>(this.baseUrl, dto).pipe(
+      tap(() => this.refresh$.next())
+    );
   }
 
   /** Actualiza una lesión existente. */
   update(id: number, dto: UpdateLesionRequest): Observable<LesionDto> {
-    return this.http.put<LesionDto>(`${this.baseUrl}/${id}`, dto);
+    return this.http.put<LesionDto>(`${this.baseUrl}/${id}`, dto).pipe(
+      tap(() => this.refresh$.next())
+    );
   }
 
   /** Elimina (soft o hard según backend) una lesión. */
   delete(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+    return this.http.delete<void>(`${this.baseUrl}/${id}`).pipe(
+      tap(() => this.refresh$.next())
+    );
   }
 
   /**
