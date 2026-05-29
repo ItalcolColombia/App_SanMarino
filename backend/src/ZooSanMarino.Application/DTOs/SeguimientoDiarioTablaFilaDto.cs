@@ -7,7 +7,10 @@ namespace ZooSanMarino.Application.DTOs;
 public class SeguimientoDiarioTablaFilaDto
 {
     // Identificación
-    public long SegId { get; set; }
+    // ⚠️ FIX #14: SegId puede ser NULL cuando la fila representa un movimiento de
+    // inventario/venta sin seguimiento diario asociado. El frontend debe ocultar
+    // botones de editar/eliminar y ofrecer "crear seguimiento aquí" en su lugar.
+    public long? SegId { get; set; }
     public DateTime Fecha { get; set; }
 
     // Tiempo

@@ -1,101 +1,410 @@
 <div class="ux-page" [attr.aria-busy]="loading ? 'true' : null">
-  <div></div>
-
   <div class="ux-main">
+
+    <!-- ══════════════════════════════════════════
+         HEADER
+    ══════════════════════════════════════════ -->
     <header class="ux-header">
-      <div class="ux-header__title">
-        <h1 class="ux-header__title--red">Seguimiento diario reproductora aves de engorde</h1>
-        <div class="ux-header__meta">
-          <span class="chip chip--info" *ngIf="selectedGranjaId">Granja: {{ selectedGranjaName }}</span>
-          <span class="chip chip--muted" *ngIf="selectedNucleoId">Núcleo: {{ selectedNucleoNombre }}</span>
-          <span class="chip chip--muted" *ngIf="selectedGalponId">Galpón: {{ selectedGalponNombre }}</span>
-          <span class="chip chip--muted" *ngIf="selectedLoteId">Lote aves engorde: {{ selectedLoteNombre }}</span>
-          <span class="chip chip--info" *ngIf="selectedLoteReproductoraId">Reproductora aves engorde: {{ selectedLoteReproductoraNombre }}</span>
-          <span class="chip chip--muted" *ngIf="selectedLoteReproductoraId">{{ seguimientos.length }} registro(s)</span>
+      <div class="ux-header__left">
+        <div class="ux-header__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2z"/>
+            <path d="M12 8v4l3 3"/>
+          </svg>
+        </div>
+        <div class="ux-header__text">
+          <h1 class="ux-header__title">Seguimiento Diario Reproductora</h1>
+          <p class="ux-header__subtitle">Aves de engorde · Registro diario por lote reproductora</p>
         </div>
       </div>
+
+      <!-- Breadcrumb chips de contexto activo -->
+      <div class="ux-header__breadcrumb" *ngIf="selectedGranjaId">
+        <span class="bc-item bc-item--farm">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="bc-icon"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
+          {{ selectedGranjaName }}
+        </span>
+        <span class="bc-sep" *ngIf="selectedNucleoId" aria-hidden="true">›</span>
+        <span class="bc-item" *ngIf="selectedNucleoId">{{ selectedNucleoNombre }}</span>
+        <span class="bc-sep" *ngIf="selectedGalponId" aria-hidden="true">›</span>
+        <span class="bc-item" *ngIf="selectedGalponId">{{ selectedGalponNombre }}</span>
+        <span class="bc-sep" *ngIf="selectedLoteId" aria-hidden="true">›</span>
+        <span class="bc-item" *ngIf="selectedLoteId">{{ selectedLoteNombre }}</span>
+        <span class="bc-sep" *ngIf="selectedLoteReproductoraId" aria-hidden="true">›</span>
+        <span class="bc-item bc-item--repro" *ngIf="selectedLoteReproductoraId">
+          {{ selectedLoteReproductoraNombre }}
+          <span class="bc-badge">{{ seguimientos.length }}</span>
+        </span>
+      </div>
+
+      <!-- Acciones -->
       <div class="ux-header__actions">
         <button
           type="button"
           class="btn btn--primary"
           (click)="create()"
           [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado"
-          [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado' : (!selectedLoteReproductoraId ? 'Selecciona Lote Aves Engorde y Reproductora Aves Engorde' : 'Nuevo registro')">
+          [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado' : (!selectedLoteReproductoraId ? 'Selecciona todos los filtros primero' : 'Crear nuevo registro de seguimiento')">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="btn-icon">
+            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
           Nuevo registro
         </button>
-        <button
-          *appShowIfCountry="'PANAMA'"
-          type="button"
-          class="btn btn--secondary"
-          (click)="openLesionCreate()"
-          [disabled]="!selectedLoteReproductoraId"
-          title="Registrar lesión">
-          + Registrar Lesión
-        </button>
+
+        <ng-container *appShowIfCountry="'PANAMA'">
+          <button
+            type="button"
+            class="btn btn--lesion"
+            (click)="openLesionCreate()"
+            [disabled]="!selectedLoteReproductoraId"
+            title="Registrar nueva lesión para este lote reproductora">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="btn-icon">
+              <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+            </svg>
+            Registrar lesión
+          </button>
+        </ng-container>
       </div>
     </header>
 
-    <section class="ux-card" *ngIf="activeTab==='seguimiento'">
-      <h2 class="ux-card__title">
-        <fa-icon [icon]="faFilter" class="ux-card__title-icon" aria-hidden="true"></fa-icon>
-        Filtros
-      </h2>
-      <div class="ux-toolbar ux-toolbar--filters">
-        <div class="ux-field">
-          <label for="sel-granja">Granja</label>
-          <select id="sel-granja" [ngModel]="selectedGranjaId" (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let g of granjas; trackBy: trackByIdx" [ngValue]="g.id">{{ g.name }}</option>
-          </select>
+    <!-- ══════════════════════════════════════════
+         FILTROS EN CASCADA
+    ══════════════════════════════════════════ -->
+    <section class="ux-card filter-card" aria-label="Filtros de selección">
+      <div class="filter-card__header">
+        <div class="filter-card__header-icon" aria-hidden="true">
+          <fa-icon [icon]="faFilter"></fa-icon>
         </div>
-        <div class="ux-field">
-          <label for="sel-nucleo">Núcleo</label>
-          <select id="sel-nucleo" [disabled]="!selectedGranjaId || !nucleos.length" [ngModel]="selectedNucleoId" (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let n of nucleos; trackBy: trackByIdx" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
-          </select>
+        <div>
+          <h2 class="filter-card__title">Selección de contexto</h2>
+          <p class="filter-card__subtitle">Selecciona en cascada para cargar los registros</p>
         </div>
-        <div class="ux-field">
-          <label for="sel-galpon">Galpón</label>
-          <select id="sel-galpon" [disabled]="!selectedNucleoId || !galpones.length" [ngModel]="selectedGalponId" (ngModelChange)="selectedGalponId = $event; onGalponChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let g of galpones; trackBy: trackByIdx" [ngValue]="g.id">{{ g.label }}</option>
-          </select>
+      </div>
+
+      <div class="filter-steps">
+        <!-- Paso 1: Granja -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedGranjaId" [class.filter-step--done]="!!selectedNucleoId">
+          <div class="filter-step__num">1</div>
+          <div class="filter-step__body">
+            <label for="sel-granja" class="filter-step__label">Granja</label>
+            <select id="sel-granja" class="filter-step__select"
+              [ngModel]="selectedGranjaId"
+              (ngModelChange)="selectedGranjaId = $event; onGranjaChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let g of granjas; trackBy: trackByIdx" [ngValue]="g.id">{{ g.name }}</option>
+            </select>
+          </div>
         </div>
-        <div class="ux-field">
-          <label for="sel-lote">Lote aves engorde</label>
-          <select id="sel-lote" [disabled]="!selectedGalponId || !lotes.length" [ngModel]="selectedLoteId" (ngModelChange)="selectedLoteId = $event; onLoteChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let l of lotes; trackBy: trackByIdx" [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
-          </select>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGranjaId" aria-hidden="true"></div>
+
+        <!-- Paso 2: Núcleo -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedNucleoId" [class.filter-step--done]="!!selectedGalponId" [class.filter-step--disabled]="!selectedGranjaId || !nucleos.length">
+          <div class="filter-step__num">2</div>
+          <div class="filter-step__body">
+            <label for="sel-nucleo" class="filter-step__label">Núcleo</label>
+            <select id="sel-nucleo" class="filter-step__select"
+              [disabled]="!selectedGranjaId || !nucleos.length"
+              [ngModel]="selectedNucleoId"
+              (ngModelChange)="selectedNucleoId = $event; onNucleoChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let n of nucleos; trackBy: trackByIdx" [ngValue]="n.nucleoId">{{ n.nucleoNombre }}</option>
+            </select>
+          </div>
         </div>
-        <div class="ux-field">
-          <label for="sel-lote-repro">Reproductora aves engorde</label>
-          <select id="sel-lote-repro" [disabled]="!selectedLoteId || !lotesReproductoraFiltered.length" [ngModel]="selectedLoteReproductoraId" (ngModelChange)="selectedLoteReproductoraId = $event; onLoteReproductoraChange()">
-            <option [ngValue]="null">— Seleccione —</option>
-            <option *ngFor="let r of lotesReproductoraFiltered; trackBy: trackByIdx" [ngValue]="r.id">{{ r.nombreLote || r.id }}</option>
-          </select>
-          <span class="ux-field-hint ux-field-hint--warning" *ngIf="selectedLoteId && !loading && lotesReproductoraFiltered.length === 0">
-            No hay reproductoras aves engorde asignadas a este lote. Crea una en «Lote Reproductora Aves de Engorde».
-          </span>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedNucleoId" aria-hidden="true"></div>
+
+        <!-- Paso 3: Galpón -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedGalponId" [class.filter-step--done]="!!selectedLoteId" [class.filter-step--disabled]="!selectedNucleoId || !galpones.length">
+          <div class="filter-step__num">3</div>
+          <div class="filter-step__body">
+            <label for="sel-galpon" class="filter-step__label">Galpón</label>
+            <select id="sel-galpon" class="filter-step__select"
+              [disabled]="!selectedNucleoId || !galpones.length"
+              [ngModel]="selectedGalponId"
+              (ngModelChange)="selectedGalponId = $event; onGalponChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let g of galpones; trackBy: trackByIdx" [ngValue]="g.id">{{ g.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedGalponId" aria-hidden="true"></div>
+
+        <!-- Paso 4: Lote aves engorde -->
+        <div class="filter-step" [class.filter-step--active]="!!selectedLoteId" [class.filter-step--done]="!!selectedLoteReproductoraId" [class.filter-step--disabled]="!selectedGalponId || !lotes.length">
+          <div class="filter-step__num">4</div>
+          <div class="filter-step__body">
+            <label for="sel-lote" class="filter-step__label">Lote aves engorde</label>
+            <select id="sel-lote" class="filter-step__select"
+              [disabled]="!selectedGalponId || !lotes.length"
+              [ngModel]="selectedLoteId"
+              (ngModelChange)="selectedLoteId = $event; onLoteChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let l of lotes; trackBy: trackByIdx" [ngValue]="l.loteId">{{ l.loteNombre || l.loteId }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-steps__connector" [class.filter-steps__connector--active]="!!selectedLoteId" aria-hidden="true"></div>
+
+        <!-- Paso 5: Lote reproductora -->
+        <div class="filter-step filter-step--last" [class.filter-step--active]="!!selectedLoteReproductoraId" [class.filter-step--disabled]="!selectedLoteId || !lotesReproductoraFiltered.length">
+          <div class="filter-step__num filter-step__num--accent">5</div>
+          <div class="filter-step__body">
+            <label for="sel-lote-repro" class="filter-step__label">Reproductora aves engorde</label>
+            <select id="sel-lote-repro" class="filter-step__select"
+              [disabled]="!selectedLoteId || !lotesReproductoraFiltered.length"
+              [ngModel]="selectedLoteReproductoraId"
+              (ngModelChange)="selectedLoteReproductoraId = $event; onLoteReproductoraChange()">
+              <option [ngValue]="null">— Seleccione —</option>
+              <option *ngFor="let r of lotesReproductoraFiltered; trackBy: trackByIdx" [ngValue]="r.id">{{ r.nombreLote || r.id }}</option>
+            </select>
+            <p class="filter-step__warn" *ngIf="selectedLoteId && !loading && lotesReproductoraFiltered.length === 0">
+              <svg viewBox="0 0 20 20" fill="currentColor" class="warn-icon" aria-hidden="true"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+              Sin reproductoras asignadas a este lote. Créalas en «Lote Reproductora Aves de Engorde».
+            </p>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Pestañas: Seguimiento / Lesiones / Lote (solo Panamá muestra Lesiones) -->
-    <section class="ux-card">
-      <div class="tabs-inline">
-        <button type="button" class="tab-btn" [class.active]="activeTab==='seguimiento'" (click)="activeTab='seguimiento'">Seguimiento</button>
-        <button type="button" class="tab-btn" [class.active]="activeTab==='lesiones'" (click)="activeTab='lesiones'" *appShowIfCountry="'PANAMA'">Lesiones</button>
-        <button type="button" class="tab-btn" [class.active]="activeTab==='lote'" (click)="activeTab='lote'">Lote</button>
+    <!-- ══════════════════════════════════════════
+         INFO CARD: LOTE REPRODUCTORA + AVES
+    ══════════════════════════════════════════ -->
+    <section
+      *ngIf="selectedLoteReproductoraId && selectedReproductoraDetail"
+      class="ux-card info-card"
+      [class.info-card--closed]="isLoteReproductoraCerrado"
+      aria-label="Información del lote reproductora">
+
+      <!-- Banner de lote cerrado -->
+      <div class="info-card__closed-banner" *ngIf="isLoteReproductoraCerrado" role="alert">
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="closed-icon">
+          <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+        </svg>
+        <div>
+          <strong>Lote reproductora cerrado</strong>
+          <span>Solo consulta — no se pueden agregar ni editar registros de seguimiento.</span>
+        </div>
       </div>
 
-      <div class="tab-panel" *ngIf="activeTab==='seguimiento'">
-        <!-- contenido de seguimiento (ya renderizado más abajo) -->
+      <div class="info-card__body">
+        <!-- Datos del lote -->
+        <div class="info-block">
+          <h3 class="info-block__title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+            Datos del lote reproductora
+          </h3>
+          <dl class="info-dl">
+            <div class="info-dl__row">
+              <dt>Código</dt>
+              <dd>{{ selectedReproductoraDetail.reproductoraId }}</dd>
+            </div>
+            <div class="info-dl__row">
+              <dt>Nombre</dt>
+              <dd>{{ selectedReproductoraDetail.nombreLote }}</dd>
+            </div>
+            <div class="info-dl__row">
+              <dt>Encasetamiento</dt>
+              <dd>{{ selectedReproductoraDetail.fechaEncasetamiento ? (selectedReproductoraDetail.fechaEncasetamiento | date:'dd/MM/yyyy') : '—' }}</dd>
+            </div>
+            <div class="info-dl__row">
+              <dt>Estado</dt>
+              <dd>
+                <span class="status-badge"
+                  [class.status-badge--open]="selectedReproductoraDetail.estado === 'Vigente'"
+                  [class.status-badge--closed]="selectedReproductoraDetail.estado === 'Cerrado'">
+                  <span class="status-badge__dot"></span>
+                  {{ selectedReproductoraDetail.estado === 'Vigente' ? 'Disponible' : selectedReproductoraDetail.estado }}
+                </span>
+              </dd>
+            </div>
+            <div class="info-dl__row">
+              <dt>Saldo apertura</dt>
+              <dd>
+                {{ (selectedReproductoraDetail.saldoApertura ?? 0) | number:'1.0-0' }}
+                <span class="dl-sub">(H: {{ (selectedReproductoraDetail.avesInicioHembras ?? 0) | number:'1.0-0' }} · M: {{ (selectedReproductoraDetail.avesInicioMachos ?? 0) | number:'1.0-0' }})</span>
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <!-- Aves disponibles -->
+        <div class="info-block info-block--highlight">
+          <h3 class="info-block__title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="info-block__icon"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+            Aves disponibles (saldo actual)
+          </h3>
+          <p class="aves-count">{{ selectedReproductoraDetail.avesActuales | number:'1.0-0' }}</p>
+          <p class="aves-hint">Saldo real considerando mortalidad, selección, error de sexaje y movimientos de aves registrados.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         TABS: SEGUIMIENTO | LESIONES (solo Panamá)
+    ══════════════════════════════════════════ -->
+    <ng-container *appShowIfCountry="'PANAMA'">
+      <nav class="tab-nav" *ngIf="selectedLoteReproductoraId" role="tablist" aria-label="Secciones del módulo">
+        <button
+          type="button"
+          class="tab-pill"
+          [class.tab-pill--active]="activeTab === 'seguimiento'"
+          (click)="activeTab = 'seguimiento'"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'seguimiento'">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tab-pill__icon">
+            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+          </svg>
+          Seguimiento
+          <span class="tab-pill__count" *ngIf="activeTab === 'seguimiento' && seguimientos.length">{{ seguimientos.length }}</span>
+        </button>
+        <button
+          type="button"
+          class="tab-pill"
+          [class.tab-pill--active]="activeTab === 'lesiones'"
+          (click)="activeTab = 'lesiones'"
+          role="tab"
+          [attr.aria-selected]="activeTab === 'lesiones'">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="tab-pill__icon">
+            <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+          </svg>
+          Lesiones
+        </button>
+      </nav>
+    </ng-container>
+
+    <!-- ══════════════════════════════════════════
+         PANEL: SEGUIMIENTO (tabla principal)
+    ══════════════════════════════════════════ -->
+    <section class="ux-card table-card" *ngIf="activeTab === 'seguimiento'" role="tabpanel" aria-label="Registros de seguimiento diario">
+      <header class="table-card__header">
+        <div class="table-card__title-group">
+          <h2 class="table-card__title">Registros de seguimiento</h2>
+          <span class="table-card__badge" *ngIf="seguimientos.length">{{ seguimientos.length }}</span>
+        </div>
+      </header>
+
+      <div class="table-wrap" [class.table-wrap--loading]="loading">
+        <table class="data-table" aria-label="Seguimiento diario por reproductora aves de engorde">
+          <caption class="sr-only">Registros de seguimiento diario — reproductora aves de engorde</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="col-date">Fecha</th>
+              <th scope="col" colspan="2" class="col-group">Mortalidad</th>
+              <th scope="col" colspan="2" class="col-group">Selección</th>
+              <th scope="col" colspan="2" class="col-group">Error sexaje</th>
+              <th scope="col">Tipo alimento</th>
+              <th scope="col" class="col-num">Consumo (kg)</th>
+              <th scope="col" class="col-actions">Acciones</th>
+            </tr>
+            <tr class="data-table__subrow">
+              <th scope="col"></th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
+              <th scope="col"></th>
+              <th scope="col"></th>
+              <th scope="col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Empty state -->
+            <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)" class="data-table__empty-row">
+              <td colspan="10">
+                <div class="empty-state">
+                  <div class="empty-state__visual" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="8" y="8" width="32" height="36" rx="3"/>
+                      <line x1="15" y1="18" x2="33" y2="18"/>
+                      <line x1="15" y1="24" x2="33" y2="24"/>
+                      <line x1="15" y1="30" x2="24" y2="30"/>
+                    </svg>
+                  </div>
+                  <p class="empty-state__title" *ngIf="!selectedLoteReproductoraId">Selecciona los filtros para comenzar</p>
+                  <p class="empty-state__title" *ngIf="selectedLoteReproductoraId">Sin registros para esta reproductora</p>
+                  <p class="empty-state__hint" *ngIf="selectedLoteReproductoraId && !isLoteReproductoraCerrado">
+                    Crea el primer registro con el botón <strong>Nuevo registro</strong>
+                  </p>
+                  <p class="empty-state__hint empty-state__hint--muted" *ngIf="selectedLoteReproductoraId && isLoteReproductoraCerrado">
+                    El lote está cerrado. No se pueden crear más registros.
+                  </p>
+                  <button
+                    type="button"
+                    class="btn btn--primary empty-state__cta"
+                    (click)="create()"
+                    *ngIf="selectedLoteReproductoraId && !isLoteReproductoraCerrado"
+                    [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado">
+                    Crear primer registro
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Filas de datos -->
+            <tr *ngFor="let s of seguimientos; trackBy: trackById" class="data-table__row">
+              <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras }}</td>
+              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos }}</td>
+              <td class="cell-num" data-label="Sel. H">{{ s.selH }}</td>
+              <td class="cell-num" data-label="Sel. M">{{ s.selM }}</td>
+              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras }}</td>
+              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos }}</td>
+              <td class="cell-text" data-label="Tipo alimento">{{ s.tipoAlimento || '—' }}</td>
+              <td class="cell-num" data-label="Consumo (kg)">{{ s.consumoKgHembras }}</td>
+              <td class="cell-actions" data-label="Acciones">
+                <div class="action-group">
+                  <button
+                    type="button"
+                    class="action-btn action-btn--view"
+                    (click)="viewDetail(s)"
+                    title="Ver detalle completo"
+                    aria-label="Ver detalle">
+                    <fa-icon [icon]="faEye"></fa-icon>
+                  </button>
+                  <button
+                    type="button"
+                    class="action-btn action-btn--edit"
+                    (click)="edit(s)"
+                    [disabled]="isLoteReproductoraCerrado"
+                    [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede editar' : 'Editar registro'"
+                    aria-label="Editar">
+                    <fa-icon [icon]="faPen"></fa-icon>
+                  </button>
+                  <button
+                    type="button"
+                    class="action-btn action-btn--delete"
+                    (click)="delete(s.id)"
+                    [disabled]="isLoteReproductoraCerrado"
+                    [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede eliminar' : 'Eliminar registro'"
+                    aria-label="Eliminar">
+                    <fa-icon [icon]="faTrash"></fa-icon>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <div class="tab-panel" *ngIf="activeTab==='lesiones'">
-        <div *ngIf="selectedLoteReproductoraId">
+      <!-- Spinner de carga sobre la tabla -->
+      <div *ngIf="loading" class="table-loading" aria-live="polite" role="status">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>Cargando registros…</span>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════
+         PANEL: LESIONES (solo Panamá)
+    ══════════════════════════════════════════ -->
+    <ng-container *appShowIfCountry="'PANAMA'">
+      <div *ngIf="activeTab === 'lesiones'" role="tabpanel" aria-label="Lesiones">
+        <div *ngIf="selectedLoteReproductoraId; else lesionesNoContext">
           <app-lesion-tab
             [moduloOrigen]="'REPRODUCTORA'"
             [farmId]="selectedGranjaId"
@@ -105,122 +414,31 @@
             [loteNombre]="selectedLoteReproductoraNombre">
           </app-lesion-tab>
         </div>
-        <div *ngIf="!selectedLoteReproductoraId" class="ux-empty">Selecciona una reproductora para ver/registrar lesiones.</div>
+        <ng-template #lesionesNoContext>
+          <div class="ux-card">
+            <div class="empty-state empty-state--pad">
+              <div class="empty-state__visual" aria-hidden="true">
+                <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M24 4C12.954 4 4 12.954 4 24s8.954 20 20 20 20-8.954 20-20S35.046 4 24 4z"/>
+                  <path d="M24 16v8M24 32h.01"/>
+                </svg>
+              </div>
+              <p class="empty-state__title">Selecciona una reproductora</p>
+              <p class="empty-state__hint">Usa los filtros de arriba para ver y registrar lesiones de un lote reproductora.</p>
+            </div>
+          </div>
+        </ng-template>
       </div>
+    </ng-container>
 
-      <div class="tab-panel" *ngIf="activeTab==='lote'">
-        <div class="lote-card">
-          <h3>Información del Lote Reproductora</h3>
-          <p><strong>Nombre:</strong> {{ selectedLoteReproductoraNombre || '—' }}</p>
-          <p><strong>Código:</strong> {{ selectedReproductoraDetail?.reproductoraId || '—' }}</p>
-          <p><strong>Estado:</strong> {{ selectedReproductoraDetail?.estado || '—' }}</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Información del lote reproductora y aves disponibles (debajo de filtros, encima de la tabla). Deshabilitada visualmente si el lote está cerrado. -->
-    <section *ngIf="selectedLoteReproductoraId && selectedReproductoraDetail" class="ux-card ux-card--info" [class.repro-info--cerrado]="isLoteReproductoraCerrado">
-      <h2 class="ux-card__title">Información del lote reproductora y disponibilidad de aves</h2>
-      <p *ngIf="isLoteReproductoraCerrado" class="repro-info__cerrado-msg" role="status">
-        <strong>Lote cerrado.</strong> Solo consulta. No se pueden agregar ni editar registros de seguimiento.
-      </p>
-      <div class="repro-info-grid">
-        <div class="repro-info-block">
-          <h3 class="repro-info-block__title">Datos del lote reproductora</h3>
-          <dl class="repro-info-dl">
-            <dt>Código</dt>
-            <dd>{{ selectedReproductoraDetail.reproductoraId }}</dd>
-            <dt>Nombre</dt>
-            <dd>{{ selectedReproductoraDetail.nombreLote }}</dd>
-            <dt>Fecha encasetamiento</dt>
-            <dd>{{ selectedReproductoraDetail.fechaEncasetamiento ? (selectedReproductoraDetail.fechaEncasetamiento | date:'dd/MM/yyyy') : '—' }}</dd>
-            <dt>Estado</dt>
-            <dd>
-              <span class="repro-info-estado" [class.repro-info-estado--vigente]="selectedReproductoraDetail.estado === 'Vigente'" [class.repro-info-estado--cerrado]="selectedReproductoraDetail.estado === 'Cerrado'">
-                {{ selectedReproductoraDetail.estado === 'Vigente' ? 'Disponible' : selectedReproductoraDetail.estado }}
-              </span>
-            </dd>
-            <dt>Saldo con que se abrió</dt>
-            <dd>{{ (selectedReproductoraDetail.saldoApertura ?? 0) | number:'1.0-0' }} (H: {{ (selectedReproductoraDetail.avesInicioHembras ?? 0) | number:'1.0-0' }}, M: {{ (selectedReproductoraDetail.avesInicioMachos ?? 0) | number:'1.0-0' }})</dd>
-          </dl>
-        </div>
-        <div class="repro-info-block">
-          <h3 class="repro-info-block__title">Aves disponibles (saldo actual)</h3>
-          <p class="repro-info-aves">{{ selectedReproductoraDetail.avesActuales | number:'1.0-0' }}</p>
-          <p class="repro-info-hint">Este saldo ya considera las reducciones por: mortalidad, selección, error de sexaje (seguimiento diario) y movimientos de aves (ventas, despacho, retiro).</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="ux-card">
-      <header class="seguimiento-card__header">
-        <h2 class="seguimiento-card__title">Registros de seguimiento</h2>
-        <span class="seguimiento-card__badge" *ngIf="seguimientos.length">{{ seguimientos.length }}</span>
-      </header>
-      <div class="seguimiento-table-wrap" [class.is-loading]="loading">
-        <table class="seguimiento-table">
-          <caption class="sr-only">Seguimiento diario por reproductora aves de engorde</caption>
-          <thead>
-            <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col" colspan="2">Mortalidad</th>
-              <th scope="col" colspan="2">Selección</th>
-              <th scope="col" colspan="2">Error sexaje</th>
-              <th scope="col">Tipo alimento</th>
-              <th scope="col">Consumo (kg)</th>
-              <th scope="col" class="seguimiento-table__actions">Acciones</th>
-            </tr>
-            <tr class="seguimiento-table__subhead">
-              <th></th>
-              <th>H</th>
-              <th>M</th>
-              <th>H</th>
-              <th>M</th>
-              <th>H</th>
-              <th>M</th>
-              <th></th>
-              <th></th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)" class="seguimiento-table__empty">
-              <td colspan="10">
-                <div class="empty-state">
-                  <p class="empty-state__title" *ngIf="!selectedLoteReproductoraId">Selecciona Lote Aves Engorde y Reproductora Aves Engorde</p>
-                  <p class="empty-state__title" *ngIf="selectedLoteReproductoraId">Sin registros para esta reproductora aves engorde</p>
-                  <p class="empty-state__hint" *ngIf="selectedLoteReproductoraId && !isLoteReproductoraCerrado">Crea el primer registro con «Nuevo registro»</p>
-                  <p class="empty-state__hint empty-state__hint--muted" *ngIf="selectedLoteReproductoraId && isLoteReproductoraCerrado">El lote está cerrado. No se pueden crear registros.</p>
-                  <button type="button" class="btn btn--primary empty-state__cta" (click)="create()" [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado">Crear registro</button>
-                </div>
-              </td>
-            </tr>
-            <tr *ngFor="let s of seguimientos; trackBy: trackById" class="seguimiento-table__row">
-              <td data-label="Fecha">{{ s.fechaRegistro | date:'shortDate' }}</td>
-              <td data-label="Mort. H">{{ s.mortalidadHembras }}</td>
-              <td data-label="Mort. M">{{ s.mortalidadMachos }}</td>
-              <td data-label="Sel H">{{ s.selH }}</td>
-              <td data-label="Sel M">{{ s.selM }}</td>
-              <td data-label="Err H">{{ s.errorSexajeHembras }}</td>
-              <td data-label="Err M">{{ s.errorSexajeMachos }}</td>
-              <td data-label="Tipo alimento">{{ s.tipoAlimento }}</td>
-              <td data-label="Consumo (kg)">{{ s.consumoKgHembras }}</td>
-              <td class="seguimiento-table__actions" data-label="Acciones">
-                <div class="btn-group">
-                  <button type="button" class="icon-btn" (click)="viewDetail(s)" title="Ver detalle" aria-label="Ver"><fa-icon [icon]="faEye"></fa-icon></button>
-                  <button type="button" class="icon-btn" (click)="edit(s)" [disabled]="isLoteReproductoraCerrado" [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede editar' : 'Editar'" aria-label="Editar"><fa-icon [icon]="faPen"></fa-icon></button>
-                  <button type="button" class="icon-btn icon-btn--danger" (click)="delete(s.id)" [disabled]="isLoteReproductoraCerrado" [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede eliminar' : 'Eliminar'" aria-label="Eliminar"><fa-icon [icon]="faTrash"></fa-icon></button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div *ngIf="loading" class="seguimiento-loading" aria-live="polite" role="status"><div class="spinner"></div><span>Cargando…</span></div>
-    </section>
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════
+     MODALES
+══════════════════════════════════════════ -->
+
+<!-- Modal crear / editar seguimiento -->
 <app-modal-create-edit
   [isOpen]="modalOpen"
   [editing]="editing"
@@ -231,6 +449,7 @@
   (save)="onSave($event)">
 </app-modal-create-edit>
 
+<!-- Modal ver detalle -->
 <app-modal-detalle-seguimiento-levante
   [isOpen]="detailModalOpen"
   [seguimiento]="editing"
@@ -238,6 +457,7 @@
   (close)="detailModalOpen = false; editing = null;">
 </app-modal-detalle-seguimiento-levante>
 
+<!-- Modal confirmación eliminar -->
 <app-confirmation-modal
   [isOpen]="confirmModalOpen"
   [data]="confirmModalData"
@@ -246,6 +466,7 @@
   (closed)="confirmModalOpen = false">
 </app-confirmation-modal>
 
+<!-- Modal informativo lote cerrado -->
 <app-confirmation-modal
   [isOpen]="loteCerradoModalOpen"
   [data]="loteCerradoModalData"

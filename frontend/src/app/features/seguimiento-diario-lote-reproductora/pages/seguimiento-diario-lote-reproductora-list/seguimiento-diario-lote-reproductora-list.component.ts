@@ -73,8 +73,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   hasSinGalpon = false;
   seguimientos: SeguimientoLoteLevanteDto[] = [];
   loading = false;
-  /** UI: pestaña activa dentro del módulo (seguimiento, lesiones, lote) */
-  activeTab: 'seguimiento' | 'lesiones' | 'lote' = 'seguimiento';
+  /** UI: pestaña activa dentro del módulo (seguimiento, lesiones) */
+  activeTab: 'seguimiento' | 'lesiones' = 'seguimiento';
   modalOpen = false;
   detailModalOpen = false;
   editing: SeguimientoLoteLevanteDto | null = null;

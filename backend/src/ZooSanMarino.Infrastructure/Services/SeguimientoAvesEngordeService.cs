@@ -414,17 +414,24 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     /// <summary>
     /// Stock (kg) antes del primer día de seguimiento: solo movimientos histórico con fecha efectiva &lt; primer seguimiento.
     /// Tras cada movimiento piso en 0 (misma regla que el front).
+    /// ⚠️ FIX #12 (2026-05-28): si <paramref name="fechaEncaset"/> se proporciona, los movimientos
+    /// anteriores al encaset se ignoran. Antes la apertura heredaba el inventario residual del lote
+    /// previo que ocupó el galpón (ej. lote 75/2602: 132,277 kg → saldo día 1 137,557 vs esperado 5,280).
     /// </summary>
     private static decimal ComputeSaldoAperturaGalponAntesPrimerSeguimiento(
         IReadOnlyList<LoteRegistroHistoricoUnificado> hist,
-        DateTime firstSegDate)
+        DateTime firstSegDate,
+        DateTime? fechaEncaset = null)
     {
         var firstYmd = FormatYmd(firstSegDate.Date);
+        var encasetYmd = fechaEncaset.HasValue ? FormatYmd(fechaEncaset.Value.Date) : null;
         var rows = new List<(string ymd, long ts, decimal delta)>();
         foreach (var h in hist)
         {
             var ymd = YmdHistoricoEfectivo(h);
             if (ymd is null || string.Compare(ymd, firstYmd, StringComparison.Ordinal) >= 0)
+                continue;
+            if (encasetYmd is not null && string.Compare(ymd, encasetYmd, StringComparison.Ordinal) < 0)
                 continue;
             if (!TryGetHistDeltaAndOrd(h, out var d, out _))
                 continue;
@@ -504,7 +511,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             : null;
         var firstYmd = FormatYmd(firstSegDate);
 
-        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate);
+        var opening = ComputeSaldoAperturaGalponAntesPrimerSeguimiento(hist, firstSegDate, lote.FechaEncaset);
 
         var events = new List<SaldoAlimentoEvent>(hist.Count + segs.Count);
 
