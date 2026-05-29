@@ -119,7 +119,13 @@
       "Bash(Select-Object Name)",
       "PowerShell(Get-ChildItem \"c:\\\\Users\\\\SAN MARINO\\\\Desktop\\\\App_SanMarino\\\\frontend\\\\src\\\\app\\\\features\" | ForEach-Object { $_.Name })",
       "Bash(PGPASSWORD=123456789 psql -h localhost -p 5433 -U postgres -d sanmarinoapplocal -t -c \"SELECT migration_id FROM \\\\\"__EFMigrationsHistory\\\\\" WHERE migration_id = '20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo';\")",
-      "PowerShell($env:PGPASSWORD=\"123456789\"; & \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -t -c \"SELECT migration_id FROM \\\\`\"__EFMigrationsHistory\\\\`\" WHERE migration_id = '20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo';\")"
+      "PowerShell($env:PGPASSWORD=\"123456789\"; & \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -t -c \"SELECT migration_id FROM \\\\`\"__EFMigrationsHistory\\\\`\" WHERE migration_id = '20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo';\")",
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d lote_ave_engorde\")",
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d movimiento_pollo_engorde\")",
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d seguimiento_diario_aves_engorde\")",
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d lote_reproductora_ave_engorde\")",
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d seguimiento_diario_lote_reproductora_aves_engorde\")",
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d galpones\")"
     ]
   }
 }
