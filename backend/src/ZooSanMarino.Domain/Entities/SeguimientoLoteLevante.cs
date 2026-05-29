@@ -27,6 +27,11 @@ public class SeguimientoLoteLevante
 
     public string Ciclo { get; set; } = "Normal";
 
+    // Panamá: cantidad de alimento por categoría (quintales) — visible solo en formularios de Panamá
+    public decimal? QqMixtas { get; set; }
+    public decimal? QqHembras { get; set; }
+    public decimal? QqMachos { get; set; }
+
     // NUEVOS (double precision en PG → double?)
     // Estos campos se mantienen para compatibilidad con otros servicios
     public double? ConsumoKgMachos { get; set; }

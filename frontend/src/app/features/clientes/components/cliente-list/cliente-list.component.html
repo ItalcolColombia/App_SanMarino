@@ -441,18 +441,50 @@
         <div class="form-grid form-grid--2">
           <div class="field-group">
             <label class="field-label">País</label>
-            <input type="text" formControlName="pais" class="form-input" placeholder="Ej: Colombia" list="paises-list" />
-            <datalist id="paises-list">
-              @for (p of paises; track p) { <option [value]="p"></option> }
-            </datalist>
+            <select
+              formControlName="pais"
+              class="form-select"
+              [class.error]="isInvalid('pais')"
+              (change)="onPaisChange($any($event.target).value)"
+            >
+              <option value="">Seleccione un país...</option>
+              @for (p of paises(); track p.paisId) {
+                <option [value]="p.paisNombre">{{ p.paisNombre }}</option>
+              }
+            </select>
           </div>
           <div class="field-group">
             <label class="field-label">Provincia / Departamento</label>
-            <input type="text" formControlName="provincia" class="form-input" placeholder="Ej: Cundinamarca" />
+            <select
+              formControlName="provincia"
+              class="form-select"
+              [class.error]="isInvalid('provincia')"
+              [attr.disabled]="provincias().length ? null : true"
+              (change)="onProvinciaChange($any($event.target).value)"
+            >
+              <option value="">
+                {{ provincias().length ? 'Seleccione una provincia...' : 'Seleccione primero un país' }}
+              </option>
+              @for (pr of provincias(); track pr.departamentoId) {
+                <option [value]="pr.departamentoNombre">{{ pr.departamentoNombre }}</option>
+              }
+            </select>
           </div>
           <div class="field-group">
             <label class="field-label">Distrito / Ciudad</label>
-            <input type="text" formControlName="distrito" class="form-input" placeholder="Ej: Bogotá" />
+            <select
+              formControlName="distrito"
+              class="form-select"
+              [class.error]="isInvalid('distrito')"
+              [attr.disabled]="distritos().length ? null : true"
+            >
+              <option value="">
+                {{ distritos().length ? 'Seleccione un distrito...' : 'Seleccione primero una provincia' }}
+              </option>
+              @for (d of distritos(); track d.municipioId) {
+                <option [value]="d.municipioNombre">{{ d.municipioNombre }}</option>
+              }
+            </select>
           </div>
           <div class="field-group">
             <label class="field-label">Planta</label>
@@ -460,7 +492,12 @@
           </div>
           <div class="field-group">
             <label class="field-label">Zona</label>
-            <input type="text" formControlName="zona" class="form-input" placeholder="Ej: Zona Norte" />
+            <select formControlName="zona" class="form-select" [class.error]="isInvalid('zona')">
+              <option value="">-- Seleccionar --</option>
+              @for (z of zonas; track z) {
+                <option [value]="z">{{ z }}</option>
+              }
+            </select>
           </div>
         </div>
       </div>

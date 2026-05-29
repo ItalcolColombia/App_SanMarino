@@ -18,7 +18,10 @@ import type { CreateSeguimientoLoteLevanteDto, UpdateSeguimientoLoteLevanteDto }
 import { ModalCreateEditComponent } from '../../../lote-levante/pages/modal-create-edit/modal-create-edit.component';
 import { ModalDetalleSeguimientoLevanteComponent } from '../../../lote-levante/pages/modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
+import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { LesionService } from '../../../lesiones/services/lesion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LoteReproductoraAveEngordeService, LoteReproductoraAveEngordeDto } from '../../../lote-reproductora-ave-engorde/services/lote-reproductora-ave-engorde.service';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -33,7 +36,9 @@ import { faPlus, faPen, faTrash, faFilter, faEye } from '@fortawesome/free-solid
     ModalCreateEditComponent,
     ModalDetalleSeguimientoLevanteComponent,
     ConfirmationModalComponent,
-    FontAwesomeModule
+    FontAwesomeModule,
+    ShowIfCountryDirective,
+    LesionTabComponent
   ],
   templateUrl: './seguimiento-diario-lote-reproductora-list.component.html',
   styleUrls: ['./seguimiento-diario-lote-reproductora-list.component.scss']
@@ -68,6 +73,8 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   hasSinGalpon = false;
   seguimientos: SeguimientoLoteLevanteDto[] = [];
   loading = false;
+  /** UI: pestaña activa dentro del módulo (seguimiento, lesiones) */
+  activeTab: 'seguimiento' | 'lesiones' = 'seguimiento';
   modalOpen = false;
   detailModalOpen = false;
   editing: SeguimientoLoteLevanteDto | null = null;
@@ -110,7 +117,20 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     private segSvc: SeguimientoDiarioLoteReproductoraService,
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
     private toastService: ToastService
+    , private lesionSvc: LesionService
   ) {}
+
+  openLesionCreate(): void {
+    // Mantener compatibilidad: mostrar el panel de Lesiones y un recordatorio.
+    this.activeTab = 'lesiones';
+    this.lesionSvc.openCreate$.next();
+  }
+
+  onOpenLesion(): void {
+    // Método enlazado desde el header CTA; abre la pestaña Lesiones y solicita apertura del modal.
+    this.activeTab = 'lesiones';
+    this.lesionSvc.openCreate$.next();
+  }
 
   get selectedGranjaName(): string {
     return this.granjas.find(g => g.id === this.selectedGranjaId)?.name ?? '';

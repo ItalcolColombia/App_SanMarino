@@ -90,7 +90,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     return 28 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
-  trackByDiarioFila = (_: number, f: SeguimientoDiarioTablaFilaDto) => f.segId;
+  // segId puede ser null (movs sin seguimiento, fix #14) → usar fecha como fallback único para trackBy
+  trackByDiarioFila = (_: number, f: SeguimientoDiarioTablaFilaDto) => f.segId ?? `mov-${f.fecha}`;
 
   // ─── Filtros ─────────────────────────────────────────────────────────────
 
@@ -157,14 +158,20 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   onTabChange(tab: 'general' | 'indicadores' | 'grafica'): void { this.activeTab = tab; }
   onCreate(): void { this.create.emit(); }
   onEdit(seg: SeguimientoLoteLevanteDto): void { this.edit.emit(seg); }
-  onDelete(id: number): void { this.delete.emit(id); }
+  onDelete(id: number | null): void {
+    if (id == null) return; // Movimiento sin seguimiento → no se puede eliminar
+    this.delete.emit(id);
+  }
   onViewDetail(seg: SeguimientoLoteLevanteDto): void { this.viewDetail.emit(seg); }
 
-  onViewDetailById(segId: number): void {
+  // Las firmas aceptan number | null (fix #14: filas sin seguimiento tienen segId=null)
+  onViewDetailById(segId: number | null): void {
+    if (segId == null) return; // Movimiento sin seguimiento → no hay detalle que ver
     const seg = this.seguimientos.find(s => s.id === segId);
     if (seg) this.viewDetail.emit(seg);
   }
-  onEditById(segId: number): void {
+  onEditById(segId: number | null): void {
+    if (segId == null) return;
     const seg = this.seguimientos.find(s => s.id === segId);
     if (seg) this.edit.emit(seg);
   }

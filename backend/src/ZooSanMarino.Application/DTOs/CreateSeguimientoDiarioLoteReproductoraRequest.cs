@@ -69,6 +69,11 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
 
     public string? CreatedByUserId { get; set; }
 
+    // Panamá: cantidad de alimento en quintales por categoría (solo visible en formularios Panamá)
+    public decimal? QqMixtas { get; set; }
+    public decimal? QqHembras { get; set; }
+    public decimal? QqMachos { get; set; }
+
     /// <summary>
     /// Convierte este request a SeguimientoLoteLevanteDto para el servicio (que persiste en seguimiento_diario_lote_reproductora_aves_engorde).
     /// </summary>
@@ -137,7 +142,11 @@ public class CreateSeguimientoDiarioLoteReproductoraRequest
             ConsumoAguaOrp: ConsumoAguaOrp,
             ConsumoAguaTemperatura: ConsumoAguaTemperatura,
             CreatedByUserId: CreatedByUserId,
-            SaldoAlimentoKg: null
+            SaldoAlimentoKg: null,
+            HistoricoConsumoAlimento: null,
+            QqMixtas: QqMixtas,
+            QqHembras: QqHembras,
+            QqMachos: QqMachos
         );
     }
 

@@ -3069,14 +3069,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
-                    b.Property<DateTime?>("ErpCreate")
-                        .HasColumnType("date")
-                        .HasColumnName("erp_create");
-
-                    b.Property<int?>("FarmId")
-                        .HasColumnType("integer")
-                        .HasColumnName("farm_id");
-
                     b.Property<string>("LoteNombre")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3103,9 +3095,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.HasIndex("CompanyId")
                         .HasDatabaseName("ix_lote_postura_base_company");
-
-                    b.HasIndex("FarmId")
-                        .HasDatabaseName("ix_lote_postura_base_farm_id");
 
                     b.ToTable("lote_postura_base", "public", t =>
                         {
@@ -3220,30 +3209,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<int?>("HembrasL")
                         .HasColumnType("integer")
                         .HasColumnName("hembras_l");
-
-                    b.Property<int>("LevanteTrasladoIngresoHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("levante_traslado_ingreso_hembras");
-
-                    b.Property<int>("LevanteTrasladoIngresoMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("levante_traslado_ingreso_machos");
-
-                    b.Property<int>("LevanteTrasladoSalidaHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("levante_traslado_salida_hembras");
-
-                    b.Property<int>("LevanteTrasladoSalidaMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("levante_traslado_salida_machos");
 
                     b.Property<string>("Linea")
                         .HasMaxLength(80)
@@ -3663,30 +3628,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<double?>("PesoMixto")
                         .HasColumnType("double precision")
                         .HasColumnName("peso_mixto");
-
-                    b.Property<int>("ProduccionTrasladoIngresoHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("produccion_traslado_ingreso_hembras");
-
-                    b.Property<int>("ProduccionTrasladoIngresoMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("produccion_traslado_ingreso_machos");
-
-                    b.Property<int>("ProduccionTrasladoSalidaHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("produccion_traslado_salida_hembras");
-
-                    b.Property<int>("ProduccionTrasladoSalidaMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("produccion_traslado_salida_machos");
 
                     b.Property<string>("Raza")
                         .HasMaxLength(80)
@@ -6069,35 +6010,9 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
-                    b.Property<int>("ErrorSexajeHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("error_sexaje_hembras");
-
-                    b.Property<int>("ErrorSexajeMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("error_sexaje_machos");
-
-                    b.Property<bool>("EsTraslado")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("es_traslado");
-
                     b.Property<DateTime>("FechaRegistro")
                         .HasColumnType("date")
                         .HasColumnName("fecha_registro");
-
-                    b.Property<DateTime?>("FechaTraslado")
-                        .HasColumnType("date")
-                        .HasColumnName("fecha_traslado");
-
-                    b.Property<int?>("GranjaDestinoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("granja_destino_id");
 
                     b.Property<int>("HuevosIncubables")
                         .ValueGeneratedOnAdd()
@@ -6110,10 +6025,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("huevos_totales");
-
-                    b.Property<int?>("LoteDestinoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_destino_id");
 
                     b.Property<int>("LoteId")
                         .HasColumnType("integer")
@@ -6147,68 +6058,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("produccion_lote_id");
 
-                    b.Property<int>("SelH")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("sel_h");
-
-                    b.Property<int>("SelM")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("sel_m");
-
-                    b.Property<string>("TrasladoDireccion")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("traslado_direccion");
-
-                    b.Property<int?>("TrasladoGranjaContraparteId")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_granja_contraparte_id");
-
-                    b.Property<int?>("TrasladoHembras")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_hembras");
-
-                    b.Property<int>("TrasladoIngresoHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_ingreso_hembras");
-
-                    b.Property<int>("TrasladoIngresoMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_ingreso_machos");
-
-                    b.Property<int?>("TrasladoLoteContraparteId")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_lote_contraparte_id");
-
-                    b.Property<int?>("TrasladoMachos")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_machos");
-
-                    b.Property<string>("TrasladoObservaciones")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("traslado_observaciones");
-
-                    b.Property<int>("TrasladoSalidaHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_salida_hembras");
-
-                    b.Property<int>("TrasladoSalidaMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_salida_machos");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -6219,9 +6068,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_produccion_seguimiento");
-
-                    b.HasIndex("EsTraslado")
-                        .HasDatabaseName("idx_produccion_seguimiento_es_traslado");
 
                     b.HasIndex("FechaRegistro")
                         .HasDatabaseName("IX_produccion_seguimiento_fecha_registro");
@@ -6609,12 +6455,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("error_sexaje_machos");
 
-                    b.Property<bool>("EsTraslado")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("es_traslado");
-
                     b.Property<int?>("Etapa")
                         .HasColumnType("integer")
                         .HasColumnName("etapa");
@@ -6793,43 +6633,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("traslado_aves_salida");
 
-                    b.Property<string>("TrasladoDireccion")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("traslado_direccion");
-
-                    b.Property<int?>("TrasladoGranjaContraparteId")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_granja_contraparte_id");
-
-                    b.Property<int>("TrasladoIngresoHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_ingreso_hembras");
-
-                    b.Property<int>("TrasladoIngresoMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_ingreso_machos");
-
-                    b.Property<int?>("TrasladoLoteContraparteId")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_lote_contraparte_id");
-
-                    b.Property<int>("TrasladoSalidaHembras")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_salida_hembras");
-
-                    b.Property<int>("TrasladoSalidaMachos")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("traslado_salida_machos");
-
                     b.Property<decimal?>("Uniformidad")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)")
@@ -6847,11 +6650,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
-                    b.Property<string>("UpdatedByUserId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("updated_by_user_id");
-
                     b.Property<int?>("VentaAvesCantidad")
                         .HasColumnType("integer")
                         .HasColumnName("venta_aves_cantidad");
@@ -6862,9 +6660,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_seguimiento_diario_levante_reproductoras");
-
-                    b.HasIndex("EsTraslado")
-                        .HasDatabaseName("idx_seguimiento_diario_lev_es_traslado");
 
                     b.ToTable("seguimiento_diario_levante_reproductoras", "public");
                 });
@@ -7592,14 +7387,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_registro");
 
-                    b.Property<DateTime?>("FechaTraslado")
-                        .HasColumnType("date")
-                        .HasColumnName("fecha_traslado");
-
-                    b.Property<int?>("GranjaDestinoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("granja_destino_id");
-
                     b.Property<JsonDocument>("ItemsAdicionales")
                         .HasColumnType("jsonb")
                         .HasColumnName("items_adicionales");
@@ -7613,10 +7400,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasPrecision(12, 3)
                         .HasColumnType("double precision")
                         .HasColumnName("kcal_ave_h");
-
-                    b.Property<int?>("LoteDestinoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("lote_destino_id");
 
                     b.Property<int>("LoteId")
                         .HasColumnType("integer")
@@ -7672,19 +7455,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("tipo_alimento");
-
-                    b.Property<int?>("TrasladoHembras")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_hembras");
-
-                    b.Property<int?>("TrasladoMachos")
-                        .HasColumnType("integer")
-                        .HasColumnName("traslado_machos");
-
-                    b.Property<string>("TrasladoObservaciones")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("traslado_observaciones");
 
                     b.Property<double?>("UniformidadH")
                         .HasPrecision(5, 2)

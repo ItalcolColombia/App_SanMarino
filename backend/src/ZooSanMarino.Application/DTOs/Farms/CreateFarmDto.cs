@@ -7,6 +7,13 @@ public record CreateFarmDto(
     int? RegionalId,    // ← nullable; id de la tabla Regional
     int? RegionalOptionId, // ← opcional; id de master_list_options; se resuelve a RegionalId por nombre
     int? DepartamentoId,
-    int? CiudadId       // ← **ciudadId** del front; se mapea a entity.MunicipioId
+    int? CiudadId,      // ← **ciudadId** del front; se mapea a entity.MunicipioId
+    // ────────────────────────────────────────────────────────────────
+    // NUEVOS CAMPOS (Panamá): cliente, zona, certificación GAB y geo
+    // ────────────────────────────────────────────────────────────────
+    int?     ClienteId      = null,
+    string?  Zona           = null,   // 'Zona 1' | 'Zona 2'
+    bool     CertificadoGab = false,
+    decimal? Latitud        = null,
+    decimal? Longitud       = null
 );
-

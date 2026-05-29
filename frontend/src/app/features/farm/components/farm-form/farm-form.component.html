@@ -80,6 +80,89 @@
         </div>
       </div>
 
+      <!-- ============ Sección Panamá ============ -->
+      <ng-container *appShowIfCountry="'PANAMA'">
+        <div class="ux-section-divider">
+          <h3 class="ux-section-title">Información Panamá</h3>
+          <p class="ux-subtitle">Campos requeridos para operaciones en Panamá.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Cliente -->
+          <div>
+            <label class="ux-label">Cliente</label>
+            <select
+              formControlName="clienteId"
+              class="ux-input"
+              (change)="onClienteChange($any($event.target).value)"
+            >
+              <option [ngValue]="null">-- Seleccionar cliente --</option>
+              <option *ngFor="let c of clientes" [ngValue]="c.id">
+                {{ c.nombre }}
+              </option>
+            </select>
+            <p class="ux-help">Al seleccionar un cliente se autopobla la zona.</p>
+          </div>
+
+          <!-- Zona (autopoblada, deshabilitada) -->
+          <div>
+            <label class="ux-label">Zona</label>
+            <input
+              formControlName="zona"
+              type="text"
+              class="ux-input"
+              placeholder="Se autopobla al elegir cliente"
+              readonly
+            />
+            <p class="ux-help">Se asigna automáticamente desde el cliente.</p>
+          </div>
+
+          <!-- Certificado GAB -->
+          <div>
+            <label class="ux-label">Certificado GAB</label>
+            <select formControlName="certificadoGab" class="ux-input">
+              <option [ngValue]="false">No</option>
+              <option [ngValue]="true">Sí</option>
+            </select>
+          </div>
+
+          <!-- Botón Capturar ubicación -->
+          <div class="flex items-end">
+            <button
+              type="button"
+              class="btn-muted"
+              (click)="capturarUbicacion()"
+            >
+              Capturar ubicación actual
+            </button>
+          </div>
+
+          <!-- Latitud -->
+          <div>
+            <label class="ux-label">Latitud</label>
+            <input
+              formControlName="latitud"
+              type="number"
+              step="0.0000001"
+              class="ux-input"
+              placeholder="Ej. 8.9824"
+            />
+          </div>
+
+          <!-- Longitud -->
+          <div>
+            <label class="ux-label">Longitud</label>
+            <input
+              formControlName="longitud"
+              type="number"
+              step="0.0000001"
+              class="ux-input"
+              placeholder="Ej. -79.5199"
+            />
+          </div>
+        </div>
+      </ng-container>
+
       <!-- Footer -->
       <div class="ux-actions">
         <button type="button" class="btn-muted" (click)="cancel()">Cancelar</button>

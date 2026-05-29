@@ -196,7 +196,9 @@
                   <td class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
                   <td class="cell-text cell-text--obs" [title]="f.observaciones || ''">{{ (f.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
-                    <div class="btn-group">
+                    <!-- Fix #14: si segId es null, la fila representa un movimiento de inventario/venta
+                         sin seguimiento diario asociado → ocultar acciones (no hay nada que editar). -->
+                    <div class="btn-group" *ngIf="f.segId != null; else movSinSeg">
                       <button type="button" (click)="onViewDetailById(f.segId)" class="icon-btn" title="Ver detalle">👁️</button>
                       <ng-container *appHasPermission="'editar_registro'">
                         <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
@@ -205,6 +207,9 @@
                         <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
                       </ng-container>
                     </div>
+                    <ng-template #movSinSeg>
+                      <span class="badge-mov" title="Movimiento de inventario/venta sin seguimiento diario">📦 mov.</span>
+                    </ng-template>
                   </td>
                 </tr>
               </tbody>

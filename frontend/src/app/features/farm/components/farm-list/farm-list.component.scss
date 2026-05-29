@@ -50,23 +50,45 @@
   background: var(--warm-100);
 }
 
+/* Forzar 2 columnas para que col-span-2 funcione correctamente */
+.modal-form-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* ── Modal: ancho ampliado para campos Panamá, scroll robusto ── */
 .ux-modal__panel {
-  max-width: 720px;
-  max-height: min(90vh, 780px);
+  max-width: 920px;
+  // Altura: deja espacio suficiente sin cortar el footer
+  max-height: min(94vh, 920px);
   box-shadow: 0 2px 4px rgba(0,0,0,.06), 0 12px 40px rgba(0,0,0,.16);
-  overflow: hidden;
+  // flex-column ya viene del shared; NO poner overflow:hidden en el panel
+  // porque bloquea el overflow-y:auto del body
+  display: flex;
+  flex-direction: column;
+}
+
+/* El <form> debe crecer y ser flex-column para que body scrollee y foot quede fijo */
+.ux-modal__panel > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; // clave para que flex+overflow funcionen
 }
 
 .ux-modal__panel--detail {
-  max-width: 800px;
+  max-width: 860px;
 }
 
 .ux-modal__head {
   padding: 1rem 1.25rem;
+  flex-shrink: 0;
 }
 
 .ux-modal__body {
   padding: 1.25rem;
+  flex: 1;
+  min-height: 0;    // clave para activar el scroll interno
+  overflow-y: auto;
 
   &::-webkit-scrollbar { width: 6px; }
   &::-webkit-scrollbar-thumb { background: var(--warm-300); border-radius: 6px; }
@@ -75,6 +97,8 @@
 .ux-modal__foot {
   padding: 0.875rem 1.25rem;
   background: var(--warm-50);
+  flex-shrink: 0;   // el footer siempre visible, nunca se esconde
+  border-top: 1px solid var(--warm-200);
 }
 
 .ux-meta {

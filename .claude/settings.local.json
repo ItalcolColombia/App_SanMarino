@@ -111,7 +111,15 @@
       "Bash(ssh -T -o StrictHostKeyChecking=accept-new git@github.com)",
       "Bash(git fetch *)",
       "Bash(git rev-parse *)",
-      "Bash(gh api *)"
+      "Bash(gh api *)",
+      "Bash(which pandoc *)",
+      "Bash(python3 \"/Users/chelsycardona/Library/Application Support/Claude/local-agent-mode-sessions/skills-plugin/0ae3133b-a0d3-4d84-9615-a7bba5b296cd/ab3f4d48-750f-4981-bd60-a1791bd751fb/skills/docx/scripts/office/unpack.py\" \"/Users/chelsycardona/Downloads/Plande Desarrollo Panama.docx\" /tmp/panama_plan/)",
+      "Bash(unzip -o \"/Users/chelsycardona/Downloads/Plande Desarrollo Panama.docx\" -d /tmp/panama_plan/)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\SAN MARINO\\\\Desktop\\\\App_SanMarino\\\\frontend\\\\src\\\\app\\\\features\" -Directory)",
+      "Bash(Select-Object Name)",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\SAN MARINO\\\\Desktop\\\\App_SanMarino\\\\frontend\\\\src\\\\app\\\\features\" | ForEach-Object { $_.Name })",
+      "Bash(PGPASSWORD=123456789 psql -h localhost -p 5433 -U postgres -d sanmarinoapplocal -t -c \"SELECT migration_id FROM \\\\\"__EFMigrationsHistory\\\\\" WHERE migration_id = '20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo';\")",
+      "PowerShell($env:PGPASSWORD=\"123456789\"; & \"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql.exe\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -t -c \"SELECT migration_id FROM \\\\`\"__EFMigrationsHistory\\\\`\" WHERE migration_id = '20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo';\")"
     ]
   }
 }

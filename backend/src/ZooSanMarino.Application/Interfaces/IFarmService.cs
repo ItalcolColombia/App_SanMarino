@@ -46,4 +46,10 @@ public interface IFarmService
     Task<FarmDetailDto?>                        GetDetailByIdAsync(int id);
     Task<FarmTreeDto?>                          GetTreeByIdAsync(int farmId, bool soloActivos = true);
     Task<bool>                                           HardDeleteAsync(int id);
+
+    /// <summary>
+    /// Granjas filtradas por la zona del usuario actual cuando el país activo es PANAMA.
+    /// Si país != PANAMA o el usuario no tiene zona, devuelve las granjas asignadas vía UserFarm.
+    /// </summary>
+    Task<IEnumerable<FarmDto>> GetByZonaUsuarioAsync(string? paisActivo, CancellationToken ct = default);
 }

@@ -11,7 +11,7 @@ To prevent hallucinations, ensure architectural integrity, and maintain a clear 
 ### STEP 1: Full Planning (`/fase_de_desarrollo/`)
 1. Analyze the user's request thoroughly based on the existing Clean Architecture (Backend) and Angular Standalone architecture (Frontend).
 2. Create a detailed Markdown planning document inside the `./fase_de_desarrollo/` directory (e.g., `./fase_de_desarrollo/feature_name_plan.md`). 
-   * **Absolute Local Path Reference:** `/Users/chelsycardona/Desktop/App_SanMarino/fase_de_desarrollo/`
+   * **Absolute Local Path Reference (Windows):** `C:\Users\SAN MARINO\Desktop\App_SanMarino\fase_de_desarrollo\`
 3. This document must contain:
    * Architectural design and technical approach.
    * Specific files, components, and services to create or modify.
@@ -20,7 +20,7 @@ To prevent hallucinations, ensure architectural integrity, and maintain a clear 
 
 ### STEP 2: State Tracking (`tracker_estado.md`)
 1. Open the `./tracker_estado.md` file.
-   * **Absolute Local Path Reference:** `/Users/chelsycardona/Desktop/App_SanMarino/tracker_estado.md`
+   * **Absolute Local Path Reference (Windows):** `C:\Users\SAN MARINO\Desktop\App_SanMarino\tracker_estado.md`
 2. **CLEAR / WIPE** all its previous contents completely (remove the state of the previous task).
 3. Add a clear title and a reference/link to the new planning document created in Step 1.
 4. Break down the development plan into a **granular, step-by-step checklist** of small implementation tasks using Markdown checkboxes (`- [ ]`).

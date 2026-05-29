@@ -1,5 +1,5 @@
 // src/app/features/config/farm-management/farm-management.component.ts
-import { Component, OnInit, ChangeDetectionStrategy, OnDestroy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule,
@@ -21,6 +21,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { CompanyService } from '../../../core/services/company/company.service';
 import { ActiveCompanyService } from '../../../core/auth/active-company.service';
+import { ClienteService } from '../../clientes/services/cliente.service';
+import { TokenStorageService } from '../../../core/auth/token-storage.service';
 import { CompanySelectorComponent } from '../../../shared/components/company-selector/company-selector.component';
 import { CompanyTestComponent } from './company-test.component';
 import { CompanyAdminTestComponent } from '../../test/company-admin-test/company-admin-test.component';
@@ -40,6 +42,11 @@ interface Farm {
   name: string;
   companyId: number | null;
   address: string;
+  clienteId?: number | null;
+  zona?: string | null;
+  certificadoGab?: boolean;
+  latitud?: number | null;
+  longitud?: number | null;
   nuclei: Nucleus[];
 }
 
@@ -73,6 +80,11 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
   // Empresas cargadas desde el servicio
   companies: any[] = [];
   companyMap: Record<number, string> = {};
+  // Clientes (solo para Panamá)
+  clients: any[] = [];
+  loadingClients = false;
+  // Flag de país para evitar getters que no actualizan OnPush
+  panama = false;
   
   // Empresa activa
   activeCompany: string | null = null;
@@ -124,6 +136,9 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
     private http: HttpClient,
     private companyService: CompanyService,
     private activeCompanyService: ActiveCompanyService,
+    private clienteService: ClienteService,
+    private tokenStorage: TokenStorageService,
+    private cdr: ChangeDetectorRef,
     library: FaIconLibrary
   ) {
     library.addIcons(faTractor, faPlus, faTrash, faPen, faEye, faTimes);
@@ -139,12 +154,36 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
 
     // Construir formulario
     this.form = this.fb.group({
-      id:        [null],
-      name:      ['', Validators.required],
-      companyId: [null, Validators.required],
-      address:   [''],
-      nuclei:    this.fb.array([])
+      id:             [null],
+      name:           ['', Validators.required],
+      companyId:      [null, Validators.required],
+      clienteId:      [null],
+      zona:           [''],
+      address:        [''],
+      certificadoGab: [false],
+      latitud:        [null],
+      longitud:       [null],
+      nuclei:         this.fb.array([])
     });
+
+    // precargar bandera y clientes si la sesión indica Panamá
+    const initial = this.tokenStorage.get();
+    this.panama = this.normalizeCountry(initial?.activePaisNombre) === 'PANAMA';
+    if (this.panama) this.loadClients();
+
+    // React to session changes (token might be loaded after init)
+    this.tokenStorage.session$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(sess => {
+        const isPan = this.normalizeCountry(sess?.activePaisNombre) === 'PANAMA';
+        this.panama = isPan;
+        if (isPan) {
+          if (!this.clients?.length) this.loadClients();
+        } else {
+          this.clients = [];
+        }
+        this.cdr.markForCheck();
+      });
   }
 
   ngOnDestroy(): void {
@@ -194,6 +233,61 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
         // Recargar empresas cuando cambie la empresa activa
         this.loadCompanies();
       });
+  }
+
+  // ===== Clientes (solo Panamá) =====
+  private loadClients(): void {
+    this.loadingClients = true;
+    this.clienteService.getAll()
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => this.loadingClients = false)
+      )
+      .subscribe({
+        next: (list) => { this.clients = list || []; },
+        error: (err) => { console.error('Error loading clients', err); this.clients = []; }
+      });
+  }
+
+  get isPanama(): boolean { return this.panama; }
+
+  private normalizeCountry(val: any): string {
+    const active = (val || '').toString().trim();
+    try {
+      const norm = active.normalize ? active.normalize('NFD').replace(/\p{Diacritic}/gu, '') : active;
+      return (norm || '').toUpperCase();
+    } catch {
+      return active.toUpperCase();
+    }
+  }
+
+  onClienteChange(clienteId: number | null | string): void {
+    const idNum = clienteId == null || clienteId === '' ? null : Number(clienteId);
+    if (!idNum) {
+      this.form.patchValue({ zona: '' });
+      return;
+    }
+    const c = this.clients.find(x => x.id === idNum) as any | undefined;
+    if (c) this.form.patchValue({ zona: c.zona ?? '' });
+  }
+
+  /** Captura la ubicación GPS del dispositivo y rellena latitud/longitud en el formulario. */
+  capturarUbicacion(): void {
+    if (!navigator.geolocation) {
+      alert('Geolocalización no disponible en este dispositivo.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        this.form.patchValue({
+          latitud:  pos.coords.latitude,
+          longitud: pos.coords.longitude
+        });
+        this.cdr.markForCheck();
+      },
+      (err) => alert('No se pudo obtener la ubicación: ' + err.message),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   }
 
   onCompanyChanged(companyName: string): void {
@@ -249,10 +343,15 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
     if (farm) {
       // Patch de campos simples
       this.form.patchValue({
-        id:        farm.id ?? null,
-        name:      farm.name ?? '',
-        companyId: farm.companyId ?? null,
-        address:   farm.address ?? ''
+        id:             farm.id ?? null,
+        name:           farm.name ?? '',
+        companyId:      farm.companyId ?? null,
+        address:        farm.address ?? '',
+        clienteId:      farm.clienteId ?? null,
+        zona:           farm.zona ?? '',
+        certificadoGab: farm.certificadoGab ?? false,
+        latitud:        farm.latitud ?? null,
+        longitud:       farm.longitud ?? null,
       });
 
       // Reconstruir núcleos + galpones

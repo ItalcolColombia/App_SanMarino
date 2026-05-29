@@ -42,6 +42,7 @@ export interface ClienteSearchRequest {
   search?:        string;
   tipoCliente?:   string;
   pais?:          string;
+  zona?:          string;
   tipoDocumento?: string;
   soloActivos?:   boolean;
   sortBy?:        string;
@@ -62,11 +63,15 @@ export const TIPOS_DOCUMENTO = [
 ] as const;
 
 export const TIPOS_CLIENTE = [
-  'Minorista', 'Mayorista', 'Distribuidor', 'Industrial', 'Institucional', 'Otro'
+  'Propietario', 'Arrendador','Otro'
 ] as const;
 
+/**
+ * @deprecated Fallback estático; los países ahora se cargan desde el endpoint /Pais
+ * mediante PaisService. Mantener solo por compatibilidad si algún componente legacy lo usa.
+ */
 export const PAISES = [
-  'Colombia', 'Ecuador', 'Panamá', 'Venezuela', 'Perú',
-  'México', 'Chile', 'Argentina', 'Bolivia', 'Paraguay',
-  'Uruguay', 'Costa Rica', 'Guatemala', 'Honduras', 'El Salvador', 'Otro'
+   'Panamá'
 ] as const;
+
+export const ZONAS_PANAMA = ['Zona 1', 'Zona 2'] as const;

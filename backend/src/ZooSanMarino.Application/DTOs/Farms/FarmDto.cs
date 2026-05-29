@@ -11,5 +11,13 @@ public record FarmDto(
     string? DepartamentoNombre = null,  // ← Nombre del departamento
     string? CiudadNombre = null,        // ← Nombre de la ciudad/municipio
     string? RegionalNombre = null,      // ← Nombre de la regional
-    string? CompanyNombre = null        // ← Nombre de la compañía (para no pedir lista aparte en el front)
+    string? CompanyNombre = null,       // ← Nombre de la compañía (para no pedir lista aparte en el front)
+    // ────────────────────────────────────────────────────────────────
+    // NUEVOS CAMPOS (Panamá): cliente, zona, certificación GAB y geo
+    // ────────────────────────────────────────────────────────────────
+    int? ClienteId = null,
+    string? Zona = null,               // 'Zona 1' | 'Zona 2'
+    bool CertificadoGab = false,
+    decimal? Latitud = null,
+    decimal? Longitud = null
 );

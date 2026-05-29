@@ -641,7 +641,7 @@ public class GalponService : AppInterfaces.IGalponService
                     g.CreatedAt,
                     g.UpdatedByUserId,
                     g.UpdatedAt,
-                    new FarmLiteDto(g.Farm.Id, g.Farm.Name, g.Farm.RegionalId, g.Farm.DepartamentoId, g.Farm.MunicipioId),
+                    new FarmLiteDto(g.Farm.Id, g.Farm.Name, g.Farm.RegionalId, g.Farm.DepartamentoId, g.Farm.MunicipioId, g.Farm.ClienteId, g.Farm.Zona, g.Farm.CertificadoGab, g.Farm.Latitud, g.Farm.Longitud),
                     new SharedDtos.NucleoLiteDto(g.Nucleo.NucleoId, g.Nucleo.NucleoNombre, g.Nucleo.GranjaId),
                     new SharedDtos.CompanyLiteDto(
                         g.CompanyId,

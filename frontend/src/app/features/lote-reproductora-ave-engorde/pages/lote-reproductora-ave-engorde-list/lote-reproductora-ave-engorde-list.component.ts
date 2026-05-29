@@ -16,6 +16,7 @@ import {
 } from '../../services/lote-reproductora-ave-engorde.service';
 import { LoteEngordeService } from '../../../lote-engorde/services/lote-engorde.service';
 import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
+// ShowIfCountryDirective removed — not used in this component
 
 @Component({
   selector: 'app-lote-reproductora-ave-engorde-list',
@@ -116,6 +117,21 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
 
   get incubadoras(): FormArray<FormGroup> {
     return this.form.get('incubadoras') as FormArray<FormGroup>;
+  }
+
+  /** Lote actualmente seleccionado en los filtros, expuesto al `<app-lesion-tab>`. */
+  get loteIdActual(): number | undefined {
+    return this.selectedLoteAveEngordeId ?? undefined;
+  }
+
+  /** Granja actualmente seleccionada en los filtros, expuesta al `<app-lesion-tab>`. */
+  get farmIdActual(): number | undefined {
+    return this.selectedGranjaId ?? undefined;
+  }
+
+  /** Galpón actualmente seleccionado en los filtros, expuesto al `<app-lesion-tab>`. */
+  get galponIdActual(): string | undefined {
+    return this.selectedGalponId ?? undefined;
   }
 
   /** Total hembras (H) que se usarán en los registros del formulario actual. */

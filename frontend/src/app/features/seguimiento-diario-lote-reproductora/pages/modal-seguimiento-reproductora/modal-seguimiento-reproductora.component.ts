@@ -5,7 +5,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Va
 import { LoteSeguimientoDto, CreateLoteSeguimientoDto, UpdateLoteSeguimientoDto } from '../../services/lote-seguimiento.service';
 import { LoteReproductoraDto } from '../../../lote-reproductora/services/lote-reproductora.service';
 import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
+import { ShowIfEcuadorPanamaDirective, ShowIfCountryDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { catchError, finalize } from 'rxjs/operators';
@@ -34,7 +34,13 @@ interface ItemSeguimientoDto {
 @Component({
   selector: 'app-modal-seguimiento-reproductora',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, ShowIfEcuadorPanamaDirective],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    ShowIfEcuadorPanamaDirective,
+    ShowIfCountryDirective
+  ],
   templateUrl: './modal-seguimiento-reproductora.component.html',
   styleUrls: ['./modal-seguimiento-reproductora.component.scss']
 })
@@ -47,6 +53,13 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   @Input() selectedLoteId: string | null = null;
   @Input() selectedReproId: string | null = null;
   @Input() loading: boolean = false;
+  /**
+   * Granja asociada al contexto actual. Si el padre puede resolverla, pásala explícitamente.
+   * Si no, se intenta derivar del lote seleccionado (granjaIdActual).
+   * TODO: si el componente padre no provee farmId, asegurar que los lotes pasados incluyan `granjaId`
+   * o leerlo de la sesión activa del usuario.
+   */
+  @Input() farmId: number | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<{ data: CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto; isEdit: boolean }>();
@@ -113,6 +126,23 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     this.isEcuadorOrPanama = this.countryFilter.isEcuadorOrPanama();
   }
 
+  /**
+   * Granja efectiva para componentes hijos (Lesiones). Prioriza el Input `farmId`
+   * y cae al `granjaIdActual` derivado del lote elegido. Puede ser null hasta que
+   * el usuario seleccione un lote o el padre provea el valor.
+   */
+  get farmIdActual(): number | null {
+    return this.farmId ?? this.granjaIdActual ?? null;
+  }
+
+  /** Lote seleccionado en formato numérico para hijos (LesionTab espera number). */
+  get loteIdActual(): number | null {
+    const raw = this.form?.get('loteId')?.value;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
   ngOnChanges(): void {
     if (this.isOpen && this.editing) {
       this.populateForm();
@@ -153,6 +183,10 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       consumoAguaPh: [null, [Validators.min(0)]],
       consumoAguaOrp: [null, [Validators.min(0)]],
       consumoAguaTemperatura: [null, [Validators.min(0)]],
+      // Cantidad de alimento en quintales por categoría (solo Panamá)
+      qqMixtas: [null, [Validators.min(0)]],
+      qqHembras: [null, [Validators.min(0)]],
+      qqMachos: [null, [Validators.min(0)]],
     });
 
     // Suscribirse a cambios en loteId para obtener granjaId y cargar inventario
@@ -356,6 +390,9 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       consumoAguaPh: null,
       consumoAguaOrp: null,
       consumoAguaTemperatura: null,
+      qqMixtas: null,
+      qqHembras: null,
+      qqMachos: null,
     });
 
     if (this.selectedLoteId) {
@@ -404,6 +441,11 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       consumoAguaPh: this.editing.consumoAguaPh,
       consumoAguaOrp: this.editing.consumoAguaOrp,
       consumoAguaTemperatura: this.editing.consumoAguaTemperatura,
+      // Quintales de alimento por categoría (Panamá). El DTO oficial no los declara,
+      // por eso se leen a través de un cast indexado.
+      qqMixtas: (this.editing as any).qqMixtas ?? null,
+      qqHembras: (this.editing as any).qqHembras ?? null,
+      qqMachos: (this.editing as any).qqMachos ?? null,
     });
 
     // Cargar inventario si hay lote
@@ -538,7 +580,11 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     if (otrosItemsHembras.length > 0) itemsAdicionales.itemsHembras = otrosItemsHembras;
     if (otrosItemsMachos.length > 0) itemsAdicionales.itemsMachos = otrosItemsMachos;
 
-    const payload: CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto = {
+    const payload: (CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto) & {
+      qqMixtas?: number | null;
+      qqHembras?: number | null;
+      qqMachos?: number | null;
+    } = {
       fecha: new Date(raw.fecha).toISOString(),
       loteId: Number(raw.loteId),
       reproductoraId: raw.reproductoraId,
@@ -565,6 +611,11 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       consumoAguaPh: raw.consumoAguaPh,
       consumoAguaOrp: raw.consumoAguaOrp,
       consumoAguaTemperatura: raw.consumoAguaTemperatura,
+      // Cantidad de alimento en quintales por categoría (solo Panamá). El DTO oficial
+      // no los declara aún, los anexamos vía cast para que el service los envíe tal cual.
+      qqMixtas: raw.qqMixtas ?? null,
+      qqHembras: raw.qqHembras ?? null,
+      qqMachos: raw.qqMachos ?? null,
       metadata: Object.keys(metadata).length > 0 ? metadata : null,
       itemsAdicionales: Object.keys(itemsAdicionales).length > 0 ? itemsAdicionales : null
     };
@@ -573,7 +624,10 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       (payload as UpdateLoteSeguimientoDto).id = this.editing.id;
     }
 
-    this.save.emit({ data: payload, isEdit: !!this.editing });
+    this.save.emit({
+      data: payload as CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto,
+      isEdit: !!this.editing
+    });
     // El componente padre manejará el loading y los mensajes
     // Resetear saving después de un breve delay para permitir que el padre maneje el estado
     setTimeout(() => {

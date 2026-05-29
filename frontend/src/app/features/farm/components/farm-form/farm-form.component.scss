@@ -231,3 +231,17 @@
   .ux-card__header { padding: 1.25rem 1.25rem .5rem 1.25rem; }
   .ux-card__body   { padding: 1.25rem; }
 }
+
+/* ======= Sección Panamá ======= */
+.ux-section-divider {
+  margin: 1.25rem 0 .75rem 0;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--warm-200);
+}
+
+.ux-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-red);
+}

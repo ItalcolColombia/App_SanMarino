@@ -14,7 +14,8 @@ public record UserDto(
     bool     IsActive,
     bool     IsLocked,
     DateTime CreatedAt,
-    DateTime? LastLoginAt
+    DateTime? LastLoginAt,
+    string?  Zona = null
 );
 
 public record CreateUserDto(
@@ -27,7 +28,8 @@ public record CreateUserDto(
     string   Password,
     int[]    CompanyIds,
     int[]    RoleIds,
-    int[]    FarmIds
+    int[]    FarmIds,
+    string?  Zona = null
 );
 public record UpdateUserDto(
     string?  SurName,
@@ -39,6 +41,7 @@ public record UpdateUserDto(
     bool?    IsLocked,
     int[]?   CompanyIds,
     int[]?   RoleIds,
-    int[]?   FarmIds
+    int[]?   FarmIds,
+    string?  Zona = null
 );
 

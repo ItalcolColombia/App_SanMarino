@@ -79,6 +79,9 @@ public class ClienteService : IClienteService
         if (!string.IsNullOrWhiteSpace(req.TipoDocumento))
             query = query.Where(x => x.TipoDocumento == req.TipoDocumento);
 
+        if (!string.IsNullOrWhiteSpace(req.Zona))
+            query = query.Where(x => x.Zona == req.Zona);
+
         query = req.SortBy.ToLower() switch
         {
             "numero_identificacion" => req.SortDesc ? query.OrderByDescending(x => x.NumeroIdentificacion) : query.OrderBy(x => x.NumeroIdentificacion),
@@ -137,6 +140,9 @@ public class ClienteService : IClienteService
 
         if (entity is null) return null;
 
+        // Detectar cambio de zona para sincronizar denormalización en farms (decisión 6 del plan)
+        var zonaCambio = !string.Equals(entity.Zona, dto.Zona, StringComparison.Ordinal);
+
         entity.TipoDocumento        = dto.TipoDocumento;
         entity.NumeroIdentificacion = dto.NumeroIdentificacion;
         entity.Nombre               = dto.Nombre;
@@ -153,6 +159,18 @@ public class ClienteService : IClienteService
         entity.UpdatedAt            = DateTime.UtcNow;
 
         await _ctx.SaveChangesAsync(ct);
+
+        // Si cambió la zona del cliente, propagar a todas sus granjas (denormalización viva)
+        if (zonaCambio)
+        {
+            await _ctx.Farms
+                .Where(f => f.ClienteId == entity.Id && f.CompanyId == companyId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(f => f.Zona, dto.Zona)
+                    .SetProperty(f => f.UpdatedByUserId, _currentUser.UserId)
+                    .SetProperty(f => f.UpdatedAt, DateTime.UtcNow), ct);
+        }
+
         return ToDto(entity);
     }
 
