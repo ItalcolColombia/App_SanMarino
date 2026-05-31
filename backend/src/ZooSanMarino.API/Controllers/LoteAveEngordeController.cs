@@ -155,6 +155,23 @@ public class LoteAveEngordeController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
 
+    /// <summary>Digita/edita la merma del lote (Costos), con el lote abierto o cerrado. Parte B / R1.</summary>
+    [HttpPut("{loteAveEngordeId}/merma")]
+    [ProducesResponseType(typeof(LoteAveEngordeDtos.LoteAveEngordeDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoteAveEngordeDtos.LoteAveEngordeDetailDto>> ActualizarMerma(int loteAveEngordeId, [FromBody] ActualizarMermaLoteEngordeRequest? body)
+    {
+        if (body is null) return BadRequest("Body requerido.");
+        try
+        {
+            var res = await _svc.ActualizarMermaAsync(loteAveEngordeId, body);
+            return res is null ? NotFound() : Ok(res);
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
     /// <summary>Reabre un lote cerrado (motivo obligatorio).</summary>
     [HttpPost("{loteAveEngordeId}/abrir")]
     [ProducesResponseType(typeof(LoteAveEngordeDtos.LoteAveEngordeDetailDto), StatusCodes.Status200OK)]

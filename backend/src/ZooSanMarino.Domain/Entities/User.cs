@@ -8,6 +8,7 @@ namespace ZooSanMarino.Domain.Entities
         public string cedula { get; set; } = null!;
         public string telefono { get; set; } = null!;
         public string ubicacion { get; set; } = null!;
+        public string? Zona { get; set; }     // 'Zona 1' | 'Zona 2' | NULL = sin restricción (Panamá)
         public bool IsActive { get; set; } = true;
         public bool IsLocked { get; set; } = false;
         public DateTime? LockedAt { get; set; }

@@ -73,6 +73,23 @@ public class FarmController : ControllerBase
     }
 
     // ===========================
+    // PANAMÁ — Granjas filtradas por zona del usuario logueado
+    // ===========================
+    // GET /api/Farm/by-zona-usuario
+    //  • Lee header X-Active-Pais-Nombre. Si = "PANAMA" y el usuario tiene zona asignada,
+    //    filtra granjas por farms.zona = users.zona.
+    //  • En otros países conserva el comportamiento de granjas asignadas vía UserFarm.
+    [HttpGet("by-zona-usuario")]
+    [ProducesResponseType(typeof(IEnumerable<FarmDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<FarmDto>>> GetByZonaUsuario(
+        [FromHeader(Name = "X-Active-Pais-Nombre")] string? paisActivo,
+        CancellationToken ct)
+    {
+        var items = await _svc.GetByZonaUsuarioAsync(paisActivo, ct);
+        return Ok(items);
+    }
+
+    // ===========================
     // BÚSQUEDA AVANZADA
     // ===========================
     // /api/Farm/search

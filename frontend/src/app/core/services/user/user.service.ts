@@ -14,6 +14,7 @@ export interface User {
   telefono?: string;
   cedula?: string;
   ubicacion?: string;
+  zona?: string | null;
   isActive: boolean;
   companyIds?: number[];
   companyNames?: string[];
@@ -34,6 +35,7 @@ export interface UserListItem {
   telefono?: string;
   cedula?: string;
   ubicacion?: string;
+  zona?: string | null;
   isActive: boolean;
   companyIds?: number[];
   companyNames?: string[];
@@ -53,6 +55,7 @@ export interface UserDto {
   telefono?: string;
   cedula?: string;
   ubicacion?: string;
+  zona?: string | null;
   isActive: boolean;
   companyIds?: number[];
   companyNames?: string[];
@@ -69,6 +72,7 @@ export interface CreateUserDto {
   telefono?: string;
   cedula?: string;
   ubicacion?: string;
+  zona?: string | null;
   password?: string;
   companyIds?: number[];
   roles?: string[];
@@ -86,6 +90,7 @@ export interface UpdateUserDto {
   telefono?: string;
   cedula?: string;
   ubicacion?: string;
+  zona?: string | null;
   isActive?: boolean;
   companyIds?: number[];
   roles?: string[];

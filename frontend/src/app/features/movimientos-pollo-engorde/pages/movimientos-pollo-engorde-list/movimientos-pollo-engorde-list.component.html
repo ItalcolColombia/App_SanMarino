@@ -324,7 +324,7 @@
                               <tr *ngFor="let m of fila.movimientos; trackBy: trackById">
                                 <td><small>{{ m.numeroMovimiento }}</small></td>
                                 <td>{{ m.loteOrigenNombre || '—' }}</td>
-                                <td class="num">{{ formatearNumero(m.totalAves) }}</td>
+                                <td class="num">{{ formatearNumero(m.totalAves) }}<span *ngIf="(m.avesSobrante ?? 0) > 0" class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ m.avesSobrante }} sobrante</span></td>
                                 <td class="num">{{ formatearNumero(m.cantidadHembras) }}</td>
                                 <td class="num">{{ formatearNumero(m.cantidadMachos) }}</td>
                                 <td class="num">{{ formatearNumero(m.cantidadMixtas) }}</td>
@@ -398,7 +398,7 @@
                       </div>
                       <div *ngIf="!fila.movimiento.granjaDestinoNombre && !fila.movimiento.loteDestinoNombre">—</div>
                     </td>
-                    <td class="number-cell"><strong>{{ formatearNumero(fila.movimiento.totalAves) }}</strong></td>
+                    <td class="number-cell"><strong>{{ formatearNumero(fila.movimiento.totalAves) }}</strong><span *ngIf="(fila.movimiento.avesSobrante ?? 0) > 0" class="badge badge--warn" title="Aves vendidas por encima del disponible (sobrante)">+{{ fila.movimiento.avesSobrante }} sobrante</span></td>
                     <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadHembras) }}</td>
                     <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadMachos) }}</td>
                     <td class="number-cell">{{ formatearNumero(fila.movimiento.cantidadMixtas) }}</td>

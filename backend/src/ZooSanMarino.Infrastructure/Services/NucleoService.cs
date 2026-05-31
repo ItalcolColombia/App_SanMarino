@@ -415,7 +415,7 @@ namespace ZooSanMarino.Infrastructure.Services
                     n.CreatedAt,
                     n.UpdatedByUserId,
                     n.UpdatedAt,
-                    new FarmLiteDto(n.Farm.Id, n.Farm.Name, n.Farm.RegionalId, n.Farm.DepartamentoId,n.Farm.MunicipioId),
+                    new FarmLiteDto(n.Farm.Id, n.Farm.Name, n.Farm.RegionalId, n.Farm.DepartamentoId, n.Farm.MunicipioId, n.Farm.ClienteId, n.Farm.Zona, n.Farm.CertificadoGab, n.Farm.Latitud, n.Farm.Longitud),
                     // Contadores posicionales (sin argumentos nombrados)
                     n.Galpones.Count(), // requiere Nucleo.Galpones
                     _ctx.Lotes.Count(l =>                // si Nucleo no tiene Lotes, usamos subconsulta

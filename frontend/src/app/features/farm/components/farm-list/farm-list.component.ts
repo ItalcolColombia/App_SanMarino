@@ -21,10 +21,13 @@ import { ToastService } from '../../../../shared/services/toast.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { MasterListService } from '../../../../core/services/master-list/master-list.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 
 import { DepartamentoService, DepartamentoDto } from '../../services/departamento.service';
 import { CiudadService, CiudadDto } from '../../services/ciudad.service';
 import { PaisService, PaisDto } from '../../services/pais.service';
+import { ClienteService } from '../../../clientes/services/cliente.service';
+import { ClienteDto } from '../../../clientes/models/cliente.models';
 
 @Component({
   selector: 'app-farm-list',
@@ -63,6 +66,7 @@ export class FarmListComponent implements OnInit {
   paises: PaisDto[] = [];
   departamentos: DepartamentoDto[] = [];
   ciudades: CiudadDto[] = [];
+  clientes: ClienteDto[] = [];
 
   // Vista filtrada
   viewFarms: FarmDto[] = [];
@@ -120,7 +124,9 @@ export class FarmListComponent implements OnInit {
     private readonly paisSvc: PaisService,
     private readonly toastSvc: ToastService,
     private readonly storage: TokenStorageService,
-    private readonly masterListSvc: MasterListService
+    private readonly masterListSvc: MasterListService,
+    private readonly clienteSvc: ClienteService,
+    private readonly countryFilter: CountryFilterService
   ) {}
 
   // ================
@@ -134,6 +140,11 @@ export class FarmListComponent implements OnInit {
   // ==================
   // Inicialización
   // ==================
+  /** Devuelve true si el usuario activo es de Panamá (lee del storage de sesión). */
+  get isPanama(): boolean {
+    return this.countryFilter.isPanama();
+  }
+
   private buildForm(): void {
     this.form = this.fb.group({
       id: [null],
@@ -147,6 +158,23 @@ export class FarmListComponent implements OnInit {
       ciudadId: [null],
       department: [''],
       city: [''],
+      // ── Campos exclusivos Panamá ──────────────────────────────────────
+      clienteId:      [null],
+      zona:           [{ value: '', disabled: true }], // autopoblada desde el cliente
+      certificadoGab: [false],
+      latitud:        [null],
+      longitud:       [null],
+    });
+
+    // Suscripción reactiva: al cambiar clienteId autopobla la zona.
+    // Usar valueChanges (reactive) en lugar de (change) DOM evita el problema
+    // string vs number que ocurre con $event.target.value + [ngValue].
+    this.form.get('clienteId')?.valueChanges.subscribe(id => {
+      const idNum = id != null && id !== '' ? Number(id) : null;
+      const cliente = idNum != null && !isNaN(idNum)
+        ? this.clientes.find(c => c.id === idNum)
+        : null;
+      this.form.get('zona')?.setValue(cliente?.zona ?? '', { emitEvent: false });
     });
   }
 
@@ -177,8 +205,14 @@ export class FarmListComponent implements OnInit {
       });
   }
 
-  /** Carga países del modal; al terminar, con el país en sesión dispara la carga de departamentos (y así la cascada Departamento → Ciudad). */
+  /** Carga países del modal; al terminar, con el país en sesión dispara la carga de departamentos (y así la cascada Departamento → Ciudad).
+   *  Para Panamá también carga la lista de clientes (una sola vez). */
   private loadModalData(): void {
+    // Cargar clientes solo para Panamá (caché: no recarga si ya están)
+    if (this.isPanama && this.clientes.length === 0) {
+      this.loadClientes();
+    }
+
     if (this.paises.length > 0) {
       this.dispararCascadaPaisSesion();
       return;
@@ -213,6 +247,60 @@ export class FarmListComponent implements OnInit {
       this.departamentos = [];
       this.ciudades = [];
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Panamá: clientes, zona auto-poblada, geolocalización
+  // ─────────────────────────────────────────────────────────────
+
+  /** Carga todos los clientes de la compañía activa (usado solo en Panamá). */
+  private loadClientes(): void {
+    this.clienteSvc.getAll().subscribe({
+      next: (data) => { this.clientes = data ?? []; },
+      error: (err) => { console.error('Error cargando clientes:', err); }
+    });
+  }
+
+  /** Al cambiar el select de cliente, auto-puebla el campo zona con la zona del cliente elegido. */
+  onClienteChange(clienteIdRaw: any): void {
+    const clienteId =
+      clienteIdRaw === null || clienteIdRaw === '' || clienteIdRaw === 'null'
+        ? null
+        : Number(clienteIdRaw);
+
+    if (clienteId === null || isNaN(clienteId)) {
+      this.form.get('zona')?.setValue('');
+      this.form.get('clienteId')?.setValue(null);
+      return;
+    }
+
+    const cliente = this.clientes.find(c => c.id === clienteId);
+    this.form.get('zona')?.setValue(cliente?.zona ?? '');
+  }
+
+  /** Captura la ubicación GPS del dispositivo y la rellena en latitud/longitud. */
+  capturarUbicacion(): void {
+    if (!navigator.geolocation) {
+      this.toastSvc.warning('Geolocalización no disponible en este dispositivo.', 'Aviso');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        this.form.patchValue({
+          latitud:  pos.coords.latitude,
+          longitud: pos.coords.longitude
+        });
+        this.toastSvc.success('Ubicación capturada correctamente.', 'Listo');
+      },
+      (err) => this.toastSvc.error('No se pudo obtener la ubicación: ' + err.message, 'Error de ubicación'),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  /** Devuelve el nombre del cliente a partir de su ID (para el modal de detalle). */
+  getClienteNombre(clienteId: number | null | undefined): string {
+    if (clienteId == null) return '—';
+    return this.clientes.find(c => c.id === clienteId)?.nombre ?? `ID ${clienteId}`;
   }
 
   /** Carga opciones de Regional desde lista maestra (region_option_key); cada opción tiene id y value. Opcional: callback con las opciones (p. ej. para rellenar form en edición). */
@@ -348,6 +436,12 @@ export class FarmListComponent implements OnInit {
               ciudadId: farmData.ciudadId ?? null,
               department: farmData.department ?? '',
               city: farmData.city ?? '',
+              // Panamá
+              clienteId:      farmData.clienteId      ?? null,
+              zona:           farmData.zona            ?? '',
+              certificadoGab: farmData.certificadoGab ?? false,
+              latitud:        farmData.latitud         ?? null,
+              longitud:       farmData.longitud        ?? null,
             });
           });
           if (paisId != null) {
@@ -380,6 +474,12 @@ export class FarmListComponent implements OnInit {
         ciudadId: null,
         department: '',
         city: '',
+        // Panamá
+        clienteId:      null,
+        zona:           '',
+        certificadoGab: false,
+        latitud:        null,
+        longitud:       null,
       });
       this.updateRegionalesDisponibles(companyId);
       this.departamentos = [];
@@ -509,7 +609,13 @@ export class FarmListComponent implements OnInit {
       status,
       regionalId,
       departamentoId: raw?.departamentoId != null && raw?.departamentoId !== '' ? Number(raw.departamentoId) : null,
-      ciudadId: raw?.ciudadId != null && raw?.ciudadId !== '' ? Number(raw.ciudadId) : null,
+      ciudadId:       raw?.ciudadId       != null && raw?.ciudadId       !== '' ? Number(raw.ciudadId)       : null,
+      // ── Campos Panamá (null para otros países) ──────────────────────
+      clienteId:      raw?.clienteId != null && raw?.clienteId !== '' ? Number(raw.clienteId) : null,
+      zona:           raw?.zona  || null,
+      certificadoGab: raw?.certificadoGab ?? false,
+      latitud:        raw?.latitud  != null && raw?.latitud  !== '' ? Number(raw.latitud)  : null,
+      longitud:       raw?.longitud != null && raw?.longitud !== '' ? Number(raw.longitud) : null,
     };
 
     this.loading = true;

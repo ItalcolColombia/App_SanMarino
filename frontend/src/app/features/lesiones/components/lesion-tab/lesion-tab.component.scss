@@ -1,0 +1,81 @@
+// src/app/features/lesiones/components/lesion-tab/lesion-tab.component.scss
+//
+// La mayor parte del estilo está en Tailwind (template). Aquí solo
+// complementos puntuales: animaciones de entrada del modal y refinos
+// que son incómodos de expresar con utility-classes inline.
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.lesion-tab {
+  // Stacking context propio: el modal interno usa z-40 y debe quedar
+  // por encima de los headers de las páginas que lo embeben.
+  position: relative;
+
+  // Animación sutil al entrar en pantalla.
+  animation: lesion-tab-fade-in 220ms ease-out;
+}
+
+// Modal: fade + slight slide-up para que no aparezca abrupto.
+.lesion-tab__body {
+  // Limita la altura visual para que el componente no rompa layouts
+  // estrechos. El scroll horizontal del overflow-x-auto interno se
+  // encarga del overflow tabular.
+  min-height: 80px;
+}
+
+// Animación del overlay del modal: se aplica al contenedor con
+// :first-child > .fixed para no obligar a duplicar clases en el HTML.
+:host ::ng-deep .lesion-tab > div.fixed.inset-0 {
+  animation: lesion-modal-overlay 160ms ease-out;
+
+  > div {
+    animation: lesion-modal-content 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes lesion-tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lesion-modal-overlay {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes lesion-modal-content {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Mejor experiencia de scroll horizontal en móviles para la tabla.
+.lesion-tab .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(45, 122, 62, 0.25);
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}

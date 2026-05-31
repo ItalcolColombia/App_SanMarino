@@ -63,6 +63,7 @@ public class UserService : IUserService
             cedula    = dto.Cedula?.Trim() ?? string.Empty,
             telefono  = dto.Telefono?.Trim() ?? string.Empty,
             ubicacion = dto.Ubicacion?.Trim() ?? string.Empty,
+            Zona      = string.IsNullOrWhiteSpace(dto.Zona) ? null : dto.Zona!.Trim(),
             IsActive  = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -141,7 +142,8 @@ public class UserService : IUserService
             user.IsActive,
             user.IsLocked,
             user.CreatedAt,
-            user.LastLoginAt
+            user.LastLoginAt,
+            user.Zona
         );
     }
 
@@ -205,7 +207,8 @@ public class UserService : IUserService
                 u.IsActive,
                 u.IsLocked,
                 u.CreatedAt,
-                u.LastLoginAt
+                u.LastLoginAt,
+                u.Zona
             ))
             .ToListAsync();
     }
@@ -262,6 +265,7 @@ public class UserService : IUserService
                 Cedula    = u.cedula,
                 Telefono  = u.telefono,
                 Ubicacion = u.ubicacion,
+                Zona      = u.Zona,
 
                 Roles          = u.UserRoles.Select(ur => ur.Role.Name).Where(n => n != null && n != "").ToList()!,
                 CompanyNames   = u.UserCompanies.Select(uc => uc.Company.Name).Where(n => n != null && n != "").ToList()!,
@@ -328,7 +332,8 @@ public class UserService : IUserService
             user.IsActive,
             user.IsLocked,
             user.CreatedAt,
-            user.LastLoginAt
+            user.LastLoginAt,
+            user.Zona
         );
     }
 
@@ -353,6 +358,7 @@ public class UserService : IUserService
         if (dto.Ubicacion is not null) user.ubicacion = dto.Ubicacion.Trim();
         if (dto.IsActive  is not null) user.IsActive  = dto.IsActive.Value;
         if (dto.IsLocked  is not null) user.IsLocked  = dto.IsLocked.Value;
+        if (dto.Zona      is not null) user.Zona      = string.IsNullOrWhiteSpace(dto.Zona) ? null : dto.Zona.Trim();
 
         // Normalizar intención
         var companyIdsIncoming = (dto.CompanyIds ?? Array.Empty<int>()).Distinct().ToArray();
@@ -460,7 +466,8 @@ public class UserService : IUserService
             user.IsActive,
             user.IsLocked,
             user.CreatedAt,
-            user.LastLoginAt
+            user.LastLoginAt,
+            user.Zona
         );
     }
 

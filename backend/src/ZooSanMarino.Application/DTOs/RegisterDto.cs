@@ -46,6 +46,13 @@ public class RegisterDto
     [NoSqlInjection(ErrorMessage = "La ubicación contiene caracteres no permitidos")]
     public string Ubicacion { get; set; } = null!;
 
+    /// <summary>
+    /// Zona de restricción (Panamá): 'Zona 1' | 'Zona 2' | null = sin restricción.
+    /// </summary>
+    [MaxLength(20, ErrorMessage = "La zona no puede exceder 20 caracteres")]
+    [NoSqlInjection(ErrorMessage = "La zona contiene caracteres no permitidos")]
+    public string? Zona { get; set; }
+
     // Asignación multiempresa y roles
     public int[] CompanyIds { get; set; } = Array.Empty<int>();
     public int[]? RoleIds { get; set; }

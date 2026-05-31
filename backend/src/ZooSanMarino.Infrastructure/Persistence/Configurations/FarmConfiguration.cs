@@ -45,6 +45,31 @@ public class FarmConfiguration : IEntityTypeConfiguration<Farm>
             .HasColumnName("municipio_id")
             .IsRequired();
 
+        // Panamá: cliente + zona denormalizada + certificado GAB + ubicación geográfica
+        e.Property(x => x.ClienteId)
+            .HasColumnName("cliente_id")
+            .IsRequired(false);
+
+        e.Property(x => x.Zona)
+            .HasColumnName("zona")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        e.Property(x => x.CertificadoGab)
+            .HasColumnName("certificado_gab")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        e.Property(x => x.Latitud)
+            .HasColumnName("latitud")
+            .HasPrecision(10, 7)
+            .IsRequired(false);
+
+        e.Property(x => x.Longitud)
+            .HasColumnName("longitud")
+            .HasPrecision(10, 7)
+            .IsRequired(false);
+
         // Auditoría
         e.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id");
         e.Property(x => x.CreatedAt).HasColumnName("created_at");
@@ -72,6 +97,10 @@ public class FarmConfiguration : IEntityTypeConfiguration<Farm>
 
         e.HasIndex(x => x.DepartamentoId);
         e.HasIndex(x => x.MunicipioId);
+
+        // Filtros Panamá (cliente y zona)
+        e.HasIndex(x => x.ClienteId).HasDatabaseName("ix_farms_cliente_id");
+        e.HasIndex(x => x.Zona).HasDatabaseName("ix_farms_zona");
 
         // Relación con Galpon (ya la tenías)
         e.HasMany(f => f.Galpones)

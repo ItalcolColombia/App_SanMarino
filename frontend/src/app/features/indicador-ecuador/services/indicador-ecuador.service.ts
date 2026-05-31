@@ -50,6 +50,17 @@ export interface IndicadorEcuadorDto {
   /** true si aves actuales = 0 (según reglas del backend) */
   loteCerrado: boolean;
   fechaAlistamiento?: string | null;
+  // Mermas, ajuste y kilos a cliente (R1) — calculados por el backend
+  mermaUnidades?: number;
+  mermaKilos?: number;
+  mermaPorcentaje?: number;
+  ajusteAves?: number;
+  porcentajeAjuste?: number;
+  produccionKiloEnPie?: number;
+  totalKilosDespachadosCliente?: number;
+  diasEngorde?: number;
+  fechaLiquidacion?: string | null;
+  avesSobrante?: number;
 }
 
 export interface IndicadorEcuadorConsolidadoDto {

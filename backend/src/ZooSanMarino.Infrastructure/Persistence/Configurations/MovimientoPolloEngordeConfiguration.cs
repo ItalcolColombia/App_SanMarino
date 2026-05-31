@@ -55,13 +55,24 @@ public class MovimientoPolloEngordeConfiguration : IEntityTypeConfiguration<Movi
         b.Property(x => x.Sellos).HasColumnName("sellos").HasMaxLength(500);
         b.Property(x => x.Ayuno).HasColumnName("ayuno").HasMaxLength(50);
         b.Property(x => x.Conductor).HasColumnName("conductor").HasMaxLength(200);
+        // Semántica de pesos (Parte C / R3.2):
+        //   peso_bruto / peso_tara          = entrada cruda del formulario = peso GLOBAL del camión (factura).
+        //   peso_*_global                    = peso general de la factura (redundante con los anteriores, explícito).
+        //   peso_bruto_real / peso_tara_real / peso_neto = peso INDIVIDUAL prorrateado por aves del lote.
         b.Property(x => x.PesoBruto).HasColumnName("peso_bruto");
         b.Property(x => x.PesoTara).HasColumnName("peso_tara");
         b.Property(x => x.PesoBrutoGlobal).HasColumnName("peso_bruto_global");
         b.Property(x => x.PesoTaraGlobal).HasColumnName("peso_tara_global");
         b.Property(x => x.PesoNetoGlobal).HasColumnName("peso_neto_global");
+        b.Property(x => x.PesoBrutoReal).HasColumnName("peso_bruto_real");
+        b.Property(x => x.PesoTaraReal).HasColumnName("peso_tara_real");
         b.Property(x => x.PesoNeto).HasColumnName("peso_neto");
         b.Property(x => x.PromedioPesoAve).HasColumnName("promedio_peso_ave");
+
+        // Factura única del despacho (Parte C / R3.3) y sobrante de aves (Parte B / R2)
+        b.Property(x => x.FacturaId).HasColumnName("factura_id");
+        b.Property(x => x.AvesSobrante).HasColumnName("aves_sobrante").HasDefaultValue(0);
+        b.HasIndex(x => x.FacturaId).HasDatabaseName("ix_mpe_factura_id").HasFilter("factura_id IS NOT NULL");
 
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();
         b.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id").IsRequired();

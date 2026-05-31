@@ -20,6 +20,8 @@
       <input type="radio" name="regTab" id="tab-machos" class="ux-tab-input" />
       <input type="radio" name="regTab" id="tab-pesaje" class="ux-tab-input" />
       <input type="radio" name="regTab" id="tab-agua" class="ux-tab-input" [hidden]="!isEcuadorOrPanama" />
+      <input type="radio" name="regTab" id="tab-qq" class="ux-tab-input" *appShowIfCountry="'PANAMA'" />
+      <input type="radio" name="regTab" id="tab-lesiones" class="ux-tab-input" *appShowIfCountry="'PANAMA'" />
 
       <!-- TABS NAVEGACIÓN - ARRIBA -->
       <div class="ux-tabs-wrapper">

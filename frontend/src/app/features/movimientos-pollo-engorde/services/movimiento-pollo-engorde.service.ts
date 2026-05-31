@@ -61,6 +61,10 @@ export interface MovimientoPolloEngordeDto {
   pesoNetoGlobal?: number | null;
   pesoBrutoReal?: number | null;
   pesoTaraReal?: number | null;
+  /** UID de factura/despacho (R3.3): todas las líneas del mismo despacho lo comparten. */
+  facturaId?: string | null;
+  /** Aves de este movimiento que fueron sobrante (R2). */
+  avesSobrante?: number;
 }
 
 export interface ResumenAvesLoteDto {
@@ -232,6 +236,8 @@ export interface CreateVentaGranjaDespachoDto {
   conductor?: string | null;
   pesoBruto?: number | null;
   pesoTara?: number | null;
+  /** Si true, permite vender por encima del disponible (sobrante de aves). R2. */
+  permitirSobrante?: boolean;
   lineas: VentaGranjaDespachoLineaDto[];
 }
 

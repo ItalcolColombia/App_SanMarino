@@ -265,8 +265,17 @@
         </div>
         <p class="form-hint" *ngIf="totalAves > 0 && !loadingVentaLineas">
           Total despacho: <strong>{{ formatearNumero(totalAves) }}</strong> aves
-          <span class="form-hint--error" *ngIf="exceedsVentaGranjaLine"> — Revise que no supere lo disponible por sexo en cada lote.</span>
+          <span class="form-hint--error" *ngIf="exceedsVentaGranjaLine && !permitirSobrante"> — Revise que no supere lo disponible por sexo en cada lote.</span>
         </p>
+        <div class="form-group form-group--inline">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="permitirSobrante" [ngModelOptions]="{ standalone: true }" />
+            Permitir sobrante de aves (vender por encima del disponible por galpón)
+          </label>
+          <p class="form-hint" *ngIf="permitirSobrante && exceedsVentaGranjaLine">
+            ⚠️ El excedente sobre el disponible se registrará como <strong>sobrante</strong> en el lote.
+          </p>
+        </div>
         <div class="form-group">
           <label for="motivoMovimientoVg">Motivo</label>
           <input id="motivoMovimientoVg" type="text" formControlName="motivoMovimiento" class="form-input" placeholder="Opcional" />

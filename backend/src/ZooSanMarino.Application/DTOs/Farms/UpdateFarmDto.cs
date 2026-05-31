@@ -9,5 +9,13 @@ public record UpdateFarmDto(
     int?   RegionalId,       // ← nullable (front puede no enviarlo)
     int?   RegionalOptionId, // ← opcional; id de master_list_options; se resuelve a RegionalId por nombre
     int?   DepartamentoId,   // ← nullable (validado en el service)
-    int?   CiudadId          // ← nullable (validado en el service; mapea a MunicipioId)
+    int?   CiudadId,         // ← nullable (validado en el service; mapea a MunicipioId)
+    // ────────────────────────────────────────────────────────────────
+    // NUEVOS CAMPOS (Panamá): cliente, zona, certificación GAB y geo
+    // ────────────────────────────────────────────────────────────────
+    int?     ClienteId      = null,
+    string?  Zona           = null,   // 'Zona 1' | 'Zona 2'
+    bool     CertificadoGab = false,
+    decimal? Latitud        = null,
+    decimal? Longitud       = null
 );

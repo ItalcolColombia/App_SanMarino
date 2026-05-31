@@ -12,5 +12,10 @@ public sealed record FarmSearchRequest(
     string  SortBy          = "name", // name|regional_id|departamento_id|ciudad_id|created_at
     bool    SortDesc        = false,
     int     Page            = 1,
-    int     PageSize        = 20
+    int     PageSize        = 20,
+    // ────────────────────────────────────────────────────────────────
+    // NUEVOS FILTROS (Panamá): por zona y cliente
+    // ────────────────────────────────────────────────────────────────
+    string? Zona            = null,   // 'Zona 1' | 'Zona 2'
+    int?    ClienteId       = null
 );

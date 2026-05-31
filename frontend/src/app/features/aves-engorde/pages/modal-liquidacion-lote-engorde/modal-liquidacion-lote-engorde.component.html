@@ -330,6 +330,33 @@
         </div>
 
       </ng-container>
+
+      <!-- ── Merma (Costos) — R1 ──────────────────────────────────────────── -->
+      <div class="liq-lote__merma" *ngIf="resumen">
+        <h4 class="liq-lote__section-title">Merma (Costos)</h4>
+        <p class="liq-lote__hint">
+          Diferencia entre lo que sale de granja y lo que recibe el cliente (peso recibido en planta).
+          Afecta el ajuste de aves y los kilos despachados a cliente. La digita Costos antes de liquidar.
+        </p>
+        <div class="liq-lote__merma-grid">
+          <label class="liq-lote__merma-field">
+            <span>Merma (unidades)</span>
+            <input type="number" min="0" [(ngModel)]="mermaUnidades" class="form-input" placeholder="0" />
+          </label>
+          <label class="liq-lote__merma-field">
+            <span>Merma (kilos)</span>
+            <input type="number" min="0" step="0.001" [(ngModel)]="mermaKilos" class="form-input" placeholder="0" />
+          </label>
+        </div>
+        <p class="liq-lote__hint">
+          Ajuste de aves (preview): <strong>{{ ajusteAvesPreview }}</strong>
+          <span *ngIf="ajusteAvesPreview < 0"> — sobrante</span>
+        </p>
+        <button type="button" class="btn btn--outline btn--sm" [disabled]="guardandoMerma" (click)="guardarMerma()">
+          {{ guardandoMerma ? 'Guardando…' : 'Guardar merma' }}
+        </button>
+        <span *ngIf="mermaGuardada" class="liq-lote__ok" role="status"> ✓ Merma guardada</span>
+      </div>
     </section>
 
     <!-- ── FOOTER (fijo) ─────────────────────────────────────────────────── -->

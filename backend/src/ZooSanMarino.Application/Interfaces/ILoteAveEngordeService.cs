@@ -24,6 +24,9 @@ public interface ILoteAveEngordeService
     /// <summary>Marca el lote como cerrado (liquidado) y guarda usuario y fecha.</summary>
     Task<LoteAveEngordeDetailDto?> CerrarLoteAsync(int loteAveEngordeId, CerrarLoteAveEngordeRequest request);
 
+    /// <summary>Digita/edita la merma del lote (Costos), con el lote abierto o cerrado.</summary>
+    Task<LoteAveEngordeDetailDto?> ActualizarMermaAsync(int loteAveEngordeId, ActualizarMermaLoteEngordeRequest request);
+
     /// <summary>Reabre un lote cerrado (motivo y usuario obligatorios).</summary>
     Task<LoteAveEngordeDetailDto?> AbrirLoteAsync(int loteAveEngordeId, AbrirLoteAveEngordeRequest request);
 }

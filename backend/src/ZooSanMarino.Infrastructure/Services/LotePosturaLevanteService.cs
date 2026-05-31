@@ -242,7 +242,12 @@ public class LotePosturaLevanteService : ILotePosturaLevanteService
                     l.Farm.Name,
                     l.Farm.RegionalId,
                     l.Farm.DepartamentoId,
-                    l.Farm.MunicipioId
+                    l.Farm.MunicipioId,
+                    l.Farm.ClienteId,
+                    l.Farm.Zona,
+                    l.Farm.CertificadoGab,
+                    l.Farm.Latitud,
+                    l.Farm.Longitud
                 ),
                 l.Nucleo == null
                     ? null

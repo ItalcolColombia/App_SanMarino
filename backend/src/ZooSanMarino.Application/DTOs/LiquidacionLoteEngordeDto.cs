@@ -17,6 +17,15 @@ public sealed record LiquidacionLoteEngordeResumenDto(
     decimal? SaldoAlimentoKg
 );
 
-public sealed record CerrarLoteAveEngordeRequest(string ClosedByUserId);
+public sealed record CerrarLoteAveEngordeRequest(
+    string ClosedByUserId,
+    int? MermaUnidades = null,
+    decimal? MermaKilos = null);
 
 public sealed record AbrirLoteAveEngordeRequest(string Motivo, string OpenedByUserId);
+
+/// <summary>Digitación/edición de la merma por Costos (lote abierto o cerrado). Parte B / R1.</summary>
+public sealed record ActualizarMermaLoteEngordeRequest(
+    int? MermaUnidades,
+    decimal? MermaKilos,
+    string RegistradoPorUserId);

@@ -174,6 +174,23 @@
                 placeholder="Ingrese la ubicación"
               />
             </div>
+
+            <div class="form-group full-width">
+              <label for="zona" class="form-label">Zona</label>
+              <select
+                id="zona"
+                formControlName="zona"
+                class="form-input"
+                [class.error]="userForm.get('zona')?.invalid && userForm.get('zona')?.touched"
+              >
+                <option *ngFor="let z of zonas" [value]="z.value">{{ z.label }}</option>
+              </select>
+              <small class="hint">Restringe las granjas visibles cuando el país activo es Panamá.</small>
+              <div *ngIf="userForm.get('zona')?.invalid && userForm.get('zona')?.touched"
+                   class="error-message">
+                {{ getFieldError('zona') }}
+              </div>
+            </div>
           </div>
         </div>
 

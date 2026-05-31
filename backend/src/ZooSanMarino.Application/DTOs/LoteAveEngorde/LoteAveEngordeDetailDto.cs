@@ -40,6 +40,12 @@ public sealed record LoteAveEngordeDetailDto(
     DateTime? ReabiertoAt,
     string? ReabiertoPorUserId,
     string? MotivoReapertura,
+    // Mermas (R1) y sobrante de aves (R2)
+    int? MermaUnidades,
+    decimal? MermaKilos,
+    DateTime? MermaRegistradaAt,
+    string? MermaRegistradaPorUserId,
+    int AvesSobrante,
     int? PaisId,
     string? PaisNombre,
     string? EmpresaNombre,

@@ -11,7 +11,7 @@ To prevent hallucinations, ensure architectural integrity, and maintain a clear 
 ### STEP 1: Full Planning (`/fase_de_desarrollo/`)
 1. Analyze the user's request thoroughly based on the existing Clean Architecture (Backend) and Angular Standalone architecture (Frontend).
 2. Create a detailed Markdown planning document inside the `./fase_de_desarrollo/` directory (e.g., `./fase_de_desarrollo/feature_name_plan.md`). 
-   * **Absolute Local Path Reference:** `/Users/chelsycardona/Desktop/App_SanMarino/fase_de_desarrollo/`
+   * **Absolute Local Path Reference (Windows):** `C:\Users\SAN MARINO\Desktop\App_SanMarino\fase_de_desarrollo\`
 3. This document must contain:
    * Architectural design and technical approach.
    * Specific files, components, and services to create or modify.
@@ -20,7 +20,7 @@ To prevent hallucinations, ensure architectural integrity, and maintain a clear 
 
 ### STEP 2: State Tracking (`tracker_estado.md`)
 1. Open the `./tracker_estado.md` file.
-   * **Absolute Local Path Reference:** `/Users/chelsycardona/Desktop/App_SanMarino/tracker_estado.md`
+   * **Absolute Local Path Reference (Windows):** `C:\Users\SAN MARINO\Desktop\App_SanMarino\tracker_estado.md`
 2. **CLEAR / WIPE** all its previous contents completely (remove the state of the previous task).
 3. Add a clear title and a reference/link to the new planning document created in Step 1.
 4. Break down the development plan into a **granular, step-by-step checklist** of small implementation tasks using Markdown checkboxes (`- [ ]`).
@@ -28,18 +28,109 @@ To prevent hallucinations, ensure architectural integrity, and maintain a clear 
 
 ---
 
-## 🗄️ DATABASE & MIGRATION WORKFLOW (LOCAL DEV)
+## 🗄️ DATABASE & MIGRATION WORKFLOW
 
-> 🚨 **CRITICAL CONTEXT:** The Entity Framework Core migrations mechanism is currently broken/corrupted. Do **NOT** rely solely on `dotnet ef database update` for local sync. Follow this strict protocol to maintain persistence and alignment without errors:
+> 📌 **ESTADO ACTUAL (2026-05-26):** El historial de EF Core (`__EFMigrationsHistory`) en RDS prod fue saneado y está 100% alineado con las migraciones del código (48 = 48, 0 pendientes). `Database__RunMigrations=true` está activo en la TaskDef ECS prod (revisión `:94`), por lo que **las migraciones nuevas SÍ se aplican automáticamente al arrancar la app en cada deploy**.
 
-1. **Local Connection Configuration:** All local development environment database configurations must read from and point to:
-   * `/Users/chelsycardona/Desktop/App_SanMarino/backend/src/ZooSanMarino.API/appsettings.Development.json`
-2. **SQL Script Generation:** Every time a schema change (table creation, new column, modified constraint, or seed data) is required:
-   * Write the raw, pure SQL script executing the change.
-   * Save the `.sql` script inside the folder: `/Users/chelsycardona/Desktop/App_SanMarino/backend/sql/`
-   * Use a clear numbering/naming convention for execution order (e.g., `045_add_traslado_fields_to_seguimiento.sql`).
-3. **Manual Execution:** Connect to your local database engine and execute the raw SQL script directly to test and update your local schema.
-4. **Future-Proofing Migrations:** Even though the engine is currently broken, you **MUST** create the equivalent Entity Framework Core migration (`dotnet ef migrations add <Name>`) right after saving the SQL script. This ensures that once migrations are repaired, the C# codebase and snapshot remain aligned with the database schema for future migrations.
+### Flujo recomendado para nuevas migraciones
+
+1. **Crear la migración EF normalmente** desde `/backend/src/ZooSanMarino.API/`:
+   ```bash
+   dotnet ef migrations add <MigrationName> \
+     --project ../ZooSanMarino.Infrastructure \
+     --startup-project . \
+     --context ZooSanMarinoContext
+   ```
+2. **Hacer la migración idempotente** si toca schema (recomendado, no obligatorio):
+   * En el `Up()` de la migración, reemplazar `migrationBuilder.AddColumn(...)` por `migrationBuilder.Sql("ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...")` cuando haya riesgo de que la columna ya exista por trabajo manual previo.
+   * Lo mismo para `CreateIndex` → `CREATE INDEX IF NOT EXISTS`, `CreateTable` → `CREATE TABLE IF NOT EXISTS`.
+   * Esto da un seguro extra contra re-runs accidentales o conflictos con scripts SQL aplicados manualmente.
+3. **Probar localmente ANTES de mergear**:
+   * Levantar la BD local (`make up` o `docker compose up zoo_sanmarino_db`).
+   * Ejecutar `dotnet ef database update` y verificar que aplica sin error.
+   * Esto detecta conflictos antes de que lleguen al deploy de prod.
+4. **El deploy aplica la migración automáticamente** — al arrancar, EF compara el historial y ejecuta solo lo pendiente. No hace falta tocar `__EFMigrationsHistory` manualmente.
+
+### Reglas críticas (NO violar)
+
+* **NUNCA insertar registros en `__EFMigrationsHistory` "a la ligera"**. Solo registrá una migración como aplicada si confirmaste que su trabajo (columnas, tablas, índices) está efectivamente en la BD. La causa principal de los problemas históricos del proyecto fue [marcar_todas_migraciones_pendientes.sql](backend/sql/marcar_todas_migraciones_pendientes.sql), que marcó como aplicadas migraciones que nunca se ejecutaron → cuando el código nuevo dependió de ese estado, la app crasheó con SIGSEGV en cada arranque.
+* **NO usar `dotnet ef database update` directamente contra RDS prod desde tu máquina** — usá el flujo de deploy (ECS aplica las migraciones al arrancar la app).
+* **Si una migración nueva genera error al desplegar**, EF la marca como fallida pero deja `__EFMigrationsHistory` inconsistente. Hay que: (a) corregir el código del Up(), (b) limpiar manualmente el estado parcial, (c) re-intentar el deploy. NO insertar el registro a mano para "saltearla".
+
+### Scripts SQL en `/backend/sql/` (caso especial)
+
+Mantener scripts SQL crudos solo para operaciones que EF Core no maneja bien:
+* Funciones almacenadas, triggers, vistas materializadas (ej: `fn_seguimiento_diario_engorde.sql`).
+* Backfills/migraciones de datos masivos donde DDL+DML mezclados son más claros como SQL puro.
+* Seeds de catálogos.
+
+Para columnas / tablas / índices / constraints simples: **preferí la migración EF idempotente**, no el script SQL manual.
+
+### Local Connection Configuration
+
+Toda configuración de BD local debe leer desde:
+* `/Users/chelsycardona/Desktop/App_SanMarino/backend/src/ZooSanMarino.API/appsettings.Development.json`
+
+---
+
+## 🔍 SCHEMA AUDIT RULE — EL CÓDIGO ES LA FUENTE DE VERDAD
+
+Cuando detectes una desalineación entre el código y el schema de la BD (local o prod), **el código actual del backend manda**, NO el historial de migraciones ni planes anteriores.
+
+### Aplicar siempre estos filtros antes de proponer un cambio de schema
+
+1. **Prioridad absoluta del código actual**:
+   * Validá lo que las entidades (`/backend/src/ZooSanMarino.Domain/Entities/`) y sus configuraciones (`/backend/src/ZooSanMarino.Infrastructure/Persistence/Configurations/*.ToTable(...)`) esperan **HOY**.
+   * Si una migración planeada renombró tabla `X` → `Y`, pero la entidad sigue mapeando a `X`, ese rename fue descartado: **NO aplicar en BD**.
+   * Si el código no toca un cambio, NO modificar el código para forzar un plan viejo. El código manda.
+
+2. **Auditoría de historial (Git + migraciones + SQL del último mes)**:
+   * Revisar commits de Git recientes, archivos `.cs` de migraciones y scripts `.sql` para distinguir qué se consolidó vs qué quedó huérfano.
+   * Cruzar la información con las entidades actuales antes de generar cualquier ALTER/CREATE.
+
+3. **Diagnóstico de desalineación**:
+   * Si código espera `Y` y prod tiene `X` → generar SQL/migración para llevar prod a `Y`.
+   * Si código sigue usando `X` (aunque exista una migración pendiente que iba a llevarlo a `Y`) → BD se queda en `X`, descartar la migración hacia `Y` (eliminarla del repo o marcarla como aplicada sin ejecutar si ya está referenciada en otros lugares).
+
+4. **NO proceder sin confirmación**: antes de ejecutar cualquier DDL contra prod, presentá el plan al usuario con la auditoría visible. Esperá aprobación explícita.
+
+---
+
+## 🚀 CI/CD & DEPLOYMENT GOTCHAS
+
+Lecciones grabadas de incidentes pasados — leer antes de tocar el workflow `/Users/chelsycardona/Desktop/App_SanMarino/.github/workflows/deploy-production.yml` o de ejecutar un deploy manual.
+
+### Reglas del workflow
+
+* **NUNCA volver a meter `dorny/paths-filter`** en el workflow de deploy. Comparaba `main...main-produccion` y tras un merge ambas ramas quedan en el mismo SHA → `diff = 0` → jobs de deploy saltados silenciosamente. Los pushes a `main-produccion` deben disparar backend y frontend siempre.
+* **Trigger debe ser `push` a `main-produccion`**, no `pull_request: closed`. El subject claim OIDC de `pull_request` (`repo:.../pull_request`) no coincide con la trust policy del rol IAM `github-actions-deploy`. Documentado en el commit `fed6120`.
+* **`wait-for-minutes` en ECS deploy: 25 minutos mínimo**. Con 15 minutos el deploy reportaba "failed" prematuramente y ECS hacía rollback aunque la app eventualmente arrancaba bien.
+
+### Verificación post-deploy (obligatoria)
+
+Cuando se hace un deploy (vía GitHub Actions o `make deploy-backend`), **NUNCA asumir éxito por el output del CLI**. Ejecutar siempre:
+
+```bash
+# 1) ¿Qué TaskDef está realmente corriendo?
+aws ecs describe-services --cluster devSanmarinoZoo \
+  --services sanmarino-back-task-service-75khncfa \
+  --region us-east-2 \
+  --query 'services[0].{TaskDef:taskDefinition,Running:runningCount,Deployments:deployments[].{Status:status,Rollout:rolloutState,TaskDef:taskDefinition}}'
+
+# 2) ¿Qué imagen tiene esa TaskDef?
+aws ecs describe-task-definition --task-definition <arn-de-arriba> \
+  --region us-east-2 --query 'taskDefinition.containerDefinitions[0].image'
+
+# 3) Comparar contra la imagen que pretendías desplegar
+```
+
+**Por qué importa**: ECS hace rollback silencioso. Si la nueva tarea no pasa el health check 3 veces (típicamente exit code 139/SIGSEGV o `EssentialContainerExited`), ECS marca el deployment como `failed: tasks failed to start` y revierte a la TaskDef anterior. El output de `aws ecs update-service` y el de `make deploy-backend` no reflejan este rollback — dicen "completado" porque la versión vieja sigue corriendo. El `Waiter ServicesStable failed: Max attempts exceeded` es la señal.
+
+### Si una tarea ECS crashea al arrancar
+
+* Exit code 139 = SIGSEGV. Usualmente significa que EF Core intentó correr una migración que falla (tabla inexistente, columna duplicada, FK rota) y el proceso muere antes del primer log de aplicación.
+* Verificá `__EFMigrationsHistory` en RDS y crucealo con las migraciones del código antes de re-deployar.
+* Si no tenés permisos para CloudWatch logs, los events del servicio (`aws ecs describe-services ... events`) muestran el patrón task started → registered → deregistered en pocos segundos.
 
 ---
 

@@ -49,5 +49,10 @@ public class SeguimientoDiarioLoteReproductoraAvesEngorde
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
+    // Panamá: cantidad de alimento por categoría (quintales) — visible solo en formularios de Panamá
+    public decimal? QqMixtas { get; set; }
+    public decimal? QqHembras { get; set; }
+    public decimal? QqMachos { get; set; }
+
     public virtual LoteReproductoraAveEngorde? LoteReproductoraAveEngorde { get; set; }
 }

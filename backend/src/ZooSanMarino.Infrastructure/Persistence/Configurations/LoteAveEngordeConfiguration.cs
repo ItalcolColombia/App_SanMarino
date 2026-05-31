@@ -51,6 +51,14 @@ public class LoteAveEngordeConfiguration : IEntityTypeConfiguration<LoteAveEngor
         b.Property(x => x.ReabiertoPorUserId).HasColumnName("reabierto_por_user_id").HasMaxLength(450);
         b.Property(x => x.MotivoReapertura).HasColumnName("motivo_reapertura").HasMaxLength(2000);
 
+        // Mermas (Parte B / R1) — digitadas por Costos al liquidar
+        b.Property(x => x.MermaUnidades).HasColumnName("merma_unidades");
+        b.Property(x => x.MermaKilos).HasColumnName("merma_kilos").HasColumnType("numeric(18,3)");
+        b.Property(x => x.MermaRegistradaAt).HasColumnName("merma_registrada_at");
+        b.Property(x => x.MermaRegistradaPorUserId).HasColumnName("merma_registrada_por_user_id").HasMaxLength(450);
+        // Sobrante de aves (Parte B / R2)
+        b.Property(x => x.AvesSobrante).HasColumnName("aves_sobrante").HasDefaultValue(0);
+
         b.Property(x => x.PaisId).HasColumnName("pais_id");
         b.Property(x => x.PaisNombre).HasColumnName("pais_nombre").HasMaxLength(120);
         b.Property(x => x.EmpresaNombre).HasColumnName("empresa_nombre").HasMaxLength(200);

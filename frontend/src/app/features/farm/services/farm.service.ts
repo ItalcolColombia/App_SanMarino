@@ -29,6 +29,13 @@ export interface FarmDto {
   department?: string | null;
   city?: string | null;
 
+  // Campos específicos para Panamá
+  clienteId?: number | null;
+  zona?: string | null;            // 'Zona 1' | 'Zona 2'
+  certificadoGab?: boolean;
+  latitud?: number | null;
+  longitud?: number | null;
+
   createdAt?: string;
   updatedAt?: string;
   company?: { id: number; name: string };
@@ -44,6 +51,13 @@ export interface CreateFarmDto {
   ciudadId?: number | null;
   department?: string | null;
   city?: string | null;
+
+  // Campos específicos para Panamá
+  clienteId?: number | null;
+  zona?: string | null;            // 'Zona 1' | 'Zona 2'
+  certificadoGab?: boolean;
+  latitud?: number | null;
+  longitud?: number | null;
 }
 
 export interface UpdateFarmDto extends CreateFarmDto {

@@ -431,6 +431,46 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
         ent.EstadoOperativoLote = "Cerrado";
         ent.LiquidadoAt = DateTime.UtcNow;
         ent.LiquidadoPorUserId = request.ClosedByUserId.Trim();
+        // Merma opcional digitada por Costos al liquidar (Parte B / R1).
+        if (request.MermaUnidades.HasValue || request.MermaKilos.HasValue)
+        {
+            if (request.MermaUnidades is < 0 || request.MermaKilos is < 0)
+                throw new ArgumentException("La merma (unidades/kilos) no puede ser negativa.");
+            ent.MermaUnidades = request.MermaUnidades;
+            ent.MermaKilos = request.MermaKilos;
+            ent.MermaRegistradaAt = DateTime.UtcNow;
+            ent.MermaRegistradaPorUserId = request.ClosedByUserId.Trim();
+        }
+        ent.UpdatedByUserId = _current.UserId;
+        ent.UpdatedAt = DateTime.UtcNow;
+        await _ctx.SaveChangesAsync();
+        return await GetByIdAsync(loteAveEngordeId);
+    }
+
+    /// <summary>Digita/edita la merma del lote (Costos) sin requerir cierre/reapertura. Parte B / R1.</summary>
+    public async Task<LoteAveEngordeDetailDto?> ActualizarMermaAsync(int loteAveEngordeId, ActualizarMermaLoteEngordeRequest request)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.RegistradoPorUserId))
+            throw new ArgumentException("RegistradoPorUserId es requerido.");
+        if (request.MermaUnidades is < 0) throw new ArgumentException("La merma en unidades no puede ser negativa.");
+        if (request.MermaKilos is < 0) throw new ArgumentException("La merma en kilos no puede ser negativa.");
+
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var allowed = await GetAllowedGranjaIdsForCurrentUserAsync(companyId);
+        if (allowed.Count == 0) return null;
+
+        var ent = await _ctx.LoteAveEngorde
+            .SingleOrDefaultAsync(x =>
+                x.LoteAveEngordeId == loteAveEngordeId &&
+                x.CompanyId == companyId &&
+                x.DeletedAt == null &&
+                allowed.Contains(x.GranjaId));
+        if (ent is null) return null;
+
+        ent.MermaUnidades = request.MermaUnidades;
+        ent.MermaKilos = request.MermaKilos;
+        ent.MermaRegistradaAt = DateTime.UtcNow;
+        ent.MermaRegistradaPorUserId = request.RegistradoPorUserId.Trim();
         ent.UpdatedByUserId = _current.UserId;
         ent.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
@@ -555,6 +595,11 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                 l.ReabiertoAt,
                 l.ReabiertoPorUserId,
                 l.MotivoReapertura,
+                l.MermaUnidades,
+                l.MermaKilos,
+                l.MermaRegistradaAt,
+                l.MermaRegistradaPorUserId,
+                l.AvesSobrante,
                 l.PaisId,
                 l.PaisNombre,
                 l.EmpresaNombre,
@@ -568,7 +613,12 @@ public class LoteAveEngordeService : AppInterfaces.ILoteAveEngordeService
                     l.Farm.Name,
                     l.Farm.RegionalId,
                     l.Farm.DepartamentoId,
-                    l.Farm.MunicipioId
+                    l.Farm.MunicipioId,
+                    l.Farm.ClienteId,
+                    l.Farm.Zona,
+                    l.Farm.CertificadoGab,
+                    l.Farm.Latitud,
+                    l.Farm.Longitud
                 ),
                 l.Nucleo == null ? null : new NucleoLiteDto(l.Nucleo.NucleoId, l.Nucleo.NucleoNombre, l.Nucleo.GranjaId),
                 l.Galpon == null ? null : new GalponLiteDto(l.Galpon.GalponId, l.Galpon.GalponNombre, l.Galpon.NucleoId, l.Galpon.GranjaId)

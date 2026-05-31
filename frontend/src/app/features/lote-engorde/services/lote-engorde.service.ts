@@ -51,6 +51,10 @@ export interface LoteAveEngordeDto {
   reabiertoAt?: string | null;
   reabiertoPorUserId?: string | null;
   motivoReapertura?: string | null;
+  /** Aves vendidas por encima del saldo físico ("aves agregadas de más"). R2. */
+  avesSobrante?: number;
+  mermaUnidades?: number | null;
+  mermaKilos?: number | null;
 }
 
 export interface CreateLoteAveEngordeDto extends Omit<LoteAveEngordeDto, 'loteAveEngordeId'> {
@@ -97,10 +101,24 @@ export class LoteEngordeService {
     return this.http.delete<void>(`${this.baseUrl}/${loteAveEngordeId}`);
   }
 
-  cerrarLote(loteAveEngordeId: number, closedByUserId: string): Observable<LoteAveEngordeDto> {
+  cerrarLote(
+    loteAveEngordeId: number,
+    closedByUserId: string,
+    merma?: { mermaUnidades?: number | null; mermaKilos?: number | null }
+  ): Observable<LoteAveEngordeDto> {
     return this.http.post<LoteAveEngordeDto>(`${this.baseUrl}/${loteAveEngordeId}/cerrar`, {
-      closedByUserId
+      closedByUserId,
+      mermaUnidades: merma?.mermaUnidades ?? null,
+      mermaKilos: merma?.mermaKilos ?? null
     });
+  }
+
+  /** R1: digita/edita la merma (Costos) con el lote abierto o cerrado. */
+  actualizarMerma(
+    loteAveEngordeId: number,
+    body: { mermaUnidades: number | null; mermaKilos: number | null; registradoPorUserId: string }
+  ): Observable<LoteAveEngordeDto> {
+    return this.http.put<LoteAveEngordeDto>(`${this.baseUrl}/${loteAveEngordeId}/merma`, body);
   }
 
   abrirLote(loteAveEngordeId: number, body: { motivo: string; openedByUserId: string }): Observable<LoteAveEngordeDto> {

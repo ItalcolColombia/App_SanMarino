@@ -15,5 +15,13 @@ public sealed record FarmDetailDto(
     DateTime?  UpdatedAt,
     int        NucleosCount,
     int        GalponesCount,
-    int        LotesCount
+    int        LotesCount,
+    // ────────────────────────────────────────────────────────────────
+    // NUEVOS CAMPOS (Panamá): cliente, zona, certificación GAB y geo
+    // ────────────────────────────────────────────────────────────────
+    int?       ClienteId       = null,
+    string?    Zona            = null,   // 'Zona 1' | 'Zona 2'
+    bool       CertificadoGab  = false,
+    decimal?   Latitud         = null,
+    decimal?   Longitud        = null
 );

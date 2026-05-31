@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using PagedResultCommon = ZooSanMarino.Application.DTOs.Common.PagedResult<ZooSanMarino.Application.DTOs.MovimientoPolloEngordeDto>;
@@ -68,6 +69,7 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             Observaciones = dto.Observaciones,
             Estado = "Pendiente",
             UsuarioMovimientoId = dto.UsuarioMovimientoId > 0 ? dto.UsuarioMovimientoId : _currentUser.UserId,
+            FacturaId = dto.FacturaId,
             NumeroDespacho = dto.NumeroDespacho,
             EdadAves = dto.EdadAves,
             TotalPollosGalpon = dto.TotalPollosGalpon,
@@ -104,7 +106,7 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         // Validación de disponibilidad antes de crear (aunque quede Pendiente, reserva cupo para evitar sobreventa).
         if (EsSalidaVenta(movimiento.TipoMovimiento))
         {
-            await ValidarDisponibilidadParaCrearAsync(movimiento);
+            await ValidarDisponibilidadParaCrearAsync(movimiento, dto.PermitirSobrante);
         }
 
         _ctx.MovimientoPolloEngorde.Add(movimiento);
@@ -116,7 +118,7 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         return (await GetByIdAsync(movimiento.Id))!;
     }
 
-    private async Task ValidarDisponibilidadParaCrearAsync(MovimientoPolloEngorde m)
+    private async Task ValidarDisponibilidadParaCrearAsync(MovimientoPolloEngorde m, bool permitirSobrante)
     {
         var qtyH = m.CantidadHembras;
         var qtyM = m.CantidadMachos;
@@ -132,12 +134,19 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             });
             var row = resp.Items.FirstOrDefault()?.Disponibles;
             if (row == null) throw new InvalidOperationException("No se pudo calcular disponibilidad del lote (no existe o no pertenece a la compañía).");
-            if (qtyH > row.HembrasDisponibles || qtyM > row.MachosDisponibles || qtyX > row.MixtasDisponibles)
+            var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(qtyH, row.HembrasDisponibles, qtyM, row.MachosDisponibles, qtyX, row.MixtasDisponibles);
+            if (excedente > 0)
             {
-                throw new InvalidOperationException(
-                    $"No hay aves suficientes disponibles en el lote '{row.NombreLote ?? aeId.ToString()}'. " +
-                    $"Solicitado (H/M/X)={qtyH}/{qtyM}/{qtyX}; Disponible (H/M/X)={row.HembrasDisponibles}/{row.MachosDisponibles}/{row.MixtasDisponibles}. " +
-                    $"Reservado Pendiente total={row.TotalReservadasPendiente}.");
+                if (!permitirSobrante)
+                    throw new InvalidOperationException(
+                        $"No hay aves suficientes disponibles en el lote '{row.NombreLote ?? aeId.ToString()}'. " +
+                        $"Solicitado (H/M/X)={qtyH}/{qtyM}/{qtyX}; Disponible (H/M/X)={row.HembrasDisponibles}/{row.MachosDisponibles}/{row.MixtasDisponibles}. " +
+                        $"Reservado Pendiente total={row.TotalReservadasPendiente}.");
+                // Sobrante permitido (Parte B / R2): registrar excedente en el movimiento y acumularlo en el lote.
+                m.AvesSobrante = excedente;
+                var lote = await _ctx.LoteAveEngorde
+                    .FirstOrDefaultAsync(l => l.LoteAveEngordeId == aeId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null);
+                if (lote != null) lote.AvesSobrante += excedente;
             }
         }
         else if (m.LoteReproductoraAveEngordeOrigenId is { } repId)
@@ -149,12 +158,15 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             });
             var row = resp.Items.FirstOrDefault()?.Disponibles;
             if (row == null) throw new InvalidOperationException("No se pudo calcular disponibilidad del lote reproductora.");
-            if (qtyH > row.HembrasDisponibles || qtyM > row.MachosDisponibles || qtyX > row.MixtasDisponibles)
+            var excedente = IndicadorEcuadorCalculos.ExcedenteSobrante(qtyH, row.HembrasDisponibles, qtyM, row.MachosDisponibles, qtyX, row.MixtasDisponibles);
+            if (excedente > 0)
             {
-                throw new InvalidOperationException(
-                    $"No hay aves suficientes disponibles en el lote reproductora '{row.NombreLote ?? repId.ToString()}'. " +
-                    $"Solicitado (H/M/X)={qtyH}/{qtyM}/{qtyX}; Disponible (H/M/X)={row.HembrasDisponibles}/{row.MachosDisponibles}/{row.MixtasDisponibles}. " +
-                    $"Reservado Pendiente total={row.TotalReservadasPendiente}.");
+                if (!permitirSobrante)
+                    throw new InvalidOperationException(
+                        $"No hay aves suficientes disponibles en el lote reproductora '{row.NombreLote ?? repId.ToString()}'. " +
+                        $"Solicitado (H/M/X)={qtyH}/{qtyM}/{qtyX}; Disponible (H/M/X)={row.HembrasDisponibles}/{row.MachosDisponibles}/{row.MixtasDisponibles}. " +
+                        $"Reservado Pendiente total={row.TotalReservadasPendiente}.");
+                m.AvesSobrante = excedente; // reproductora no acumula en lote padre
             }
         }
     }
@@ -274,7 +286,9 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             m.PesoTaraGlobal,
             m.PesoNetoGlobal,
             m.PesoBrutoReal,
-            m.PesoTaraReal
+            m.PesoTaraReal,
+            m.FacturaId,
+            m.AvesSobrante
         );
     }
 
@@ -1615,7 +1629,9 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
         {
             if (!dispById.TryGetValue(linea.LoteAveEngordeOrigenId, out var d))
                 throw new InvalidOperationException($"No se pudo calcular disponibilidad del lote {linea.LoteAveEngordeOrigenId}.");
-            if (linea.CantidadHembras > d.HembrasDisponibles || linea.CantidadMachos > d.MachosDisponibles || linea.CantidadMixtas > d.MixtasDisponibles)
+            // Con PermitirSobrante=true no se rechaza: el sobrante por línea lo calcula y persiste CreateAsync (Parte B / R2).
+            if (!dto.PermitirSobrante &&
+                (linea.CantidadHembras > d.HembrasDisponibles || linea.CantidadMachos > d.MachosDisponibles || linea.CantidadMixtas > d.MixtasDisponibles))
             {
                 throw new InvalidOperationException(
                     $"No hay aves suficientes disponibles para el lote '{d.NombreLote ?? linea.LoteAveEngordeOrigenId.ToString()}'. " +
@@ -1672,6 +1688,9 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
             promediosPorLinea[maxIdx]  = maxAves > 0 ? pesoNetosPorLinea[maxIdx]!.Value / maxAves : 0d;
         }
 
+        // Factura única del despacho (Parte C / R3.3): todas las líneas comparten este UID.
+        var facturaId = Guid.NewGuid();
+
         await using var tx = await _ctx.Database.BeginTransactionAsync();
         try
         {
@@ -1681,6 +1700,8 @@ public class MovimientoPolloEngordeService : IMovimientoPolloEngordeService
                 var linea  = lineas[i];
                 var single = new CreateMovimientoPolloEngordeDto
                 {
+                    FacturaId = facturaId,
+                    PermitirSobrante = dto.PermitirSobrante,
                     FechaMovimiento = dto.FechaMovimiento,
                     TipoMovimiento = dto.TipoMovimiento,
                     LoteAveEngordeOrigenId = linea.LoteAveEngordeOrigenId,

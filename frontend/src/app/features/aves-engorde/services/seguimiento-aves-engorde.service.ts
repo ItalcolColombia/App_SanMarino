@@ -77,7 +77,13 @@ export interface LoteRegistroHistoricoUnificadoDto {
 // ── Tabla diaria precalculada (fn_seguimiento_diario_engorde) ────────────────
 
 export interface SeguimientoDiarioTablaFilaDto {
-  segId: number;
+  /**
+   * ID del seguimiento diario. Es null cuando la fila representa un movimiento
+   * de inventario o venta de aves que aún no tiene un seguimiento diario asociado.
+   * En ese caso, los campos de mortalidad, consumo, peso, etc. son 0 / null y el
+   * frontend debe ocultar acciones de edit/delete (ofrecer "Crear seguimiento aquí").
+   */
+  segId: number | null;
   fecha: string;
   edadDia: number;
   semana: number;
@@ -104,6 +110,10 @@ export interface SeguimientoDiarioTablaFilaDto {
   despachoHembras: number;
   despachoMachos: number;
   despachoMixtas: number;
+  /** Peso INDIVIDUAL real de la venta de este lote en la fecha (R3.5), no el global de factura. */
+  despachoPesoNeto?: number;
+  despachoPesoTara?: number;
+  despachoPromedioPesoAve?: number;
   tipoAlimento: string | null;
   pesoPromHembras: number | null;
   pesoPromMachos: number | null;

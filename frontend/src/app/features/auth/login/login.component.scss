@@ -1,7 +1,7 @@
 /* ============================================================
    PALETA DE MARCA — Naranja · Rojo · Amarillo (San Marino)
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+/* Removed external Google Fonts import to avoid inlining issues in CI/environment. */
 
 :host {
   /* ── Naranjas ── */

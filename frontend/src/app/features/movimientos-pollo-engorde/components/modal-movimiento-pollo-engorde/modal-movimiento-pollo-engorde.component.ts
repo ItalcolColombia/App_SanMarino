@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
@@ -66,7 +66,7 @@ export interface MovimientoPolloEngordeSaveDetail {
 @Component({
   selector: 'app-modal-movimiento-pollo-engorde',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, ConfirmationModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-pollo-engorde.component.html',
   styleUrls: ['./modal-movimiento-pollo-engorde.component.scss']
 })
@@ -95,6 +95,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   /** Cache de grupos por galpón (no recalcular en cada CD con un getter). */
   gruposVentaPorGalpon: { galponId: string; galponLabel: string; lineas: VentaLineaGranja[] }[] = [];
   error: string | null = null;
+  /** R2: permite vender por encima del disponible (sobrante de aves por galpón). */
+  permitirSobrante = false;
   showConfirmModal = false;
   private fechaMovimientoSub?: Subscription;
   confirmModalData: ConfirmationModalData = {
@@ -426,15 +428,18 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
         this.error = 'Indique cantidad a vender en al menos un lote.';
         return;
       }
-      if (this.exceedsVentaGranjaLine) {
+      if (!this.permitirSobrante && this.exceedsVentaGranjaLine) {
         this.error =
-          'Alguna cantidad supera lo disponible en el lote (H / M / mixtas según corresponda).';
+          'Alguna cantidad supera lo disponible en el lote (H / M / mixtas según corresponda). Marque "Permitir sobrante de aves" para registrar de más.';
         return;
       }
       this.error = null;
+      const sobranteMsg = this.permitirSobrante && this.exceedsVentaGranjaLine
+        ? ' Se registrará el excedente como SOBRANTE de aves en el lote.'
+        : '';
       this.confirmModalData = {
         title: 'Confirmar venta por granja',
-        message: `Se registrarán ${this.formatearNumero(withQty.length)} movimiento(s) de venta (uno por lote). El mismo despacho y datos de transporte aplican a todos.`,
+        message: `Se registrarán ${this.formatearNumero(withQty.length)} movimiento(s) de venta (uno por lote). El mismo despacho y datos de transporte aplican a todos.${sobranteMsg}`,
         type: 'info',
         confirmText: 'Confirmar',
         cancelText: 'Cancelar',
@@ -578,6 +583,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
       conductor: v.conductor || null,
       pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null,
       pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null,
+      permitirSobrante: this.permitirSobrante,
       lineas
     };
   }
@@ -663,7 +669,8 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     const digits = (input.value ?? '').replace(/\D/g, '');
     const max = field === 'h' ? line.maxH : field === 'm' ? line.maxM : line.maxX;
     const parsed = digits === '' ? 0 : parseInt(digits, 10) || 0;
-    const clamped = Math.min(parsed, max);
+    // R2: con sobrante permitido NO se limita al disponible (se podrá vender de más).
+    const clamped = this.permitirSobrante ? parsed : Math.min(parsed, max);
     const exceeded = parsed > max;
     const nextStr = digits === '' ? '' : String(clamped);
 

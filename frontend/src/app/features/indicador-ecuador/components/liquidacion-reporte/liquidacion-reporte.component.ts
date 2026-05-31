@@ -22,8 +22,9 @@ export class LiquidacionReporteComponent {
     window.print();
   }
 
-  /** Días calendario entre encasetamiento y cierre */
+  /** Días de engorde: usa el cálculo del backend; fallback a días calendario encaset→cierre. */
   diasEngorde(ind: IndicadorEcuadorDto): number {
+    if (ind.diasEngorde != null) return ind.diasEngorde;
     if (!ind.fechaInicioLote || !ind.fechaCierreLote) return 0;
     const ms = new Date(ind.fechaCierreLote).getTime() - new Date(ind.fechaInicioLote).getTime();
     return Math.round(ms / 86_400_000);
@@ -34,9 +35,20 @@ export class LiquidacionReporteComponent {
     return ind.consumoAveGramos / 1000;
   }
 
-  /** Residual de aves (puede ser negativo si hay ajustes) */
+  /** Ajuste de aves: usa el del backend (incluye merma); fallback sin merma. Negativo ⇒ sobrante. */
   ajusteAves(ind: IndicadorEcuadorDto): number {
-    return ind.avesEncasetadas - ind.mortalidad - ind.avesSacrificadas;
+    if (ind.ajusteAves != null) return ind.ajusteAves;
+    return ind.avesEncasetadas - ind.mortalidad - ind.avesSacrificadas - (ind.mermaUnidades ?? 0);
+  }
+
+  /** Producción kilo en pie (kg que salen de granja). */
+  produccionKiloEnPie(ind: IndicadorEcuadorDto): number {
+    return ind.produccionKiloEnPie ?? ind.kgCarnePollos;
+  }
+
+  /** Total kilos despachados a cliente = producción − merma kilos. */
+  totalKilosCliente(ind: IndicadorEcuadorDto): number {
+    return ind.totalKilosDespachadosCliente ?? (this.produccionKiloEnPie(ind) - (ind.mermaKilos ?? 0));
   }
 
   pct(ajuste: number, encasetadas: number): number {
