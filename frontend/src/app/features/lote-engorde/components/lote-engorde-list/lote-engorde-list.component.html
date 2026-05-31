@@ -508,6 +508,10 @@
                   <label class="le-detail-label">Aves encasetadas</label>
                   <input type="text" class="le-detail-input" [value]="formatNumber(selectedLote.avesEncasetadas || 0)" readonly disabled>
                 </div>
+                <div class="le-detail-field" *ngIf="(selectedLote.avesSobrante ?? 0) > 0">
+                  <label class="le-detail-label">Aves agregadas de más (sobrante)</label>
+                  <input type="text" class="le-detail-input" [value]="'+' + formatNumber(selectedLote.avesSobrante || 0)" readonly disabled>
+                </div>
                 <div class="le-detail-field">
                   <label class="le-detail-label">Mixtas</label>
                   <input type="text" class="le-detail-input" [value]="formatOrDash(selectedLote.mixtas)" readonly disabled>

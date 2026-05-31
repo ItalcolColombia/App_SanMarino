@@ -50,7 +50,10 @@ public record MovimientoPolloEngordeDto(
     double? PesoTaraGlobal = null,
     double? PesoNetoGlobal = null,
     double? PesoBrutoReal = null,
-    double? PesoTaraReal = null
+    double? PesoTaraReal = null,
+    // Factura única del despacho (R3.3) y sobrante de aves del movimiento (R2)
+    Guid? FacturaId = null,
+    int AvesSobrante = 0
 );
 
 /// <summary>
@@ -103,6 +106,13 @@ public sealed class CreateMovimientoPolloEngordeDto
     public double? PesoTaraRealIndividual { get; set; }
     public double? PesoNetoIndividual { get; set; }
     public double? PromedioPesoAveIndividual { get; set; }
+
+    /// <summary>Si true, permite vender por encima del disponible (sobrante de aves). Parte B / R2.</summary>
+    public bool PermitirSobrante { get; set; }
+    /// <summary>Aves de este movimiento que fueron sobrante (lo calcula el servicio). Parte B / R2.</summary>
+    public int AvesSobrante { get; set; }
+    /// <summary>UID de la factura/despacho; lo asigna CreateVentaGranjaDespachoAsync. Parte C / R3.3.</summary>
+    public Guid? FacturaId { get; set; }
 }
 
 /// <summary>
@@ -230,6 +240,8 @@ public sealed class CreateVentaGranjaDespachoDto
     public string? Conductor { get; set; }
     public double? PesoBruto { get; set; }
     public double? PesoTara { get; set; }
+    /// <summary>Si true, permite que las líneas superen el disponible (sobrante de aves). Parte B / R2.</summary>
+    public bool PermitirSobrante { get; set; }
     public List<VentaGranjaDespachoLineaDto> Lineas { get; set; } = new();
 }
 

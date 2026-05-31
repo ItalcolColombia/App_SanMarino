@@ -13,6 +13,13 @@ public class MovimientoPolloEngorde : AuditableEntity
     public DateTime FechaMovimiento { get; set; }
     public string TipoMovimiento { get; set; } = null!; // Traslado, Ajuste, Liquidacion, Venta, Retiro
 
+    /// <summary>
+    /// Identificador único de la factura/despacho (Parte C / R3.3). Todas las líneas de un
+    /// mismo despacho multi-lote comparten este UID. Se genera automáticamente al crear el
+    /// despacho (independiente de <see cref="NumeroDespacho"/>, que es una referencia legible opcional).
+    /// </summary>
+    public Guid? FacturaId { get; set; }
+
     // Origen: exactamente uno de los dos debe estar definido
     public int? LoteAveEngordeOrigenId { get; set; }
     public int? LoteReproductoraAveEngordeOrigenId { get; set; }
@@ -66,6 +73,9 @@ public class MovimientoPolloEngorde : AuditableEntity
     public double? PesoTaraReal { get; set; }
     public double? PesoNeto { get; set; }
     public double? PromedioPesoAve { get; set; }
+
+    /// <summary>Aves de este movimiento que fueron sobrante (excedente sobre el disponible al vender). Parte C/B (R2).</summary>
+    public int AvesSobrante { get; set; }
 
     public int TotalAves => CantidadHembras + CantidadMachos + CantidadMixtas;
 

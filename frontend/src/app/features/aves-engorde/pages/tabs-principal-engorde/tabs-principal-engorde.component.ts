@@ -87,7 +87,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   /** Columnas de la tabla de registros diarios (sin Acciones). */
   get colspanRegistroDiario(): number {
-    return 28 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    // +2 por las columnas de peso individual de despacho (R3.5)
+    return 30 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   // segId puede ser null (movs sin seguimiento, fix #14) → usar fecha como fallback único para trackBy

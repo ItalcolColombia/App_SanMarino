@@ -71,6 +71,12 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   guardandoAbrir = false;
   guardandoCerrar = false;
 
+  // R1: merma digitada por Costos al liquidar (afecta el ajuste de aves y los kilos a cliente).
+  mermaUnidades: number | null = null;
+  mermaKilos: number | null = null;
+  guardandoMerma = false;
+  mermaGuardada = false;
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen && this.loteId) {
       this.cargarResumen();
@@ -97,6 +103,10 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.stockUsandoFallbackUbicacion = false;
     this.abrirModal = false;
     this.motivoReapertura = '';
+    this.mermaUnidades = null;
+    this.mermaKilos = null;
+    this.guardandoMerma = false;
+    this.mermaGuardada = false;
   }
 
   cargarResumen(): void {
@@ -368,7 +378,7 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.guardandoCerrar = true;
     this.error = null;
     this.loteEngorde
-      .cerrarLote(this.loteId, uid)
+      .cerrarLote(this.loteId, uid, { mermaUnidades: this.mermaUnidades, mermaKilos: this.mermaKilos })
       .pipe(finalize(() => (this.guardandoCerrar = false)))
       .subscribe({
         next: () => {
@@ -379,6 +389,46 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
           this.error = err?.error?.message ?? err?.error ?? err?.message ?? 'No se pudo cerrar el lote.';
         }
       });
+  }
+
+  /** R1: guarda la merma sin cerrar el lote (Costos puede digitarla antes de liquidar). */
+  async guardarMerma(): Promise<void> {
+    if (!this.loteId) return;
+    const uid = await this.userIdStr();
+    if (!uid) {
+      this.error = 'No hay usuario en sesión; vuelva a iniciar sesión.';
+      return;
+    }
+    this.guardandoMerma = true;
+    this.mermaGuardada = false;
+    this.error = null;
+    this.loteEngorde
+      .actualizarMerma(this.loteId, {
+        mermaUnidades: this.mermaUnidades,
+        mermaKilos: this.mermaKilos,
+        registradoPorUserId: uid
+      })
+      .pipe(finalize(() => (this.guardandoMerma = false)))
+      .subscribe({
+        next: () => {
+          this.mermaGuardada = true;
+          this.loteActualizado.emit();
+        },
+        error: err => {
+          this.error = err?.error?.message ?? err?.error ?? err?.message ?? 'No se pudo guardar la merma.';
+        }
+      });
+  }
+
+  /** Ajuste de aves (preview): encasetadas − vendidas − mortalidad − merma_und. Negativo ⇒ sobrante. */
+  get ajusteAvesPreview(): number {
+    const enc = this.totalInicioUi;
+    const vendidas =
+      Number(this.resumen?.ventasTotalHembras ?? 0) +
+      Number(this.resumen?.ventasTotalMachos ?? 0) +
+      Number(this.resumen?.ventasTotalMixtas ?? 0);
+    const mort = this.totalMortalidadHembras + this.totalMortalidadMachos;
+    return enc - vendidas - mort - Number(this.mermaUnidades ?? 0);
   }
 
   abrirDialogoReapertura(): void {

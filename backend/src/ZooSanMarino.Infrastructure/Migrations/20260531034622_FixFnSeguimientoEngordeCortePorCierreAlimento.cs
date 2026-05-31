@@ -1,4 +1,30 @@
--- =============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <inheritdoc />
+    public partial class FixFnSeguimientoEngordeCortePorCierreAlimento : Migration
+    {
+        // v5: corta la tabla de seguimiento en la fecha de CIERRE EFECTIVO de alimento
+        // (saldo a 0 en/después del último seguimiento), sin depender del flag estado.
+        // Evita mostrar ingresos del siguiente ciclo del galpón. Lotes genuinamente
+        // activos (saldo > 0) conservan el comportamiento v4 (muestran movs post-seg).
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(FN_SQL, suppressTransaction: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Forward-only: la función queda en v5. Para revertir, re-aplicar el SQL de la
+            // migración previa (20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo).
+        }
+
+        private const string FN_SQL = @"-- =============================================================================
 -- fn_seguimiento_diario_engorde(p_lote_id INT)
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
@@ -503,3 +529,6 @@ WINDOW
     w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
 ORDER BY se.fecha, COALESCE(se.seg_id, 0);
 $$;
+";
+    }
+}

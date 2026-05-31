@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS public.lote_registro_historico_unificado (
     cantidad_hembras            INTEGER NULL,
     cantidad_machos             INTEGER NULL,
     cantidad_mixtas             INTEGER NULL,
+    -- Peso INDIVIDUAL prorrateado de la venta (R3.5): el peso real de las aves que salieron
+    -- de ESTE lote, no el peso global de la factura. Copiado del movimiento por el trigger.
+    peso_neto                   NUMERIC(18, 3) NULL,
+    peso_tara_real              NUMERIC(18, 3) NULL,
+    promedio_peso_ave           NUMERIC(18, 4) NULL,
     referencia                  VARCHAR(500) NULL,
     numero_documento            VARCHAR(200) NULL,
     -- Suma acumulada de kg que ENTRAN al lote (Ingreso + traslados entrada a esa ubicación)
@@ -210,6 +215,7 @@ BEGIN
         movement_type_original, item_inventario_ecuador_id, item_resumen,
         cantidad_kg, unidad,
         cantidad_hembras, cantidad_machos, cantidad_mixtas,
+        peso_neto, peso_tara_real, promedio_peso_ave,
         referencia, numero_documento, acumulado_entradas_alimento_kg
     ) VALUES (
         NEW.company_id,
@@ -229,6 +235,9 @@ BEGIN
         NEW.cantidad_hembras,
         NEW.cantidad_machos,
         NEW.cantidad_mixtas,
+        NEW.peso_neto,
+        NEW.peso_tara_real,
+        NEW.promedio_peso_ave,
         CONCAT('Mov. ', NEW.numero_movimiento),
         NEW.numero_despacho,
         NULL
@@ -238,6 +247,9 @@ BEGIN
         cantidad_hembras = EXCLUDED.cantidad_hembras,
         cantidad_machos = EXCLUDED.cantidad_machos,
         cantidad_mixtas = EXCLUDED.cantidad_mixtas,
+        peso_neto = EXCLUDED.peso_neto,
+        peso_tara_real = EXCLUDED.peso_tara_real,
+        promedio_peso_ave = EXCLUDED.promedio_peso_ave,
         referencia = EXCLUDED.referencia,
         numero_documento = EXCLUDED.numero_documento,
         farm_id = EXCLUDED.farm_id,
@@ -252,6 +264,7 @@ $$;
 DROP TRIGGER IF EXISTS trg_movimiento_pollo_engorde_lote_hist ON public.movimiento_pollo_engorde;
 CREATE TRIGGER trg_movimiento_pollo_engorde_lote_hist
     AFTER INSERT OR UPDATE OF cantidad_hembras, cantidad_machos, cantidad_mixtas,
+        peso_neto, peso_tara_real, promedio_peso_ave,
         fecha_movimiento, tipo_movimiento, numero_despacho,
         lote_ave_engorde_origen_id, granja_origen_id, nucleo_origen_id, galpon_origen_id
     ON public.movimiento_pollo_engorde

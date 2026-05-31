@@ -1,108 +1,68 @@
-# 📊 Tracker de Estado — Spec #15: Seguimiento Diario Pollo Engorde
+# 📊 Tracker de Estado — Validación Entidades ↔ BD y Alineación para Producción
 
-**Plan de referencia:** [fase_de_desarrollo/15_spec_para_otro_chat.md](fase_de_desarrollo/15_spec_para_otro_chat.md)
-**Fecha de validación:** 2026-05-28
-**Resultado:** ✅ **TRABAJO COMPLETO — NO REQUIERE DESARROLLO ADICIONAL**
+**Plan de referencia:** [fase_de_desarrollo/17_validacion_entidades_vs_bd_INDICE.md](fase_de_desarrollo/17_validacion_entidades_vs_bd_INDICE.md)
+→ **Parte A** (mapeo entidad↔tabla↔relaciones, todos los campos) · **Parte B** (auditoría funciones/triggers/vistas + plan de migración)
 
----
+**Requerimiento origen:** alinear el backend con la BD de pruebas para que el despliegue a
+producción cree automáticamente todos los objetos (tablas, funciones, triggers, vistas) vía
+migraciones EF, sin depender de scripts SQL manuales.
 
-## Resumen ejecutivo
-
-El spec contiene 5 fixes encadenados (CASOS 1–5). Se ejecutó la **checklist de validación inicial** completa antes de tocar código. **Todos los criterios de aceptación (CA) ya están implementados y verificados contra la BD local.**
-
-Conforme a la instrucción del spec ("Si TODO el criterio ya está cumplido → no toques nada, déjalo así"), no se realizaron cambios al código en esta sesión.
-
----
-
-## ✅ Checklist de validación — Resultados
-
-### CASO 1 — Función SQL `fn_seguimiento_diario_engorde`
-- [x] **CA1.1** `rango_seg` castea con `::DATE` — `backend/sql/fn_seguimiento_diario_engorde.sql:105,111`
-- [x] **CA1.2** `INV_TRASLADO_SALIDA` usa `ABS(COALESCE(h.cantidad_kg, 0))` — línea 189
-- [x] **CA1.3** Nuevo CTE `apertura_alimento` — línea 213
-- [x] **CA1.4** `saldo_alimento_kg` se calcula dinámicamente — líneas 428-434
-- [x] **CA1.5** `consumo_bodega_kg` mapeado a `se.consumo_dia_kg` — línea 440
-- [x] **CA1.6** Test BD lote 5 @ 2026-02-27: `ingreso_alimento_kg=5000, documento='005-001-000053977'` ✅
-- [x] **CA1.7** Test BD lote 32 @ 2025-12-30: `ingreso_alimento_kg=6000` ✅
-
-### CASO 2 — `SeguimientoAvesEngordeEcuadorService` descuenta inventario
-- [x] **CA2.1** Constructor inyecta las 4 dependencias — `SeguimientoAvesEngordeEcuadorService.cs:22-33`
-- [x] **CA2.2** `CreateAsync` valida lote cerrado → `InvalidOperationException` — línea 197
-- [x] **CA2.3** Parsea metadata y llama `RegistrarConsumoAsync` — línea 277
-- [x] **CA2.4** Llama `RecalcularSaldoAlimentoPorLoteAsync` post-persist — línea 303
-- [x] **CA2.5** `UpdateAsync` aplica diff con `(ajuste)`/`(devolución)` — líneas 418-423
-- [x] **CA2.6** `DeleteAsync` con ref `"...(devolución por eliminación)"` + `anulado=true` — línea 482
-- [x] **CA2.7** Try/catch resilientes preservan el seguimiento aunque falle inventario
-- [x] **CA2.9** Mensaje exacto: "El lote está cerrado (liquidado). No se pueden agregar registros diarios." — línea 198
-
-### CASO 3 — Saldo apertura filtrado por `fecha_encaset`
-- [x] **CA3.1** SQL: condición `fecha_encaset::DATE` en `apertura_alimento` — `fn_seguimiento_diario_engorde.sql:310`
-- [x] **CA3.2** Backend: `ComputeSaldoAperturaGalponAntesPrimerSeguimiento(DateTime? fechaEncaset)` — ambos servicios (`SeguimientoAvesEngordeService.cs:417-424`, `SeguimientoAvesEngordeEcuadorService.cs:947-953`)
-- [x] **CA3.3** Call sites pasan `lote.FechaEncaset` — líneas 514, 1015
-- [x] **CA3.4** Saldo dinámico via subconsulta `hist_alimento` — `fn_seguimiento_diario_engorde.sql:428-434`
-- [x] **CA3.5** Test BD lote 75: `(3234, 2026-05-01, 5280)` ✅
-
-### CASO 4 — Script masivo de recálculo
-- [x] **CA4.1** Script envuelto en `BEGIN; ... COMMIT;` — `backend/sql/migrate_recalcular_saldo_alimento_engorde.sql:26,114`
-- [x] **CA4.2** Crea tabla `_migracion_saldo_alimento_2026_05_28` — línea 32
-- [x] **CA4.3** Solo lotes `deleted_at IS NULL` con `CROSS JOIN LATERAL` — líneas 53-54
-- [x] **CA4.4** UPDATE idempotente (diff >= 0.001) — línea 64
-- [x] **CA4.5** Reporte final + validación post-migración — líneas 70-109
-- [x] **CA4.7** Test post-migración: `total=3422, coinciden=3422, max_diff=0` ✅
-
-### CASO 5 — Deploy automático AWS + movs sin seguimiento
-- [x] **CA5.1** Migración EF Core con DROP + FN_V4_SQL + MIGRACION_MASIVA_SQL — `Migrations/20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo.cs:34-47`
-- [x] **CA5.2** No tiene `AddColumn` espurios (`grep` no encuentra coincidencias)
-- [x] **CA5.3** Snapshot interno idempotente con `CREATE TABLE IF NOT EXISTS` + `WHERE NOT EXISTS` — líneas 455-474
-- [x] **CA5.4** CTE `fechas_universo` — `fn_seguimiento_diario_engorde.sql:281,324,380`
-- [x] **CA5.5** `rango_seg.fecha_max = NULL` para lotes ABIERTOS — línea 111
-- [x] **CA5.6** `seg_enriquecido` parte de `fechas_universo` — línea 326
-- [x] **CA5.7** Window con `ORDER BY se.fecha, COALESCE(se.seg_id, 0)` — líneas 466-468
-- [x] **CA5.8** DTO C#: `public long? SegId` — `SeguimientoDiarioTablaFilaDto.cs:13`
-- [x] **CA5.9** TS interface: `segId: number | null` — `seguimiento-aves-engorde.service.ts:86`
-- [x] **CA5.10** `trackByDiarioFila = f.segId ?? mov-${f.fecha}` — `tabs-principal-engorde.component.ts:94`
-- [x] **CA5.11** `onViewDetailById/onEditById/onDelete` aceptan `number | null` — líneas 161,168,173
-- [x] **CA5.12** HTML: `*ngIf="f.segId != null; else movSinSeg"` — `tabs-principal-engorde.component.html:201,210`
-- [x] **CA5.13** Test BD lote 12: 11 movs con `seg_id IS NULL` ✅
-- [x] **CA5.15** Migración aplicada en local sin error (idempotente)
+**Fecha:** 2026-05-31
+**Estado global:** ✅ **COMPLETADO Y VALIDADO LOCALMENTE.** Migración
+`20260531180558_AddMissingDbFunctionsTriggersAndViews` creada, compila y aplica sin error.
 
 ---
 
-## 🔬 Verificaciones de entorno
+## ✅ Checklist
 
-| Verificación | Resultado |
-|---|---|
-| `dotnet build` backend | ✅ 0 errors, 0 warnings |
-| `yarn tsc --noEmit` frontend | ✅ 0 errors |
-| Migración aplicada en BD local | ✅ `20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo` presente en `__EFMigrationsHistory` |
-| Tabla snapshot `_migracion_saldo_alimento_2026_05_28` | ✅ 3422 filas de backup |
-| Saldos coinciden persistido vs función | ✅ 3422/3422, max_diff=0 |
-| Función v4 devuelve filas con `seg_id IS NULL` | ✅ (lote 12 tiene 11 movs sin seg) |
+### Fase 1 — Introspección de la BD
+- [x] Conexión a `localhost:5432/sanmarinoapplocal` (psql de libpq).
+- [x] Listar tablas (77) + columnas (1611) + PKs + FKs (142).
+- [x] Listar funciones (16), triggers (7) y vistas (3).
+- [x] Extraer DDL real con `pg_get_functiondef/viewdef/triggerdef`.
+
+### Fase 2 — Cruce código ↔ BD
+- [x] Mapear entidad ↔ tabla (configs EF + entidades).
+- [x] Cruzar cada función/trigger/vista contra el contenido de las migraciones EF.
+- [x] Identificar objetos SIN migración: 13 funciones, 6 triggers, 3 vistas.
+
+### Fase 3 — Documentación
+- [x] Parte A: mapeo entidad↔tabla↔relaciones con todos los campos.
+- [x] Parte B: auditoría + desalineaciones + plan de migración.
+- [x] Índice del paquete.
+
+### Fase 4 — Migración
+- [x] `dotnet ef migrations add AddMissingDbFunctionsTriggersAndViews`.
+- [x] Rellenar Up()/Down() idempotente (CREATE OR REPLACE func/view; DROP+CREATE triggers).
+- [x] `dotnet build` Infrastructure ✅ 0 errores.
+- [x] `dotnet ef database update` ✅ aplica sin error; objetos persisten; smoke tests OK.
+
+### Fase 5 — Validación sobre COPIA DE PRODUCCIÓN ✅ (2026-05-31)
+- [x] Restaurada copia de prod en `sanmarinoapplocal` y arrancado el back (aplicó migraciones).
+- [x] **0 migraciones pendientes**; mi migración `20260531180558` aplicada como última (59 aplicadas).
+- [x] Objetos presentes: 16 funciones, 7 triggers, 3 vistas (nombres exactos verificados).
+- [x] Smoke tests OK con datos reales: `fn_seguimiento_diario_engorde(5)`, `fn_indicadores_pollo_engorde(5,0,1)`, vistas con datos (3536/3495/75 filas).
+- [x] Sin tablas faltantes inesperadas (solo Ecuador/Panamá descartadas + `_ignored_produccion_diaria`).
+- [x] **CONCLUSIÓN: el deploy a producción pasará sin error.**
+
+### Fase 5b — Nueva migración: recálculo de saldo de alimento con función FINAL ✅ (2026-05-31)
+- [x] Detectado: `20260528212753` recalcula saldos con fn v4, pero `20260531034622` mejoró la función SIN re-recalcular → saldos quedaban con lógica vieja.
+- [x] Creada migración `20260531184044_RecalcularSaldoAlimentoEngorde20260531` (respaldo en `_migracion_saldo_alimento_2026_05_31` + UPDATE masivo con fn final; idempotente).
+- [x] Simulación completa de deploy sobre copia cruda de prod (estaba en `20260525131406`): 12 migraciones pendientes aplicadas sin error.
+- [x] **Resultado:** persistido == función final (0 discrepancias). Cadena: crudo→v4 = 1935 cambios; v4→final = **0 cambios** (la fn final da el mismo saldo que v4 para los datos actuales).
+- [x] **Impacto total que verá prod:** 1935/3495 saldos cambian (vs crudo), prom 37.366 kg, máx 253.254 kg — driven por `20260528212753`. Respaldo completo en ambas tablas `_migracion_saldo_alimento_*`.
+
+### Fase 6 — Notas / pendientes
+- [x] Separación seguimiento por país (Ecuador/Panamá): **descartada e intencional**. Decisión
+      2026-05-31: **solo documentar, no tocar código** (Parte B §6.1). Quedan controllers/servicios
+      cableados que fallarían si se llaman; limpieza opcional a futuro.
+- [ ] (Opcional) Decidir destino de tablas huérfanas `user_paises`, `guia_semana`.
+- [ ] Commit + deploy por flujo normal (ECS aplica migraciones al arrancar).
 
 ---
 
-## 📦 Archivos validados (sin modificación en esta sesión)
-
-### Backend
-- `backend/sql/fn_seguimiento_diario_engorde.sql` — versión v4 con fixes #10/#12/#14
-- `backend/sql/migrate_recalcular_saldo_alimento_engorde.sql` — script standalone
-- `backend/src/ZooSanMarino.Infrastructure/Migrations/20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo.cs` — migración EF Core idempotente
-- `backend/src/ZooSanMarino.Application/DTOs/SeguimientoDiarioTablaFilaDto.cs` — `SegId` nullable
-- `backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoAvesEngordeService.cs` — Colombia con `fechaEncaset`
-- `backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoAvesEngordeEcuadorService.cs` — Ecuador con descuento de inventario completo
-
-### Frontend
-- `frontend/src/app/features/aves-engorde/services/seguimiento-aves-engorde.service.ts`
-- `frontend/src/app/features/aves-engorde/pages/tabs-principal-engorde/tabs-principal-engorde.component.ts`
-- `frontend/src/app/features/aves-engorde/pages/tabs-principal-engorde/tabs-principal-engorde.component.html`
-
----
-
-## 🚀 Siguiente paso recomendado
-
-El trabajo está listo para deploy. Conforme a CLAUDE.md, `Database__RunMigrations=true` ya está activo en ECS prod, por lo que al hacer `make deploy-backend`:
-1. EF Core aplicará automáticamente `20260528212753_FixFnSeguimientoEngordeYRecalcularSaldosMasivo`.
-2. La función SQL queda en v4.
-3. El UPDATE masivo persiste los saldos correctos.
-
-No requiere intervención manual de SQL contra RDS prod.
+## 📦 Entregables
+- `fase_de_desarrollo/17_validacion_entidades_vs_bd_INDICE.md`
+- `fase_de_desarrollo/17_validacion_entidades_vs_bd_PARTE_A_mapeo.md`
+- `fase_de_desarrollo/17_validacion_entidades_vs_bd_PARTE_B_auditoria.md`
+- `backend/src/.../Migrations/20260531180558_AddMissingDbFunctionsTriggersAndViews.cs`

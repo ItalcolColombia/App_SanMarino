@@ -66,7 +66,19 @@ public record IndicadorEcuadorDto(
     DateTime? FechaInicioLote,
     DateTime? FechaCierreLote,
     bool LoteCerrado, // Indica si el lote tiene aves = 0
-    DateTime? FechaAlistamiento = null
+    DateTime? FechaAlistamiento = null,
+
+    // ─── Mermas, ajuste de aves y kilos a cliente (Parte B / R1 — Costos) ───
+    int MermaUnidades = 0,                    // input Costos: aves granja − aves cliente
+    decimal MermaKilos = 0,                   // input Costos: kg granja − kg cliente
+    decimal MermaPorcentaje = 0,              // merma_und / aves_vendidas × 100
+    int AjusteAves = 0,                       // encasetadas − vendidas − mortalidad − merma_und (negativo ⇒ sobrante)
+    decimal PorcentajeAjuste = 0,             // ajuste / encasetadas × 100
+    decimal ProduccionKiloEnPie = 0,          // kg que salen de granja (= KgCarnePollos individual)
+    decimal TotalKilosDespachadosCliente = 0, // produccion_kilo_en_pie − merma_kilos
+    int DiasEngorde = 0,                      // días entre encasetamiento y fecha de cierre/último despacho
+    DateTime? FechaLiquidacion = null,        // lote.LiquidadoAt
+    int AvesSobrante = 0                      // excedente acumulado del lote (Parte B / R2)
 );
 
 /// <summary>
@@ -189,5 +201,13 @@ public record IndicadorEcuadorConsolidadoDto(
     decimal PromedioGananciaDia,
     
     // Detalle por granja
-    IEnumerable<IndicadorEcuadorDto> IndicadoresPorGranja
+    IEnumerable<IndicadorEcuadorDto> IndicadoresPorGranja,
+
+    // Totales de mermas, ajuste y sobrante (Parte B / R1-R2)
+    int TotalMermaUnidades = 0,
+    decimal TotalMermaKilos = 0,
+    int TotalAjusteAves = 0,
+    decimal TotalProduccionKiloEnPie = 0,
+    decimal TotalKilosDespachadosCliente = 0,
+    int TotalAvesSobrante = 0
 );

@@ -1276,11 +1276,15 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   private buildFilasTabla(list: MovimientoPolloEngordeDto[]): FilaTablaMovimiento[] {
+    // R3.4: se agrupa por factura_id (clave robusta del despacho). Fallback al número de
+    // despacho + fecha + granja para movimientos antiguos sin factura_id.
     const puedeAgrupar = (m: MovimientoPolloEngordeDto) =>
-      m.tipoMovimiento === 'Venta' && !!(m.numeroDespacho ?? '').trim();
+      m.tipoMovimiento === 'Venta' && (!!m.facturaId || !!(m.numeroDespacho ?? '').trim());
 
     const grupoKey = (m: MovimientoPolloEngordeDto) =>
-      `${(m.numeroDespacho ?? '').trim().toLowerCase()}|${this.fechaDiaISO(m.fechaMovimiento)}|${m.granjaOrigenId ?? 0}`;
+      m.facturaId
+        ? `f|${m.facturaId}`
+        : `${(m.numeroDespacho ?? '').trim().toLowerCase()}|${this.fechaDiaISO(m.fechaMovimiento)}|${m.granjaOrigenId ?? 0}`;
 
     const groups = new Map<string, MovimientoPolloEngordeDto[]>();
     const sueltos: MovimientoPolloEngordeDto[] = [];
@@ -1304,7 +1308,9 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
         filas.push({
           kind: 'despacho-grupo',
           clave,
-          numeroDespacho: (movs[0].numeroDespacho ?? '').trim(),
+          numeroDespacho:
+            (movs[0].numeroDespacho ?? '').trim() ||
+            (movs[0].facturaId ? `Factura ${String(movs[0].facturaId).slice(0, 8)}` : ''),
           fechaMovimiento: movs[0].fechaMovimiento,
           movimientos: movs
         });

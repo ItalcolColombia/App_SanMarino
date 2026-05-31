@@ -1,5 +1,6 @@
 // src/ZooSanMarino.Infrastructure/Services/IndicadorEcuadorService.cs
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -180,7 +181,14 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             promedioEficienciaEuropea,
             promedioIndiceProductividad,
             promedioGananciaDia,
-            indicadoresList
+            indicadoresList,
+            // Totales de mermas, ajuste y sobrante (R1-R2)
+            indicadoresList.Sum(i => i.MermaUnidades),
+            indicadoresList.Sum(i => i.MermaKilos),
+            indicadoresList.Sum(i => i.AjusteAves),
+            indicadoresList.Sum(i => i.ProduccionKiloEnPie),
+            indicadoresList.Sum(i => i.TotalKilosDespachadosCliente),
+            indicadoresList.Sum(i => i.AvesSobrante)
         );
     }
 
@@ -487,97 +495,34 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         bool usarCierreAdministrativo = false)
     {
         var loteId = lote.LoteAveEngordeId ?? 0;
-        var avesEncasetadas = lote.AvesEncasetadas ?? (lote.HembrasL ?? 0) + (lote.MachosL ?? 0) + (lote.Mixtas ?? 0);
+        // Parte A (performance): el cálculo que antes hacía 8-10 queries N+1 por lote se consolidó
+        // en fn_indicadores_pollo_engorde (incluye el fix R3.1 de peso individual y los campos R1/R2).
+        var rows = await _context.Database
+            .SqlQueryRaw<IndicadorEcuadorRow>(
+                "SELECT * FROM fn_indicadores_pollo_engorde({0}::int, {1}::numeric, {2}::numeric)",
+                loteId, pesoAjuste, divisorAjuste)
+            .ToListAsync();
+        var r = rows.FirstOrDefault();
+        if (r is null) return null;
 
-        var avesSacrificadas = await AvesSacrificadasPolloEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
-        var (mortalidad, seleccion) = await MortalidadSeleccionAvesEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
-        var mortalidadTotal = mortalidad + seleccion;
-        var mortalidadPorcentaje = avesEncasetadas > 0 ? (decimal)mortalidadTotal / avesEncasetadas * 100 : 0;
-        var supervivenciaPorcentaje = avesEncasetadas > 0 ? (decimal)(avesEncasetadas - mortalidadTotal) / avesEncasetadas * 100 : 0;
-
-        var consumoTotal = await ConsumoPolloEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
-        var consumoAveGramos = avesSacrificadas > 0 ? consumoTotal / avesSacrificadas * 1000 : 0;
-
-        var (kgCarne, edadPromedio) = await KgCarneYEdadPolloEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
-        var pesoPromedio = avesSacrificadas > 0 ? kgCarne / avesSacrificadas : 0;
-        var conversion = kgCarne > 0 ? consumoTotal / kgCarne : 0;
-        var conversionAjustada = CalcularConversionAjustada(conversion, pesoPromedio, pesoAjuste, divisorAjuste);
-
-        var metrosCuadrados = await CalcularMetrosCuadradosAsync(lote.GalponId, lote.GranjaId);
-        var avesPorM2 = metrosCuadrados > 0 ? avesSacrificadas / metrosCuadrados : 0;
-        var kgPorM2 = metrosCuadrados > 0 ? kgCarne / metrosCuadrados : 0;
-
-        var eficienciaAmericana = conversion > 0 ? (pesoPromedio / conversion) * 100 : 0;
-        var eficienciaEuropea = (conversion > 0 && edadPromedio > 0) ? ((pesoPromedio * supervivenciaPorcentaje) / (edadPromedio * conversion)) * 100 : 0;
-        var indiceProductividad = conversion > 0 ? (pesoPromedio / conversion) / conversion * 100 : 0;
-        var gananciaDia = edadPromedio > 0 ? (pesoPromedio / edadPromedio) * 1000 : 0;
-
-        // Aves que salieron por Traslado a reproductores también cuentan como "salidas" del padre
-        var avesTrasladadasAReproductores = await AvesTrasladadasDesdePadreHaciaReproductoresAsync(loteId);
-        var avesActuales = avesEncasetadas - mortalidadTotal - avesSacrificadas - avesTrasladadasAReproductores;
-        // Lote padre cerrado: aves actuales = 0, o bien todas las aves están en reproductores y todos los reproductores ya vendieron (0 aves)
-        var cerradoPorAvesCero = Math.Max(0, avesActuales) == 0;
-        var cerradoPorReproductoresVendidos = !cerradoPorAvesCero && avesSacrificadas == 0 && mortalidadTotal == 0 &&
-            await TodosReproductoresConCeroAvesAsync(loteId);
-        var loteCerrado = cerradoPorAvesCero || cerradoPorReproductoresVendidos;
+        // Filtros administrativos (idénticos a la versión previa; usan los marcadores de la función).
         if (soloLotesCerrados)
         {
             if (usarCierreAdministrativo)
             {
-                // Cierre administrativo: marcado como liquidado en el sistema,
-                // o físicamente cerrado (aves = 0),
-                // o ≥90% de aves cosechadas (cubre lotes con saldo residual mínimo sin cierre formal).
-                var ratioSacrificadas = avesEncasetadas > 0
-                    ? (decimal)avesSacrificadas / avesEncasetadas
-                    : 0m;
-                var adminCerrado = lote.EstadoOperativoLote != "Abierto"
-                                || lote.LiquidadoAt != null
-                                || loteCerrado
-                                || ratioSacrificadas >= 0.9m;
+                var adminCerrado = r.EstadoOperativoLote != "Abierto"
+                                || r.LiquidadoAtMarker != null
+                                || r.LoteCerrado
+                                || r.RatioSacrificadas >= 0.9m;
                 if (!adminCerrado) return null;
             }
-            else if (!loteCerrado)
+            else if (!r.LoteCerrado)
+            {
                 return null;
+            }
         }
 
-        var fechaCierre = await FechaCierrePolloEngordeAsync(loteAveEngordeId: loteId, loteReproductoraId: null);
-        // Sin Venta/Despacho/Retiro la fecha puede ser null aunque el lote esté en cero (p. ej. solo mortalidad/seguimiento).
-        if (!fechaCierre.HasValue && loteCerrado)
-            fechaCierre = await FechaUltimaActividadLotePadreAveEngordeAsync(loteId, lote.FechaEncaset);
-
-        return new IndicadorEcuadorDto(
-            lote.GranjaId,
-            lote.Farm?.Name ?? "",
-            loteId,
-            lote.LoteNombre,
-            lote.GalponId,
-            lote.Galpon?.GalponNombre ?? "",
-            avesEncasetadas,
-            avesSacrificadas,
-            mortalidadTotal,
-            mortalidadPorcentaje,
-            supervivenciaPorcentaje,
-            consumoTotal,
-            consumoAveGramos,
-            kgCarne,
-            pesoPromedio,
-            conversion,
-            conversionAjustada,
-            pesoAjuste,
-            divisorAjuste,
-            edadPromedio,
-            metrosCuadrados,
-            (decimal)avesPorM2,
-            kgPorM2,
-            eficienciaAmericana,
-            eficienciaEuropea,
-            indiceProductividad,
-            gananciaDia,
-            lote.FechaEncaset,
-            fechaCierre,
-            loteCerrado,
-            lote.FechaAlistamiento
-        );
+        return r.ToDto();
     }
 
     private async Task<IndicadorEcuadorDto?> CalcularIndicadorLoteReproductoraAveEngordeAsync(
@@ -657,41 +602,8 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         );
     }
 
-    /// <summary>
-    /// Aves que salieron del lote padre por Traslado hacia lotes reproductores (descuento para considerar lote padre cerrado cuando ya no tiene aves).
-    /// </summary>
-    private async Task<int> AvesTrasladadasDesdePadreHaciaReproductoresAsync(int loteAveEngordeId)
-    {
-        var total = await _context.MovimientoPolloEngorde.AsNoTracking()
-            .Where(m => m.Estado != "Cancelado" && m.DeletedAt == null &&
-                m.TipoMovimiento == "Traslado" &&
-                m.LoteAveEngordeOrigenId == loteAveEngordeId &&
-                m.LoteReproductoraAveEngordeDestinoId != null)
-            .SumAsync(m => (int?)(m.CantidadHembras + m.CantidadMachos + m.CantidadMixtas));
-        return total ?? 0;
-    }
-
-    /// <summary>
-    /// True si el lote padre tiene reproductores y todos ellos tienen 0 aves actuales (vendidas/cerrados).
-    /// Usado para considerar el lote padre "cerrado" cuando todas las aves se distribuyeron a reproductores y estos ya vendieron todo.
-    /// </summary>
-    private async Task<bool> TodosReproductoresConCeroAvesAsync(int loteAveEngordeId)
-    {
-        var reps = await _context.LoteReproductoraAveEngorde.AsNoTracking()
-            .Where(r => r.LoteAveEngordeId == loteAveEngordeId)
-            .ToListAsync();
-        if (reps.Count == 0) return false;
-        foreach (var rep in reps)
-        {
-            var encaset = (rep.AvesInicioHembras ?? 0) + (rep.AvesInicioMachos ?? 0) + (rep.Mixtas ?? 0);
-            if (encaset == 0) encaset = (rep.H ?? 0) + (rep.M ?? 0) + (rep.Mixtas ?? 0);
-            var ventas = await AvesSacrificadasPolloEngordeAsync(loteAveEngordeId: null, loteReproductoraId: rep.Id);
-            var (mort, sel) = await MortalidadSeleccionReproductoraAveEngordeAsync(rep.Id);
-            var actuales = encaset - mort - sel - ventas;
-            if (actuales > 0) return false;
-        }
-        return true;
-    }
+    // NOTA: la lógica de "lote padre cerrado" (traslados a reproductores + todos los
+    // reproductores en cero) se consolidó en fn_indicadores_pollo_engorde (Parte A).
 
     private async Task<int> AvesSacrificadasPolloEngordeAsync(int? loteAveEngordeId, int? loteReproductoraId)
     {
@@ -706,16 +618,6 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             return 0;
         var total = await q.SumAsync(m => (int?)(m.CantidadHembras + m.CantidadMachos + m.CantidadMixtas));
         return total ?? 0;
-    }
-
-    private async Task<(int mortalidad, int seleccion)> MortalidadSeleccionAvesEngordeAsync(int loteAveEngordeId, int? loteReproductoraId)
-    {
-        var seg = await _context.SeguimientoDiarioAvesEngorde.AsNoTracking()
-            .Where(s => s.LoteAveEngordeId == loteAveEngordeId)
-            .GroupBy(s => 1)
-            .Select(g => new { Mort = g.Sum(s => (s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0)), Sel = g.Sum(s => (s.SelH ?? 0) + (s.SelM ?? 0)) })
-            .FirstOrDefaultAsync();
-        return (seg?.Mort ?? 0, seg?.Sel ?? 0);
     }
 
     private async Task<(int mortalidad, int seleccion)> MortalidadSeleccionReproductoraAveEngordeAsync(int loteReproductoraId)
@@ -759,7 +661,13 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         else
             return (0, 0);
         var movs = await q.ToListAsync();
-        var kgCarne = (decimal)movs.Where(m => m.PesoBruto.HasValue && m.PesoTara.HasValue).Sum(m => m.PesoBruto!.Value - m.PesoTara!.Value);
+        // FIX (Parte C / R3.1): usar el peso neto INDIVIDUAL prorrateado por lote.
+        // peso_bruto/peso_tara guardan el peso GLOBAL del camión clonado en cada línea del
+        // despacho ⇒ SUM(peso_bruto-peso_tara) sobrecuenta los kg en despachos multi-lote.
+        // peso_neto ya es el individual (= bruto-tara en movimientos de 1 línea). Fallback para
+        // movimientos antiguos sin peso_neto poblado.
+        var kgCarne = (decimal)movs.Sum(m =>
+            m.PesoNeto ?? ((m.PesoBruto.HasValue && m.PesoTara.HasValue) ? m.PesoBruto!.Value - m.PesoTara!.Value : 0d));
         var edades = movs.Where(m => m.EdadAves.HasValue).Select(m => (decimal)m.EdadAves!.Value).ToList();
         var edadPromedio = edades.Any() ? edades.Average() : 0;
         return (kgCarne, edadPromedio);
@@ -781,33 +689,6 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             .OrderByDescending(m => m.FechaMovimiento)
             .Select(m => (DateTime?)m.FechaMovimiento)
             .FirstOrDefaultAsync();
-    }
-
-    /// <summary>
-    /// Última fecha útil para reporte/filtro cuando no hay fecha de último despacho:
-    /// último seguimiento diario, o último movimiento de pollo engorde, o fecha de encaset.
-    /// </summary>
-    private async Task<DateTime?> FechaUltimaActividadLotePadreAveEngordeAsync(int loteAveEngordeId, DateTime? fechaEncaset)
-    {
-        var ultSeg = await _context.SeguimientoDiarioAvesEngorde.AsNoTracking()
-            .Where(s => s.LoteAveEngordeId == loteAveEngordeId)
-            .OrderByDescending(s => s.Fecha)
-            .Select(s => (DateTime?)s.Fecha)
-            .FirstOrDefaultAsync()
-            .ConfigureAwait(false);
-
-        if (ultSeg.HasValue) return ultSeg;
-
-        var ultMov = await _context.MovimientoPolloEngorde.AsNoTracking()
-            .Where(m => m.LoteAveEngordeOrigenId == loteAveEngordeId && m.Estado != "Cancelado" && m.DeletedAt == null)
-            .OrderByDescending(m => m.FechaMovimiento)
-            .Select(m => (DateTime?)m.FechaMovimiento)
-            .FirstOrDefaultAsync()
-            .ConfigureAwait(false);
-
-        if (ultMov.HasValue) return ultMov;
-
-        return fechaEncaset;
     }
 
     // ========== Métodos privados ==========

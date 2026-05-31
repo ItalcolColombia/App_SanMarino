@@ -110,6 +110,10 @@ export interface SeguimientoDiarioTablaFilaDto {
   despachoHembras: number;
   despachoMachos: number;
   despachoMixtas: number;
+  /** Peso INDIVIDUAL real de la venta de este lote en la fecha (R3.5), no el global de factura. */
+  despachoPesoNeto?: number;
+  despachoPesoTara?: number;
+  despachoPromedioPesoAve?: number;
   tipoAlimento: string | null;
   pesoPromHembras: number | null;
   pesoPromMachos: number | null;

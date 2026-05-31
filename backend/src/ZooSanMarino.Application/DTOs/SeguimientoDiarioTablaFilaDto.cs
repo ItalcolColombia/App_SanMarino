@@ -51,6 +51,10 @@ public class SeguimientoDiarioTablaFilaDto
     public int DespachoHembras { get; set; }
     public int DespachoMachos { get; set; }
     public int DespachoMixtas { get; set; }
+    // Peso INDIVIDUAL real de la venta de este lote en la fecha (R3.5), no el global de factura
+    public double DespachoPesoNeto { get; set; }
+    public double DespachoPesoTara { get; set; }
+    public double DespachoPromedioPesoAve { get; set; }
 
     // Mediciones del seguimiento
     public string? TipoAlimento { get; set; }

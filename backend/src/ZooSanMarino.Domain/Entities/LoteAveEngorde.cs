@@ -51,6 +51,19 @@ public class LoteAveEngorde : AuditableEntity
     public string? ReabiertoPorUserId { get; set; }
     public string? MotivoReapertura { get; set; }
 
+    // ─── Mermas (Parte B / R1) — las digita Costos al liquidar; NO afectan el registro diario ───
+    /// <summary>Merma en aves (unidades): diferencia entre aves que salen de granja y las que recibe el cliente.</summary>
+    public int? MermaUnidades { get; set; }
+    /// <summary>Merma en kilos: diferencia de peso granja vs peso recibido en planta del cliente.</summary>
+    public decimal? MermaKilos { get; set; }
+    public DateTime? MermaRegistradaAt { get; set; }
+    public string? MermaRegistradaPorUserId { get; set; }
+
+    // ─── Sobrante de aves (Parte B / R2) ───
+    /// <summary>Acumulado de aves vendidas por encima del saldo físico ("aves agregadas de más").
+    /// El histórico original permanece en <see cref="AvesEncasetadas"/>.</summary>
+    public int AvesSobrante { get; set; }
+
     public int? PaisId { get; set; }
     public string? PaisNombre { get; set; }
     public string? EmpresaNombre { get; set; }
