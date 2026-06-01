@@ -1,4 +1,47 @@
--- =============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// v6 de fn_seguimiento_diario_engorde: cambia saldo_alimento_kg de GREATEST(0, acumulado)
+    /// (M0) a PISO 0 CON RESETEO DE BASE (M1, Lindley): saldo_t = max(0, saldo_{t-1} + ingreso − consumo),
+    /// y aplica el mismo piso 0 por paso a la APERTURA del galpón. Alinea la función SQL con la lógica
+    /// canónica del frontend (computeSaldoAlimentoKgPorSeguimiento) y del backend C#
+    /// (RecalcularSaldoAlimentoPorLoteAsync). Verificado: 0 divergencias en los 75 lotes de engorde locales.
+    /// Para lotes sanos (que nunca dipean) M1 == M0. Tras recrear la función, recalcula masivamente
+    /// saldo_alimento_kg (patrón de 20260531184044). Respaldo: _migracion_saldo_alimento_m1_2026_05_31.
+    /// Idempotente: CREATE OR REPLACE, snapshot solo-si-no-existe, UPDATE solo si difiere.
+    /// </summary>
+    public partial class FixFnSeguimientoEngordeM1SaldoAlimento : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(FN_SQL, suppressTransaction: true);
+            migrationBuilder.Sql(RECALCULO_MASIVO_SQL, suppressTransaction: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(@"
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables
+               WHERE table_name = '_migracion_saldo_alimento_m1_2026_05_31') THEN
+        UPDATE seguimiento_diario_aves_engorde p
+        SET saldo_alimento_kg = b.saldo_antes, updated_at = b.updated_at_antes
+        FROM _migracion_saldo_alimento_m1_2026_05_31 b
+        WHERE p.id = b.seg_id;
+    END IF;
+END $$;
+", suppressTransaction: true);
+            // La función queda en v6. Para revertirla, re-aplicar el SQL de 20260531034622 (v5).
+        }
+
+        private const string FN_SQL = @"-- =============================================================================
 -- fn_seguimiento_diario_engorde(p_lote_id INT)
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
 -- Tabla fuente: seguimiento_diario_aves_engorde
@@ -7,7 +50,7 @@
 --   * Problema: la fn calculaba el saldo como GREATEST(0, acumulado) sobre el cumulativo
 --     desde apertura (modelo M0). Eso ARRASTRABA el déficit transitorio: cuando el consumo
 --     se adelantaba a un ingreso registrado tarde, el acumulado se volvía negativo, se
---     mostraba 0, y al llegar el ingreso "rebotaba" → el usuario lo veía como "no cuadra"
+--     mostraba 0, y al llegar el ingreso ""rebotaba"" → el usuario lo veía como ""no cuadra""
 --     (caso lote 75, 29→30 may-2026). Además, M0 NO coincidía con la lógica canónica del
 --     frontend (computeSaldoAlimentoKgPorSeguimiento) ni del backend C#
 --     (RecalcularSaldoAlimentoPorLoteAsync), que SÍ usan piso 0 con reseteo.
@@ -506,7 +549,7 @@ SELECT
     -- ⭐ v6 (M1): piso 0 con reseteo de base (Lindley). Alinea la fn con la lógica canónica
     -- del frontend (computeSaldoAlimentoKgPorSeguimiento) y del backend C#
     -- (RecalcularSaldoAlimentoPorLoteAsync): saldo_t = max(0, saldo_{t-1} + ingreso − consumo).
-    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). "Olvida" el déficit transitorio de timing.
+    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). ""Olvida"" el déficit transitorio de timing.
     (se.pt - LEAST(0, MIN(se.pt) OVER w_ord))::FLOAT8                                  AS saldo_alimento_kg,
     se.ingreso_alimento_kg,
     se.traslado_entrada_kg,
@@ -545,3 +588,39 @@ WINDOW
     w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
 ORDER BY se.fecha, COALESCE(se.seg_id, 0);
 $$;
+";
+
+        private const string RECALCULO_MASIVO_SQL = @"
+-- Snapshot persistente del saldo ANTES del recálculo M1 (auditoría y rollback). Idempotente.
+CREATE TABLE IF NOT EXISTS _migracion_saldo_alimento_m1_2026_05_31 (
+    seg_id            BIGINT,
+    lote_id           INT,
+    fecha             DATE,
+    saldo_antes       NUMERIC(18,3),
+    updated_at_antes  TIMESTAMP WITH TIME ZONE,
+    migrated_at       TIMESTAMP WITH TIME ZONE
+);
+
+INSERT INTO _migracion_saldo_alimento_m1_2026_05_31 (seg_id, lote_id, fecha, saldo_antes, updated_at_antes, migrated_at)
+SELECT s.id, s.lote_ave_engorde_id, DATE(s.fecha), s.saldo_alimento_kg, s.updated_at, (now() AT TIME ZONE 'utc')
+FROM seguimiento_diario_aves_engorde s
+JOIN lote_ave_engorde l ON l.lote_ave_engorde_id = s.lote_ave_engorde_id
+WHERE l.deleted_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM _migracion_saldo_alimento_m1_2026_05_31 b WHERE b.seg_id = s.id);
+
+-- Recálculo masivo con la fn v6 (M1). Solo toca filas cuyo saldo difiere del nuevo cálculo.
+WITH nuevos_saldos AS (
+    SELECT l.lote_ave_engorde_id AS lote_id, fn.seg_id,
+           fn.saldo_alimento_kg::numeric(18,3) AS saldo_nuevo
+    FROM lote_ave_engorde l
+    CROSS JOIN LATERAL fn_seguimiento_diario_engorde(l.lote_ave_engorde_id) fn
+    WHERE l.deleted_at IS NULL AND fn.seg_id IS NOT NULL
+)
+UPDATE seguimiento_diario_aves_engorde p
+SET saldo_alimento_kg = n.saldo_nuevo, updated_at = (now() AT TIME ZONE 'utc')
+FROM nuevos_saldos n
+WHERE p.id = n.seg_id
+  AND (p.saldo_alimento_kg IS NULL OR ABS(p.saldo_alimento_kg - n.saldo_nuevo) >= 0.001);
+";
+    }
+}

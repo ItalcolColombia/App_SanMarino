@@ -1,68 +1,107 @@
-# 📊 Tracker de Estado — Validación Entidades ↔ BD y Alineación para Producción
+# 📊 Tracker de Estado — Validación y corrección masiva del saldo de alimento (engorde, lotes "2602")
 
-**Plan de referencia:** [fase_de_desarrollo/17_validacion_entidades_vs_bd_INDICE.md](fase_de_desarrollo/17_validacion_entidades_vs_bd_INDICE.md)
-→ **Parte A** (mapeo entidad↔tabla↔relaciones, todos los campos) · **Parte B** (auditoría funciones/triggers/vistas + plan de migración)
+**Plan de referencia:** [fase_de_desarrollo/18_validacion_correccion_saldo_alimento_engorde_2602.md](fase_de_desarrollo/18_validacion_correccion_saldo_alimento_engorde_2602.md)
 
-**Requerimiento origen:** alinear el backend con la BD de pruebas para que el despliegue a
-producción cree automáticamente todos los objetos (tablas, funciones, triggers, vistas) vía
-migraciones EF, sin depender de scripts SQL manuales.
-
-**Fecha:** 2026-05-31
-**Estado global:** ✅ **COMPLETADO Y VALIDADO LOCALMENTE.** Migración
-`20260531180558_AddMissingDbFunctionsTriggersAndViews` creada, compila y aplica sin error.
+**Alcance:** 34 lotes con `lote_nombre` terminando en `2602`. **Entorno:** solo local primero.
 
 ---
 
-## ✅ Checklist
+## Fase 1 — Diagnóstico (COMPLETADA)
+- [x] Conectar a BD local `sanmarinoapplocal` y leer el lote 75 (`/api/LoteAveEngorde/75`)
+- [x] Verificar la fórmula de saldo de la fn `fn_seguimiento_diario_engorde` (fuente de verdad)
+- [x] Comparar saldo persistido vs calculado en los 34 lotes → **divergencia 0** (la fn no tiene bug)
+- [x] Caso lote 75: confirmar que 29→30 cuadra aritméticamente; raíz = clamp del 28 (−1765) + consumo anómalo del 30 (360)
+- [x] Validación masiva: 15/34 lotes con ledger negativo
+- [x] Clasificar negativos: 9 **transitorios** (timing) vs 6 **déficit real** (falta ingreso / consumo sobrecargado)
+- [x] Escribir plan (`fase_de_desarrollo/18_*`) y resetear este tracker
 
-### Fase 1 — Introspección de la BD
-- [x] Conexión a `localhost:5432/sanmarinoapplocal` (psql de libpq).
-- [x] Listar tablas (77) + columnas (1611) + PKs + FKs (142).
-- [x] Listar funciones (16), triggers (7) y vistas (3).
-- [x] Extraer DDL real con `pg_get_functiondef/viewdef/triggerdef`.
+## Fase 2 — Decisión del usuario (COMPLETADA)
+- [x] Clase A (transitorios): **M1** (piso 0 con reseteo de base)
+- [x] Ámbito: **cambiar la función global** + recálculo masivo persistido
+- [x] Hallazgo: frontend y backend C# YA usaban M1; la fn SQL era la única en M0 → M1 alinea todo
+- [ ] Clase B (déficit real): "validar mejor antes" → forensics hechos; **falta decisión por lote** (ver §abajo)
 
-### Fase 2 — Cruce código ↔ BD
-- [x] Mapear entidad ↔ tabla (configs EF + entidades).
-- [x] Cruzar cada función/trigger/vista contra el contenido de las migraciones EF.
-- [x] Identificar objetos SIN migración: 13 funciones, 6 triggers, 3 vistas.
+## Fase 3 — Implementación (COMPLETADA en local)
+- [x] Respaldo `_backup_correccion_saldo_2602_2026_05_31` (1666 filas) + `_migracion_saldo_alimento_m1_2026_05_31`
+- [x] Modificar `backend/sql/fn_seguimiento_diario_engorde.sql` → **v6 (M1)**, forma cerrada de Lindley
+- [x] Migración EF idempotente `20260531194613_FixFnSeguimientoEngordeM1SaldoAlimento` (CREATE OR REPLACE + recálculo masivo)
+- [x] Aplicada a local vía `dotnet ef database update` (registrada en `__EFMigrationsHistory`)
+- [x] Recalcular `saldo_alimento_kg` persistido (todo engorde)
 
-### Fase 3 — Documentación
-- [x] Parte A: mapeo entidad↔tabla↔relaciones con todos los campos.
-- [x] Parte B: auditoría + desalineaciones + plan de migración.
-- [x] Índice del paquete.
+## Fase 4 — Validación (COMPLETADA en local)
+- [x] Lote 75: 28→0, **29→6920, 30→16680** (cuadra día a día y coincide con el frontend)
+- [x] 34 lotes 2602: 0 negativos
+- [x] **Prueba de concordancia C# vs fn**: réplica exacta del algoritmo `RecalcularSaldoAlimentoPorLoteAsync`
+      en PL/pgSQL. Detectó 2 gaps reales corregidos en la fn:
+      1. (bug de la propia réplica) `NULL LIKE` descartaba ingresos con `referencia` NULL — corregido en la prueba.
+      2. **Apertura**: la fn sumaba plano; frontend/C# pisan en 0 por paso (Lindley) → fn v6 ahora pisa la apertura.
+- [x] **Concordancia TRIPLE en TODO engorde (75 lotes, 3495 segs): persistido = fn = C# → 0 divergencias, 0 negativos**
+- [x] Función temporal de prueba `_test_saldo_csharp` eliminada; migración recompila sin errores
+- [ ] `make down` (no aplica: no se levantó backend/docker; validación 100% vía SQL)
 
-### Fase 4 — Migración
-- [x] `dotnet ef migrations add AddMissingDbFunctionsTriggersAndViews`.
-- [x] Rellenar Up()/Down() idempotente (CREATE OR REPLACE func/view; DROP+CREATE triggers).
-- [x] `dotnet build` Infrastructure ✅ 0 errores.
-- [x] `dotnet ef database update` ✅ aplica sin error; objetos persisten; smoke tests OK.
+## Fase 6 — NUEVO: Reconciliación stock inventario ↔ saldo seguimiento (plan `19_*`)
+- [x] Diagnóstico: existen 2 sistemas paralelos de alimento que NO concuerdan
+      - Inventario real (`inventario_gestion_stock`, por tipo) vs saldo seguimiento (fn)
+      - Ingresos fantasma (`cuadrar_saldos_engorde` + `manual_backfill`) no están en stock real
+      - `INV_CONSUMO` ≈ 2-2.5× el consumo del seguimiento (incluso date-scoped, sin solape de ciclo)
+      - Stock es galpón-acumulado entre ciclos secuenciales (2601→2602→2603); saldo es por ciclo
+      - Ej. lote 75/G0042: stock 39 435 kg vs saldo 16 680 kg
+- [x] **Decisiones del usuario**: fuente de verdad = **SEGUIMIENTO**; consumo 2× = investigar; arrancar read-only
+- [x] **Causa del consumo 2× RESUELTA**: los movimientos `Consumo` del inventario se generan desde el
+      seguimiento (`reference="Seguimiento aves engorde #<id>"`) y el total por galpón suma TODOS los
+      ciclos (2601+2602+2603). Atribuidos por lote vía el `#`, muchos cuadran; otros tienen consumo del
+      seguimiento que NUNCA se posteó al inventario (ej. lote 75: SM0178 Super Pollo Engorde, 24 520 kg
+      reportados, 0 posteados → stock SM0178 sobreestimado a 38 740).
+- [x] **Fase A — reporte read-only construido** (vistas en `backend/sql/vw_validacion_alimento_engorde.sql`):
+      `vw_validacion_alimento_engorde_por_lote` y `vw_validacion_alimento_engorde_por_tipo`.
+      Resumen 75 lotes engorde: 30 con consumo sin postear, 42 con ingresos antes de encaset, 53 saldo≠stock.
+- [x] Fase B — reporte revisado; causa raíz = consumo del seguimiento sin postear al inventario
+- [x] **Fase C — CUADRE EJECUTADO Y VALIDADO EN LOCAL** (`backend/sql/cuadre_inventario_vs_seguimiento_2602.sql`
+      + migración `20260601032401_CuadreInventarioVsSeguimiento2602`, idempotente, respaldo
+      `_backup_cuadre_inv_stock_2026_05_31`, Down() reversible):
+      - Posteó **131 movimientos Consumo (286 200 kg)** que el seguimiento reportó pero el inventario omitió,
+        atribuidos por tipo_alimento; decrementó stock (piso 0).
+      - Resultado 34 lotes 2602: **20 cuadran exacto** (stock=saldo) · 4 con residuo menor (<5 000 kg:
+        ingresos fantasma + condonación M1 + split multi-tipo) · 10 con residuo mayor (galpón YA ocupado
+        por el ciclo 2603 → su stock no es del 2602; comparar contra el lote 2603).
+      - Lote 75: SM0178 38 740→18 360; total 18 360 vs saldo 16 680.
+- [x] **Bug del split multi-tipo CORREGIDO**: el consumo de días con dos tipos ahora va completo al tipo
+      con más stock (antes 50/50 → perdía kg en piso 0). Lote 75: inventario 18 360→**14 915** (físico real).
+- [x] **Lote 75 RESUELTO (cuadra exacto 14 915 = 14 915)**: fix de fecha del ingreso doc 9445 (10 320 kg)
+      del 29→28-may (llegó antes, registrado tarde) → desaparece el déficit del 28, M1 deja de inflar y
+      el saldo baja de 16 680 a 14 915 = inventario. Respaldo `_backup_fix_fecha_ingreso_2026_05_31`.
+      El 695 kg SM0176 = leftover de una EliminacionStock de 18 150 del 23-abr (ciclo 2601, no del 75).
+      ⚠️ Este fix se aplicó DIRECTO en local; NO está en migración → para prod hay que migrarlo o repetirlo.
+- [x] **Revisión completa de residuos (panorama final):**
+      - **Déficits transitorios NO uniformes**: lote 75 limpio (1 ingreso 1 día tarde) PERO G0035 (−16 490)
+        es estructural (consumo ~8-9 t/día, ingresos en bloque cada 2-3 días) → re-fechar a ciegas es RIESGOSO.
+        La migración general de fechas solo es segura para el subconjunto limpio (déficit chico, 1 ingreso lo resuelve).
+      - **10 de residuo grande**: 6 tienen ciclo ACTIVO = 2603 (mismo bug de consumo sin postear, fuera de scope)
+        → para cuadrarlos hay que **extender el cuadre al ciclo activo 2603**. El 2601 (cerrado) sigue excluido.
+      - **Stock < saldo (G0041, G0055, G0036)**: problema INVERSO, al inventario le falta stock
+        (ingresos fantasma en seguimiento no en stock real, o EliminacionStock que borró stock real).
+- [x] **CUADRE DEFINITIVO (modelo expected M0) — EJECUTADO Y VALIDADO EN LOCAL.**
+      Decisiones del usuario: fuente de verdad = seguimiento; expected = ingresos − consumo por lote;
+      no arrastrar sobrante de ciclo cerrado; extender al ciclo activo (2603); sumar fantasma; usar fechas como están.
+      - Migración `20260601032401_CuadreInventarioVsSeguimiento2602` (reescrita): para cada galpón con lote 2602,
+        fija stock por tipo = GREATEST(0, ingresos_ciclo(item, >= encaset, incl fantasma) − consumo(item)).
+        Lote ACTIVO (2602 abierto o 2603 que relevó); ciclos cerrados excluidos (cycle-scoping respeta
+        EliminacionStock previa y no arrastra sobrante). Atribución multi-tipo DETERMINISTA (por ingresos) → idempotente.
+        Respaldo `_backup_cuadre_expected_2026_06_01` + AjusteStock auditable + Down() reversible.
+      - Script: `backend/sql/cuadre_inventario_expected_m0_2602.sql`.
+      - **Resultado: 34/34 galpones activos cuadran stock=expected. Idempotente (re-run sin cambios).**
+        Lote 75: SM0178 14 220 + SM0176 695 = 14 915. G0050 (2603) computado con su propio ciclo.
+- [ ] NOTA display: el inventario = M0 ("cuánto debe tener"). La PANTALLA de seguimiento muestra M1 (floored);
+      difieren por la condonación transitoria (lote 75: pantalla 16 680 vs físico 14 915). Decidir si la
+      pantalla debe mostrar M0 (separado; no afecta el inventario ya cuadrado).
+- [ ] PROD: 3 migraciones correrán al desplegar (M1 fn + cuadre saldo + cuadre inventario). Revisar antes.
+- [ ] **Prod**: la migración correrá en el próximo deploy (idempotente). Revisar antes de desplegar.
 
-### Fase 5 — Validación sobre COPIA DE PRODUCCIÓN ✅ (2026-05-31)
-- [x] Restaurada copia de prod en `sanmarinoapplocal` y arrancado el back (aplicó migraciones).
-- [x] **0 migraciones pendientes**; mi migración `20260531180558` aplicada como última (59 aplicadas).
-- [x] Objetos presentes: 16 funciones, 7 triggers, 3 vistas (nombres exactos verificados).
-- [x] Smoke tests OK con datos reales: `fn_seguimiento_diario_engorde(5)`, `fn_indicadores_pollo_engorde(5,0,1)`, vistas con datos (3536/3495/75 filas).
-- [x] Sin tablas faltantes inesperadas (solo Ecuador/Panamá descartadas + `_ignored_produccion_diaria`).
-- [x] **CONCLUSIÓN: el deploy a producción pasará sin error.**
-
-### Fase 5b — Nueva migración: recálculo de saldo de alimento con función FINAL ✅ (2026-05-31)
-- [x] Detectado: `20260528212753` recalcula saldos con fn v4, pero `20260531034622` mejoró la función SIN re-recalcular → saldos quedaban con lógica vieja.
-- [x] Creada migración `20260531184044_RecalcularSaldoAlimentoEngorde20260531` (respaldo en `_migracion_saldo_alimento_2026_05_31` + UPDATE masivo con fn final; idempotente).
-- [x] Simulación completa de deploy sobre copia cruda de prod (estaba en `20260525131406`): 12 migraciones pendientes aplicadas sin error.
-- [x] **Resultado:** persistido == función final (0 discrepancias). Cadena: crudo→v4 = 1935 cambios; v4→final = **0 cambios** (la fn final da el mismo saldo que v4 para los datos actuales).
-- [x] **Impacto total que verá prod:** 1935/3495 saldos cambian (vs crudo), prom 37.366 kg, máx 253.254 kg — driven por `20260528212753`. Respaldo completo en ambas tablas `_migracion_saldo_alimento_*`.
-
-### Fase 6 — Notas / pendientes
-- [x] Separación seguimiento por país (Ecuador/Panamá): **descartada e intencional**. Decisión
-      2026-05-31: **solo documentar, no tocar código** (Parte B §6.1). Quedan controllers/servicios
-      cableados que fallarían si se llaman; limpieza opcional a futuro.
-- [ ] (Opcional) Decidir destino de tablas huérfanas `user_paises`, `guia_semana`.
-- [ ] Commit + deploy por flujo normal (ECS aplica migraciones al arrancar).
-
----
-
-## 📦 Entregables
-- `fase_de_desarrollo/17_validacion_entidades_vs_bd_INDICE.md`
-- `fase_de_desarrollo/17_validacion_entidades_vs_bd_PARTE_A_mapeo.md`
-- `fase_de_desarrollo/17_validacion_entidades_vs_bd_PARTE_B_auditoria.md`
-- `backend/src/.../Migrations/20260531180558_AddMissingDbFunctionsTriggersAndViews.cs`
+## Fase 5 — PENDIENTE de decisión (déficit real + prod)
+- [ ] **6 lotes déficit real** (16, 8, 62, 61, 74, 71): M1 los muestra cuadrados (piso 0) pero el dato crudo
+      sigue con consumo > alimento ingresado (afecta conversión/FCR, no el saldo). Decidir por lote:
+      - Lote 61 (−2880): hay `INV_INGRESO 2880` anulado (doc 56114, 06-abr) que coincide exacto → ¿revertir anulación?
+      - Lote 8 (−5650): 0 ingresos, encaset 31-ene pero seguimientos solo mar 18-24 → lote fragmentario, revisar carga
+      - Lotes 16/62/74/71: anulados NO cuadran con el déficit → consumo inflado o ingreso físico nunca cargado (necesita Excel)
+- [ ] **Anomalía consumo lote 75 día 30 = 360 kg** (vs ~3400) → posible dígito faltante (¿3600?). Confirmar con operación.
+- [ ] **Deploy a prod**: la migración está lista pero NO desplegada. Requiere confirmación explícita (CLAUDE.md).
