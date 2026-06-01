@@ -1,4 +1,30 @@
--- ============================================================================
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// Fix: fn_indicadores_pollo_engorde devolvía columnas numeric calculadas por división
+    /// (eficiencia_europea, etc.) con precisión enorme (ej. 544.123842162293662426305200324070501900,
+    /// 39 cifras) que NO cabe en System.Decimal → Npgsql lanzaba OverflowException al materializar
+    /// IndicadorEcuadorRow → la liquidación pollo engorde Ecuador respondía 500.
+    /// Solución: ROUND(..., 6) a todas las columnas calculadas por división del SELECT final.
+    /// No cambia la lógica de cálculo, solo acota la escala. CREATE OR REPLACE idempotente.
+    /// </summary>
+    public partial class FixFnIndicadoresPolloEngordeRoundOverflow : Migration
+    {
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(FN_SQL, suppressTransaction: true);
+        }
+
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Forward-only: para revertir, re-aplicar el SQL de 20260530211846_AddFnIndicadoresPolloEngorde.
+        }
+
+        private const string FN_SQL = @"-- ============================================================================
 -- fn_indicadores_pollo_engorde (Parte A) — Liquidación Técnica Pollo Engorde EC
 -- ----------------------------------------------------------------------------
 -- Consolida en UNA consulta todo el cálculo que el servicio C#
@@ -248,3 +274,6 @@ SELECT
     ROUND(CASE WHEN d2.aves_encasetadas > 0 THEN d2.aves_sacrificadas::NUMERIC / d2.aves_encasetadas ELSE 0 END, 6)
 FROM d2;
 $$;
+";
+    }
+}
