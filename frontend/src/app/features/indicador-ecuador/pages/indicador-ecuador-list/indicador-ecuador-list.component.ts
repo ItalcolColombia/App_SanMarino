@@ -13,9 +13,11 @@ import {
   IndicadorEcuadorConsolidadoDto,
   LiquidacionPeriodoDto,
   LiquidacionPolloEngordeReporteDto,
-  LiquidacionPolloEngordeItemDto
+  LiquidacionPolloEngordeItemDto,
+  ReporteIndicadoresPanamaDto
 } from '../../services/indicador-ecuador.service';
 import { LiquidacionReporteComponent } from '../../components/liquidacion-reporte/liquidacion-reporte.component';
+import { LiquidacionReportePanamaComponent } from '../../components/liquidacion-reporte-panama/liquidacion-reporte-panama.component';
 import { environment } from '../../../../../environments/environment';
 
 /** Misma estructura que devuelve SeguimientoLoteLevante/filter-data (granjas, núcleos, galpones, lotes en una sola llamada). */
@@ -47,7 +49,7 @@ interface FilterDataPolloEngordeResponse {
 @Component({
   selector: 'app-indicador-ecuador-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, LiquidacionReporteComponent],
+  imports: [CommonModule, FormsModule, LiquidacionReporteComponent, LiquidacionReportePanamaComponent],
   templateUrl: './indicador-ecuador-list.component.html',
   styleUrls: ['./indicador-ecuador-list.component.scss']
 })
@@ -123,6 +125,10 @@ export class IndicadorEcuadorListComponent implements OnInit {
   mostrarLiquidacionPollo = false;
   showReporte = false;
 
+  /** Reporte de liquidación Panamá ("RESULTADOS DE LIQUIDACIÓN"). Solo cuando el país activo es Panamá. */
+  reportePanama: ReporteIndicadoresPanamaDto | null = null;
+  mostrarReportePanama = false;
+
   // Datos
   indicadores: IndicadorEcuadorDto[] = [];
   consolidado: IndicadorEcuadorConsolidadoDto | null = null;
@@ -163,6 +169,25 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.cargarFilterDataPolloEngorde();
     this.establecerFechasPorDefecto();
     this.establecerFechasLiquidacionPorDefecto();
+  }
+
+  /** País activo = Panamá (cambia título, badge y el reporte de liquidación). */
+  get esPanama(): boolean {
+    return this.countryFilter.isPanama();
+  }
+
+  /** Título del módulo según el país activo de la sesión. */
+  get tituloModulo(): string {
+    if (this.esPanama) return 'Indicador Panamá';
+    if (this.countryFilter.isEcuador()) return 'Indicador Ecuador';
+    return 'Indicador';
+  }
+
+  /** Badge país (bandera + nombre) para el encabezado. */
+  get paisBadge(): string | null {
+    if (this.esPanama) return '🇵🇦 Panamá';
+    if (this.countryFilter.isEcuador()) return '🇪🇨 Ecuador';
+    return null;
   }
 
   /** Granjas, núcleos, galpones y lotes ave engorde en cascada (mismo endpoint que reproductoras). */
@@ -537,6 +562,34 @@ export class IndicadorEcuadorListComponent implements OnInit {
     this.mostrarLiquidacionPollo = false;
     this.resultadoLiquidacionPollo = null;
     this.showReporte = false;
+    this.mostrarReportePanama = false;
+    this.reportePanama = null;
+
+    // Panamá: el reporte de liquidación es el de "RESULTADOS DE LIQUIDACIÓN" (fn_reporte_indicadores_panama),
+    // por lote. Requiere un lote específico seleccionado.
+    if (this.esPanama) {
+      if (!this.peLoteAveEngordeId) {
+        this.error = 'Seleccione un lote para generar el reporte de liquidación (Panamá).';
+        this.loading = false;
+        return;
+      }
+      try {
+        this.reportePanama = await firstValueFrom(
+          this.indicadorService.getReporteIndicadoresPanama(this.peLoteAveEngordeId)
+        );
+        this.mostrarReportePanama = true;
+      } catch (err: any) {
+        if (err?.status === 404) {
+          this.error = 'El lote aún no tiene liquidación registrada. Ciérrelo/liquídelo desde Seguimiento Pollo Engorde.';
+        } else {
+          this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'Error al generar el reporte de liquidación.';
+        }
+        this.reportePanama = null;
+      } finally {
+        this.loading = false;
+      }
+      return;
+    }
 
     try {
       if (this.polloModo === 'unLote') {

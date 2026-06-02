@@ -24,7 +24,10 @@ public class SeguimientoDiarioLoteReproductoraAvesEngordeConfiguration : IEntity
         b.Property(x => x.ErrorSexajeMachos).HasColumnName("error_sexaje_machos");
         b.Property(x => x.ConsumoKgHembras).HasColumnName("consumo_kg_hembras").HasPrecision(12, 3);
         b.Property(x => x.ConsumoKgMachos).HasColumnName("consumo_kg_machos").HasPrecision(12, 3);
-        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(100);
+        b.Property(x => x.TipoAlimento).HasColumnName("tipo_alimento").HasMaxLength(500);
+        b.Property(x => x.QqMixtas).HasColumnName("qq_mixtas").HasColumnType("numeric(10,2)");
+        b.Property(x => x.QqHembras).HasColumnName("qq_hembras").HasColumnType("numeric(10,2)");
+        b.Property(x => x.QqMachos).HasColumnName("qq_machos").HasColumnType("numeric(10,2)");
         b.Property(x => x.Observaciones).HasColumnName("observaciones");
         b.Property(x => x.Ciclo).HasColumnName("ciclo").HasMaxLength(50);
 

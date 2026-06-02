@@ -32,7 +32,7 @@
         role="tab"
         [attr.aria-selected]="activeTab === 'grafica'"
         aria-controls="grafica-panel">
-        📊 Gráfica
+        📊 Gráficas
       </button>
     </nav>
 
@@ -257,13 +257,28 @@
         </app-tabla-indicadores-diarios-engorde>
       </div>
 
-      <!-- TAB GRÁFICA: 4 gráficas fijas (mismos datos que indicadores diarios vs guía) -->
+      <!-- TAB GRÁFICAS -->
       <div *ngIf="activeTab === 'grafica'" id="grafica-panel" class="tab-panel" role="tabpanel">
+        <!-- Ecuador: 4 gráficas vs guía genética -->
         <app-graficas-indicadores-diarios-engorde
+          *ngIf="isEcuador"
           [seguimientos]="seguimientos"
           [selectedLote]="selectedLote"
           [loading]="loading">
         </app-graficas-indicadores-diarios-engorde>
+
+        <!-- Panamá: gráficas de productividad (diaria / semanal) con datos del seguimiento -->
+        <app-graficas-productividad-engorde
+          *ngIf="isPanama"
+          [tablaFilas]="tablaFilas"
+          [selectedLote]="selectedLote"
+          [loading]="loading">
+        </app-graficas-productividad-engorde>
+
+        <!-- Otros países: sin gráficas configuradas -->
+        <div *ngIf="!isEcuador && !isPanama" class="tab-panel__empty-graficas">
+          No hay gráficas configuradas para este país.
+        </div>
       </div>
     </div>
   </div>

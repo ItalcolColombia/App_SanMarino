@@ -261,6 +261,9 @@ builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionS
 // Indicador Ecuador Service
 builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
 
+// Reporte Indicador Panamá Service (liquidación Pollo Engorde Panamá)
+builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanamaService>();
+
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEcuadorService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEcuadorService>();

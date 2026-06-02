@@ -15,5 +15,7 @@ public interface ILesionService
         int?    clienteId,
         int?    farmId,
         int?    loteId,
+        string? galponId,
+        string? loteReproductoraId,
         CancellationToken ct);
 }

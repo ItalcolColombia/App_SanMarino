@@ -102,9 +102,51 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     showCancel: false
   };
 
+  /** Máximo de registros diarios permitidos por lote reproductora (regla de negocio: 7 días). */
+  readonly MAX_DIAS_SEGUIMIENTO = 7;
+
   /** True si el lote reproductora actual está cerrado (no se permite nuevo registro). */
   get isLoteReproductoraCerrado(): boolean {
     return this.selectedReproductoraDetail?.estado === 'Cerrado';
+  }
+
+  /** True si ya se alcanzaron los 7 registros diarios del lote. */
+  get isSeguimientoCompleto(): boolean {
+    return this.seguimientos.length >= this.MAX_DIAS_SEGUIMIENTO;
+  }
+
+  /** True si se puede crear un nuevo registro (lote abierto + menos de 7 días). */
+  get canCreateSeguimiento(): boolean {
+    return !!this.selectedLoteReproductoraId
+      && !this.isLoteReproductoraCerrado
+      && !this.isSeguimientoCompleto;
+  }
+
+  /**
+   * Fecha sugerida para el próximo registro, siempre consecutiva:
+   * - Sin registros → fecha de encasetamiento del lote reproductora (día 0).
+   * - Con registros → último registro + 1 día.
+   * Si no hay fecha de encasetamiento disponible se usa hoy.
+   */
+  get nextSuggestedFecha(): string {
+    if (this.seguimientos.length === 0) {
+      const enc = this.selectedReproductoraDetail?.fechaEncasetamiento;
+      if (enc) return this.addDaysToYmd(String(enc).slice(0, 10), 0);
+      return this.todayYmd();
+    }
+    const last = this.seguimientos[this.seguimientos.length - 1];
+    const lastFecha = last?.fechaRegistro ? String(last.fechaRegistro).slice(0, 10) : this.todayYmd();
+    return this.addDaysToYmd(lastFecha, 1);
+  }
+
+  private addDaysToYmd(ymd: string, days: number): string {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d + days));
+    return date.toISOString().slice(0, 10);
+  }
+
+  private todayYmd(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 
   faPlus = faPlus;
@@ -295,9 +337,13 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     this.galpones.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' }));
   }
 
+  /** Fecha a usar como valor por defecto en el modal de nuevo registro */
+  modalDefaultFecha: string | null = null;
+
   create(): void {
-    if (!this.selectedLoteReproductoraId || this.isLoteReproductoraCerrado) return;
+    if (!this.canCreateSeguimiento) return;
     this.editing = null;
+    this.modalDefaultFecha = this.nextSuggestedFecha;
     const granjaId = this.getGranjaIdForModal();
     this.lotesParaModal = this.lotesReproductoraFiltered.map(r => ({
       loteId: r.id,

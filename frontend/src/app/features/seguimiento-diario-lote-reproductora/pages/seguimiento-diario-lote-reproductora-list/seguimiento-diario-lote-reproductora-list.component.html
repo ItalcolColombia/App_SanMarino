@@ -39,12 +39,25 @@
 
       <!-- Acciones -->
       <div class="ux-header__actions">
+
+        <!-- Badge de progreso días 0-7 -->
+        <span
+          class="dias-progreso-badge"
+          *ngIf="selectedLoteReproductoraId"
+          [class.dias-progreso-badge--completo]="isSeguimientoCompleto"
+          [title]="isSeguimientoCompleto ? 'Los 7 días de seguimiento están completos' : 'Días registrados de ' + MAX_DIAS_SEGUIMIENTO">
+          {{ seguimientos.length }}/{{ MAX_DIAS_SEGUIMIENTO }} días
+        </span>
+
         <button
           type="button"
           class="btn btn--primary"
           (click)="create()"
-          [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado"
-          [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado' : (!selectedLoteReproductoraId ? 'Selecciona todos los filtros primero' : 'Crear nuevo registro de seguimiento')">
+          [disabled]="!canCreateSeguimiento"
+          [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado'
+            : isSeguimientoCompleto ? 'Ya se registraron los ' + MAX_DIAS_SEGUIMIENTO + ' días de seguimiento'
+            : (!selectedLoteReproductoraId ? 'Selecciona todos los filtros primero'
+            : 'Próxima fecha sugerida: ' + nextSuggestedFecha)">
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="btn-icon">
             <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
           </svg>
@@ -292,31 +305,34 @@
           <caption class="sr-only">Registros de seguimiento diario — reproductora aves de engorde</caption>
           <thead>
             <tr>
-              <th scope="col" class="col-date">Fecha</th>
+              <th scope="col" class="col-date" rowspan="2">Fecha</th>
               <th scope="col" colspan="2" class="col-group">Mortalidad</th>
               <th scope="col" colspan="2" class="col-group">Selección</th>
               <th scope="col" colspan="2" class="col-group">Error sexaje</th>
-              <th scope="col">Tipo alimento</th>
-              <th scope="col" class="col-num">Consumo (kg)</th>
-              <th scope="col" class="col-actions">Acciones</th>
+              <th scope="col" rowspan="2">Tipo alimento</th>
+              <th scope="col" colspan="2" class="col-group">Consumo (kg)</th>
+              <th scope="col" colspan="2" class="col-group">Peso prom. (kg)</th>
+              <th scope="col" rowspan="2" class="col-ciclo">Ciclo</th>
+              <th scope="col" rowspan="2" class="col-obs">Observaciones</th>
+              <th scope="col" rowspan="2" class="col-actions">Acciones</th>
             </tr>
             <tr class="data-table__subrow">
-              <th scope="col"></th>
               <th scope="col" class="sub-th">H</th>
               <th scope="col" class="sub-th">M</th>
               <th scope="col" class="sub-th">H</th>
               <th scope="col" class="sub-th">M</th>
               <th scope="col" class="sub-th">H</th>
               <th scope="col" class="sub-th">M</th>
-              <th scope="col"></th>
-              <th scope="col"></th>
-              <th scope="col"></th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
             </tr>
           </thead>
           <tbody>
             <!-- Empty state -->
             <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)" class="data-table__empty-row">
-              <td colspan="10">
+              <td colspan="15">
                 <div class="empty-state">
                   <div class="empty-state__visual" aria-hidden="true">
                     <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -349,14 +365,53 @@
             <!-- Filas de datos -->
             <tr *ngFor="let s of seguimientos; trackBy: trackById" class="data-table__row">
               <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
-              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras }}</td>
-              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos }}</td>
-              <td class="cell-num" data-label="Sel. H">{{ s.selH }}</td>
-              <td class="cell-num" data-label="Sel. M">{{ s.selM }}</td>
-              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras }}</td>
-              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos }}</td>
-              <td class="cell-text" data-label="Tipo alimento">{{ s.tipoAlimento || '—' }}</td>
-              <td class="cell-num" data-label="Consumo (kg)">{{ s.consumoKgHembras }}</td>
+
+              <!-- Mortalidad -->
+              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras ?? '—' }}</td>
+              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos ?? '—' }}</td>
+
+              <!-- Selección -->
+              <td class="cell-num" data-label="Sel. H">{{ s.selH ?? '—' }}</td>
+              <td class="cell-num" data-label="Sel. M">{{ s.selM ?? '—' }}</td>
+
+              <!-- Error sexaje -->
+              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras ?? '—' }}</td>
+              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos ?? '—' }}</td>
+
+              <!-- Tipo alimento -->
+              <td class="cell-text cell-alimento" data-label="Tipo alimento" [title]="s.tipoAlimento || ''">
+                {{ s.tipoAlimento || '—' }}
+              </td>
+
+              <!-- Consumo H / M -->
+              <td class="cell-num" data-label="Consumo H (kg)">
+                {{ s.consumoKgHembras != null ? (s.consumoKgHembras | number:'1.0-2') : '—' }}
+              </td>
+              <td class="cell-num" data-label="Consumo M (kg)">
+                {{ s.consumoKgMachos != null ? (s.consumoKgMachos | number:'1.0-2') : '—' }}
+              </td>
+
+              <!-- Peso promedio H / M -->
+              <td class="cell-num" data-label="Peso H (kg)">
+                {{ s.pesoPromH != null ? (s.pesoPromH | number:'1.0-3') : '—' }}
+              </td>
+              <td class="cell-num" data-label="Peso M (kg)">
+                {{ s.pesoPromM != null ? (s.pesoPromM | number:'1.0-3') : '—' }}
+              </td>
+
+              <!-- Ciclo -->
+              <td class="cell-ciclo" data-label="Ciclo">
+                <span class="badge-ciclo" [class.badge-ciclo--reforzado]="s.ciclo === 'Reforzado'">
+                  {{ s.ciclo || 'Normal' }}
+                </span>
+              </td>
+
+              <!-- Observaciones -->
+              <td class="cell-obs" data-label="Observaciones" [title]="s.observaciones || ''">
+                {{ s.observaciones ? (s.observaciones.length > 40 ? (s.observaciones | slice:0:40) + '…' : s.observaciones) : '—' }}
+              </td>
+
+              <!-- Acciones -->
               <td class="cell-actions" data-label="Acciones">
                 <div class="action-group">
                   <button
@@ -411,7 +466,12 @@
             [loteId]="selectedLoteId"
             [galponId]="selectedGalponId"
             [loteReproductoraId]="selectedLoteReproductoraId"
-            [loteNombre]="selectedLoteReproductoraNombre">
+            [loteNombre]="selectedLoteReproductoraNombre"
+            [granjaNombre]="selectedGranjaName"
+            [nucleoNombre]="selectedNucleoNombre || null"
+            [galponNombre]="selectedGalponNombre || null"
+            [loteEngorde]="selectedLoteNombre || null"
+            [fechaEncasetamiento]="selectedReproductoraDetail?.fechaEncasetamiento ?? null">
           </app-lesion-tab>
         </div>
         <ng-template #lesionesNoContext>
@@ -445,6 +505,13 @@
   [lotes]="lotesParaModal"
   [selectedLoteId]="selectedLoteReproductoraId"
   [loading]="loading"
+  [ctxGranja]="selectedGranjaName"
+  [ctxNucleo]="selectedNucleoNombre || null"
+  [ctxGalpon]="selectedGalponNombre || null"
+  [ctxLoteEngorde]="selectedLoteNombre || null"
+  [ctxReproductora]="selectedReproductoraDetail?.nombreLote || null"
+  [ctxReproductoraCode]="selectedReproductoraDetail?.reproductoraId || null"
+  [defaultFechaRegistro]="editing ? null : modalDefaultFecha"
   (close)="cancel()"
   (save)="onSave($event)">
 </app-modal-create-edit>

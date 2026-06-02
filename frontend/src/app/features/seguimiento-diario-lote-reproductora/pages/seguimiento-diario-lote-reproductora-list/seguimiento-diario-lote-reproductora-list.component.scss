@@ -265,6 +265,27 @@
 }
 :host .btn--lesion:hover:not([disabled]) { background: var(--c-accent-100); }
 
+/* Badge de progreso de días (0/7 … 7/7) */
+:host .dias-progreso-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .28rem .7rem;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  background: var(--c-primary-100);
+  color: var(--c-primary-dk);
+  border: 1px solid var(--c-primary-50);
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+:host .dias-progreso-badge--completo {
+  background: #fff3cd;
+  color: #856404;
+  border-color: #ffe082;
+}
+
 /* ══════════════════════════════════════════════════
    FILTROS EN CASCADA
 ══════════════════════════════════════════════════ */
@@ -733,6 +754,49 @@
 }
 :host .cell-text { text-align: left !important; }
 :host .cell-actions { text-align: right !important; white-space: nowrap; }
+
+/* Columnas nuevas */
+:host .col-ciclo { width: 82px; }
+:host .col-obs   { min-width: 160px; max-width: 220px; }
+
+:host .cell-ciclo {
+  text-align: center !important;
+}
+
+:host .cell-alimento {
+  text-align: left !important;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host .cell-obs {
+  text-align: left !important;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-muted);
+  font-size: .8rem;
+}
+
+/* Badge ciclo */
+:host .badge-ciclo {
+  display: inline-block;
+  padding: .18rem .55rem;
+  border-radius: var(--radius-xs);
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: var(--c-primary-100);
+  color: var(--c-primary-dk);
+}
+:host .badge-ciclo--reforzado {
+  background: var(--c-accent-100);
+  color: var(--c-accent-dk);
+}
 
 :host .data-table__row:last-child td { border-bottom: none; }
 

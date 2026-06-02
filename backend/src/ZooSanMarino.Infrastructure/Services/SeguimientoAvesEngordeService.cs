@@ -180,7 +180,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                 l.HembrasL,
                 l.MachosL,
                 l.Mixtas,
-                l.AvesEncasetadas
+                l.AvesEncasetadas,
+                l.MermaUnidades,
+                l.MermaKilos
             })
             .SingleOrDefaultAsync();
         if (lote is null) return null;
@@ -257,7 +259,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             vx,
             avesVivas,
             ventas.Count,
-            saldo);
+            saldo,
+            lote.MermaUnidades,
+            lote.MermaKilos);
     }
 
     private async Task<IReadOnlyList<LoteRegistroHistoricoUnificadoDto>> QueryHistoricoUnificadoDtosAsync(int loteId, int companyId)

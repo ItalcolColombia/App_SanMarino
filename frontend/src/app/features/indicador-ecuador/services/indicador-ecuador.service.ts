@@ -158,11 +158,75 @@ export interface LiquidacionPolloEngordeReporteDto {
   items: LiquidacionPolloEngordeItemDto[];
 }
 
+/** ── Liquidación / Reporte de indicadores Panamá ──────────────────────────── */
+
+/** Insumos digitados por el usuario al liquidar un lote en Panamá. */
+export interface GuardarLiquidacionPanamaRequest {
+  loteAveEngordeId: number;
+  metrosCuadrados: number;
+  avesFinalGranja: number;
+  avesBeneficiada: number;
+  produccionKiloPie: number;
+  diasEngorde: number;
+  diasEnGranja: number;
+  registradoPorUserId?: string | null;
+}
+
+/** Bloque "liquidacion" del reporte Panamá (insumos + indicadores derivados por la fn). */
+export interface LiquidacionPanamaDto {
+  id: number;
+  idUsuarioRegistro: string | null;
+  idLote: number;
+  metrosCuadrados: number;
+  avesFinalGranja: number;
+  produccionKiloPie: number;
+  diasEngorde: number;
+  diasEnGranja: number;
+  avesBeneficiada: number;
+  pesoPromedio: number;
+  mortalidadPorc: number;
+  seleccionPorc: number;
+  porcMortalidadTotal: number;
+  supervivencia: number;
+  consumoAve: number;
+  conversion: number;
+  eficienciaAmericana: number;
+  eeF: number;
+  eefDos: number;
+  avesMetrosCua: number;
+  kilosMetrosCua: number;
+  productividad: number;
+  faltanteSobra: number;
+}
+
+export interface InfoProductivaPanamaDto {
+  consumoAlimentoTotal: number;
+  totalAvesSeleccion: number;
+  totalAvesMuertas: number;
+}
+
+export interface ReporteIndicadoresPanamaDto {
+  liquidacion: LiquidacionPanamaDto;
+  infoProductiva: InfoProductivaPanamaDto;
+  avesEncasetadas: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class IndicadorEcuadorService {
   private readonly baseUrl = `${environment.apiUrl}/IndicadorEcuador`;
+  private readonly panamaUrl = `${environment.apiUrl}/ReporteIndicadorPanama`;
 
   constructor(private http: HttpClient) {}
+
+  /** Guarda/actualiza los 6 insumos de liquidación Panamá del lote. */
+  guardarLiquidacionPanama(req: GuardarLiquidacionPanamaRequest): Observable<{ id: number }> {
+    return this.http.post<{ id: number }>(`${this.panamaUrl}/liquidar`, req);
+  }
+
+  /** Reporte "RESULTADOS DE LIQUIDACIÓN" del lote (ejecuta fn_reporte_indicadores_panama). */
+  getReporteIndicadoresPanama(loteAveEngordeId: number): Observable<ReporteIndicadoresPanamaDto> {
+    return this.http.get<ReporteIndicadoresPanamaDto>(`${this.panamaUrl}/${loteAveEngordeId}`);
+  }
 
   calcularIndicadores(request: IndicadorEcuadorRequest): Observable<IndicadorEcuadorDto[]> {
     return this.http.post<IndicadorEcuadorDto[]>(`${this.baseUrl}/calcular`, request);

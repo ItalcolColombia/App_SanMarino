@@ -99,13 +99,16 @@ public class LesionesController : ControllerBase
     [HttpGet("resumen")]
     [ProducesResponseType(typeof(IEnumerable<LesionResumenDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<LesionResumenDto>>> GetResumen(
-        [FromQuery] string? moduloOrigen = null,
-        [FromQuery] int?    clienteId    = null,
-        [FromQuery] int?    farmId       = null,
-        [FromQuery] int?    loteId       = null,
+        [FromQuery] string? moduloOrigen       = null,
+        [FromQuery] int?    clienteId          = null,
+        [FromQuery] int?    farmId             = null,
+        [FromQuery] int?    loteId             = null,
+        [FromQuery] string? galponId           = null,
+        [FromQuery] string? loteReproductoraId = null,
         CancellationToken ct = default)
     {
-        var data = await _service.GetResumenAsync(moduloOrigen, clienteId, farmId, loteId, ct);
+        var data = await _service.GetResumenAsync(
+            moduloOrigen, clienteId, farmId, loteId, galponId, loteReproductoraId, ct);
         return Ok(data);
     }
 }

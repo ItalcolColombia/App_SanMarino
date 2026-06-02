@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260601190727_AddLiquidacionLoteEngordePanama")]
+    partial class AddLiquidacionLoteEngordePanama
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -7760,15 +7763,15 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnName("prot_ave_h");
 
                     b.Property<decimal?>("QqHembras")
-                        .HasColumnType("numeric(10,2)")
+                        .HasColumnType("numeric")
                         .HasColumnName("qq_hembras");
 
                     b.Property<decimal?>("QqMachos")
-                        .HasColumnType("numeric(10,2)")
+                        .HasColumnType("numeric")
                         .HasColumnName("qq_machos");
 
                     b.Property<decimal?>("QqMixtas")
-                        .HasColumnType("numeric(10,2)")
+                        .HasColumnType("numeric")
                         .HasColumnName("qq_mixtas");
 
                     b.Property<int?>("SelH")
@@ -7780,8 +7783,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnName("sel_m");
 
                     b.Property<string>("TipoAlimento")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("tipo_alimento");
 
                     b.Property<double?>("UniformidadHembras")

@@ -7,6 +7,8 @@ import { forkJoin, of } from 'rxjs';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '../../../../core/auth/auth.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
+import { IndicadorEcuadorService } from '../../../indicador-ecuador/services/indicador-ecuador.service';
 import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
 import {
   SeguimientoAvesEngordeService,
@@ -34,6 +36,8 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly invGestion = inject(GestionInventarioService);
+  private readonly countryFilter = inject(CountryFilterService);
+  private readonly indicadorPanama = inject(IndicadorEcuadorService);
 
   @Input() isOpen = false;
   @Input() loteId: number | null = null;
@@ -77,6 +81,31 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   guardandoMerma = false;
   mermaGuardada = false;
 
+  // ── Panamá: insumos de liquidación digitados por el usuario para cerrar/liquidar el lote ──
+  panamaDiasEnGranja: number | null = null;
+  panamaDiasEngorde: number | null = null;
+  panamaAvesFinalGranja: number | null = null;
+  panamaAvesBeneficiada: number | null = null;
+  panamaProduccionKiloPie: number | null = null;
+  panamaMetrosCuadrados: number | null = null;
+
+  /** País activo = Panamá: muestra los 6 campos de liquidación y los exige al cerrar. */
+  get esPanama(): boolean {
+    return this.countryFilter.isPanama();
+  }
+
+  /** Los 6 insumos Panamá están completos (> 0) — habilita el cierre. */
+  get panamaCamposCompletos(): boolean {
+    return (
+      (this.panamaDiasEnGranja ?? 0) > 0 &&
+      (this.panamaDiasEngorde ?? 0) > 0 &&
+      (this.panamaAvesFinalGranja ?? 0) > 0 &&
+      (this.panamaAvesBeneficiada ?? 0) > 0 &&
+      (this.panamaProduccionKiloPie ?? 0) > 0 &&
+      (this.panamaMetrosCuadrados ?? 0) > 0
+    );
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen && this.loteId) {
       this.cargarResumen();
@@ -107,6 +136,30 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     this.mermaKilos = null;
     this.guardandoMerma = false;
     this.mermaGuardada = false;
+    this.panamaDiasEnGranja = null;
+    this.panamaDiasEngorde = null;
+    this.panamaAvesFinalGranja = null;
+    this.panamaAvesBeneficiada = null;
+    this.panamaProduccionKiloPie = null;
+    this.panamaMetrosCuadrados = null;
+  }
+
+  /** Panamá: si el lote ya tiene liquidación registrada, precarga los 6 insumos (ignora 404). */
+  private precargarLiquidacionPanama(): void {
+    if (!this.esPanama || !this.loteId) return;
+    this.indicadorPanama.getReporteIndicadoresPanama(this.loteId).subscribe({
+      next: rep => {
+        const l = rep?.liquidacion;
+        if (!l) return;
+        this.panamaDiasEnGranja = l.diasEnGranja;
+        this.panamaDiasEngorde = l.diasEngorde;
+        this.panamaAvesFinalGranja = l.avesFinalGranja;
+        this.panamaAvesBeneficiada = l.avesBeneficiada;
+        this.panamaProduccionKiloPie = l.produccionKiloPie;
+        this.panamaMetrosCuadrados = l.metrosCuadrados;
+      },
+      error: () => { /* 404 = aún no liquidado; se digita por primera vez */ }
+    });
   }
 
   cargarResumen(): void {
@@ -124,7 +177,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
         next: ({ resumen, aves }) => {
           this.resumen = resumen;
           this.avesDisponibles = aves ?? null;
+          // Pre-poblar la merma ya registrada por Costos (si existe) para que no aparezca vacía.
+          if (resumen?.mermaUnidades != null) this.mermaUnidades = resumen.mermaUnidades;
+          if (resumen?.mermaKilos != null) this.mermaKilos = resumen.mermaKilos;
           this.cargarStockAlimento();
+          this.precargarLiquidacionPanama();
         },
         error: err => {
           this.error =
@@ -365,7 +422,10 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
   }
 
   get puedeConfirmarCierre(): boolean {
-    return !!this.resumen && !this.loteCerrado;
+    if (!this.resumen || this.loteCerrado) return false;
+    // Panamá: exige los 6 insumos de liquidación antes de cerrar.
+    if (this.esPanama && !this.panamaCamposCompletos) return false;
+    return true;
   }
 
   async cerrarLote(): Promise<void> {
@@ -375,8 +435,35 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
       this.error = 'No hay usuario en sesión; vuelva a iniciar sesión.';
       return;
     }
+    if (this.esPanama && !this.panamaCamposCompletos) {
+      this.error = 'Complete todos los datos de liquidación (Panamá) antes de cerrar el lote.';
+      return;
+    }
     this.guardandoCerrar = true;
     this.error = null;
+
+    // Panamá: primero persistir los 6 insumos de liquidación, luego cerrar el lote.
+    if (this.esPanama) {
+      try {
+        await firstValueFrom(
+          this.indicadorPanama.guardarLiquidacionPanama({
+            loteAveEngordeId: this.loteId,
+            metrosCuadrados: Number(this.panamaMetrosCuadrados),
+            avesFinalGranja: Number(this.panamaAvesFinalGranja),
+            avesBeneficiada: Number(this.panamaAvesBeneficiada),
+            produccionKiloPie: Number(this.panamaProduccionKiloPie),
+            diasEngorde: Number(this.panamaDiasEngorde),
+            diasEnGranja: Number(this.panamaDiasEnGranja),
+            registradoPorUserId: uid
+          })
+        );
+      } catch (err: any) {
+        this.guardandoCerrar = false;
+        this.error = err?.error?.error ?? err?.error?.message ?? err?.message ?? 'No se pudo guardar la liquidación Panamá.';
+        return;
+      }
+    }
+
     this.loteEngorde
       .cerrarLote(this.loteId, uid, { mermaUnidades: this.mermaUnidades, mermaKilos: this.mermaKilos })
       .pipe(finalize(() => (this.guardandoCerrar = false)))

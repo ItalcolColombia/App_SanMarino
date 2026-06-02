@@ -5,6 +5,78 @@
   display: block;
 }
 
+/* ── Banner de contexto (granja / núcleo / galpón / reproductora) ──────── */
+:host .modal-ctx-banner {
+  background: linear-gradient(135deg, #f0f7f1 0%, #e8f5ea 100%);
+  border-bottom: 1px solid #c8e6ca;
+  padding: .6rem 1.25rem;
+}
+
+:host .modal-ctx-banner__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem;
+  font-size: .78rem;
+}
+
+:host .ctx-sep {
+  color: #9ca3af;
+  font-size: .85rem;
+  padding: 0 .1rem;
+}
+
+:host .ctx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .22rem .6rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #c8e6ca;
+  color: #2d7a3e;
+  font-size: .75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:host .ctx-chip--farm {
+  background: #2d7a3e;
+  color: #fff;
+  border-color: #2d7a3e;
+}
+
+:host .ctx-chip--galpon {
+  background: #e8f5ea;
+  border-color: #81c784;
+}
+
+:host .ctx-chip--lote {
+  background: #fff8e1;
+  border-color: #ffe082;
+  color: #856404;
+}
+
+:host .ctx-chip--repro {
+  background: #e85c25;
+  color: #fff;
+  border-color: #e85c25;
+  font-size: .78rem;
+}
+
+:host .ctx-chip__icon {
+  width: .85em;
+  height: .85em;
+  flex-shrink: 0;
+  opacity: .85;
+}
+
+:host .ctx-chip__code {
+  font-weight: 400;
+  opacity: .85;
+  font-size: .72rem;
+}
+
 /* ==========================================================================
    🎨 Design System / Tokens (solo claro)
    ========================================================================== */

@@ -14,7 +14,9 @@ public sealed record LiquidacionLoteEngordeResumenDto(
     int VentasTotalMixtas,
     int AvesVivasActuales,
     int MovimientosVentaCount,
-    decimal? SaldoAlimentoKg
+    decimal? SaldoAlimentoKg,
+    int? MermaUnidades = null,
+    decimal? MermaKilos = null
 );
 
 public sealed record CerrarLoteAveEngordeRequest(

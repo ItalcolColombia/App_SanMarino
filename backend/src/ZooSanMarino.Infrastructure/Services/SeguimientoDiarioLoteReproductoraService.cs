@@ -1,5 +1,7 @@
 // Seguimiento diario por lote reproductora aves de engorde. Persiste en seguimiento_diario_lote_reproductora_aves_engorde.
 // DTO reutiliza SeguimientoLoteLevanteDto con LoteId = lote_reproductora_ave_engorde_id.
+// Inventario: mismo patrón que SeguimientoAvesEngordeService — descuenta al crear, ajusta al editar, restituye al eliminar.
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -12,11 +14,16 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
 {
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _current;
+    private readonly IInventarioGestionService? _inventarioGestionService;
 
-    public SeguimientoDiarioLoteReproductoraService(ZooSanMarinoContext ctx, ICurrentUser current)
+    public SeguimientoDiarioLoteReproductoraService(
+        ZooSanMarinoContext ctx,
+        ICurrentUser current,
+        IInventarioGestionService? inventarioGestionService = null)
     {
         _ctx = ctx;
         _current = current;
+        _inventarioGestionService = inventarioGestionService;
     }
 
     private static SeguimientoLoteLevanteDto MapToDto(SeguimientoDiarioLoteReproductoraAvesEngorde e)
@@ -57,6 +64,64 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             SaldoAlimentoKg: null
         );
     }
+
+    // ─── Helpers de inventario ────────────────────────────────────────────────
+
+    private static decimal ToKg(double cantidad, string? unidad)
+    {
+        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
+        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
+        return (decimal)cantidad;
+    }
+
+    /// <summary>
+    /// Parsea itemsHembras e itemsMachos de la metadata y devuelve un mapa itemId → kg total.
+    /// Acepta catalogItemId o itemInventarioEcuadorId, igual que SeguimientoAvesEngordeService.
+    /// </summary>
+    private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
+    {
+        var byItemId = new Dictionary<int, decimal>();
+
+        void ParseArray(JsonElement arr)
+        {
+            foreach (var e in arr.EnumerateArray())
+            {
+                var id = 0;
+                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
+                    id = pid.GetInt32();
+                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
+                    id = cid.GetInt32();
+                if (id <= 0) continue;
+                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
+                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
+                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
+            }
+        }
+
+        if (root.TryGetProperty("itemsHembras", out var arrH)) ParseArray(arrH);
+        if (root.TryGetProperty("itemsMachos", out var arrM)) ParseArray(arrM);
+        if (root.TryGetProperty("itemsGenerales", out var arrG)) ParseArray(arrG);
+
+        return byItemId;
+    }
+
+    /// <summary>
+    /// Obtiene farmId, nucleoId y galponId trazando LoteReproductora → LoteAveEngorde.
+    /// </summary>
+    private async Task<(int FarmId, string? NucleoId, string? GalponId)?> GetLoteUbicacionAsync(int loteReproductoraId)
+    {
+        var row = await (
+            from lr in _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            join lae in _ctx.LoteAveEngorde.AsNoTracking() on lr.LoteAveEngordeId equals lae.LoteAveEngordeId
+            where lr.Id == loteReproductoraId
+            select new { lae.GranjaId, lae.NucleoId, lae.GalponId }
+        ).FirstOrDefaultAsync();
+
+        if (row is null) return null;
+        return (row.GranjaId, row.NucleoId, row.GalponId);
+    }
+
+    // ─── Queries ──────────────────────────────────────────────────────────────
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteReproductoraAsync(int loteReproductoraId)
     {
@@ -102,6 +167,8 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         return list.Select(MapToDto);
     }
 
+    // ─── Create ───────────────────────────────────────────────────────────────
+
     public async Task<SeguimientoLoteLevanteDto> CreateAsync(SeguimientoLoteLevanteDto dto)
     {
         var companyId = _current.CompanyId;
@@ -111,6 +178,14 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                              select l).SingleOrDefaultAsync();
         if (loteRep is null)
             throw new InvalidOperationException($"Lote reproductora aves de engorde '{dto.LoteId}' no existe o no pertenece a la compañía.");
+
+        // Regla: máximo 7 días de seguimiento por lote reproductora
+        const int MaxDiasSeguimiento = 7;
+        var totalRegistros = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+            .CountAsync(s => s.LoteReproductoraAveEngordeId == dto.LoteId);
+        if (totalRegistros >= MaxDiasSeguimiento)
+            throw new InvalidOperationException(
+                $"Este lote reproductora ya tiene {totalRegistros} días de seguimiento registrados. El máximo permitido es {MaxDiasSeguimiento}.");
 
         var ent = new SeguimientoDiarioLoteReproductoraAvesEngorde
         {
@@ -149,8 +224,34 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         };
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
+
+        // Descontar inventario por ítems consumidos
+        if (_inventarioGestionService != null && dto.Metadata != null)
+        {
+            try
+            {
+                var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
+                if (ubicacion.HasValue)
+                {
+                    var (farmId, nucleoId, galponId) = ubicacion.Value;
+                    var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
+                    var refStr = $"Seguimiento reproductora #{ent.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+                    foreach (var kv in byItem)
+                        if (kv.Value > 0)
+                            await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al registrar consumo inventario (reproductora): {ex.Message}");
+            }
+        }
+
         return MapToDto(ent);
     }
+
+    // ─── Update ───────────────────────────────────────────────────────────────
 
     public async Task<SeguimientoLoteLevanteDto?> UpdateAsync(SeguimientoLoteLevanteDto dto)
     {
@@ -161,6 +262,11 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                          where s.Id == dto.Id && lae.CompanyId == companyId && lae.DeletedAt == null
                          select s).SingleOrDefaultAsync();
         if (ent is null) return null;
+
+        // Capturar ítems anteriores antes de actualizar
+        var oldByItemId = ent.Metadata != null
+            ? ParseMetadataItemsToKg(ent.Metadata.RootElement)
+            : new Dictionary<int, decimal>();
 
         ent.Fecha = dto.FechaRegistro;
         ent.MortalidadHembras = dto.MortalidadHembras;
@@ -192,8 +298,46 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         ent.ProtAveH = dto.ProtAveH;
         ent.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
+
+        // Ajustar inventario: consumir diferencia positiva, devolver diferencia negativa
+        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        {
+            try
+            {
+                var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
+                if (ubicacion.HasValue)
+                {
+                    var (farmId, nucleoId, galponId) = ubicacion.Value;
+                    var newByItemId = dto.Metadata != null
+                        ? ParseMetadataItemsToKg(dto.Metadata.RootElement)
+                        : new Dictionary<int, decimal>();
+                    var allItemIds = new HashSet<int>(oldByItemId.Keys);
+                    foreach (var k in newByItemId.Keys) allItemIds.Add(k);
+                    var refStr = $"Seguimiento reproductora #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+                    foreach (var itemId in allItemIds)
+                    {
+                        var newQty = newByItemId.GetValueOrDefault(itemId);
+                        var oldQty = oldByItemId.GetValueOrDefault(itemId);
+                        var diff = newQty - oldQty;
+                        if (diff > 0)
+                            await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, diff, "kg", refStr + " (ajuste)", null));
+                        else if (diff < 0)
+                            await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento reproductora"));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al actualizar inventario (reproductora): {ex.Message}");
+            }
+        }
+
         return MapToDto(ent);
     }
+
+    // ─── Delete ───────────────────────────────────────────────────────────────
 
     public async Task<bool> DeleteAsync(int id)
     {
@@ -204,6 +348,30 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                          where s.Id == id && lae.CompanyId == companyId && lae.DeletedAt == null
                          select s).SingleOrDefaultAsync();
         if (ent is null) return false;
+
+        // Restituir stock antes de eliminar
+        if (_inventarioGestionService != null && ent.Metadata != null)
+        {
+            try
+            {
+                var ubicacion = await GetLoteUbicacionAsync(ent.LoteReproductoraAveEngordeId);
+                if (ubicacion.HasValue)
+                {
+                    var (farmId, nucleoId, galponId) = ubicacion.Value;
+                    var byItem = ParseMetadataItemsToKg(ent.Metadata.RootElement);
+                    var refStr = $"Seguimiento reproductora #{id} (devolución por eliminación)";
+                    foreach (var kv in byItem)
+                        if (kv.Value > 0)
+                            await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                                farmId, nucleoId?.Trim(), galponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento reproductora"));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al devolver inventario al eliminar seguimiento reproductora: {ex.Message}");
+            }
+        }
+
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Remove(ent);
         await _ctx.SaveChangesAsync();
         return true;
