@@ -26,7 +26,17 @@ public record LoteReproductoraAveEngordeDto(
     /// <summary>Hembras al abrir el lote reproductor.</summary>
     int AvesInicioHembras,
     /// <summary>Machos al abrir el lote reproductor.</summary>
-    int AvesInicioMachos
+    int AvesInicioMachos,
+    /// <summary>Cantidad de registros de seguimiento diario capturados (de 7).</summary>
+    int NumRegistros = 0,
+    /// <summary>Edad en días desde el encasetamiento hasta hoy.</summary>
+    int EdadDias = 0,
+    /// <summary>Hembras vivas actuales (inicio − mortalidad/selección/error de hembras).</summary>
+    int AvesActualesHembras = 0,
+    /// <summary>Machos vivos actuales (inicio − mortalidad/selección/error de machos).</summary>
+    int AvesActualesMachos = 0,
+    /// <summary>True si ya completó los 7 días de recogida de datos.</summary>
+    bool SieteDiasCompletos = false
 );
 
 public record CreateLoteReproductoraAveEngordeDto(

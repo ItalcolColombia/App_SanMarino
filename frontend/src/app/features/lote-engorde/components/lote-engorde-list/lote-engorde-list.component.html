@@ -551,14 +551,17 @@
                 <p>Este lote no tiene lotes reproductora asociados.</p>
               </div>
               <div *ngIf="!loadingReproductora && lotesReproductora.length > 0" class="le-detail-table-wrap">
-                <table class="le-detail-table">
+                <table class="le-detail-table le-detail-table--repro">
                   <thead>
                     <tr>
                       <th>Código</th>
-                      <th>Nombre lote</th>
-                      <th>Estado</th>
-                      <th class="text-right">Saldo actual</th>
-                      <th class="text-right">Saldo apertura</th>
+                      <th>Nombre</th>
+                      <th class="text-center">Edad</th>
+                      <th class="text-center">Registros</th>
+                      <th class="text-center">Estado</th>
+                      <th class="text-right">Apertura (H / M)</th>
+                      <th class="text-right">Actual (H / M)</th>
+                      <th class="text-right">Total actual</th>
                       <th class="le-table__actions-col">Acciones</th>
                     </tr>
                   </thead>
@@ -566,13 +569,20 @@
                     <tr *ngFor="let r of lotesReproductora">
                       <td>{{ r.reproductoraId }}</td>
                       <td>{{ r.nombreLote }}</td>
-                      <td>
-                        <span class="le-estado" [class.le-estado--cerrado]="r.estado === 'Cerrado'" [class.le-estado--disponible]="r.estado === 'Vigente'">
-                          {{ r.estado === 'Vigente' ? 'Disponible' : r.estado }}
+                      <td class="text-center">{{ r.edadDias ?? 0 }} d</td>
+                      <td class="text-center">
+                        <span class="le-reg-badge" [class.le-reg-badge--full]="(r.numRegistros ?? 0) >= 7">
+                          {{ r.numRegistros ?? 0 }}/7
                         </span>
                       </td>
-                      <td class="text-right">{{ formatNumber(r.avesActuales) }}</td>
-                      <td class="text-right">{{ formatNumber(r.saldoApertura ?? 0) }}</td>
+                      <td class="text-center">
+                        <span class="le-estado" [class.le-estado--cerrado]="r.estado === 'Cerrado'" [class.le-estado--disponible]="r.estado === 'Vigente'">
+                          {{ r.estado === 'Vigente' ? 'Abierto' : 'Cerrado' }}
+                        </span>
+                      </td>
+                      <td class="text-right">{{ formatNumber(r.avesInicioHembras ?? 0) }} / {{ formatNumber(r.avesInicioMachos ?? 0) }}</td>
+                      <td class="text-right">{{ formatNumber(r.avesActualesHembras ?? 0) }} / {{ formatNumber(r.avesActualesMachos ?? 0) }}</td>
+                      <td class="text-right"><strong>{{ formatNumber(r.avesActuales) }}</strong></td>
                       <td>
                         <button type="button" (click)="openReproductorDetail(r)" class="le-btn le-btn--sm le-btn--ghost" title="Ver detalle del lote reproductora">
                           <fa-icon [icon]="faEye" aria-hidden="true"></fa-icon>
@@ -581,7 +591,48 @@
                       </td>
                     </tr>
                   </tbody>
+                  <tfoot>
+                    <tr class="le-detail-table__total">
+                      <td colspan="5">TOTAL ({{ lotesReproductora.length }} lote(s) reproductora)</td>
+                      <td class="text-right">{{ formatNumber(reproTotalAperturaH) }} / {{ formatNumber(reproTotalAperturaM) }}</td>
+                      <td class="text-right">{{ formatNumber(reproTotalActualH) }} / {{ formatNumber(reproTotalActualM) }}</td>
+                      <td class="text-right"><strong>{{ formatNumber(reproTotalActual) }}</strong></td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
                 </table>
+              </div>
+
+              <!-- Cuadro informativo: comportamiento consolidado de los lotes reproductora -->
+              <div *ngIf="!loadingReproductora && lotesReproductora.length > 0" class="le-repro-resumen">
+                <h4 class="le-repro-resumen__title">📊 Comportamiento de los lotes reproductora</h4>
+                <div class="le-repro-resumen__grid">
+                  <div class="le-repro-resumen__card">
+                    <span class="le-repro-resumen__label">Lotes reproductora</span>
+                    <span class="le-repro-resumen__value">{{ lotesReproductora.length }}</span>
+                    <span class="le-repro-resumen__sub">{{ reproCerrados }} cerrado(s) · {{ lotesReproductora.length - reproCerrados }} abierto(s)</span>
+                  </div>
+                  <div class="le-repro-resumen__card">
+                    <span class="le-repro-resumen__label">Aves de apertura</span>
+                    <span class="le-repro-resumen__value">{{ formatNumber(reproTotalApertura) }}</span>
+                    <span class="le-repro-resumen__sub">H: {{ formatNumber(reproTotalAperturaH) }} · M: {{ formatNumber(reproTotalAperturaM) }}</span>
+                  </div>
+                  <div class="le-repro-resumen__card le-repro-resumen__card--accent">
+                    <span class="le-repro-resumen__label">Aves vivas actuales</span>
+                    <span class="le-repro-resumen__value">{{ formatNumber(reproTotalActual) }}</span>
+                    <span class="le-repro-resumen__sub">H: {{ formatNumber(reproTotalActualH) }} · M: {{ formatNumber(reproTotalActualM) }}</span>
+                  </div>
+                  <div class="le-repro-resumen__card">
+                    <span class="le-repro-resumen__label">Bajas acumuladas</span>
+                    <span class="le-repro-resumen__value">{{ formatNumber(reproTotalApertura - reproTotalActual) }}</span>
+                    <span class="le-repro-resumen__sub">mortalidad + selección + error sexaje</span>
+                  </div>
+                  <div class="le-repro-resumen__card" [class.le-repro-resumen__card--ok]="reproTodosCompletos">
+                    <span class="le-repro-resumen__label">Recogida de 7 días</span>
+                    <span class="le-repro-resumen__value">{{ reproCompletos }}/{{ lotesReproductora.length }}</span>
+                    <span class="le-repro-resumen__sub">{{ reproTodosCompletos ? '✓ Completa — aves devueltas al lote' : 'En progreso' }}</span>
+                  </div>
+                </div>
               </div>
             </section>
           </div>

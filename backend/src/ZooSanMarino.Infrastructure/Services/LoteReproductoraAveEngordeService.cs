@@ -30,12 +30,20 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         return _current.CompanyId;
     }
 
-    private static LoteReproductoraAveEngordeDto Map(LoteReproductoraAveEngorde x, string estado, int avesActuales)
+    private static LoteReproductoraAveEngordeDto Map(LoteReproductoraAveEngorde x, string estado, int avesActuales, ReproStats? stats = null)
     {
         var avesInicioH = x.AvesInicioHembras ?? x.H ?? 0;
         var avesInicioM = x.AvesInicioMachos ?? x.M ?? 0;
         var mixtas = x.Mixtas ?? 0;
         var saldoApertura = avesInicioH + avesInicioM + mixtas;
+
+        var num = stats?.Num ?? 0;
+        var avesActualesH = Math.Max(0, avesInicioH - (stats?.MortH ?? 0) - (stats?.SelH ?? 0) - (stats?.ErrH ?? 0));
+        var avesActualesM = Math.Max(0, avesInicioM - (stats?.MortM ?? 0) - (stats?.SelM ?? 0) - (stats?.ErrM ?? 0));
+        var edadDias = x.FechaEncasetamiento.HasValue
+            ? Math.Max(0, (int)(DateTime.UtcNow.Date - x.FechaEncasetamiento.Value.Date).TotalDays)
+            : 0;
+
         return new LoteReproductoraAveEngordeDto(
             x.Id,
             x.LoteAveEngordeId,
@@ -49,7 +57,12 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             avesActuales,
             saldoApertura,
             avesInicioH,
-            avesInicioM
+            avesInicioM,
+            num,
+            edadDias,
+            avesActualesH,
+            avesActualesM,
+            num >= DiasRecogidaReproductora
         );
     }
 
@@ -78,29 +91,40 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         return list.ToDictionary(x => x.Id, x => x.Total);
     }
 
-    /// <summary>Mortalidad + selección + error sexaje por lote reproductora. Key = LoteReproductoraAveEngordeId.</summary>
-    private async Task<Dictionary<int, (int mort, int sel, int errSexaje)>> GetMortalidadSeleccionErrorSexajePorReproductoraAsync(IEnumerable<int> ids, CancellationToken ct = default)
+    /// <summary>Máximo de días de recogida de datos del lote reproductora. Al completarlos pasa a Cerrado.</summary>
+    private const int DiasRecogidaReproductora = 7;
+
+    /// <summary>Bajas desglosadas por género + nº de registros por lote reproductora.</summary>
+    private sealed record ReproStats(int MortH, int MortM, int SelH, int SelM, int ErrH, int ErrM, int Num);
+
+    /// <summary>Mortalidad/selección/error por género + cantidad de registros. Key = LoteReproductoraAveEngordeId.</summary>
+    private async Task<Dictionary<int, ReproStats>> GetReproStatsAsync(IEnumerable<int> ids, CancellationToken ct = default)
     {
         var idList = ids.Distinct().ToList();
-        if (idList.Count == 0) return new Dictionary<int, (int, int, int)>();
+        if (idList.Count == 0) return new Dictionary<int, ReproStats>();
         var q = _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.AsNoTracking()
             .Where(s => idList.Contains(s.LoteReproductoraAveEngordeId))
             .GroupBy(s => s.LoteReproductoraAveEngordeId)
             .Select(g => new
             {
                 Id = g.Key,
-                Mort = g.Sum(s => (s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0)),
-                Sel = g.Sum(s => (s.SelH ?? 0) + (s.SelM ?? 0)),
-                ErrSexaje = g.Sum(s => (s.ErrorSexajeHembras ?? 0) + (s.ErrorSexajeMachos ?? 0))
+                MortH = g.Sum(s => s.MortalidadHembras ?? 0),
+                MortM = g.Sum(s => s.MortalidadMachos ?? 0),
+                SelH = g.Sum(s => s.SelH ?? 0),
+                SelM = g.Sum(s => s.SelM ?? 0),
+                ErrH = g.Sum(s => s.ErrorSexajeHembras ?? 0),
+                ErrM = g.Sum(s => s.ErrorSexajeMachos ?? 0),
+                Num = g.Count()
             });
         var list = await q.ToListAsync(ct);
-        return list.ToDictionary(x => x.Id, x => (x.Mort, x.Sel, x.ErrSexaje));
+        return list.ToDictionary(x => x.Id, x => new ReproStats(x.MortH, x.MortM, x.SelH, x.SelM, x.ErrH, x.ErrM, x.Num));
     }
 
-    private static (string Estado, int AvesActuales) CalcularEstado(int avesEncasetadas, int ventas, int mortalidad, int seleccion, int errorSexaje = 0)
+    private static (string Estado, int AvesActuales) CalcularEstado(int avesEncasetadas, int ventas, int mortalidad, int seleccion, int errorSexaje = 0, int numRegistros = 0)
     {
         var avesActuales = Math.Max(0, avesEncasetadas - mortalidad - seleccion - errorSexaje - ventas);
-        var estado = avesActuales <= 0 ? "Cerrado" : "Vigente";
+        // Cerrado si se agotaron las aves O si completó los 7 días de recogida de datos.
+        var estado = (avesActuales <= 0 || numRegistros >= DiasRecogidaReproductora) ? "Cerrado" : "Vigente";
         return (estado, avesActuales);
     }
 
@@ -117,14 +141,17 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         if (list.Count == 0) return Array.Empty<LoteReproductoraAveEngordeDto>();
         var ids = list.Select(x => x.Id).ToList();
         var ventas = await GetVentasPorReproductoraAsync(ids);
-        var mortSelErr = await GetMortalidadSeleccionErrorSexajePorReproductoraAsync(ids);
+        var stats = await GetReproStatsAsync(ids);
         return list.Select(x =>
         {
             var encaset = AvesEncasetadas(x);
             var v = ventas.GetValueOrDefault(x.Id, 0);
-            var (mort, sel, errSexaje) = mortSelErr.GetValueOrDefault(x.Id, (0, 0, 0));
-            var (estado, avesActuales) = CalcularEstado(encaset, v, mort, sel, errSexaje);
-            return Map(x, estado, avesActuales);
+            var st = stats.GetValueOrDefault(x.Id);
+            var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
+            var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
+            var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
+            var (estado, avesActuales) = CalcularEstado(encaset, v, mort, sel, err, st?.Num ?? 0);
+            return Map(x, estado, avesActuales, st);
         }).ToList();
     }
 
@@ -137,9 +164,12 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
                          select lrae).SingleOrDefaultAsync();
         if (ent is null) return null;
         var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
-        var (mort, sel, errSexaje) = (await GetMortalidadSeleccionErrorSexajePorReproductoraAsync(new[] { id })).GetValueOrDefault(id, (0, 0, 0));
-        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, errSexaje);
-        return Map(ent, estado, avesActuales);
+        var st = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
+        var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
+        var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
+        var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
+        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.Num ?? 0);
+        return Map(ent, estado, avesActuales, st);
     }
 
     public async Task<LoteReproductoraAveEngordeDto> CreateAsync(CreateLoteReproductoraAveEngordeDto dto)
@@ -314,9 +344,12 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         ent.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
         var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
-        var (mort, sel, errSexaje) = (await GetMortalidadSeleccionErrorSexajePorReproductoraAsync(new[] { id })).GetValueOrDefault(id, (0, 0, 0));
-        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, errSexaje);
-        return Map(ent, estado, avesActuales);
+        var stU = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
+        var mortU = (stU?.MortH ?? 0) + (stU?.MortM ?? 0);
+        var selU  = (stU?.SelH ?? 0) + (stU?.SelM ?? 0);
+        var errU  = (stU?.ErrH ?? 0) + (stU?.ErrM ?? 0);
+        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mortU, selU, errU, stU?.Num ?? 0);
+        return Map(ent, estado, avesActuales, stU);
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -347,6 +380,27 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             .GroupBy(_ => 1)
             .Select(g => new { AsignadasH = g.Sum(x => x.H ?? 0), AsignadasM = g.Sum(x => x.M ?? 0) })
             .SingleOrDefaultAsync();
+
+        // ── Devolución automática de aves al lote tras los 7 días de los reproductora ──
+        // Cuando TODOS los lotes reproductora completaron sus 7 registros, las aves vivas
+        // restantes "regresan" al lote pollo engorde para poder seguir el seguimiento allí.
+        const int diasSeguimientoReproductora = 7;
+        var nLotesRepro = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            .CountAsync(lr => lr.LoteAveEngordeId == loteAveEngordeId);
+        var nReproCompletos = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            .CountAsync(lr => lr.LoteAveEngordeId == loteAveEngordeId
+                && _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+                       .Count(s => s.LoteReproductoraAveEngordeId == lr.Id) >= diasSeguimientoReproductora);
+        bool sieteDiasCompletos = nLotesRepro > 0 && nReproCompletos == nLotesRepro;
+
+        // Mortalidad en caja de los lotes reproductora (no está en los registros de cruce).
+        var mortCajaRepro = await _ctx.LoteReproductoraAveEngorde.AsNoTracking()
+            .Where(lr => lr.LoteAveEngordeId == loteAveEngordeId)
+            .GroupBy(_ => 1)
+            .Select(g => new { H = g.Sum(x => x.MortCajaH ?? 0), M = g.Sum(x => x.MortCajaM ?? 0) })
+            .SingleOrDefaultAsync();
+        int mortCajaReproH = mortCajaRepro?.H ?? 0;
+        int mortCajaReproM = mortCajaRepro?.M ?? 0;
 
         // Mortalidad y bajas acumuladas del seguimiento diario (mortalidad + selección + error sexaje)
         var segAcum = await _ctx.SeguimientoDiarioAvesEngorde
@@ -385,8 +439,21 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         int errH = segAcum?.ErrH ?? 0;
         int errM = segAcum?.ErrM ?? 0;
 
-        int hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - mortSegH - selH - errH);
-        int machosDisponibles = Math.Max(0, machosIniciales - mortCajaM - asignadasM - mortSegM - selM - errM);
+        int hembrasDisponibles, machosDisponibles;
+        if (sieteDiasCompletos)
+        {
+            // Aves devueltas al lote: NO se restan las asignadas (las aves regresan).
+            // Las bajas diarias de los reproductora (días 1-7) ya están en los registros
+            // de cruce de seguimiento_diario_aves_engorde → se restan vía mortSeg/sel/err.
+            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortCajaReproH - mortSegH - selH - errH);
+            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - mortCajaReproM - mortSegM - selM - errM);
+        }
+        else
+        {
+            // Aves aún distribuidas en los reproductora (no se devuelven hasta completar 7 días).
+            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - mortSegH - selH - errH);
+            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - asignadasM - mortSegM - selM - errM);
+        }
 
         return new AvesDisponiblesDto
         {

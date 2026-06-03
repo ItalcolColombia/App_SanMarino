@@ -324,6 +324,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                          where s.Id == dto.Id && l.CompanyId == companyId && l.DeletedAt == null
                          select s).SingleOrDefaultAsync();
         if (ent is null) return null;
+        if (ent.OrigenCruce)
+            throw new InvalidOperationException(
+                "Este registro se genera automáticamente desde los lotes reproductora (primeros 7 días). Para corregirlo, edite el seguimiento del lote reproductora.");
 
         double? kcalAlH = dto.KcalAlH, protAlH = dto.ProtAlH;
         if (kcalAlH is null || protAlH is null)
@@ -471,6 +474,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                          where s.Id == id && l.CompanyId == companyId && l.DeletedAt == null
                          select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId, l.EstadoOperativoLote }).SingleOrDefaultAsync();
         if (ent is null) return false;
+        if (ent.Seguimiento.OrigenCruce)
+            throw new InvalidOperationException(
+                "Este registro se genera automáticamente desde los lotes reproductora (primeros 7 días). No se puede eliminar manualmente.");
         if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede eliminar el registro.");
 
@@ -654,7 +660,8 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
             ConsumoAguaTemperatura: e.ConsumoAguaTemperatura,
             CreatedByUserId: e.CreatedByUserId,
             SaldoAlimentoKg: e.SaldoAlimentoKg.HasValue ? (double)e.SaldoAlimentoKg.Value : null,
-            HistoricoConsumoAlimento: e.HistoricoConsumoAlimento);
+            HistoricoConsumoAlimento: e.HistoricoConsumoAlimento,
+            OrigenCruce: e.OrigenCruce);
 
     // ─── Helpers de inventario y saldo (portados de SeguimientoAvesEngordeService) ───
 

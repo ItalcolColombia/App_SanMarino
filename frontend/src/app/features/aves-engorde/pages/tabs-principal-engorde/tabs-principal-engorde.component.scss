@@ -170,3 +170,18 @@
   justify-content: flex-end;
 }
 
+
+/* Badge para filas generadas por el cruce reproductora→engorde (solo lectura) */
+.badge-cruce {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .15rem .5rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 700;
+  background: #e8f5ea;
+  color: #2d7a3e;
+  border: 1px solid #81c784;
+  white-space: nowrap;
+}

@@ -141,7 +141,9 @@
                   <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Traslado</th>
                   <th scope="col" class="th-diario th-diario--wide">Documento</th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo kg </th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">día (kg)</span></th>
+                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">hembras (kg)</span></th>
+                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">machos (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
@@ -193,7 +195,9 @@
                   <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">{{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}</td>
                   <td class="cell-text cell-text--wide" [title]="buildTrasladoTexto(f)">{{ buildTrasladoTexto(f) || '—' }}</td>
                   <td class="cell-text cell-text--wide" [title]="f.documento || ''">{{ f.documento || '—' }}</td>
-                  <td class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
+                  <td class="num">{{ f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
+                  <td *ngIf="isPanama" class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
+                  <td *ngIf="isPanama" class="num">{{ f.consumoKgMachos != null ? (f.consumoKgMachos | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
                   <td class="num">{{ f.consumoAguaDiario != null ? (f.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
                   <td class="num">{{ f.pesoPromHembras != null ? (f.pesoPromHembras | number:'1.0-2') : '—' }}</td>
@@ -204,12 +208,18 @@
                          sin seguimiento diario asociado → ocultar acciones (no hay nada que editar). -->
                     <div class="btn-group" *ngIf="f.segId != null; else movSinSeg">
                       <button type="button" (click)="onViewDetailById(f.segId)" class="icon-btn" title="Ver detalle">👁️</button>
-                      <ng-container *appHasPermission="'editar_registro'">
-                        <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                      <!-- Registro generado por cruce de lotes reproductora (primeros 7 días): solo lectura -->
+                      <ng-container *ngIf="f.createdByUserId === 'SYSTEM_CRUCE'; else accionesManuales">
+                        <span class="badge-cruce" title="Generado automáticamente desde los lotes reproductora. Para corregir, edite el lote reproductora.">🔄 Auto</span>
                       </ng-container>
-                      <ng-container *appHasPermission="'eliminar_registro'">
-                        <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
-                      </ng-container>
+                      <ng-template #accionesManuales>
+                        <ng-container *appHasPermission="'editar_registro'">
+                          <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                        </ng-container>
+                        <ng-container *appHasPermission="'eliminar_registro'">
+                          <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
+                        </ng-container>
+                      </ng-template>
                     </div>
                     <ng-template #movSinSeg>
                       <span class="badge-mov" title="Movimiento de inventario/venta sin seguimiento diario">📦 mov.</span>

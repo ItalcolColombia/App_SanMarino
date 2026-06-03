@@ -58,6 +58,22 @@ export class LoteEngordeListComponent implements OnInit {
   /** Lotes reproductora de pollo engorde del lote en detalle (estado Cerrado/Disponible) */
   lotesReproductora: LoteReproductoraAveEngordeDto[] = [];
   loadingReproductora = false;
+
+  // ── Totales consolidados de los lotes reproductora (cuadro informativo) ──
+  private sumRepro(sel: (r: LoteReproductoraAveEngordeDto) => number): number {
+    return this.lotesReproductora.reduce((acc, r) => acc + (sel(r) || 0), 0);
+  }
+  get reproTotalAperturaH(): number { return this.sumRepro(r => r.avesInicioHembras ?? 0); }
+  get reproTotalAperturaM(): number { return this.sumRepro(r => r.avesInicioMachos ?? 0); }
+  get reproTotalApertura(): number { return this.sumRepro(r => r.saldoApertura ?? 0); }
+  get reproTotalActualH(): number { return this.sumRepro(r => r.avesActualesHembras ?? 0); }
+  get reproTotalActualM(): number { return this.sumRepro(r => r.avesActualesMachos ?? 0); }
+  get reproTotalActual(): number { return this.sumRepro(r => r.avesActuales ?? 0); }
+  get reproCerrados(): number { return this.lotesReproductora.filter(r => r.estado === 'Cerrado').length; }
+  get reproCompletos(): number { return this.lotesReproductora.filter(r => (r.numRegistros ?? 0) >= 7).length; }
+  get reproTodosCompletos(): boolean {
+    return this.lotesReproductora.length > 0 && this.reproCompletos === this.lotesReproductora.length;
+  }
   /** Aves disponibles (hembra/macho) después de reducciones y lotes reproductora creados */
   avesDisponibles: AvesDisponiblesDto | null = null;
   /** Cargando detalle del lote (getById) al abrir Ver detalle */

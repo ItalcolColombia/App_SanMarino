@@ -99,7 +99,7 @@
       <h2 class="ux-card__title">Información del lote y disponibilidad de aves</h2>
 
       <p *ngIf="avesDisponiblesTotal === 0 && avesDisponibles" class="pe-info-lote__msg pe-info-lote__msg--error" role="alert">
-        <strong>No se puede hacer seguimiento</strong> porque no hay aves disponibles en el lote. Las aves fueron asignadas en su totalidad a lotes reproductora.
+        <strong>No se puede hacer seguimiento todavía</strong> porque las aves están asignadas a los lotes reproductora. Cuando se completen los <strong>7 días</strong> de seguimiento en todos los lotes reproductora, las aves vivas restantes se devolverán automáticamente al lote para continuar el seguimiento aquí.
       </p>
       <p *ngIf="loteCerradoPorReproductoras && lotesReproductora.length > 0" class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
         <strong>Lote cerrado</strong> porque los lotes reproductora ya no tienen aves disponibles.
@@ -123,7 +123,12 @@
         <div class="pe-info-lote__block" *ngIf="avesDisponibles">
           <h3 class="pe-info-lote__block-title">Aves disponibles (para seguimiento pollo engorde)</h3>
           <p class="pe-info-lote-aves">{{ avesDisponiblesTotal | number:'1.0-0' }}</p>
-          <p class="pe-info-lote-hint">Después de restar las aves asignadas a lotes reproductora y la mortalidad/selección registrada en los seguimientos diarios (H: {{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}, M: {{ avesDisponibles.machosDisponibles | number:'1.0-0' }}).</p>
+          <div class="pe-info-lote-genero">
+            <span class="pe-genero-chip pe-genero-chip--h">🐔 Hembras: <strong>{{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}</strong></span>
+            <span class="pe-genero-chip pe-genero-chip--m">🐓 Machos: <strong>{{ avesDisponibles.machosDisponibles | number:'1.0-0' }}</strong></span>
+          </div>
+          <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal > 0">Saldo de aves devueltas al lote tras completar los 7 días de los lotes reproductora (descontando mortalidad y selección registradas).</p>
+          <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal === 0">Las aves están asignadas a los lotes reproductora. Al completar los 7 días de seguimiento en todos, las aves vivas se devolverán automáticamente al lote.</p>
         </div>
       </div>
     </section>

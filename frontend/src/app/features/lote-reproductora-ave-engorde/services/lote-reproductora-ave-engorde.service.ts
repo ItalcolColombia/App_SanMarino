@@ -64,6 +64,16 @@ export interface LoteReproductoraAveEngordeDto {
   readonly avesInicioHembras?: number;
   /** Machos al abrir el lote reproductor */
   readonly avesInicioMachos?: number;
+  /** Cantidad de registros de seguimiento capturados (de 7) */
+  readonly numRegistros?: number;
+  /** Edad en días desde el encasetamiento */
+  readonly edadDias?: number;
+  /** Hembras vivas actuales */
+  readonly avesActualesHembras?: number;
+  /** Machos vivos actuales */
+  readonly avesActualesMachos?: number;
+  /** True si completó los 7 días de recogida */
+  readonly sieteDiasCompletos?: boolean;
 }
 
 export interface CreateLoteReproductoraAveEngordeDto {
