@@ -56,4 +56,10 @@ public class RegisterDto
     // Asignación multiempresa y roles
     public int[] CompanyIds { get; set; } = Array.Empty<int>();
     public int[]? RoleIds { get; set; }
+
+    /// <summary>
+    /// Cuando true el email es sintético (@zootecnico.com) y no se envía correo de bienvenida.
+    /// Se almacena con IsEmailLogin = false para distinguirlo de cuentas con correo real.
+    /// </summary>
+    public bool IsPlatformUser { get; set; } = false;
 }

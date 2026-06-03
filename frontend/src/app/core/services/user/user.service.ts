@@ -78,6 +78,7 @@ export interface CreateUserDto {
   roles?: string[];
   roleIds?: number[];
   isActive?: boolean;
+  isPlatformUser?: boolean;
 }
 
 export interface UpdateUserDto {
