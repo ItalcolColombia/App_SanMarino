@@ -74,6 +74,8 @@ export interface LoteReproductoraAveEngordeDto {
   readonly avesActualesMachos?: number;
   /** True si completó los 7 días de recogida */
   readonly sieteDiasCompletos?: boolean;
+  /** Código reproductora editable por el usuario */
+  readonly codigoReproductora?: string | null;
 }
 
 export interface CreateLoteReproductoraAveEngordeDto {
@@ -91,6 +93,7 @@ export interface CreateLoteReproductoraAveEngordeDto {
   pesoInicialM?: number | null;
   pesoInicialH?: number | null;
   pesoMixto?: number | null;
+  codigoReproductora?: string | null;
 }
 
 export type UpdateLoteReproductoraAveEngordeDto = CreateLoteReproductoraAveEngordeDto;

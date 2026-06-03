@@ -85,6 +85,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
     this.form = this.fb.group({
       nombreLote: ['', [Validators.required, Validators.maxLength(200)]],
       reproductoraId: ['', [Validators.required, Validators.maxLength(100)]],
+      codigoReproductora: [null as string | null, [Validators.maxLength(100)]],
       fechaEncasetamiento: [''],
       m: [0, [Validators.min(0)]],
       h: [0, [Validators.min(0)]],
@@ -161,10 +162,16 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
     return this.remainingHembras <= 0 && this.remainingMachos <= 0;
   }
 
+  /** True si TODOS los lotes reproductora del lote engorde completaron los 7 días de seguimiento. */
+  get sieteDiasCompletosLote(): boolean {
+    return this.registros.length > 0 && this.registros.every(r => r.sieteDiasCompletos === true);
+  }
+
   private createBulkRow(initialCode = ''): FormGroup {
     const baseNombre = this.loteSeleccionado?.loteNombre ?? '';
     return this.fb.group({
       reproductoraId: [initialCode, [Validators.required, Validators.maxLength(100)]],
+      codigoReproductora: [null as string | null, [Validators.maxLength(100)]],
       nombreLote: [baseNombre, [Validators.required, Validators.maxLength(200)]],
       fechaEncasetamiento: [''],
       m: [0, [Validators.min(0)]],
@@ -250,6 +257,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       return {
         loteAveEngordeId,
         reproductoraId: (v.reproductoraId ?? '').trim(),
+        codigoReproductora: v.codigoReproductora?.trim() || null,
         nombreLote: (v.nombreLote ?? '').trim(),
         fechaEncasetamiento: v.fechaEncasetamiento ? new Date(v.fechaEncasetamiento).toISOString() : null,
         m: v.m ?? 0,
@@ -276,6 +284,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
   }
 
   canCreateMore(): boolean {
+    if (this.sieteDiasCompletosLote) return false;
     if (!this.avesDisponibles) return false;
     return (this.avesDisponibles.hembrasDisponibles + this.avesDisponibles.machosDisponibles) > 0;
   }
@@ -351,6 +360,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
     this.form.patchValue({
       nombreLote: r.nombreLote ?? '',
       reproductoraId: r.reproductoraId ?? '',
+      codigoReproductora: r.codigoReproductora ?? null,
       fechaEncasetamiento: r.fechaEncasetamiento ? r.fechaEncasetamiento.slice(0, 10) : '',
       m: r.m ?? 0, h: r.h ?? 0, mixtas: r.mixtas ?? 0,
       mortCajaH: r.mortCajaH ?? 0, mortCajaM: r.mortCajaM ?? 0,
@@ -412,6 +422,7 @@ export class LoteReproductoraAveEngordeListComponent implements OnInit {
       const dto: CreateLoteReproductoraAveEngordeDto = {
         loteAveEngordeId,
         reproductoraId: (v.reproductoraId ?? this.editing.reproductoraId ?? '').trim(),
+        codigoReproductora: v.codigoReproductora?.trim() || null,
         nombreLote: (v.nombreLote ?? '').trim(),
         fechaEncasetamiento: v.fechaEncasetamiento ? new Date(v.fechaEncasetamiento).toISOString() : null,
         m: v.m ?? null, h: v.h ?? null, mixtas: v.mixtas ?? null,

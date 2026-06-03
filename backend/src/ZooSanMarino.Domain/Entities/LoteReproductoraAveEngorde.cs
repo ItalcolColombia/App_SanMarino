@@ -12,6 +12,7 @@ public class LoteReproductoraAveEngorde
     public string ReproductoraId { get; set; } = null!;
 
     public string NombreLote { get; set; } = null!;
+    public string? CodigoReproductora { get; set; }
     public DateTime? FechaEncasetamiento { get; set; }
 
     public int? M { get; set; }

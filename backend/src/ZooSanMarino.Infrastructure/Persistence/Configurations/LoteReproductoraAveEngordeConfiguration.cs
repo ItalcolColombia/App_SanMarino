@@ -17,6 +17,7 @@ public class LoteReproductoraAveEngordeConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.LoteAveEngordeId).HasColumnName("lote_ave_engorde_id").IsRequired();
         b.Property(x => x.ReproductoraId).HasColumnName("reproductora_id").HasMaxLength(64).IsRequired();
         b.Property(x => x.NombreLote).HasColumnName("nombre_lote").HasMaxLength(200).IsRequired();
+        b.Property(x => x.CodigoReproductora).HasColumnName("codigo_reproductora").HasMaxLength(100);
         b.Property(x => x.FechaEncasetamiento).HasColumnName("fecha_encasetamiento");
 
         b.Property(x => x.M).HasColumnName("m");

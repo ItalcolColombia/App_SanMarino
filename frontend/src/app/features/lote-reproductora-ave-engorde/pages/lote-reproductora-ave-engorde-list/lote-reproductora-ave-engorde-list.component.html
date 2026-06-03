@@ -96,33 +96,50 @@
           · Hembras disp.: {{ avesDisponibles.hembrasDisponibles }} · Machos disp.: {{ avesDisponibles.machosDisponibles }}
         </span>
       </div>
+
+      <!-- Alerta 7 días completos -->
+      <div *ngIf="sieteDiasCompletosLote" class="lrae-alert lrae-alert--info">
+        <fa-icon [icon]="faLayerGroup"></fa-icon>
+        Este lote no puede crear más lotes reproductora porque ya se asignaron y tienen seguimiento (7 días completados).
+      </div>
+
       <div class="lrae-table-wrap">
         <table class="lrae-table">
           <thead>
             <tr>
               <th>Reproductora</th>
+              <th>Cód. Reprod.</th>
               <th>Nombre lote</th>
               <th>Fecha encaset.</th>
-              <th>H</th>
-              <th>M</th>
-              <th>Mixtas</th>
+              <th title="Hembras encasetadas">H Encaset.</th>
+              <th title="Machos encasetados">M Encaset.</th>
+              <th title="Hembras actuales vivas">H Actual</th>
+              <th title="Machos actuales vivos">M Actual</th>
+              <th title="Días de edad desde encasetamiento">Edad (días)</th>
+              <th title="Registros de seguimiento completados de 7">Registros</th>
               <th>Estado</th>
-              <th>Aves actuales</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let r of registros">
               <td>{{ r.reproductoraId }}</td>
+              <td>{{ r.codigoReproductora || '—' }}</td>
               <td>{{ r.nombreLote }}</td>
               <td>{{ formatDate(r.fechaEncasetamiento) }}</td>
-              <td>{{ formatNum(r.h) }}</td>
-              <td>{{ formatNum(r.m) }}</td>
-              <td>{{ formatNum(r.mixtas) }}</td>
+              <td>{{ formatNum(r.avesInicioHembras) }}</td>
+              <td>{{ formatNum(r.avesInicioMachos) }}</td>
+              <td>{{ formatNum(r.avesActualesHembras) }}</td>
+              <td>{{ formatNum(r.avesActualesMachos) }}</td>
+              <td>{{ r.edadDias ?? '—' }}</td>
+              <td>
+                <span class="lrae-badge-registros" [class.lrae-badge-registros--completo]="(r.numRegistros ?? 0) >= 7">
+                  {{ r.numRegistros ?? 0 }}/7
+                </span>
+              </td>
               <td>
                 <span class="lrae-estado" [class.lrae-estado--cerrado]="r.estado === 'Cerrado'" [class.lrae-estado--vigente]="r.estado === 'Vigente'">{{ r.estado }}</span>
               </td>
-              <td>{{ formatNum(r.avesActuales) }}</td>
               <td>
                 <button type="button" class="lrae-icon-btn" (click)="view(r)" title="Ver"> <fa-icon [icon]="faEye"></fa-icon> </button>
                 <button type="button" class="lrae-icon-btn" (click)="edit(r)" title="Editar"> <fa-icon [icon]="faPen"></fa-icon> </button>
@@ -130,7 +147,7 @@
               </td>
             </tr>
             <tr *ngIf="!loading && registros.length === 0">
-              <td colspan="9" class="lrae-empty">No hay lotes reproductora. Use «Registrar lote reproductora» para crear uno o varios.</td>
+              <td colspan="12" class="lrae-empty">No hay lotes reproductora. Use «Registrar lote reproductora» para crear uno o varios.</td>
             </tr>
           </tbody>
         </table>
@@ -138,9 +155,7 @@
       <div *ngIf="loading" class="lrae-loading"><span>Cargando…</span></div>
     </section>
 
-    <!-- Lesiones: sección movida a Seguimiento diario reproductora aves de engorde -->
-
-    <!-- Modal Editar: mismo diseño que crear (una sola tarjeta), código siempre deshabilitado -->
+    <!-- Modal Editar -->
     <div *ngIf="modalOpen && editing" class="lrae-modal" role="dialog" aria-labelledby="lrae-edit-modal-title">
       <div class="lrae-modal__backdrop" (click)="modalOpen = false"></div>
       <div class="lrae-modal__panel lrae-modal__panel--edit">
@@ -153,10 +168,14 @@
           <div class="lrae-edit-card">
             <section class="lrae-form-section">
               <h3 class="lrae-form-section__title">Datos básicos</h3>
-              <div class="lrae-form-grid lrae-form-grid--create">
+              <div class="lrae-form-grid lrae-form-grid--4">
                 <div class="lrae-field">
-                  <label class="lrae-label">Código reproductora (autogenerado)</label>
+                  <label class="lrae-label">ID Reproductora (autogenerado)</label>
                   <input type="text" formControlName="reproductoraId" class="lrae-input lrae-input--readonly" readonly placeholder="LR-xxxxxxxxxx" />
+                </div>
+                <div class="lrae-field">
+                  <label class="lrae-label">Código reproductora</label>
+                  <input type="text" formControlName="codigoReproductora" class="lrae-input" placeholder="Ej. COD-001" maxlength="100" />
                 </div>
                 <div class="lrae-field">
                   <label class="lrae-label">Nombre del lote <span class="lrae-req">*</span></label>
@@ -170,7 +189,7 @@
               </div>
             </section>
             <section class="lrae-form-section">
-              <h3 class="lrae-form-section__title">Aves</h3>
+              <h3 class="lrae-form-section__title">Aves encasetadas</h3>
               <div class="lrae-form-grid lrae-form-grid--3">
                 <div class="lrae-field">
                   <label class="lrae-label">Hembras (H)</label>
@@ -188,7 +207,7 @@
             </section>
             <section class="lrae-form-section lrae-form-section--optional">
               <h3 class="lrae-form-section__title">Mortalidad, uniformidad y peso</h3>
-              <div class="lrae-form-grid lrae-form-grid--create">
+              <div class="lrae-form-grid lrae-form-grid--4">
                 <div class="lrae-field">
                   <label class="lrae-label">Mort. caja H</label>
                   <input type="number" formControlName="mortCajaH" class="lrae-input" min="0" />
@@ -228,7 +247,7 @@
       </div>
     </div>
 
-    <!-- Modal Ver detalle: mismo diseño que crear/editar, todos los campos deshabilitados (solo lectura) -->
+    <!-- Modal Ver detalle -->
     <div *ngIf="detalleOpen && detalleData" class="lrae-modal" role="dialog" aria-labelledby="lrae-view-modal-title">
       <div class="lrae-modal__backdrop" (click)="closeDetalle()"></div>
       <div class="lrae-modal__panel lrae-modal__panel--edit">
@@ -241,10 +260,14 @@
           <div class="lrae-edit-card">
             <section class="lrae-form-section">
               <h3 class="lrae-form-section__title">Datos básicos</h3>
-              <div class="lrae-form-grid lrae-form-grid--create">
+              <div class="lrae-form-grid lrae-form-grid--4">
                 <div class="lrae-field">
-                  <label class="lrae-label">Código reproductora (autogenerado)</label>
+                  <label class="lrae-label">ID Reproductora (autogenerado)</label>
                   <input type="text" [value]="detalleData.reproductoraId" class="lrae-input lrae-input--readonly" readonly disabled />
+                </div>
+                <div class="lrae-field">
+                  <label class="lrae-label">Código reproductora</label>
+                  <input type="text" [value]="detalleData.codigoReproductora || '—'" class="lrae-input lrae-input--readonly" readonly disabled />
                 </div>
                 <div class="lrae-field">
                   <label class="lrae-label">Nombre del lote</label>
@@ -257,7 +280,7 @@
               </div>
             </section>
             <section class="lrae-form-section">
-              <h3 class="lrae-form-section__title">Aves</h3>
+              <h3 class="lrae-form-section__title">Aves encasetadas</h3>
               <div class="lrae-form-grid lrae-form-grid--3">
                 <div class="lrae-field">
                   <label class="lrae-label">Hembras (H)</label>
@@ -272,20 +295,32 @@
                   <input type="text" [value]="formatNum(detalleData.mixtas)" class="lrae-input lrae-input--readonly" readonly disabled />
                 </div>
               </div>
-              <div class="lrae-form-grid lrae-form-grid--create" style="margin-top: 0.75rem;">
+              <div class="lrae-form-grid lrae-form-grid--4" style="margin-top: 0.75rem;">
                 <div class="lrae-field">
                   <label class="lrae-label">Estado</label>
                   <span class="lrae-estado" [class.lrae-estado--cerrado]="detalleData.estado === 'Cerrado'" [class.lrae-estado--vigente]="detalleData.estado === 'Vigente'">{{ detalleData.estado || '—' }}</span>
                 </div>
                 <div class="lrae-field">
-                  <label class="lrae-label">Aves actuales</label>
-                  <input type="text" [value]="formatNum(detalleData.avesActuales)" class="lrae-input lrae-input--readonly" readonly disabled />
+                  <label class="lrae-label">H actuales</label>
+                  <input type="text" [value]="formatNum(detalleData.avesActualesHembras)" class="lrae-input lrae-input--readonly" readonly disabled />
+                </div>
+                <div class="lrae-field">
+                  <label class="lrae-label">M actuales</label>
+                  <input type="text" [value]="formatNum(detalleData.avesActualesMachos)" class="lrae-input lrae-input--readonly" readonly disabled />
+                </div>
+                <div class="lrae-field">
+                  <label class="lrae-label">Edad (días)</label>
+                  <input type="text" [value]="detalleData.edadDias ?? '—'" class="lrae-input lrae-input--readonly" readonly disabled />
+                </div>
+                <div class="lrae-field">
+                  <label class="lrae-label">Registros</label>
+                  <input type="text" [value]="(detalleData.numRegistros ?? 0) + '/7'" class="lrae-input lrae-input--readonly" readonly disabled />
                 </div>
               </div>
             </section>
             <section class="lrae-form-section lrae-form-section--optional">
               <h3 class="lrae-form-section__title">Mortalidad, uniformidad y peso</h3>
-              <div class="lrae-form-grid lrae-form-grid--create">
+              <div class="lrae-form-grid lrae-form-grid--4">
                 <div class="lrae-field">
                   <label class="lrae-label">Mort. caja H</label>
                   <input type="text" [value]="formatNum(detalleData.mortCajaH)" class="lrae-input lrae-input--readonly" readonly disabled />
@@ -324,7 +359,7 @@
       </div>
     </div>
 
-    <!-- Modal único: Registrar lote(s) reproductora (uno o varios, con todos los campos) -->
+    <!-- Modal Registrar (bulk) -->
     <div *ngIf="bulkModalOpen" class="lrae-modal" role="dialog" aria-labelledby="lrae-create-title">
       <div class="lrae-modal__backdrop" (click)="bulkModalOpen = false"></div>
       <div class="lrae-modal__panel lrae-modal__panel--create">
@@ -352,10 +387,14 @@
               <div class="lrae-create-card__body">
                 <section class="lrae-form-section">
                   <h3 class="lrae-form-section__title">Datos básicos</h3>
-                  <div class="lrae-form-grid lrae-form-grid--create">
+                  <div class="lrae-form-grid lrae-form-grid--4">
                     <div class="lrae-field">
-                      <label class="lrae-label">Código reproductora (autogenerado)</label>
+                      <label class="lrae-label">ID Reproductora (autogenerado)</label>
                       <input type="text" formControlName="reproductoraId" class="lrae-input lrae-input--readonly" readonly placeholder="LR-xxxxxxxxxx" />
+                    </div>
+                    <div class="lrae-field">
+                      <label class="lrae-label">Código reproductora</label>
+                      <input type="text" formControlName="codigoReproductora" class="lrae-input" placeholder="Ej. COD-001" maxlength="100" />
                     </div>
                     <div class="lrae-field">
                       <label class="lrae-label">Nombre del lote <span class="lrae-req">*</span></label>
@@ -369,7 +408,7 @@
                   </div>
                 </section>
                 <section class="lrae-form-section">
-                  <h3 class="lrae-form-section__title">Aves</h3>
+                  <h3 class="lrae-form-section__title">Aves encasetadas</h3>
                   <div class="lrae-form-grid lrae-form-grid--3">
                     <div class="lrae-field">
                       <label class="lrae-label">Hembras (H)</label>
@@ -387,7 +426,7 @@
                 </section>
                 <section class="lrae-form-section lrae-form-section--optional">
                   <h3 class="lrae-form-section__title">Mortalidad, uniformidad y peso</h3>
-                  <div class="lrae-form-grid lrae-form-grid--create">
+                  <div class="lrae-form-grid lrae-form-grid--4">
                     <div class="lrae-field">
                       <label class="lrae-label">Mort. caja H</label>
                       <input type="number" formControlName="mortCajaH" class="lrae-input" min="0" />

@@ -36,7 +36,9 @@ public record LoteReproductoraAveEngordeDto(
     /// <summary>Machos vivos actuales (inicio − mortalidad/selección/error de machos).</summary>
     int AvesActualesMachos = 0,
     /// <summary>True si ya completó los 7 días de recogida de datos.</summary>
-    bool SieteDiasCompletos = false
+    bool SieteDiasCompletos = false,
+    /// <summary>Código reproductora editable por el usuario (distinto del ReproductoraId autogenerado).</summary>
+    string? CodigoReproductora = null
 );
 
 public record CreateLoteReproductoraAveEngordeDto(
@@ -53,7 +55,8 @@ public record CreateLoteReproductoraAveEngordeDto(
     int? UnifM,
     decimal? PesoInicialM,
     decimal? PesoInicialH,
-    decimal? PesoMixto
+    decimal? PesoMixto,
+    string? CodigoReproductora = null
 );
 
 public record UpdateLoteReproductoraAveEngordeDto(
@@ -70,5 +73,6 @@ public record UpdateLoteReproductoraAveEngordeDto(
     int? UnifM,
     decimal? PesoInicialM,
     decimal? PesoInicialH,
-    decimal? PesoMixto
+    decimal? PesoMixto,
+    string? CodigoReproductora = null
 );
