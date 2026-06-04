@@ -367,16 +367,16 @@
               <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
 
               <!-- Mortalidad -->
-              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras ?? '—' }}</td>
-              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos ?? '—' }}</td>
+              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras != null ? s.mortalidadHembras : '—' }}</td>
+              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos != null ? s.mortalidadMachos : '—' }}</td>
 
               <!-- Selección -->
-              <td class="cell-num" data-label="Sel. H">{{ s.selH ?? '—' }}</td>
-              <td class="cell-num" data-label="Sel. M">{{ s.selM ?? '—' }}</td>
+              <td class="cell-num" data-label="Sel. H">{{ s.selH != null ? s.selH : '—' }}</td>
+              <td class="cell-num" data-label="Sel. M">{{ s.selM != null ? s.selM : '—' }}</td>
 
               <!-- Error sexaje -->
-              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras ?? '—' }}</td>
-              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos ?? '—' }}</td>
+              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras != null ? s.errorSexajeHembras : '—' }}</td>
+              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos != null ? s.errorSexajeMachos : '—' }}</td>
 
               <!-- Tipo alimento -->
               <td class="cell-text cell-alimento" data-label="Tipo alimento" [title]="s.tipoAlimento || ''">

@@ -109,6 +109,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // Lesiones (Panamá — tab dentro de Seguimiento Diario Reproductora/Apoyo/Engorde)
         public DbSet<Lesion> Lesiones => Set<Lesion>();
 
+        // Módulo de tickets de soporte / requerimientos
+        public DbSet<Ticket> Tickets => Set<Ticket>();
+        public DbSet<TicketImagen> TicketImagenes => Set<TicketImagen>();
+        public DbSet<TicketNota> TicketNotas => Set<TicketNota>();
+
         // Módulo Mapas (documentos de mapeo ERP/CIESA)
         public DbSet<Mapa> Mapas => Set<Mapa>();
         public DbSet<MapaPaso> MapaPasos => Set<MapaPaso>();

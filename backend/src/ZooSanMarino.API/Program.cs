@@ -318,6 +318,9 @@ builder.Services.AddScoped<IClienteService, ClienteService>();
 // Lesiones (Panamá — tab Seguimiento Diario Reproductora/Apoyo/Engorde)
 builder.Services.AddScoped<ILesionService, LesionService>();
 
+// Módulo de tickets de soporte / requerimientos
+builder.Services.AddScoped<ITicketService, TicketService>();
+
 
 // ─────────────────────────────────────
 // 9) FluentValidation + HealthChecks

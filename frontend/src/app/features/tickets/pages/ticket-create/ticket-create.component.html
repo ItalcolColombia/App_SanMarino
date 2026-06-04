@@ -1,0 +1,86 @@
+<!-- src/app/features/tickets/pages/ticket-create/ticket-create.component.html -->
+<div class="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+
+  <!-- Encabezado -->
+  <div class="mb-5 flex items-center gap-3">
+    <a routerLink="/tickets"
+       class="grid h-9 w-9 place-items-center rounded-lg text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50"
+       title="Volver">
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+      </svg>
+    </a>
+    <div>
+      <h1 class="text-xl font-bold text-slate-800">Nuevo ticket</h1>
+      <p class="text-sm text-slate-500">Reportá un error, soporte, requerimiento o duda.</p>
+    </div>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="submit()"
+        class="space-y-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+
+    <!-- Título -->
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Título <span class="text-ital-orange">*</span></label>
+      <input type="text" formControlName="titulo" maxlength="160"
+             placeholder="Resumí el problema en una frase"
+             class="w-full rounded-lg border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
+             [class.border-rose-400]="f.titulo.invalid && f.titulo.touched" />
+      @if (f.titulo.invalid && f.titulo.touched) {
+        <p class="mt-1 text-xs text-rose-600">El título es requerido.</p>
+      }
+    </div>
+
+    <!-- Tipo -->
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Tipo de ticket <span class="text-ital-orange">*</span></label>
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        @for (t of tipos; track t.value) {
+          <label
+            class="cursor-pointer rounded-lg border px-3 py-2 text-center text-sm transition"
+            [class.border-ital-green]="f.tipo.value === t.value"
+            [class.bg-ital-green-50]="f.tipo.value === t.value"
+            [class.font-semibold]="f.tipo.value === t.value"
+            [class.text-ital-green-dark]="f.tipo.value === t.value"
+            [class.border-slate-200]="f.tipo.value !== t.value"
+            [class.text-slate-600]="f.tipo.value !== t.value"
+            [title]="t.descripcion">
+            <input type="radio" formControlName="tipo" [value]="t.value" class="hidden" />
+            {{ t.label }}
+          </label>
+        }
+      </div>
+    </div>
+
+    <!-- Descripción -->
+    <div>
+      <label class="mb-1 block text-sm font-medium text-slate-700">Descripción <span class="text-ital-orange">*</span></label>
+      <textarea formControlName="descripcion" rows="5"
+                placeholder="Detallá qué pasó, qué esperabas y los pasos para reproducirlo…"
+                class="w-full rounded-lg border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
+                [class.border-rose-400]="f.descripcion.invalid && f.descripcion.touched"></textarea>
+      @if (f.descripcion.invalid && f.descripcion.touched) {
+        <p class="mt-1 text-xs text-rose-600">La descripción es requerida.</p>
+      }
+    </div>
+
+    <!-- Imágenes -->
+    <div>
+      <label class="mb-1.5 block text-sm font-medium text-slate-700">Imágenes del error <span class="text-slate-400">(opcional)</span></label>
+      <app-image-dropzone (imagesChange)="onImages($event)"></app-image-dropzone>
+    </div>
+
+    <!-- Acciones -->
+    <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+      <a routerLink="/tickets"
+         class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Cancelar</a>
+      <button type="submit" [disabled]="saving()"
+              class="inline-flex items-center gap-2 rounded-lg bg-ital-green px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-ital-green-dark disabled:opacity-60">
+        @if (saving()) {
+          <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+        }
+        Crear ticket
+      </button>
+    </div>
+  </form>
+</div>

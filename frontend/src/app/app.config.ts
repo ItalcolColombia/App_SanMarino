@@ -127,6 +127,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.LoteReproductoraModule)
       },
 
+      // Tickets de soporte / requerimientos (módulo independiente)
+      {
+        path: 'tickets',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/tickets/tickets.routes')
+            .then(m => m.TICKETS_ROUTES)
+      },
+
       {
         path: 'config',
         component: ConfigComponent,
