@@ -85,6 +85,17 @@
         <span class="tab-label">Empresas & Roles</span>
         <span *ngIf="getTabErrorCount('roles') > 0" class="error-count">{{ getTabErrorCount('roles') }}</span>
       </button>
+
+      <!-- Tab Tickets (solo en modo edición, cuando ya tenemos el Guid del usuario) -->
+      <button *ngIf="isEditing"
+        type="button"
+        class="tab-button"
+        [class.active]="activeTab === 'tickets'"
+        (click)="setActiveTab('tickets')"
+      >
+        <span class="tab-icon">🎫</span>
+        <span class="tab-label">Perfil de Atención</span>
+      </button>
     </div>
 
     <!-- Content -->
@@ -428,6 +439,15 @@
             </div>
           </div>
         </div>
+
+        <!-- Tab: Perfil de Atención de Tickets (solo edición) -->
+        <div *ngIf="activeTab === 'tickets' && isEditing && editingUser" class="tab-content p-4">
+          <app-ticket-perfil-editor
+            modo="usuario"
+            [entityId]="editingUser!.id">
+          </app-ticket-perfil-editor>
+        </div>
+
       </form>
     </div>
 

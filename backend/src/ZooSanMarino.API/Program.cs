@@ -320,6 +320,7 @@ builder.Services.AddScoped<ILesionService, LesionService>();
 
 // Módulo de tickets de soporte / requerimientos
 builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<ITicketPerfilService, TicketPerfilService>();
 
 
 // ─────────────────────────────────────

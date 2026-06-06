@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using ZooSanMarino.Application.DTOs.Common;
 using ZooSanMarino.Application.DTOs.Tickets;
@@ -17,12 +18,15 @@ public class TicketService : ITicketService
     private readonly ZooSanMarinoContext _ctx;
     private readonly ICurrentUser _currentUser;
     private readonly ICompanyResolver _companyResolver;
+    private readonly IEmailQueueService _emailQueue;
 
-    public TicketService(ZooSanMarinoContext ctx, ICurrentUser currentUser, ICompanyResolver companyResolver)
+    public TicketService(ZooSanMarinoContext ctx, ICurrentUser currentUser,
+        ICompanyResolver companyResolver, IEmailQueueService emailQueue)
     {
         _ctx = ctx;
         _currentUser = currentUser;
         _companyResolver = companyResolver;
+        _emailQueue = emailQueue;
     }
 
     private async Task<int> GetEffectiveCompanyIdAsync()
@@ -48,17 +52,30 @@ public class TicketService : ITicketService
         var companyId = await GetEffectiveCompanyIdAsync();
         var now = DateTime.UtcNow;
 
+        // Validar que el resolutor sea asignable para (tipo, país).
+        // Sin filtro de company: los resolutores son globales (equipo central de soporte).
+        var paisId = _currentUser.PaisId;
+        var resolutorValido = await _ctx.TicketResolutores.AsNoTracking()
+            .AnyAsync(r => r.UserId == req.AssignedToUserGuid &&
+                           r.Tipo == req.Tipo.ToUpperInvariant() &&
+                           r.Activo &&
+                           (r.PaisId == null || r.PaisId == paisId), ct);
+        if (!resolutorValido)
+            throw new InvalidOperationException("El resolutor seleccionado no está disponible para este tipo y país.");
+
         var entity = new Ticket
         {
-            CompanyId       = companyId,
-            PaisId          = _currentUser.PaisId ?? 0,
-            Tipo            = req.Tipo.ToUpperInvariant(),
-            Estado          = TicketEstados.Abierto,
-            Titulo          = req.Titulo.Trim(),
-            Descripcion     = req.Descripcion.Trim(),
-            CreatedByUserId = _currentUser.UserId,
-            CreatedAt       = now,
-            Status          = "A"
+            CompanyId            = companyId,
+            PaisId               = paisId ?? 0,
+            Tipo                 = req.Tipo.ToUpperInvariant(),
+            Estado               = TicketEstados.Abierto,
+            Titulo               = req.Titulo.Trim(),
+            Descripcion          = req.Descripcion.Trim(),
+            CreatedByUserId      = _currentUser.UserId,
+            CreatedByUserGuid    = _currentUser.UserGuid,
+            AssignedToUserGuid   = req.AssignedToUserGuid,
+            CreatedAt            = now,
+            Status               = "A"
         };
 
         if (req.Imagenes is { Count: > 0 })
@@ -84,7 +101,67 @@ public class TicketService : ITicketService
         entity.Codigo = $"TK-{now:yyyy}-{entity.Id:D6}";
         await _ctx.SaveChangesAsync(ct);
 
-        return (await GetByIdInternalAsync(entity.Id, companyId, ct))!;
+        return (await GetByIdInternalAsync(entity.Id, ct))!;
+    }
+
+    // ─────────────────── BANDEJA ASIGNADOS A MÍ ───────────────────────────
+    public async Task<PagedResult<TicketListItemDto>> GetAsignadosAsync(TicketSearchRequest req, CancellationToken ct)
+    {
+        var userGuid = _currentUser.UserGuid;
+        if (!userGuid.HasValue)
+            return new PagedResult<TicketListItemDto> { Page=1,PageSize=req.PageSize,Total=0,Items=Array.Empty<TicketListItemDto>() };
+
+        // Sin filtro de empresa: el resolutor es global y debe ver todos sus tickets
+        // independientemente de en qué subsidiaria se originaron.
+        var query = _ctx.Tickets.AsNoTracking()
+            .Where(x => x.AssignedToUserGuid == userGuid.Value && x.DeletedAt == null);
+        return await PageAsync(ApplyFilters(query, req), req, ct);
+    }
+
+    // ─────────────────── TRANSFERIR (REQUERIMIENTO → DESARROLLO) ──────────
+    public async Task<TicketDetailDto?> TransferirAsync(long id, TransferirTicketRequest req, CancellationToken ct)
+    {
+        // Cross-company: el ticket se ubica por id (resolutores globales).
+        var ticket = await _ctx.Tickets
+            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
+        if (ticket is null) return null;
+
+        if (ticket.Tipo != TicketTipos.Requerimiento)
+            throw new InvalidOperationException("Solo se pueden transferir tickets de tipo REQUERIMIENTO.");
+
+        // Validar que el nuevo asignado sea resolutor de DESARROLLO en el país del ticket.
+        // Sin filtro de company: los resolutores son globales.
+        var resolutorValido = await _ctx.TicketResolutores.AsNoTracking()
+            .AnyAsync(r => r.UserId == req.NuevoAsignadoGuid &&
+                           r.Tipo == TicketTipos.Desarrollo &&
+                           r.Activo &&
+                           (r.PaisId == null || r.PaisId == ticket.PaisId), ct);
+        if (!resolutorValido)
+            throw new InvalidOperationException("El usuario destino no es resolutor de DESARROLLO en este país.");
+
+        var now = DateTime.UtcNow;
+        ticket.Tipo                = TicketTipos.Desarrollo;
+        ticket.Estado              = TicketEstados.Transferido;
+        ticket.AssignedToUserGuid  = req.NuevoAsignadoGuid;
+        ticket.AssignedToUserId    = null;   // reset int legacy
+        ticket.UpdatedByUserId     = _currentUser.UserId;
+        ticket.UpdatedAt           = now;
+
+        var nota = string.IsNullOrWhiteSpace(req.Nota)
+            ? "Ticket transferido a Desarrollo."
+            : req.Nota.Trim();
+
+        _ctx.TicketNotas.Add(new TicketNota
+        {
+            TicketId         = ticket.Id,
+            UserId           = _currentUser.UserId,
+            Nota             = nota,
+            EstadoResultante = TicketEstados.Transferido,
+            CreatedAt        = now
+        });
+
+        await _ctx.SaveChangesAsync(ct);
+        return await GetByIdInternalAsync(id, ct);
     }
 
     // ───────────────────────────── LISTADOS ─────────────────────────────
@@ -97,12 +174,67 @@ public class TicketService : ITicketService
 
     public async Task<PagedResult<TicketListItemDto>> SearchGestionAsync(TicketSearchRequest req, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
-        var query = BaseQuery(companyId);
-        // El país se inyecta del contexto del resolutor, no del query.
-        if (_currentUser.PaisId.HasValue)
-            query = query.Where(x => x.PaisId == _currentUser.PaisId.Value);
+        var userGuid = _currentUser.UserGuid;
+        if (!userGuid.HasValue)
+            return new PagedResult<TicketListItemDto> { Page=1,PageSize=req.PageSize,Total=0,Items=Array.Empty<TicketListItemDto>() };
+
+        // Perfiles de resolutor activos del usuario (globales, sin filtro de empresa).
+        var perfiles = await _ctx.TicketResolutores.AsNoTracking()
+            .Where(r => r.UserId == userGuid.Value && r.Activo)
+            .Select(r => new { r.Tipo, r.PaisId })
+            .ToListAsync(ct);
+
+        if (perfiles.Count == 0)
+        {
+            // Fallback: si el usuario no es resolutor de nada, gestión local por empresa/país.
+            var companyId = await GetEffectiveCompanyIdAsync();
+            var local = BaseQuery(companyId);
+            if (_currentUser.PaisId.HasValue)
+                local = local.Where(x => x.PaisId == _currentUser.PaisId.Value);
+            return await PageAsync(ApplyFilters(local, req), req, ct);
+        }
+
+        // Bandeja por perfil: tickets cuyo (tipo, país) matchea cualquiera de mis perfiles.
+        // Un perfil con PaisId NULL = global → atiende ese tipo en TODOS los países.
+        var tiposGlobales = perfiles.Where(p => p.PaisId == null).Select(p => p.Tipo).Distinct().ToList();
+        var paresPais = perfiles.Where(p => p.PaisId != null)
+            .Select(p => (Tipo: p.Tipo, PaisId: p.PaisId!.Value)).Distinct().ToList();
+
+        var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
+        query = query.Where(BuildResolutorPredicate(tiposGlobales, paresPais));
         return await PageAsync(ApplyFilters(query, req), req, ct);
+    }
+
+    /// <summary>
+    /// Construye el predicado de la bandeja por perfil de resolutor:
+    /// <c>tipo ∈ tiposGlobales OR (tipo,país) ∈ paresPais</c>. Un solo parámetro para que EF lo traduzca.
+    /// </summary>
+    private static Expression<Func<Ticket, bool>> BuildResolutorPredicate(
+        List<string> tiposGlobales, List<(string Tipo, int PaisId)> paresPais)
+    {
+        var x = Expression.Parameter(typeof(Ticket), "x");
+        Expression body = Expression.Constant(false);
+
+        var tipoProp = Expression.Property(x, nameof(Ticket.Tipo));
+        var paisProp = Expression.Property(x, nameof(Ticket.PaisId));
+
+        if (tiposGlobales.Count > 0)
+        {
+            // tiposGlobales.Contains(x.Tipo)  →  x.Tipo IN (...)
+            var contains = Expression.Call(
+                typeof(Enumerable), nameof(Enumerable.Contains), new[] { typeof(string) },
+                Expression.Constant(tiposGlobales), tipoProp);
+            body = Expression.OrElse(body, contains);
+        }
+
+        foreach (var (tipo, pais) in paresPais)
+        {
+            var tipoEq = Expression.Equal(tipoProp, Expression.Constant(tipo));
+            var paisEq = Expression.Equal(paisProp, Expression.Constant(pais));
+            body = Expression.OrElse(body, Expression.AndAlso(tipoEq, paisEq));
+        }
+
+        return Expression.Lambda<Func<Ticket, bool>>(body, x);
     }
 
     public async Task<PagedResult<TicketListItemDto>> SearchAdminAsync(TicketSearchRequest req, CancellationToken ct)
@@ -138,7 +270,13 @@ public class TicketService : ITicketService
         return query;
     }
 
-    private static async Task<PagedResult<TicketListItemDto>> PageAsync(
+    /// <summary>Fila intermedia del listado (incluye CompanyId y Guids para resolver nombres/roles).</summary>
+    private sealed record TicketRow(
+        long Id, string? Codigo, string Titulo, string Tipo, string Estado, int PaisId, int CompanyId,
+        int CreatedByUserId, int? AssignedToUserId, Guid? CreatedByUserGuid, Guid? AssignedToUserGuid,
+        DateTime CreatedAt, int ImgCount, int NotaCount);
+
+    private async Task<PagedResult<TicketListItemDto>> PageAsync(
         IQueryable<Ticket> query, TicketSearchRequest req, CancellationToken ct)
     {
         var page = req.Page < 1 ? 1 : req.Page;
@@ -148,15 +286,33 @@ public class TicketService : ITicketService
 
         // Proyección: Imagenes.Count / Notas.Count se traducen a subconsultas COUNT,
         // por lo que NO se materializa imagen_base64 en los listados.
-        var items = await query
+        var rows = await query
             .OrderByDescending(x => x.CreatedAt)
             .Skip((page - 1) * size)
             .Take(size)
-            .Select(x => new TicketListItemDto(
-                x.Id, x.Codigo, x.Titulo, x.Tipo, x.Estado, x.PaisId,
-                x.CreatedByUserId, x.AssignedToUserId, x.CreatedAt,
-                x.Imagenes.Count, x.Notas.Count))
+            .Select(x => new TicketRow(
+                x.Id, x.Codigo, x.Titulo, x.Tipo, x.Estado, x.PaisId, x.CompanyId,
+                x.CreatedByUserId, x.AssignedToUserId, x.CreatedByUserGuid, x.AssignedToUserGuid,
+                x.CreatedAt, x.Imagenes.Count, x.Notas.Count))
             .ToListAsync(ct);
+
+        // Enriquecer con nombre completo + rol (en la empresa de cada ticket) + país.
+        var refs = new List<(Guid Guid, int CompanyId)>();
+        foreach (var r in rows)
+        {
+            if (r.CreatedByUserGuid.HasValue) refs.Add((r.CreatedByUserGuid.Value, r.CompanyId));
+            if (r.AssignedToUserGuid.HasValue) refs.Add((r.AssignedToUserGuid.Value, r.CompanyId));
+        }
+        var (users, roles) = await BuildUserInfoAsync(refs, ct);
+        var paises = await BuildPaisMapAsync(rows.Select(r => r.PaisId), ct);
+
+        var items = rows.Select(r => new TicketListItemDto(
+            r.Id, r.Codigo, r.Titulo, r.Tipo, r.Estado, r.PaisId,
+            r.CreatedByUserId, r.AssignedToUserId, r.CreatedAt, r.ImgCount, r.NotaCount,
+            NombreDe(users, r.CreatedByUserGuid),  RolDe(roles, r.CreatedByUserGuid, r.CompanyId),
+            NombreDe(users, r.AssignedToUserGuid), RolDe(roles, r.AssignedToUserGuid, r.CompanyId),
+            paises.GetValueOrDefault(r.PaisId)))
+            .ToList();
 
         return new PagedResult<TicketListItemDto>
         {
@@ -164,34 +320,255 @@ public class TicketService : ITicketService
         };
     }
 
+    // ───────────────────────── Resolución de identidad (nombre + rol) ─────────────────────────
+
+    /// <summary>
+    /// Dado un conjunto de (Guid de usuario, empresa), devuelve nombre + email por Guid
+    /// y el nombre de rol por (Guid, empresa). El rol es el que el usuario tiene en la empresa del ticket.
+    /// </summary>
+    private async Task<(Dictionary<Guid, (string Nombre, string? Email)> Users, Dictionary<(Guid, int), string> Roles)>
+        BuildUserInfoAsync(IReadOnlyCollection<(Guid Guid, int CompanyId)> refs, CancellationToken ct)
+    {
+        var users = new Dictionary<Guid, (string, string?)>();
+        var roles = new Dictionary<(Guid, int), string>();
+        if (refs.Count == 0) return (users, roles);
+
+        var guids = refs.Select(r => r.Guid).Distinct().ToList();
+        var companyIds = refs.Select(r => r.CompanyId).Distinct().ToList();
+
+        var rows = await _ctx.Set<User>().AsNoTracking()
+            .Where(u => guids.Contains(u.Id))
+            .Select(u => new
+            {
+                u.Id, u.firstName, u.surName,
+                Email = u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+        foreach (var u in rows)
+            users[u.Id] = ($"{u.firstName} {u.surName}".Trim(), u.Email);
+
+        var roleRows = await _ctx.Set<UserRole>().AsNoTracking()
+            .Where(ur => guids.Contains(ur.UserId) && companyIds.Contains(ur.CompanyId))
+            .Select(ur => new { ur.UserId, ur.CompanyId, RoleName = ur.Role.Name })
+            .ToListAsync(ct);
+        foreach (var r in roleRows)
+            roles.TryAdd((r.UserId, r.CompanyId), r.RoleName);
+
+        return (users, roles);
+    }
+
+    /// <summary>
+    /// Resuelve nombre + rol + email de los autores de notas, identificados por su cédula numérica
+    /// (<c>TicketNota.UserId</c> guarda <c>ICurrentUser.UserId</c>, que es la cédula).
+    /// </summary>
+    private async Task<Dictionary<int, (string? Nombre, string? Rol, string? Email)>> BuildNotaUserInfoAsync(
+        List<int> userIds, int companyId, CancellationToken ct)
+    {
+        var result = new Dictionary<int, (string?, string?, string?)>();
+        if (userIds.Count == 0) return result;
+
+        var cedulas = userIds.Select(id => id.ToString()).Distinct().ToList();
+        var users = await _ctx.Set<User>().AsNoTracking()
+            .Where(u => cedulas.Contains(u.cedula))
+            .Select(u => new
+            {
+                u.cedula, u.firstName, u.surName,
+                Rol = u.UserRoles.Where(ur => ur.CompanyId == companyId)
+                                 .Select(ur => ur.Role.Name).FirstOrDefault(),
+                Email = u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        foreach (var u in users)
+            if (int.TryParse(u.cedula, out var cid))
+                result[cid] = ($"{u.firstName} {u.surName}".Trim(), u.Rol, u.Email);
+
+        return result;
+    }
+
+    /// <summary>Mapea paisId → nombre del país (catálogo <c>Pais</c>).</summary>
+    private async Task<Dictionary<int, string>> BuildPaisMapAsync(IEnumerable<int> paisIds, CancellationToken ct)
+    {
+        var ids = paisIds.Where(p => p > 0).Distinct().ToList();
+        if (ids.Count == 0) return new();
+        return await _ctx.Set<Pais>().AsNoTracking()
+            .Where(p => ids.Contains(p.PaisId))
+            .ToDictionaryAsync(p => p.PaisId, p => p.PaisNombre, ct);
+    }
+
+    /// <summary>Nombre + rol + email del usuario actual en una empresa (para respuestas inmediatas de notas).</summary>
+    private async Task<(string? Nombre, string? Rol, string? Email)> ResolveCurrentUserNombreRolAsync(int companyId, CancellationToken ct)
+    {
+        if (!_currentUser.UserGuid.HasValue) return (null, null, null);
+        var g = _currentUser.UserGuid.Value;
+        var u = await _ctx.Set<User>().AsNoTracking()
+            .Where(x => x.Id == g)
+            .Select(x => new
+            {
+                x.firstName, x.surName,
+                Rol = x.UserRoles.Where(ur => ur.CompanyId == companyId)
+                                 .Select(ur => ur.Role.Name).FirstOrDefault(),
+                Email = x.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
+            })
+            .FirstOrDefaultAsync(ct);
+        return u is null ? (null, null, null) : ($"{u.firstName} {u.surName}".Trim(), u.Rol, u.Email);
+    }
+
+    private static string? NombreDe(Dictionary<Guid, (string Nombre, string? Email)> map, Guid? g)
+        => g.HasValue && map.TryGetValue(g.Value, out var v) ? v.Nombre : null;
+
+    private static string? EmailDe(Dictionary<Guid, (string Nombre, string? Email)> map, Guid? g)
+        => g.HasValue && map.TryGetValue(g.Value, out var v) ? v.Email : null;
+
+    private static string? RolDe(Dictionary<(Guid, int), string> map, Guid? g, int companyId)
+        => g.HasValue && map.TryGetValue((g.Value, companyId), out var r) ? r : null;
+
     // ───────────────────────────── DETALLE ─────────────────────────────
     public async Task<TicketDetailDto?> GetByIdAsync(long id, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
-        return await GetByIdInternalAsync(id, companyId, ct);
+        // Cross-company: el ticket se busca por id (los resolutores son globales).
+        // La autorización se valida por visibilidad, no por empresa activa.
+        var meta = await _ctx.Tickets.AsNoTracking()
+            .Where(x => x.Id == id && x.DeletedAt == null)
+            .Select(x => new { x.PaisId, x.Tipo, x.CreatedByUserId, x.CreatedByUserGuid, x.AssignedToUserGuid })
+            .FirstOrDefaultAsync(ct);
+        if (meta is null) return null;
+
+        if (!await PuedeVerTicketAsync(meta.PaisId, meta.Tipo, meta.CreatedByUserId,
+                                       meta.CreatedByUserGuid, meta.AssignedToUserGuid, ct))
+            return null;   // 404: no revela existencia de tickets ajenos
+
+        return await GetByIdInternalAsync(id, ct);
     }
 
-    private async Task<TicketDetailDto?> GetByIdInternalAsync(long id, int companyId, CancellationToken ct) =>
-        await _ctx.Tickets.AsNoTracking()
-            .Where(x => x.Id == id && x.CompanyId == companyId && x.DeletedAt == null)
-            .Select(x => new TicketDetailDto(
-                x.Id, x.Codigo, x.Titulo, x.Tipo, x.Estado, x.Descripcion, x.PaisId,
-                x.CreatedByUserId, x.AssignedToUserId, x.CreatedAt, x.FechaPrimeraApertura, x.FechaSolucion,
-                x.Notas.OrderBy(n => n.CreatedAt)
-                    .Select(n => new TicketNotaDto(n.Id, n.UserId, n.Nota, n.EstadoResultante, n.EsInterna, n.CreatedAt))
+    /// <summary>
+    /// Reglas de visibilidad de un ticket: lo ve su creador, su asignado, un resolutor
+    /// cuyo perfil matchea (tipo, país), o cualquiera con <c>tickets.admin</c>.
+    /// </summary>
+    private async Task<bool> PuedeVerTicketAsync(int paisId, string tipo, int createdByUserId,
+        Guid? createdByGuid, Guid? assignedGuid, CancellationToken ct)
+    {
+        if (createdByUserId != 0 && createdByUserId == _currentUser.UserId) return true;
+
+        var userGuid = _currentUser.UserGuid;
+        if (userGuid.HasValue)
+        {
+            if (createdByGuid == userGuid.Value) return true;   // creador (guid)
+            if (assignedGuid == userGuid.Value) return true;    // asignado
+        }
+
+        if (_currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase))
+            return true;
+
+        if (userGuid.HasValue)
+        {
+            var esResolutor = await _ctx.TicketResolutores.AsNoTracking()
+                .AnyAsync(r => r.UserId == userGuid.Value && r.Activo &&
+                               r.Tipo == tipo && (r.PaisId == null || r.PaisId == paisId), ct);
+            if (esResolutor) return true;
+        }
+
+        return false;
+    }
+
+    private async Task<TicketDetailDto?> GetByIdInternalAsync(long id, CancellationToken ct)
+    {
+        var t = await _ctx.Tickets.AsNoTracking()
+            .Where(x => x.Id == id && x.DeletedAt == null)
+            .Select(x => new
+            {
+                x.Id, x.Codigo, x.Titulo, x.Tipo, x.Estado, x.Descripcion, x.PaisId, x.CompanyId,
+                x.CreatedByUserId, x.AssignedToUserId, x.CreatedByUserGuid, x.AssignedToUserGuid,
+                x.CreatedAt, x.FechaPrimeraApertura, x.FechaSolucion,
+                x.SolucionDescripcion, x.FechaCierreSolicitante,
+                x.NotificadoCorreo, x.FechaNotificacionCorreo, x.CorreoNotificadoA,
+                Notas = x.Notas.OrderBy(n => n.CreatedAt)
+                    .Select(n => new { n.Id, n.UserId, n.Nota, n.EstadoResultante, n.EsInterna, n.CreatedAt })
                     .ToList(),
                 // Solo metadata — NO imagen_base64.
-                x.Imagenes.OrderBy(i => i.CreatedAt)
+                Imagenes = x.Imagenes.OrderBy(i => i.CreatedAt)
                     .Select(i => new TicketImagenMetaDto(i.Id, i.FileName, i.ContentType, i.SizeBytes, i.CreatedAt))
-                    .ToList()))
+                    .ToList(),
+                // Adjuntos — solo metadata (sin contenido_base64).
+                Adjuntos = x.Adjuntos.OrderBy(a => a.CreatedAt)
+                    .Select(a => new { a.Id, a.Tipo, a.FileName, a.ContentType, a.SizeBytes, a.Url, a.Titulo, a.CreatedByUserId, a.CreatedAt })
+                    .ToList()
+            })
             .FirstOrDefaultAsync(ct);
+
+        if (t is null) return null;
+
+        // Identidad por Guid (creador/asignado) — rol en la empresa del ticket.
+        var refs = new List<(Guid Guid, int CompanyId)>();
+        if (t.CreatedByUserGuid.HasValue) refs.Add((t.CreatedByUserGuid.Value, t.CompanyId));
+        if (t.AssignedToUserGuid.HasValue) refs.Add((t.AssignedToUserGuid.Value, t.CompanyId));
+        var (users, roles) = await BuildUserInfoAsync(refs, ct);
+
+        // Identidad por cédula (autores de notas + adjuntos + fallback de creador/asignado sin Guid,
+        // para tickets antiguos creados antes de poblar created_by_user_guid).
+        var cedulaIds = t.Notas.Select(n => n.UserId)
+            .Concat(t.Adjuntos.Select(a => a.CreatedByUserId))
+            .Append(t.CreatedByUserId)
+            .Append(t.AssignedToUserId ?? 0)
+            .Where(uid => uid != 0).Distinct().ToList();
+        var cedInfo = await BuildNotaUserInfoAsync(cedulaIds, t.CompanyId, ct);
+
+        var paisNombre = (await BuildPaisMapAsync(new[] { t.PaisId }, ct)).GetValueOrDefault(t.PaisId);
+
+        var miUserId = _currentUser.UserId;
+        var notasDto = t.Notas.Select(n =>
+        {
+            cedInfo.TryGetValue(n.UserId, out var info);
+            return new TicketNotaDto(n.Id, n.UserId, n.Nota, n.EstadoResultante, n.EsInterna, n.CreatedAt,
+                info.Nombre, info.Rol, info.Email, EsMio: n.UserId != 0 && n.UserId == miUserId);
+        }).ToList();
+
+        var soyCreador = (t.CreatedByUserId != 0 && t.CreatedByUserId == miUserId)
+                         || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
+
+        // Resuelve nombre/rol/email: Guid primero; si no hay, cae a cédula.
+        (string? Nombre, string? Rol, string? Email) Resolver(Guid? guid, int cedula)
+        {
+            if (guid.HasValue && users.TryGetValue(guid.Value, out var u))
+                return (u.Nombre, RolDe(roles, guid, t.CompanyId), u.Email);
+            if (cedula != 0 && cedInfo.TryGetValue(cedula, out var c))
+                return (c.Nombre, c.Rol, c.Email);
+            return (null, null, null);
+        }
+
+        var creador  = Resolver(t.CreatedByUserGuid, t.CreatedByUserId);
+        var asignado = Resolver(t.AssignedToUserGuid, t.AssignedToUserId ?? 0);
+
+        var adjuntosDto = t.Adjuntos.Select(a =>
+        {
+            cedInfo.TryGetValue(a.CreatedByUserId, out var u);
+            return new TicketAdjuntoDto(a.Id, a.Tipo, a.FileName, a.ContentType, a.SizeBytes,
+                a.Url, a.Titulo, a.CreatedByUserId, a.CreatedAt, u.Nombre);
+        }).ToList();
+
+        return new TicketDetailDto(
+            t.Id, t.Codigo, t.Titulo, t.Tipo, t.Estado, t.Descripcion, t.PaisId,
+            t.CreatedByUserId, t.AssignedToUserId, t.CreatedAt, t.FechaPrimeraApertura, t.FechaSolucion,
+            notasDto, t.Imagenes,
+            creador.Nombre,  creador.Rol,
+            asignado.Nombre, asignado.Rol,
+            paisNombre,
+            creador.Email,
+            asignado.Email,
+            soyCreador,
+            t.SolucionDescripcion,
+            t.FechaCierreSolicitante,
+            t.NotificadoCorreo,
+            t.FechaNotificacionCorreo,
+            t.CorreoNotificadoA,
+            adjuntosDto);
+    }
 
     // ───────────────────────────── IMÁGENES ─────────────────────────────
     public async Task<IReadOnlyList<TicketImagenMetaDto>> GetImagenesMetaAsync(long ticketId, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
         return await _ctx.TicketImagenes.AsNoTracking()
-            .Where(i => i.TicketId == ticketId && i.Ticket!.CompanyId == companyId && i.Ticket.DeletedAt == null)
+            .Where(i => i.TicketId == ticketId && i.Ticket!.DeletedAt == null)
             .OrderBy(i => i.CreatedAt)
             .Select(i => new TicketImagenMetaDto(i.Id, i.FileName, i.ContentType, i.SizeBytes, i.CreatedAt))
             .ToListAsync(ct);
@@ -199,10 +576,8 @@ public class TicketService : ITicketService
 
     public async Task<TicketImagenDto?> GetImagenAsync(long ticketId, long imagenId, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
         return await _ctx.TicketImagenes.AsNoTracking()
-            .Where(i => i.Id == imagenId && i.TicketId == ticketId
-                        && i.Ticket!.CompanyId == companyId && i.Ticket.DeletedAt == null)
+            .Where(i => i.Id == imagenId && i.TicketId == ticketId && i.Ticket!.DeletedAt == null)
             .Select(i => new TicketImagenDto(i.Id, i.ImagenBase64, i.ContentType, i.FileName))
             .FirstOrDefaultAsync(ct);
     }
@@ -211,9 +586,8 @@ public class TicketService : ITicketService
     {
         if (req.Imagenes is null || req.Imagenes.Count == 0) return 0;
 
-        var companyId = await GetEffectiveCompanyIdAsync();
         var exists = await _ctx.Tickets.AsNoTracking()
-            .AnyAsync(x => x.Id == ticketId && x.CompanyId == companyId && x.DeletedAt == null, ct);
+            .AnyAsync(x => x.Id == ticketId && x.DeletedAt == null, ct);
         if (!exists) return 0;
 
         var now = DateTime.UtcNow;
@@ -243,10 +617,12 @@ public class TicketService : ITicketService
         if (string.IsNullOrWhiteSpace(req.Nota))
             throw new InvalidOperationException("La nota no puede estar vacía.");
 
-        var companyId = await GetEffectiveCompanyIdAsync();
-        var exists = await _ctx.Tickets.AsNoTracking()
-            .AnyAsync(x => x.Id == ticketId && x.CompanyId == companyId && x.DeletedAt == null, ct);
-        if (!exists) return null;
+        // Cross-company: el ticket se ubica por id. Tomamos su empresa para resolver el rol del autor.
+        var companyId = await _ctx.Tickets.AsNoTracking()
+            .Where(x => x.Id == ticketId && x.DeletedAt == null)
+            .Select(x => (int?)x.CompanyId)
+            .FirstOrDefaultAsync(ct);
+        if (companyId is null) return null;
 
         var nota = new TicketNota
         {
@@ -259,16 +635,128 @@ public class TicketService : ITicketService
         _ctx.TicketNotas.Add(nota);
         await _ctx.SaveChangesAsync(ct);
 
-        return new TicketNotaDto(nota.Id, nota.UserId, nota.Nota, nota.EstadoResultante, nota.EsInterna, nota.CreatedAt);
+        var (nombre, rol, email) = await ResolveCurrentUserNombreRolAsync(companyId.Value, ct);
+        return new TicketNotaDto(nota.Id, nota.UserId, nota.Nota, nota.EstadoResultante, nota.EsInterna, nota.CreatedAt,
+            nombre, rol, email, EsMio: true);
+    }
+
+    // ───────────────────────────── ADJUNTOS (documentos + links) ─────────────────────────────
+    public async Task<IReadOnlyList<TicketAdjuntoDto>> GetAdjuntosAsync(long ticketId, CancellationToken ct)
+    {
+        var ticketInfo = await _ctx.Tickets.AsNoTracking()
+            .Where(x => x.Id == ticketId && x.DeletedAt == null)
+            .Select(x => (int?)x.CompanyId)
+            .FirstOrDefaultAsync(ct);
+        if (ticketInfo is null) return Array.Empty<TicketAdjuntoDto>();
+
+        var rows = await _ctx.TicketAdjuntos.AsNoTracking()
+            .Where(a => a.TicketId == ticketId)
+            .OrderBy(a => a.CreatedAt)
+            .Select(a => new { a.Id, a.Tipo, a.FileName, a.ContentType, a.SizeBytes, a.Url, a.Titulo, a.CreatedByUserId, a.CreatedAt })
+            .ToListAsync(ct);
+
+        var info = await BuildNotaUserInfoAsync(
+            rows.Select(r => r.CreatedByUserId).Where(x => x != 0).Distinct().ToList(), ticketInfo.Value, ct);
+
+        return rows.Select(a =>
+        {
+            info.TryGetValue(a.CreatedByUserId, out var u);
+            return new TicketAdjuntoDto(a.Id, a.Tipo, a.FileName, a.ContentType, a.SizeBytes,
+                a.Url, a.Titulo, a.CreatedByUserId, a.CreatedAt, u.Nombre);
+        }).ToList();
+    }
+
+    public async Task<TicketAdjuntoDto?> AddDocumentoAsync(long ticketId, AddTicketDocumentoRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Base64))
+            throw new InvalidOperationException("El archivo está vacío.");
+
+        var exists = await _ctx.Tickets.AsNoTracking()
+            .AnyAsync(x => x.Id == ticketId && x.DeletedAt == null, ct);
+        if (!exists) return null;
+
+        var entity = new TicketAdjunto
+        {
+            TicketId        = ticketId,
+            Tipo            = TicketAdjuntoTipos.Archivo,
+            ContenidoBase64 = req.Base64,
+            FileName        = req.FileName,
+            ContentType     = req.ContentType,
+            SizeBytes       = req.SizeBytes,
+            CreatedByUserId = _currentUser.UserId,
+            CreatedAt       = DateTime.UtcNow
+        };
+        _ctx.TicketAdjuntos.Add(entity);
+        await _ctx.SaveChangesAsync(ct);
+
+        return new TicketAdjuntoDto(entity.Id, entity.Tipo, entity.FileName, entity.ContentType,
+            entity.SizeBytes, null, null, entity.CreatedByUserId, entity.CreatedAt);
+    }
+
+    public async Task<TicketAdjuntoDto?> AddLinkAsync(long ticketId, AddTicketLinkRequest req, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Url))
+            throw new InvalidOperationException("La URL es requerida.");
+        var url = req.Url.Trim();
+        if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("La URL debe comenzar con http:// o https://");
+
+        var exists = await _ctx.Tickets.AsNoTracking()
+            .AnyAsync(x => x.Id == ticketId && x.DeletedAt == null, ct);
+        if (!exists) return null;
+
+        var entity = new TicketAdjunto
+        {
+            TicketId        = ticketId,
+            Tipo            = TicketAdjuntoTipos.Link,
+            Url             = url,
+            Titulo          = string.IsNullOrWhiteSpace(req.Titulo) ? url : req.Titulo.Trim(),
+            CreatedByUserId = _currentUser.UserId,
+            CreatedAt       = DateTime.UtcNow
+        };
+        _ctx.TicketAdjuntos.Add(entity);
+        await _ctx.SaveChangesAsync(ct);
+
+        return new TicketAdjuntoDto(entity.Id, entity.Tipo, null, null, null,
+            entity.Url, entity.Titulo, entity.CreatedByUserId, entity.CreatedAt);
+    }
+
+    public async Task<TicketDocumentoDto?> GetDocumentoAsync(long ticketId, long adjuntoId, CancellationToken ct)
+    {
+        return await _ctx.TicketAdjuntos.AsNoTracking()
+            .Where(a => a.Id == adjuntoId && a.TicketId == ticketId
+                        && a.Tipo == TicketAdjuntoTipos.Archivo
+                        && a.Ticket!.DeletedAt == null)
+            .Select(a => new TicketDocumentoDto(a.Id, a.ContenidoBase64!, a.ContentType, a.FileName))
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<bool> DeleteAdjuntoAsync(long ticketId, long adjuntoId, CancellationToken ct)
+    {
+        var adj = await _ctx.TicketAdjuntos
+            .FirstOrDefaultAsync(a => a.Id == adjuntoId && a.TicketId == ticketId, ct);
+        if (adj is null) return false;
+        _ctx.TicketAdjuntos.Remove(adj);
+        await _ctx.SaveChangesAsync(ct);
+        return true;
     }
 
     // ───────────────────────────── GESTIÓN (resolutor) ─────────────────────────────
+
+    /// <summary>True si el usuario actual es el creador/solicitante del ticket.</summary>
+    private bool EsCreador(Ticket t) =>
+        (t.CreatedByUserId != 0 && t.CreatedByUserId == _currentUser.UserId)
+        || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
+
     public async Task<TicketDetailDto?> TomarAsync(long id, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
         var ticket = await _ctx.Tickets
-            .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId && x.DeletedAt == null, ct);
+            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
+
+        if (EsCreador(ticket))
+            throw new InvalidOperationException("Sos el solicitante de este ticket; lo toma y gestiona el equipo que atiende.");
 
         var now = DateTime.UtcNow;
         var cambio = false;
@@ -300,7 +788,7 @@ public class TicketService : ITicketService
             await _ctx.SaveChangesAsync(ct);
         }
 
-        return await GetByIdInternalAsync(id, companyId, ct);
+        return await GetByIdInternalAsync(id, ct);
     }
 
     public async Task<TicketDetailDto?> CambiarEstadoAsync(long id, CambiarEstadoTicketRequest req, CancellationToken ct)
@@ -309,10 +797,23 @@ public class TicketService : ITicketService
             throw new InvalidOperationException("Estado inválido.");
         var nuevo = req.Estado.ToUpperInvariant();
 
-        var companyId = await GetEffectiveCompanyIdAsync();
         var ticket = await _ctx.Tickets
-            .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId && x.DeletedAt == null, ct);
+            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
+
+        // El solicitante NO gestiona su propio ticket, salvo REABRIR (SOLUCIONADO → EN_ANALISIS)
+        // cuando no está conforme con la solución.
+        if (EsCreador(ticket))
+        {
+            var esReapertura = string.Equals(ticket.Estado, TicketEstados.Solucionado, StringComparison.OrdinalIgnoreCase)
+                               && nuevo == TicketEstados.EnAnalisis;
+            if (!esReapertura)
+                throw new InvalidOperationException("El solicitante no puede cambiar el estado de su propio ticket. Cuando esté SOLUCIONADO, podés 'Confirmar cierre' o 'Reabrir'.");
+        }
+
+        // El cierre definitivo lo confirma el solicitante (ConfirmarCierre), no la gestión.
+        if (nuevo == TicketEstados.Cerrado)
+            throw new InvalidOperationException("El cierre lo confirma el solicitante. Marcá SOLUCIONADO y el solicitante lo cerrará.");
 
         if (!string.Equals(ticket.Estado, nuevo, StringComparison.OrdinalIgnoreCase) &&
             !TicketEstados.PuedeTransicionar(ticket.Estado, nuevo))
@@ -320,7 +821,71 @@ public class TicketService : ITicketService
 
         var now = DateTime.UtcNow;
         ticket.Estado = nuevo;
-        if (nuevo == TicketEstados.Solucionado) ticket.FechaSolucion ??= now;
+
+        if (nuevo == TicketEstados.Solucionado)
+        {
+            if (string.IsNullOrWhiteSpace(req.SolucionDescripcion))
+                throw new InvalidOperationException("Indicá la descripción de la solución para marcar el ticket como SOLUCIONADO.");
+            ticket.SolucionDescripcion = req.SolucionDescripcion.Trim();
+            ticket.FechaSolucion ??= now;
+
+            // Notificar la solución al solicitante por correo (cola asíncrona).
+            var (email, nombreSol) = await ResolveSolicitanteEmailAsync(ticket.CreatedByUserGuid, ticket.CreatedByUserId, ct);
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                try
+                {
+                    await _emailQueue.EnqueueEmailAsync(
+                        email!,
+                        $"[{ticket.Codigo}] Tu ticket fue solucionado",
+                        BuildSolucionEmailBody(ticket, nombreSol),
+                        "ticket_solucionado",
+                        $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");
+                    ticket.NotificadoCorreo = true;
+                    ticket.FechaNotificacionCorreo = now;
+                    ticket.CorreoNotificadoA = email;
+                }
+                catch { /* si la cola falla, no bloquea el cambio de estado */ }
+            }
+        }
+
+        ticket.UpdatedByUserId = _currentUser.UserId;
+        ticket.UpdatedAt = now;
+
+        var notaTexto = !string.IsNullOrWhiteSpace(req.Nota) ? req.Nota.Trim()
+            : nuevo == TicketEstados.Solucionado && ticket.SolucionDescripcion is not null
+                ? $"Solucionado: {ticket.SolucionDescripcion}"
+                : $"Estado cambiado a {nuevo}.";
+
+        _ctx.TicketNotas.Add(new TicketNota
+        {
+            TicketId         = ticket.Id,
+            UserId           = _currentUser.UserId,
+            Nota             = notaTexto,
+            EstadoResultante = nuevo,
+            CreatedAt        = now
+        });
+        await _ctx.SaveChangesAsync(ct);
+
+        return await GetByIdInternalAsync(id, ct);
+    }
+
+    // ───────────────────────── CIERRE POR EL SOLICITANTE ─────────────────────────
+    public async Task<TicketDetailDto?> ConfirmarCierreAsync(long id, ConfirmarCierreRequest req, CancellationToken ct)
+    {
+        var ticket = await _ctx.Tickets
+            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
+        if (ticket is null) return null;
+
+        if (!EsCreador(ticket))
+            throw new InvalidOperationException("Solo el solicitante puede confirmar el cierre del ticket.");
+        if (!string.Equals(ticket.Estado, TicketEstados.Solucionado, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Solo se puede cerrar un ticket que está SOLUCIONADO.");
+
+        var now = DateTime.UtcNow;
+        ticket.Estado = TicketEstados.Cerrado;
+        ticket.FechaCierreSolicitante = now;
+        ticket.CerradoPorUserId = _currentUser.UserId;
         ticket.UpdatedByUserId = _currentUser.UserId;
         ticket.UpdatedAt = now;
 
@@ -328,21 +893,68 @@ public class TicketService : ITicketService
         {
             TicketId         = ticket.Id,
             UserId           = _currentUser.UserId,
-            Nota             = string.IsNullOrWhiteSpace(req.Nota) ? $"Estado cambiado a {nuevo}." : req.Nota.Trim(),
-            EstadoResultante = nuevo,
+            Nota             = string.IsNullOrWhiteSpace(req.Nota)
+                ? "Cierre confirmado por el solicitante. Caso cerrado por ambas partes."
+                : req.Nota.Trim(),
+            EstadoResultante = TicketEstados.Cerrado,
             CreatedAt        = now
         });
         await _ctx.SaveChangesAsync(ct);
+        return await GetByIdInternalAsync(id, ct);
+    }
 
-        return await GetByIdInternalAsync(id, companyId, ct);
+    /// <summary>Resuelve email + nombre del solicitante (Guid primero, cédula como fallback).</summary>
+    private async Task<(string? Email, string? Nombre)> ResolveSolicitanteEmailAsync(Guid? guid, int cedula, CancellationToken ct)
+    {
+        if (guid.HasValue)
+        {
+            var u = await _ctx.Set<User>().AsNoTracking()
+                .Where(x => x.Id == guid.Value)
+                .Select(x => new { Email = x.UserLogins.Select(ul => ul.Login.email).FirstOrDefault(), x.firstName, x.surName })
+                .FirstOrDefaultAsync(ct);
+            if (u is not null && !string.IsNullOrWhiteSpace(u.Email))
+                return (u.Email, $"{u.firstName} {u.surName}".Trim());
+        }
+        if (cedula != 0)
+        {
+            var ced = cedula.ToString();
+            var u = await _ctx.Set<User>().AsNoTracking()
+                .Where(x => x.cedula == ced)
+                .Select(x => new { Email = x.UserLogins.Select(ul => ul.Login.email).FirstOrDefault(), x.firstName, x.surName })
+                .FirstOrDefaultAsync(ct);
+            if (u is not null)
+                return (u.Email, $"{u.firstName} {u.surName}".Trim());
+        }
+        return (null, null);
+    }
+
+    private static string BuildSolucionEmailBody(Ticket t, string? nombreSolicitante)
+    {
+        var saludo = string.IsNullOrWhiteSpace(nombreSolicitante) ? "Hola" : $"Hola {nombreSolicitante}";
+        var solucion = System.Net.WebUtility.HtmlEncode(t.SolucionDescripcion ?? "");
+        var titulo = System.Net.WebUtility.HtmlEncode(t.Titulo);
+        return $@"
+<div style=""font-family:Arial,sans-serif;color:#1f2937;max-width:560px;margin:auto"">
+  <div style=""background:#2d7a3e;color:#fff;padding:16px 20px;border-radius:10px 10px 0 0"">
+    <h2 style=""margin:0;font-size:18px"">Tu ticket fue solucionado</h2>
+  </div>
+  <div style=""border:1px solid #e5e7eb;border-top:0;padding:20px;border-radius:0 0 10px 10px"">
+    <p>{saludo},</p>
+    <p>El ticket <strong>{t.Codigo}</strong> — “{titulo}” fue marcado como <strong>SOLUCIONADO</strong>.</p>
+    <p style=""background:#f0fdf4;border-left:4px solid #2d7a3e;padding:10px 14px;border-radius:4px"">
+      <strong>Solución:</strong><br/>{solucion}
+    </p>
+    <p>Ingresá a la plataforma para revisar la solución y, si estás conforme, <strong>confirmar el cierre</strong> del caso.</p>
+    <p style=""color:#6b7280;font-size:13px"">Italcol · Gestión de tickets</p>
+  </div>
+</div>";
     }
 
     // ───────────────────────────── DELETE (lógico) ─────────────────────────────
     public async Task<bool> DeleteAsync(long id, CancellationToken ct)
     {
-        var companyId = await GetEffectiveCompanyIdAsync();
         var ticket = await _ctx.Tickets
-            .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId && x.DeletedAt == null, ct);
+            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return false;
 
         var now = DateTime.UtcNow;

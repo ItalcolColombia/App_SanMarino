@@ -112,7 +112,11 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // Módulo de tickets de soporte / requerimientos
         public DbSet<Ticket> Tickets => Set<Ticket>();
         public DbSet<TicketImagen> TicketImagenes => Set<TicketImagen>();
+        public DbSet<TicketAdjunto> TicketAdjuntos => Set<TicketAdjunto>();
         public DbSet<TicketNota> TicketNotas => Set<TicketNota>();
+        public DbSet<TicketResolutor> TicketResolutores => Set<TicketResolutor>();
+        public DbSet<TicketPerfilUsuario> TicketPerfilesUsuario => Set<TicketPerfilUsuario>();
+        public DbSet<TicketResolutorRol> TicketResolutorRoles => Set<TicketResolutorRol>();
 
         // Módulo Mapas (documentos de mapeo ERP/CIESA)
         public DbSet<Mapa> Mapas => Set<Mapa>();

@@ -18,14 +18,30 @@ public interface ITicketService
     Task<int> AddImagenesAsync(long ticketId, AddTicketImagenesRequest req, CancellationToken ct);
     Task<TicketNotaDto?> AddNotaAsync(long ticketId, CreateTicketNotaRequest req, CancellationToken ct);
 
+    // ── Adjuntos (documentos Excel/PDF + links) ──────────────────
+    Task<IReadOnlyList<TicketAdjuntoDto>> GetAdjuntosAsync(long ticketId, CancellationToken ct);
+    Task<TicketAdjuntoDto?> AddDocumentoAsync(long ticketId, AddTicketDocumentoRequest req, CancellationToken ct);
+    Task<TicketAdjuntoDto?> AddLinkAsync(long ticketId, AddTicketLinkRequest req, CancellationToken ct);
+    Task<TicketDocumentoDto?> GetDocumentoAsync(long ticketId, long adjuntoId, CancellationToken ct);
+    Task<bool> DeleteAdjuntoAsync(long ticketId, long adjuntoId, CancellationToken ct);
+
     // ── Resolutor ────────────────────────────────────────────────
     Task<PagedResult<TicketListItemDto>> SearchGestionAsync(TicketSearchRequest req, CancellationToken ct);
     Task<TicketDetailDto?> TomarAsync(long id, CancellationToken ct);
     Task<TicketDetailDto?> CambiarEstadoAsync(long id, CambiarEstadoTicketRequest req, CancellationToken ct);
 
+    /// <summary>El solicitante confirma el cierre de un ticket SOLUCIONADO → CERRADO.</summary>
+    Task<TicketDetailDto?> ConfirmarCierreAsync(long id, ConfirmarCierreRequest req, CancellationToken ct);
+
     // ── Super Admin ──────────────────────────────────────────────
     Task<PagedResult<TicketListItemDto>> SearchAdminAsync(TicketSearchRequest req, CancellationToken ct);
 
-    // ── Común ────────────────────────────────────────────────────
+    // ── Transferir (REQUERIMIENTO -> DESARROLLO) ─────────────────
+    Task<TicketDetailDto?> TransferirAsync(long id, TransferirTicketRequest req, CancellationToken ct);
+
+    // ── Bandeja personal del resolutor ────────────────────────────
+    Task<PagedResult<TicketListItemDto>> GetAsignadosAsync(TicketSearchRequest req, CancellationToken ct);
+
+    // ── Común ────────────────────────────────────────────────────────
     Task<bool> DeleteAsync(long id, CancellationToken ct);
 }

@@ -8243,9 +8243,17 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
 
+                    b.Property<Guid?>("AssignedToUserGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_to_user_guid");
+
                     b.Property<int?>("AssignedToUserId")
                         .HasColumnType("integer")
                         .HasColumnName("assigned_to_user_id");
+
+                    b.Property<int?>("CerradoPorUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("cerrado_por_user_id");
 
                     b.Property<string>("Codigo")
                         .HasMaxLength(20)
@@ -8256,11 +8264,20 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("company_id");
 
+                    b.Property<string>("CorreoNotificadoA")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("correo_notificado_a");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<Guid?>("CreatedByUserGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_guid");
 
                     b.Property<int>("CreatedByUserId")
                         .HasColumnType("integer")
@@ -8281,6 +8298,14 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("estado");
 
+                    b.Property<DateTime?>("FechaCierreSolicitante")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_cierre_solicitante");
+
+                    b.Property<DateTime?>("FechaNotificacionCorreo")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fecha_notificacion_correo");
+
                     b.Property<DateTime?>("FechaPrimeraApertura")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_primera_apertura");
@@ -8289,9 +8314,19 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("fecha_solucion");
 
+                    b.Property<bool>("NotificadoCorreo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("notificado_correo");
+
                     b.Property<int>("PaisId")
                         .HasColumnType("integer")
                         .HasColumnName("pais_id");
+
+                    b.Property<string>("SolucionDescripcion")
+                        .HasColumnType("text")
+                        .HasColumnName("solucion_descripcion");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -8349,6 +8384,72 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDatabaseName("ix_tickets_tipo");
 
                     b.ToTable("tickets", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketAdjunto", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContenidoBase64")
+                        .HasColumnType("text")
+                        .HasColumnName("contenido_base64");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<int?>("SizeBytes")
+                        .HasColumnType("integer")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<long>("TicketId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo");
+
+                    b.Property<string>("Titulo")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("titulo");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("url");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_adjuntos");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_ticket_adjuntos_ticket_id");
+
+                    b.ToTable("ticket_adjuntos", "public");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketImagen", b =>
@@ -8447,6 +8548,185 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDatabaseName("ix_ticket_notas_ticket_id");
 
                     b.ToTable("ticket_notas", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketPerfilUsuario", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("activo");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<string>("Nivel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("nivel");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_perfil_usuario");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_ticket_perfil_usuario_company_id");
+
+                    b.HasIndex("UserId", "CompanyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_ticket_perfil_usuario_user_company");
+
+                    b.ToTable("ticket_perfil_usuario", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketResolutor", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("activo");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int?>("PaisId")
+                        .HasColumnType("integer")
+                        .HasColumnName("pais_id");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_resolutores");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_ticket_resolutores_company_id");
+
+                    b.HasIndex("PaisId")
+                        .HasDatabaseName("ix_ticket_resolutores_pais_id");
+
+                    b.HasIndex("Tipo")
+                        .HasDatabaseName("ix_ticket_resolutores_tipo");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_ticket_resolutores_user_id");
+
+                    b.HasIndex("UserId", "Tipo", "PaisId", "CompanyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_ticket_resolutores_user_tipo_pais_company");
+
+                    b.ToTable("ticket_resolutores", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketResolutorRol", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("activo");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<int?>("PaisId")
+                        .HasColumnType("integer")
+                        .HasColumnName("pais_id");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("tipo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_resolutor_rol");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_ticket_resolutor_rol_company_id");
+
+                    b.HasIndex("RoleId")
+                        .HasDatabaseName("ix_ticket_resolutor_rol_role_id");
+
+                    b.HasIndex("Tipo")
+                        .HasDatabaseName("ix_ticket_resolutor_rol_tipo");
+
+                    b.HasIndex("RoleId", "Tipo", "PaisId", "CompanyId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_ticket_resolutor_rol_role_tipo_pais_company");
+
+                    b.ToTable("ticket_resolutor_rol", "public");
                 });
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.TrasladoHuevos", b =>
@@ -10120,6 +10400,18 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Navigation("Lote");
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketAdjunto", b =>
+                {
+                    b.HasOne("ZooSanMarino.Domain.Entities.Ticket", "Ticket")
+                        .WithMany("Adjuntos")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_adjuntos_tickets_ticket_id");
+
+                    b.Navigation("Ticket");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.TicketImagen", b =>
                 {
                     b.HasOne("ZooSanMarino.Domain.Entities.Ticket", "Ticket")
@@ -10392,6 +10684,8 @@ namespace ZooSanMarino.Infrastructure.Migrations
 
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Ticket", b =>
                 {
+                    b.Navigation("Adjuntos");
+
                     b.Navigation("Imagenes");
 
                     b.Navigation("Notas");

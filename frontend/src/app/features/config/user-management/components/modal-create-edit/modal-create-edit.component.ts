@@ -15,6 +15,7 @@ import { RoleService, Role } from '../../../../../core/services/role/role.servic
 import { AuthService } from '../../../../../core/auth/auth.service';
 import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
 import { ShowIfCountryDirective } from '../../../../../core/directives/show-if-country.directive';
+import { TicketPerfilEditorComponent } from '../../../../../features/tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
 import { interval, Subscription } from 'rxjs';
 
 // === Validador: array requerido (>=1 ítem) ===
@@ -34,7 +35,7 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
 @Component({
   selector: 'app-modal-create-edit',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule, ShowIfCountryDirective],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule, ShowIfCountryDirective, TicketPerfilEditorComponent],
   templateUrl: './modal-create-edit.component.html',
   styleUrls: ['./modal-create-edit.component.scss']
 })
@@ -67,7 +68,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   saving = false;
   showPassword = false;
   showConfirmPassword = false;
-  activeTab: 'personal' | 'access' | 'roles' = 'personal';
+  activeTab: 'personal' | 'access' | 'roles' | 'tickets' = 'personal';
   isPlatformUser = false;
 
   readonly PLATFORM_DOMAIN = '@zootecnico.com';
@@ -530,7 +531,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
     }
   }
 
-  setActiveTab(tab: 'personal' | 'access' | 'roles'): void {
+  setActiveTab(tab: 'personal' | 'access' | 'roles' | 'tickets'): void {
     this.activeTab = tab;
   }
 
@@ -646,7 +647,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   }
 
   // Métodos para validación de tabs
-  isTabValid(tab: 'personal' | 'access' | 'roles'): boolean {
+  isTabValid(tab: 'personal' | 'access' | 'roles' | 'tickets'): boolean {
     switch (tab) {
       case 'personal':
         return !!(this.userForm.get('firstName')?.valid &&
@@ -666,7 +667,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
     }
   }
 
-  getTabErrorCount(tab: 'personal' | 'access' | 'roles'): number {
+  getTabErrorCount(tab: 'personal' | 'access' | 'roles' | 'tickets'): number {
     switch (tab) {
       case 'personal':
         return [this.userForm.get('firstName'), this.userForm.get('surName'), this.userForm.get('cedula')]

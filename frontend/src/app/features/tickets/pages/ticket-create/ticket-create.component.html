@@ -1,86 +1,171 @@
 <!-- src/app/features/tickets/pages/ticket-create/ticket-create.component.html -->
-<div class="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+<div class="min-h-full bg-gradient-to-b from-ital-cream/60 to-transparent">
+  <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
 
-  <!-- Encabezado -->
-  <div class="mb-5 flex items-center gap-3">
-    <a routerLink="/tickets"
-       class="grid h-9 w-9 place-items-center rounded-lg text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50"
-       title="Volver">
-      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-      </svg>
-    </a>
-    <div>
-      <h1 class="text-xl font-bold text-slate-800">Nuevo ticket</h1>
-      <p class="text-sm text-slate-500">Reportá un error, soporte, requerimiento o duda.</p>
-    </div>
-  </div>
-
-  <form [formGroup]="form" (ngSubmit)="submit()"
-        class="space-y-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
-
-    <!-- Título -->
-    <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Título <span class="text-ital-orange">*</span></label>
-      <input type="text" formControlName="titulo" maxlength="160"
-             placeholder="Resumí el problema en una frase"
-             class="w-full rounded-lg border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
-             [class.border-rose-400]="f.titulo.invalid && f.titulo.touched" />
-      @if (f.titulo.invalid && f.titulo.touched) {
-        <p class="mt-1 text-xs text-rose-600">El título es requerido.</p>
-      }
-    </div>
-
-    <!-- Tipo -->
-    <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Tipo de ticket <span class="text-ital-orange">*</span></label>
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        @for (t of tipos; track t.value) {
-          <label
-            class="cursor-pointer rounded-lg border px-3 py-2 text-center text-sm transition"
-            [class.border-ital-green]="f.tipo.value === t.value"
-            [class.bg-ital-green-50]="f.tipo.value === t.value"
-            [class.font-semibold]="f.tipo.value === t.value"
-            [class.text-ital-green-dark]="f.tipo.value === t.value"
-            [class.border-slate-200]="f.tipo.value !== t.value"
-            [class.text-slate-600]="f.tipo.value !== t.value"
-            [title]="t.descripcion">
-            <input type="radio" formControlName="tipo" [value]="t.value" class="hidden" />
-            {{ t.label }}
-          </label>
-        }
+    <!-- Hero header -->
+    <div class="mb-6 flex items-center gap-3">
+      <a routerLink="/tickets"
+         class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 hover:text-ital-green">
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+      </a>
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-800">Nuevo ticket</h1>
+        <p class="text-sm text-ital-muted">Reportá un error, soporte, requerimiento o duda.</p>
       </div>
     </div>
 
-    <!-- Descripción -->
-    <div>
-      <label class="mb-1 block text-sm font-medium text-slate-700">Descripción <span class="text-ital-orange">*</span></label>
-      <textarea formControlName="descripcion" rows="5"
-                placeholder="Detallá qué pasó, qué esperabas y los pasos para reproducirlo…"
-                class="w-full rounded-lg border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
-                [class.border-rose-400]="f.descripcion.invalid && f.descripcion.touched"></textarea>
-      @if (f.descripcion.invalid && f.descripcion.touched) {
-        <p class="mt-1 text-xs text-rose-600">La descripción es requerida.</p>
-      }
-    </div>
+    @if (loadingTipos()) {
+      <div class="flex items-center justify-center gap-2 py-16 text-ital-muted">
+        <span class="h-5 w-5 animate-spin rounded-full border-2 border-ital-green border-t-transparent"></span>
+        Cargando tipos disponibles…
+      </div>
+    } @else if (tiposPermitidos.length === 0) {
+      <!-- Sin tipos disponibles -->
+      <div class="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+        <div class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-500">
+          <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+        </div>
+        <p class="font-semibold text-slate-700">No hay tipos disponibles en tu país</p>
+        <p class="mt-1 text-sm text-slate-400">No hay resolutores configurados para atender tickets en este momento. Contactá al administrador.</p>
+      </div>
+    } @else {
+      <div class="grid gap-6 lg:grid-cols-3">
+        <!-- Formulario -->
+        <form [formGroup]="form" (ngSubmit)="submit()"
+              class="space-y-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70 sm:p-7 lg:col-span-2">
 
-    <!-- Imágenes -->
-    <div>
-      <label class="mb-1.5 block text-sm font-medium text-slate-700">Imágenes del error <span class="text-slate-400">(opcional)</span></label>
-      <app-image-dropzone (imagesChange)="onImages($event)"></app-image-dropzone>
-    </div>
+          <!-- Título -->
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Título <span class="text-ital-orange">*</span></label>
+            <input type="text" formControlName="titulo" maxlength="160"
+                   placeholder="Resumí el problema en una frase"
+                   class="w-full rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
+                   [class.border-rose-400]="f.titulo.invalid && f.titulo.touched" />
+            @if (f.titulo.invalid && f.titulo.touched) {
+              <p class="mt-1 text-xs text-rose-600">El título es requerido.</p>
+            }
+          </div>
 
-    <!-- Acciones -->
-    <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
-      <a routerLink="/tickets"
-         class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Cancelar</a>
-      <button type="submit" [disabled]="saving()"
-              class="inline-flex items-center gap-2 rounded-lg bg-ital-green px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-ital-green-dark disabled:opacity-60">
-        @if (saving()) {
-          <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-        }
-        Crear ticket
-      </button>
-    </div>
-  </form>
+          <!-- Tipo de ticket (dinámico: solo los disponibles en el país) -->
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">
+              Tipo de ticket <span class="text-ital-orange">*</span>
+              <span class="ml-1 font-normal text-ital-muted">(disponibles en tu país)</span>
+            </label>
+            <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              @for (t of tiposPermitidos; track t.tipo) {
+                <label
+                  class="group relative cursor-pointer rounded-xl border-2 p-3 text-center transition-all"
+                  [class.border-ital-green]="f.tipo.value === t.tipo"
+                  [class.bg-ital-green-50]="f.tipo.value === t.tipo"
+                  [class.border-slate-200]="f.tipo.value !== t.tipo">
+                  <input type="radio" formControlName="tipo" [value]="t.tipo" class="hidden"
+                         (change)="onTipoChange(t.tipo)" />
+                  <span class="block text-sm font-semibold"
+                        [class.text-ital-green-dark]="f.tipo.value === t.tipo"
+                        [class.text-slate-600]="f.tipo.value !== t.tipo">{{ t.label }}</span>
+                  <span class="text-[11px]"
+                        [class.text-ital-green]="f.tipo.value === t.tipo"
+                        [class.text-slate-400]="f.tipo.value !== t.tipo">
+                    {{ t.asignables.length }} resolutor(es)
+                  </span>
+                  @if (f.tipo.value === t.tipo) {
+                    <span class="absolute right-1.5 top-1.5 grid h-4 w-4 place-items-center rounded-full bg-ital-green text-white">
+                      <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    </span>
+                  }
+                </label>
+              }
+            </div>
+            @if (f.tipo.invalid && f.tipo.touched) {
+              <p class="mt-1 text-xs text-rose-600">Seleccioná el tipo de ticket.</p>
+            }
+          </div>
+
+          <!-- Asignar a (dinámico: resolutores del tipo+país) -->
+          @if (f.tipo.value) {
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-slate-700">
+                Asignar a <span class="text-ital-orange">*</span>
+                <span class="ml-1 font-normal text-ital-muted">(resolutores disponibles para {{ f.tipo.value | lowercase }})</span>
+              </label>
+              @if (asignablesActuales.length === 0) {
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                  No hay resolutores disponibles para este tipo en tu país.
+                </div>
+              } @else {
+                <select formControlName="asignadoGuid"
+                        class="w-full rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
+                        [class.border-rose-400]="f.asignadoGuid.invalid && f.asignadoGuid.touched">
+                  <option value="">— Elegí un resolutor —</option>
+                  @for (a of asignablesActuales; track a.userId) {
+                    <option [value]="a.userId">{{ a.nombreCompleto }} · {{ a.paisLabel }}</option>
+                  }
+                </select>
+                @if (f.asignadoGuid.invalid && f.asignadoGuid.touched) {
+                  <p class="mt-1 text-xs text-rose-600">Debés asignar un resolutor.</p>
+                }
+              }
+            </div>
+          }
+
+          <!-- Descripción -->
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Descripción <span class="text-ital-orange">*</span></label>
+            <textarea formControlName="descripcion" rows="5"
+                      placeholder="Detallá qué pasó, qué esperabas y los pasos para reproducirlo…"
+                      class="w-full rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
+                      [class.border-rose-400]="f.descripcion.invalid && f.descripcion.touched"></textarea>
+            @if (f.descripcion.invalid && f.descripcion.touched) {
+              <p class="mt-1 text-xs text-rose-600">La descripción es requerida.</p>
+            }
+          </div>
+
+          <!-- Imágenes -->
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">
+              Imágenes del error <span class="font-normal text-ital-muted">(opcional)</span>
+            </label>
+            <app-image-dropzone (imagesChange)="onImages($event)"></app-image-dropzone>
+          </div>
+
+          <!-- Acciones -->
+          <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
+            <a routerLink="/tickets"
+               class="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-slate-50">Cancelar</a>
+            <button type="submit" [disabled]="saving() || asignablesActuales.length === 0"
+                    class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-ital-green to-ital-green-dark px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-ital-green/25 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:hover:translate-y-0">
+              @if (saving()) {
+                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+              }
+              Crear ticket
+            </button>
+          </div>
+        </form>
+
+        <!-- Panel lateral -->
+        <aside class="space-y-4 lg:col-span-1">
+          <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/70">
+            <div class="mb-3 flex items-center gap-2 text-ital-orange">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
+              <h2 class="text-sm font-bold text-slate-700">Tips para un buen ticket</h2>
+            </div>
+            <ul class="space-y-2.5 text-xs text-slate-500">
+              <li class="flex gap-2"><span class="text-ital-green">✓</span> Título corto y claro que resuma el problema.</li>
+              <li class="flex gap-2"><span class="text-ital-green">✓</span> Detallá qué hacías y qué esperabas.</li>
+              <li class="flex gap-2"><span class="text-ital-green">✓</span> Elegí el tipo correcto — define quién lo atiende.</li>
+              <li class="flex gap-2"><span class="text-ital-green">✓</span> Asigná el resolutor adecuado para tu país.</li>
+              <li class="flex gap-2"><span class="text-ital-green">✓</span> Adjuntá capturas del error si podés.</li>
+            </ul>
+          </div>
+
+          <div class="rounded-2xl border border-ital-orange-100 bg-ital-orange-50 p-4">
+            <p class="text-xs leading-relaxed text-ital-orange-dark">
+              <span class="font-semibold">¿Sabías?</span> Solo ves los tipos y resolutores disponibles en tu país. Si no aparece una opción, consultá con el administrador.
+            </p>
+          </div>
+        </aside>
+      </div>
+    }
+  </div>
 </div>

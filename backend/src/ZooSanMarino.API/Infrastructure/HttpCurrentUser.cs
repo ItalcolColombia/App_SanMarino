@@ -12,6 +12,7 @@ public sealed class HttpCurrentUser : ICurrentUser
     public int? PaisId { get; }
     public string? ActiveCompanyName { get; }
     public Guid? UserGuid { get; private set; }
+    public IReadOnlyList<string> Permissions { get; private set; } = Array.Empty<string>();
 
     public HttpCurrentUser(IHttpContextAccessor accessor)
     {
@@ -85,6 +86,7 @@ public sealed class HttpCurrentUser : ICurrentUser
                     PaisId = pidFromClaim;
             }
 
+            Permissions = http.User.FindAll("permission").Select(c => c.Value).ToList().AsReadOnly();
             CompanyId = cid;
             UserId    = uid;
             UserGuid  = userGuid;

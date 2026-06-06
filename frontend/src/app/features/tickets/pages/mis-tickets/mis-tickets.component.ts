@@ -8,16 +8,16 @@ import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
 import {
   TicketListItem, PagedResult, EstadoTicket,
-  ESTADOS_TICKET, ESTADO_LABEL, TIPO_LABEL,
+  ESTADOS_TICKET, ESTADO_LABEL, TIPO_LABEL, ESTADO_DOT,
 } from '../../models/ticket.models';
-import { TicketEstadoBadgeComponent } from '../../components/ticket-estado-badge/ticket-estado-badge.component';
+import { TicketListComponent } from '../../components/ticket-list/ticket-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 
 /** Bandeja "Mis solicitudes" (Perfil A: Solicitante). */
 @Component({
   selector: 'app-mis-tickets',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TicketEstadoBadgeComponent],
+  imports: [CommonModule, FormsModule, RouterLink, TicketListComponent],
   templateUrl: './mis-tickets.component.html',
 })
 export class MisTicketsComponent implements OnInit {
@@ -31,6 +31,7 @@ export class MisTicketsComponent implements OnInit {
   readonly estados = ESTADOS_TICKET;
   readonly estadoLabel = ESTADO_LABEL;
   readonly tipoLabel = TIPO_LABEL;
+  readonly estadoDot = ESTADO_DOT;
 
   // Filtros (filtro por año y estado, como pide el PRD)
   anio: number = new Date().getFullYear();
@@ -67,6 +68,12 @@ export class MisTicketsComponent implements OnInit {
   onFilterChange(): void {
     this.page = 1;
     this.load();
+  }
+
+  /** Selecciona un estado desde el filtro segmentado. */
+  selectEstado(e: EstadoTicket | ''): void {
+    this.estado = e;
+    this.onFilterChange();
   }
 
   prevPage(): void {

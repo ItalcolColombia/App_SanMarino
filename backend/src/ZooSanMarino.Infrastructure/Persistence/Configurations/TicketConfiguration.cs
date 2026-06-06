@@ -24,6 +24,14 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.Property(x => x.FechaPrimeraApertura).HasColumnName("fecha_primera_apertura");
         b.Property(x => x.FechaSolucion).HasColumnName("fecha_solucion");
 
+        // Cierre con doble confirmación + notificación por correo
+        b.Property(x => x.SolucionDescripcion).HasColumnName("solucion_descripcion");
+        b.Property(x => x.FechaCierreSolicitante).HasColumnName("fecha_cierre_solicitante");
+        b.Property(x => x.CerradoPorUserId).HasColumnName("cerrado_por_user_id");
+        b.Property(x => x.NotificadoCorreo).HasColumnName("notificado_correo").HasDefaultValue(false).IsRequired();
+        b.Property(x => x.FechaNotificacionCorreo).HasColumnName("fecha_notificacion_correo");
+        b.Property(x => x.CorreoNotificadoA).HasColumnName("correo_notificado_a").HasMaxLength(255);
+
         b.Property(x => x.Status)
             .HasColumnName("status")
             .HasMaxLength(1)
@@ -41,6 +49,10 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         b.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
+        // Guid canónico (Iteración 3) — en paralelo a los int, ADD COLUMN IF NOT EXISTS en la migración
+        b.Property(x => x.AssignedToUserGuid).HasColumnName("assigned_to_user_guid");
+        b.Property(x => x.CreatedByUserGuid).HasColumnName("created_by_user_guid");
+
         // Relaciones (cascada hacia imágenes y notas)
         b.HasMany(x => x.Imagenes)
             .WithOne(i => i.Ticket!)
@@ -49,6 +61,10 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         b.HasMany(x => x.Notas)
             .WithOne(n => n.Ticket!)
             .HasForeignKey(n => n.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.HasMany(x => x.Adjuntos)
+            .WithOne(a => a.Ticket!)
+            .HasForeignKey(a => a.TicketId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Índices para filtros típicos

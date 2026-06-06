@@ -8,6 +8,7 @@ import {
   AddTicketImagenesRequest,
   CambiarEstadoTicketRequest,
   CreateTicketNotaRequest,
+  TransferirTicketRequest,
   TicketListFilter,
   PagedResult,
   TicketListItem,
@@ -15,6 +16,11 @@ import {
   TicketImagen,
   TicketImagenMeta,
   TicketNota,
+  ConfirmarCierreRequest,
+  AddTicketDocumentoRequest,
+  AddTicketLinkRequest,
+  TicketAdjunto,
+  TicketDocumento,
 } from '../models/ticket.models';
 
 /**
@@ -70,6 +76,43 @@ export class TicketService {
 
   cambiarEstado(id: number, req: CambiarEstadoTicketRequest): Observable<TicketDetail> {
     return this.http.patch<TicketDetail>(`${this.baseUrl}/${id}/estado`, req);
+  }
+
+  /** El solicitante confirma el cierre de un ticket SOLUCIONADO. */
+  confirmarCierre(id: number, req: ConfirmarCierreRequest = {}): Observable<TicketDetail> {
+    return this.http.post<TicketDetail>(`${this.baseUrl}/${id}/confirmar-cierre`, req);
+  }
+
+  // ── Adjuntos (documentos + links) ────────────────────────────
+  getAdjuntos(id: number): Observable<TicketAdjunto[]> {
+    return this.http.get<TicketAdjunto[]>(`${this.baseUrl}/${id}/adjuntos`);
+  }
+
+  addDocumento(id: number, req: AddTicketDocumentoRequest): Observable<TicketAdjunto> {
+    return this.http.post<TicketAdjunto>(`${this.baseUrl}/${id}/documentos`, req);
+  }
+
+  addLink(id: number, req: AddTicketLinkRequest): Observable<TicketAdjunto> {
+    return this.http.post<TicketAdjunto>(`${this.baseUrl}/${id}/links`, req);
+  }
+
+  /** Documento on-demand (con base64) para descargar. */
+  descargarDocumento(id: number, adjuntoId: number): Observable<TicketDocumento> {
+    return this.http.get<TicketDocumento>(`${this.baseUrl}/${id}/adjuntos/${adjuntoId}/descargar`);
+  }
+
+  deleteAdjunto(id: number, adjuntoId: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}/adjuntos/${adjuntoId}`);
+  }
+
+  // ── Bandeja asignados ────────────────────────────────────────
+  asignados(filter: TicketListFilter = {}): Observable<PagedResult<TicketListItem>> {
+    return this.http.get<PagedResult<TicketListItem>>(
+      `${this.baseUrl}/asignados`, { params: this.toParams(filter) });
+  }
+
+  transferir(id: number, req: TransferirTicketRequest): Observable<TicketDetail> {
+    return this.http.post<TicketDetail>(`${this.baseUrl}/${id}/transferir`, req);
   }
 
   // ── Super Admin ──────────────────────────────────────────────

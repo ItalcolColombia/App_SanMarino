@@ -57,6 +57,7 @@ import {
 } from '../../../core/services/company-menu/company-menu.service';
 
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+import { TicketPerfilEditorComponent } from '../../tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
 
 import {
   BehaviorSubject,
@@ -88,6 +89,7 @@ export interface MenuFlatItem {
     FormsModule,
     FontAwesomeModule,
     DragDropModule,
+    TicketPerfilEditorComponent,
   ],
   templateUrl: './role-management.component.html',
   styleUrls: ['./role-management.component.scss']

@@ -106,6 +106,61 @@ public class TicketsController : ControllerBase
         }
     }
 
+    // ───────────────────────── Adjuntos (documentos + links) ─────────────────────────
+
+    /// <summary>Lista los adjuntos del ticket (documentos y links) — solo metadata.</summary>
+    [HttpGet("{id:long}/adjuntos")]
+    [ProducesResponseType(typeof(IEnumerable<TicketAdjuntoDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<TicketAdjuntoDto>>> GetAdjuntos(long id, CancellationToken ct)
+        => Ok(await _service.GetAdjuntosAsync(id, ct));
+
+    /// <summary>Adjunta un documento (Excel/PDF) en Base64.</summary>
+    [HttpPost("{id:long}/documentos")]
+    [ProducesResponseType(typeof(TicketAdjuntoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketAdjuntoDto>> AddDocumento(long id, [FromBody] AddTicketDocumentoRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.AddDocumentoAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Adjunta un link de documento externo (URL + título).</summary>
+    [HttpPost("{id:long}/links")]
+    [ProducesResponseType(typeof(TicketAdjuntoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketAdjuntoDto>> AddLink(long id, [FromBody] AddTicketLinkRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.AddLinkAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
+    /// <summary>Descarga el contenido (Base64) de un documento adjunto.</summary>
+    [HttpGet("{id:long}/adjuntos/{adjuntoId:long}/descargar")]
+    [ProducesResponseType(typeof(TicketDocumentoDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDocumentoDto>> DescargarDocumento(long id, long adjuntoId, CancellationToken ct)
+    {
+        var dto = await _service.GetDocumentoAsync(id, adjuntoId, ct);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
+    /// <summary>Elimina un adjunto (documento o link).</summary>
+    [HttpDelete("{id:long}/adjuntos/{adjuntoId:long}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteAdjunto(long id, long adjuntoId, CancellationToken ct)
+        => await _service.DeleteAdjuntoAsync(id, adjuntoId, ct) ? NoContent() : NotFound();
+
     // ───────────────────────── Resolutor ─────────────────────────
 
     /// <summary>Bandeja de gestión del resolutor (país inyectado del contexto).</summary>
@@ -149,6 +204,21 @@ public class TicketsController : ControllerBase
         }
     }
 
+    /// <summary>El solicitante confirma el cierre de un ticket SOLUCIONADO → CERRADO (cierre por ambas partes).</summary>
+    [HttpPost("{id:long}/confirmar-cierre")]
+    [ProducesResponseType(typeof(TicketDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDetailDto>> ConfirmarCierre(long id, [FromBody] ConfirmarCierreRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.ConfirmarCierreAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
+
     // ───────────────────────── Super Admin ─────────────────────────
 
     /// <summary>Bandeja global del super admin (todos los países de la empresa, filtros multi-dimensión).</summary>
@@ -165,6 +235,37 @@ public class TicketsController : ControllerBase
         CancellationToken ct = default)
         => Ok(await _service.SearchAdminAsync(
             new TicketSearchRequest(anio, estado, tipo, paisId, companyId, page, pageSize), ct));
+
+    // ───────────────────────── Bandeja asignados ─────────────────────────
+
+    /// <summary>Bandeja personal del resolutor: tickets asignados a mí.</summary>
+    [HttpGet("asignados")]
+    [ProducesResponseType(typeof(PagedResult<TicketListItemDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<TicketListItemDto>>> Asignados(
+        [FromQuery] int?    anio     = null,
+        [FromQuery] string? estado   = null,
+        [FromQuery] string? tipo     = null,
+        [FromQuery] int     page     = 1,
+        [FromQuery] int     pageSize = 20,
+        CancellationToken ct = default)
+        => Ok(await _service.GetAsignadosAsync(
+            new TicketSearchRequest(anio, estado, tipo, null, null, page, pageSize), ct));
+
+    /// <summary>Transfiere un ticket de REQUERIMIENTO a DESARROLLO, reasignándolo.</summary>
+    [HttpPost("{id:long}/transferir")]
+    [ProducesResponseType(typeof(TicketDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<TicketDetailDto>> Transferir(
+        long id, [FromBody] TransferirTicketRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.TransferirAsync(id, req, ct);
+            return dto is null ? NotFound() : Ok(dto);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+    }
 
     // ───────────────────────── Catálogos / utilidades ─────────────────────────
 

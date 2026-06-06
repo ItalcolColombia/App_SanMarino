@@ -29,12 +29,13 @@ public static class TicketEstados
     public const string EnAnalisis       = "EN_ANALISIS";
     public const string EnImplementacion = "EN_IMPLEMENTACION";
     public const string Solucionado      = "SOLUCIONADO";
+    public const string Cerrado          = "CERRADO";
     public const string Transferido      = "TRANSFERIDO";
     public const string Suspendido       = "SUSPENDIDO";
 
     public static readonly IReadOnlySet<string> Todos =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        { Abierto, EnAnalisis, EnImplementacion, Solucionado, Transferido, Suspendido };
+        { Abierto, EnAnalisis, EnImplementacion, Solucionado, Cerrado, Transferido, Suspendido };
 
     public static bool EsValido(string? estado) =>
         !string.IsNullOrWhiteSpace(estado) && Todos.Contains(estado);
@@ -46,7 +47,8 @@ public static class TicketEstados
             [Abierto]          = new[] { EnAnalisis, Suspendido, Transferido },
             [EnAnalisis]       = new[] { EnImplementacion, Solucionado, Suspendido, Transferido },
             [EnImplementacion] = new[] { Solucionado, EnAnalisis, Suspendido, Transferido },
-            [Solucionado]      = new[] { EnAnalisis },                 // reapertura
+            [Solucionado]      = new[] { EnAnalisis, Cerrado },        // reapertura o cierre del solicitante
+            [Cerrado]          = Array.Empty<string>(),               // terminal (cerrado por ambas partes)
             [Transferido]      = new[] { EnAnalisis, Suspendido },
             [Suspendido]       = new[] { EnAnalisis },                 // reactivar
         };
