@@ -37,6 +37,11 @@ public class LoteReproductoraAveEngordeConfiguration : IEntityTypeConfiguration<
         b.Property(x => x.CreatedAt).HasColumnName("created_at");
         b.Property(x => x.UpdatedAt).HasColumnName("updated_at");
 
+        b.Property(x => x.Reabierto).HasColumnName("reabierto").HasDefaultValue(false);
+        b.Property(x => x.NovedadApertura).HasColumnName("novedad_apertura");
+        b.Property(x => x.ReabiertoPor).HasColumnName("reabierto_por");
+        b.Property(x => x.ReabiertoAt).HasColumnName("reabierto_at");
+
         b.HasOne(x => x.LoteAveEngorde)
             .WithMany()
             .HasForeignKey(x => x.LoteAveEngordeId)

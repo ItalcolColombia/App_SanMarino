@@ -1,126 +1,457 @@
-<!-- src/app/features/db-studio/pages/db-studio-main/db-studio-main.component.html -->
-<div class="db-studio-container">
-  <!-- Header Principal -->
-  <app-db-studio-header
-    [loading]="loading()"
-    [error]="error()"
-    [databaseName]="databaseName()"
-    [connectionStatus]="connectionStatus()"
-    (action)="onHeaderAction($event)">
-  </app-db-studio-header>
+<div class="flex flex-col h-full min-h-[calc(100vh-4rem)] bg-ital-cream text-slate-800">
 
-  <div class="db-studio-layout">
-    <!-- Sidebar -->
-    <app-db-studio-sidebar
-      [selectedSchema]="selectedSchema()"
-      [selectedTable]="selectedTable()?.name || null"
-      [loading]="loading()"
-      (action)="onSidebarAction($event)">
-    </app-db-studio-sidebar>
-
-    <!-- Contenido Principal -->
-    <main class="main-content">
-      <!-- Navegación de Vistas -->
-      <nav class="view-navigation">
-        <a
-          routerLink=""
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{exact: true}"
-          class="nav-button">
-          <span class="nav-icon">📊</span>
-          <span class="nav-label">Dashboard</span>
-        </a>
-        <a
-          routerLink="explorer"
-          routerLinkActive="active"
-          class="nav-button">
-          <span class="nav-icon">🔍</span>
-          <span class="nav-label">Explorador</span>
-        </a>
-        <a
-          routerLink="query"
-          routerLinkActive="active"
-          class="nav-button">
-          <span class="nav-icon">💻</span>
-          <span class="nav-label">SQL Console</span>
-        </a>
-        <button
-          class="nav-button"
-          [class.active]="activeView() === 'tables'"
-          (click)="setActiveView('tables')">
-          <span class="nav-icon">📋</span>
-          <span class="nav-label">Tablas</span>
-        </button>
-        <a
-          *ngIf="selectedTable()"
-          [routerLink]="['data', selectedTable()?.schema, selectedTable()?.name]"
-          routerLinkActive="active"
-          class="nav-button">
-          <span class="nav-icon">📊</span>
-          <span class="nav-label">Datos</span>
-        </a>
-      </nav>
-
-      <!-- Contenido de Vista -->
-      <div class="view-content">
-        <!-- Vista de Resumen -->
-        <app-db-studio-overview
-          *ngIf="showOverview"
-          [loading]="loading()"
-          [selectedSchema]="selectedSchema()"
-          (action)="onOverviewAction($event)">
-        </app-db-studio-overview>
-
-        <!-- Vista de Consola SQL -->
-        <app-sql-query
-          *ngIf="showSqlConsole"
-          [loading]="loading()"
-          [selectedSchema]="selectedSchema()"
-          (action)="onSqlQueryAction($event)">
-        </app-sql-query>
-
-        <!-- Vista de Tablas -->
-        <app-table-management
-          *ngIf="showTables"
-          [loading]="loading()"
-          [selectedSchema]="selectedSchema()"
-          (action)="onTableManagementAction($event)">
-        </app-table-management>
-
-        <!-- Vista de Datos -->
-        <div *ngIf="showData && selectedTable()" class="data-view">
-          <div class="view-header">
-            <h2>Datos de {{ selectedTable()?.name }}</h2>
-            <p>Esquema: {{ selectedTable()?.schema }} | Tipo: {{ selectedTable()?.kind }}</p>
-          </div>
-
-          <div class="data-content">
-            <div class="data-placeholder">
-              <div class="placeholder-icon">📊</div>
-              <h3>Visor de Datos</h3>
-              <p>Esta funcionalidad se implementará próximamente</p>
-              <p>Aquí podrás ver, editar y gestionar los datos de la tabla seleccionada</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Vista de Explorador -->
-        <div *ngIf="activeView() === 'explorer'" class="explorer-view">
-          <div class="view-header">
-            <h2>Explorador de Base de Datos</h2>
-            <p>Navega por la estructura completa de la base de datos</p>
-          </div>
-
-          <div class="explorer-content">
-            <div class="explorer-placeholder">
-              <div class="placeholder-icon">🔍</div>
-              <h3>Explorador Avanzado</h3>
-              <p>Esta funcionalidad se implementará próximamente</p>
-              <p>Aquí podrás explorar relaciones, índices, vistas y más</p>
-            </div>
-          </div>
-        </div>
+  <!-- ===== Barra superior ===== -->
+  <header class="flex items-center gap-4 px-5 py-3 bg-white border-b border-slate-200 shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="grid place-items-center w-9 h-9 rounded-lg bg-ital-green/10 text-ital-green text-lg">🗄️</span>
+      <div>
+        <h1 class="text-base font-bold leading-tight">DB Studio</h1>
+        <p class="text-[11px] text-slate-400 leading-tight">Explorador y administración de base de datos</p>
       </div>
-    </main>
-  </div>
+    </div>
+
+    <div class="flex items-center gap-2 ml-2">
+      <label class="text-xs text-slate-500">Esquema</label>
+      <select
+        class="text-sm border border-slate-200 rounded-md px-2 py-1.5 bg-white focus:ring-2 focus:ring-ital-green/40 outline-none"
+        [ngModel]="selectedSchema()" (ngModelChange)="onSchemaChange($event)">
+        @for (s of schemas(); track s.name) {
+          <option [value]="s.name">{{ s.name }} ({{ s.tables }})</option>
+        }
+      </select>
+    </div>
+
+    <nav class="flex items-center gap-1 ml-auto">
+      <button class="ds-tab" [class.ds-tab-active]="tab() === 'explorer'" (click)="setTab('explorer')">Explorador</button>
+      @if (isAdmin()) {
+        <button class="ds-tab" [class.ds-tab-active]="tab() === 'sql'" (click)="setTab('sql')">Consola SQL</button>
+        <button class="ds-tab" [class.ds-tab-active]="tab() === 'permissions'" (click)="setTab('permissions')">Permisos</button>
+        <button class="ds-tab" [class.ds-tab-active]="tab() === 'activity'" (click)="setTab('activity')">Actividad</button>
+      }
+    </nav>
+
+    <span class="text-[11px] px-2 py-1 rounded-full font-semibold"
+          [class]="isAdmin() ? 'bg-ital-orange/15 text-ital-orange' : 'bg-slate-100 text-slate-500'">
+      {{ isAdmin() ? 'Administrador' : 'Acceso limitado' }}
+    </span>
+  </header>
+
+  <!-- ===== Error ===== -->
+  @if (error(); as err) {
+    <div class="flex items-center gap-3 px-5 py-2 bg-red-50 border-b border-red-200 text-red-700 text-sm">
+      <span>⚠️ {{ err }}</span>
+      <button class="ml-auto text-red-400 hover:text-red-600" (click)="dismissError()">✕</button>
+    </div>
+  }
+
+  <!-- ===================== EXPLORADOR ===================== -->
+  @if (tab() === 'explorer') {
+    <div class="flex flex-1 min-h-0">
+
+      <!-- Árbol de objetos -->
+      <aside class="w-64 shrink-0 border-r border-slate-200 bg-white flex flex-col">
+        <div class="p-2 border-b border-slate-100">
+          <input type="text" placeholder="Filtrar objetos…"
+            class="w-full text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:ring-2 focus:ring-ital-green/40 outline-none"
+            [ngModel]="treeFilter()" (ngModelChange)="treeFilter.set($event)" />
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+          <p class="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Tablas ({{ filteredTables().length }})</p>
+          @for (t of filteredTables(); track t.name) {
+            <button class="ds-tree-item" [class.ds-tree-active]="selected()?.name === t.name && selected()?.kind === 'table'"
+              (click)="selectObject(t.name, 'table')">
+              <span class="text-ital-green">▦</span>
+              <span class="truncate">{{ t.name }}</span>
+              <span class="ml-auto text-[10px] text-slate-400">{{ t.rows }}</span>
+            </button>
+          } @empty {
+            <p class="px-3 py-2 text-xs text-slate-400">Sin tablas visibles.</p>
+          }
+
+          @if (filteredViews().length) {
+            <p class="px-3 py-1 mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Vistas ({{ filteredViews().length }})</p>
+            @for (v of filteredViews(); track v.name) {
+              <button class="ds-tree-item" [class.ds-tree-active]="selected()?.name === v.name && selected()?.kind === 'view'"
+                (click)="selectObject(v.name, 'view')">
+                <span class="text-ital-orange">◳</span>
+                <span class="truncate">{{ v.name }}</span>
+                @if (v.materialized) { <span class="ml-auto text-[9px] text-ital-orange">MAT</span> }
+              </button>
+            }
+          }
+
+          @if (isAdmin() && functions().length) {
+            <p class="px-3 py-1 mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Funciones ({{ functions().length }})</p>
+            @for (f of functions(); track f.name) {
+              <button class="ds-tree-item" [class.ds-tree-active]="selected()?.name === f.name && selected()?.kind === 'function'"
+                (click)="selectObject(f.name, 'function')" [title]="f.arguments + ' → ' + f.returnType">
+                <span class="text-purple-500">ƒ</span>
+                <span class="truncate">{{ f.name }}</span>
+                <span class="ml-auto text-[10px] text-purple-300">{{ f.kind }}</span>
+              </button>
+            }
+          }
+        </div>
+      </aside>
+
+      <!-- Detalle del objeto -->
+      <section class="flex-1 min-w-0 flex flex-col">
+        @if (selected(); as obj) {
+          <div class="px-5 py-3 border-b border-slate-200 bg-white flex items-center gap-3">
+            <h2 class="font-bold text-slate-700">{{ obj.schema }}.<span class="text-ital-green">{{ obj.name }}</span></h2>
+            <span class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-500">{{ obj.kind }}</span>
+            @if (stats(); as st) { <span class="text-[11px] text-slate-400">{{ st.rowCount }} filas · {{ st.totalSize }}</span> }
+            @if (!canWriteSelected()) { <span class="text-[11px] text-slate-400 ml-2">🔒 solo lectura</span> }
+          </div>
+
+          <div class="flex items-center gap-1 px-4 pt-2 bg-white border-b border-slate-200">
+            @if (obj.kind !== 'function') {
+              <button class="ds-subtab" [class.ds-subtab-active]="detailTab()==='data'" (click)="detailTab.set('data')">Datos</button>
+              <button class="ds-subtab" [class.ds-subtab-active]="detailTab()==='columns'" (click)="detailTab.set('columns')">Columnas ({{ columns().length }})</button>
+            }
+            @if (obj.kind === 'table') {
+              <button class="ds-subtab" [class.ds-subtab-active]="detailTab()==='indexes'" (click)="detailTab.set('indexes')">Índices ({{ indexes().length }})</button>
+              <button class="ds-subtab" [class.ds-subtab-active]="detailTab()==='fks'" (click)="detailTab.set('fks')">Claves foráneas ({{ foreignKeys().length }})</button>
+            }
+            @if (obj.kind === 'view') {
+              <button class="ds-subtab" [class.ds-subtab-active]="detailTab()==='definition'" (click)="detailTab.set('definition'); loadViewDefinition()">Definición SQL</button>
+            }
+            @if (obj.kind === 'function') {
+              <button class="ds-subtab" [class.ds-subtab-active]="detailTab()==='source'" (click)="detailTab.set('source')">Código fuente</button>
+            }
+          </div>
+
+          <div class="flex-1 overflow-auto p-4">
+
+            <!-- DATOS -->
+            @if (detailTab() === 'data') {
+              <div class="flex items-center gap-2 mb-3">
+                @if (canWriteSelected() && obj.kind === 'table') {
+                  <button class="ds-btn-primary" (click)="startInsert()" [disabled]="!!newRow()">+ Insertar fila</button>
+                }
+                <button class="ds-btn" (click)="exportCsv()">Exportar CSV</button>
+                <div class="ml-auto flex items-center gap-2 text-sm">
+                  <button class="ds-btn" (click)="prevPage()" [disabled]="offset() === 0">←</button>
+                  <span class="text-slate-500">{{ offset() + 1 }}–{{ offset() + (page()?.rows?.length || 0) }}</span>
+                  <button class="ds-btn" (click)="nextPage()" [disabled]="(page()?.rows?.length || 0) < pageSize">→</button>
+                </div>
+              </div>
+
+              <div class="overflow-auto border border-slate-200 rounded-lg bg-white">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50 sticky top-0">
+                    <tr>
+                      @for (c of dataColumns(); track c) {
+                        <th class="px-3 py-2 text-left font-semibold text-slate-600 whitespace-nowrap border-b border-slate-200">{{ c }}</th>
+                      }
+                      @if (canWriteSelected() && obj.kind === 'table') {
+                        <th class="px-3 py-2 border-b border-slate-200 w-px"></th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <!-- fila nueva -->
+                    @if (newRow(); as nr) {
+                      <tr class="bg-ital-green/5">
+                        @for (c of dataColumns(); track c) {
+                          <td class="px-2 py-1 border-b border-slate-100">
+                            <input class="ds-cell-input" [value]="nr[c] ?? ''" (input)="setNew(c, $any($event.target).value)" />
+                          </td>
+                        }
+                        <td class="px-2 py-1 border-b border-slate-100 whitespace-nowrap">
+                          <button class="ds-btn-primary !py-0.5 !px-2" (click)="saveInsert()">Guardar</button>
+                          <button class="ds-btn !py-0.5 !px-2" (click)="cancelInsert()">✕</button>
+                        </td>
+                      </tr>
+                    }
+                    @for (row of page()?.rows ?? []; track $index) {
+                      <tr class="hover:bg-slate-50">
+                        @for (c of dataColumns(); track c) {
+                          <td class="px-3 py-1.5 border-b border-slate-100 whitespace-nowrap max-w-xs truncate"
+                              [title]="formatCell(row[c])">
+                            @if (editingIndex() === $index) {
+                              <input class="ds-cell-input" [value]="editBuffer()[c] ?? ''" (input)="setEdit(c, $any($event.target).value)" />
+                            } @else {
+                              <span [class.text-slate-300]="row[c] === null || row[c] === undefined">{{ formatCell(row[c]) }}</span>
+                            }
+                          </td>
+                        }
+                        @if (canWriteSelected() && obj.kind === 'table') {
+                          <td class="px-2 py-1 border-b border-slate-100 whitespace-nowrap">
+                            @if (editingIndex() === $index) {
+                              <button class="ds-btn-primary !py-0.5 !px-2" (click)="saveEdit(row)">✓</button>
+                              <button class="ds-btn !py-0.5 !px-2" (click)="cancelEdit()">✕</button>
+                            } @else {
+                              <button class="ds-icon-btn" (click)="startEdit($index, row)" title="Editar">✎</button>
+                              <button class="ds-icon-btn text-red-500" (click)="deleteRow(row)" title="Eliminar">🗑</button>
+                            }
+                          </td>
+                        }
+                      </tr>
+                    } @empty {
+                      <tr><td class="px-3 py-6 text-center text-slate-400" [attr.colspan]="dataColumns().length + 1">Sin filas.</td></tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              @if (page()?.executionTime !== undefined) {
+                <p class="text-[11px] text-slate-400 mt-2">~{{ page()?.count }} filas estimadas · {{ page()?.executionTime }} ms</p>
+              }
+            }
+
+            <!-- COLUMNAS -->
+            @if (detailTab() === 'columns') {
+              <div class="overflow-auto border border-slate-200 rounded-lg bg-white">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50"><tr>
+                    <th class="ds-th">Columna</th><th class="ds-th">Tipo</th><th class="ds-th">Nulo</th>
+                    <th class="ds-th">PK</th><th class="ds-th">Default</th><th class="ds-th">Comentario</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (c of columns(); track c.name) {
+                      <tr class="hover:bg-slate-50">
+                        <td class="ds-td font-medium">{{ c.name }}</td>
+                        <td class="ds-td text-ital-green">{{ c.dataType }}</td>
+                        <td class="ds-td">{{ c.isNullable ? 'sí' : 'no' }}</td>
+                        <td class="ds-td">{{ c.isPrimaryKey ? '🔑' : '' }}</td>
+                        <td class="ds-td text-slate-400">{{ c.default || '—' }}</td>
+                        <td class="ds-td text-slate-400">{{ c.comment || '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+
+            <!-- ÍNDICES -->
+            @if (detailTab() === 'indexes') {
+              <div class="overflow-auto border border-slate-200 rounded-lg bg-white">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50"><tr>
+                    <th class="ds-th">Nombre</th><th class="ds-th">Tipo</th><th class="ds-th">Columnas</th>
+                    <th class="ds-th">Único</th><th class="ds-th">Primario</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (ix of indexes(); track ix.name) {
+                      <tr class="hover:bg-slate-50">
+                        <td class="ds-td font-medium">{{ ix.name }}</td>
+                        <td class="ds-td">{{ ix.type }}</td>
+                        <td class="ds-td text-slate-500">{{ ix.columns.join(', ') }}</td>
+                        <td class="ds-td">{{ ix.isUnique ? 'sí' : '' }}</td>
+                        <td class="ds-td">{{ ix.isPrimary ? 'sí' : '' }}</td>
+                      </tr>
+                    } @empty { <tr><td class="ds-td text-slate-400" colspan="5">Sin índices.</td></tr> }
+                  </tbody>
+                </table>
+              </div>
+            }
+
+            <!-- FKs -->
+            @if (detailTab() === 'fks') {
+              <div class="overflow-auto border border-slate-200 rounded-lg bg-white">
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50"><tr>
+                    <th class="ds-th">Constraint</th><th class="ds-th">Columna</th><th class="ds-th">Referencia</th>
+                    <th class="ds-th">On Delete</th><th class="ds-th">On Update</th>
+                  </tr></thead>
+                  <tbody>
+                    @for (fk of foreignKeys(); track fk.name) {
+                      <tr class="hover:bg-slate-50">
+                        <td class="ds-td font-medium">{{ fk.name }}</td>
+                        <td class="ds-td">{{ fk.column }}</td>
+                        <td class="ds-td text-ital-green">{{ fk.referencedTable }}.{{ fk.referencedColumn }}</td>
+                        <td class="ds-td text-slate-500">{{ fk.onDelete }}</td>
+                        <td class="ds-td text-slate-500">{{ fk.onUpdate }}</td>
+                      </tr>
+                    } @empty { <tr><td class="ds-td text-slate-400" colspan="5">Sin claves foráneas.</td></tr> }
+                  </tbody>
+                </table>
+              </div>
+            }
+
+            <!-- DEFINICIÓN SQL (vistas) -->
+            @if (detailTab() === 'definition') {
+              @if (viewDefinition() !== null) {
+                <pre class="bg-slate-900 text-green-300 text-xs font-mono rounded-lg p-4 overflow-auto whitespace-pre-wrap leading-relaxed">{{ viewDefinition() }}</pre>
+              } @else {
+                <p class="text-slate-400 text-sm">Cargando definición…</p>
+              }
+            }
+
+            <!-- CÓDIGO FUENTE (funciones) -->
+            @if (detailTab() === 'source') {
+              @if (selectedFunction(); as fn) {
+                <div class="mb-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                  <span class="px-2 py-1 rounded bg-purple-50 text-purple-700 font-mono">{{ fn.kind }}</span>
+                  <span class="px-2 py-1 rounded bg-slate-100 font-mono">{{ fn.language }}</span>
+                  @if (fn.arguments) { <span class="px-2 py-1 rounded bg-slate-100 font-mono">( {{ fn.arguments }} )</span> }
+                  <span class="px-2 py-1 rounded bg-ital-green/10 text-ital-green font-mono">→ {{ fn.returnType }}</span>
+                </div>
+              }
+              @if (functionSource() !== null) {
+                <pre class="bg-slate-900 text-green-300 text-xs font-mono rounded-lg p-4 overflow-auto whitespace-pre-wrap leading-relaxed">{{ functionSource() }}</pre>
+              } @else {
+                <p class="text-slate-400 text-sm">Cargando código fuente…</p>
+              }
+            }
+          </div>
+        } @else {
+          <div class="flex-1 grid place-items-center text-slate-400">
+            <div class="text-center">
+              <div class="text-4xl mb-2">🗂️</div>
+              <p>Seleccioná una tabla o vista para ver sus datos y estructura.</p>
+            </div>
+          </div>
+        }
+      </section>
+    </div>
+  }
+
+  <!-- ===================== CONSOLA SQL (admin) ===================== -->
+  @if (tab() === 'sql' && isAdmin()) {
+    <div class="flex-1 flex flex-col p-4 gap-3 min-h-0">
+      <textarea
+        class="w-full h-40 font-mono text-sm border border-slate-200 rounded-lg p-3 focus:ring-2 focus:ring-ital-green/40 outline-none resize-y"
+        placeholder="SELECT * FROM ...   (las operaciones destructivas piden confirmación)"
+        [ngModel]="sqlText()" (ngModelChange)="sqlText.set($event)"></textarea>
+      <div class="flex items-center gap-2">
+        <button class="ds-btn-primary" (click)="runSql(false)" [disabled]="sqlBusy()">{{ sqlBusy() ? 'Ejecutando…' : 'Ejecutar' }}</button>
+        <button class="ds-btn border-ital-orange text-ital-orange" (click)="runSql(true)" [disabled]="sqlBusy()" title="Confirmar operaciones destructivas">Ejecutar (confirmar)</button>
+        <span class="text-[11px] text-slate-400 ml-2">SELECT, DML y DDL. Una sola sentencia. Auditado.</span>
+      </div>
+
+      @if (sqlResult(); as res) {
+        @if (res.error) {
+          <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 font-mono">{{ res.error }}</div>
+        } @else if (res.columns.length) {
+          <div class="flex-1 overflow-auto border border-slate-200 rounded-lg bg-white">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 sticky top-0"><tr>
+                @for (c of res.columns; track c) { <th class="ds-th">{{ c }}</th> }
+              </tr></thead>
+              <tbody>
+                @for (row of res.rows; track $index) {
+                  <tr class="hover:bg-slate-50">
+                    @for (c of res.columns; track c) { <td class="ds-td whitespace-nowrap max-w-xs truncate" [title]="formatCell(row[c])">{{ formatCell(row[c]) }}</td> }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-slate-400">{{ res.rows.length }} filas · {{ res.ms }} ms</p>
+        } @else {
+          <div class="bg-ital-green/5 border border-ital-green/20 text-ital-green text-sm rounded-lg p-3">
+            OK · {{ res.affected ?? 0 }} fila(s) afectada(s) · {{ res.ms }} ms
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <!-- ===================== PERMISOS (admin) ===================== -->
+  @if (tab() === 'permissions' && isAdmin()) {
+    <div class="flex-1 overflow-auto p-5 max-w-4xl">
+      <h2 class="font-bold text-slate-700 mb-1">Permisos por objeto</h2>
+      <p class="text-sm text-slate-500 mb-4">Asigná a un usuario qué tablas/vistas puede ver (lectura) o editar (escritura). Los administradores ven todo.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end bg-white border border-slate-200 rounded-lg p-3 mb-4">
+        <label class="text-xs text-slate-500 md:col-span-2">User ID (GUID)
+          <input class="ds-input" [ngModel]="grantForm().userId" (ngModelChange)="patchGrantForm({ userId: $event })" placeholder="00000000-0000-…" />
+        </label>
+        <label class="text-xs text-slate-500">Esquema
+          <input class="ds-input" [ngModel]="grantForm().schema" (ngModelChange)="patchGrantForm({ schema: $event })" />
+        </label>
+        <label class="text-xs text-slate-500">Objeto
+          <input class="ds-input" [ngModel]="grantForm().object" (ngModelChange)="patchGrantForm({ object: $event })" placeholder="tabla o vista" />
+        </label>
+        <label class="text-xs text-slate-500">Nivel
+          <select class="ds-input" [ngModel]="grantForm().level" (ngModelChange)="patchGrantForm({ level: $event })">
+            <option value="read">Lectura</option>
+            <option value="write">Escritura</option>
+          </select>
+        </label>
+        <button class="ds-btn-primary md:col-span-5 md:w-auto md:justify-self-start" (click)="addGrant()">Asignar permiso</button>
+      </div>
+
+      <div class="overflow-auto border border-slate-200 rounded-lg bg-white">
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50"><tr>
+            <th class="ds-th">Usuario</th><th class="ds-th">Objeto</th><th class="ds-th">Nivel</th><th class="ds-th">Otorgado</th><th class="ds-th"></th>
+          </tr></thead>
+          <tbody>
+            @for (g of grants(); track g.id) {
+              <tr class="hover:bg-slate-50">
+                <td class="ds-td font-mono text-[11px]">{{ g.userId }}</td>
+                <td class="ds-td">{{ g.schema }}.{{ g.object }}</td>
+                <td class="ds-td">
+                  <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                    [class]="g.accessLevel === 'write' ? 'bg-ital-orange/15 text-ital-orange' : 'bg-ital-green/15 text-ital-green'">
+                    {{ g.accessLevel === 'write' ? 'Escritura' : 'Lectura' }}
+                  </span>
+                </td>
+                <td class="ds-td text-slate-400 text-[11px]">{{ g.grantedAtUtc | date:'short' }}</td>
+                <td class="ds-td"><button class="ds-icon-btn text-red-500" (click)="revokeGrant(g.id)" title="Revocar">🗑</button></td>
+              </tr>
+            } @empty { <tr><td class="ds-td text-slate-400" colspan="5">Sin permisos asignados.</td></tr> }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- ===================== ACTIVIDAD (admin) ===================== -->
+  @if (tab() === 'activity' && isAdmin()) {
+    <div class="flex-1 overflow-auto p-5">
+      <div class="flex items-center gap-2 mb-4">
+        <h2 class="font-bold text-slate-700">Concurrencia / hilos</h2>
+        <button class="ds-btn ml-auto" (click)="refreshActivity()">↻ Refrescar</button>
+        <button class="ds-btn" [class.ds-tab-active]="autoRefresh()" (click)="toggleAuto()">
+          {{ autoRefresh() ? '⏸ Auto' : '▶ Auto (4s)' }}
+        </button>
+      </div>
+
+      @if (activity(); as act) {
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+          <div class="ds-stat"><span class="ds-stat-n">{{ act.totalConnections }}</span><span class="ds-stat-l">Conexiones</span></div>
+          <div class="ds-stat"><span class="ds-stat-n text-ital-green">{{ act.activeConnections }}</span><span class="ds-stat-l">Activas</span></div>
+          <div class="ds-stat"><span class="ds-stat-n text-slate-400">{{ act.idleConnections }}</span><span class="ds-stat-l">Idle</span></div>
+          <div class="ds-stat"><span class="ds-stat-n text-amber-600">{{ act.idleInTransaction }}</span><span class="ds-stat-l">Idle en tx</span></div>
+          <div class="ds-stat"><span class="ds-stat-n text-red-500">{{ act.blockedConnections }}</span><span class="ds-stat-l">Bloqueadas</span></div>
+          <div class="ds-stat"><span class="ds-stat-n">{{ act.maxConnections }}</span><span class="ds-stat-l">max_connections</span></div>
+        </div>
+
+        @if (pool(); as p) {
+          <p class="text-[11px] text-slate-400 mb-3">Pool DB Studio: {{ p.dbStudioConnections }} activas · min {{ p.poolMinSize }} / max {{ p.poolMaxSize }} · app "{{ p.applicationName }}"</p>
+        }
+
+        <div class="overflow-auto border border-slate-200 rounded-lg bg-white">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-50"><tr>
+              <th class="ds-th">PID</th><th class="ds-th">Usuario</th><th class="ds-th">App</th><th class="ds-th">Estado</th>
+              <th class="ds-th">Espera</th><th class="ds-th">Antigüedad</th><th class="ds-th">Query</th><th class="ds-th">Acciones</th>
+            </tr></thead>
+            <tbody>
+              @for (s of act.sessions; track s.pid) {
+                <tr class="hover:bg-slate-50" [ngClass]="{ 'ds-row-self': s.isCurrentSession }">
+                  <td class="ds-td font-mono">{{ s.pid }}@if (s.isCurrentSession) { <span class="text-[9px] text-ital-green"> (yo)</span> }</td>
+                  <td class="ds-td">{{ s.userName }}</td>
+                  <td class="ds-td text-slate-500 text-[11px]">{{ s.applicationName }}</td>
+                  <td class="ds-td"><span class="text-[11px] px-2 py-0.5 rounded-full" [class]="colorEstado(s.state)">{{ s.state }}</span></td>
+                  <td class="ds-td text-[11px] text-slate-500">{{ s.waitEventType || '—' }}</td>
+                  <td class="ds-td text-[11px]">{{ antiguedad(s.queryStart) }}</td>
+                  <td class="ds-td max-w-sm truncate font-mono text-[11px] text-slate-500" [title]="s.query || ''">{{ s.query || '—' }}</td>
+                  <td class="ds-td whitespace-nowrap">
+                    @if (!s.isCurrentSession) {
+                      <button class="ds-btn !py-0.5 !px-2" (click)="cancelBackend(s.pid)" title="Cancelar consulta">⊘</button>
+                      <button class="ds-btn !py-0.5 !px-2 text-red-500" (click)="terminateBackend(s.pid)" title="Terminar sesión">✕</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
 </div>

@@ -18,7 +18,15 @@ public static class PermissionSeed
         // (Si los usas en tus pruebas)
         ("listarPermisos",     "Listar permisos"),
         ("crearUsuario",       "Crear usuario"),
-        ("verlote",            "Ver lote")
+        ("verlote",            "Ver lote"),
+        // Acciones sobre registros (seguimiento diario, inventario, etc.)
+        ("editar_registro",    "Editar registro"),
+        ("eliminar_registro",  "Eliminar registro"),
+        // DB Studio
+        ("db_studio.access",        "DB Studio: abrir el módulo (ver tablas con permiso)"),
+        ("db_studio.admin",         "DB Studio: acceso total (DDL, SQL arbitrario, concurrencia, grants)"),
+        ("db_studio.manage_grants", "DB Studio: administrar permisos por objeto"),
+        ("db_studio.concurrency",   "DB Studio: monitorear/controlar concurrencia")
     };
 
     public static async Task EnsureAsync(ZooSanMarinoContext ctx)

@@ -30,39 +30,48 @@
         </div>
       </div>
       <div class="mpp-header__actions">
+        <ng-container *appHasPermission="'movimientos_pollo_engorde.descargar_excel'">
+          <button
+            type="button"
+            class="btn-italfoods-secondary"
+            (click)="descargarExcel()"
+            [disabled]="!selectedGranjaId || (filteredMovimientos.length || 0) === 0"
+            [title]="!selectedGranjaId ? 'Selecciona una granja' : (filteredMovimientos.length || 0) === 0 ? 'No hay datos para exportar' : 'Descargar Excel'">
+            Descargar Excel
+          </button>
+        </ng-container>
+        <ng-container *appHasPermission="'movimientos_pollo_engorde.validar_ventas'">
+          <button
+            type="button"
+            class="btn-italfoods-secondary"
+            (click)="auditarVentas(true, false)"
+            [disabled]="!selectedGranjaId || loadingAuditoria"
+            [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Validar coherencia de ventas vs disponibilidad (sin cambios)'">
+            {{ loadingAuditoria ? 'Validando...' : 'Validar' }}
+          </button>
+        </ng-container>
+        <ng-container *appHasPermission="'movimientos_pollo_engorde.corregir_ventas'">
+          <button
+            type="button"
+            class="btn-italfoods-secondary"
+            (click)="solicitarAuditoriaFix()"
+            [disabled]="!selectedGranjaId || loadingAuditoria"
+            [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Validar y corregir sobreventas en Pendiente'">
+            Corregir
+          </button>
+        </ng-container>
+        <ng-container *appHasPermission="'movimientos_pollo_engorde.organizar_peso'">
+          <button
+            type="button"
+            class="btn-italfoods-secondary"
+            (click)="solicitarOrganizarPeso()"
+            [disabled]="!selectedGranjaId || loadingOrganizarPeso"
+            [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Recalcula el peso prorrateado por lote en todos los despachos de la granja'">
+            {{ loadingOrganizarPeso ? 'Organizando...' : 'Organizar Peso' }}
+          </button>
+        </ng-container>
         <button
-          type="button"
-          class="btn-italfoods-secondary"
-          (click)="descargarExcel()"
-          [disabled]="!selectedGranjaId || (filteredMovimientos.length || 0) === 0"
-          [title]="!selectedGranjaId ? 'Selecciona una granja' : (filteredMovimientos.length || 0) === 0 ? 'No hay datos para exportar' : 'Descargar Excel'">
-          Descargar Excel
-        </button>
-        <button
-          type="button"
-          class="btn-italfoods-secondary"
-          (click)="auditarVentas(true, false)"
-          [disabled]="!selectedGranjaId || loadingAuditoria"
-          [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Validar coherencia de ventas vs disponibilidad (sin cambios)'">
-          {{ loadingAuditoria ? 'Validando...' : 'Validar' }}
-        </button>
-        <button
-          type="button"
-          class="btn-italfoods-secondary"
-          (click)="solicitarAuditoriaFix()"
-          [disabled]="!selectedGranjaId || loadingAuditoria"
-          [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Validar y corregir sobreventas en Pendiente'">
-          Corregir
-        </button>
-        <button
-          type="button"
-          class="btn-italfoods-secondary"
-          (click)="solicitarOrganizarPeso()"
-          [disabled]="!selectedGranjaId || loadingOrganizarPeso"
-          [title]="!selectedGranjaId ? 'Selecciona una granja' : 'Recalcula el peso prorrateado por lote en todos los despachos de la granja'">
-          {{ loadingOrganizarPeso ? 'Organizando...' : 'Organizar Peso' }}
-        </button>
-        <button
+          *ngIf="!isPanama || hasLoteSelected"
           type="button"
           (click)="create()"
           class="btn-italfoods-primary"
@@ -77,6 +86,15 @@
                   : 'Nueva venta por granja (varios galpones/lotes en un despacho)'
           ">
           {{ hasLoteSelected ? 'Nuevo registro' : 'Nueva venta (granja)' }}
+        </button>
+        <button
+          *ngIf="isPanama && !hasLoteSelected"
+          type="button"
+          (click)="createPanama()"
+          class="btn-italfoods-primary"
+          [disabled]="!canOpenNuevoRegistro"
+          [title]="!selectedGranjaId ? 'Selecciona una granja' : lotesParaVentaGranjaList.length === 0 ? 'No hay lotes en esta granja' : 'Venta Panamá: despacho por galpón (asignación H/M sobre las mixtas)'">
+          Nueva venta Panamá
         </button>
       </div>
     </header>
@@ -475,6 +493,15 @@
   (close)="closeModal()"
   (save)="onMovimientoSaved($event)">
 </app-modal-movimiento-pollo-engorde>
+
+<app-modal-venta-panama
+  [isOpen]="modalPanamaOpen"
+  [granjaId]="selectedGranjaId"
+  [granjaNombre]="selectedGranjaName"
+  [lotesGranja]="lotesParaVentaGranjaList"
+  (close)="closePanama()"
+  (saved)="onVentaPanamaSaved($event)">
+</app-modal-venta-panama>
 
 <app-auditoria-ventas-modal
   [isOpen]="auditoriaModalOpen"

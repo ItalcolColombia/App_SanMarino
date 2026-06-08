@@ -123,6 +123,10 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<MapaPaso> MapaPasos => Set<MapaPaso>();
         public DbSet<MapaEjecucion> MapaEjecuciones => Set<MapaEjecucion>();
 
+        // DB Studio: permisos por objeto + bitácora
+        public DbSet<DbStudioObjectGrant> DbStudioObjectGrants => Set<DbStudioObjectGrant>();
+        public DbSet<DbStudioAudit> DbStudioAudits => Set<DbStudioAudit>();
+
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote
 

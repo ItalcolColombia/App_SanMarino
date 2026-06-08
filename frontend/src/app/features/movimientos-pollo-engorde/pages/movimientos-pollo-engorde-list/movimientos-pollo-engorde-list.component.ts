@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { finalize } from 'rxjs/operators';
-import * as XLSX from 'xlsx';
 import {
   MovimientoPolloEngordeService,
   MovimientoPolloEngordeDto,
@@ -24,30 +23,20 @@ import {
 } from '../../components/modal-movimiento-pollo-engorde/modal-movimiento-pollo-engorde.component';
 import { ToastService } from '../../../../shared/services/toast.service';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import {
+  LoteOption,
+  FilaDespachoGrupo,
+  FilaMovimientoSimple,
+  FilaTablaMovimiento
+} from '../../models/movimiento-tabla.model';
+import { construirFilasTabla } from '../../funciones/agrupar-despachos.funcion';
+import { exportarVentasExcel } from '../../funciones/exportar-ventas-excel.funcion';
+import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
+import { ModalVentaPanamaComponent } from '../../components/modal-venta-panama/modal-venta-panama.component';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 
-/** Opción del dropdown Lote (solo Ave Engorde). */
-export interface LoteOption {
-  value: string; // "ae-123"
-  tipo: 'ae';
-  id: number;
-  label: string;
-}
-
-/** Fila agrupada: varios movimientos de venta con el mismo número de despacho (mismo viaje). */
-export interface FilaDespachoGrupo {
-  kind: 'despacho-grupo';
-  clave: string;
-  numeroDespacho: string;
-  fechaMovimiento: string;
-  movimientos: MovimientoPolloEngordeDto[];
-}
-
-export interface FilaMovimientoSimple {
-  kind: 'simple';
-  movimiento: MovimientoPolloEngordeDto;
-}
-
-export type FilaTablaMovimiento = FilaDespachoGrupo | FilaMovimientoSimple;
+// Tipos movidos a models/; se re-exportan para no romper imports externos previos.
+export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovimiento };
 
 @Component({
   selector: 'app-movimientos-pollo-engorde-list',
@@ -58,6 +47,7 @@ export type FilaTablaMovimiento = FilaDespachoGrupo | FilaMovimientoSimple;
     ConfirmationModalComponent,
     AuditoriaVentasModalComponent,
     ModalMovimientoPolloEngordeComponent,
+    ModalVentaPanamaComponent,
     HasPermissionDirective
   ],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
@@ -104,6 +94,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   loading = false;
   error: string | null = null;
   modalOpen = false;
+  /** Modal de venta Panamá (solo visible/operable si el usuario activo es de Panamá). */
+  modalPanamaOpen = false;
   /** Sin lote seleccionado: venta desde granja (varios galpones/lotes en un despacho). */
   ventaPorGranjaMode = false;
   editingMovimiento: MovimientoPolloEngordeDto | null = null;
@@ -179,124 +171,15 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
 
   /** Filas de tabla: agrupa ventas con el mismo número de despacho (mismo viaje, varios lotes). */
   get filasTabla(): FilaTablaMovimiento[] {
-    return this.buildFilasTabla(this.filteredMovimientos);
+    return construirFilasTabla(this.filteredMovimientos);
   }
 
   constructor(
     private loteEngordeSvc: LoteEngordeService,
     private movimientoSvc: MovimientoPolloEngordeService,
-    private toastService: ToastService
+    private toastService: ToastService,
+    private countryFilter: CountryFilterService
   ) {}
-
-  private resumenAuditoriaTexto(res: AuditoriaVentasEngordeResponse): string {
-    const lotes = res.lotes ?? [];
-    const conExceso = lotes
-      .filter((l) => (l.excesoH + l.excesoM + l.excesoX) > 0)
-      .sort((a, b) => (b.excesoH + b.excesoM + b.excesoX) - (a.excesoH + a.excesoM + a.excesoX));
-
-    const fmt = (n: number) => new Intl.NumberFormat('es-CO').format(n ?? 0);
-    const pad = (s: string, w: number, dir: 'l' | 'r' = 'l') => {
-      const txt = s ?? '';
-      if (txt.length >= w) return txt.slice(0, w);
-      const spaces = ' '.repeat(w - txt.length);
-      return dir === 'r' ? spaces + txt : txt + spaces;
-    };
-    const row = (cols: Array<{ v: string; w: number; dir?: 'l' | 'r' }>) =>
-      cols.map((c) => pad(c.v, c.w, c.dir ?? 'l')).join(' | ').trimEnd();
-    const sep = (cols: Array<{ w: number }>) => cols.map((c) => '-'.repeat(c.w)).join('-+-');
-
-    const lines: string[] = [];
-    lines.push(res.mensaje || (res.ok ? 'OK' : 'Se encontraron inconsistencias.'));
-    lines.push('');
-    lines.push('RESUMEN');
-    const modo = res.aplicarCorreccion
-      ? 'CORRIGIÓ (solo Pendiente)'
-      : res.dryRun
-        ? 'VALIDACIÓN (sin cambios)'
-        : 'VALIDACIÓN';
-    const resumenCols = [
-      { v: 'Lotes auditados', w: 16 },
-      { v: String(lotes.length), w: 6, dir: 'r' as const },
-      { v: 'Con exceso', w: 10 },
-      { v: String(conExceso.length), w: 6, dir: 'r' as const },
-      { v: 'Modo', w: 6 },
-      { v: modo, w: 28 }
-    ];
-    lines.push(row(resumenCols));
-    lines.push(sep(resumenCols));
-
-    if (conExceso.length) {
-      lines.push('');
-      lines.push('DETALLE DE INCONSISTENCIAS (por lote)');
-      const tableCols = [
-        { v: 'Lote (ID · Nombre)', w: 26 },
-        { v: 'Límite H', w: 9, dir: 'r' as const },
-        { v: 'Límite M', w: 9, dir: 'r' as const },
-        { v: 'Comp H', w: 8, dir: 'r' as const },
-        { v: 'Comp M', w: 8, dir: 'r' as const },
-        { v: 'Pend H', w: 8, dir: 'r' as const },
-        { v: 'Pend M', w: 8, dir: 'r' as const },
-        { v: 'Exceso H', w: 9, dir: 'r' as const },
-        { v: 'Exceso M', w: 9, dir: 'r' as const },
-        { v: 'Corregible', w: 10 }
-      ];
-      lines.push(row(tableCols));
-      lines.push(sep(tableCols));
-
-      for (const l of conExceso.slice(0, 50)) {
-        const nombre = (l.loteNombre || '').trim();
-        const lotLabel = nombre ? `${l.loteAveEngordeId} · ${nombre}` : String(l.loteAveEngordeId);
-        lines.push(
-          row([
-            { v: lotLabel, w: 26 },
-            { v: fmt(l.maxVendibleH), w: 9, dir: 'r' },
-            { v: fmt(l.maxVendibleM), w: 9, dir: 'r' },
-            { v: fmt(l.vendidasCompletadoH), w: 8, dir: 'r' },
-            { v: fmt(l.vendidasCompletadoM), w: 8, dir: 'r' },
-            { v: fmt(l.vendidasPendienteH), w: 8, dir: 'r' },
-            { v: fmt(l.vendidasPendienteM), w: 8, dir: 'r' },
-            { v: fmt(l.excesoH), w: 9, dir: 'r' },
-            { v: fmt(l.excesoM), w: 9, dir: 'r' },
-            { v: l.autoCorregible ? 'Sí' : 'No', w: 10 }
-          ])
-        );
-
-        // Tabla de cálculo (explica de dónde sale el límite vendible)
-        lines.push(
-          row([
-            { v: '  Cálculo', w: 26 },
-            { v: `EncH ${fmt(l.encasetadasH)}`, w: 9 },
-            { v: `EncM ${fmt(l.encasetadasM)}`, w: 9 },
-            { v: `MortH ${fmt(l.mortCajaH + l.mortSegH)}`, w: 8 },
-            { v: `MortM ${fmt(l.mortCajaM + l.mortSegM)}`, w: 8 },
-            { v: `SelH ${fmt(l.selH)}`, w: 8 },
-            { v: `SelM ${fmt(l.selM)}`, w: 8 },
-            { v: `ErrH ${fmt(l.errSexH)}`, w: 9 },
-            { v: `ErrM ${fmt(l.errSexM)}`, w: 9 },
-            { v: `AsigH/M ${fmt(l.asignadasH)}/${fmt(l.asignadasM)}`, w: 10 }
-          ])
-        );
-
-        if (!l.autoCorregible) {
-          lines.push(`  Motivo: ${l.estado}. No hay ventas Pendiente para ajustar (el exceso viene de Completados u otra inconsistencia).`);
-        }
-      }
-      if (conExceso.length > 50) lines.push(`... y ${conExceso.length - 50} lote(s) más con exceso.`);
-    }
-
-    if ((res.acciones?.length || 0) > 0) {
-      lines.push('');
-      lines.push(`Acciones aplicadas (${res.acciones.length}):`);
-      for (const a of res.acciones.slice(0, 25)) {
-        lines.push(
-          `- ${a.numeroMovimiento} (ID ${a.movimientoId}) lote ${a.loteAveEngordeOrigenId}: ` +
-            `H/M/X ${a.antesH}/${a.antesM}/${a.antesX} → ${a.despuesH}/${a.despuesM}/${a.despuesX}`
-        );
-      }
-      if (res.acciones.length > 25) lines.push(`... y ${res.acciones.length - 25} acción(es) más.`);
-    }
-    return lines.join('\n');
-  }
 
   auditarVentas(dryRun: boolean, aplicarCorreccion: boolean): void {
     if (!this.selectedGranjaId) return;
@@ -819,6 +702,33 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     this.modalOpen = true;
   }
 
+  /** True si el usuario activo es de Panamá (habilita el botón/modal de venta Panamá). */
+  get isPanama(): boolean {
+    return this.countryFilter.isPanama();
+  }
+
+  /** Abre el modal de venta Panamá (despacho por galpón con asignación H/M sobre las mixtas). */
+  createPanama(): void {
+    if (!this.selectedGranjaId) return;
+    if (this.lotesParaVentaGranjaList.length === 0) return;
+    this.modalPanamaOpen = true;
+  }
+
+  closePanama(): void {
+    this.modalPanamaOpen = false;
+  }
+
+  onVentaPanamaSaved(count: number): void {
+    this.toastService.success(
+      `Venta Panamá registrada: ${this.formatearNumero(count)} movimiento(s) (uno por lote). Quedan pendientes de completar.`
+    );
+    this.closePanama();
+    if (this.selectedGranjaId) {
+      this.loadMovimientos();
+      this.refreshResumenIfLoteSelected();
+    }
+  }
+
   viewDetail(m: MovimientoPolloEngordeDto): void {
     this.movimientoSvc.getById(m.id).subscribe({
       next: (full) => {
@@ -1053,7 +963,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   formatearNumero(num: number): string {
-    return new Intl.NumberFormat('es-CO').format(num);
+    return fmtNumero(num);
   }
 
   descargarExcel(): void {
@@ -1063,66 +973,6 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       return;
     }
 
-    const headers = [
-      'Número movimiento',
-      'Despacho',
-      'Fecha',
-      'Tipo',
-      'Estado',
-      'Granja origen',
-      'Lote origen',
-      'Granja destino',
-      'Lote destino',
-      'Total aves',
-      'Hembras',
-      'Machos',
-      'Mixtas',
-      'Placa',
-      'Hora salida',
-      'Guía Agrocalidad',
-      'Conductor',
-      'Peso bruto',
-      'Peso tara',
-      'Peso neto',
-      'Prom. peso/ave',
-      'Observaciones'
-    ];
-
-    const data = rows.map((m) => {
-      const pesoBruto = m.pesoBruto ?? null;
-      const pesoTara = m.pesoTara ?? null;
-      const pesoNeto = pesoBruto != null && pesoTara != null ? pesoBruto - pesoTara : null;
-      const promPesoAve = pesoNeto != null && (m.totalAves ?? 0) > 0 ? pesoNeto / m.totalAves : null;
-      return [
-        m.numeroMovimiento ?? '',
-        (m.numeroDespacho ?? '').trim(),
-        this.fechaCorta(m.fechaMovimiento),
-        m.tipoMovimiento ?? '',
-        m.estado ?? '',
-        m.granjaOrigenNombre ?? '',
-        m.loteOrigenNombre ?? '',
-        m.granjaDestinoNombre ?? '',
-        m.loteDestinoNombre ?? '',
-        m.totalAves ?? 0,
-        m.cantidadHembras ?? 0,
-        m.cantidadMachos ?? 0,
-        m.cantidadMixtas ?? 0,
-        m.placa ?? '',
-        m.horaSalida ? String(m.horaSalida).slice(0, 5) : '',
-        m.guiaAgrocalidad ?? '',
-        m.conductor ?? '',
-        pesoBruto ?? '',
-        pesoTara ?? '',
-        pesoNeto ?? '',
-        promPesoAve != null ? Math.round(promPesoAve * 1000) / 1000 : '',
-        (m.observaciones ?? '').trim()
-      ];
-    });
-
-    const titleBase = 'Venta de Pollo Engorde';
-    const granja = (this.selectedGranjaName || '').trim();
-    const title = granja ? `${titleBase} — Granja: ${granja}` : titleBase;
-
     const filtros: string[] = [];
     if (this.selectedGalponId) filtros.push(`Galpón: ${this.selectedGalponNombre}`);
     if (this.selectedLoteValue) filtros.push(`Lote: ${this.selectedLoteNombre}`);
@@ -1130,24 +980,8 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
     if ((this.filtroEstado || '').trim()) filtros.push(`Estado: ${this.filtroEstado}`);
     if ((this.filtroBusqueda || '').trim()) filtros.push(`Búsqueda: ${this.filtroBusqueda.trim()}`);
 
-    const aoa: (string | number)[][] = [
-      [title],
-      ...(filtros.length ? [[`Filtros: ${filtros.join(' · ')}`]] : []),
-      [],
-      headers,
-      ...data
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
-
-    const safeGranja = (granja || 'granja').replace(/[\\/:*?"<>|]/g, '_');
-    const d = new Date();
-    const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    XLSX.writeFile(wb, `Venta_pollo_engorde_${safeGranja}_${stamp}.xlsx`);
+    exportarVentasExcel(rows, { granjaNombre: this.selectedGranjaName, filtros });
   }
-
   /** Total aves en lote Ave Engorde (hembras + machos + mixtas o avesEncasetadas). */
   totalAvesAveEngorde(l: LoteAveEngordeDto | null): number {
     if (!l) return 0;
@@ -1184,9 +1018,7 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
   }
 
   fechaCorta(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es');
+    return fmtFecha(iso);
   }
 
   trackById(_: number, m: MovimientoPolloEngordeDto): number {
@@ -1273,81 +1105,5 @@ export class MovimientosPolloEngordeListComponent implements OnInit {
       showCancel: true
     };
     this.showConfirmationModal = true;
-  }
-
-  private buildFilasTabla(list: MovimientoPolloEngordeDto[]): FilaTablaMovimiento[] {
-    // R3.4: se agrupa por factura_id (clave robusta del despacho). Fallback al número de
-    // despacho + fecha + granja para movimientos antiguos sin factura_id.
-    const puedeAgrupar = (m: MovimientoPolloEngordeDto) =>
-      m.tipoMovimiento === 'Venta' && (!!m.facturaId || !!(m.numeroDespacho ?? '').trim());
-
-    const grupoKey = (m: MovimientoPolloEngordeDto) =>
-      m.facturaId
-        ? `f|${m.facturaId}`
-        : `${(m.numeroDespacho ?? '').trim().toLowerCase()}|${this.fechaDiaISO(m.fechaMovimiento)}|${m.granjaOrigenId ?? 0}`;
-
-    const groups = new Map<string, MovimientoPolloEngordeDto[]>();
-    const sueltos: MovimientoPolloEngordeDto[] = [];
-
-    for (const m of list) {
-      if (!puedeAgrupar(m)) {
-        sueltos.push(m);
-        continue;
-      }
-      const k = grupoKey(m);
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k)!.push(m);
-    }
-
-    const filas: FilaTablaMovimiento[] = [];
-
-    for (const [, movs] of groups) {
-      if (movs.length >= 2) {
-        movs.sort((a, b) => (a.numeroMovimiento ?? '').localeCompare(b.numeroMovimiento ?? ''));
-        const clave = grupoKey(movs[0]);
-        filas.push({
-          kind: 'despacho-grupo',
-          clave,
-          numeroDespacho:
-            (movs[0].numeroDespacho ?? '').trim() ||
-            (movs[0].facturaId ? `Factura ${String(movs[0].facturaId).slice(0, 8)}` : ''),
-          fechaMovimiento: movs[0].fechaMovimiento,
-          movimientos: movs
-        });
-      } else {
-        sueltos.push(movs[0]);
-      }
-    }
-
-    sueltos.sort((a, b) => this.compareMovimientoFechaDesc(a, b));
-    for (const m of sueltos) {
-      filas.push({ kind: 'simple', movimiento: m });
-    }
-
-    filas.sort((a, b) => this.compareFilaTablaDesc(a, b));
-    return filas;
-  }
-
-  private fechaDiaISO(iso: string): string {
-    if (!iso) return '';
-    return iso.slice(0, 10);
-  }
-
-  private compareMovimientoFechaDesc(a: MovimientoPolloEngordeDto, b: MovimientoPolloEngordeDto): number {
-    const da = new Date(a.fechaMovimiento).getTime();
-    const db = new Date(b.fechaMovimiento).getTime();
-    if (db !== da) return db - da;
-    return (b.numeroMovimiento ?? '').localeCompare(a.numeroMovimiento ?? '');
-  }
-
-  private compareFilaTablaDesc(a: FilaTablaMovimiento, b: FilaTablaMovimiento): number {
-    const fa = a.kind === 'despacho-grupo' ? a.fechaMovimiento : a.movimiento.fechaMovimiento;
-    const fb = b.kind === 'despacho-grupo' ? b.fechaMovimiento : b.movimiento.fechaMovimiento;
-    const ta = new Date(fa).getTime();
-    const tb = new Date(fb).getTime();
-    if (tb !== ta) return tb - ta;
-    const na = a.kind === 'despacho-grupo' ? a.numeroDespacho : a.movimiento.numeroMovimiento;
-    const nb = b.kind === 'despacho-grupo' ? b.numeroDespacho : b.movimiento.numeroMovimiento;
-    return (nb ?? '').localeCompare(na ?? '');
   }
 }

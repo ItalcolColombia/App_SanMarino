@@ -32,5 +32,17 @@ public class LoteReproductoraAveEngorde
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
+    /// <summary>
+    /// True cuando un lote cerrado fue reabierto con una novedad para permitir eliminar registros.
+    /// Se resetea automáticamente al eliminar (el estado se recalcula y "recierra solo").
+    /// </summary>
+    public bool Reabierto { get; set; }
+    /// <summary>Motivo/novedad con la que se reabrió el lote cerrado.</summary>
+    public string? NovedadApertura { get; set; }
+    /// <summary>UserId que reabrió el lote (auditoría).</summary>
+    public int? ReabiertoPor { get; set; }
+    /// <summary>Fecha/hora de la reapertura (auditoría).</summary>
+    public DateTime? ReabiertoAt { get; set; }
+
     public LoteAveEngorde LoteAveEngorde { get; set; } = null!;
 }

@@ -17,51 +17,33 @@ import {
   CreateMovimientoPolloEngordeDto,
   CreateVentaGranjaDespachoDto,
   UpdateMovimientoPolloEngordeDto,
-  ResumenAvesLoteDto,
-  VentaGranjaDespachoLineaDto,
   AvesDisponiblesVentaLoteDto
 } from '../../services/movimiento-pollo-engorde.service';
 import { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engorde.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
+import {
+  LoteDestinoOption,
+  AvailableBirds,
+  VentaLineaGranja,
+  MovimientoPolloEngordeSaveDetail
+} from '../../models/venta-granja.model';
+import {
+  buildCreateDto as crearCreateDto,
+  buildUpdateDto as crearUpdateDto,
+  buildVentaGranjaDespachoDto as crearVentaGranjaDto,
+  MovimientoModalFormValue
+} from '../../funciones/mapear-movimiento-dto.funcion';
+import {
+  calcularProrateoPreview,
+  calcularProrateoTotales,
+  ProrateoRow,
+  ProrateoTotales
+} from '../../funciones/prorateo-peso.funcion';
+import { formatearNumero as fmtNumero, fechaCorta as fmtFecha } from '../../funciones/formato.funcion';
 
-export interface LoteDestinoOption {
-  value: string;
-  label: string;
-}
-
-export interface AvailableBirds {
-  total: number;
-  hembras?: number;
-  machos?: number;
-  mixtas?: number;
-}
-
-/** Una fila por lote en venta por granja (despacho multi-galpón). */
-export interface VentaLineaGranja {
-  loteId: number;
-  loteNombre: string;
-  galponId: string;
-  galponLabel: string;
-  maxH: number;
-  maxM: number;
-  maxX: number;
-  h: number;
-  m: number;
-  x: number;
-  /** Texto del input (solo dígitos); evita [value] numérico que pisa el cursor al escribir. */
-  hStr: string;
-  mStr: string;
-  xStr: string;
-  /** Breve aviso visual si el usuario intentó superar el máximo (se ajusta al tope). */
-  flashExcesoH?: boolean;
-  flashExcesoM?: boolean;
-  flashExcesoX?: boolean;
-}
-
-export interface MovimientoPolloEngordeSaveDetail {
-  ventaGranjaBatchCount?: number;
-}
+// Tipos movidos a models/; se re-exportan para no romper imports externos previos.
+export type { LoteDestinoOption, AvailableBirds, VentaLineaGranja, MovimientoPolloEngordeSaveDetail };
 
 @Component({
   selector: 'app-modal-movimiento-pollo-engorde',
@@ -209,19 +191,6 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
     private cdr: ChangeDetectorRef
   ) {
     this.buildForm();
-  }
-
-  /**
-   * Convierte YYYY-MM-DD (input date) a ISO estable sin desfase de zona horaria.
-   * Usamos mediodía UTC para evitar quedar en el día anterior/siguiente por offset.
-   */
-  private ymdToIsoUtcNoon(ymd: string | null | undefined): string | null {
-    const s = (ymd ?? '').trim();
-    if (!s) return null;
-    // Esperado: 2026-04-07
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return null;
-    return `${m[1]}-${m[2]}-${m[3]}T12:00:00Z`;
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -543,49 +512,12 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   private buildVentaGranjaDespachoDto(usuarioMovimientoId: number): CreateVentaGranjaDespachoDto | null {
-    const conQty = this.ventaLineasGranja.filter((l) => l.h + l.m + l.x > 0);
-    if (conQty.length === 0) return null;
-    const v = this.form.getRawValue();
-    const granjaId = this.lotesVentaGranja[0]?.granjaId ?? null;
-    const lineas: VentaGranjaDespachoLineaDto[] = [];
-    for (const linea of conQty) {
-      const lote = this.lotesVentaGranja.find((l) => l.loteAveEngordeId === linea.loteId);
-      if (!lote) return null;
-      const nid = lote.nucleoId != null && String(lote.nucleoId).trim() !== '' ? String(lote.nucleoId).trim() : null;
-      const gpid =
-        lote.galponId != null && String(lote.galponId).trim() !== '' ? String(lote.galponId).trim() : null;
-      lineas.push({
-        loteAveEngordeOrigenId: linea.loteId,
-        granjaOrigenId: lote.granjaId ?? null,
-        nucleoOrigenId: nid,
-        galponOrigenId: gpid,
-        cantidadHembras: linea.h,
-        cantidadMachos: linea.m,
-        cantidadMixtas: linea.x
-      });
-    }
-    return {
-      fechaMovimiento: this.ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString(),
-      tipoMovimiento: 'Venta',
-      granjaOrigenId: granjaId,
-      usuarioMovimientoId,
-      motivoMovimiento: v.motivoMovimiento || null,
-      observaciones: v.observaciones || null,
-      numeroDespacho: v.numeroDespacho || null,
-      edadAves: v.edadAves != null && v.edadAves !== '' ? Number(v.edadAves) : null,
-      totalPollosGalpon: v.totalPollosGalpon != null && v.totalPollosGalpon !== '' ? Number(v.totalPollosGalpon) : null,
-      raza: v.raza || null,
-      placa: v.placa || null,
-      horaSalida: v.horaSalida ? `${v.horaSalida}:00` : null,
-      guiaAgrocalidad: v.guiaAgrocalidad || null,
-      sellos: v.sellos || null,
-      ayuno: v.ayuno || null,
-      conductor: v.conductor || null,
-      pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null,
-      pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null,
+    return crearVentaGranjaDto(this.form.getRawValue() as MovimientoModalFormValue, {
+      ventaLineasGranja: this.ventaLineasGranja,
+      lotesVentaGranja: this.lotesVentaGranja,
       permitirSobrante: this.permitirSobrante,
-      lineas
-    };
+      usuarioMovimientoId
+    });
   }
 
   private loadVentaGranjaLineas(): void {
@@ -706,79 +638,15 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   private buildUpdateDto(): UpdateMovimientoPolloEngordeDto {
-    const v = this.form.getRawValue();
-    return {
-      fechaMovimiento: v.fechaMovimiento
-        ? (this.ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString())
-        : undefined,
-      tipoMovimiento: v.tipoMovimiento || undefined,
-      cantidadHembras: Number(v.cantidadHembras) ?? undefined,
-      cantidadMachos: Number(v.cantidadMachos) ?? undefined,
-      cantidadMixtas: Number(v.cantidadMixtas) ?? undefined,
-      motivoMovimiento: v.motivoMovimiento || undefined,
-      observaciones: v.observaciones || undefined,
-      numeroDespacho: v.numeroDespacho || undefined,
-      edadAves: v.edadAves != null && v.edadAves !== '' ? Number(v.edadAves) : undefined,
-      totalPollosGalpon: v.totalPollosGalpon != null && v.totalPollosGalpon !== '' ? Number(v.totalPollosGalpon) : undefined,
-      raza: v.raza || undefined,
-      placa: v.placa || undefined,
-      horaSalida: v.horaSalida ? `${v.horaSalida}:00` : undefined,
-      guiaAgrocalidad: v.guiaAgrocalidad || undefined,
-      sellos: v.sellos || undefined,
-      ayuno: v.ayuno || undefined,
-      conductor: v.conductor || undefined,
-      pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : undefined,
-      pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : undefined
-    };
+    return crearUpdateDto(this.form.getRawValue() as MovimientoModalFormValue);
   }
 
   private buildCreateDto(usuarioMovimientoId: number): CreateMovimientoPolloEngordeDto | null {
-    const v = this.form.getRawValue();
-    const origen = this.parseLoteValue(this.loteOrigenValue!);
-    if (!origen) return null;
-
-    const dest = this.isTipoVenta ? null : (v.loteDestinoValue ? this.parseLoteValue(v.loteDestinoValue) : null);
-
-    const dto: CreateMovimientoPolloEngordeDto = {
-      fechaMovimiento: this.ymdToIsoUtcNoon(v.fechaMovimiento) ?? new Date(v.fechaMovimiento).toISOString(),
-      tipoMovimiento: v.tipoMovimiento || 'Venta',
-      loteAveEngordeOrigenId: origen.tipo === 'ae' ? origen.id : null,
-      loteReproductoraAveEngordeOrigenId: origen.tipo === 'rae' ? origen.id : null,
-      loteAveEngordeDestinoId: dest?.tipo === 'ae' ? dest.id : null,
-      loteReproductoraAveEngordeDestinoId: dest?.tipo === 'rae' ? dest.id : null,
-      cantidadHembras: Number(v.cantidadHembras) || 0,
-      cantidadMachos: Number(v.cantidadMachos) || 0,
-      cantidadMixtas: Number(v.cantidadMixtas) || 0,
-      motivoMovimiento: v.motivoMovimiento || null,
-      observaciones: v.observaciones || null,
-      usuarioMovimientoId,
-      numeroDespacho: v.numeroDespacho || null,
-      edadAves: v.edadAves != null && v.edadAves !== '' ? Number(v.edadAves) : null,
-      totalPollosGalpon: v.totalPollosGalpon != null && v.totalPollosGalpon !== '' ? Number(v.totalPollosGalpon) : null,
-      raza: v.raza || null,
-      placa: v.placa || null,
-      horaSalida: v.horaSalida ? `${v.horaSalida}:00` : null,
-      guiaAgrocalidad: v.guiaAgrocalidad || null,
-      sellos: v.sellos || null,
-      ayuno: v.ayuno || null,
-      conductor: v.conductor || null,
-      pesoBruto: v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null,
-      pesoTara: v.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null
-    };
-    return dto;
-  }
-
-  private parseLoteValue(value: string): { tipo: 'ae' | 'rae'; id: number } | null {
-    if (!value) return null;
-    if (value.startsWith('ae-')) {
-      const id = parseInt(value.replace('ae-', ''), 10);
-      return isNaN(id) ? null : { tipo: 'ae', id };
-    }
-    if (value.startsWith('rae-')) {
-      const id = parseInt(value.replace('rae-', ''), 10);
-      return isNaN(id) ? null : { tipo: 'rae', id };
-    }
-    return null;
+    return crearCreateDto(this.form.getRawValue() as MovimientoModalFormValue, {
+      loteOrigenValue: this.loteOrigenValue!,
+      isTipoVenta: this.isTipoVenta,
+      usuarioMovimientoId
+    });
   }
 
   get totalAves(): number {
@@ -818,65 +686,20 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   /** Distribución proporcional de pesos por línea (espejo del algoritmo backend con ajuste de residuo). */
-  get prorateoPreview(): Array<{
-    galponLabel: string; loteNombre: string; aves: number; pct: number;
-    bruto: number | null; tara: number | null; neto: number | null;
-  }> {
-    const lineas = this.prorateoLineasActivas;
-    if (lineas.length < 2) return [];
+  get prorateoPreview(): ProrateoRow[] {
     const v = this.form?.getRawValue();
-    if (!v) return [];
-    const pesoBruto = v.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null;
-    const pesoTara  = v.pesoTara  != null && v.pesoTara  !== '' ? Number(v.pesoTara)  : null;
-    const pesoNeto  = pesoBruto != null && pesoTara != null ? pesoBruto - pesoTara : null;
-    const totalAves = lineas.reduce((s, l) => s + l.h + l.m + l.x, 0);
-
-    const rows = lineas.map(l => {
-      const aves   = l.h + l.m + l.x;
-      const factor = totalAves > 0 ? aves / totalAves : 0;
-      return {
-        galponLabel : l.galponLabel,
-        loteNombre  : l.loteNombre,
-        aves,
-        pct         : totalAves > 0 ? factor * 100 : 0,
-        bruto       : pesoBruto != null ? Math.round(pesoBruto * factor * 1000) / 1000 : null,
-        tara        : pesoTara  != null ? Math.round(pesoTara  * factor * 1000) / 1000 : null,
-        neto        : pesoNeto  != null ? Math.round(pesoNeto  * factor * 1000) / 1000 : null,
-      };
-    });
-
-    // Ajuste de residuo al lote con mayor cantidad de aves (espejo del backend)
-    if (pesoBruto != null) {
-      const maxIdx   = rows.reduce((mi, r, i, a) => r.aves > a[mi].aves ? i : mi, 0);
-      const resBruto = Math.round((pesoBruto - rows.reduce((s, r) => s + (r.bruto ?? 0), 0)) * 1000) / 1000;
-      const resTara  = pesoTara  != null ? Math.round((pesoTara  - rows.reduce((s, r) => s + (r.tara  ?? 0), 0)) * 1000) / 1000 : 0;
-      const resNeto  = pesoNeto  != null ? Math.round((pesoNeto  - rows.reduce((s, r) => s + (r.neto  ?? 0), 0)) * 1000) / 1000 : 0;
-      rows[maxIdx] = {
-        ...rows[maxIdx],
-        bruto: rows[maxIdx].bruto != null ? Math.round((rows[maxIdx].bruto + resBruto) * 1000) / 1000 : null,
-        tara : rows[maxIdx].tara  != null ? Math.round((rows[maxIdx].tara  + resTara)  * 1000) / 1000 : null,
-        neto : rows[maxIdx].neto  != null ? Math.round((rows[maxIdx].neto  + resNeto)  * 1000) / 1000 : null,
-      };
-    }
-    return rows;
+    const pesoBruto = v?.pesoBruto != null && v.pesoBruto !== '' ? Number(v.pesoBruto) : null;
+    const pesoTara = v?.pesoTara != null && v.pesoTara !== '' ? Number(v.pesoTara) : null;
+    return calcularProrateoPreview(this.prorateoLineasActivas, pesoBruto, pesoTara);
   }
 
   /** Fila de totales para la tabla de prorrateo. */
-  get prorateoTotales(): { aves: number; pct: number; bruto: number | null; tara: number | null; neto: number | null } {
-    const rows = this.prorateoPreview;
-    if (rows.length === 0) return { aves: 0, pct: 0, bruto: null, tara: null, neto: null };
-    const hayPeso = rows.some(r => r.bruto != null);
-    return {
-      aves  : rows.reduce((s, r) => s + r.aves, 0),
-      pct   : rows.reduce((s, r) => s + r.pct, 0),
-      bruto : hayPeso ? Math.round(rows.reduce((s, r) => s + (r.bruto ?? 0), 0) * 1000) / 1000 : null,
-      tara  : hayPeso ? Math.round(rows.reduce((s, r) => s + (r.tara  ?? 0), 0) * 1000) / 1000 : null,
-      neto  : hayPeso ? Math.round(rows.reduce((s, r) => s + (r.neto  ?? 0), 0) * 1000) / 1000 : null,
-    };
+  get prorateoTotales(): ProrateoTotales {
+    return calcularProrateoTotales(this.prorateoPreview);
   }
 
   formatearNumero(n: number): string {
-    return new Intl.NumberFormat('es-CO').format(n);
+    return fmtNumero(n);
   }
 
   /** Valor para vista solo lectura (detalle). */
@@ -891,9 +714,7 @@ export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestro
   }
 
   fechaCorta(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es');
+    return fmtFecha(iso);
   }
 
   get showDespachoEnDetalle(): boolean {

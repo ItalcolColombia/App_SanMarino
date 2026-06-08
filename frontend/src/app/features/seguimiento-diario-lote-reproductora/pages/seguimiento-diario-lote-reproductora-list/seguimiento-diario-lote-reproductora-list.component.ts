@@ -110,6 +110,21 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     return this.selectedReproductoraDetail?.estado === 'Cerrado';
   }
 
+  /** True si el lote cerrado fue reabierto con novedad (habilita eliminar). */
+  get isReabierto(): boolean {
+    return this.selectedReproductoraDetail?.reabierto === true;
+  }
+
+  /** Se puede eliminar si el lote está abierto, o si está cerrado pero reabierto con novedad. */
+  get puedeEliminar(): boolean {
+    return !this.isLoteReproductoraCerrado || this.isReabierto;
+  }
+
+  /** Modal de reapertura: pide la novedad (motivo) para reabrir un lote cerrado. */
+  reabrirModalOpen = false;
+  novedadInput = '';
+  reabriendo = false;
+
   /** True si ya se alcanzaron los 7 registros diarios del lote. */
   get isSeguimientoCompleto(): boolean {
     return this.seguimientos.length >= this.MAX_DIAS_SEGUIMIENTO;
@@ -412,9 +427,42 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   delete(id: number): void {
-    if (this.isLoteReproductoraCerrado) return;
+    if (!this.puedeEliminar) return;
     this.pendingDeleteId = id;
     this.confirmModalOpen = true;
+  }
+
+  /** Abre el modal para reabrir un lote cerrado capturando la novedad (motivo). */
+  openReabrir(): void {
+    if (!this.selectedLoteReproductoraId || !this.isLoteReproductoraCerrado || this.isReabierto) return;
+    this.novedadInput = '';
+    this.reabrirModalOpen = true;
+  }
+
+  cancelReabrir(): void {
+    this.reabrirModalOpen = false;
+    this.novedadInput = '';
+  }
+
+  confirmReabrir(): void {
+    const id = this.selectedLoteReproductoraId;
+    const novedad = (this.novedadInput || '').trim();
+    if (!id || !novedad || this.reabriendo) return;
+    this.reabriendo = true;
+    this.loteReproductoraSvc.reabrir(id, novedad).subscribe({
+      next: detail => {
+        this.selectedReproductoraDetail = detail;
+        this.reabrirModalOpen = false;
+        this.reabriendo = false;
+        this.novedadInput = '';
+        this.loteCerradoModalOpen = false;
+        this.toastService.success('Lote reabierto. Ahora puede eliminar registros.', 'Reapertura', 4000);
+      },
+      error: err => {
+        this.reabriendo = false;
+        this.toastService.error(err?.error?.detail || err?.message || 'No se pudo reabrir el lote.', 'Error', 6000);
+      }
+    });
   }
 
   onConfirmDelete(): void {
@@ -452,6 +500,21 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   trackById = (_: number, r: SeguimientoLoteLevanteDto) => r.id;
   trackByIdx = (i: number) => i;
+
+  /**
+   * Días de edad del lote en el momento de un registro.
+   * Día 1 = primer día después del encasetamiento.
+   * Devuelve null si alguna fecha no está disponible o la fecha es anterior al encasetamiento.
+   */
+  calcularEdad(fechaRegistro: string | Date | null | undefined): number | null {
+    const base = this.selectedReproductoraDetail?.fechaEncasetamiento;
+    if (!base || !fechaRegistro) return null;
+    const inicio = new Date(base);
+    const registro = new Date(fechaRegistro);
+    if (isNaN(inicio.getTime()) || isNaN(registro.getTime())) return null;
+    const dias = Math.round((registro.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+    return dias > 0 ? dias : null;
+  }
 
   private hasValue(v: unknown): boolean {
     if (v === null || v === undefined) return false;

@@ -229,7 +229,15 @@ export const appConfig: ApplicationConfig = {
           },
 
           // Gestión de Clientes
-          { path: 'clientes', component: ClienteListComponent }
+          { path: 'clientes', component: ClienteListComponent },
+
+          // DB Studio (ruta: /config/db-studio — coincide con la ruta del menú)
+          {
+            path: 'db-studio',
+            loadChildren: () =>
+              import('./features/db-studio/db-studio.module')
+                .then(m => m.DbStudioModule)
+          }
         ]
       },
       
@@ -275,15 +283,6 @@ export const appConfig: ApplicationConfig = {
         loadComponent: () =>
           import('./features/inventario/components/inventario-tabs/inventario-tabs.component')
             .then(m => m.InventarioTabsComponent)
-      },
-
-      // Módulo de DB Studio (lazy)
-      {
-        path: 'db-studio',
-        canActivate: [authGuard],
-        loadChildren: () =>
-          import('./features/db-studio/db-studio.module')
-            .then(m => m.DbStudioModule)
       },
 
       // Módulo de Traslados de Aves (lazy)

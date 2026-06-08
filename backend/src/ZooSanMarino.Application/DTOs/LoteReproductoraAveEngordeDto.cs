@@ -38,8 +38,15 @@ public record LoteReproductoraAveEngordeDto(
     /// <summary>True si ya completó los 7 días de recogida de datos.</summary>
     bool SieteDiasCompletos = false,
     /// <summary>Código reproductora editable por el usuario (distinto del ReproductoraId autogenerado).</summary>
-    string? CodigoReproductora = null
+    string? CodigoReproductora = null,
+    /// <summary>True si el lote (cerrado) fue reabierto con novedad para permitir eliminar registros.</summary>
+    bool Reabierto = false,
+    /// <summary>Novedad/motivo con que se reabrió el lote.</summary>
+    string? NovedadApertura = null
 );
+
+/// <summary>Request para reabrir un lote reproductora cerrado. La novedad es obligatoria.</summary>
+public record ReabrirLoteReproductoraDto(string Novedad);
 
 public record CreateLoteReproductoraAveEngordeDto(
     int LoteAveEngordeId,

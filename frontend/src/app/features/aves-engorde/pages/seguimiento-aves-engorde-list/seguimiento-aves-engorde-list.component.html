@@ -124,10 +124,16 @@
           <h3 class="pe-info-lote__block-title">Aves disponibles (para seguimiento pollo engorde)</h3>
           <p class="pe-info-lote-aves">{{ avesDisponiblesTotal | number:'1.0-0' }}</p>
           <div class="pe-info-lote-genero">
-            <span class="pe-genero-chip pe-genero-chip--h">🐔 Hembras: <strong>{{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}</strong></span>
-            <span class="pe-genero-chip pe-genero-chip--m">🐓 Machos: <strong>{{ avesDisponibles.machosDisponibles | number:'1.0-0' }}</strong></span>
+            <!-- Tras la devolución las aves NO se separan por género: se muestran como un único total MIXTO. -->
+            <span class="pe-genero-chip pe-genero-chip--mixto" *ngIf="avesDisponibles.avesDevueltas">
+              🐤 Mixto: <strong>{{ (avesDisponibles.mixtasDisponibles ?? (avesDisponibles.hembrasDisponibles + avesDisponibles.machosDisponibles)) | number:'1.0-0' }}</strong>
+            </span>
+            <ng-container *ngIf="!avesDisponibles.avesDevueltas">
+              <span class="pe-genero-chip pe-genero-chip--h">🐔 Hembras: <strong>{{ avesDisponibles.hembrasDisponibles | number:'1.0-0' }}</strong></span>
+              <span class="pe-genero-chip pe-genero-chip--m">🐓 Machos: <strong>{{ avesDisponibles.machosDisponibles | number:'1.0-0' }}</strong></span>
+            </ng-container>
           </div>
-          <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal > 0">Saldo de aves devueltas al lote tras completar los 7 días de los lotes reproductora (descontando mortalidad y selección registradas).</p>
+          <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal > 0">Saldo de aves devueltas al lote (mixto) tras completar los 7 días de los lotes reproductora (descontando mortalidad y selección registradas).</p>
           <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal === 0">Las aves están asignadas a los lotes reproductora. Al completar los 7 días de seguimiento en todos, las aves vivas se devolverán automáticamente al lote.</p>
         </div>
       </div>

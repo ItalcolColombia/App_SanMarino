@@ -1,501 +1,449 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using ZooSanMarino.Application.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 using ZooSanMarino.Application.DTOs;
+using ZooSanMarino.Application.Interfaces;
 
-namespace ZooSanMarino.API.Controllers
+namespace ZooSanMarino.API.Controllers;
+
+/// <summary>
+/// DB Studio: explorador/editor de base de datos embebido. La autorización se aplica
+/// EXPLÍCITAMENTE acá (las policies de ASP.NET están neutralizadas en este proyecto).
+/// Admin = todo; no-admin = solo objetos con grant (lectura o escritura de datos), sin DDL ni SQL arbitrario.
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class DbStudioController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize]
-    public class DbStudioController : ControllerBase
+    private readonly IDbStudioService _svc;
+    private readonly IDbStudioAuthorization _authz;
+    private readonly IDbStudioPermissionService _perms;
+    private readonly IDbStudioConcurrencyService _concurrency;
+    private readonly ILogger<DbStudioController> _logger;
+
+    public DbStudioController(
+        IDbStudioService svc,
+        IDbStudioAuthorization authz,
+        IDbStudioPermissionService perms,
+        IDbStudioConcurrencyService concurrency,
+        ILogger<DbStudioController> logger)
     {
-        private readonly IDbStudioService _dbStudioService;
-        private readonly ILogger<DbStudioController> _logger;
+        _svc = svc;
+        _authz = authz;
+        _perms = perms;
+        _concurrency = concurrency;
+        _logger = logger;
+    }
 
-        public DbStudioController(IDbStudioService dbStudioService, ILogger<DbStudioController> logger)
+    /// <summary>Ejecuta una acción ya autorizada, mapeando excepciones a códigos HTTP claros.</summary>
+    private async Task<ActionResult> Run(Func<Task<object?>> action)
+    {
+        try
         {
-            _dbStudioService = dbStudioService;
-            _logger = logger;
+            var result = await action();
+            return result is null ? Ok() : Ok(result);
         }
-
-        // ===================== ESQUEMAS =====================
-        [HttpGet("schemas")]
-        public async Task<ActionResult<IEnumerable<SchemaDto>>> GetSchemas()
+        catch (UnauthorizedAccessException ex)
         {
-            try
-            {
-                var schemas = await _dbStudioService.GetSchemasAsync();
-                return Ok(schemas);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener esquemas");
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
         }
-
-        // ===================== TABLAS =====================
-        [HttpGet("tables")]
-        public async Task<ActionResult<IEnumerable<TableDto>>> GetTables([FromQuery] string? schema = null)
+        catch (InvalidOperationException ex)
         {
-            try
-            {
-                var tables = await _dbStudioService.GetTablesAsync(schema);
-                return Ok(tables);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener tablas para esquema: {Schema}", schema);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
+            return BadRequest(new { message = ex.Message });
         }
-
-        [HttpGet("tables/{schema}/{table}/details")]
-        public async Task<ActionResult<TableDetailsDto>> GetTableDetails(string schema, string table)
+        catch (Exception ex)
         {
-            try
-            {
-                var details = await _dbStudioService.GetTableDetailsAsync(schema, table);
-                return Ok(details);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener detalles de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("tables/{schema}/{table}/columns")]
-        public async Task<ActionResult<IEnumerable<ColumnDto>>> GetTableColumns(string schema, string table)
-        {
-            try
-            {
-                var columns = await _dbStudioService.GetTableColumnsAsync(schema, table);
-                return Ok(columns);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener columnas de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("tables/{schema}/{table}/indexes")]
-        public async Task<ActionResult<IEnumerable<IndexDto>>> GetTableIndexes(string schema, string table)
-        {
-            try
-            {
-                var indexes = await _dbStudioService.GetTableIndexesAsync(schema, table);
-                return Ok(indexes);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener índices de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("tables/{schema}/{table}/foreign-keys")]
-        public async Task<ActionResult<IEnumerable<ForeignKeyDto>>> GetTableForeignKeys(string schema, string table)
-        {
-            try
-            {
-                var foreignKeys = await _dbStudioService.GetTableForeignKeysAsync(schema, table);
-                return Ok(foreignKeys);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener claves foráneas de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("tables/{schema}/{table}/stats")]
-        public async Task<ActionResult<TableStatsDto>> GetTableStats(string schema, string table)
-        {
-            try
-            {
-                var stats = await _dbStudioService.GetTableStatsAsync(schema, table);
-                return Ok(stats);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener estadísticas de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("tables/{schema}/{table}/preview")]
-        public async Task<ActionResult<QueryPageDto>> PreviewTable(string schema, string table, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
-        {
-            try
-            {
-                var preview = await _dbStudioService.PreviewTableAsync(schema, table, limit, offset);
-                return Ok(preview);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener preview de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== CONSULTAS SQL =====================
-        [HttpPost("query/select")]
-        public async Task<ActionResult<QueryPageDto>> ExecuteSelectQuery([FromBody] SelectQueryRequest request)
-        {
-            try
-            {
-                var result = await _dbStudioService.ExecuteSelectQueryAsync(request);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al ejecutar consulta SELECT");
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpPost("query/execute")]
-        public async Task<ActionResult<QueryResultDto>> ExecuteQuery([FromBody] ExecuteQueryRequest request)
-        {
-            try
-            {
-                var result = await _dbStudioService.ExecuteQueryAsync(request);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al ejecutar consulta");
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== CREACIÓN Y MODIFICACIÓN =====================
-        [HttpPost("tables")]
-        public async Task<ActionResult> CreateTable([FromBody] CreateTableRequest request)
-        {
-            try
-            {
-                await _dbStudioService.CreateTableAsync(request);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al crear tabla {Schema}.{Table}", request.Schema, request.Table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpDelete("tables/{schema}/{table}")]
-        public async Task<ActionResult> DropTable(string schema, string table, [FromQuery] bool cascade = false)
-        {
-            try
-            {
-                await _dbStudioService.DropTableAsync(schema, table, cascade);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al eliminar tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpPost("tables/{schema}/{table}/columns")]
-        public async Task<ActionResult> AddColumn(string schema, string table, [FromBody] AddColumnRequest request)
-        {
-            try
-            {
-                await _dbStudioService.AddColumnAsync(schema, table, request);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al agregar columna a tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpPatch("tables/{schema}/{table}/columns/{column}")]
-        public async Task<ActionResult> AlterColumn(string schema, string table, string column, [FromBody] AlterColumnRequest request)
-        {
-            try
-            {
-                await _dbStudioService.AlterColumnAsync(schema, table, column, request);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al modificar columna {Column} de tabla {Schema}.{Table}", column, schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpDelete("tables/{schema}/{table}/columns/{column}")]
-        public async Task<ActionResult> DropColumn(string schema, string table, string column)
-        {
-            try
-            {
-                await _dbStudioService.DropColumnAsync(schema, table, column);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al eliminar columna {Column} de tabla {Schema}.{Table}", column, schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== UTILIDADES =====================
-        [HttpGet("data-types")]
-        public async Task<ActionResult<IEnumerable<string>>> GetDataTypes()
-        {
-            try
-            {
-                var dataTypes = await _dbStudioService.GetDataTypesAsync();
-                return Ok(dataTypes);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener tipos de datos");
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpPost("validate-sql")]
-        public async Task<ActionResult<SqlValidationResult>> ValidateSql([FromBody] SqlValidationRequest request)
-        {
-            try
-            {
-                var result = await _dbStudioService.ValidateSqlAsync(request.Sql);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al validar SQL");
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("tables/{schema}/{table}/export")]
-        public async Task<IActionResult> ExportTable(string schema, string table, [FromQuery] string format = "sql")
-        {
-            try
-            {
-                var content = await _dbStudioService.ExportTableAsync(schema, table, format);
-                var contentType = format.ToLower() switch
-                {
-                    "csv" => "text/csv",
-                    "json" => "application/json",
-                    "sql" => "application/sql",
-                    _ => "application/octet-stream"
-                };
-
-                return File(content, contentType, $"{schema}_{table}.{format}");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al exportar tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== ÍNDICES =====================
-        [HttpPost("tables/{schema}/{table}/indexes")]
-        public async Task<ActionResult> CreateIndex(string schema, string table, [FromBody] CreateIndexRequest request)
-        {
-            try
-            {
-                await _dbStudioService.CreateIndexAsync(schema, table, request);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al crear índice en tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpDelete("tables/{schema}/{table}/indexes/{indexName}")]
-        public async Task<ActionResult> DropIndex(string schema, string table, string indexName)
-        {
-            try
-            {
-                await _dbStudioService.DropIndexAsync(schema, table, indexName);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al eliminar índice {IndexName} de tabla {Schema}.{Table}", indexName, schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== CLAVES FORÁNEAS =====================
-        [HttpPost("tables/{schema}/{table}/foreign-keys")]
-        public async Task<ActionResult> CreateForeignKey(string schema, string table, [FromBody] CreateForeignKeyRequest request)
-        {
-            try
-            {
-                await _dbStudioService.CreateForeignKeyAsync(schema, table, request);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al crear clave foránea en tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpDelete("tables/{schema}/{table}/foreign-keys/{fkName}")]
-        public async Task<ActionResult> DropForeignKey(string schema, string table, string fkName)
-        {
-            try
-            {
-                await _dbStudioService.DropForeignKeyAsync(schema, table, fkName);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al eliminar clave foránea {FkName} de tabla {Schema}.{Table}", fkName, schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== GESTIÓN DE DATOS =====================
-        [HttpPost("tables/{schema}/{table}/data")]
-        public async Task<ActionResult> InsertData(string schema, string table, [FromBody] InsertDataRequest request)
-        {
-            try
-            {
-                // Convertir Dictionary<string, object?> a Dictionary<string, object>
-                var rows = request.Rows.Select(row => 
-                    row.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty))
-                ).ToList();
-                await _dbStudioService.InsertDataAsync(schema, table, rows);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al insertar datos en tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpPatch("tables/{schema}/{table}/data")]
-        public async Task<ActionResult> UpdateData(string schema, string table, [FromBody] UpdateDataRequest request)
-        {
-            try
-            {
-                // Convertir Dictionary<string, object?> a Dictionary<string, object>
-                var data = request.Data.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
-                var where = request.Where.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
-                await _dbStudioService.UpdateDataAsync(schema, table, data, where);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al actualizar datos en tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpDelete("tables/{schema}/{table}/data")]
-        public async Task<ActionResult> DeleteData(string schema, string table, [FromBody] DeleteDataRequest request)
-        {
-            try
-            {
-                // Convertir Dictionary<string, object?> a Dictionary<string, object>
-                var where = request.Where.ToDictionary(kvp => kvp.Key, kvp => (object)(kvp.Value ?? string.Empty));
-                await _dbStudioService.DeleteDataAsync(schema, table, where);
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al eliminar datos de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== IMPORTACIÓN =====================
-        [HttpPost("tables/{schema}/{table}/import")]
-        [Consumes("multipart/form-data")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult> ImportTable(
-            string schema, 
-            string table, 
-            IFormFile file, 
-            [FromForm] string format = "csv")
-        {
-            try
-            {
-                if (file == null || file.Length == 0)
-                {
-                    return BadRequest(new { message = "Archivo no proporcionado" });
-                }
-
-                using var memoryStream = new MemoryStream();
-                await file.CopyToAsync(memoryStream);
-                var fileContent = memoryStream.ToArray();
-
-                await _dbStudioService.ImportTableAsync(schema, table, fileContent, format);
-                return Ok(new { message = "Datos importados exitosamente" });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al importar datos a tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        // ===================== ANÁLISIS Y DEPENDENCIAS =====================
-        [HttpGet("tables/{schema}/{table}/dependencies")]
-        public async Task<ActionResult<TableDependenciesDto>> GetTableDependencies(string schema, string table)
-        {
-            try
-            {
-                var dependencies = await _dbStudioService.GetTableDependenciesAsync(schema, table);
-                return Ok(dependencies);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al obtener dependencias de tabla {Schema}.{Table}", schema, table);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("database/analyze")]
-        public async Task<ActionResult<DatabaseAnalysisDto>> AnalyzeDatabase()
-        {
-            try
-            {
-                var analysis = await _dbStudioService.AnalyzeDatabaseAsync();
-                return Ok(analysis);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al analizar base de datos");
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
-        }
-
-        [HttpGet("schemas/{schema}/export")]
-        public async Task<IActionResult> ExportSchema(string schema)
-        {
-            try
-            {
-                var content = await _dbStudioService.ExportSchemaAsync(schema);
-                return File(content, "application/sql", $"{schema}_schema.sql");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error al exportar esquema {Schema}", schema);
-                return StatusCode(500, new { message = "Error interno del servidor" });
-            }
+            _logger.LogError(ex, "DbStudio error");
+            return StatusCode(500, new { message = ex.Message });
         }
     }
+
+    // ===================== ACCESO / PERMISOS PROPIOS =====================
+    [HttpGet("my-access")]
+    public Task<ActionResult> MyAccess() => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _authz.GetMyAccessAsync();
+    });
+
+    // ===================== ESQUEMAS =====================
+    [HttpGet("schemas")]
+    public Task<ActionResult> GetSchemas() => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _svc.GetSchemasAsync();
+    });
+
+    [HttpGet("schemas/{schema}/export")]
+    public async Task<IActionResult> ExportSchema(string schema)
+    {
+        try
+        {
+            await _authz.EnsureAdminAsync();
+            var content = await _svc.ExportSchemaAsync(schema);
+            return File(content, "application/sql", $"{schema}_schema.sql");
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex) { _logger.LogError(ex, "ExportSchema"); return StatusCode(500, new { message = "Error interno" }); }
+    }
+
+    // ===================== TABLAS =====================
+    [HttpGet("tables")]
+    public Task<ActionResult> GetTables([FromQuery] string? schema = null) => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _svc.GetTablesAsync(schema);
+    });
+
+    [HttpGet("tables/{schema}/{table}/details")]
+    public Task<ActionResult> GetTableDetails(string schema, string table) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.GetTableDetailsAsync(schema, table);
+    });
+
+    [HttpGet("tables/{schema}/{table}/columns")]
+    public Task<ActionResult> GetTableColumns(string schema, string table) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.GetTableColumnsAsync(schema, table);
+    });
+
+    [HttpGet("tables/{schema}/{table}/indexes")]
+    public Task<ActionResult> GetTableIndexes(string schema, string table) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.GetTableIndexesAsync(schema, table);
+    });
+
+    [HttpGet("tables/{schema}/{table}/foreign-keys")]
+    public Task<ActionResult> GetTableForeignKeys(string schema, string table) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.GetTableForeignKeysAsync(schema, table);
+    });
+
+    [HttpGet("tables/{schema}/{table}/stats")]
+    public Task<ActionResult> GetTableStats(string schema, string table) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.GetTableStatsAsync(schema, table);
+    });
+
+    [HttpGet("tables/{schema}/{table}/preview")]
+    public Task<ActionResult> PreviewTable(string schema, string table, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
+        => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.PreviewTableAsync(schema, table, limit, offset);
+    });
+
+    [HttpGet("tables/{schema}/{table}/dependencies")]
+    public Task<ActionResult> GetTableDependencies(string schema, string table) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, table);
+        return (object?)await _svc.GetTableDependenciesAsync(schema, table);
+    });
+
+    // ===================== VISTAS =====================
+    [HttpGet("views")]
+    public Task<ActionResult> GetViews([FromQuery] string? schema = null) => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _svc.GetViewsAsync(schema);
+    });
+
+    [HttpGet("views/{schema}/{name}/definition")]
+    public Task<ActionResult> GetViewDefinition(string schema, string name) => Run(async () =>
+    {
+        await _authz.EnsureCanReadAsync(schema, name);
+        return (object?)new { definition = await _svc.GetViewDefinitionAsync(schema, name) };
+    });
+
+    [HttpPost("views")]
+    public Task<ActionResult> CreateOrReplaceView([FromBody] CreateViewRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.CreateOrReplaceViewAsync(request);
+        return (object?)null;
+    });
+
+    [HttpDelete("views/{schema}/{name}")]
+    public Task<ActionResult> DropView(string schema, string name, [FromQuery] bool materialized = false) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.DropViewAsync(schema, name, materialized);
+        return (object?)null;
+    });
+
+    // ===================== FUNCIONES (admin) =====================
+    [HttpGet("functions")]
+    public Task<ActionResult> GetFunctions([FromQuery] string? schema = null) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _svc.GetFunctionsAsync(schema);
+    });
+
+    [HttpGet("functions/{schema}/{name}/source")]
+    public Task<ActionResult> GetFunctionSource(string schema, string name) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _svc.GetFunctionSourceAsync(schema, name);
+    });
+
+    [HttpPost("functions")]
+    public Task<ActionResult> CreateOrReplaceRoutine([FromBody] CreateRoutineRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.CreateOrReplaceRoutineAsync(request);
+        return (object?)null;
+    });
+
+    // ===================== CONSULTAS SQL (admin) =====================
+    [HttpPost("query/select")]
+    public Task<ActionResult> ExecuteSelectQuery([FromBody] SelectQueryRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _svc.ExecuteSelectQueryAsync(request);
+    });
+
+    [HttpPost("query/execute")]
+    public Task<ActionResult> ExecuteQuery([FromBody] ExecuteQueryRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _svc.ExecuteQueryAsync(request);
+    });
+
+    [HttpPost("sql/execute")]
+    public Task<ActionResult> ExecuteSql([FromBody] ExecuteSqlRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _svc.ExecuteSqlAsync(request);
+    });
+
+    [HttpPost("sql/classify")]
+    public Task<ActionResult> ClassifySql([FromBody] SqlValidationRequest request) => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)_svc.ClassifySql(request.Sql);
+    });
+
+    [HttpPost("validate-sql")]
+    public Task<ActionResult> ValidateSql([FromBody] SqlValidationRequest request) => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _svc.ValidateSqlAsync(request.Sql);
+    });
+
+    // ===================== DDL (admin) =====================
+    [HttpPost("tables")]
+    public Task<ActionResult> CreateTable([FromBody] CreateTableRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.CreateTableAsync(request);
+        return (object?)null;
+    });
+
+    [HttpDelete("tables/{schema}/{table}")]
+    public Task<ActionResult> DropTable(string schema, string table, [FromQuery] bool cascade = false) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.DropTableAsync(schema, table, cascade);
+        return (object?)null;
+    });
+
+    [HttpPost("tables/{schema}/{table}/columns")]
+    public Task<ActionResult> AddColumn(string schema, string table, [FromBody] AddColumnRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.AddColumnAsync(schema, table, request);
+        return (object?)null;
+    });
+
+    [HttpPatch("tables/{schema}/{table}/columns/{column}")]
+    public Task<ActionResult> AlterColumn(string schema, string table, string column, [FromBody] AlterColumnRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.AlterColumnAsync(schema, table, column, request);
+        return (object?)null;
+    });
+
+    [HttpDelete("tables/{schema}/{table}/columns/{column}")]
+    public Task<ActionResult> DropColumn(string schema, string table, string column) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.DropColumnAsync(schema, table, column);
+        return (object?)null;
+    });
+
+    [HttpPost("tables/{schema}/{table}/indexes")]
+    public Task<ActionResult> CreateIndex(string schema, string table, [FromBody] CreateIndexRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.CreateIndexAsync(schema, table, request);
+        return (object?)null;
+    });
+
+    [HttpDelete("tables/{schema}/{table}/indexes/{indexName}")]
+    public Task<ActionResult> DropIndex(string schema, string table, string indexName) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.DropIndexAsync(schema, table, indexName);
+        return (object?)null;
+    });
+
+    [HttpPost("tables/{schema}/{table}/foreign-keys")]
+    public Task<ActionResult> CreateForeignKey(string schema, string table, [FromBody] CreateForeignKeyRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.CreateForeignKeyAsync(schema, table, request);
+        return (object?)null;
+    });
+
+    [HttpDelete("tables/{schema}/{table}/foreign-keys/{fkName}")]
+    public Task<ActionResult> DropForeignKey(string schema, string table, string fkName) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _svc.DropForeignKeyAsync(schema, table, fkName);
+        return (object?)null;
+    });
+
+    // ===================== DATOS (grant write) =====================
+    [HttpPost("tables/{schema}/{table}/data")]
+    public Task<ActionResult> InsertData(string schema, string table, [FromBody] InsertDataRequest request) => Run(async () =>
+    {
+        await _authz.EnsureCanWriteDataAsync(schema, table);
+        var rows = request.Rows.Select(r => r.ToDictionary(kvp => kvp.Key, kvp => kvp.Value ?? (object)DBNull.Value)).ToList();
+        await _svc.InsertDataAsync(schema, table, rows);
+        return (object?)null;
+    });
+
+    [HttpPatch("tables/{schema}/{table}/data")]
+    public Task<ActionResult> UpdateData(string schema, string table, [FromBody] UpdateDataRequest request) => Run(async () =>
+    {
+        await _authz.EnsureCanWriteDataAsync(schema, table);
+        var data = request.Data.ToDictionary(k => k.Key, v => v.Value ?? (object)DBNull.Value);
+        var where = request.Where.ToDictionary(k => k.Key, v => v.Value ?? (object)DBNull.Value);
+        await _svc.UpdateDataAsync(schema, table, data, where);
+        return (object?)null;
+    });
+
+    [HttpDelete("tables/{schema}/{table}/data")]
+    public Task<ActionResult> DeleteData(string schema, string table, [FromBody] DeleteDataRequest request) => Run(async () =>
+    {
+        await _authz.EnsureCanWriteDataAsync(schema, table);
+        var where = request.Where.ToDictionary(k => k.Key, v => v.Value ?? (object)DBNull.Value);
+        await _svc.DeleteDataAsync(schema, table, where);
+        return (object?)null;
+    });
+
+    // ===================== EXPORT / IMPORT =====================
+    [HttpGet("tables/{schema}/{table}/export")]
+    public async Task<IActionResult> ExportTable(string schema, string table, [FromQuery] string format = "sql")
+    {
+        try
+        {
+            await _authz.EnsureCanReadAsync(schema, table);
+            var content = await _svc.ExportTableAsync(schema, table, format);
+            var contentType = format.ToLower() switch
+            {
+                "csv" => "text/csv",
+                "json" => "application/json",
+                _ => "application/sql"
+            };
+            return File(content, contentType, $"{schema}_{table}.{format}");
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex) { _logger.LogError(ex, "ExportTable"); return StatusCode(500, new { message = "Error interno" }); }
+    }
+
+    [HttpPost("tables/{schema}/{table}/import")]
+    [Consumes("multipart/form-data")]
+    public Task<ActionResult> ImportTable(string schema, string table, IFormFile file, [FromForm] string format = "csv") => Run(async () =>
+    {
+        await _authz.EnsureCanWriteDataAsync(schema, table);
+        if (file is null || file.Length == 0) throw new InvalidOperationException("Archivo no proporcionado.");
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        await _svc.ImportTableAsync(schema, table, ms.ToArray(), format);
+        return (object?)new { message = "Datos importados exitosamente" };
+    });
+
+    // ===================== ANÁLISIS / UTILIDADES =====================
+    [HttpGet("data-types")]
+    public Task<ActionResult> GetDataTypes() => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _svc.GetDataTypesAsync();
+    });
+
+    [HttpGet("database/analyze")]
+    public Task<ActionResult> AnalyzeDatabase() => Run(async () =>
+    {
+        await _authz.EnsureModuleAccessAsync();
+        return (object?)await _svc.AnalyzeDatabaseAsync();
+    });
+
+    // ===================== PERMISOS / GRANTS (admin) =====================
+    [HttpGet("grants")]
+    public Task<ActionResult> GetGrants([FromQuery] Guid? userId = null) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return userId.HasValue
+            ? (object?)await _perms.GetGrantsByUserAsync(userId.Value)
+            : (object?)await _perms.GetAllGrantsAsync();
+    });
+
+    [HttpPost("grants")]
+    public Task<ActionResult> UpsertGrant([FromBody] GrantRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _perms.UpsertGrantAsync(request);
+    });
+
+    [HttpDelete("grants/{grantId:long}")]
+    public Task<ActionResult> RevokeGrant(long grantId) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        await _perms.RevokeGrantAsync(grantId);
+        return (object?)null;
+    });
+
+    // ===================== CONCURRENCIA / HILOS (admin) =====================
+    [HttpGet("concurrency/activity")]
+    public Task<ActionResult> GetActivity() => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _concurrency.GetActivityAsync();
+    });
+
+    [HttpGet("concurrency/pool")]
+    public Task<ActionResult> GetPoolStats() => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _concurrency.GetPoolStatsAsync();
+    });
+
+    [HttpGet("concurrency/locks")]
+    public Task<ActionResult> GetLocks() => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)await _concurrency.GetLocksAsync();
+    });
+
+    [HttpPost("concurrency/cancel")]
+    public Task<ActionResult> CancelBackend([FromBody] ConcurrencyActionRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)new { cancelled = await _concurrency.CancelBackendAsync(request.Pid) };
+    });
+
+    [HttpPost("concurrency/terminate")]
+    public Task<ActionResult> TerminateBackend([FromBody] ConcurrencyActionRequest request) => Run(async () =>
+    {
+        await _authz.EnsureAdminAsync();
+        return (object?)new { terminated = await _concurrency.TerminateBackendAsync(request.Pid) };
+    });
 }

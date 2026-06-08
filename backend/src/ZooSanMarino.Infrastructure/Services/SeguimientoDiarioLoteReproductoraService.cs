@@ -297,6 +297,13 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         ent.KcalAveH = dto.KcalAveH;
         ent.ProtAveH = dto.ProtAveH;
         ent.UpdatedAt = DateTime.UtcNow;
+        // La entidad se cargó con una query con joins AsNoTracking → NO queda rastreada,
+        // por lo que asignar propiedades no emite UPDATE. Forzar el estado Modified para
+        // persistir TODAS las columnas (incl. fecha y jsonb) y disparar el trigger de cruce.
+        // Mismo patrón que SeguimientoAvesEngordeService.UpdateAsync.
+        _ctx.Entry(ent).State = EntityState.Modified;
+        _ctx.Entry(ent).Property(e => e.Metadata).IsModified = true;
+        _ctx.Entry(ent).Property(e => e.ItemsAdicionales).IsModified = true;
         await _ctx.SaveChangesAsync();
 
         // Ajustar inventario: consumir diferencia positiva, devolver diferencia negativa
@@ -349,6 +356,41 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
                          select s).SingleOrDefaultAsync();
         if (ent is null) return false;
 
+        // ── Guard de cierre: un lote cerrado solo permite eliminar si fue reabierto con novedad ──
+        const int MaxDiasSeguimiento = 7;
+        var loteRep = await _ctx.LoteReproductoraAveEngorde
+            .SingleOrDefaultAsync(l => l.Id == ent.LoteReproductoraAveEngordeId);
+        if (loteRep is not null)
+        {
+            var numRegistros = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+                .CountAsync(s => s.LoteReproductoraAveEngordeId == loteRep.Id);
+            var bajas = await _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+                .Where(s => s.LoteReproductoraAveEngordeId == loteRep.Id)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Mort = g.Sum(s => (s.MortalidadHembras ?? 0) + (s.MortalidadMachos ?? 0)),
+                    Sel = g.Sum(s => (s.SelH ?? 0) + (s.SelM ?? 0)),
+                    Err = g.Sum(s => (s.ErrorSexajeHembras ?? 0) + (s.ErrorSexajeMachos ?? 0))
+                })
+                .SingleOrDefaultAsync();
+            var ventas = await _ctx.MovimientoPolloEngorde
+                .Where(m => m.Estado != "Cancelado" && m.DeletedAt == null
+                    && (m.TipoMovimiento == "Venta" || m.TipoMovimiento == "Despacho" || m.TipoMovimiento == "Retiro")
+                    && m.LoteReproductoraAveEngordeOrigenId == loteRep.Id)
+                .SumAsync(m => (int?)(m.CantidadHembras + m.CantidadMachos + m.CantidadMixtas)) ?? 0;
+
+            var encaset = (loteRep.AvesInicioHembras ?? loteRep.H ?? 0)
+                        + (loteRep.AvesInicioMachos ?? loteRep.M ?? 0)
+                        + (loteRep.Mixtas ?? 0);
+            var avesActuales = Math.Max(0, encaset - (bajas?.Mort ?? 0) - (bajas?.Sel ?? 0) - (bajas?.Err ?? 0) - ventas);
+            var cerrado = avesActuales <= 0 || numRegistros >= MaxDiasSeguimiento;
+
+            if (cerrado && !loteRep.Reabierto)
+                throw new InvalidOperationException(
+                    "El lote reproductora está cerrado. Reábralo con una novedad para poder eliminar registros.");
+        }
+
         // Restituir stock antes de eliminar
         if (_inventarioGestionService != null && ent.Metadata != null)
         {
@@ -373,6 +415,15 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         }
 
         _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde.Remove(ent);
+
+        // "Recierra solo": al eliminar se consume la reapertura; el estado se recalcula.
+        // Se conserva novedad_apertura / reabierto_at como histórico del último motivo.
+        if (loteRep is not null && loteRep.Reabierto)
+        {
+            loteRep.Reabierto = false;
+            loteRep.UpdatedAt = DateTime.UtcNow;
+        }
+
         await _ctx.SaveChangesAsync();
         return true;
     }

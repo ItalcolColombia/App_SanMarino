@@ -385,6 +385,130 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.ToTable("company_pais", (string)null);
                 });
 
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.DbStudioAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("actor_email");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<string>("ObjectName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("object_name");
+
+                    b.Property<string>("ResultSummary")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("result_summary");
+
+                    b.Property<string>("SchemaName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("schema_name");
+
+                    b.Property<string>("SqlText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("sql_text");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean")
+                        .HasColumnName("success");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dbstudio_audit");
+
+                    b.HasIndex("ActorUserId")
+                        .HasDatabaseName("ix_dbstudio_audit_actor");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("ix_dbstudio_audit_created_at");
+
+                    b.ToTable("dbstudio_audit", "public");
+                });
+
+            modelBuilder.Entity("ZooSanMarino.Domain.Entities.DbStudioObjectGrant", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AccessLevel")
+                        .HasColumnType("integer")
+                        .HasColumnName("access_level");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("integer")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("granted_at_utc");
+
+                    b.Property<Guid>("GrantedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("granted_by_user_id");
+
+                    b.Property<string>("ObjectName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("object_name");
+
+                    b.Property<string>("SchemaName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("schema_name");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dbstudio_object_grant");
+
+                    b.HasIndex("UserId", "CompanyId", "SchemaName", "ObjectName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_dbstudio_grant_user_object");
+
+                    b.ToTable("dbstudio_object_grant", "public");
+                });
+
             modelBuilder.Entity("ZooSanMarino.Domain.Entities.Departamento", b =>
                 {
                     b.Property<int>("DepartamentoId")
@@ -4272,6 +4396,10 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("nombre_lote");
 
+                    b.Property<string>("NovedadApertura")
+                        .HasColumnType("text")
+                        .HasColumnName("novedad_apertura");
+
                     b.Property<decimal?>("PesoInicialH")
                         .HasPrecision(10, 3)
                         .HasColumnType("numeric(10,3)")
@@ -4286,6 +4414,20 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasPrecision(10, 3)
                         .HasColumnType("numeric(10,3)")
                         .HasColumnName("peso_mixto");
+
+                    b.Property<bool>("Reabierto")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("reabierto");
+
+                    b.Property<DateTime?>("ReabiertoAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reabierto_at");
+
+                    b.Property<int?>("ReabiertoPor")
+                        .HasColumnType("integer")
+                        .HasColumnName("reabierto_por");
 
                     b.Property<string>("ReproductoraId")
                         .IsRequired()
@@ -5169,6 +5311,12 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.Property<int?>("EdadAves")
                         .HasColumnType("integer")
                         .HasColumnName("edad_aves");
+
+                    b.Property<bool>("EsVentaMixta")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("es_venta_mixta");
 
                     b.Property<string>("Estado")
                         .IsRequired()

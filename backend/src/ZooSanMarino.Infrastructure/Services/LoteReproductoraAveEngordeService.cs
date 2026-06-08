@@ -63,7 +63,9 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             avesActualesH,
             avesActualesM,
             num >= DiasRecogidaReproductora,
-            x.CodigoReproductora
+            x.CodigoReproductora,
+            x.Reabierto,
+            x.NovedadApertura
         );
     }
 
@@ -356,6 +358,39 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         return Map(ent, estado, avesActuales, stU);
     }
 
+    /// <summary>
+    /// Reabre un lote reproductora cerrado dejando registrada la novedad (motivo) y la auditoría.
+    /// Habilita la eliminación de registros de seguimiento. El estado vuelve a recalcularse
+    /// ("recierra solo") cuando se elimina un registro.
+    /// </summary>
+    public async Task<LoteReproductoraAveEngordeDto?> ReabrirAsync(int id, string novedad)
+    {
+        if (string.IsNullOrWhiteSpace(novedad))
+            throw new InvalidOperationException("La novedad es obligatoria para reabrir el lote.");
+
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var ent = await (from lrae in _ctx.LoteReproductoraAveEngorde
+                         join l in _ctx.LoteAveEngorde.AsNoTracking() on lrae.LoteAveEngordeId equals l.LoteAveEngordeId!.Value
+                         where l.CompanyId == companyId && l.DeletedAt == null && lrae.Id == id
+                         select lrae).SingleOrDefaultAsync();
+        if (ent is null) return null;
+
+        ent.Reabierto = true;
+        ent.NovedadApertura = novedad.Trim();
+        ent.ReabiertoPor = _current.UserId;
+        ent.ReabiertoAt = DateTime.UtcNow;
+        ent.UpdatedAt = DateTime.UtcNow;
+        await _ctx.SaveChangesAsync();
+
+        var ventas = (await GetVentasPorReproductoraAsync(new[] { id })).GetValueOrDefault(id, 0);
+        var st = (await GetReproStatsAsync(new[] { id })).GetValueOrDefault(id);
+        var mort = (st?.MortH ?? 0) + (st?.MortM ?? 0);
+        var sel  = (st?.SelH ?? 0) + (st?.SelM ?? 0);
+        var err  = (st?.ErrH ?? 0) + (st?.ErrM ?? 0);
+        var (estado, avesActuales) = CalcularEstado(AvesEncasetadas(ent), ventas, mort, sel, err, st?.Num ?? 0);
+        return Map(ent, estado, avesActuales, st);
+    }
+
     public async Task<bool> DeleteAsync(int id)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
@@ -472,7 +507,10 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             AsignadasHembras = asignadasH,
             AsignadasMachos = asignadasM,
             HembrasDisponibles = hembrasDisponibles,
-            MachosDisponibles = machosDisponibles
+            MachosDisponibles = machosDisponibles,
+            // Total mixto: las aves no se devuelven por género, se suman en un solo valor.
+            MixtasDisponibles = hembrasDisponibles + machosDisponibles,
+            AvesDevueltas = sieteDiasCompletos
         };
     }
 

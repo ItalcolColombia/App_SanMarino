@@ -76,6 +76,10 @@ export interface LoteReproductoraAveEngordeDto {
   readonly sieteDiasCompletos?: boolean;
   /** Código reproductora editable por el usuario */
   readonly codigoReproductora?: string | null;
+  /** True si el lote (cerrado) fue reabierto con novedad para permitir eliminar registros */
+  readonly reabierto?: boolean;
+  /** Novedad/motivo con que se reabrió el lote */
+  readonly novedadApertura?: string | null;
 }
 
 export interface CreateLoteReproductoraAveEngordeDto {
@@ -112,6 +116,10 @@ export interface AvesDisponiblesDto {
   readonly asignadasMachos?: number;
   readonly hembrasDisponibles: number;
   readonly machosDisponibles: number;
+  /** Total mixto = hembrasDisponibles + machosDisponibles (las aves no se devuelven por género) */
+  readonly mixtasDisponibles?: number;
+  /** True cuando ya se completaron los 7 días y las aves "regresaron" → mostrar mixto */
+  readonly avesDevueltas?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -167,6 +175,11 @@ export class LoteReproductoraAveEngordeService {
 
   getAvesDisponibles(loteAveEngordeId: number): Observable<AvesDisponiblesDto> {
     return this.http.get<AvesDisponiblesDto>(`${this.resource}/${loteAveEngordeId}/aves-disponibles`).pipe(catchError(this.handleError));
+  }
+
+  /** Reabre un lote cerrado con una novedad (motivo) para habilitar la eliminación de registros. */
+  reabrir(id: number, novedad: string): Observable<LoteReproductoraAveEngordeDto> {
+    return this.http.post<LoteReproductoraAveEngordeDto>(`${this.resource}/${id}/reabrir`, { novedad }).pipe(catchError(this.handleError));
   }
 
   /** Código único autogenerado: prefijo LR- + 10 dígitos, sin repetirse en el lote ni en exclude. */

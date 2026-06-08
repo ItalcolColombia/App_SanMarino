@@ -197,10 +197,19 @@
         <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="closed-icon">
           <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
         </svg>
-        <div>
-          <strong>Lote reproductora cerrado</strong>
-          <span>Solo consulta — no se pueden agregar ni editar registros de seguimiento.</span>
+        <div style="flex:1">
+          <strong>Lote reproductora cerrado<span *ngIf="isReabierto"> · Reabierto</span></strong>
+          <span *ngIf="!isReabierto">Solo consulta — reábralo con una novedad para poder eliminar registros.</span>
+          <span *ngIf="isReabierto">Reabierto con novedad: «{{ selectedReproductoraDetail.novedadApertura }}». Ya puede eliminar registros.</span>
         </div>
+        <button
+          type="button"
+          class="btn btn--primary"
+          *ngIf="!isReabierto"
+          (click)="openReabrir()"
+          title="Reabrir el lote con una novedad para eliminar registros">
+          Reabrir lote
+        </button>
       </div>
 
       <div class="info-card__body">
@@ -306,6 +315,7 @@
           <thead>
             <tr>
               <th scope="col" class="col-date" rowspan="2">Fecha</th>
+              <th scope="col" class="col-edad" rowspan="2" title="Edad del lote desde el encasetamiento al día del registro">Edad</th>
               <th scope="col" colspan="2" class="col-group">Mortalidad</th>
               <th scope="col" colspan="2" class="col-group">Selección</th>
               <th scope="col" colspan="2" class="col-group">Error sexaje</th>
@@ -332,7 +342,7 @@
           <tbody>
             <!-- Empty state -->
             <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)" class="data-table__empty-row">
-              <td colspan="15">
+              <td colspan="16">
                 <div class="empty-state">
                   <div class="empty-state__visual" aria-hidden="true">
                     <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -365,6 +375,17 @@
             <!-- Filas de datos -->
             <tr *ngFor="let s of seguimientos; trackBy: trackById" class="data-table__row">
               <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
+
+              <!-- Edad del lote en el registro (días desde encasetamiento) -->
+              <td class="cell-edad" data-label="Edad">
+                <ng-container *ngIf="calcularEdad(s.fechaRegistro) !== null; else sinEdad">
+                  <span class="edad-valor" [title]="'Días desde el encasetamiento'">
+                    {{ calcularEdad(s.fechaRegistro) }}
+                  </span>
+                  <span class="edad-label">días</span>
+                </ng-container>
+                <ng-template #sinEdad>—</ng-template>
+              </td>
 
               <!-- Mortalidad -->
               <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras != null ? s.mortalidadHembras : '—' }}</td>
@@ -435,8 +456,8 @@
                     type="button"
                     class="action-btn action-btn--delete"
                     (click)="delete(s.id)"
-                    [disabled]="isLoteReproductoraCerrado"
-                    [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede eliminar' : 'Eliminar registro'"
+                    [disabled]="!puedeEliminar"
+                    [title]="puedeEliminar ? 'Eliminar registro' : 'Lote cerrado: reábralo con una novedad para eliminar'"
                     aria-label="Eliminar">
                     <fa-icon [icon]="faTrash"></fa-icon>
                   </button>
@@ -540,3 +561,31 @@
   (confirmed)="loteCerradoModalOpen = false"
   (closed)="loteCerradoModalOpen = false">
 </app-confirmation-modal>
+
+<!-- Modal reapertura con novedad -->
+<div class="reabrir-overlay" *ngIf="reabrirModalOpen" (click)="cancelReabrir()">
+  <div class="reabrir-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="reabrir-title">
+    <h3 id="reabrir-title" class="reabrir-modal__title">Reabrir lote reproductora</h3>
+    <p class="reabrir-modal__desc">
+      Indique la <strong>novedad</strong> (motivo) por la que reabre este lote cerrado.
+      Quedará registrada como auditoría. Al eliminar un registro, el lote se cerrará nuevamente.
+    </p>
+    <label for="reabrir-novedad" class="reabrir-modal__label">Novedad</label>
+    <textarea
+      id="reabrir-novedad"
+      class="reabrir-modal__textarea"
+      rows="3"
+      [(ngModel)]="novedadInput"
+      placeholder="Ej.: Corrección de un registro cargado con datos errados."></textarea>
+    <div class="reabrir-modal__actions">
+      <button type="button" class="btn" (click)="cancelReabrir()" [disabled]="reabriendo">Cancelar</button>
+      <button
+        type="button"
+        class="btn btn--primary"
+        (click)="confirmReabrir()"
+        [disabled]="!novedadInput.trim() || reabriendo">
+        {{ reabriendo ? 'Reabriendo…' : 'Reabrir lote' }}
+      </button>
+    </div>
+  </div>
+</div>

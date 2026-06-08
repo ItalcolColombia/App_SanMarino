@@ -1,6 +1,10 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable } from 'rxjs';
+import type {
+  MyAccessDto, ObjectGrantDto, GrantRequest, ActivitySnapshot, PoolStats, LockDto,
+  SqlClassificationDto, ViewDto, FunctionDto, RoutineSourceDto, CreateViewRequest
+} from '../models/db-studio.models';
 
 const API = '/api/DbStudio';
 
@@ -377,5 +381,90 @@ export class DbStudioService {
     return this.http.get(`${API}/schemas/${encodeURIComponent(schema)}/export`, {
       responseType: 'blob'
     });
+  }
+
+  // ===================== ACCESO / VISTAS / FUNCIONES =====================
+
+  myAccess(): Observable<MyAccessDto> {
+    return this.http.get<MyAccessDto>(`${API}/my-access`);
+  }
+
+  getViews(schema?: string): Observable<ViewDto[]> {
+    const params = new HttpParams({ fromObject: schema ? { schema } : {} });
+    return this.http.get<ViewDto[]>(`${API}/views`, { params });
+  }
+
+  getViewDefinition(schema: string, name: string): Observable<{ definition: string }> {
+    return this.http.get<{ definition: string }>(`${API}/views/${encodeURIComponent(schema)}/${encodeURIComponent(name)}/definition`);
+  }
+
+  createView(req: CreateViewRequest): Observable<void> {
+    return this.http.post<void>(`${API}/views`, req);
+  }
+
+  dropView(schema: string, name: string, materialized = false): Observable<void> {
+    return this.http.delete<void>(`${API}/views/${encodeURIComponent(schema)}/${encodeURIComponent(name)}`, {
+      params: { materialized: String(materialized) }
+    });
+  }
+
+  getFunctions(schema?: string): Observable<FunctionDto[]> {
+    const params = new HttpParams({ fromObject: schema ? { schema } : {} });
+    return this.http.get<FunctionDto[]>(`${API}/functions`, { params });
+  }
+
+  getFunctionSource(schema: string, name: string): Observable<RoutineSourceDto> {
+    return this.http.get<RoutineSourceDto>(`${API}/functions/${encodeURIComponent(schema)}/${encodeURIComponent(name)}/source`);
+  }
+
+  createRoutine(definition: string, confirm = false): Observable<void> {
+    return this.http.post<void>(`${API}/functions`, { definition, confirm });
+  }
+
+  // ===================== SQL ARBITRARIO (admin) =====================
+
+  classifySql(sql: string): Observable<SqlClassificationDto> {
+    return this.http.post<SqlClassificationDto>(`${API}/sql/classify`, { sql });
+  }
+
+  executeSql(sql: string, confirm = false, params?: Record<string, unknown>): Observable<QueryResultDto> {
+    return this.http.post<QueryResultDto>(`${API}/sql/execute`, { sql: sql.trim(), confirm, params: params ?? {} });
+  }
+
+  // ===================== PERMISOS (admin) =====================
+
+  getGrants(userId?: string): Observable<ObjectGrantDto[]> {
+    const params = new HttpParams({ fromObject: userId ? { userId } : {} });
+    return this.http.get<ObjectGrantDto[]>(`${API}/grants`, { params });
+  }
+
+  upsertGrant(req: GrantRequest): Observable<ObjectGrantDto> {
+    return this.http.post<ObjectGrantDto>(`${API}/grants`, req);
+  }
+
+  revokeGrant(grantId: number): Observable<void> {
+    return this.http.delete<void>(`${API}/grants/${grantId}`);
+  }
+
+  // ===================== CONCURRENCIA (admin) =====================
+
+  getActivity(): Observable<ActivitySnapshot> {
+    return this.http.get<ActivitySnapshot>(`${API}/concurrency/activity`);
+  }
+
+  getPoolStats(): Observable<PoolStats> {
+    return this.http.get<PoolStats>(`${API}/concurrency/pool`);
+  }
+
+  getLocks(): Observable<LockDto[]> {
+    return this.http.get<LockDto[]>(`${API}/concurrency/locks`);
+  }
+
+  cancelBackend(pid: number): Observable<{ cancelled: boolean }> {
+    return this.http.post<{ cancelled: boolean }>(`${API}/concurrency/cancel`, { pid });
+  }
+
+  terminateBackend(pid: number): Observable<{ terminated: boolean }> {
+    return this.http.post<{ terminated: boolean }>(`${API}/concurrency/terminate`, { pid });
   }
 }

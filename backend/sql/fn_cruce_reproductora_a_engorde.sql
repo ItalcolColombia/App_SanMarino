@@ -82,6 +82,12 @@ BEGIN
                  THEN SUM(dia.aves_h * dia.peso_prom_hembras) / SUM(dia.aves_h)
             END                                                            AS peso_h,
             MAX(dia.fecha_reg)                                             AS fecha_reg,
+            -- Consumo de agua: se toma el valor DEL PRIMER lote reproductora (menor repro_id),
+            -- SIN sumar ni promediar (decisión 2026-06-05). Si hay un solo lote, es su propio valor.
+            (array_agg(dia.consumo_agua_diario       ORDER BY dia.repro_id))[1]  AS agua_diario,
+            (array_agg(dia.consumo_agua_ph           ORDER BY dia.repro_id))[1]  AS agua_ph,
+            (array_agg(dia.consumo_agua_orp          ORDER BY dia.repro_id))[1]  AS agua_orp,
+            (array_agg(dia.consumo_agua_temperatura  ORDER BY dia.repro_id))[1]  AS agua_temp,
             -- Nombre del alimento: en los reproductora viene "H: <nombre> / M: <nombre>"
             -- (mismo para H y M en los primeros 7 días). Se extrae un único nombre limpio.
             MAX(dia.tipo_alimento)                                         AS tipo_alimento,
@@ -115,6 +121,8 @@ BEGIN
                 s.mortalidad_machos, s.mortalidad_hembras,
                 s.sel_m, s.sel_h, s.error_sexaje_machos, s.error_sexaje_hembras,
                 s.peso_prom_machos, s.peso_prom_hembras,
+                s.consumo_agua_diario, s.consumo_agua_ph,
+                s.consumo_agua_orp, s.consumo_agua_temperatura,
                 s.tipo_alimento,
                 s.fecha::date AS fecha_reg
               FROM lote_reproductora_ave_engorde lr
@@ -140,12 +148,15 @@ BEGIN
                 sel_m, sel_h, error_sexaje_machos, error_sexaje_hembras,
                 consumo_kg_machos, consumo_kg_hembras,
                 peso_prom_machos, peso_prom_hembras,
+                consumo_agua_diario, consumo_agua_ph,
+                consumo_agua_orp, consumo_agua_temperatura,
                 tipo_alimento, ciclo, observaciones,
                 metadata, origen_cruce, created_by_user_id, created_at
             ) VALUES (
                 p_lote_ave_engorde_id, v_fecha_dest,
                 r.mort_m, r.mort_h, r.sel_m, r.sel_h, r.err_m, r.err_h,
                 r.consumo_m, r.consumo_h, r.peso_m, r.peso_h,
+                r.agua_diario, r.agua_ph, r.agua_orp, r.agua_temp,
                 -- Nombre del alimento limpio: "H: <nombre> / M: <nombre>" → "<nombre>".
                 -- Si no trae ese formato, se deja el texto tal cual.
                 CASE

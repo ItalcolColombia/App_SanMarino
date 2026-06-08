@@ -1,0 +1,142 @@
+<div class="modal-backdrop" *ngIf="isOpen" (click)="onClose()" role="button" tabindex="-1" aria-label="Cerrar"></div>
+<div class="modal-wrap" *ngIf="isOpen" role="dialog" aria-modal="true" aria-labelledby="vp-title">
+  <div class="modal vp-modal" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <div class="modal__header-content">
+        <h2 id="vp-title">Nueva venta Panamá</h2>
+        <span class="vp-badge">Panamá</span>
+      </div>
+      <button type="button" class="modal__close" (click)="onClose()" aria-label="Cerrar">&times;</button>
+    </div>
+
+    <form class="modal__body" [formGroup]="form" (ngSubmit)="onSubmit()">
+      <!-- Origen + galpón -->
+      <div class="vp-section">
+        <div class="vp-origen">
+          <span class="vp-origen__label">Granja</span>
+          <span class="vp-origen__value">{{ granjaNombre || '—' }}</span>
+        </div>
+        <div class="vp-field">
+          <label for="vp-galpon">Galpón del despacho</label>
+          <select id="vp-galpon" [ngModel]="selectedGalponId" [ngModelOptions]="{ standalone: true }"
+                  (ngModelChange)="onGalponChange($event)">
+            <option [ngValue]="null">— Selecciona galpón —</option>
+            <option *ngFor="let g of galpones" [ngValue]="g.id">{{ g.label }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Líneas por lote: asignar H/M sobre las mixtas -->
+      <div class="vp-section" *ngIf="selectedGalponId">
+        <p class="vp-hint">Las aves del galpón están en <strong>mixtas</strong>. Asigna cuántas vender como hembras y machos (el inventario se descuenta de las mixtas).</p>
+
+        <div class="vp-loading" *ngIf="loadingLineas">Cargando mixtas disponibles…</div>
+
+        <table class="vp-table" *ngIf="!loadingLineas && lineas.length">
+          <thead>
+            <tr>
+              <th>Lote</th>
+              <th class="num">Mixtas disp.</th>
+              <th class="num">Hembras</th>
+              <th class="num">Machos</th>
+              <th class="num">Total línea</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let l of lineas" [class.vp-row--exceso]="l.flashExceso">
+              <td>{{ l.loteNombre }}</td>
+              <td class="num">{{ formatearNumero(l.mixtasDisponibles) }}</td>
+              <td class="num">
+                <input type="text" inputmode="numeric" class="vp-input" [value]="l.hStr"
+                       (input)="onCantidadInput($event, l, 'h')" placeholder="0" />
+              </td>
+              <td class="num">
+                <input type="text" inputmode="numeric" class="vp-input" [value]="l.mStr"
+                       (input)="onCantidadInput($event, l, 'm')" placeholder="0" />
+              </td>
+              <td class="num vp-total-linea">{{ formatearNumero(l.h + l.m) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="vp-empty" *ngIf="!loadingLineas && !lineas.length">Este galpón no tiene lotes Ave Engorde.</p>
+      </div>
+
+      <!-- Datos del despacho -->
+      <div class="vp-section" *ngIf="selectedGalponId">
+        <h3 class="vp-section__title">Datos del despacho</h3>
+        <div class="vp-grid">
+          <div class="vp-field">
+            <label for="vp-fecha">Fecha *</label>
+            <input id="vp-fecha" type="date" formControlName="fechaMovimiento" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-despacho">N.º despacho</label>
+            <input id="vp-despacho" type="text" formControlName="numeroDespacho" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-edad">Edad (días)</label>
+            <input id="vp-edad" type="number" formControlName="edadAves" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-raza">Raza</label>
+            <input id="vp-raza" type="text" formControlName="raza" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-total">Total pollos galpón</label>
+            <input id="vp-total" type="number" formControlName="totalPollosGalpon" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-placa">Placa</label>
+            <input id="vp-placa" type="text" formControlName="placa" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-hora">Hora salida</label>
+            <input id="vp-hora" type="time" formControlName="horaSalida" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-guia">Guía</label>
+            <input id="vp-guia" type="text" formControlName="guiaAgrocalidad" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-sellos">Sellos</label>
+            <input id="vp-sellos" type="text" formControlName="sellos" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-ayuno">Ayuno</label>
+            <input id="vp-ayuno" type="text" formControlName="ayuno" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-conductor">Conductor</label>
+            <input id="vp-conductor" type="text" formControlName="conductor" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-bruto">Peso bruto</label>
+            <input id="vp-bruto" type="number" step="0.001" formControlName="pesoBruto" />
+          </div>
+          <div class="vp-field">
+            <label for="vp-tara">Peso tara</label>
+            <input id="vp-tara" type="number" step="0.001" formControlName="pesoTara" />
+          </div>
+          <div class="vp-field vp-field--wide">
+            <label for="vp-obs">Observaciones</label>
+            <input id="vp-obs" type="text" formControlName="observaciones" />
+          </div>
+        </div>
+      </div>
+
+      <p class="vp-error" *ngIf="error">{{ error }}</p>
+
+      <div class="modal__footer">
+        <span class="vp-footer-total" *ngIf="selectedGalponId">Total a vender: <strong>{{ formatearNumero(totalAsignado) }}</strong> aves</span>
+        <div class="vp-footer-actions">
+          <button type="button" class="btn-italfoods-secondary" (click)="onClose()" [disabled]="loading">Cancelar</button>
+          <button type="submit" class="btn-italfoods-primary"
+                  [disabled]="loading || loadingLineas || !hayLineasConCantidad">
+            {{ loading ? 'Guardando…' : 'Registrar venta Panamá' }}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

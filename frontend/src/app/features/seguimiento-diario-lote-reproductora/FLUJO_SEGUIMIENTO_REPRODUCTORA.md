@@ -2,15 +2,19 @@
 
 ## Dónde se guarda la información
 
+> ⚠️ **Actualizado 2026-06-05:** la tabla real es `seguimiento_diario_lote_reproductora_aves_engorde` (no `lote_seguimientos`). Esta tabla es la **fuente del cruce automático** hacia `seguimiento_diario_aves_engorde` (trigger `trg_cruce_reproductora_engorde`).
+
 | Capa | Ubicación |
 |------|-----------|
-| **Base de datos** | Tabla `public.lote_seguimientos` (PostgreSQL). |
-| **Entidad** | `ZooSanMarino.Domain.Entities.LoteSeguimiento`. |
-| **API** | `POST /api/LoteSeguimiento` (crear), `PUT /api/LoteSeguimiento/{id}` (actualizar), `GET /api/LoteSeguimiento` (listar/filtrar). |
-| **Controlador** | `backend/src/ZooSanMarino.API/Controllers/LoteSeguimientoController.cs`. |
-| **Servicio** | `backend/src/ZooSanMarino.Infrastructure/Services/LoteSeguimientoService.cs` → `CreateAsync` / `UpdateAsync` → `_ctx.LoteSeguimientos.Add(ent)` y `SaveChangesAsync()`. |
-| **Frontend servicio** | `features/seguimiento-diario-lote-reproductora/services/lote-seguimiento.service.ts` → `create(dto)` hace `POST` a `LoteSeguimiento`. |
-| **Modal** | `features/seguimiento-diario-lote-reproductora/pages/modal-seguimiento-reproductora/` construye el DTO y emite `save`; el listado llama a `segApi.create()`. |
+| **Base de datos** | Tabla `public.seguimiento_diario_lote_reproductora_aves_engorde` (PostgreSQL). FK a `lote_reproductora_ave_engorde.id`. |
+| **Entidad** | `ZooSanMarino.Domain.Entities.SeguimientoDiarioLoteReproductoraAvesEngorde`. |
+| **API** | `POST /api/SeguimientoDiarioLoteReproductora`, `PUT /api/SeguimientoDiarioLoteReproductora/{id}`, `GET .../por-lote-reproductora/{id}`, `DELETE .../{id}`. |
+| **Controlador** | `backend/src/ZooSanMarino.API/Controllers/SeguimientoDiarioLoteReproductoraController.cs`. |
+| **Servicio** | `backend/src/ZooSanMarino.Infrastructure/Services/SeguimientoDiarioLoteReproductoraService.cs`. `DeleteAsync` exige reapertura con novedad si el lote está cerrado. |
+| **Frontend servicio** | `features/seguimiento-diario-lote-reproductora/services/seguimiento-diario-lote-reproductora.service.ts`. |
+| **Modal** | `pages/modal-seguimiento-reproductora/` (reusa el modal de levante) construye el DTO y emite `save`. |
+
+**Reapertura (2026-06-05):** un lote cerrado puede reabrirse con una *novedad* (`POST /api/LoteReproductoraAveEngorde/{id}/reabrir`) para habilitar la eliminación de registros. Al eliminar, el trigger borra el registro espejo en `seguimiento_diario_aves_engorde` y el lote "recierra solo".
 
 **Restricción:** Cada registro de seguimiento debe tener un **Lote Reproductora** existente: existe una FK `(lote_id, reproductora_id)` → tabla `lote_reproductoras`. Si la reproductora no está creada para ese lote, el backend rechaza la petición.
 
