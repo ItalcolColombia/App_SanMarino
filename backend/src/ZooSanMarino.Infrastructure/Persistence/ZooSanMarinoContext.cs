@@ -17,6 +17,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
 
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Company> Companies { get; set; } = null!;
+        public DbSet<CompanyLogo> CompanyLogos { get; set; } = null!;
         public DbSet<Farm> Farms { get; set; } = null!;
         public DbSet<Nucleo> Nucleos { get; set; } = null!;
         public DbSet<Galpon> Galpones { get; set; } = null!;

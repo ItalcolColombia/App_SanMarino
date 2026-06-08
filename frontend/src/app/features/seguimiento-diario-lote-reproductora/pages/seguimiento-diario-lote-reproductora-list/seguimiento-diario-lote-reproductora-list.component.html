@@ -13,7 +13,7 @@
           </svg>
         </div>
         <div class="ux-header__text">
-          <h1 class="ux-header__title">Seguimiento Diario Reproductora</h1>
+          <h1 class="ux-header__title">Seguimiento Diario Reproductora Pollo Engorde</h1>
           <p class="ux-header__subtitle">Aves de engorde · Registro diario por lote reproductora</p>
         </div>
       </div>
@@ -519,31 +519,34 @@
      MODALES
 ══════════════════════════════════════════ -->
 
-<!-- Modal crear / editar seguimiento -->
-<app-modal-create-edit
+<!-- Modal crear / editar seguimiento (modal propio del módulo) -->
+<app-modal-seguimiento-reproductora
   [isOpen]="modalOpen"
-  [editing]="editing"
+  [editing]="editingModal"
   [lotes]="lotesParaModal"
-  [selectedLoteId]="selectedLoteReproductoraId"
+  [selectedLoteId]="selectedReproIdStr"
+  [selectedReproId]="selectedReproIdStr"
+  [farmId]="selectedGranjaId"
+  [galponId]="selectedGalponId"
+  [defaultFecha]="editingModal ? null : modalDefaultFecha"
+  [registrosCount]="seguimientos.length"
   [loading]="loading"
   [ctxGranja]="selectedGranjaName"
   [ctxNucleo]="selectedNucleoNombre || null"
   [ctxGalpon]="selectedGalponNombre || null"
   [ctxLoteEngorde]="selectedLoteNombre || null"
-  [ctxReproductora]="selectedReproductoraDetail?.nombreLote || null"
-  [ctxReproductoraCode]="selectedReproductoraDetail?.reproductoraId || null"
-  [defaultFechaRegistro]="editing ? null : modalDefaultFecha"
+  [ctxReproductora]="selectedLoteReproductoraNombre || null"
   (close)="cancel()"
   (save)="onSave($event)">
-</app-modal-create-edit>
+</app-modal-seguimiento-reproductora>
 
-<!-- Modal ver detalle -->
-<app-modal-detalle-seguimiento-levante
+<!-- Modal ver detalle (modal propio del módulo) -->
+<app-modal-detalle-seguimiento-reproductora
   [isOpen]="detailModalOpen"
   [seguimiento]="editing"
   [skipFetch]="true"
   (close)="detailModalOpen = false; editing = null;">
-</app-modal-detalle-seguimiento-levante>
+</app-modal-detalle-seguimiento-reproductora>
 
 <!-- Modal confirmación eliminar -->
 <app-confirmation-modal

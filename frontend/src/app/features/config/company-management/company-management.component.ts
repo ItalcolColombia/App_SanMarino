@@ -9,78 +9,52 @@ import {
   FormGroup,
   Validators
 } from '@angular/forms';
-
+import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
-  FontAwesomeModule,
-  FaIconLibrary
-} from '@fortawesome/angular-fontawesome';
-import {
-  faBuilding,
-  faMobileAlt,
-  faPen,
-  faTrash,
-  faPlus,
-  faAngleLeft,
-  faAngleRight,
-  faMagnifyingGlass,
-  faShieldHalved,
-  faEye,
-  faListUl
+  faBuilding, faMobileAlt, faPen, faTrash, faPlus,
+  faAngleLeft, faAngleRight, faMagnifyingGlass,
+  faShieldHalved, faEye, faListUl
 } from '@fortawesome/free-solid-svg-icons';
 
 import { finalize, Observable, forkJoin, of } from 'rxjs';
 import { switchMap, catchError, map } from 'rxjs/operators';
 
-// Servicios: company + master-list (tipos ID)
 import { CompanyService, Company } from '../../../core/services/company/company.service';
 import { TokenStorageService } from '../../../core/auth/token-storage.service';
 import { MasterListService } from '../../../core/services/master-list/master-list.service';
-
-// Servicios: geografía (IDs → nombres)
 import { CountryService, PaisDto } from '../../../core/services/country/country.service';
 import { DepartmentService, DepartamentoDto } from '../../../core/services/department/department.service';
 import { CityService, CityDto } from '../../../core/services/city/city.service';
-
-// Servicios: roles (paso 2)
 import { RoleService, Role } from '../../../core/services/role/role.service';
-// Servicio: empresa-país
 import { CompanyPaisService } from '../../../core/services/company-pais/company-pais.service';
-// Servicio: menú por empresa
 import { CompanyMenuService, CompanyMenuItem } from '../../../core/services/company-menu/company-menu.service';
 import { MenuService, MenuItem } from '../../../core/services/menu/menu.service';
+
+import { GeoMaps, GeoSelects } from './models/company-management.model';
+import { readLogoFile } from './funciones/logo.funcion';
+import {
+  buildGeoMaps, getStatesForCountry, getCitiesForDept, findCityIdByName,
+  resolveCountryCode, resolveDeptCode, resolveCityName, toNumOrNull
+} from './funciones/geo.funcion';
+import { filterRoles, getCombinedPermissions, getRolePermissions } from './funciones/roles.funcion';
+import { diffPaises, addPaisesOps } from './funciones/paises.funcion';
 
 @Component({
   selector: 'app-company-management',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    FormsModule,
-    RouterModule,
-    FontAwesomeModule
-  ],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, FontAwesomeModule],
   templateUrl: './company-management.component.html',
   styleUrls: ['./company-management.component.scss']
 })
 export class CompanyManagementComponent implements OnInit {
   // Icons
-  faBuilding = faBuilding;
-  faMobileAlt = faMobileAlt;
-  faPen = faPen;
-  faTrash = faTrash;
-  faPlus = faPlus;
-  faPrev = faAngleLeft;
-  faNext = faAngleRight;
-  faSearch = faMagnifyingGlass;
-  faShield = faShieldHalved;
-  faEye = faEye;
-  faListUl = faListUl;
+  faBuilding = faBuilding; faMobileAlt = faMobileAlt; faPen = faPen;
+  faTrash = faTrash; faPlus = faPlus; faPrev = faAngleLeft; faNext = faAngleRight;
+  faSearch = faMagnifyingGlass; faShield = faShieldHalved; faEye = faEye; faListUl = faListUl;
 
-  // Listado principal
+  // Listado
   list: Company[] = [];
-  filteredList: Company[] = []; // Lista filtrada para mostrar en tabla
-
-  // Filtro por país
+  filteredList: Company[] = [];
   filterPaisId: number | null = null;
 
   // Form / estado
@@ -95,34 +69,28 @@ export class CompanyManagementComponent implements OnInit {
   // Wizard
   step: 1 | 2 = 1;
 
-  // Geografía para selects (usando servicios)
-  countries: { code: string; name: string }[] = []; // code = paisId en string
-  states:    { code: string; name: string }[] = []; // code = departamentoId en string
-  cities:    string[] = [];                         // nombre de ciudad
-
-  // Lookups por ID para mostrar nombres legibles en tabla
+  // Geografía
+  geoMaps: GeoMaps = {
+    countryMapById: {},
+    deptMapById: {},
+    cityMapById: {},
+    deptByCountryId: new Map(),
+    cityByDeptId: new Map()
+  };
+  geoSelects: GeoSelects = { countries: [], states: [], cities: [] };
   geoCountries: PaisDto[] = [];
-  geoDepartments: DepartamentoDto[] = [];
-  geoCities: CityDto[] = [];
-  countryMapById: Record<number, string> = {};
-  deptMapById: Record<number, string> = {};
-  cityMapById: Record<number, string> = {};
-  deptByCountryId = new Map<number, DepartamentoDto[]>();
-  cityByDeptId   = new Map<number, CityDto[]>();
 
-  // Roles (paso 2)
+  // Roles
   roles: Role[] = [];
   rolesMap = new Map<number, Role>();
   roleIds: number[] = [];
   roleFilter = '';
   previewRoleId: number | null = null;
 
-  // Países asignados a la empresa (multi-selección)
+  // Países
   selectedPaisIds: number[] = [];
   availablePaises: PaisDto[] = [];
-
-  // Mapa de países por empresa (para mostrar en tabla)
-  companyPaisesMap: Map<number, PaisDto[]> = new Map();
+  companyPaisesMap = new Map<number, PaisDto[]>();
 
   // Módulos visuales
   allModules = [
@@ -131,18 +99,16 @@ export class CompanyManagementComponent implements OnInit {
     { key: 'farms',     label: 'Granjas'   },
     { key: 'users',     label: 'Usuarios'  }
   ];
-
-  // Tipos de identificación
   identificationOptions: string[] = [];
 
-  // Menú por empresa: modal ver
+  // Modal menú: ver
   menuViewModalOpen = false;
   menuViewCompanyName = '';
   menuViewCompanyId: number | null = null;
   menuViewTree: CompanyMenuItem[] = [];
   menuViewLoading = false;
 
-  // Menú por empresa: modal editar
+  // Modal menú: editar
   menuEditModalOpen = false;
   menuEditCompanyName = '';
   menuEditCompanyId: number | null = null;
@@ -156,7 +122,7 @@ export class CompanyManagementComponent implements OnInit {
   confirmDeleteId: number | null = null;
   confirmDeleteName = '';
 
-  // Toast de feedback (éxito / error)
+  // Toast
   toastVisible = false;
   toastType: 'success' | 'error' | 'info' = 'info';
   toastMessage = '';
@@ -185,7 +151,6 @@ export class CompanyManagementComponent implements OnInit {
 
   // ========= Lifecycle =========
   ngOnInit(): void {
-    // Form base (mantengo country/state/city como strings para compatibilidad con tu HTML)
     this.form = this.fb.group({
       id:            [null],
       name:          ['', Validators.required],
@@ -194,39 +159,28 @@ export class CompanyManagementComponent implements OnInit {
       address:       [''],
       phone:         [''],
       email:         ['', Validators.email],
-      country:       [''], // ← paisId como string (p.ej. "5")
-      state:         [''], // ← departamentoId como string (p.ej. "42")
-      city:          [''], // ← nombre de ciudad
+      country:       [''],
+      state:         [''],
+      city:          [''],
       visualPermissions: this.fb.group(
-        this.allModules.reduce((acc, mod) => {
-          acc[mod.key] = [false];
-          return acc;
-        }, {} as Record<string, any>)
+        this.allModules.reduce((acc, mod) => { acc[mod.key] = [false]; return acc; }, {} as Record<string, unknown>)
       ),
-      mobileAccess:  [false],
+      mobileAccess: [false]
     });
 
-    // Master list: tipos de ID
     this.mlSvc.getByKey('type_identit').subscribe({
       next: ml => this.identificationOptions = ml?.optionValues ?? (Array.isArray(ml?.options) ? (ml.options as { value?: string }[]).map(o => o?.value ?? '') : []),
-      error: err => console.error('No pude cargar tipos de identificación', err)
+      error: err => console.error('Error cargando tipos de identificación', err)
     });
 
-    // Carga geografía desde servicios (y construye mapas)
     this.loadGeographyLookups();
-
-    // Roles
     this.loadRoles();
-
-    // Empresas
     this.loadCompanies();
-
-    // Cargar países disponibles para selección
     this.loadAvailablePaises();
   }
 
-  // ========= Loads =========
-  private loadCompanies() {
+  // ========= Cargas =========
+  private loadCompanies(): void {
     this.loading = true;
     this.svc.getAll()
       .pipe(finalize(() => (this.loading = false)))
@@ -234,123 +188,42 @@ export class CompanyManagementComponent implements OnInit {
         next: list => {
           this.list = list || [];
           this.applyFilters();
-          // Cargar países asignados para cada empresa
           this.loadAllCompanyPaises();
         },
         error: err => console.error('Error cargando empresas', err)
       });
   }
 
-  private loadAllCompanyPaises() {
+  private loadAllCompanyPaises(): void {
     this.companyPaisesMap.clear();
-    const loadOps = this.list.map(company => {
-      if (!company.id) return of(null);
-      return this.companyPaisSvc.getPaisesByCompany(company.id).pipe(
-        map((paises: any[]) => {
-          if (company.id) {
-            this.companyPaisesMap.set(company.id, paises);
-          }
-          return null;
-        }),
-        catchError(err => {
-          console.warn(`Error cargando países para empresa ${company.id}:`, err);
-          return of(null);
-        })
-      );
-    });
-
-    if (loadOps.length > 0) {
-      forkJoin(loadOps).subscribe();
-    }
+    const ops = this.list
+      .filter(c => !!c.id)
+      .map(c => this.companyPaisSvc.getPaisesByCompany(c.id!).pipe(
+        map((paises: PaisDto[]) => { this.companyPaisesMap.set(c.id!, paises); return null; }),
+        catchError(() => of(null))
+      ));
+    if (ops.length) forkJoin(ops).subscribe();
   }
 
-  getCompanyPaises(companyId: number | undefined): PaisDto[] {
-    if (!companyId) return [];
-    return this.companyPaisesMap.get(companyId) || [];
-  }
-
-  getCompanyPaisesNames(companyId: number | undefined): string {
-    const paises = this.getCompanyPaises(companyId);
-    return paises.map(p => p.paisNombre).join(', ') || '—';
-  }
-
-  // ========= Filtros =========
-  applyFilters() {
-    let filtered = [...this.list];
-
-    // Filtro por país
-    if (this.filterPaisId !== null) {
-      filtered = filtered.filter(company => {
-        const paises = this.getCompanyPaises(company.id);
-        return paises.some(p => p.paisId === this.filterPaisId);
-      });
-    }
-
-    this.filteredList = filtered;
-  }
-
-  onFilterPaisChange(paisId: string | number | null) {
-    if (paisId === '' || paisId === null || paisId === undefined) {
-      this.filterPaisId = null;
-    } else {
-      this.filterPaisId = Number(paisId);
-    }
-    this.applyFilters();
-  }
-
-  clearFilters() {
-    this.filterPaisId = null;
-    this.applyFilters();
-  }
-
-  private loadGeographyLookups() {
-    // Países
-    this.countrySvc.getAll().subscribe({
-      next: list => {
-        this.geoCountries = list;
-        this.countryMapById = {};
-        this.countries = list.map(p => {
-          this.countryMapById[p.paisId] = p.paisNombre;
-          return { code: String(p.paisId), name: p.paisNombre };
-        });
+  private loadGeographyLookups(): void {
+    forkJoin({
+      paises: this.countrySvc.getAll(),
+      departamentos: this.deptSvc.getAll(),
+      municipios: this.citySvc.getAll()
+    }).subscribe({
+      next: ({ paises, departamentos, municipios }) => {
+        this.geoCountries = paises;
+        this.geoMaps = buildGeoMaps(paises, departamentos, municipios);
+        this.geoSelects = {
+          ...this.geoSelects,
+          countries: paises.map(p => ({ code: String(p.paisId), name: p.paisNombre }))
+        };
       },
-      error: err => console.error('Error cargando países (IDs)', err)
-    });
-
-    // Departamentos
-    this.deptSvc.getAll().subscribe({
-      next: list => {
-        this.geoDepartments = list;
-        this.deptMapById = {};
-        this.deptByCountryId = new Map<number, DepartamentoDto[]>();
-        for (const d of list) {
-          this.deptMapById[d.departamentoId] = d.departamentoNombre;
-          const arr = this.deptByCountryId.get(d.paisId) ?? [];
-          arr.push(d);
-          this.deptByCountryId.set(d.paisId, arr);
-        }
-      },
-      error: err => console.error('Error cargando departamentos (IDs)', err)
-    });
-
-    // Ciudades
-    this.citySvc.getAll().subscribe({
-      next: list => {
-        this.geoCities = list;
-        this.cityMapById = {};
-        this.cityByDeptId = new Map<number, CityDto[]>();
-        for (const m of list) {
-          this.cityMapById[m.municipioId] = m.municipioNombre;
-          const arr = this.cityByDeptId.get(m.departamentoId) ?? [];
-          arr.push(m);
-          this.cityByDeptId.set(m.departamentoId, arr);
-        }
-      },
-      error: err => console.error('Error cargando ciudades (IDs)', err)
+      error: err => console.error('Error cargando geografía', err)
     });
   }
 
-  private loadRoles() {
+  private loadRoles(): void {
     this.roleSvc.getAll().subscribe({
       next: list => {
         this.roles = list || [];
@@ -360,31 +233,74 @@ export class CompanyManagementComponent implements OnInit {
     });
   }
 
-  private loadAvailablePaises() {
+  private loadAvailablePaises(): void {
     this.countrySvc.getAll().subscribe({
-      next: list => {
-        this.availablePaises = list || [];
-      },
+      next: list => (this.availablePaises = list || []),
       error: err => console.error('Error cargando países disponibles', err)
     });
   }
 
-  private loadCompanyPaises(companyId: number) {
+  private loadCompanyPaises(companyId: number): void {
     this.companyPaisSvc.getPaisesByCompany(companyId).subscribe({
-      next: (paises: any[]) => {
-        this.selectedPaisIds = paises.map(p => p.paisId);
-      },
+      next: (paises: PaisDto[]) => (this.selectedPaisIds = paises.map(p => p.paisId)),
       error: err => console.error('Error cargando países de la empresa', err)
     });
   }
 
-  togglePais(paisId: number) {
-    const index = this.selectedPaisIds.indexOf(paisId);
-    if (index >= 0) {
-      this.selectedPaisIds.splice(index, 1);
-    } else {
-      this.selectedPaisIds.push(paisId);
+  // ========= Filtros =========
+  applyFilters(): void {
+    if (this.filterPaisId === null) {
+      this.filteredList = [...this.list];
+      return;
     }
+    this.filteredList = this.list.filter(c =>
+      this.getCompanyPaises(c.id).some(p => p.paisId === this.filterPaisId)
+    );
+  }
+
+  onFilterPaisChange(paisId: string | number | null): void {
+    this.filterPaisId = (paisId === '' || paisId === null || paisId === undefined)
+      ? null : Number(paisId);
+    this.applyFilters();
+  }
+
+  clearFilters(): void {
+    this.filterPaisId = null;
+    this.applyFilters();
+  }
+
+  getCompanyPaises(companyId: number | undefined): PaisDto[] {
+    if (!companyId) return [];
+    return this.companyPaisesMap.get(companyId) || [];
+  }
+
+  getCompanyPaisesNames(companyId: number | undefined): string {
+    return this.getCompanyPaises(companyId).map(p => p.paisNombre).join(', ') || '—';
+  }
+
+  // ========= Selects geografía =========
+  onCountryChange(code: string): void {
+    this.geoSelects = {
+      ...this.geoSelects,
+      states: getStatesForCountry(toNumOrNull(code), this.geoMaps),
+      cities: []
+    };
+    this.form.patchValue({ state: '', city: '' });
+  }
+
+  onStateChange(code: string): void {
+    this.geoSelects = {
+      ...this.geoSelects,
+      cities: getCitiesForDept(toNumOrNull(code), this.geoMaps)
+    };
+    this.form.patchValue({ city: '' });
+  }
+
+  // ========= Países empresa =========
+  togglePais(paisId: number): void {
+    const idx = this.selectedPaisIds.indexOf(paisId);
+    if (idx >= 0) this.selectedPaisIds.splice(idx, 1);
+    else this.selectedPaisIds.push(paisId);
   }
 
   isPaisSelected(paisId: number): boolean {
@@ -392,49 +308,35 @@ export class CompanyManagementComponent implements OnInit {
   }
 
   // ========= Wizard =========
-  nextStep() {
-    const required = ['name', 'identifier', 'documentType'];
-    required.forEach(k => this.form.get(k)?.markAsTouched());
-    if (required.some(k => this.form.get(k)?.invalid)) return;
+  nextStep(): void {
+    ['name', 'identifier', 'documentType'].forEach(k => this.form.get(k)?.markAsTouched());
+    if (['name', 'identifier', 'documentType'].some(k => this.form.get(k)?.invalid)) return;
     this.step = 2;
   }
-  prevStep() { this.step = 1; }
+  prevStep(): void { this.step = 1; }
 
   // ========= Modal =========
-  openModal(c?: Company) {
+  openModal(c?: Company): void {
     this.editing = !!c;
     this.step = 1;
     this.logoError = null;
     this.logoChanged = false;
     this.logoPreviewDataUrl = null;
-
-    // Reset roles UI
     this.roleIds = [];
     this.previewRoleId = null;
     this.roleFilter = '';
-
-    // Reset países seleccionados
     this.selectedPaisIds = [];
 
-    // Reset visualizar permisos
     const vp = this.form.get('visualPermissions') as FormGroup;
     Object.keys(vp.controls).forEach(k => vp.get(k)?.setValue(false));
 
     if (c?.id) {
-      // Al editar, cargar empresa por ID para tener logo y datos completos
       this.loading = true;
       this.svc.getById(c.id)
         .pipe(finalize(() => (this.loading = false)))
         .subscribe({
-          next: company => {
-            this.applyCompanyToModal(company);
-            this.modalOpen = true;
-          },
-          error: err => {
-            console.error('Error cargando empresa para editar', err);
-            this.applyCompanyToModal(c);
-            this.modalOpen = true;
-          }
+          next: company => { this.applyCompanyToModal(company); this.modalOpen = true; },
+          error: () => { this.applyCompanyToModal(c); this.modalOpen = true; }
         });
       return;
     }
@@ -442,47 +344,26 @@ export class CompanyManagementComponent implements OnInit {
     if (c) {
       this.applyCompanyToModal(c);
     } else {
-      // Nuevo
-      this.form.reset({
-        id: null,
-        name: '',
-        identifier: '',
-        documentType: '',
-        address: '',
-        phone: '',
-        email: '',
-        country: '',
-        state: '',
-        city: '',
-        mobileAccess: false
-      });
-      this.states = [];
-      this.cities = [];
+      this.form.reset({ id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '', country: '', state: '', city: '', mobileAccess: false });
+      this.geoSelects = { ...this.geoSelects, states: [], cities: [] };
     }
-
     this.modalOpen = true;
   }
 
-  private applyCompanyToModal(c: Company) {
+  private applyCompanyToModal(c: Company): void {
     this.logoPreviewDataUrl = c?.logoDataUrl ?? null;
 
-    const codeCountry = this.resolveCountryCode(c);
+    const codeCountry = resolveCountryCode((c as any)?.countryId, c.country);
     this.onCountryChange(codeCountry);
-    const codeDept = this.resolveDeptCode(c);
+    const codeDept = resolveDeptCode((c as any)?.departamentoId, c.state);
     this.onStateChange(codeDept);
-    const cityName = this.resolveCityName(c);
+    const cityName = resolveCityName((c as any)?.municipioId, c.city, this.geoMaps);
 
     this.form.patchValue({
-      id:           c.id ?? null,
-      name:         c.name ?? '',
-      identifier:   c.identifier ?? '',
-      documentType: c.documentType ?? '',
-      address:      c.address ?? '',
-      phone:        c.phone ?? '',
-      email:        c.email ?? '',
-      country:      codeCountry,
-      state:        codeDept,
-      city:         cityName,
+      id: c.id ?? null, name: c.name ?? '', identifier: c.identifier ?? '',
+      documentType: c.documentType ?? '', address: c.address ?? '',
+      phone: c.phone ?? '', email: c.email ?? '',
+      country: codeCountry, state: codeDept, city: cityName,
       mobileAccess: c.mobileAccess ?? false
     });
 
@@ -492,190 +373,111 @@ export class CompanyManagementComponent implements OnInit {
     }
 
     const existingRoleIds: number[] = (c as any)?.roleIds ?? [];
-    if (Array.isArray(existingRoleIds)) {
-      this.roleIds = [...existingRoleIds];
-    }
+    if (Array.isArray(existingRoleIds)) this.roleIds = [...existingRoleIds];
 
-    if (c.id) {
-      this.loadCompanyPaises(c.id);
-    }
+    if (c.id) this.loadCompanyPaises(c.id);
   }
 
-  closeModal() {
-    this.modalOpen = false;
-  }
+  closeModal(): void { this.modalOpen = false; }
 
+  // ========= Logo =========
   onLogoFileSelected(file: File | null): void {
     this.logoError = null;
     if (!file) return;
 
-    if (!file.type?.startsWith('image/')) {
-      this.logoError = 'Seleccione un archivo de imagen (PNG/JPG).';
-      return;
-    }
-    // 512 KB (alineado con backend)
-    if (file.size > 512 * 1024) {
-      this.logoError = 'El logo supera 512 KB. Use una imagen más liviana.';
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      this.logoPreviewDataUrl = typeof result === 'string' ? result : null;
+    readLogoFile(file).then(result => {
+      if (result.error) { this.logoError = result.error; return; }
+      this.logoPreviewDataUrl = result.dataUrl;
       this.logoChanged = true;
-    };
-    reader.onerror = () => {
-      this.logoError = 'No se pudo leer la imagen.';
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   clearLogo(): void {
     this.logoPreviewDataUrl = null;
-    this.logoChanged = true; // enviará "" para borrar
+    this.logoChanged = true;
     this.logoError = null;
   }
 
   // ========= Guardado =========
-  save() {
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    // Validar que se haya seleccionado al menos un país
+  save(): void {
+    if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     if (this.selectedPaisIds.length === 0) {
       this.showToast('error', 'Debe seleccionar al menos un país para la empresa');
       return;
     }
 
     const v = this.form.getRawValue();
-
-    // Visual permissions a array
     const vp: string[] = Object.entries(v.visualPermissions || {})
-      .filter(([_, ok]) => !!ok)
+      .filter(([, ok]) => !!ok)
       .map(([key]) => key);
 
-    // Payload (mantengo compatibilidad con tus propiedades actuales)
+    const stateNum = toNumOrNull(v.state);
     const payload: any = {
-      id:            v.id,
-      name:          v.name,
-      identifier:    v.identifier,
-      documentType:  v.documentType,
-      address:       v.address,
-      phone:         v.phone,
-      email:         v.email,
-      // Guardamos los "códigos" (ids en string) y city por nombre
-      country:       v.country,
-      state:         v.state,
-      city:          v.city,
-      visualPermissions: vp,
-      mobileAccess:  v.mobileAccess,
-      // NUEVO: roles asignados
-      roleIds:       this.roleIds,
-      // Opcional: si tu backend ya espera IDs numéricos, puedes enviar además:
-      countryId:      this.toNumOrNull(v.country),
-      departamentoId: this.toNumOrNull(v.state),
-      municipioId:    this.findCityIdByName(this.toNumOrNull(v.state), v.city)
+      id: v.id, name: v.name, identifier: v.identifier,
+      documentType: v.documentType, address: v.address,
+      phone: v.phone, email: v.email,
+      country: v.country, state: v.state, city: v.city,
+      visualPermissions: vp, mobileAccess: v.mobileAccess,
+      roleIds: this.roleIds,
+      countryId:      toNumOrNull(v.country),
+      departamentoId: stateNum,
+      municipioId:    findCityIdByName(stateNum, v.city, this.geoMaps)
     };
 
-    // Logo (opcional): solo enviar si cambió en el modal
-    if (this.logoChanged) {
-      payload.logoDataUrl = this.logoPreviewDataUrl ?? '';
-    }
+    if (this.logoChanged) payload.logoDataUrl = this.logoPreviewDataUrl ?? '';
 
     this.loading = true;
-    const call$: Observable<any> = this.editing
-      ? this.svc.update(payload)
-      : this.svc.create(payload);
+    const call$: Observable<any> = this.editing ? this.svc.update(payload) : this.svc.create(payload);
 
-    call$
-      .pipe(
-        switchMap((company: Company) => {
-          // Si se está editando la empresa activa, refrescar el logo en storage para el sidebar
-          const currentSession = this.tokenStorage.get();
-          const activeCompanyId = currentSession?.activeCompanyId ?? null;
-          if (this.logoChanged && activeCompanyId != null && company?.id === activeCompanyId) {
-            this.tokenStorage.updateActiveCompanyLogo(company.logoDataUrl ?? null);
-          }
-
-          // Después de crear/actualizar la empresa, asignar países
-          const companyId = company.id || payload.id;
-          if (!companyId) {
-            throw new Error('No se pudo obtener el ID de la empresa');
-          }
-
-          // Si es edición, primero remover todas las asignaciones existentes
-          if (this.editing) {
-            return this.companyPaisSvc.getPaisesByCompany(companyId).pipe(
-              switchMap((currentPaises: any[]) => {
-                // Remover países que ya no están seleccionados
-                const toRemove = currentPaises
-                  .filter(p => !this.selectedPaisIds.includes(p.paisId))
-                  .map(p => ({ companyId, paisId: p.paisId }));
-
-                // Agregar países nuevos
-                const toAdd = this.selectedPaisIds
-                  .filter(paisId => !currentPaises.some(p => p.paisId === paisId))
-                  .map(paisId => ({ companyId, paisId }));
-
-                // Ejecutar todas las operaciones
-                const removeOps = toRemove.map(req =>
-                  this.companyPaisSvc.removeCompanyFromPais(req).pipe(
-                    catchError(err => {
-                      console.warn('Error removiendo país:', err);
-                      return of(null);
-                    })
-                  )
-                );
-
-                const addOps = toAdd.map(req =>
-                  this.companyPaisSvc.assignCompanyToPais(req).pipe(
-                    catchError(err => {
-                      console.warn('Error asignando país:', err);
-                      return of(null);
-                    })
-                  )
-                );
-
-                return forkJoin([...removeOps, ...addOps]).pipe(
-                  map(() => company)
-                );
-              })
-            );
-          } else {
-            // Si es creación, solo agregar países
-            const addOps = this.selectedPaisIds.map(paisId =>
-              this.companyPaisSvc.assignCompanyToPais({ companyId, paisId }).pipe(
-                catchError(err => {
-                  console.warn('Error asignando país:', err);
-                  return of(null);
-                })
-              )
-            );
-            return forkJoin(addOps).pipe(map(() => company));
-          }
-        }),
-        finalize(() => {
-          this.loading = false;
-          this.modalOpen = false;
-        })
-      )
-      .subscribe({
-        next: () => {
-          this.loadCompanies();
-          this.loadAvailablePaises();
-          this.showToast('success', this.editing ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.');
-        },
-        error: err => {
-          console.error('Error guardando empresa:', err);
-          const msg = err?.error?.message || err?.message || 'Error al guardar la empresa. Intente de nuevo.';
-          this.showToast('error', msg);
+    call$.pipe(
+      switchMap((company: Company) => {
+        // Refrescar logo en sidebar si es la empresa activa
+        const activeCompanyId = this.tokenStorage.get()?.activeCompanyId ?? null;
+        if (this.logoChanged && activeCompanyId != null && company?.id === activeCompanyId) {
+          this.tokenStorage.updateActiveCompanyLogo(company.logoDataUrl ?? null);
         }
-      });
+
+        const companyId = company.id || payload.id;
+        if (!companyId) throw new Error('No se pudo obtener el ID de la empresa');
+
+        if (this.editing) {
+          return this.companyPaisSvc.getPaisesByCompany(companyId).pipe(
+            switchMap((currentPaises: any[]) => {
+              const currentIds = currentPaises.map((p: any) => p.paisId as number);
+              const { toAdd, toRemove } = diffPaises(companyId, currentIds, this.selectedPaisIds);
+
+              const removeOps = toRemove.map(req =>
+                this.companyPaisSvc.removeCompanyFromPais(req).pipe(catchError(() => of(null)))
+              );
+              const addOps = toAdd.map(req =>
+                this.companyPaisSvc.assignCompanyToPais(req).pipe(catchError(() => of(null)))
+              );
+
+              return forkJoin([...removeOps, ...addOps]).pipe(map(() => company));
+            })
+          );
+        } else {
+          const ops = addPaisesOps(companyId, this.selectedPaisIds).map(req =>
+            this.companyPaisSvc.assignCompanyToPais(req).pipe(catchError(() => of(null)))
+          );
+          return forkJoin(ops).pipe(map(() => company));
+        }
+      }),
+      finalize(() => { this.loading = false; this.modalOpen = false; })
+    ).subscribe({
+      next: () => {
+        this.loadCompanies();
+        this.loadAvailablePaises();
+        this.showToast('success', this.editing ? 'Empresa actualizada correctamente.' : 'Empresa creada correctamente.');
+      },
+      error: err => {
+        console.error('Error guardando empresa:', err);
+        this.showToast('error', err?.error?.message || err?.message || 'Error al guardar la empresa. Intente de nuevo.');
+      }
+    });
   }
 
+  // ========= Eliminar =========
   openConfirmDelete(c: Company): void {
     this.confirmDeleteId = c.id ?? null;
     this.confirmDeleteName = c.name ?? '';
@@ -689,36 +491,23 @@ export class CompanyManagementComponent implements OnInit {
   }
 
   confirmDelete(): void {
-    if (this.confirmDeleteId == null) {
-      this.cancelConfirmDelete();
-      return;
-    }
+    if (this.confirmDeleteId == null) { this.cancelConfirmDelete(); return; }
     this.loading = true;
     this.svc.delete(this.confirmDeleteId)
       .pipe(finalize(() => (this.loading = false)))
       .subscribe({
-        next: () => {
-          this.cancelConfirmDelete();
-          this.loadCompanies();
-          this.showToast('success', 'Empresa eliminada correctamente.');
-        },
-        error: err => {
-          console.error('Error eliminando empresa', err);
-          const msg = err?.error?.message || err?.message || 'No se pudo eliminar la empresa. Intente de nuevo.';
-          this.showToast('error', msg);
-        }
+        next: () => { this.cancelConfirmDelete(); this.loadCompanies(); this.showToast('success', 'Empresa eliminada correctamente.'); },
+        error: err => this.showToast('error', err?.error?.message || err?.message || 'No se pudo eliminar la empresa.')
       });
   }
 
+  // ========= Toast =========
   showToast(type: 'success' | 'error' | 'info', message: string): void {
     if (this.toastTimeout) clearTimeout(this.toastTimeout);
     this.toastType = type;
     this.toastMessage = message;
     this.toastVisible = true;
-    this.toastTimeout = setTimeout(() => {
-      this.toastVisible = false;
-      this.toastTimeout = null;
-    }, 5000);
+    this.toastTimeout = setTimeout(() => { this.toastVisible = false; this.toastTimeout = null; }, 5000);
   }
 
   closeToast(): void {
@@ -727,131 +516,67 @@ export class CompanyManagementComponent implements OnInit {
     this.toastTimeout = null;
   }
 
-  // ========= Selects geografía (desde servicios) =========
-  onCountryChange(code: string) {
-    const countryId = this.toNumOrNull(code);
-    const deps = countryId ? (this.deptByCountryId.get(countryId) ?? []) : [];
-    this.states = deps.map(d => ({ code: String(d.departamentoId), name: d.departamentoNombre }));
-    this.cities = [];
-    this.form.patchValue({ state: '', city: '' });
-  }
+  // ========= Getters de compatibilidad para el template =========
+  get countries(): { code: string; name: string }[] { return this.geoSelects.countries; }
+  get states(): { code: string; name: string }[] { return this.geoSelects.states; }
+  get cities(): string[] { return this.geoSelects.cities; }
 
-  onStateChange(code: string) {
-    const depId = this.toNumOrNull(code);
-    const cities = depId ? (this.cityByDeptId.get(depId) ?? []) : [];
-    this.cities = cities.map(m => m.municipioNombre).sort((a, b) => a.localeCompare(b));
-    this.form.patchValue({ city: '' });
-  }
-
-  // ========= Helpers de visualización en tabla =========
+  // ========= Helpers tabla =========
   displayCountry(c: Company): string {
-    const countryId = (c as any)?.countryId as number | undefined;
-    if (countryId && this.countryMapById[countryId]) return this.countryMapById[countryId];
-
-    const asCode = this.toNumOrNull(c.country);
-    if (asCode && this.countryMapById[asCode]) return this.countryMapById[asCode];
-
+    const id = (c as any)?.countryId as number | undefined;
+    if (id && this.geoMaps.countryMapById[id]) return this.geoMaps.countryMapById[id];
+    const n = toNumOrNull(c.country);
+    if (n && this.geoMaps.countryMapById[n]) return this.geoMaps.countryMapById[n];
     return c.country || '—';
   }
 
   displayDept(c: Company): string {
-    const depId = (c as any)?.departamentoId as number | undefined;
-    if (depId && this.deptMapById[depId]) return this.deptMapById[depId];
-
-    const asCode = this.toNumOrNull(c.state);
-    if (asCode && this.deptMapById[asCode]) return this.deptMapById[asCode];
-
+    const id = (c as any)?.departamentoId as number | undefined;
+    if (id && this.geoMaps.deptMapById[id]) return this.geoMaps.deptMapById[id];
+    const n = toNumOrNull(c.state);
+    if (n && this.geoMaps.deptMapById[n]) return this.geoMaps.deptMapById[n];
     return c.state || '—';
   }
 
   displayCity(c: Company): string {
-    const cityId = (c as any)?.municipioId as number | undefined;
-    if (cityId && this.cityMapById[cityId]) return this.cityMapById[cityId];
-
-    return c.city || '—';
-  }
-
-  private toNumOrNull(v: any): number | null {
-    if (v === null || v === undefined) return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  private findCityIdByName(depId: number | null, name: string): number | null {
-    if (!depId || !name) return null;
-    const list = this.cityByDeptId.get(depId) ?? [];
-    const m = list.find(x => (x.municipioNombre || '').toLowerCase() === name.toLowerCase());
-    return m?.municipioId ?? null;
-  }
-
-  private resolveCountryCode(c: Company): string {
-    const id = (c as any)?.countryId as number | undefined;
-    if (id != null) return String(id);
-    const asNum = this.toNumOrNull(c.country);
-    return asNum != null ? String(asNum) : '';
-    // Si c.country fuera nombre, no podemos mapearlo a id sin endpoint extra.
-  }
-
-  private resolveDeptCode(c: Company): string {
-    const id = (c as any)?.departamentoId as number | undefined;
-    if (id != null) return String(id);
-    const asNum = this.toNumOrNull(c.state);
-    return asNum != null ? String(asNum) : '';
-  }
-
-  private resolveCityName(c: Company): string {
     const id = (c as any)?.municipioId as number | undefined;
-    if (id != null && this.cityMapById[id]) return this.cityMapById[id];
-    return c.city ?? '';
+    if (id && this.geoMaps.cityMapById[id]) return this.geoMaps.cityMapById[id];
+    return c.city || '—';
   }
 
   // ========= Roles (paso 2) =========
   get filteredRoles(): Role[] {
-    const t = (this.roleFilter || '').trim().toLowerCase();
-    if (!t) return this.roles;
-    return this.roles.filter(r =>
-      r.name?.toLowerCase().includes(t) ||
-      (r.permissions || []).some(p => (p || '').toLowerCase().includes(t))
-    );
+    return filterRoles(this.roles, this.roleFilter);
   }
 
   roleName(id: number): string {
     return this.rolesMap.get(id)?.name ?? `#${id}`;
   }
 
-  toggleRole(id: number) {
+  toggleRole(id: number): void {
     this.roleIds = this.roleIds.includes(id)
       ? this.roleIds.filter(x => x !== id)
       : [...this.roleIds, id];
   }
 
-  removeRole(id: number) {
+  removeRole(id: number): void {
     this.roleIds = this.roleIds.filter(x => x !== id);
     if (this.previewRoleId === id) this.previewRoleId = null;
   }
 
-  clearRoles() {
+  clearRoles(): void {
     this.roleIds = [];
     this.previewRoleId = null;
   }
 
-  openRolePreview(id: number) {
-    this.previewRoleId = id;
-  }
+  openRolePreview(id: number): void { this.previewRoleId = id; }
 
   get selectedRolesPermissions(): string[] {
-    const set = new Set<string>();
-    for (const id of this.roleIds) {
-      const r = this.rolesMap.get(id);
-      (r?.permissions || []).forEach(p => set.add((p || '').toLowerCase()));
-    }
-    return Array.from(set).sort();
+    return getCombinedPermissions(this.roleIds, this.rolesMap);
   }
 
   get previewRolePermissions(): string[] {
-    if (!this.previewRoleId) return [];
-    const r = this.rolesMap.get(this.previewRoleId);
-    return (r?.permissions || []).map(p => (p || '').toLowerCase()).sort();
+    return getRolePermissions(this.previewRoleId, this.rolesMap);
   }
 
   // ========= Menú por empresa =========
@@ -862,15 +587,12 @@ export class CompanyManagementComponent implements OnInit {
     this.menuViewTree = [];
     this.menuViewLoading = true;
     if (this.menuViewCompanyId != null) {
-      this.companyMenuSvc.getMenusForCompany(this.menuViewCompanyId).pipe(
-        finalize(() => (this.menuViewLoading = false))
-      ).subscribe({
-        next: (tree) => (this.menuViewTree = tree ?? []),
-        error: (err) => {
-          console.error('Error cargando menú de la empresa', err);
-          this.menuViewTree = [];
-        }
-      });
+      this.companyMenuSvc.getMenusForCompany(this.menuViewCompanyId)
+        .pipe(finalize(() => (this.menuViewLoading = false)))
+        .subscribe({
+          next: tree => (this.menuViewTree = tree ?? []),
+          error: () => (this.menuViewTree = [])
+        });
     } else {
       this.menuViewLoading = false;
     }
@@ -890,25 +612,19 @@ export class CompanyManagementComponent implements OnInit {
     this.menuEditTree = [];
     this.selectedMenuIdsForEdit = [];
     this.menuEditLoading = true;
-    if (this.menuEditCompanyId == null) {
-      this.menuEditLoading = false;
-      return;
-    }
+    if (this.menuEditCompanyId == null) { this.menuEditLoading = false; return; }
+
     forkJoin({
       allMenus: this.menuSvc.getTree(),
       companyMenus: this.companyMenuSvc.getMenusForCompany(this.menuEditCompanyId)
-    }).pipe(
-      finalize(() => (this.menuEditLoading = false))
-    ).subscribe({
-      next: ({ allMenus, companyMenus }) => {
-        this.menuEditTree = allMenus ?? [];
-        this.selectedMenuIdsForEdit = this.flattenMenuIds(companyMenus ?? []);
-      },
-      error: (err) => {
-        console.error('Error cargando datos para asignar menú', err);
-        this.menuEditTree = [];
-      }
-    });
+    }).pipe(finalize(() => (this.menuEditLoading = false)))
+      .subscribe({
+        next: ({ allMenus, companyMenus }) => {
+          this.menuEditTree = allMenus ?? [];
+          this.selectedMenuIdsForEdit = this.flattenMenuIds(companyMenus ?? []);
+        },
+        error: () => (this.menuEditTree = [])
+      });
   }
 
   closeMenuEdit(): void {
@@ -922,10 +638,7 @@ export class CompanyManagementComponent implements OnInit {
   private flattenMenuIds(items: CompanyMenuItem[]): number[] {
     const ids: number[] = [];
     const visit = (nodes: CompanyMenuItem[]) => {
-      for (const n of nodes) {
-        ids.push(n.id);
-        if (n.children?.length) visit(n.children);
-      }
+      for (const n of nodes) { ids.push(n.id); if (n.children?.length) visit(n.children); }
     };
     visit(items);
     return ids;
@@ -937,11 +650,9 @@ export class CompanyManagementComponent implements OnInit {
 
   toggleMenuSelection(menuId: number): void {
     const idx = this.selectedMenuIdsForEdit.indexOf(menuId);
-    if (idx >= 0) {
-      this.selectedMenuIdsForEdit = this.selectedMenuIdsForEdit.filter(id => id !== menuId);
-    } else {
-      this.selectedMenuIdsForEdit = [...this.selectedMenuIdsForEdit, menuId];
-    }
+    this.selectedMenuIdsForEdit = idx >= 0
+      ? this.selectedMenuIdsForEdit.filter(id => id !== menuId)
+      : [...this.selectedMenuIdsForEdit, menuId];
   }
 
   saveCompanyMenus(): void {
@@ -950,18 +661,10 @@ export class CompanyManagementComponent implements OnInit {
     this.companyMenuSvc.setCompanyMenus(this.menuEditCompanyId, {
       menuIds: this.selectedMenuIdsForEdit,
       isEnabled: true
-    }).pipe(
-      finalize(() => (this.menuEditSaving = false))
-    ).subscribe({
-      next: () => {
-        this.showToast('success', 'Menú guardado correctamente.');
-        this.closeMenuEdit();
-      },
-      error: (err) => {
-        console.error('Error guardando menú de la empresa', err);
-        const msg = err?.error?.message || err?.message || 'Error al guardar el menú. Intente de nuevo.';
-        this.showToast('error', msg);
-      }
-    });
+    }).pipe(finalize(() => (this.menuEditSaving = false)))
+      .subscribe({
+        next: () => { this.showToast('success', 'Menú guardado correctamente.'); this.closeMenuEdit(); },
+        error: err => this.showToast('error', err?.error?.message || err?.message || 'Error al guardar el menú.')
+      });
   }
 }
