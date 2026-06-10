@@ -125,7 +125,9 @@
       "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d seguimiento_diario_aves_engorde\")",
       "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d lote_reproductora_ave_engorde\")",
       "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d seguimiento_diario_lote_reproductora_aves_engorde\")",
-      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d galpones\")"
+      "Bash(PGPASSWORD=123456789 \"/c/Program Files/PostgreSQL/17/bin/psql\" -h localhost -p 5433 -U postgres -d sanmarinoapplocal -c \"\\\\d galpones\")",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)"
     ]
   }
 }

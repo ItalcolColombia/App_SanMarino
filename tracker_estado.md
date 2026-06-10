@@ -1,25 +1,18 @@
-# Estado — Fix migración `AddDbStudioGrantsAndAudit` (arranque AWS/local)
+# Estado — Decimales en pesos/uniformidad del modal «Nuevo Lote de Engorde»
 
-Plan: [fix_migracion_dbstudio_audit_plan.md](./fase_de_desarrollo/fix_migracion_dbstudio_audit_plan.md)
+Plan: [29_decimales_pesos_uniformidad_lote_engorde_plan.md](./fase_de_desarrollo/29_decimales_pesos_uniformidad_lote_engorde_plan.md)
 
 ## Diagnóstico
-- [x] Reproducir error en local contra la BD de producción
-- [x] Identificar que la app usa el PostgreSQL **nativo** de Windows en `localhost:5433` (no el contenedor Docker, que está vacío)
-- [x] Confirmar esquema viejo/incompatible de `public.dbstudio_audit` en prod (sin `created_at_utc`, etc.)
-- [x] Confirmar tabla vieja **vacía** (0 filas) y **sin** FKs/vistas dependientes
-- [x] Confirmar que `20260607213501` no está en `__EFMigrationsHistory` (última: `20260605024231`)
-- [x] Auditar el resto de la tanda pendiente (incl. `ExtractLogoToLogoCompanias`) → prod-safe
+- [x] Localizar el campo: directiva `ThousandSeparatorDirective` (`Math.round` + `maximumFractionDigits: 0`)
+- [x] Confirmar que la directiva es **compartida** entre `lote` (quiere enteros) y `lote-engorde`
+- [x] Cruzar con el contrato backend: `pesoInicialH/M`, `pesoMixto`, `unifH/M` son `double?`; el resto `int?`
 
 ## Implementación
-- [x] Editar `Up()` de `20260607213501_AddDbStudioGrantsAndAudit.cs` con reconciliación idempotente
-- [x] `dotnet build` sin errores ni nuevas advertencias (4 warnings preexistentes, ajenos)
-- [x] El fix de `dbstudio_audit` **resuelve el error original** (la migración avanza más allá del `created_at_utc`)
-- [x] Decisión del usuario: **dejar solo el fix de código**, sin GRANT local. Validación de la cadena completa vía deploy.
-- [ ] (Deploy) Mergear a `main-produccion` → el deploy aplica las 6 migraciones al arrancar; verificar post-deploy (sección 🚀 del CLAUDE.md)
+- [x] `ThousandSeparatorDirective`: `@Input() decimals = 0` opt-in, retrocompatible (import `Input`)
+- [x] `lote-engorde` HTML: `[decimals]="2"` en `pesoMixto`, `pesoInicialH`, `pesoInicialM`, `unifH`, `unifM`
+- [x] `cd frontend && yarn build` sin errores
 
-## Hallazgos importantes
-- **EF Core corre toda la tanda pendiente en UNA transacción** → si una migración falla, revierte TODO. No quedan estados a medias.
-- **Producción NO fue modificada** (el rollback transaccional revierte todo, igual que en local).
-- ⚠️ **`appsettings.json` base apunta a PROD RDS** (`repropesa01@reproductoras-pesadas...`). `dotnet ef` sin `ASPNETCORE_ENVIRONMENT=Development` usa ese archivo → riesgo de pegarle a prod. Para validar local: forzar `Development` + `--connection` local explícita.
-- ⛔ **Segundo bloqueante (solo LOCAL):** la migración `20260608030455_ExtractLogoToLogoCompanias` falla con `42501: permission denied for schema public` en el chequeo de la FK. Causa: `companies`/`logo_companias` son propiedad de `repropesa01`, y el restore del dump custom **no trae los permisos de schema** de ese rol. En prod `repropesa01` es el usuario de la app (tiene USAGE/CREATE sobre `public`) → allá la migración corre bien.
-- Para validar la cadena completa en local hace falta replicar ese permiso: `GRANT USAGE, CREATE ON SCHEMA public TO repropesa01;` (solo en la copia local). Pendiente de tu OK.
+## Notas
+- Comportamiento por defecto (`decimals=0`) **idéntico** al actual → módulo `lote` intacto.
+- Conteos de aves (`hembrasL`, `machosL`, `mixtas`, `mortCajaH/M`, `avesEncasetadas`) siguen enteros.
+- Precisión = 2 decimales (ajustable por campo vía `[decimals]`).
