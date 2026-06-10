@@ -217,6 +217,7 @@ builder.Services.AddScoped<IInventarioAvesService, InventarioAvesService>();
 builder.Services.AddScoped<IHistorialInventarioService, HistorialInventarioService>();
 builder.Services.AddScoped<IMovimientoAvesService, MovimientoAvesService>();
 builder.Services.AddScoped<IMovimientoPolloEngordeService, MovimientoPolloEngordeService>();
+builder.Services.AddScoped<IMovimientoPolloEngordePanamaService, MovimientoPolloEngordePanamaService>();
 builder.Services.AddScoped<IMovimientoPolloEngordeFilterDataService, MovimientoPolloEngordeFilterDataService>();
 builder.Services.AddScoped<IInventarioGastoService, InventarioGastoService>();
 
@@ -261,6 +262,9 @@ builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionS
 // Indicador Ecuador Service
 builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
 
+// Reporte Indicador Panamá Service (liquidación Pollo Engorde Panamá)
+builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanamaService>();
+
 // Liquidación Técnica Comparación Service
 builder.Services.AddScoped<ILiquidacionTecnicaComparacionService, LiquidacionTecnicaComparacionService>();
 builder.Services.AddScoped<ZooSanMarino.Application.Interfaces.ILiquidacionTecnicaEcuadorService, ZooSanMarino.Infrastructure.Services.LiquidacionTecnicaEcuadorService>();
@@ -301,12 +305,15 @@ builder.Services.AddScoped<IAlimentoNutricionProvider, EfAlimentoNutricionProvid
 builder.Services.AddScoped<IGramajeProvider, NullGramajeProvider>();
 
 
-builder.Services.AddScoped<IDbIntrospectionService, DbIntrospectionService>();
-builder.Services.AddScoped<IDbSchemaService, DbSchemaService>();
-builder.Services.AddScoped<IReadOnlyQueryService, ReadOnlyQueryService>();
-
-// DB Studio Service
+// ===================== DB Studio =====================
+builder.Services.Configure<ZooSanMarino.Infrastructure.DbStudio.DbStudioOptions>(
+    builder.Configuration.GetSection("DbStudio"));
+builder.Services.AddSingleton<ZooSanMarino.Infrastructure.DbStudio.DbStudioRuntime>();
+builder.Services.AddScoped<IDbStudioAuthorization, DbStudioAuthorization>();
 builder.Services.AddScoped<IDbStudioService, DbStudioService>();
+builder.Services.AddScoped<IDbStudioPermissionService, DbStudioPermissionService>();
+builder.Services.AddScoped<IDbStudioConcurrencyService, DbStudioConcurrencyService>();
+
 builder.Services.AddScoped<IMapaService, MapaService>();
 
 // Gestión de Clientes
@@ -314,6 +321,10 @@ builder.Services.AddScoped<IClienteService, ClienteService>();
 
 // Lesiones (Panamá — tab Seguimiento Diario Reproductora/Apoyo/Engorde)
 builder.Services.AddScoped<ILesionService, LesionService>();
+
+// Módulo de tickets de soporte / requerimientos
+builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<ITicketPerfilService, TicketPerfilService>();
 
 
 // ─────────────────────────────────────

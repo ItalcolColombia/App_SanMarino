@@ -44,5 +44,7 @@ public record SeguimientoLoteLevanteDto(
     // Auditoría (Feature 13)
     string? UpdatedByUserId = null,
     DateTime? CreatedAt = null,
-    DateTime? UpdatedAt = null
+    DateTime? UpdatedAt = null,
+    // Cruce reproductora→engorde: true si el registro se generó automáticamente (read-only en UI)
+    bool OrigenCruce = false
 );

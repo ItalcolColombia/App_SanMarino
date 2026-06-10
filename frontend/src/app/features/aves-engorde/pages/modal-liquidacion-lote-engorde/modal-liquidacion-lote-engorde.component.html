@@ -357,6 +357,44 @@
         </button>
         <span *ngIf="mermaGuardada" class="liq-lote__ok" role="status"> ✓ Merma guardada</span>
       </div>
+
+      <!-- ── Liquidación Panamá — datos requeridos para cerrar/liquidar ──────── -->
+      <div class="liq-lote__merma liq-lote__panama" *ngIf="resumen && esPanama && !loteCerrado">
+        <h4 class="liq-lote__section-title">🇵🇦 Datos de liquidación (Panamá)</h4>
+        <p class="liq-lote__hint">
+          Requeridos para cerrar y liquidar el lote. Alimentan el reporte
+          «Resultados de Liquidación» del módulo Indicador Panamá.
+        </p>
+        <div class="liq-lote__merma-grid liq-lote__panama-grid">
+          <label class="liq-lote__merma-field">
+            <span>Días en Granja</span>
+            <input type="number" min="0" [(ngModel)]="panamaDiasEnGranja" class="form-input" placeholder="0" />
+          </label>
+          <label class="liq-lote__merma-field">
+            <span>Días de Engorde</span>
+            <input type="number" min="0" [(ngModel)]="panamaDiasEngorde" class="form-input" placeholder="0" />
+          </label>
+          <label class="liq-lote__merma-field">
+            <span>Aves Finales en Granja</span>
+            <input type="number" min="0" [(ngModel)]="panamaAvesFinalGranja" class="form-input" placeholder="0" />
+          </label>
+          <label class="liq-lote__merma-field">
+            <span>Aves Beneficiadas</span>
+            <input type="number" min="0" [(ngModel)]="panamaAvesBeneficiada" class="form-input" placeholder="0" />
+          </label>
+          <label class="liq-lote__merma-field">
+            <span>Producción Kilo en Pie</span>
+            <input type="number" min="0" step="0.01" [(ngModel)]="panamaProduccionKiloPie" class="form-input" placeholder="0" />
+          </label>
+          <label class="liq-lote__merma-field">
+            <span>Metros Cuadrados</span>
+            <input type="number" min="0" step="0.01" [(ngModel)]="panamaMetrosCuadrados" class="form-input" placeholder="0" />
+          </label>
+        </div>
+        <p class="liq-lote__hint" *ngIf="!panamaCamposCompletos" style="color:#b45309;">
+          ⚠️ Complete los 6 campos (mayores a 0) para habilitar «Cerrar lote».
+        </p>
+      </div>
     </section>
 
     <!-- ── FOOTER (fijo) ─────────────────────────────────────────────────── -->

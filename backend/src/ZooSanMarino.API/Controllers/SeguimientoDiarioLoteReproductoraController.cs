@@ -67,7 +67,12 @@ public class SeguimientoDiarioLoteReproductoraController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            var inner = ex.InnerException?.InnerException?.Message ?? ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { message = ex.Message, detail = inner });
         }
     }
 
@@ -87,7 +92,12 @@ public class SeguimientoDiarioLoteReproductoraController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            var inner = ex.InnerException?.InnerException?.Message ?? ex.InnerException?.Message ?? ex.Message;
+            return StatusCode(500, new { message = ex.Message, detail = inner });
         }
     }
 

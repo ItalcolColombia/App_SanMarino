@@ -32,7 +32,7 @@
         role="tab"
         [attr.aria-selected]="activeTab === 'grafica'"
         aria-controls="grafica-panel">
-        📊 Gráfica
+        📊 Gráficas
       </button>
     </nav>
 
@@ -126,13 +126,20 @@
                   <th scope="col" class="th-diario">Semana</th>
                   <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
                   <th scope="col" class="th-diario">Día <span class="th-diario__sub">(calendario)</span></th>
-                  <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
-                  <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
+                  <!-- Panamá: columnas Mixto únicas -->
+                  <th *ngIf="isPanama" scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">mixto</span></th>
+                  <th *ngIf="isPanama" scope="col" class="th-diario">Selección <span class="th-diario__sub">mixto</span></th>
+                  <!-- No-Panamá: columnas H/M separadas -->
+                  <th *ngIf="!isPanama" scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
+                  <th *ngIf="!isPanama" scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
+                  <th *ngIf="!isPanama" scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
+                  <th *ngIf="!isPanama" scope="col" class="th-diario">Selección <span class="th-diario__sub">machos</span></th>
                   <th scope="col" class="th-diario th-diario--num th-diario--mort">TOTAL MORT+ SEL <span class="th-diario__sub">/ DÍA</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
+                  <!-- Panamá: despacho como mixto -->
+                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">mixto</span></th>
+                  <!-- No-Panamá: despacho H/M separado -->
+                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">hembras</span></th>
+                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Despacho <span class="th-diario__sub">machos</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso despacho <span class="th-diario__sub">neto (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom <span class="th-diario__sub">(kg/ave)</span></th>
                   <th *ngIf="enriquecerTablaConHistoricoInventario" scope="col" class="th-diario th-diario--num">Saldo <span class="th-diario__sub">alimento (kg)</span></th>
@@ -141,11 +148,16 @@
                   <th scope="col" class="th-diario th-diario--wide">Ingreso <span class="th-diario__sub">alimento</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Traslado</th>
                   <th scope="col" class="th-diario th-diario--wide">Documento</th>
-                  <th scope="col" class="th-diario th-diario--num">Consumo kg </th>
+                  <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">día (kg)</span></th>
+                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">hembras (kg)</span></th>
+                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">machos (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Agua <span class="th-diario__sub">(litros)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
+                  <!-- Panamá: peso mixto -->
+                  <th *ngIf="isPanama" scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">mixto (kg)</span></th>
+                  <!-- No-Panamá: peso H/M -->
+                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
+                  <th *ngIf="!isPanama" scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--wide">Observaciones</th>
                   <th scope="col" class="th-diario th-diario--actions">Acciones</th>
                 </tr>
@@ -172,13 +184,20 @@
                   <td>{{ f.semana }}</td>
                   <td>{{ f.edadDia }}</td>
                   <td>{{ formatDiaSemanaCorto(f.fecha) }}</td>
-                  <td>{{ f.mortalidadHembras }}</td>
-                  <td>{{ f.mortalidadMachos }}</td>
-                  <td>{{ f.selH }}</td>
-                  <td>{{ f.selM }}</td>
+                  <!-- Panamá: Mortalidad mixto + Selección mixto (H+M combinados) -->
+                  <td *ngIf="isPanama">{{ (f.mortalidadHembras ?? 0) + (f.mortalidadMachos ?? 0) }}</td>
+                  <td *ngIf="isPanama">{{ (f.selH ?? 0) + (f.selM ?? 0) }}</td>
+                  <!-- No-Panamá: H y M separados -->
+                  <td *ngIf="!isPanama">{{ f.mortalidadHembras }}</td>
+                  <td *ngIf="!isPanama">{{ f.mortalidadMachos }}</td>
+                  <td *ngIf="!isPanama">{{ f.selH }}</td>
+                  <td *ngIf="!isPanama">{{ f.selM }}</td>
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
-                  <td class="num">{{ f.despachoHembras != null ? (f.despachoHembras | number:'1.0-0') : '—' }}</td>
-                  <td class="num">{{ f.despachoMachos != null ? (f.despachoMachos | number:'1.0-0') : '—' }}</td>
+                  <!-- Panamá: despacho mixto (H+M combinados) -->
+                  <td *ngIf="isPanama" class="num">{{ ((f.despachoHembras ?? 0) + (f.despachoMachos ?? 0) + (f.despachoMixtas ?? 0)) | number:'1.0-0' }}</td>
+                  <!-- No-Panamá: despacho H/M separado -->
+                  <td *ngIf="!isPanama" class="num">{{ f.despachoHembras != null ? (f.despachoHembras | number:'1.0-0') : '—' }}</td>
+                  <td *ngIf="!isPanama" class="num">{{ f.despachoMachos != null ? (f.despachoMachos | number:'1.0-0') : '—' }}</td>
                   <td class="num">{{ (f.despachoPesoNeto ?? 0) > 0 ? (f.despachoPesoNeto | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ (f.despachoPromedioPesoAve ?? 0) > 0 ? (f.despachoPromedioPesoAve | number:'1.0-3') : '—' }}</td>
 
@@ -193,23 +212,34 @@
                   <td class="cell-text cell-text--wide" [title]="f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : ''">{{ f.ingresoAlimentoKg > 0 ? (f.ingresoAlimentoKg + ' kg') : '—' }}</td>
                   <td class="cell-text cell-text--wide" [title]="buildTrasladoTexto(f)">{{ buildTrasladoTexto(f) || '—' }}</td>
                   <td class="cell-text cell-text--wide" [title]="f.documento || ''">{{ f.documento || '—' }}</td>
-                  <td class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
+                  <td class="num">{{ f.consumoDiaKg != null ? (f.consumoDiaKg | number:'1.0-2') : '—' }}</td>
+                  <td *ngIf="isPanama" class="num">{{ f.consumoKgHembras != null ? (f.consumoKgHembras | number:'1.0-2') : '—' }}</td>
+                  <td *ngIf="isPanama" class="num">{{ f.consumoKgMachos != null ? (f.consumoKgMachos | number:'1.0-2') : '—' }}</td>
                   <td class="num">{{ f.acumConsumoKg | number:'1.0-2' }}</td>
                   <td class="num">{{ f.consumoAguaDiario != null ? (f.consumoAguaDiario | number:'1.0-1') : '—' }}</td>
-                  <td class="num">{{ f.pesoPromHembras != null ? (f.pesoPromHembras | number:'1.0-2') : '—' }}</td>
-                  <td class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
+                  <!-- Panamá: peso prom. mixto (se guarda en pesoPromHembras) -->
+                  <td *ngIf="isPanama" class="num">{{ (f.pesoPromHembras ?? f.pesoPromMachos) != null ? ((f.pesoPromHembras ?? f.pesoPromMachos) | number:'1.0-2') : '—' }}</td>
+                  <!-- No-Panamá: peso H/M separado -->
+                  <td *ngIf="!isPanama" class="num">{{ f.pesoPromHembras != null ? (f.pesoPromHembras | number:'1.0-2') : '—' }}</td>
+                  <td *ngIf="!isPanama" class="num">{{ f.pesoPromMachos != null ? (f.pesoPromMachos | number:'1.0-2') : '—' }}</td>
                   <td class="cell-text cell-text--obs" [title]="f.observaciones || ''">{{ (f.observaciones || '').trim() || '—' }}</td>
                   <td class="text-right">
                     <!-- Fix #14: si segId es null, la fila representa un movimiento de inventario/venta
                          sin seguimiento diario asociado → ocultar acciones (no hay nada que editar). -->
                     <div class="btn-group" *ngIf="f.segId != null; else movSinSeg">
                       <button type="button" (click)="onViewDetailById(f.segId)" class="icon-btn" title="Ver detalle">👁️</button>
-                      <ng-container *appHasPermission="'editar_registro'">
-                        <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                      <!-- Registro generado por cruce de lotes reproductora (primeros 7 días): solo lectura -->
+                      <ng-container *ngIf="f.createdByUserId === 'SYSTEM_CRUCE'; else accionesManuales">
+                        <span class="badge-cruce" title="Generado automáticamente desde los lotes reproductora. Para corregir, edite el lote reproductora.">🔄 Auto</span>
                       </ng-container>
-                      <ng-container *appHasPermission="'eliminar_registro'">
-                        <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
-                      </ng-container>
+                      <ng-template #accionesManuales>
+                        <ng-container *appHasPermission="'editar_registro'">
+                          <button type="button" (click)="onEditById(f.segId)" class="icon-btn" [disabled]="disableEditDelete" title="Editar">✎</button>
+                        </ng-container>
+                        <ng-container *appHasPermission="'eliminar_registro'">
+                          <button type="button" (click)="onDelete(f.segId)" class="icon-btn icon-btn--danger" [disabled]="disableEditDelete" title="Eliminar">🗑️</button>
+                        </ng-container>
+                      </ng-template>
                     </div>
                     <ng-template #movSinSeg>
                       <span class="badge-mov" title="Movimiento de inventario/venta sin seguimiento diario">📦 mov.</span>
@@ -257,13 +287,28 @@
         </app-tabla-indicadores-diarios-engorde>
       </div>
 
-      <!-- TAB GRÁFICA: 4 gráficas fijas (mismos datos que indicadores diarios vs guía) -->
+      <!-- TAB GRÁFICAS -->
       <div *ngIf="activeTab === 'grafica'" id="grafica-panel" class="tab-panel" role="tabpanel">
+        <!-- Ecuador: 4 gráficas vs guía genética -->
         <app-graficas-indicadores-diarios-engorde
+          *ngIf="isEcuador"
           [seguimientos]="seguimientos"
           [selectedLote]="selectedLote"
           [loading]="loading">
         </app-graficas-indicadores-diarios-engorde>
+
+        <!-- Panamá: gráficas de productividad (diaria / semanal) con datos del seguimiento -->
+        <app-graficas-productividad-engorde
+          *ngIf="isPanama"
+          [tablaFilas]="tablaFilas"
+          [selectedLote]="selectedLote"
+          [loading]="loading">
+        </app-graficas-productividad-engorde>
+
+        <!-- Otros países: sin gráficas configuradas -->
+        <div *ngIf="!isEcuador && !isPanama" class="tab-panel__empty-graficas">
+          No hay gráficas configuradas para este país.
+        </div>
       </div>
     </div>
   </div>

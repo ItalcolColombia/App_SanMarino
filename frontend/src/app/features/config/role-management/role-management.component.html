@@ -697,6 +697,17 @@
           </button>
         </div>
 
+        <!-- Perfil de atención de tickets (solo cuando el rol ya existe) -->
+        <div *ngIf="form.value.id" class="rm-form-section mt-4">
+          <h4 class="rm-form-section-title" style="font-size:0.85rem;font-weight:700;color:#2d7a3e;margin-bottom:0.75rem;">
+            🎫 Tipos de ticket que atiende este rol
+          </h4>
+          <app-ticket-perfil-editor
+            modo="rol"
+            [entityId]="form.value.id.toString()">
+          </app-ticket-perfil-editor>
+        </div>
+
       </form>
     </div>
 

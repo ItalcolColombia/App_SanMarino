@@ -4,8 +4,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
 import { LoteSeguimientoDto, CreateLoteSeguimientoDto, UpdateLoteSeguimientoDto } from '../../services/lote-seguimiento.service';
 import { LoteReproductoraDto } from '../../../lote-reproductora/services/lote-reproductora.service';
-import { InventarioService, FarmInventoryDto } from '../../../inventario/services/inventario.service';
-import { ShowIfEcuadorPanamaDirective, ShowIfCountryDirective } from '../../../../core/directives';
+import { GestionInventarioService, InventarioGestionStockDto } from '../../../gestion-inventario/services/gestion-inventario.service';
+import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { catchError, finalize } from 'rxjs/operators';
@@ -38,8 +38,7 @@ interface ItemSeguimientoDto {
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    ShowIfEcuadorPanamaDirective,
-    ShowIfCountryDirective
+    ShowIfEcuadorPanamaDirective
   ],
   templateUrl: './modal-seguimiento-reproductora.component.html',
   styleUrls: ['./modal-seguimiento-reproductora.component.scss']
@@ -60,6 +59,18 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
    * o leerlo de la sesión activa del usuario.
    */
   @Input() farmId: number | null = null;
+  /** galponId del galpón seleccionado — filtra el stock de alimento por ubicación. */
+  @Input() galponId: string | null = null;
+  /** Fecha pre-calculada por el padre (encasetamiento + N días). Se fija como readonly al crear. */
+  @Input() defaultFecha: string | null = null;
+  /** Número de registros existentes en el lote reproductora (para mostrar el hint). */
+  @Input() registrosCount: number = 0;
+  /** Contexto de navegación mostrado en la banda superior del modal. */
+  @Input() ctxGranja: string | null = null;
+  @Input() ctxNucleo: string | null = null;
+  @Input() ctxGalpon: string | null = null;
+  @Input() ctxLoteEngorde: string | null = null;
+  @Input() ctxReproductora: string | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() save = new EventEmitter<{ data: CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto; isEdit: boolean }>();
@@ -79,7 +90,7 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   private alimentosById = new Map<number, CatalogItemExtended>();
   private alimentosByName = new Map<string, CatalogItemExtended>();
   private granjaIdActual: number | null = null;
-  private cargandoInventarioGranja = false;
+  cargandoInventarioGranja = false;
 
   // Mapa para guardar información de inventario
   private inventarioPorItem = new Map<number, { quantity: number; unit: string }>();
@@ -87,17 +98,7 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   // Tipos de ítem
   tiposItem: CatalogItemType[] = ['alimento', 'medicamento', 'accesorio', 'biologico', 'consumible', 'otro'];
 
-  // Inventario
-  inventarioDisponibleHembras: number | null = null;
-  inventarioDisponibleMachos: number | null = null;
-  inventarioUnidadHembras: string = 'kg';
-  inventarioUnidadMachos: string = 'kg';
-  inventarioCantidadOriginalHembras: number | null = null;
-  inventarioCantidadOriginalMachos: number | null = null;
-  cargandoInventarioHembras = false;
-  cargandoInventarioMachos = false;
-  mensajeInventarioHembras: string = '';
-  mensajeInventarioMachos: string = '';
+  // (estados de inventario por género eliminados — se usa un único selector de alimento)
 
   // Propiedad para verificar si es Ecuador o Panamá
   isEcuadorOrPanama = false;
@@ -105,7 +106,7 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
 
   constructor(
     private fb: FormBuilder,
-    private inventarioSvc: InventarioService,
+    private inventarioSvc: GestionInventarioService,
     private countryFilter: CountryFilterService,
     private storage: TokenStorageService
   ) {}
@@ -149,7 +150,16 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     } else if (this.isOpen && !this.editing) {
       this.resetForm();
     }
+    // Cargar inventario directamente con farmId cuando se abre el modal
+    // (el loteId pre-set puede no disparar valueChanges)
+    if (this.isOpen && this.farmId && !this.granjaIdActual) {
+      this.granjaIdActual = this.farmId;
+      this.cargarInventarioGranja(this.farmId);
+    }
   }
+
+  /** 1 quintal (QQ) = 45.36 kg (100 libras). */
+  static readonly QQ_TO_KG = 45.36;
 
   // ================== FORMULARIO ==================
   private initializeForm(): void {
@@ -163,60 +173,71 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
       selM: [0, [Validators.required, Validators.min(0)]],
       errorH: [0, [Validators.required, Validators.min(0)]],
       errorM: [0, [Validators.required, Validators.min(0)]],
-      // FormArrays para múltiples ítems
-      itemsHembras: this.fb.array([]),
-      itemsMachos: this.fb.array([]),
+      // Alimento único compartido + consumo por género
+      alimentoId:          [null],
+      consumoHembrasQty:   [null, [Validators.min(0)]],
+      unidadHembras:       ['kg'],
+      consumoMachosQty:    [null, [Validators.min(0)]],
+      unidadMachos:        ['kg'],
       observaciones: [''],
       ciclo: ['Normal'],
-      // Peso inicial/final (opcionales)
+      // Pesaje
       pesoInicial: [null, [Validators.min(0)]],
-      pesoFinal: [null, [Validators.min(0)]],
-      // Campos de peso y uniformidad
-      pesoPromH: [null, [Validators.min(0)]],
-      pesoPromM: [null, [Validators.min(0)]],
-      uniformidadH: [null, [Validators.min(0), Validators.max(100)]],
-      uniformidadM: [null, [Validators.min(0), Validators.max(100)]],
+      pesoFinal:   [null, [Validators.min(0)]],
+      pesoPromH:   [null, [Validators.min(0)]],
+      pesoPromM:   [null, [Validators.min(0)]],
+      uniformidadH:[null, [Validators.min(0), Validators.max(100)]],
+      uniformidadM:[null, [Validators.min(0), Validators.max(100)]],
       cvH: [null, [Validators.min(0)]],
       cvM: [null, [Validators.min(0)]],
-      // Campos de agua (solo para Ecuador y Panamá)
-      consumoAguaDiario: [null, [Validators.min(0)]],
-      consumoAguaPh: [null, [Validators.min(0)]],
-      consumoAguaOrp: [null, [Validators.min(0)]],
+      // Agua (Ecuador / Panamá)
+      consumoAguaDiario:      [null, [Validators.min(0)]],
+      consumoAguaPh:          [null, [Validators.min(0)]],
+      consumoAguaOrp:         [null, [Validators.min(0)]],
       consumoAguaTemperatura: [null, [Validators.min(0)]],
-      // Cantidad de alimento en quintales por categoría (solo Panamá)
-      qqMixtas: [null, [Validators.min(0)]],
-      qqHembras: [null, [Validators.min(0)]],
-      qqMachos: [null, [Validators.min(0)]],
     });
 
-    // Suscribirse a cambios en loteId para obtener granjaId y cargar inventario
+    // Recargar inventario si cambia el lote (loteId pre-seteado desde contexto padre)
     this.form.get('loteId')?.valueChanges.subscribe(loteId => {
-      if (loteId) {
-        const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
-        if (lote && lote.granjaId) {
-          const nuevaGranjaId = Number(lote.granjaId);
-          if (this.granjaIdActual !== nuevaGranjaId) {
-            this.granjaIdActual = nuevaGranjaId;
-            this.cargarInventarioGranja(nuevaGranjaId);
-          }
-        }
-        this.limpiarInventario();
-      } else {
-        this.granjaIdActual = null;
-        this.limpiarCatalogos();
-      }
+      if (!loteId) { this.granjaIdActual = null; this.limpiarCatalogos(); }
     });
   }
 
-  private limpiarInventario(): void {
-    this.inventarioDisponibleHembras = null;
-    this.inventarioDisponibleMachos = null;
-    this.inventarioUnidadHembras = 'kg';
-    this.inventarioUnidadMachos = 'kg';
-    this.inventarioCantidadOriginalHembras = null;
-    this.inventarioCantidadOriginalMachos = null;
-    this.mensajeInventarioHembras = '';
-    this.mensajeInventarioMachos = '';
+  /** Alimento actualmente seleccionado (para mostrar stock). */
+  get alimentoSeleccionado(): CatalogItemExtended | null {
+    const id = this.form?.get('alimentoId')?.value;
+    if (!id) return null;
+    return this.alimentosById.get(Number(id)) ?? null;
+  }
+
+  /** Lista de alimentos disponibles (tipo 'alimento' con stock > 0). */
+  get alimentosList(): CatalogItemExtended[] {
+    return this.alimentosCatalog.filter(a =>
+      !a.tipoItem || a.tipoItem.toLowerCase() === 'alimento'
+    );
+  }
+
+  /** Convierte qty a kg según la unidad seleccionada. */
+  toKg(qty: number | null | undefined, unit: string): number {
+    const q = Number(qty ?? 0);
+    return unit === 'qq'
+      ? Math.round(q * ModalSeguimientoReproductoraComponent.QQ_TO_KG * 1000) / 1000
+      : q;
+  }
+
+  /** Muestra el equivalente en kg cuando se selecciona QQ. */
+  get consumoHembrasEnKg(): number {
+    return this.toKg(
+      this.form?.get('consumoHembrasQty')?.value,
+      this.form?.get('unidadHembras')?.value ?? 'kg'
+    );
+  }
+
+  get consumoMachosEnKg(): number {
+    return this.toKg(
+      this.form?.get('consumoMachosQty')?.value,
+      this.form?.get('unidadMachos')?.value ?? 'kg'
+    );
   }
 
   private limpiarCatalogos(): void {
@@ -229,109 +250,52 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     this.inventarioPorItem.clear();
   }
 
-  // ================== FORM ARRAYS ==================
-  get itemsHembrasArray(): FormArray {
-    return this.form.get('itemsHembras') as FormArray;
-  }
-
-  get itemsMachosArray(): FormArray {
-    return this.form.get('itemsMachos') as FormArray;
-  }
-
-  agregarItemHembras(): void {
-    const itemGroup = this.fb.group({
-      tipoItem: [null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required],
-      cantidadUnidades: [null]
-    });
-
-    // Suscribirse a cambios en tipoItem para cargar inventario
-    itemGroup.get('tipoItem')?.valueChanges.subscribe(tipoItem => {
-      if (tipoItem && this.granjaIdActual) {
-        this.cargarInventarioGranja(this.granjaIdActual, 'hembras', tipoItem);
-      }
-      itemGroup.patchValue({ catalogItemId: null }, { emitEvent: false });
-    });
-
-    this.itemsHembrasArray.push(itemGroup);
-  }
-
-  agregarItemMachos(): void {
-    const itemGroup = this.fb.group({
-      tipoItem: [null, Validators.required],
-      catalogItemId: [null, Validators.required],
-      cantidad: [0, [Validators.required, Validators.min(0)]],
-      unidad: ['kg', Validators.required],
-      cantidadUnidades: [null]
-    });
-
-    // Suscribirse a cambios en tipoItem para cargar inventario
-    itemGroup.get('tipoItem')?.valueChanges.subscribe(tipoItem => {
-      if (tipoItem && this.granjaIdActual) {
-        this.cargarInventarioGranja(this.granjaIdActual, 'machos', tipoItem);
-      }
-      itemGroup.patchValue({ catalogItemId: null }, { emitEvent: false });
-    });
-
-    this.itemsMachosArray.push(itemGroup);
-  }
-
-  eliminarItemHembras(index: number): void {
-    this.itemsHembrasArray.removeAt(index);
-  }
-
-  eliminarItemMachos(index: number): void {
-    this.itemsMachosArray.removeAt(index);
-  }
+  // (FormArrays eliminados — reemplazados por controles simples alimentoId/consumoHembrasQty/consumoMachosQty)
 
   // ================== INVENTARIO ==================
-  private cargarInventarioGranja(granjaId: number, sexo?: 'hembras' | 'machos', itemType?: string | null): void {
+  /**
+   * Carga el stock de alimentos desde /api/inventario-gestion/stock,
+   * filtrando por farmId + galponId (galpón del lote reproductora) e itemType='alimento'.
+   */
+  cargarInventarioGranja(granjaId: number): void {
     if (!granjaId || this.cargandoInventarioGranja) return;
-
     this.cargandoInventarioGranja = true;
+    this.limpiarCatalogos();
 
-    this.inventarioSvc.getInventory(granjaId, itemType || undefined).pipe(
+    const params: Parameters<GestionInventarioService['getStock']>[0] = {
+      farmId: granjaId,
+      itemType: 'alimento',
+    };
+    if (this.galponId) params.galponId = this.galponId;
+
+    this.inventarioSvc.getStock(params).pipe(
       catchError(err => {
-        console.error('Error al cargar inventario:', err);
+        console.error('[Modal Reproductora] Error al cargar stock:', err);
         return of([]);
       }),
       finalize(() => { this.cargandoInventarioGranja = false; })
-    ).subscribe((items: FarmInventoryDto[]) => {
-      const itemsActivos = items.filter(item => item.active && item.quantity > 0);
+    ).subscribe((items: InventarioGestionStockDto[]) => {
+      const catalogItems = items
+        .filter(item => item.quantity > 0)
+        .map(item => {
+          const cat: CatalogItemExtended = {
+            id: item.itemInventarioEcuadorId,
+            codigo: item.itemCodigo,
+            nombre: item.itemNombre,
+            tipoItem: item.itemType || 'alimento',
+            unidad: item.unit,
+            activo: true,
+          };
+          this.alimentosById.set(cat.id, cat);
+          this.alimentosByCode.set(cat.codigo, cat);
+          this.alimentosByName.set(cat.nombre.toLowerCase(), cat);
+          this.inventarioPorItem.set(cat.id, { quantity: item.quantity, unit: item.unit });
+          return cat;
+        });
 
-      const catalogItems = itemsActivos.map((item: FarmInventoryDto) => {
-        const metadata = item.catalogItemMetadata || {};
-        const itemType = metadata.itemType || metadata.type_item || 'alimento';
-
-        const catalogItem: CatalogItemExtended = {
-          id: item.catalogItemId,
-          codigo: item.codigo,
-          nombre: item.nombre,
-          tipoItem: itemType,
-          unidad: item.unit,
-          activo: item.active,
-          metadata: metadata
-        };
-
-        this.alimentosByCode.set(item.codigo, catalogItem);
-        this.alimentosById.set(item.catalogItemId, catalogItem);
-        this.alimentosByName.set(item.nombre.toLowerCase(), catalogItem);
-        this.inventarioPorItem.set(item.catalogItemId, { quantity: item.quantity, unit: item.unit });
-
-        return catalogItem;
-      });
-
-      if (sexo === 'hembras') {
-        this.alimentosFiltradosHembras = catalogItems;
-      } else if (sexo === 'machos') {
-        this.alimentosFiltradosMachos = catalogItems;
-      } else {
-        this.alimentosCatalog = catalogItems;
-        this.alimentosFiltradosHembras = catalogItems;
-        this.alimentosFiltradosMachos = catalogItems;
-      }
+      this.alimentosCatalog = catalogItems;
+      this.alimentosFiltradosHembras = catalogItems;
+      this.alimentosFiltradosMachos = catalogItems;
     });
   }
 
@@ -359,155 +323,76 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
   }
 
   private resetForm(): void {
-    while (this.itemsHembrasArray.length !== 0) {
-      this.itemsHembrasArray.removeAt(0);
-    }
-    while (this.itemsMachosArray.length !== 0) {
-      this.itemsMachosArray.removeAt(0);
-    }
-
     this.form.reset({
-      fecha: this.todayYMD(),
+      fecha: this.defaultFecha || this.todayYMD(),
       loteId: this.selectedLoteId || '',
       reproductoraId: this.selectedReproId || '',
-      mortalidadH: 0,
-      mortalidadM: 0,
-      selH: 0,
-      selM: 0,
-      errorH: 0,
-      errorM: 0,
-      observaciones: '',
-      ciclo: 'Normal',
-      pesoInicial: null,
-      pesoFinal: null,
-      pesoPromH: null,
-      pesoPromM: null,
-      uniformidadH: null,
-      uniformidadM: null,
-      cvH: null,
-      cvM: null,
-      consumoAguaDiario: null,
-      consumoAguaPh: null,
-      consumoAguaOrp: null,
-      consumoAguaTemperatura: null,
-      qqMixtas: null,
-      qqHembras: null,
-      qqMachos: null,
+      mortalidadH: 0, mortalidadM: 0,
+      selH: 0, selM: 0,
+      errorH: 0, errorM: 0,
+      alimentoId: null,
+      consumoHembrasQty: null, unidadHembras: 'kg',
+      consumoMachosQty: null,  unidadMachos: 'kg',
+      observaciones: '', ciclo: 'Normal',
+      pesoInicial: null, pesoFinal: null,
+      pesoPromH: null, pesoPromM: null,
+      uniformidadH: null, uniformidadM: null,
+      cvH: null, cvM: null,
+      consumoAguaDiario: null, consumoAguaPh: null,
+      consumoAguaOrp: null, consumoAguaTemperatura: null,
     });
 
     if (this.selectedLoteId) {
       const lote = this.lotes.find(l => String(l.loteId) === String(this.selectedLoteId));
-      if (lote && lote.granjaId) {
+      if (lote?.granjaId) {
         this.granjaIdActual = Number(lote.granjaId);
         this.cargarInventarioGranja(this.granjaIdActual);
       }
+    } else if (this.farmId) {
+      this.granjaIdActual = this.farmId;
+      this.cargarInventarioGranja(this.farmId);
     }
   }
 
   private populateForm(): void {
     if (!this.editing) return;
+    const e = this.editing;
+    const meta = (e.metadata as any) ?? {};
 
-    // Limpiar FormArrays
-    while (this.itemsHembrasArray.length !== 0) {
-      this.itemsHembrasArray.removeAt(0);
-    }
-    while (this.itemsMachosArray.length !== 0) {
-      this.itemsMachosArray.removeAt(0);
-    }
+    // Recuperar el alimento guardado (primer ítem de metadata.itemsHembras)
+    const primerH: any = meta.itemsHembras?.[0] ?? null;
+    const primerM: any = meta.itemsMachos?.[0] ?? null;
+    const alimentoId = primerH?.catalogItemId ?? primerM?.catalogItemId ?? null;
+    const cantH = primerH?.cantidad ?? null;
+    const cantM = primerM?.cantidad ?? null;
 
-    // Cargar datos básicos
-    const fecha = this.editing.fecha ? new Date(this.editing.fecha).toISOString().substring(0, 10) : this.todayYMD();
+    const fecha = e.fecha ? new Date(e.fecha).toISOString().substring(0, 10) : this.todayYMD();
     this.form.patchValue({
-      fecha: fecha,
-      loteId: String(this.editing.loteId),
-      reproductoraId: this.editing.reproductoraId,
-      mortalidadH: this.editing.mortalidadH ?? 0,
-      mortalidadM: this.editing.mortalidadM ?? 0,
-      selH: this.editing.selH ?? 0,
-      selM: this.editing.selM ?? 0,
-      errorH: this.editing.errorH ?? 0,
-      errorM: this.editing.errorM ?? 0,
-      observaciones: this.editing.observaciones ?? '',
-      ciclo: this.editing.ciclo ?? 'Normal',
-      pesoInicial: this.editing.pesoInicial ?? null,
-      pesoFinal: this.editing.pesoFinal ?? null,
-      pesoPromH: this.editing.pesoPromH,
-      pesoPromM: this.editing.pesoPromM,
-      uniformidadH: this.editing.uniformidadH,
-      uniformidadM: this.editing.uniformidadM,
-      cvH: this.editing.cvH,
-      cvM: this.editing.cvM,
-      consumoAguaDiario: this.editing.consumoAguaDiario,
-      consumoAguaPh: this.editing.consumoAguaPh,
-      consumoAguaOrp: this.editing.consumoAguaOrp,
-      consumoAguaTemperatura: this.editing.consumoAguaTemperatura,
-      // Quintales de alimento por categoría (Panamá). El DTO oficial no los declara,
-      // por eso se leen a través de un cast indexado.
-      qqMixtas: (this.editing as any).qqMixtas ?? null,
-      qqHembras: (this.editing as any).qqHembras ?? null,
-      qqMachos: (this.editing as any).qqMachos ?? null,
+      fecha,
+      loteId: String(e.loteId),
+      reproductoraId: e.reproductoraId,
+      mortalidadH: e.mortalidadH ?? 0,
+      mortalidadM: e.mortalidadM ?? 0,
+      selH: e.selH ?? 0, selM: e.selM ?? 0,
+      errorH: e.errorH ?? 0, errorM: e.errorM ?? 0,
+      alimentoId,
+      consumoHembrasQty: cantH, unidadHembras: 'kg',
+      consumoMachosQty: cantM,  unidadMachos: 'kg',
+      observaciones: e.observaciones ?? '',
+      ciclo: e.ciclo ?? 'Normal',
+      pesoInicial: e.pesoInicial ?? null, pesoFinal: e.pesoFinal ?? null,
+      pesoPromH: e.pesoPromH, pesoPromM: e.pesoPromM,
+      uniformidadH: e.uniformidadH, uniformidadM: e.uniformidadM,
+      cvH: e.cvH, cvM: e.cvM,
+      consumoAguaDiario: e.consumoAguaDiario,
+      consumoAguaPh: e.consumoAguaPh,
+      consumoAguaOrp: e.consumoAguaOrp,
+      consumoAguaTemperatura: e.consumoAguaTemperatura,
     });
 
-    // Cargar inventario si hay lote
-    const lote = this.lotes.find(l => String(l.loteId) === String(this.editing!.loteId));
-    if (lote && lote.granjaId) {
-      this.granjaIdActual = Number(lote.granjaId);
-      this.cargarInventarioGranja(this.granjaIdActual);
-    }
-
-    // Cargar items desde metadata
-    if (this.editing.metadata?.itemsHembras && Array.isArray(this.editing.metadata.itemsHembras)) {
-      this.editing.metadata.itemsHembras.forEach((item: ItemSeguimientoDto) => {
-        const itemGroup = this.fb.group({
-          tipoItem: [item.tipoItem || 'alimento', Validators.required],
-          catalogItemId: [item.catalogItemId, Validators.required],
-          cantidad: [item.cantidad || 0, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || 'kg', Validators.required],
-          cantidadUnidades: [item.cantidadUnidades || null]
-        });
-        this.itemsHembrasArray.push(itemGroup);
-      });
-    }
-
-    if (this.editing.metadata?.itemsMachos && Array.isArray(this.editing.metadata.itemsMachos)) {
-      this.editing.metadata.itemsMachos.forEach((item: ItemSeguimientoDto) => {
-        const itemGroup = this.fb.group({
-          tipoItem: [item.tipoItem || 'alimento', Validators.required],
-          catalogItemId: [item.catalogItemId, Validators.required],
-          cantidad: [item.cantidad || 0, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || 'kg', Validators.required],
-          cantidadUnidades: [item.cantidadUnidades || null]
-        });
-        this.itemsMachosArray.push(itemGroup);
-      });
-    }
-
-    // Cargar items adicionales (no alimentos)
-    if (this.editing.itemsAdicionales?.itemsHembras && Array.isArray(this.editing.itemsAdicionales.itemsHembras)) {
-      this.editing.itemsAdicionales.itemsHembras.forEach((item: ItemSeguimientoDto) => {
-        const itemGroup = this.fb.group({
-          tipoItem: [item.tipoItem || 'medicamento', Validators.required],
-          catalogItemId: [item.catalogItemId, Validators.required],
-          cantidad: [item.cantidad || 0, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || 'unidades', Validators.required],
-          cantidadUnidades: [item.cantidadUnidades || null]
-        });
-        this.itemsHembrasArray.push(itemGroup);
-      });
-    }
-
-    if (this.editing.itemsAdicionales?.itemsMachos && Array.isArray(this.editing.itemsAdicionales.itemsMachos)) {
-      this.editing.itemsAdicionales.itemsMachos.forEach((item: ItemSeguimientoDto) => {
-        const itemGroup = this.fb.group({
-          tipoItem: [item.tipoItem || 'medicamento', Validators.required],
-          catalogItemId: [item.catalogItemId, Validators.required],
-          cantidad: [item.cantidad || 0, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || 'unidades', Validators.required],
-          cantidadUnidades: [item.cantidadUnidades || null]
-        });
-        this.itemsMachosArray.push(itemGroup);
-      });
-    }
+    const lote = this.lotes.find(l => String(l.loteId) === String(e.loteId));
+    const gid = lote?.granjaId ? Number(lote.granjaId) : (this.farmId ?? null);
+    if (gid) { this.granjaIdActual = gid; this.cargarInventarioGranja(gid); }
   }
 
   // ================== GUARDAR ==================
@@ -515,124 +400,64 @@ export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges,
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.showValidationErrors = true;
-      // Scroll al primer campo con error
-      const firstError = document.querySelector('.form-field.ng-invalid');
-      if (firstError) {
-        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
       return;
     }
 
     this.saving = true;
     this.showValidationErrors = false;
-
     const raw = this.form.value;
 
-    // Construir metadata con items
-    const itemsHembras: ItemSeguimientoDto[] = this.itemsHembrasArray.controls
-      .map(control => {
-        const v = control.value;
-        return {
-          tipoItem: v.tipoItem,
-          catalogItemId: v.catalogItemId,
-          cantidad: v.cantidad,
-          unidad: v.unidad,
-          cantidadUnidades: v.cantidadUnidades
-        };
-      })
-      .filter(item => item.catalogItemId);
+    // Convertir consumo a kg según unidad seleccionada
+    const consumoHKg = this.toKg(raw.consumoHembrasQty, raw.unidadHembras ?? 'kg');
+    const consumoMKg = this.toKg(raw.consumoMachosQty, raw.unidadMachos ?? 'kg');
+    const alimentoIdNum = raw.alimentoId ? Number(raw.alimentoId) : null;
 
-    const itemsMachos: ItemSeguimientoDto[] = this.itemsMachosArray.controls
-      .map(control => {
-        const v = control.value;
-        return {
-          tipoItem: v.tipoItem,
-          catalogItemId: v.catalogItemId,
-          cantidad: v.cantidad,
-          unidad: v.unidad,
-          cantidadUnidades: v.cantidadUnidades
-        };
-      })
-      .filter(item => item.catalogItemId);
+    // Construir items con la cantidad ya en kg
+    const itemsHembras = alimentoIdNum && consumoHKg > 0 ? [{
+      tipoItem: 'alimento', catalogItemId: alimentoIdNum,
+      cantidad: consumoHKg, unidad: 'kg'
+    }] : null;
+    const itemsMachos = alimentoIdNum && consumoMKg > 0 ? [{
+      tipoItem: 'alimento', catalogItemId: alimentoIdNum,
+      cantidad: consumoMKg, unidad: 'kg'
+    }] : null;
 
-    // Separar alimentos de otros items
-    const alimentosHembras = itemsHembras.filter(i => i.tipoItem === 'alimento');
-    const otrosItemsHembras = itemsHembras.filter(i => i.tipoItem !== 'alimento');
-    const alimentosMachos = itemsMachos.filter(i => i.tipoItem === 'alimento');
-    const otrosItemsMachos = itemsMachos.filter(i => i.tipoItem !== 'alimento');
-
-    // Calcular consumo total (solo alimentos)
-    const consumoHembras = alimentosHembras.reduce((sum, item) => {
-      const cantidadKg = item.unidad === 'g' ? item.cantidad / 1000 : item.cantidad;
-      return sum + cantidadKg;
-    }, 0);
-
-    const consumoMachos = alimentosMachos.reduce((sum, item) => {
-      const cantidadKg = item.unidad === 'g' ? item.cantidad / 1000 : item.cantidad;
-      return sum + cantidadKg;
-    }, 0);
+    const tipoAlimentoNombre = alimentoIdNum
+      ? (this.alimentosById.get(alimentoIdNum)?.nombre ?? 'Mixto')
+      : '';
 
     const metadata: any = {};
-    if (itemsHembras.length > 0) metadata.itemsHembras = itemsHembras;
-    if (itemsMachos.length > 0) metadata.itemsMachos = itemsMachos;
+    if (itemsHembras) metadata.itemsHembras = itemsHembras;
+    if (itemsMachos)  metadata.itemsMachos  = itemsMachos;
 
-    const itemsAdicionales: any = {};
-    if (otrosItemsHembras.length > 0) itemsAdicionales.itemsHembras = otrosItemsHembras;
-    if (otrosItemsMachos.length > 0) itemsAdicionales.itemsMachos = otrosItemsMachos;
-
-    const payload: (CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto) & {
-      qqMixtas?: number | null;
-      qqHembras?: number | null;
-      qqMachos?: number | null;
-    } = {
+    const payload: any = {
       fecha: new Date(raw.fecha).toISOString(),
       loteId: Number(raw.loteId),
       reproductoraId: raw.reproductoraId,
-      mortalidadH: raw.mortalidadH,
-      mortalidadM: raw.mortalidadM,
-      selH: raw.selH,
-      selM: raw.selM,
-      errorH: raw.errorH,
-      errorM: raw.errorM,
-      tipoAlimento: alimentosHembras.length > 0 ? 'Mixto' : (raw.tipoAlimento || ''),
-      consumoAlimento: consumoHembras,
-      consumoKgMachos: consumoMachos,
+      mortalidadH: raw.mortalidadH, mortalidadM: raw.mortalidadM,
+      selH: raw.selH, selM: raw.selM,
+      errorH: raw.errorH, errorM: raw.errorM,
+      tipoAlimento: tipoAlimentoNombre,
+      consumoAlimento: consumoHKg,
+      consumoKgMachos: consumoMKg,
       observaciones: raw.observaciones || null,
       ciclo: raw.ciclo || 'Normal',
-      pesoInicial: raw.pesoInicial ?? null,
-      pesoFinal: raw.pesoFinal ?? null,
-      pesoPromH: raw.pesoPromH,
-      pesoPromM: raw.pesoPromM,
-      uniformidadH: raw.uniformidadH,
-      uniformidadM: raw.uniformidadM,
-      cvH: raw.cvH,
-      cvM: raw.cvM,
+      pesoInicial: raw.pesoInicial ?? null, pesoFinal: raw.pesoFinal ?? null,
+      pesoPromH: raw.pesoPromH, pesoPromM: raw.pesoPromM,
+      uniformidadH: raw.uniformidadH, uniformidadM: raw.uniformidadM,
+      cvH: raw.cvH, cvM: raw.cvM,
       consumoAguaDiario: raw.consumoAguaDiario,
       consumoAguaPh: raw.consumoAguaPh,
       consumoAguaOrp: raw.consumoAguaOrp,
       consumoAguaTemperatura: raw.consumoAguaTemperatura,
-      // Cantidad de alimento en quintales por categoría (solo Panamá). El DTO oficial
-      // no los declara aún, los anexamos vía cast para que el service los envíe tal cual.
-      qqMixtas: raw.qqMixtas ?? null,
-      qqHembras: raw.qqHembras ?? null,
-      qqMachos: raw.qqMachos ?? null,
       metadata: Object.keys(metadata).length > 0 ? metadata : null,
-      itemsAdicionales: Object.keys(itemsAdicionales).length > 0 ? itemsAdicionales : null
+      itemsAdicionales: null,
     };
 
-    if (this.editing) {
-      (payload as UpdateLoteSeguimientoDto).id = this.editing.id;
-    }
+    if (this.editing) payload.id = this.editing.id;
 
-    this.save.emit({
-      data: payload as CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto,
-      isEdit: !!this.editing
-    });
-    // El componente padre manejará el loading y los mensajes
-    // Resetear saving después de un breve delay para permitir que el padre maneje el estado
-    setTimeout(() => {
-      this.saving = false;
-    }, 100);
+    this.save.emit({ data: payload as CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto, isEdit: !!this.editing });
+    setTimeout(() => { this.saving = false; }, 100);
   }
 
   onClose(): void {

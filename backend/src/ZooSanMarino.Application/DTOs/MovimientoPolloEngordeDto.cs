@@ -53,7 +53,9 @@ public record MovimientoPolloEngordeDto(
     double? PesoTaraReal = null,
     // Factura única del despacho (R3.3) y sobrante de aves del movimiento (R2)
     Guid? FacturaId = null,
-    int AvesSobrante = 0
+    int AvesSobrante = 0,
+    // Venta Panamá: split H/M asignado sobre mixtas (inventario sale de mixtas; reporte muestra el split).
+    bool EsVentaMixta = false
 );
 
 /// <summary>

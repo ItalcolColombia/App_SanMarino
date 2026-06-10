@@ -11,6 +11,8 @@ public interface ILoteReproductoraAveEngordeService
     Task<LoteReproductoraAveEngordeDto?> UpdateAsync(int id, UpdateLoteReproductoraAveEngordeDto dto);
     Task<bool> DeleteAsync(int id);
     Task<AvesDisponiblesDto?> GetAvesDisponiblesAsync(int loteAveEngordeId);
+    /// <summary>Reabre un lote cerrado con una novedad (motivo) para permitir eliminar registros.</summary>
+    Task<LoteReproductoraAveEngordeDto?> ReabrirAsync(int id, string novedad);
     /// <summary>Código único para nuevo registro: prefijo LR- + 10 dígitos aleatorios, sin repetirse en el lote ni en exclude.</summary>
     Task<string> GetNewReproductoraCodeAsync(int loteAveEngordeId, IEnumerable<string>? exclude = null);
 }

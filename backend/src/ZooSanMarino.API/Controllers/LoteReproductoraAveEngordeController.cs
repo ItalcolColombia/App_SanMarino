@@ -119,6 +119,26 @@ public class LoteReproductoraAveEngordeController : ControllerBase
         return ok ? NoContent() : NotFound();
     }
 
+    [HttpPost("{id:int}/reabrir")]
+    [ProducesResponseType(typeof(LoteReproductoraAveEngordeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<LoteReproductoraAveEngordeDto>> Reabrir(
+        [FromRoute] int id,
+        [FromBody] ReabrirLoteReproductoraDto dto,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _svc.ReabrirAsync(id, dto?.Novedad ?? "");
+            return result is null ? NotFound() : Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { detail = ex.Message });
+        }
+    }
+
     [HttpGet("new-code")]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

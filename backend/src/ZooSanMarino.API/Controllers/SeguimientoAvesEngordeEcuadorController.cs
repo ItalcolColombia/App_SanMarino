@@ -14,10 +14,12 @@ namespace ZooSanMarino.API.Controllers;
 public class SeguimientoAvesEngordeEcuadorController : ControllerBase
 {
     private readonly ISeguimientoAvesEngordeEcuadorService _svc;
+    private readonly ICurrentUser _current;
 
-    public SeguimientoAvesEngordeEcuadorController(ISeguimientoAvesEngordeEcuadorService svc)
+    public SeguimientoAvesEngordeEcuadorController(ISeguimientoAvesEngordeEcuadorService svc, ICurrentUser current)
     {
         _svc = svc;
+        _current = current;
     }
 
     /// <summary>Obtener un registro por ID.</summary>
@@ -128,8 +130,11 @@ public class SeguimientoAvesEngordeEcuadorController : ControllerBase
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!_current.Permissions.Contains("eliminar_registro"))
+            return Forbid();
         try
         {
             var deleted = await _svc.DeleteAsync(id);

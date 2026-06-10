@@ -33,6 +33,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   /** True mientras se obtiene el registro por ID (editar) antes de mostrar el formulario. */
   @Input() loadingRecord: boolean = false;
 
+  // ── Contexto del lote reproductora (banner informativo en el modal) ──
+  @Input() ctxGranja: string | null = null;
+  @Input() ctxNucleo: string | null = null;
+  @Input() ctxGalpon: string | null = null;
+  @Input() ctxLoteEngorde: string | null = null;
+  @Input() ctxReproductora: string | null = null;
+  @Input() ctxReproductoraCode: string | null = null;
+  /** Fecha sugerida para el campo fechaRegistro al abrir en modo crear (YYYY-MM-DD). */
+  @Input() defaultFechaRegistro: string | null = null;
+
   /** Pestañas: General (incluye consumos H/M y generales) / Stock. */
   levanteTab: 'general' | 'stock' = 'general';
 
@@ -337,7 +347,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     this.form.reset({
-      fechaRegistro: this.todayYMD(),
+      fechaRegistro: this.defaultFechaRegistro ?? this.todayYMD(),
       loteId: this.selectedLoteId,
       mortalidadHembras: 0,
       mortalidadMachos: 0,
@@ -390,10 +400,6 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     if (this.itemsHembrasArray.length === 0) {
       this.agregarItemHembras();
     }
-    // Nuevo registro: mostrar también una fila por defecto en Machos (opcional de llenar).
-    if (this.itemsMachosArray.length === 0) {
-      this.agregarItemMachos();
-    }
     // Lote fijo del contexto (no editable)
     this.lockLoteField();
     this.applyEditModeFieldLocks();
@@ -414,23 +420,20 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   agregarItemHembras(): void {
-    // Feature 13: validators OPCIONALES. El usuario puede agregar el item y guardar
-    // aunque no esté completo — el save filtra automáticamente los items incompletos
-    // (sin tipoItem, sin catalogItemId o sin cantidad). Esto permite guardar el
-    // seguimiento con alimento sólo en hembras, sólo en machos, ambos o ninguno.
     const itemForm = this.fb.group({
       tipoItem: [this.isEcuadorOrPanama ? null : 'alimento'],
       catalogItemId: [null],
       cantidad: [0, [Validators.min(0)]],
-      unidad: ['kg']
+      unidad: ['kg'],
+      cantidadMachos: [0, [Validators.min(0)]],
+      unidadMachos: ['kg']
     });
 
-    // Cuando cambia el tipo de ítem, actualizar la unidad automáticamente
     itemForm.get('tipoItem')?.valueChanges.subscribe(tipo => {
       if (tipo === 'alimento') {
-        itemForm.patchValue({ unidad: 'kg' }, { emitEvent: false });
+        itemForm.patchValue({ unidad: 'kg', unidadMachos: 'kg' }, { emitEvent: false });
       } else if (tipo) {
-        itemForm.patchValue({ unidad: 'unidades' }, { emitEvent: false });
+        itemForm.patchValue({ unidad: 'unidades', unidadMachos: 'unidades' }, { emitEvent: false });
       }
       itemForm.patchValue({ catalogItemId: null }, { emitEvent: false });
     });
@@ -834,6 +837,16 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
       }
     }
 
+    // Construir mapa catalogItemId → {cantidad, unidad} desde itemsMachos para rellenar cantidadMachos
+    const machosByCid = new Map<number, { cantidad: number; unidad: string }>();
+    if (itemsMachosFromMetadata && Array.isArray(itemsMachosFromMetadata)) {
+      itemsMachosFromMetadata.forEach((item: any) => {
+        const cid = this.resolveItemCatalogId(item);
+        if (cid == null) return;
+        machosByCid.set(cid, { cantidad: item.cantidad ?? 0, unidad: item.unidad || 'kg' });
+      });
+    }
+
     // Si hay items en metadata, cargarlos todos (incluyendo alimentos)
     // IMPORTANTE: El tipoItem debe venir desde metadata, si no está, se obtendrá del inventario después
     if (itemsHembrasFromMetadata && Array.isArray(itemsHembrasFromMetadata)) {
@@ -845,11 +858,14 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
         const cid = this.resolveItemCatalogId(item);
         if (cid == null) return;
 
+        const machoData = machosByCid.get(cid);
         this.itemsHembrasArray.push(this.fb.group({
           tipoItem: [tipoItem, Validators.required],
           catalogItemId: [cid, Validators.required],
           cantidad: [item.cantidad ?? item.cantidadKg ?? consumoHembras, [Validators.required, Validators.min(0)]],
-          unidad: [item.unidad || unidadConsumoHembras || 'kg', Validators.required]
+          unidad: [item.unidad || unidadConsumoHembras || 'kg', Validators.required],
+          cantidadMachos: [machoData?.cantidad ?? 0, [Validators.min(0)]],
+          unidadMachos: [machoData?.unidad ?? 'kg']
         }));
       });
     } else {
@@ -1938,36 +1954,35 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     const machosControls = this.itemsMachosArray.controls;
     const generalesControls = this.itemsGeneralesArray.controls;
 
-    // Procesar ítems de hembras
+    // Procesar ítems del panel unificado: cada fila genera entrada en hembras Y/O machos
     hembrasControls.forEach(control => {
       const itemValue = control.value;
       const tipoH = itemValue.tipoItem;
-      if (tipoH && itemValue.catalogItemId && itemValue.cantidad > 0) {
-        const catalogItemId = Number(itemValue.catalogItemId);
+      if (!tipoH || !itemValue.catalogItemId) return;
+      const catalogItemId = Number(itemValue.catalogItemId);
+      const ecPa = this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {};
+
+      if (Number(itemValue.cantidad) > 0) {
         itemsHembras.push({
           tipoItem: tipoH,
           catalogItemId,
-          ...(this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
+          ...ecPa,
           cantidad: Number(itemValue.cantidad),
           unidad: itemValue.unidad || 'kg'
+        });
+      }
+      if (Number(itemValue.cantidadMachos) > 0) {
+        itemsMachos.push({
+          tipoItem: tipoH,
+          catalogItemId,
+          ...ecPa,
+          cantidad: Number(itemValue.cantidadMachos),
+          unidad: itemValue.unidadMachos || 'kg'
         });
       }
     });
 
-    // Procesar ítems de machos
-    machosControls.forEach(control => {
-      const itemValue = control.value;
-      if (itemValue.tipoItem && itemValue.catalogItemId && itemValue.cantidad > 0) {
-        const catalogItemId = Number(itemValue.catalogItemId);
-        itemsMachos.push({
-          tipoItem: itemValue.tipoItem,
-          catalogItemId,
-          ...(this.isEcuadorOrPanama ? { itemInventarioEcuadorId: catalogItemId } : {}),
-          cantidad: Number(itemValue.cantidad),
-          unidad: itemValue.unidad || 'kg'
-        });
-      }
-    });
+    // machosControls ya no se usa (datos de machos vienen del array unificado arriba)
 
     generalesControls.forEach(control => {
       const itemValue = control.value;

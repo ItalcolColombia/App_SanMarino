@@ -16,13 +16,16 @@ public class SeguimientoAvesEngordeController : ControllerBase
 {
     private readonly ISeguimientoAvesEngordeService _svc;
     private readonly ISeguimientoAvesEngordeFilterDataService _filterDataSvc;
+    private readonly ICurrentUser _current;
 
     public SeguimientoAvesEngordeController(
         ISeguimientoAvesEngordeService svc,
-        ISeguimientoAvesEngordeFilterDataService filterDataSvc)
+        ISeguimientoAvesEngordeFilterDataService filterDataSvc,
+        ICurrentUser current)
     {
         _svc = svc;
         _filterDataSvc = filterDataSvc;
+        _current = current;
     }
 
     /// <summary>Datos para filtros en cascada (Granja → Núcleo → Galpón → Lote). Lotes = lote_ave_engorde (no lotes levante).</summary>
@@ -135,6 +138,8 @@ public class SeguimientoAvesEngordeController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!_current.Permissions.Contains("eliminar_registro"))
+            return Forbid();
         try
         {
             var deleted = await _svc.DeleteAsync(id);

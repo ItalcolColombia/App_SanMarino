@@ -66,6 +66,8 @@ export class ModalDetalleSeguimientoEngordeComponent implements OnChanges {
     if (this.isOpen) this.onClose();
   }
 
+  get isPanama(): boolean { return this.countryFilter.isPanama(); }
+
   onClose(): void {
     this.close.emit();
   }

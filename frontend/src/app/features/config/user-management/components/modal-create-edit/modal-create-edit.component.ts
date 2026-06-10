@@ -5,7 +5,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, A
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import {
   faUserPlus, faUser, faSave, faTimes, faEnvelope, faPhone, faIdCard, faBuilding, faUsers,
-  faEye, faEyeSlash, faCheck, faExclamationTriangle
+  faEye, faEyeSlash, faCheck, faExclamationTriangle, faLaptop, faAt
 } from '@fortawesome/free-solid-svg-icons';
 import { Subject, takeUntil, forkJoin, switchMap, take } from 'rxjs';
 
@@ -14,6 +14,8 @@ import { Company, CompanyService } from '../../../../../core/services/company/co
 import { RoleService, Role } from '../../../../../core/services/role/role.service';
 import { AuthService } from '../../../../../core/auth/auth.service';
 import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
+import { ShowIfCountryDirective } from '../../../../../core/directives/show-if-country.directive';
+import { TicketPerfilEditorComponent } from '../../../../../features/tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
 import { interval, Subscription } from 'rxjs';
 
 // === Validador: array requerido (>=1 ítem) ===
@@ -33,7 +35,7 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
 @Component({
   selector: 'app-modal-create-edit',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule, ShowIfCountryDirective, TicketPerfilEditorComponent],
   templateUrl: './modal-create-edit.component.html',
   styleUrls: ['./modal-create-edit.component.scss']
 })
@@ -58,13 +60,18 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   faEyeSlash = faEyeSlash;
   faCheck = faCheck;
   faExclamationTriangle = faExclamationTriangle;
+  faLaptop = faLaptop;
+  faAt = faAt;
 
   // Estado
   loading = false;
   saving = false;
   showPassword = false;
   showConfirmPassword = false;
-  activeTab: 'personal' | 'access' | 'roles' = 'personal';
+  activeTab: 'personal' | 'access' | 'roles' | 'tickets' = 'personal';
+  isPlatformUser = false;
+
+  readonly PLATFORM_DOMAIN = '@zootecnico.com';
 
   // Estado del correo
   emailQueueId: number | null = null;
@@ -126,6 +133,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       ubicacion: [''],
       zona: ['', [Validators.maxLength(20)]],
       email: ['', [Validators.required, Validators.email]],
+      platformUsername: ['', []],
       password: ['', [Validators.required, Validators.minLength(6)]],
       confirmPassword: ['', [Validators.required, match('password')]],
       companyIds: [[], [requiredArray]],
@@ -231,7 +239,42 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       });
   }
 
+  generatePassword(): string {
+    const digits = Math.floor(100000 + Math.random() * 900000);
+    return `zootecnico-${digits}`;
+  }
+
+  private applyEmailRealPasswordMode(): void {
+    const pwd = this.generatePassword();
+    const pwdCtrl = this.userForm.get('password')!;
+    const confirmCtrl = this.userForm.get('confirmPassword')!;
+
+    pwdCtrl.clearValidators();
+    confirmCtrl.clearValidators();
+    pwdCtrl.setValue(pwd);
+    confirmCtrl.setValue(pwd);
+    pwdCtrl.updateValueAndValidity();
+    confirmCtrl.updateValueAndValidity();
+    pwdCtrl.disable();
+    confirmCtrl.disable();
+  }
+
+  private applyPlatformPasswordMode(): void {
+    const pwdCtrl = this.userForm.get('password')!;
+    const confirmCtrl = this.userForm.get('confirmPassword')!;
+
+    pwdCtrl.enable();
+    confirmCtrl.enable();
+    pwdCtrl.setValue('');
+    confirmCtrl.setValue('');
+    pwdCtrl.setValidators([Validators.required, Validators.minLength(6)]);
+    confirmCtrl.setValidators([Validators.required, match('password')]);
+    pwdCtrl.updateValueAndValidity();
+    confirmCtrl.updateValueAndValidity();
+  }
+
   resetForm(): void {
+    this.isPlatformUser = false;
     this.userForm.reset({
       surName: '',
       firstName: '',
@@ -240,17 +283,47 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       ubicacion: '',
       zona: '',
       email: '',
+      platformUsername: '',
       password: '',
       confirmPassword: '',
       companyIds: [],
       roleIds: []
     });
 
-    // En creación, la contraseña es requerida
-    this.userForm.get('password')?.setValidators([Validators.required, Validators.minLength(6)]);
-    this.userForm.get('confirmPassword')?.setValidators([Validators.required, match('password')]);
-    this.userForm.get('password')?.updateValueAndValidity();
-    this.userForm.get('confirmPassword')?.updateValueAndValidity();
+    // Email real activo por defecto
+    this.userForm.get('email')?.setValidators([Validators.required, Validators.email]);
+    this.userForm.get('platformUsername')?.clearValidators();
+    this.userForm.get('email')?.updateValueAndValidity();
+    this.userForm.get('platformUsername')?.updateValueAndValidity();
+
+    // Contraseña autogenerada y deshabilitada para email real
+    this.applyEmailRealPasswordMode();
+  }
+
+  onUserTypeToggle(platform: boolean): void {
+    this.isPlatformUser = platform;
+    const emailCtrl = this.userForm.get('email')!;
+    const platformCtrl = this.userForm.get('platformUsername')!;
+
+    emailCtrl.setValue('');
+    platformCtrl.setValue('');
+
+    if (platform) {
+      emailCtrl.clearValidators();
+      platformCtrl.setValidators([
+        Validators.required,
+        Validators.minLength(3),
+        Validators.pattern(/^[a-zA-Z0-9._-]+$/)
+      ]);
+      this.applyPlatformPasswordMode();
+    } else {
+      emailCtrl.setValidators([Validators.required, Validators.email]);
+      platformCtrl.clearValidators();
+      this.applyEmailRealPasswordMode();
+    }
+
+    emailCtrl.updateValueAndValidity();
+    platformCtrl.updateValueAndValidity();
   }
 
   mapRoleNamesToIds(roleNames: string[]): number[] {
@@ -274,7 +347,8 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
     }
 
     this.saving = true;
-    const formValue = this.userForm.value;
+    // getRawValue() incluye controles deshabilitados (password autogenerado en modo email real)
+    const formValue = this.userForm.getRawValue();
 
     if (this.editingUser) {
       // Actualizar usuario existente
@@ -305,18 +379,23 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
         });
     } else {
       // Crear nuevo usuario
+      const resolvedEmail = this.isPlatformUser
+        ? `${(formValue.platformUsername as string).toLowerCase().trim()}${this.PLATFORM_DOMAIN}`
+        : formValue.email;
+
       const createDto: CreateUserDto = {
         surName: formValue.surName,
         firstName: formValue.firstName,
-        lastName: formValue.surName || '', // Usar surName como lastName si no hay lastName
+        lastName: formValue.surName || '',
         cedula: formValue.cedula,
         telefono: formValue.telefono,
         ubicacion: formValue.ubicacion,
         zona: formValue.zona || null,
-        email: formValue.email,
+        email: resolvedEmail,
         password: formValue.password,
         companyIds: formValue.companyIds,
-        roleIds: formValue.roleIds
+        roleIds: formValue.roleIds,
+        isPlatformUser: this.isPlatformUser
       };
 
       this.userService.create(createDto)
@@ -452,7 +531,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
     }
   }
 
-  setActiveTab(tab: 'personal' | 'access' | 'roles'): void {
+  setActiveTab(tab: 'personal' | 'access' | 'roles' | 'tickets'): void {
     this.activeTab = tab;
   }
 
@@ -536,6 +615,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
       ubicacion: 'Ubicación',
       zona: 'Zona',
       email: 'Email',
+      platformUsername: 'Usuario de plataforma',
       password: 'Contraseña',
       confirmPassword: 'Confirmar contraseña',
       companyIds: 'Empresas',
@@ -567,15 +647,18 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   }
 
   // Métodos para validación de tabs
-  isTabValid(tab: 'personal' | 'access' | 'roles'): boolean {
+  isTabValid(tab: 'personal' | 'access' | 'roles' | 'tickets'): boolean {
     switch (tab) {
       case 'personal':
         return !!(this.userForm.get('firstName')?.valid &&
                  this.userForm.get('surName')?.valid &&
                  this.userForm.get('cedula')?.valid);
-      case 'access':
-        return !!(this.userForm.get('email')?.valid &&
-                 (this.isEditing || this.userForm.get('password')?.valid));
+      case 'access': {
+        const credentialValid = this.isPlatformUser
+          ? this.userForm.get('platformUsername')?.valid
+          : this.userForm.get('email')?.valid;
+        return !!(credentialValid && (this.isEditing || this.userForm.get('password')?.valid));
+      }
       case 'roles':
         return !!(this.userForm.get('companyIds')?.valid &&
                  this.userForm.get('roleIds')?.valid);
@@ -584,14 +667,17 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
     }
   }
 
-  getTabErrorCount(tab: 'personal' | 'access' | 'roles'): number {
+  getTabErrorCount(tab: 'personal' | 'access' | 'roles' | 'tickets'): number {
     switch (tab) {
       case 'personal':
         return [this.userForm.get('firstName'), this.userForm.get('surName'), this.userForm.get('cedula')]
           .filter(field => field?.invalid && field?.touched).length;
-      case 'access':
-        return [this.userForm.get('email'), this.userForm.get('password'), this.userForm.get('confirmPassword')]
-          .filter(field => field?.invalid && field?.touched).length;
+      case 'access': {
+        const accessFields = this.isPlatformUser
+          ? [this.userForm.get('platformUsername'), this.userForm.get('password'), this.userForm.get('confirmPassword')]
+          : [this.userForm.get('email'), this.userForm.get('password'), this.userForm.get('confirmPassword')];
+        return accessFields.filter(field => field?.invalid && field?.touched).length;
+      }
       case 'roles':
         return [this.userForm.get('companyIds'), this.userForm.get('roleIds')]
           .filter(field => field?.invalid && field?.touched).length;

@@ -4,7 +4,8 @@ public interface ICurrentUser
 {
     int CompanyId { get; }
     int UserId { get; }
-    int? PaisId { get; } // ← NUEVO: País activo
+    int? PaisId { get; }
     string? ActiveCompanyName { get; }
-    Guid? UserGuid { get; } // ← NUEVO: Guid del usuario desde el JWT
+    Guid? UserGuid { get; }
+    IReadOnlyList<string> Permissions { get; }
 }

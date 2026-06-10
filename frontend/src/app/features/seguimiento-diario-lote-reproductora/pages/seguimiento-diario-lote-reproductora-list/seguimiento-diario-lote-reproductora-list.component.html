@@ -13,7 +13,7 @@
           </svg>
         </div>
         <div class="ux-header__text">
-          <h1 class="ux-header__title">Seguimiento Diario Reproductora</h1>
+          <h1 class="ux-header__title">Seguimiento Diario Reproductora Pollo Engorde</h1>
           <p class="ux-header__subtitle">Aves de engorde · Registro diario por lote reproductora</p>
         </div>
       </div>
@@ -39,12 +39,25 @@
 
       <!-- Acciones -->
       <div class="ux-header__actions">
+
+        <!-- Badge de progreso días 0-7 -->
+        <span
+          class="dias-progreso-badge"
+          *ngIf="selectedLoteReproductoraId"
+          [class.dias-progreso-badge--completo]="isSeguimientoCompleto"
+          [title]="isSeguimientoCompleto ? 'Los 7 días de seguimiento están completos' : 'Días registrados de ' + MAX_DIAS_SEGUIMIENTO">
+          {{ seguimientos.length }}/{{ MAX_DIAS_SEGUIMIENTO }} días
+        </span>
+
         <button
           type="button"
           class="btn btn--primary"
           (click)="create()"
-          [disabled]="!selectedLoteReproductoraId || isLoteReproductoraCerrado"
-          [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado' : (!selectedLoteReproductoraId ? 'Selecciona todos los filtros primero' : 'Crear nuevo registro de seguimiento')">
+          [disabled]="!canCreateSeguimiento"
+          [title]="isLoteReproductoraCerrado ? 'El lote reproductora está cerrado'
+            : isSeguimientoCompleto ? 'Ya se registraron los ' + MAX_DIAS_SEGUIMIENTO + ' días de seguimiento'
+            : (!selectedLoteReproductoraId ? 'Selecciona todos los filtros primero'
+            : 'Próxima fecha sugerida: ' + nextSuggestedFecha)">
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="btn-icon">
             <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
           </svg>
@@ -184,10 +197,19 @@
         <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="closed-icon">
           <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
         </svg>
-        <div>
-          <strong>Lote reproductora cerrado</strong>
-          <span>Solo consulta — no se pueden agregar ni editar registros de seguimiento.</span>
+        <div style="flex:1">
+          <strong>Lote reproductora cerrado<span *ngIf="isReabierto"> · Reabierto</span></strong>
+          <span *ngIf="!isReabierto">Solo consulta — reábralo con una novedad para poder eliminar registros.</span>
+          <span *ngIf="isReabierto">Reabierto con novedad: «{{ selectedReproductoraDetail.novedadApertura }}». Ya puede eliminar registros.</span>
         </div>
+        <button
+          type="button"
+          class="btn btn--primary"
+          *ngIf="!isReabierto"
+          (click)="openReabrir()"
+          title="Reabrir el lote con una novedad para eliminar registros">
+          Reabrir lote
+        </button>
       </div>
 
       <div class="info-card__body">
@@ -292,31 +314,35 @@
           <caption class="sr-only">Registros de seguimiento diario — reproductora aves de engorde</caption>
           <thead>
             <tr>
-              <th scope="col" class="col-date">Fecha</th>
+              <th scope="col" class="col-date" rowspan="2">Fecha</th>
+              <th scope="col" class="col-edad" rowspan="2" title="Edad del lote desde el encasetamiento al día del registro">Edad</th>
               <th scope="col" colspan="2" class="col-group">Mortalidad</th>
               <th scope="col" colspan="2" class="col-group">Selección</th>
               <th scope="col" colspan="2" class="col-group">Error sexaje</th>
-              <th scope="col">Tipo alimento</th>
-              <th scope="col" class="col-num">Consumo (kg)</th>
-              <th scope="col" class="col-actions">Acciones</th>
+              <th scope="col" rowspan="2">Tipo alimento</th>
+              <th scope="col" colspan="2" class="col-group">Consumo (kg)</th>
+              <th scope="col" colspan="2" class="col-group">Peso prom. (kg)</th>
+              <th scope="col" rowspan="2" class="col-ciclo">Ciclo</th>
+              <th scope="col" rowspan="2" class="col-obs">Observaciones</th>
+              <th scope="col" rowspan="2" class="col-actions">Acciones</th>
             </tr>
             <tr class="data-table__subrow">
-              <th scope="col"></th>
               <th scope="col" class="sub-th">H</th>
               <th scope="col" class="sub-th">M</th>
               <th scope="col" class="sub-th">H</th>
               <th scope="col" class="sub-th">M</th>
               <th scope="col" class="sub-th">H</th>
               <th scope="col" class="sub-th">M</th>
-              <th scope="col"></th>
-              <th scope="col"></th>
-              <th scope="col"></th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
+              <th scope="col" class="sub-th">H</th>
+              <th scope="col" class="sub-th">M</th>
             </tr>
           </thead>
           <tbody>
             <!-- Empty state -->
             <tr *ngIf="!loading && (!seguimientos || seguimientos.length === 0)" class="data-table__empty-row">
-              <td colspan="10">
+              <td colspan="16">
                 <div class="empty-state">
                   <div class="empty-state__visual" aria-hidden="true">
                     <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -349,14 +375,64 @@
             <!-- Filas de datos -->
             <tr *ngFor="let s of seguimientos; trackBy: trackById" class="data-table__row">
               <td class="cell-date" data-label="Fecha">{{ s.fechaRegistro | date:'dd/MM/yyyy' }}</td>
-              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras }}</td>
-              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos }}</td>
-              <td class="cell-num" data-label="Sel. H">{{ s.selH }}</td>
-              <td class="cell-num" data-label="Sel. M">{{ s.selM }}</td>
-              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras }}</td>
-              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos }}</td>
-              <td class="cell-text" data-label="Tipo alimento">{{ s.tipoAlimento || '—' }}</td>
-              <td class="cell-num" data-label="Consumo (kg)">{{ s.consumoKgHembras }}</td>
+
+              <!-- Edad del lote en el registro (días desde encasetamiento) -->
+              <td class="cell-edad" data-label="Edad">
+                <ng-container *ngIf="calcularEdad(s.fechaRegistro) !== null; else sinEdad">
+                  <span class="edad-valor" [title]="'Días desde el encasetamiento'">
+                    {{ calcularEdad(s.fechaRegistro) }}
+                  </span>
+                  <span class="edad-label">días</span>
+                </ng-container>
+                <ng-template #sinEdad>—</ng-template>
+              </td>
+
+              <!-- Mortalidad -->
+              <td class="cell-num" data-label="Mort. H">{{ s.mortalidadHembras != null ? s.mortalidadHembras : '—' }}</td>
+              <td class="cell-num" data-label="Mort. M">{{ s.mortalidadMachos != null ? s.mortalidadMachos : '—' }}</td>
+
+              <!-- Selección -->
+              <td class="cell-num" data-label="Sel. H">{{ s.selH != null ? s.selH : '—' }}</td>
+              <td class="cell-num" data-label="Sel. M">{{ s.selM != null ? s.selM : '—' }}</td>
+
+              <!-- Error sexaje -->
+              <td class="cell-num" data-label="Err. H">{{ s.errorSexajeHembras != null ? s.errorSexajeHembras : '—' }}</td>
+              <td class="cell-num" data-label="Err. M">{{ s.errorSexajeMachos != null ? s.errorSexajeMachos : '—' }}</td>
+
+              <!-- Tipo alimento -->
+              <td class="cell-text cell-alimento" data-label="Tipo alimento" [title]="s.tipoAlimento || ''">
+                {{ s.tipoAlimento || '—' }}
+              </td>
+
+              <!-- Consumo H / M -->
+              <td class="cell-num" data-label="Consumo H (kg)">
+                {{ s.consumoKgHembras != null ? (s.consumoKgHembras | number:'1.0-2') : '—' }}
+              </td>
+              <td class="cell-num" data-label="Consumo M (kg)">
+                {{ s.consumoKgMachos != null ? (s.consumoKgMachos | number:'1.0-2') : '—' }}
+              </td>
+
+              <!-- Peso promedio H / M -->
+              <td class="cell-num" data-label="Peso H (kg)">
+                {{ s.pesoPromH != null ? (s.pesoPromH | number:'1.0-3') : '—' }}
+              </td>
+              <td class="cell-num" data-label="Peso M (kg)">
+                {{ s.pesoPromM != null ? (s.pesoPromM | number:'1.0-3') : '—' }}
+              </td>
+
+              <!-- Ciclo -->
+              <td class="cell-ciclo" data-label="Ciclo">
+                <span class="badge-ciclo" [class.badge-ciclo--reforzado]="s.ciclo === 'Reforzado'">
+                  {{ s.ciclo || 'Normal' }}
+                </span>
+              </td>
+
+              <!-- Observaciones -->
+              <td class="cell-obs" data-label="Observaciones" [title]="s.observaciones || ''">
+                {{ s.observaciones ? (s.observaciones.length > 40 ? (s.observaciones | slice:0:40) + '…' : s.observaciones) : '—' }}
+              </td>
+
+              <!-- Acciones -->
               <td class="cell-actions" data-label="Acciones">
                 <div class="action-group">
                   <button
@@ -380,8 +456,8 @@
                     type="button"
                     class="action-btn action-btn--delete"
                     (click)="delete(s.id)"
-                    [disabled]="isLoteReproductoraCerrado"
-                    [title]="isLoteReproductoraCerrado ? 'Lote cerrado: no se puede eliminar' : 'Eliminar registro'"
+                    [disabled]="!puedeEliminar"
+                    [title]="puedeEliminar ? 'Eliminar registro' : 'Lote cerrado: reábralo con una novedad para eliminar'"
                     aria-label="Eliminar">
                     <fa-icon [icon]="faTrash"></fa-icon>
                   </button>
@@ -411,7 +487,12 @@
             [loteId]="selectedLoteId"
             [galponId]="selectedGalponId"
             [loteReproductoraId]="selectedLoteReproductoraId"
-            [loteNombre]="selectedLoteReproductoraNombre">
+            [loteNombre]="selectedLoteReproductoraNombre"
+            [granjaNombre]="selectedGranjaName"
+            [nucleoNombre]="selectedNucleoNombre || null"
+            [galponNombre]="selectedGalponNombre || null"
+            [loteEngorde]="selectedLoteNombre || null"
+            [fechaEncasetamiento]="selectedReproductoraDetail?.fechaEncasetamiento ?? null">
           </app-lesion-tab>
         </div>
         <ng-template #lesionesNoContext>
@@ -438,24 +519,34 @@
      MODALES
 ══════════════════════════════════════════ -->
 
-<!-- Modal crear / editar seguimiento -->
-<app-modal-create-edit
+<!-- Modal crear / editar seguimiento (modal propio del módulo) -->
+<app-modal-seguimiento-reproductora
   [isOpen]="modalOpen"
-  [editing]="editing"
+  [editing]="editingModal"
   [lotes]="lotesParaModal"
-  [selectedLoteId]="selectedLoteReproductoraId"
+  [selectedLoteId]="selectedReproIdStr"
+  [selectedReproId]="selectedReproIdStr"
+  [farmId]="selectedGranjaId"
+  [galponId]="selectedGalponId"
+  [defaultFecha]="editingModal ? null : modalDefaultFecha"
+  [registrosCount]="seguimientos.length"
   [loading]="loading"
+  [ctxGranja]="selectedGranjaName"
+  [ctxNucleo]="selectedNucleoNombre || null"
+  [ctxGalpon]="selectedGalponNombre || null"
+  [ctxLoteEngorde]="selectedLoteNombre || null"
+  [ctxReproductora]="selectedLoteReproductoraNombre || null"
   (close)="cancel()"
   (save)="onSave($event)">
-</app-modal-create-edit>
+</app-modal-seguimiento-reproductora>
 
-<!-- Modal ver detalle -->
-<app-modal-detalle-seguimiento-levante
+<!-- Modal ver detalle (modal propio del módulo) -->
+<app-modal-detalle-seguimiento-reproductora
   [isOpen]="detailModalOpen"
   [seguimiento]="editing"
   [skipFetch]="true"
   (close)="detailModalOpen = false; editing = null;">
-</app-modal-detalle-seguimiento-levante>
+</app-modal-detalle-seguimiento-reproductora>
 
 <!-- Modal confirmación eliminar -->
 <app-confirmation-modal
@@ -473,3 +564,31 @@
   (confirmed)="loteCerradoModalOpen = false"
   (closed)="loteCerradoModalOpen = false">
 </app-confirmation-modal>
+
+<!-- Modal reapertura con novedad -->
+<div class="reabrir-overlay" *ngIf="reabrirModalOpen" (click)="cancelReabrir()">
+  <div class="reabrir-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="reabrir-title">
+    <h3 id="reabrir-title" class="reabrir-modal__title">Reabrir lote reproductora</h3>
+    <p class="reabrir-modal__desc">
+      Indique la <strong>novedad</strong> (motivo) por la que reabre este lote cerrado.
+      Quedará registrada como auditoría. Al eliminar un registro, el lote se cerrará nuevamente.
+    </p>
+    <label for="reabrir-novedad" class="reabrir-modal__label">Novedad</label>
+    <textarea
+      id="reabrir-novedad"
+      class="reabrir-modal__textarea"
+      rows="3"
+      [(ngModel)]="novedadInput"
+      placeholder="Ej.: Corrección de un registro cargado con datos errados."></textarea>
+    <div class="reabrir-modal__actions">
+      <button type="button" class="btn" (click)="cancelReabrir()" [disabled]="reabriendo">Cancelar</button>
+      <button
+        type="button"
+        class="btn btn--primary"
+        (click)="confirmReabrir()"
+        [disabled]="!novedadInput.trim() || reabriendo">
+        {{ reabriendo ? 'Reabriendo…' : 'Reabrir lote' }}
+      </button>
+    </div>
+  </div>
+</div>

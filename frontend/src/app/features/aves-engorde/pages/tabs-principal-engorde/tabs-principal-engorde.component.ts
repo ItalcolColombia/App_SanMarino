@@ -6,7 +6,9 @@ import { SeguimientoLoteLevanteDto, LoteRegistroHistoricoUnificadoDto, Seguimien
 import { LoteDto, LoteMortalidadResumenDto } from '../../../lote/services/lote.service';
 import { TablaIndicadoresDiariosEngordeComponent } from '../tabla-indicadores-diarios-engorde/tabla-indicadores-diarios-engorde.component';
 import { GraficasIndicadoresDiariosEngordeComponent } from '../graficas-indicadores-diarios-engorde/graficas-indicadores-diarios-engorde.component';
+import { GraficasProductividadEngordeComponent } from '../graficas-productividad-engorde/graficas-productividad-engorde.component';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import { TEXTO_FORMULA_SALDO_ALIMENTO_TOOLTIP } from '../../utils/saldo-alimento-engorde.util';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { ModalCuadrarSaldosEngordeComponent } from '../modal-cuadrar-saldos-engorde/modal-cuadrar-saldos-engorde.component';
@@ -17,7 +19,7 @@ export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fe
 @Component({
   selector: 'app-tabs-principal-engorde',
   standalone: true,
-  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent],
+  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, GraficasProductividadEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent],
   templateUrl: './tabs-principal-engorde.component.html',
   styleUrls: ['./tabs-principal-engorde.component.scss']
 })
@@ -46,6 +48,9 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
   isAdmin: boolean = false;
+  /** País activo: condiciona qué set de gráficas se muestra en la pestaña Gráficas. */
+  isEcuador: boolean = false;
+  isPanama: boolean = false;
 
   /** Tooltip columna saldo alimento: fórmula explícita (validación de negocio). */
   readonly textoFormulaSaldoAlimento = TEXTO_FORMULA_SALDO_ALIMENTO_TOOLTIP;
@@ -66,11 +71,16 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   /** '' = todos los tipos */
   filtroTipoAlimento = '';
 
-  constructor(private storageService: TokenStorageService) {}
+  constructor(
+    private storageService: TokenStorageService,
+    private countryFilter: CountryFilterService
+  ) {}
 
   ngOnInit(): void {
     const session = this.storageService.get();
     this.isAdmin = !!session?.user?.roles?.includes('Admin');
+    this.isEcuador = this.countryFilter.isEcuador();
+    this.isPanama = this.countryFilter.isPanama();
   }
 
   ngOnChanges(_changes: SimpleChanges): void {
@@ -87,8 +97,12 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   /** Columnas de la tabla de registros diarios (sin Acciones). */
   get colspanRegistroDiario(): number {
-    // +2 por las columnas de peso individual de despacho (R3.5)
-    return 30 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    // Base 30 (no-Panamá).
+    // Panamá: fórmula antigua era +2 (consumo H+M extra). Esta sesión mergea 4 pares H/M en Mixto → −4.
+    // Net: +2 − 4 = −2.
+    return 30
+      + (this.enriquecerTablaConHistoricoInventario ? 3 : 0)
+      + (this.isPanama ? -2 : 0);
   }
 
   // segId puede ser null (movs sin seguimiento, fix #14) → usar fecha como fallback único para trackBy

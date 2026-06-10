@@ -46,7 +46,7 @@ public class AuthService : IAuthService
             Id           = Guid.NewGuid(),
             email        = dto.Email,
             PasswordHash = _hasher.HashPassword(null!, dto.Password),
-            IsEmailLogin = true,
+            IsEmailLogin = !dto.IsPlatformUser,
             IsDeleted    = false
         };
 
@@ -86,32 +86,32 @@ public class AuthService : IAuthService
 
         await _ctx.SaveChangesAsync();
 
-        // Enviar correo de bienvenida con credenciales (asíncrono, no bloquea)
+        // Enviar correo de bienvenida solo si es un usuario con email real
         int? emailQueueId = null;
         bool emailQueued = false;
-        
-        try
-        {
-            var userName = $"{user.firstName} {user.surName}".Trim();
-            if (string.IsNullOrWhiteSpace(userName))
-                userName = dto.Email;
 
-            // Obtener URL de la aplicación desde configuración (o usar valor por defecto)
-            var applicationUrl = "https://zootecnico.sanmarino.com.co"; // Valor por defecto, puede venir de configuración
-            
-            // Enviar correo de forma asíncrona usando la cola (no bloquea)
-            emailQueueId = await _emailService.SendWelcomeEmailAsync(
-                dto.Email,
-                dto.Password,
-                userName,
-                applicationUrl
-            );
-            emailQueued = emailQueueId.HasValue;
-        }
-        catch (Exception)
+        if (!dto.IsPlatformUser)
         {
-            // Log del error pero no fallar el registro si el email falla
-            // El usuario ya está creado, solo falló el envío del correo
+            try
+            {
+                var userName = $"{user.firstName} {user.surName}".Trim();
+                if (string.IsNullOrWhiteSpace(userName))
+                    userName = dto.Email;
+
+                var applicationUrl = "https://zootecnico.sanmarino.com.co";
+
+                emailQueueId = await _emailService.SendWelcomeEmailAsync(
+                    dto.Email,
+                    dto.Password,
+                    userName,
+                    applicationUrl
+                );
+                emailQueued = emailQueueId.HasValue;
+            }
+            catch (Exception)
+            {
+                // No fallar el registro si el email falla
+            }
         }
 
         var response = await GenerateResponseAsync(user, login);
@@ -285,22 +285,24 @@ public class AuthService : IAuthService
     // Consultar países asociados a cada empresa del usuario desde CompanyPaises
     var companyPaisesFromDb = await _ctx.CompanyPaises
         .Include(cp => cp.Company)
+            .ThenInclude(c => c.Logo)
         .Include(cp => cp.Pais)
         .Where(cp => userCompanyIds.Contains(cp.CompanyId))
         .ToListAsync();
-    
+
     // Crear diccionario para saber si una empresa es default
     var defaultCompanies = userCompanies
         .Where(uc => uc.IsDefault)
         .Select(uc => uc.CompanyId)
         .ToHashSet();
-    
+
     // Crear lista de CompanyPaisDto con información completa de país
     static string? BuildCompanyLogoDataUrl(Company? c)
     {
-        if (c?.LogoBytes == null || c.LogoBytes.Length == 0) return null;
-        var ct = string.IsNullOrWhiteSpace(c.LogoContentType) ? "image/png" : c.LogoContentType.Trim();
-        return $"data:{ct};base64,{Convert.ToBase64String(c.LogoBytes)}";
+        var logo = c?.Logo;
+        if (logo?.LogoBytes == null || logo.LogoBytes.Length == 0) return null;
+        var ct = string.IsNullOrWhiteSpace(logo.LogoContentType) ? "image/png" : logo.LogoContentType.Trim();
+        return $"data:{ct};base64,{Convert.ToBase64String(logo.LogoBytes)}";
     }
 
     var companyPaisesList = companyPaisesFromDb.Select(cp => new CompanyPaisDto

@@ -50,6 +50,19 @@ namespace ZooSanMarino.Application.Interfaces
         Task<TableDependenciesDto> GetTableDependenciesAsync(string schema, string table);
         Task<DatabaseAnalysisDto> AnalyzeDatabaseAsync();
         Task<byte[]> ExportSchemaAsync(string schema);
+
+        // ===================== VISTAS Y FUNCIONES =====================
+        Task<IEnumerable<ViewDto>> GetViewsAsync(string? schema = null);
+        Task<IEnumerable<FunctionDto>> GetFunctionsAsync(string? schema = null);
+        Task<RoutineSourceDto> GetFunctionSourceAsync(string schema, string name);
+        Task<string> GetViewDefinitionAsync(string schema, string name);
+        Task CreateOrReplaceViewAsync(CreateViewRequest request);
+        Task DropViewAsync(string schema, string name, bool materialized);
+        Task CreateOrReplaceRoutineAsync(CreateRoutineRequest request);
+
+        // ===================== SQL ARBITRARIO (ADMIN) =====================
+        SqlClassificationDto ClassifySql(string sql);
+        Task<QueryResultDto> ExecuteSqlAsync(ExecuteSqlRequest request);
     }
 }
 

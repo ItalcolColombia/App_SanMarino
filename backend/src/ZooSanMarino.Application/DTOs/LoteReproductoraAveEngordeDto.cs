@@ -26,8 +26,27 @@ public record LoteReproductoraAveEngordeDto(
     /// <summary>Hembras al abrir el lote reproductor.</summary>
     int AvesInicioHembras,
     /// <summary>Machos al abrir el lote reproductor.</summary>
-    int AvesInicioMachos
+    int AvesInicioMachos,
+    /// <summary>Cantidad de registros de seguimiento diario capturados (de 7).</summary>
+    int NumRegistros = 0,
+    /// <summary>Edad en días desde el encasetamiento hasta hoy.</summary>
+    int EdadDias = 0,
+    /// <summary>Hembras vivas actuales (inicio − mortalidad/selección/error de hembras).</summary>
+    int AvesActualesHembras = 0,
+    /// <summary>Machos vivos actuales (inicio − mortalidad/selección/error de machos).</summary>
+    int AvesActualesMachos = 0,
+    /// <summary>True si ya completó los 7 días de recogida de datos.</summary>
+    bool SieteDiasCompletos = false,
+    /// <summary>Código reproductora editable por el usuario (distinto del ReproductoraId autogenerado).</summary>
+    string? CodigoReproductora = null,
+    /// <summary>True si el lote (cerrado) fue reabierto con novedad para permitir eliminar registros.</summary>
+    bool Reabierto = false,
+    /// <summary>Novedad/motivo con que se reabrió el lote.</summary>
+    string? NovedadApertura = null
 );
+
+/// <summary>Request para reabrir un lote reproductora cerrado. La novedad es obligatoria.</summary>
+public record ReabrirLoteReproductoraDto(string Novedad);
 
 public record CreateLoteReproductoraAveEngordeDto(
     int LoteAveEngordeId,
@@ -43,7 +62,8 @@ public record CreateLoteReproductoraAveEngordeDto(
     int? UnifM,
     decimal? PesoInicialM,
     decimal? PesoInicialH,
-    decimal? PesoMixto
+    decimal? PesoMixto,
+    string? CodigoReproductora = null
 );
 
 public record UpdateLoteReproductoraAveEngordeDto(
@@ -60,5 +80,6 @@ public record UpdateLoteReproductoraAveEngordeDto(
     int? UnifM,
     decimal? PesoInicialM,
     decimal? PesoInicialH,
-    decimal? PesoMixto
+    decimal? PesoMixto,
+    string? CodigoReproductora = null
 );

@@ -249,5 +249,157 @@ namespace ZooSanMarino.Application.DTOs
         public int IndexCount { get; set; }
         public int ForeignKeyCount { get; set; }
     }
+
+    // =====================================================
+    // VISTAS Y FUNCIONES
+    // =====================================================
+
+    public class ViewDto
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public bool Materialized { get; set; }
+    }
+
+    public class FunctionDto
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Arguments { get; set; } = string.Empty;
+        public string ReturnType { get; set; } = string.Empty;
+        public string Kind { get; set; } = "function"; // function | procedure | aggregate | window
+        public string Language { get; set; } = string.Empty;
+    }
+
+    public class RoutineSourceDto
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Definition { get; set; } = string.Empty;
+    }
+
+    public class CreateViewRequest
+    {
+        public string Schema { get; set; } = "public";
+        public string Name { get; set; } = string.Empty;
+        public string SelectSql { get; set; } = string.Empty;
+        public bool OrReplace { get; set; } = true;
+        public bool Materialized { get; set; }
+    }
+
+    /// <summary>Cuerpo SQL completo de CREATE OR REPLACE FUNCTION/PROCEDURE (admin).</summary>
+    public class CreateRoutineRequest
+    {
+        public string Definition { get; set; } = string.Empty;
+        public bool Confirm { get; set; }
+    }
+
+    public class ExecuteSqlRequest
+    {
+        public string Sql { get; set; } = string.Empty;
+        public Dictionary<string, object?>? Params { get; set; }
+        /// <summary>Confirmación explícita para operaciones marcadas como destructivas.</summary>
+        public bool Confirm { get; set; }
+    }
+
+    public class SqlClassificationDto
+    {
+        public string Kind { get; set; } = string.Empty;
+        public bool IsReadOnly { get; set; }
+        public bool RequiresConfirmation { get; set; }
+        public string? Reason { get; set; }
+    }
+
+    // =====================================================
+    // PERMISOS POR OBJETO (GRANTS)
+    // =====================================================
+
+    public class ObjectGrantDto
+    {
+        public long Id { get; set; }
+        public Guid UserId { get; set; }
+        public int CompanyId { get; set; }
+        public string Schema { get; set; } = "public";
+        public string Object { get; set; } = string.Empty;
+        public string AccessLevel { get; set; } = "read"; // read | write
+        public Guid GrantedByUserId { get; set; }
+        public DateTime GrantedAtUtc { get; set; }
+    }
+
+    public class GrantRequest
+    {
+        public Guid UserId { get; set; }
+        public string Schema { get; set; } = "public";
+        public string Object { get; set; } = string.Empty;
+        public string AccessLevel { get; set; } = "read"; // read | write
+    }
+
+    public class MyAccessItemDto
+    {
+        public string Schema { get; set; } = "public";
+        public string Object { get; set; } = string.Empty;
+        public string AccessLevel { get; set; } = "read";
+    }
+
+    public class MyAccessDto
+    {
+        public bool IsAdmin { get; set; }
+        public List<MyAccessItemDto> Objects { get; set; } = new();
+    }
+
+    // =====================================================
+    // CONCURRENCIA / HILOS
+    // =====================================================
+
+    public class ActivitySessionDto
+    {
+        public int Pid { get; set; }
+        public string? UserName { get; set; }
+        public string? ApplicationName { get; set; }
+        public string? ClientAddr { get; set; }
+        public string? State { get; set; }
+        public string? WaitEventType { get; set; }
+        public string? WaitEvent { get; set; }
+        public string? Query { get; set; }
+        public DateTime? QueryStart { get; set; }
+        public DateTime? XactStart { get; set; }
+        public DateTime? BackendStart { get; set; }
+        public List<int> BlockedBy { get; set; } = new();
+        public bool IsCurrentSession { get; set; }
+    }
+
+    public class ActivitySnapshotDto
+    {
+        public int MaxConnections { get; set; }
+        public int TotalConnections { get; set; }
+        public int ActiveConnections { get; set; }
+        public int IdleConnections { get; set; }
+        public int IdleInTransaction { get; set; }
+        public int BlockedConnections { get; set; }
+        public List<ActivitySessionDto> Sessions { get; set; } = new();
+    }
+
+    public class PoolStatsDto
+    {
+        public int PoolMinSize { get; set; }
+        public int PoolMaxSize { get; set; }
+        public int DbStudioConnections { get; set; }
+        public string ApplicationName { get; set; } = string.Empty;
+    }
+
+    public class LockDto
+    {
+        public int Pid { get; set; }
+        public string? LockType { get; set; }
+        public string? Mode { get; set; }
+        public bool Granted { get; set; }
+        public string? Relation { get; set; }
+        public string? Query { get; set; }
+    }
+
+    public class ConcurrencyActionRequest
+    {
+        public int Pid { get; set; }
+    }
 }
 

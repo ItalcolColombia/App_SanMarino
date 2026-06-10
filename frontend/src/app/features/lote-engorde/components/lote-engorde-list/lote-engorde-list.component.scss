@@ -991,3 +991,76 @@ select.le-input {
   color: var(--ital-green-dark);
   border: 1px solid var(--ital-green-100);
 }
+
+/* ── Tabla reproductora enriquecida + cuadro resumen ── */
+.le-detail-table--repro {
+  th.text-center, td.text-center { text-align: center; }
+  tfoot .le-detail-table__total {
+    background: #f4f1ec;
+    font-weight: 700;
+    td { border-top: 2px solid #d8d2c8; padding-top: .6rem; }
+  }
+}
+
+.le-reg-badge {
+  display: inline-block;
+  padding: .12rem .5rem;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 800;
+  background: #eef2ee;
+  color: #4b5563;
+  border: 1px solid #d8e0d8;
+  &--full {
+    background: #fff3cd;
+    color: #856404;
+    border-color: #ffe082;
+  }
+}
+
+.le-repro-resumen {
+  margin-top: 1.1rem;
+  padding: 1rem;
+  background: #faf8f5;
+  border: 1px solid #ece6dc;
+  border-radius: .75rem;
+  &__title {
+    margin: 0 0 .75rem 0;
+    font-size: .92rem;
+    font-weight: 800;
+    color: #b4541f;
+  }
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: .7rem;
+  }
+  &__card {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    padding: .7rem .8rem;
+    background: #fff;
+    border: 1px solid #ece6dc;
+    border-radius: .6rem;
+    &--accent { background: #f0f7f1; border-color: #c8e6ca; }
+    &--ok { background: #f0f7f1; border-color: #81c784; }
+  }
+  &__label {
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #8a8a8a;
+  }
+  &__value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #2f2f2f;
+    line-height: 1.1;
+  }
+  &__sub {
+    font-size: .72rem;
+    color: #6b6b6b;
+  }
+}

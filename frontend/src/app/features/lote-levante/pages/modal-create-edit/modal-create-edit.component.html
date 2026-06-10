@@ -8,6 +8,37 @@
       <button type="button" class="icon-btn" (click)="onClose()" aria-label="Cerrar">✕</button>
     </header>
 
+    <!-- Banner de contexto: granja / núcleo / galpón / lote reproductora -->
+    <div class="modal-ctx-banner" *ngIf="ctxGranja || ctxReproductora">
+      <div class="modal-ctx-banner__chips">
+        <span class="ctx-chip ctx-chip--farm" *ngIf="ctxGranja">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="ctx-chip__icon" aria-hidden="true">
+            <path d="M8.707 1.5a1 1 0 00-1.414 0L.646 8.146a.5.5 0 00.708.707L2 8.207V13.5A1.5 1.5 0 003.5 15h9a1.5 1.5 0 001.5-1.5V8.207l.646.646a.5.5 0 00.708-.707L13 5.793V2.5a.5.5 0 00-.5-.5h-1a.5.5 0 00-.5.5v1.293L8.707 1.5z"/>
+          </svg>
+          {{ ctxGranja }}
+        </span>
+        <span class="ctx-sep" *ngIf="ctxNucleo" aria-hidden="true">›</span>
+        <span class="ctx-chip" *ngIf="ctxNucleo">{{ ctxNucleo }}</span>
+        <span class="ctx-sep" *ngIf="ctxGalpon" aria-hidden="true">›</span>
+        <span class="ctx-chip ctx-chip--galpon" *ngIf="ctxGalpon">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="ctx-chip__icon" aria-hidden="true">
+            <path d="M1 2.5A1.5 1.5 0 012.5 1h11A1.5 1.5 0 0115 2.5v11a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 13.5v-11z"/>
+          </svg>
+          {{ ctxGalpon }}
+        </span>
+        <span class="ctx-sep" *ngIf="ctxLoteEngorde" aria-hidden="true">›</span>
+        <span class="ctx-chip ctx-chip--lote" *ngIf="ctxLoteEngorde">{{ ctxLoteEngorde }}</span>
+        <span class="ctx-sep" *ngIf="ctxReproductora" aria-hidden="true">›</span>
+        <span class="ctx-chip ctx-chip--repro" *ngIf="ctxReproductora">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="ctx-chip__icon" aria-hidden="true">
+            <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm.93-9.412l-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.420-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 110-2 1 1 0 010 2z"/>
+          </svg>
+          <strong>{{ ctxReproductora }}</strong>
+          <span class="ctx-chip__code" *ngIf="ctxReproductoraCode">· {{ ctxReproductoraCode }}</span>
+        </span>
+      </div>
+    </div>
+
     <form [formGroup]="form" (ngSubmit)="onSave()" class="ux-form" novalidate>
       <div class="ux-panel-stack">
 
@@ -44,24 +75,21 @@
             </div>
           </section>
 
-          <!-- Alimento e ítems — Hembras -->
+          <!-- Alimento e ítems del día (panel unificado) -->
           <section class="ux-panel-section">
             <div class="data-group modal-lev-box modal-lev-box--hembras">
-              <h3 class="data-group-title">🐔 Hembras — alimento e ítems</h3>
+              <h3 class="data-group-title">📦 Alimento e Ítems del Día</h3>
               <p class="ux-hint modal-lev-colombia-food" *ngIf="!isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
-                <strong>Alimento hembras (Colombia — inventario de productos):</strong> producto con existencias en la granja del lote,
+                <strong>Alimento (Colombia — inventario de productos):</strong> producto con existencias en la granja del lote,
                 consumo en kg o g; debajo, <strong>disponible</strong> y tope al editar.
               </p>
               <p class="ux-hint" *ngIf="isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
-                Registre alimentos, medicamentos u otros ítems para hembras.
+                Registre el alimento u otros ítems del día para este lote.
               </p>
               <div *ngFor="let itemH of itemsHembrasArray.controls; let i = index" [formGroup]="$any(itemH)"
                 class="modal-lev-item-row">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                  <small style="font-weight: 700; color: #57534e;">Hembras — ítem {{ i + 1 }}</small>
-                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemHembras(i)"
-                    [disabled]="itemsHembrasArray.length === 1" style="color: #d32f2f;">Eliminar</button>
-                </div>
+
+                <!-- Fila 1: Tipo de ítem + Ítem (selección única para ambos géneros) -->
                 <div class="grid grid-2">
                   <div class="form-field">
                     <label [for]="'f-tipo-h-' + i">Tipo de ítem</label>
@@ -84,19 +112,20 @@
                       </select>
                     </div>
                     <small class="ux-hint text-success" *ngIf="itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
-                      <ng-container *ngIf="editing">
-                        • Máx. editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.0-2' }} kg
-                      </ng-container>
+                      Stock disponible: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
                     </small>
                   </div>
+                </div>
+
+                <!-- Fila 2: Cantidad Hembras | Cantidad Machos -->
+                <div class="grid grid-2" style="margin-top: 0.75rem;">
                   <div class="form-field">
-                    <label [for]="'f-cantidad-h-' + i">Cantidad</label>
-                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <label [for]="'f-cantidad-h-' + i">🐔 Cantidad Hembras</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
                       <div style="flex: 1;">
                         <input [id]="'f-cantidad-h-' + i" type="number" step="0.001" min="0" formControlName="cantidad" />
                       </div>
-                      <div style="width: 100px;">
+                      <div style="width: 90px;">
                         <select formControlName="unidad" class="ux-select" style="width: 100%;">
                           <option value="kg">kg</option>
                           <option value="g">gramos</option>
@@ -105,99 +134,31 @@
                       </div>
                     </div>
                     <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemH))">
-                      La cantidad supera el máximo permitido para este ítem.
-                    </small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Alimento e ítems — Machos -->
-          <section class="ux-panel-section">
-            <div class="data-group modal-lev-box modal-lev-box--machos">
-              <h3 class="data-group-title">🐓 Machos — alimento e ítems</h3>
-              <p class="ux-hint modal-lev-colombia-food" *ngIf="!isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
-                <strong>Alimento machos (Colombia):</strong> mismo criterio que hembras: stock en granja y validación de consumo.
-              </p>
-              <p class="ux-hint" *ngIf="isEcuadorOrPanama" style="margin: 0.25rem 0 1rem 0;">
-                Registre alimentos, medicamentos u otros ítems para machos.
-              </p>
-              <p class="ux-hint" *ngIf="itemsMachosArray.length === 0" style="margin: 0 0 1rem 0;">
-                Si hay consumo para machos, pulse <strong>«+ Ítem machos»</strong> en la sección de abajo.
-              </p>
-              <div *ngFor="let itemM of itemsMachosArray.controls; let j = index" [formGroup]="$any(itemM)"
-                class="modal-lev-item-row">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                  <small style="font-weight: 700; color: #57534e;">Machos — ítem {{ j + 1 }}</small>
-                  <button type="button" class="btn btn--ghost btn--sm" (click)="eliminarItemMachos(j)"
-                    [disabled]="itemsMachosArray.length === 1" style="color: #d32f2f;">Eliminar</button>
-                </div>
-                <div class="grid grid-2">
-                  <div class="form-field">
-                    <label [for]="'f-tipo-m-' + j">Tipo de ítem</label>
-                    <div class="ux-select">
-                      <select [id]="'f-tipo-m-' + j" formControlName="tipoItem"
-                        (change)="filtrarAlimentosPorTipo('machos', $any(itemM).get('tipoItem')?.value)">
-                        <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let t of tiposItemDisplay" [ngValue]="t">{{ t }}</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="form-field">
-                    <label [for]="'f-item-m-' + j">Ítem</label>
-                    <div class="ux-select">
-                      <select [id]="'f-item-m-' + j" formControlName="catalogItemId">
-                        <option [ngValue]="null">— Seleccione —</option>
-                        <option *ngFor="let a of getAlimentosFiltradosPorTipo(tipoItemFiltroMacho($any(itemM)))" [ngValue]="a.id">
-                          {{ getItemDisplayText(a) }}
-                        </option>
-                      </select>
-                    </div>
-                    <small class="ux-hint text-success" *ngIf="itemM.get('catalogItemId')?.value && getCantidadDisponible(itemM.get('catalogItemId')?.value)">
-                      Disponible: {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemM.get('catalogItemId')?.value)?.unit }}
-                      <ng-container *ngIf="editing">
-                        • Máx. editar: {{ getMaxPermitidoKg(itemM.get('catalogItemId')?.value) | number:'1.0-2' }} kg
-                      </ng-container>
+                      Supera el stock disponible.
                     </small>
                   </div>
                   <div class="form-field">
-                    <label [for]="'f-cantidad-m-' + j">Cantidad</label>
-                    <div class="flex gap-1" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                    <label [for]="'f-cantidad-m-' + i">🐓 Cantidad Machos</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
                       <div style="flex: 1;">
-                        <input [id]="'f-cantidad-m-' + j" type="number" step="0.001" min="0" formControlName="cantidad" />
+                        <input [id]="'f-cantidad-m-' + i" type="number" step="0.001" min="0" formControlName="cantidadMachos" />
                       </div>
-                      <div style="width: 100px;">
-                        <select formControlName="unidad" class="ux-select" style="width: 100%;">
+                      <div style="width: 90px;">
+                        <select formControlName="unidadMachos" class="ux-select" style="width: 100%;">
                           <option value="kg">kg</option>
                           <option value="g">gramos</option>
                           <option value="unidades">unidades</option>
                         </select>
                       </div>
                     </div>
-                    <small class="ux-hint text-danger" *ngIf="cantidadExcedeDisponible($any(itemM))">
-                      La cantidad supera el máximo permitido para este ítem.
-                    </small>
                   </div>
                 </div>
               </div>
             </div>
           </section>
 
-          <!-- Agregar ítems (hembras / machos / general) -->
-          <section class="ux-panel-section">
-            <div class="data-group">
-              <h3 class="data-group-title">➕ Agregar ítems</h3>
-              <p class="ux-hint" style="margin: 0.25rem 0 0.75rem 0;">
-                Elija si el nuevo ítem aplica a <strong>hembras</strong>, <strong>machos</strong> o al <strong>lote en general</strong>
-                (medicamentos, biológicos, accesorios, consumibles u otros no asignados a un sexo).
-              </p>
-              <div class="modal-lev-add-items-toolbar" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                <button type="button" class="btn btn--outline btn--sm" (click)="agregarItemHembras()">+ Ítem hembras</button>
-                <button type="button" class="btn btn--outline btn--sm" (click)="agregarItemMachos()">+ Ítem machos</button>
-                <button type="button" class="btn btn--primary btn--sm" (click)="agregarItemGeneral()">+ Ítem general</button>
-              </div>
-            </div>
+          <!-- Ítems generales (lote completo) — solo si existen al editar -->
+          <section class="ux-panel-section" *ngIf="itemsGeneralesArray.length > 0">
             <div class="data-group" *ngIf="itemsGeneralesArray.length > 0">
               <h3 class="data-group-title">📌 Ítems generales (lote completo)</h3>
               <p class="ux-hint" style="margin: 0.25rem 0 1rem 0;">
@@ -293,13 +254,13 @@
                 <div class="form-field"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
                 <div class="form-field"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
 
-                <div class="compare-grid__row-title">Uniformidad (%)</div>
-                <div class="form-field"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
-                <div class="form-field"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
+                <div class="compare-grid__row-title" hidden>Uniformidad (%)</div>
+                <div class="form-field" hidden><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
+                <div class="form-field" hidden><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
 
-                <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
-                <div class="form-field"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
-                <div class="form-field"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
+                <div class="compare-grid__row-title" hidden>Coeficiente variación (CV)</div>
+                <div class="form-field" hidden><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
+                <div class="form-field" hidden><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
               </div>
             </div>
           </section>

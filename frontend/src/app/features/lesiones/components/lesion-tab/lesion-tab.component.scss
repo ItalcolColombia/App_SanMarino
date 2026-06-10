@@ -63,6 +63,68 @@
   }
 }
 
+// ── Banner de contexto del modal ──────────────────────────────────────────
+.lesion-ctx-banner {
+  background: linear-gradient(135deg, #f0f7f1 0%, #e8f5ea 100%);
+  border-bottom: 1px solid #c8e6ca;
+  padding: .5rem 1.25rem;
+}
+
+.lesion-ctx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem;
+}
+
+.lctx-sep {
+  color: #9ca3af;
+  font-size: .85rem;
+  padding: 0 .1rem;
+}
+
+.lctx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .55rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #c8e6ca;
+  color: #2d7a3e;
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &--farm {
+    background: #2d7a3e;
+    color: #fff;
+    border-color: #2d7a3e;
+  }
+  &--galpon {
+    background: #e8f5ea;
+    border-color: #81c784;
+  }
+  &--lote {
+    background: #fff8e1;
+    border-color: #ffe082;
+    color: #856404;
+  }
+  &--repro {
+    background: #e85c25;
+    color: #fff;
+    border-color: #e85c25;
+    font-size: .74rem;
+  }
+}
+
+.lctx-icon {
+  width: .8em;
+  height: .8em;
+  flex-shrink: 0;
+  opacity: .85;
+}
+
 // Mejor experiencia de scroll horizontal en móviles para la tabla.
 .lesion-tab .overflow-x-auto {
   -webkit-overflow-scrolling: touch;

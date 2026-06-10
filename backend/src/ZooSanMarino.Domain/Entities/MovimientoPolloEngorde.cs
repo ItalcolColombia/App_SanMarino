@@ -77,6 +77,13 @@ public class MovimientoPolloEngorde : AuditableEntity
     /// <summary>Aves de este movimiento que fueron sobrante (excedente sobre el disponible al vender). Parte C/B (R2).</summary>
     public int AvesSobrante { get; set; }
 
+    /// <summary>
+    /// Venta Panamá (R-Panamá): el split <see cref="CantidadHembras"/>/<see cref="CantidadMachos"/>
+    /// se asignó sobre las MIXTAS del lote. El stock se descuenta/devuelve sobre mixtas (H+M), no
+    /// sobre hembras/machos; el reporte muestra el split en H/M. Ver CantidadesEfectivasEnLote().
+    /// </summary>
+    public bool EsVentaMixta { get; set; }
+
     public int TotalAves => CantidadHembras + CantidadMachos + CantidadMixtas;
 
     // Navegación

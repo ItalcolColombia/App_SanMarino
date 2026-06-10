@@ -1,380 +1,325 @@
-// src/app/features/db-studio/pages/db-studio-main/db-studio-main.component.ts
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule, ActivatedRoute } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
+import { FormsModule } from '@angular/forms';
 
-import { DbStudioService, SchemaDto, TableDto, DatabaseAnalysisDto } from '../../data/db-studio.service';
+import { DbStudioService } from '../../data/db-studio.service';
+import {
+  SchemaDto, TableDto, ViewDto, FunctionDto, ColumnDto, IndexDto, ForeignKeyDto, TableStatsDto,
+  QueryPageDto, MyAccessDto, ObjectGrantDto, ActivitySnapshot, PoolStats, AccessLevel
+} from '../../models/db-studio.models';
+import {
+  construirWherePk, filasACsv, descargarTexto, formatCell, antiguedad, colorEstado
+} from '../../funciones/db-studio.funciones';
 
-// Componentes especializados
-import { DbStudioHeaderComponent, DbStudioHeaderEvent } from '../../components/db-studio-header/db-studio-header.component';
-import { DbStudioSidebarComponent, DbStudioSidebarEvent } from '../../components/db-studio-sidebar/db-studio-sidebar.component';
-import { DbStudioOverviewComponent, DbStudioOverviewEvent } from '../../components/db-studio-overview/db-studio-overview.component';
-import { SqlQueryComponent, SqlQueryEvent } from '../../components/sql-query/sql-query.component';
-import { TableManagementComponent, TableManagementEvent } from '../../components/table-management/table-management.component';
-
-export type DbStudioView = 'overview' | 'tables' | 'sql' | 'data' | 'explorer';
+type Tab = 'explorer' | 'sql' | 'permissions' | 'activity';
+type DetailTab = 'data' | 'columns' | 'indexes' | 'fks' | 'definition' | 'source';
+interface SelectedObject { schema: string; name: string; kind: 'table' | 'view' | 'function'; }
 
 @Component({
   selector: 'app-db-studio-main',
   standalone: true,
-  imports: [
-    CommonModule,
-    RouterModule,
-    DbStudioHeaderComponent,
-    DbStudioSidebarComponent,
-    DbStudioOverviewComponent,
-    SqlQueryComponent,
-    TableManagementComponent
-  ],
+  imports: [CommonModule, FormsModule],
   templateUrl: './db-studio-main.component.html',
   styleUrls: ['./db-studio-main.component.scss']
 })
 export class DbStudioMainComponent implements OnInit, OnDestroy {
-  private dbService = inject(DbStudioService);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
+  private db = inject(DbStudioService);
 
-  // ====== Estado Global ======
-  loading = signal<boolean>(false);
+  // expuestos al template
+  readonly formatCell = formatCell;
+  readonly antiguedad = antiguedad;
+  readonly colorEstado = colorEstado;
+
+  // ---- estado global ----
+  loading = signal(false);
   error = signal<string | null>(null);
-  connectionStatus = signal<'connected' | 'disconnected' | 'connecting'>('connected');
+  tab = signal<Tab>('explorer');
+  access = signal<MyAccessDto | null>(null);
+  isAdmin = computed(() => this.access()?.isAdmin ?? false);
 
-  // ====== Datos ======
+  // ---- explorador ----
   schemas = signal<SchemaDto[]>([]);
-  tables = signal<TableDto[]>([]);
-  databaseAnalysis = signal<DatabaseAnalysisDto | null>(null);
-
-  // ====== Vista Actual ======
-  activeView = signal<DbStudioView>('overview');
   selectedSchema = signal<string>('public');
-  selectedTable = signal<TableDto | null>(null);
+  tables = signal<TableDto[]>([]);
+  views = signal<ViewDto[]>([]);
+  functions = signal<FunctionDto[]>([]);
+  treeFilter = signal('');
+  selected = signal<SelectedObject | null>(null);
+  detailTab = signal<DetailTab>('data');
 
-  // ====== Computed ======
-  databaseName = computed(() => {
-    const analysis = this.databaseAnalysis();
-    return (analysis as any)?.databaseName || 'PostgreSQL';
+  columns = signal<ColumnDto[]>([]);
+  indexes = signal<IndexDto[]>([]);
+  foreignKeys = signal<ForeignKeyDto[]>([]);
+  stats = signal<TableStatsDto | null>(null);
+  viewDefinition = signal<string | null>(null);
+  functionSource = signal<string | null>(null);
+  selectedFunction = signal<FunctionDto | null>(null);
+
+  // ---- grilla de datos ----
+  page = signal<QueryPageDto | null>(null);
+  offset = signal(0);
+  readonly pageSize = 50;
+  canWriteSelected = signal(false);
+  editingIndex = signal<number | null>(null);
+  editBuffer = signal<Record<string, unknown>>({});
+  newRow = signal<Record<string, unknown> | null>(null);
+
+  filteredTables = computed(() => {
+    const f = this.treeFilter().toLowerCase();
+    return f ? this.tables().filter(t => t.name.toLowerCase().includes(f)) : this.tables();
+  });
+  filteredViews = computed(() => {
+    const f = this.treeFilter().toLowerCase();
+    return f ? this.views().filter(v => v.name.toLowerCase().includes(f)) : this.views();
   });
 
-  private destroy$ = new Subject<void>();
+  // ---- consola SQL ----
+  sqlText = signal('');
+  sqlResult = signal<{ columns: string[]; rows: Record<string, unknown>[]; affected?: number; ms?: number; error?: string } | null>(null);
+  sqlBusy = signal(false);
 
-  constructor() {}
+  // ---- permisos ----
+  grants = signal<ObjectGrantDto[]>([]);
+  grantForm = signal<{ userId: string; schema: string; object: string; level: AccessLevel }>(
+    { userId: '', schema: 'public', object: '', level: 'read' });
+
+  // ---- actividad ----
+  activity = signal<ActivitySnapshot | null>(null);
+  pool = signal<PoolStats | null>(null);
+  autoRefresh = signal(false);
+  private timer?: any;
 
   ngOnInit(): void {
-    this.loadInitialData();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-  private loadInitialData(): void {
-    this.loading.set(true);
-    this.connectionStatus.set('connecting');
-
-    // Cargar datos iniciales
-    Promise.all([
-      this.loadSchemas(),
-      this.loadTables(),
-      this.analyzeDatabase()
-    ]).finally(() => {
-        this.loading.set(false);
-      this.connectionStatus.set('connected');
+    this.db.myAccess().subscribe({
+      next: a => { this.access.set(a); this.loadSchemas(); },
+      error: e => this.fail(e)
     });
   }
 
-  private async loadSchemas(): Promise<void> {
-    try {
-      const schemas = await this.dbService.getSchemas().toPromise();
-      this.schemas.set(schemas || []);
-    } catch (err) {
-      this.handleError('Error cargando esquemas', err);
-    }
+  ngOnDestroy(): void { this.stopAuto(); }
+
+  // ===================== Navegación =====================
+  setTab(t: Tab): void {
+    this.tab.set(t);
+    if (t === 'permissions' && this.grants().length === 0) this.loadGrants();
+    if (t === 'activity') this.refreshActivity();
+    if (t !== 'activity') this.stopAuto();
   }
 
-  private async loadTables(): Promise<void> {
-    try {
-      const tables = await this.dbService.getTables(this.selectedSchema()).toPromise();
-      this.tables.set(tables || []);
-    } catch (err) {
-      this.handleError('Error cargando tablas', err);
-    }
+  // ===================== Explorador =====================
+  loadSchemas(): void {
+    this.loading.set(true);
+    this.db.getSchemas().subscribe({
+      next: s => { this.schemas.set(s); this.loading.set(false); this.loadObjects(); },
+      error: e => this.fail(e)
+    });
   }
 
-  private async analyzeDatabase(): Promise<void> {
-    try {
-      const analysis = await this.dbService.analyzeDatabase().toPromise();
-      this.databaseAnalysis.set(analysis || null);
-    } catch (err) {
-      this.handleError('Error analizando base de datos', err);
-    }
-  }
-
-  private handleError(message: string, error: any): void {
-    console.error(message, error);
-    this.error.set(message);
-    this.connectionStatus.set('disconnected');
-  }
-
-  // ====== Eventos del Header ======
-  onHeaderAction(event: DbStudioHeaderEvent): void {
-    switch (event.type) {
-      case 'refresh':
-        this.refreshData();
-        break;
-      case 'analyze':
-        this.analyzeDatabase();
-        break;
-      case 'export':
-        this.exportData();
-        break;
-      case 'import':
-        this.importData();
-        break;
-      case 'settings':
-        this.openSettings();
-        break;
-      case 'help':
-        this.openHelp();
-        break;
-    }
-  }
-
-  // ====== Eventos del Sidebar ======
-  onSidebarAction(event: DbStudioSidebarEvent): void {
-    switch (event.type) {
-      case 'schema-selected':
-        this.selectSchema(event.schema!);
-        break;
-      case 'table-selected':
-        this.selectTable(event.table!);
-        break;
-      case 'table-action':
-        this.handleTableAction(event.table!, event.action!);
-        break;
-      case 'refresh':
-        this.refreshData();
-        break;
-    }
-  }
-
-  // ====== Eventos del Overview ======
-  onOverviewAction(event: DbStudioOverviewEvent): void {
-    switch (event.type) {
-      case 'refresh':
-        this.refreshData();
-        break;
-      case 'analyze':
-        this.analyzeDatabase();
-        break;
-      case 'schema-selected':
-        this.selectSchema(event.data);
-        break;
-      case 'table-selected':
-        this.selectTable(event.data);
-        break;
-    }
-  }
-
-  // ====== Eventos del SQL Query ======
-  onSqlQueryAction(event: SqlQueryEvent): void {
-    switch (event.type) {
-      case 'query-executed':
-        console.log('Query ejecutada:', event.data);
-        // Opcional: mostrar notificación de éxito
-        break;
-      case 'query-saved':
-        console.log('Query guardada:', event.data);
-        // Opcional: mostrar notificación de guardado
-        break;
-      case 'query-deleted':
-        console.log('Query eliminada:', event.data);
-        // Opcional: mostrar notificación de eliminación
-        break;
-      case 'query-copied':
-        console.log('Query copiada al portapapeles');
-        // Opcional: mostrar notificación de copiado
-        break;
-    }
-  }
-
-  // ====== Eventos de Gestión de Tablas ======
-  onTableManagementAction(event: TableManagementEvent): void {
-    switch (event.type) {
-      case 'table-selected':
-        this.selectTable(event.table!);
-        break;
-      case 'table-action':
-        this.handleTableAction(event.table!, event.action!);
-        break;
-      case 'create-table':
-        console.log('Crear nueva tabla');
-        // Implementar creación de tabla
-        break;
-      case 'refresh':
-        this.loadTables();
-        break;
-    }
-  }
-
-  // ====== Navegación ======
-  setActiveView(view: DbStudioView): void {
-    this.activeView.set(view);
-
-    // Navegar a rutas específicas si es necesario
-    switch (view) {
-      case 'explorer':
-        this.router.navigate(['explorer'], { relativeTo: this.route });
-        break;
-      case 'sql':
-        this.router.navigate(['query'], { relativeTo: this.route });
-        break;
-    }
-  }
-
-  selectSchema(schema: string): void {
-    if (this.selectedSchema() === schema) return;
-
+  onSchemaChange(schema: string): void {
     this.selectedSchema.set(schema);
-    this.selectedTable.set(null);
-    this.loadTables();
+    this.selected.set(null);
+    this.page.set(null);
+    this.loadObjects();
   }
 
-  selectTable(table: TableDto): void {
-    this.selectedTable.set(table);
-    this.setActiveView('data');
+  loadObjects(): void {
+    const schema = this.selectedSchema();
+    this.loading.set(true);
+    this.db.getTables(schema).subscribe({
+      next: t => { this.tables.set(t.filter(x => x.kind !== 'VIEW' && x.kind !== 'MATERIALIZED VIEW')); this.loading.set(false); },
+      error: e => this.fail(e)
+    });
+    this.db.getViews(schema).subscribe({ next: v => this.views.set(v), error: () => {} });
+    if (this.isAdmin()) this.db.getFunctions(schema).subscribe({ next: f => this.functions.set(f), error: () => {} });
   }
 
-  // ====== Acciones de Tabla ======
-  handleTableAction(table: TableDto, action: 'view' | 'edit' | 'delete' | 'export' | 'import' | 'structure'): void {
-    switch (action) {
-      case 'view':
-        this.selectTable(table);
-        break;
-      case 'edit':
-        this.editTable(table);
-        break;
-      case 'delete':
-        this.deleteTable(table);
-        break;
-      case 'export':
-        this.exportTable(table);
-        break;
-      case 'import':
-        this.importTable(table);
-        break;
-      case 'structure':
-        this.viewTableStructure(table);
-        break;
+  selectObject(name: string, kind: 'table' | 'view' | 'function'): void {
+    const schema = this.selectedSchema();
+    this.selected.set({ schema, name, kind });
+    this.viewDefinition.set(null);
+    this.functionSource.set(null);
+    this.editingIndex.set(null);
+    this.newRow.set(null);
+
+    if (kind === 'function') {
+      this.selectedFunction.set(this.functions().find(f => f.name === name) ?? null);
+      this.detailTab.set('source');
+      this.loadFunctionSource();
+      return;
     }
+
+    this.detailTab.set('data');
+    this.offset.set(0);
+    this.canWriteSelected.set(this.computeCanWrite(schema, name));
+    this.loadDetail();
+    this.loadData();
   }
 
-  private editTable(table: TableDto): void {
-    // TODO: Implementar edición de tabla
-    console.log('Edit table:', table);
+  private computeCanWrite(schema: string, name: string): boolean {
+    if (this.isAdmin()) return true;
+    return (this.access()?.objects ?? []).some(
+      o => o.schema === schema && o.object === name && o.accessLevel === 'write');
   }
 
-  private deleteTable(table: TableDto): void {
-    // TODO: Implementar eliminación de tabla
-    console.log('Delete table:', table);
+  loadDetail(): void {
+    const s = this.selected(); if (!s) return;
+    this.db.getTableDetails(s.schema, s.name).subscribe({
+      next: d => {
+        this.columns.set(d.columns); this.indexes.set(d.indexes);
+        this.foreignKeys.set(d.foreignKeys); this.stats.set(d.stats);
+      },
+      error: e => this.fail(e)
+    });
   }
 
-  private exportTable(table: TableDto): void {
-    // TODO: Implementar exportación de tabla
-    console.log('Export table:', table);
+  loadFunctionSource(): void {
+    const s = this.selected(); if (!s) return;
+    this.db.getFunctionSource(s.schema, s.name).subscribe({
+      next: r => this.functionSource.set(r.definition),
+      error: e => this.fail(e)
+    });
   }
 
-  private importTable(table: TableDto): void {
-    // TODO: Implementar importación de datos
-    console.log('Import data to table:', table);
+  loadViewDefinition(): void {
+    const s = this.selected(); if (!s || s.kind !== 'view') return;
+    if (this.viewDefinition() !== null) return;
+    this.db.getViewDefinition(s.schema, s.name).subscribe({
+      next: r => this.viewDefinition.set(r.definition),
+      error: e => this.fail(e)
+    });
   }
 
-  private viewTableStructure(table: TableDto): void {
-    // TODO: Implementar vista de estructura de tabla
-    console.log('View table structure:', table);
+  loadData(): void {
+    const s = this.selected(); if (!s) return;
+    this.loading.set(true);
+    this.db.preview(s.name, { schema: s.schema, limit: this.pageSize, offset: this.offset() }).subscribe({
+      next: p => { this.page.set(p); this.loading.set(false); },
+      error: e => this.fail(e)
+    });
   }
 
-  // ====== Acciones del Header ======
-  private refreshData(): void {
-    this.loadInitialData();
+  nextPage(): void { this.offset.set(this.offset() + this.pageSize); this.loadData(); }
+  prevPage(): void { this.offset.set(Math.max(0, this.offset() - this.pageSize)); this.loadData(); }
+
+  dataColumns(): string[] { return this.page()?.columns ?? this.columns().map(c => c.name); }
+
+  // ---- edición de filas ----
+  startEdit(i: number, row: Record<string, unknown>): void {
+    this.editingIndex.set(i);
+    this.editBuffer.set({ ...row });
+  }
+  cancelEdit(): void { this.editingIndex.set(null); }
+
+  setEdit(col: string, value: unknown): void {
+    this.editBuffer.set({ ...this.editBuffer(), [col]: value });
+  }
+  setNew(col: string, value: unknown): void {
+    const r = this.newRow(); if (!r) return;
+    this.newRow.set({ ...r, [col]: value });
   }
 
-  private exportData(): void {
-    // TODO: Implementar exportación de datos
-    console.log('Export data');
+  saveEdit(original: Record<string, unknown>): void {
+    const s = this.selected(); if (!s) return;
+    const where = construirWherePk(original, this.columns());
+    const buf = this.editBuffer();
+    const data: Record<string, unknown> = {};
+    for (const c of this.dataColumns()) if (buf[c] !== original[c]) data[c] = buf[c];
+    if (Object.keys(data).length === 0) { this.cancelEdit(); return; }
+    this.db.updateData(s.schema, s.name, data, where).subscribe({
+      next: () => { this.editingIndex.set(null); this.loadData(); },
+      error: e => this.fail(e)
+    });
   }
 
-  private importData(): void {
-    // TODO: Implementar importación de datos
-    console.log('Import data');
+  deleteRow(row: Record<string, unknown>): void {
+    const s = this.selected(); if (!s) return;
+    if (!confirm('¿Eliminar esta fila? Esta acción no se puede deshacer.')) return;
+    const where = construirWherePk(row, this.columns());
+    this.db.deleteData(s.schema, s.name, where).subscribe({
+      next: () => this.loadData(), error: e => this.fail(e)
+    });
   }
 
-  private openSettings(): void {
-    // TODO: Implementar configuración
-    console.log('Open settings');
+  startInsert(): void {
+    const blank: Record<string, unknown> = {};
+    for (const c of this.columns()) blank[c.name] = null;
+    this.newRow.set(blank);
+  }
+  cancelInsert(): void { this.newRow.set(null); }
+  saveInsert(): void {
+    const s = this.selected(); const row = this.newRow(); if (!s || !row) return;
+    this.db.insertData(s.schema, s.name, [row]).subscribe({
+      next: () => { this.newRow.set(null); this.offset.set(0); this.loadData(); },
+      error: e => this.fail(e)
+    });
   }
 
-  private openHelp(): void {
-    // TODO: Implementar ayuda
-    console.log('Open help');
+  exportCsv(): void {
+    const p = this.page(); const s = this.selected(); if (!p || !s) return;
+    descargarTexto(`${s.schema}_${s.name}.csv`, filasACsv(this.dataColumns(), p.rows), 'text/csv');
   }
 
-  // ====== Acciones de Consulta ======
-  private saveQuery(queryData: any): void {
-    // TODO: Implementar guardado de consulta
-    console.log('Save query:', queryData);
+  // ===================== Consola SQL =====================
+  runSql(confirm = false): void {
+    const sql = this.sqlText().trim(); if (!sql) return;
+    this.sqlBusy.set(true); this.sqlResult.set(null);
+    this.db.executeSql(sql, confirm).subscribe({
+      next: r => {
+        this.sqlBusy.set(false);
+        if (!r.success) { this.sqlResult.set({ columns: [], rows: [], error: r.error }); return; }
+        this.sqlResult.set({
+          columns: r.data?.columns ?? [], rows: r.data?.rows ?? [],
+          affected: r.affectedRows, ms: r.executionTime
+        });
+      },
+      error: e => { this.sqlBusy.set(false); this.sqlResult.set({ columns: [], rows: [], error: this.msg(e) }); }
+    });
   }
 
-  private loadQuery(): void {
-    // TODO: Implementar carga de consulta
-    console.log('Load query');
+  // ===================== Permisos =====================
+  loadGrants(): void {
+    this.db.getGrants().subscribe({ next: g => this.grants.set(g), error: e => this.fail(e) });
+  }
+  patchGrantForm(part: Partial<{ userId: string; schema: string; object: string; level: AccessLevel }>): void {
+    this.grantForm.set({ ...this.grantForm(), ...part });
+  }
+  addGrant(): void {
+    const f = this.grantForm();
+    if (!f.userId || !f.object) { this.error.set('UserId y objeto son requeridos.'); return; }
+    this.db.upsertGrant({ userId: f.userId, schema: f.schema, object: f.object, accessLevel: f.level }).subscribe({
+      next: () => { this.loadGrants(); this.error.set(null); },
+      error: e => this.fail(e)
+    });
+  }
+  revokeGrant(id: number): void {
+    this.db.revokeGrant(id).subscribe({ next: () => this.loadGrants(), error: e => this.fail(e) });
   }
 
-  private exportQueryResults(): void {
-    // TODO: Implementar exportación de resultados
-    console.log('Export query results');
+  // ===================== Actividad =====================
+  refreshActivity(): void {
+    this.db.getActivity().subscribe({ next: a => this.activity.set(a), error: e => this.fail(e) });
+    this.db.getPoolStats().subscribe({ next: p => this.pool.set(p), error: () => {} });
+  }
+  toggleAuto(): void {
+    this.autoRefresh.set(!this.autoRefresh());
+    if (this.autoRefresh()) { this.refreshActivity(); this.timer = setInterval(() => this.refreshActivity(), 4000); }
+    else this.stopAuto();
+  }
+  private stopAuto(): void {
+    if (this.timer) { clearInterval(this.timer); this.timer = undefined; }
+    if (this.autoRefresh()) this.autoRefresh.set(false);
   }
 
-  private importQuery(): void {
-    // TODO: Implementar importación de consulta
-    console.log('Import query');
+  cancelBackend(pid: number): void {
+    this.db.cancelBackend(pid).subscribe({ next: () => this.refreshActivity(), error: e => this.fail(e) });
+  }
+  terminateBackend(pid: number): void {
+    if (!confirm(`¿Terminar la sesión PID ${pid}?`)) return;
+    this.db.terminateBackend(pid).subscribe({ next: () => this.refreshActivity(), error: e => this.fail(e) });
   }
 
-  // ====== Utilidades ======
-  clearError(): void {
-    this.error.set(null);
-  }
-
-  getTableIcon(table: TableDto): string {
-    switch (table.kind.toLowerCase()) {
-      case 'table': return '📋';
-      case 'view': return '👁️';
-      case 'materialized view': return '📊';
-      case 'sequence': return '🔢';
-      case 'index': return '📇';
-      default: return '📄';
-    }
-  }
-
-  getTableRowCount(table: TableDto): number {
-    return (table as any).rowCount || 0;
-  }
-
-  // ====== Getters para el template ======
-  get showOverview(): boolean {
-    return this.activeView() === 'overview';
-  }
-
-  get showSqlConsole(): boolean {
-    return this.activeView() === 'sql';
-  }
-
-  get showTables(): boolean {
-    return this.activeView() === 'tables';
-  }
-
-  get showData(): boolean {
-    return this.activeView() === 'data';
-  }
+  // ===================== util =====================
+  private fail(e: unknown): void { this.loading.set(false); this.error.set(this.msg(e)); }
+  private msg(e: any): string { return e?.error?.message ?? e?.message ?? 'Error inesperado'; }
+  dismissError(): void { this.error.set(null); }
 }

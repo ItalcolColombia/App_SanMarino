@@ -10,12 +10,12 @@ export interface SeguimientoLoteLevanteDto {
   /** ID de lote_postura_levante. Solo aplica para seguimiento tipo levante. */
   lotePosturaLevanteId?: number | null;
 
-  mortalidadHembras: number;
-  mortalidadMachos: number;
-  selH: number;
-  selM: number;
-  errorSexajeHembras: number;
-  errorSexajeMachos: number;
+  mortalidadHembras: number | null;
+  mortalidadMachos: number | null;
+  selH: number | null;
+  selM: number | null;
+  errorSexajeHembras: number | null;
+  errorSexajeMachos: number | null;
 
   tipoAlimento: string;
   consumoKgHembras: number; // Consumo convertido a kg (para cálculos)

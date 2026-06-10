@@ -1,0 +1,255 @@
+<div *ngIf="isOpen" class="detalle-backdrop" role="dialog" aria-modal="true"
+     aria-labelledby="detalle-repro-title" (click)="onBackdropClick($event)">
+
+  <div class="detalle-dialog" (click)="$event.stopPropagation()">
+
+    <!-- ── Header ────────────────────────────────────── -->
+    <header class="detalle-header">
+      <div class="detalle-header__left">
+        <div class="detalle-header__icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+          </svg>
+        </div>
+        <div>
+          <h2 id="detalle-repro-title" class="detalle-header__title">Detalle del seguimiento diario</h2>
+          <p class="detalle-header__subtitle">Reproductora aves de engorde · Solo lectura</p>
+        </div>
+      </div>
+      <button type="button" class="detalle-header__close" (click)="onClose()" aria-label="Cerrar">
+        <fa-icon [icon]="faTimes"></fa-icon>
+      </button>
+    </header>
+
+    <!-- ── Loading ───────────────────────────────────── -->
+    <div class="detalle-loading" *ngIf="loading" role="status" aria-live="polite">
+      <div class="detalle-spinner" aria-hidden="true"></div>
+      <span>Cargando detalles…</span>
+    </div>
+
+    <!-- ── Contenido ─────────────────────────────────── -->
+    <div class="detalle-body" *ngIf="!loading && seguimiento">
+
+      <!-- Info general -->
+      <section class="detalle-section">
+        <h3 class="detalle-section__title">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          Información general
+        </h3>
+        <div class="detalle-grid">
+          <div class="detalle-field">
+            <span class="detalle-label">Fecha de registro</span>
+            <span class="detalle-value detalle-value--primary">{{ formatDate(seguimiento.fechaRegistro) }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Ciclo</span>
+            <span class="detalle-value">
+              <span class="detalle-badge" [class.detalle-badge--accent]="seguimiento.ciclo === 'Reforzado'">
+                {{ seguimiento.ciclo || 'Normal' }}
+              </span>
+            </span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Tipo de alimento</span>
+            <span class="detalle-value">{{ seguimiento.tipoAlimento || '—' }}</span>
+          </div>
+          <div class="detalle-field detalle-field--full" *ngIf="seguimiento.observaciones">
+            <span class="detalle-label">Observaciones</span>
+            <span class="detalle-value detalle-value--obs">{{ seguimiento.observaciones }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Hembras -->
+      <section class="detalle-section">
+        <h3 class="detalle-section__title detalle-section__title--hembra">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M9 12a3 3 0 100-6 3 3 0 000 6z"/><path fill-rule="evenodd" d="M9 0a9 9 0 110 18A9 9 0 019 0zm0 2a7 7 0 100 14A7 7 0 009 2z" clip-rule="evenodd"/></svg>
+          Hembras (H)
+        </h3>
+        <div class="detalle-grid">
+          <div class="detalle-field">
+            <span class="detalle-label">Mortalidad</span>
+            <span class="detalle-value detalle-value--num">{{ seguimiento.mortalidadHembras ?? '—' }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Selección retirada</span>
+            <span class="detalle-value detalle-value--num">{{ seguimiento.selH ?? '—' }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Error de sexaje</span>
+            <span class="detalle-value detalle-value--num">{{ seguimiento.errorSexajeHembras ?? '—' }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Consumo total (kg)</span>
+            <span class="detalle-value detalle-value--num">
+              {{ seguimiento.consumoKgHembras != null ? formatNum(seguimiento.consumoKgHembras) + ' kg' : '—' }}
+            </span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.pesoPromH != null">
+            <span class="detalle-label">Peso promedio (kg)</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.pesoPromH, 3) }} kg</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.uniformidadH != null">
+            <span class="detalle-label">Uniformidad</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.uniformidadH) }}%</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.cvH != null">
+            <span class="detalle-label">CV (%)</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.cvH) }}</span>
+          </div>
+        </div>
+
+        <!-- Ítems hembras -->
+        <div class="detalle-items" *ngIf="itemsHembras.length > 0">
+          <h4 class="detalle-items__title">Ítems registrados — Hembras</h4>
+          <div class="detalle-table-wrap">
+            <table class="detalle-table" aria-label="Ítems hembras">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Alimento / ítem</th>
+                  <th class="text-right">Cantidad</th>
+                  <th>Unidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of itemsHembras">
+                  <td><span class="detalle-badge detalle-badge--item">{{ item.tipoItem }}</span></td>
+                  <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                  <td class="text-right">{{ formatNum(item.cantidad) }}</td>
+                  <td>{{ item.unidad }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Machos -->
+      <section class="detalle-section">
+        <h3 class="detalle-section__title detalle-section__title--macho">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
+          Machos (M)
+        </h3>
+        <div class="detalle-grid">
+          <div class="detalle-field">
+            <span class="detalle-label">Mortalidad</span>
+            <span class="detalle-value detalle-value--num">{{ seguimiento.mortalidadMachos ?? '—' }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Selección retirada</span>
+            <span class="detalle-value detalle-value--num">{{ seguimiento.selM ?? '—' }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Error de sexaje</span>
+            <span class="detalle-value detalle-value--num">{{ seguimiento.errorSexajeMachos ?? '—' }}</span>
+          </div>
+          <div class="detalle-field">
+            <span class="detalle-label">Consumo total (kg)</span>
+            <span class="detalle-value detalle-value--num">
+              {{ seguimiento.consumoKgMachos != null ? formatNum(seguimiento.consumoKgMachos) + ' kg' : '—' }}
+            </span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.pesoPromM != null">
+            <span class="detalle-label">Peso promedio (kg)</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.pesoPromM, 3) }} kg</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.uniformidadM != null">
+            <span class="detalle-label">Uniformidad</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.uniformidadM) }}%</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.cvM != null">
+            <span class="detalle-label">CV (%)</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.cvM) }}</span>
+          </div>
+        </div>
+
+        <!-- Ítems machos -->
+        <div class="detalle-items" *ngIf="itemsMachos.length > 0">
+          <h4 class="detalle-items__title">Ítems registrados — Machos</h4>
+          <div class="detalle-table-wrap">
+            <table class="detalle-table" aria-label="Ítems machos">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Alimento / ítem</th>
+                  <th class="text-right">Cantidad</th>
+                  <th>Unidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let item of itemsMachos">
+                  <td><span class="detalle-badge detalle-badge--item">{{ item.tipoItem }}</span></td>
+                  <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                  <td class="text-right">{{ formatNum(item.cantidad) }}</td>
+                  <td>{{ item.unidad }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ítems generales -->
+      <section class="detalle-section" *ngIf="itemsGenerales.length > 0">
+        <h3 class="detalle-section__title">Ítems generales (lote)</h3>
+        <div class="detalle-table-wrap">
+          <table class="detalle-table" aria-label="Ítems generales">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Ítem</th>
+                <th class="text-right">Cantidad</th>
+                <th>Unidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of itemsGenerales">
+                <td><span class="detalle-badge detalle-badge--item">{{ item.tipoItem }}</span></td>
+                <td>{{ getItemDisplay(item.catalogItemId) }}</td>
+                <td class="text-right">{{ formatNum(item.cantidad) }}</td>
+                <td>{{ item.unidad }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Agua (Ecuador / Panamá) -->
+      <section class="detalle-section" *appShowIfEcuadorPanama>
+        <h3 class="detalle-section__title">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9A7 7 0 015.05 4.05zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>
+          Agua
+        </h3>
+        <div class="detalle-grid">
+          <div class="detalle-field" *ngIf="seguimiento.consumoAguaDiario != null">
+            <span class="detalle-label">Consumo diario</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.consumoAguaDiario) }} L</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.consumoAguaPh != null">
+            <span class="detalle-label">pH del agua</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.consumoAguaPh) }}</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.consumoAguaOrp != null">
+            <span class="detalle-label">ORP (mV)</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.consumoAguaOrp) }} mV</span>
+          </div>
+          <div class="detalle-field" *ngIf="seguimiento.consumoAguaTemperatura != null">
+            <span class="detalle-label">Temperatura</span>
+            <span class="detalle-value detalle-value--num">{{ formatNum(seguimiento.consumoAguaTemperatura) }} °C</span>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /detalle-body -->
+
+    <!-- ── Footer ─────────────────────────────────────── -->
+    <footer class="detalle-footer">
+      <button type="button" class="detalle-footer__btn" (click)="onClose()">
+        <fa-icon [icon]="faXmark" aria-hidden="true"></fa-icon>
+        Cerrar
+      </button>
+    </footer>
+
+  </div><!-- /detalle-dialog -->
+</div>

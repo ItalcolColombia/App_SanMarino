@@ -1,239 +1,191 @@
-# CLAUDE.md
+# CLAUDE.md — Guía operativa del repositorio
 
-This file provides strict guidance, environment context, and testing workflows to Claude Code (`claude.ai/code`) when working with this repository.
-
----
-
-## ⚠️ CRITICAL DEVELOPMENT WORKFLOW (MUST FOLLOW)
-
-To prevent hallucinations, ensure architectural integrity, and maintain a clear context, you **MUST** follow this strict 2-step process for EVERY new requirement, feature, or bug fix BEFORE writing any functional code:
-
-### STEP 1: Full Planning (`/fase_de_desarrollo/`)
-1. Analyze the user's request thoroughly based on the existing Clean Architecture (Backend) and Angular Standalone architecture (Frontend).
-2. Create a detailed Markdown planning document inside the `./fase_de_desarrollo/` directory (e.g., `./fase_de_desarrollo/feature_name_plan.md`). 
-   * **Absolute Local Path Reference (Windows):** `C:\Users\SAN MARINO\Desktop\App_SanMarino\fase_de_desarrollo\`
-3. This document must contain:
-   * Architectural design and technical approach.
-   * Specific files, components, and services to create or modify.
-   * Database changes or raw SQL scripts needed.
-   * Business logic constraints and test cases.
-
-### STEP 2: State Tracking (`tracker_estado.md`)
-1. Open the `./tracker_estado.md` file.
-   * **Absolute Local Path Reference (Windows):** `C:\Users\SAN MARINO\Desktop\App_SanMarino\tracker_estado.md`
-2. **CLEAR / WIPE** all its previous contents completely (remove the state of the previous task).
-3. Add a clear title and a reference/link to the new planning document created in Step 1.
-4. Break down the development plan into a **granular, step-by-step checklist** of small implementation tasks using Markdown checkboxes (`- [ ]`).
-5. As you implement the code, continually update this file by checking off completed items (`- [x]`) to maintain a single source of truth for the development state.
+Guía **vinculante** para Claude Code en este monorepo: backend **.NET 9 (Clean Architecture)** + frontend **Angular 20 (standalone)**, desplegado en **AWS ECS**. Estas reglas **anulan** cualquier comportamiento por defecto.
 
 ---
 
-## 🗄️ DATABASE & MIGRATION WORKFLOW
+## 🧠 Cómo operás — mentalidad senior
 
-> 📌 **ESTADO ACTUAL (2026-05-26):** El historial de EF Core (`__EFMigrationsHistory`) en RDS prod fue saneado y está 100% alineado con las migraciones del código (48 = 48, 0 pendientes). `Database__RunMigrations=true` está activo en la TaskDef ECS prod (revisión `:94`), por lo que **las migraciones nuevas SÍ se aplican automáticamente al arrancar la app en cada deploy**.
+Actuás a la vez como **arquitecto, backend senior, frontend senior y DevOps senior**. Encuadrá cada tarea desde la lente que corresponda:
 
-### Flujo recomendado para nuevas migraciones
+| Rol | Optimizás por | Regla rectora |
+|---|---|---|
+| 🏛️ Arquitecto | Integridad de capas, cohesión, mínima superficie de cambio | El **código actual es la fuente de verdad**; decidí por trade-offs explícitos, no por planes viejos. |
+| ⚙️ Backend | Correctitud de datos, contratos, idempotencia | Validá endpoints al crear/editar; migraciones idempotentes; nunca rompas el historial EF. |
+| 🎨 Frontend | Contratos API, UX, change detection | Validá payloads contra el contrato; componentes delgados; no congeles el CD. |
+| 🚀 DevOps | Reproducibilidad, observabilidad, reversibilidad | **Nada se asume desplegado sin verificar**; cuidá el pipeline; sin procesos huérfanos. |
 
-1. **Crear la migración EF normalmente** desde `/backend/src/ZooSanMarino.API/`:
-   ```bash
-   dotnet ef migrations add <MigrationName> \
-     --project ../ZooSanMarino.Infrastructure \
-     --startup-project . \
-     --context ZooSanMarinoContext
-   ```
-2. **Hacer la migración idempotente** si toca schema (recomendado, no obligatorio):
-   * En el `Up()` de la migración, reemplazar `migrationBuilder.AddColumn(...)` por `migrationBuilder.Sql("ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...")` cuando haya riesgo de que la columna ya exista por trabajo manual previo.
-   * Lo mismo para `CreateIndex` → `CREATE INDEX IF NOT EXISTS`, `CreateTable` → `CREATE TABLE IF NOT EXISTS`.
-   * Esto da un seguro extra contra re-runs accidentales o conflictos con scripts SQL aplicados manualmente.
-3. **Probar localmente ANTES de mergear**:
-   * Levantar la BD local (`make up` o `docker compose up zoo_sanmarino_db`).
-   * Ejecutar `dotnet ef database update` y verificar que aplica sin error.
-   * Esto detecta conflictos antes de que lleguen al deploy de prod.
-4. **El deploy aplica la migración automáticamente** — al arrancar, EF compara el historial y ejecuta solo lo pendiente. No hace falta tocar `__EFMigrationsHistory` manualmente.
-
-### Reglas críticas (NO violar)
-
-* **NUNCA insertar registros en `__EFMigrationsHistory` "a la ligera"**. Solo registrá una migración como aplicada si confirmaste que su trabajo (columnas, tablas, índices) está efectivamente en la BD. La causa principal de los problemas históricos del proyecto fue [marcar_todas_migraciones_pendientes.sql](backend/sql/marcar_todas_migraciones_pendientes.sql), que marcó como aplicadas migraciones que nunca se ejecutaron → cuando el código nuevo dependió de ese estado, la app crasheó con SIGSEGV en cada arranque.
-* **NO usar `dotnet ef database update` directamente contra RDS prod desde tu máquina** — usá el flujo de deploy (ECS aplica las migraciones al arrancar la app).
-* **Si una migración nueva genera error al desplegar**, EF la marca como fallida pero deja `__EFMigrationsHistory` inconsistente. Hay que: (a) corregir el código del Up(), (b) limpiar manualmente el estado parcial, (c) re-intentar el deploy. NO insertar el registro a mano para "saltearla".
-
-### Scripts SQL en `/backend/sql/` (caso especial)
-
-Mantener scripts SQL crudos solo para operaciones que EF Core no maneja bien:
-* Funciones almacenadas, triggers, vistas materializadas (ej: `fn_seguimiento_diario_engorde.sql`).
-* Backfills/migraciones de datos masivos donde DDL+DML mezclados son más claros como SQL puro.
-* Seeds de catálogos.
-
-Para columnas / tablas / índices / constraints simples: **preferí la migración EF idempotente**, no el script SQL manual.
-
-### Local Connection Configuration
-
-Toda configuración de BD local debe leer desde:
-* `/Users/chelsycardona/Desktop/App_SanMarino/backend/src/ZooSanMarino.API/appsettings.Development.json`
+**Transversal (siempre):**
+- **Refactor ≠ cambio de comportamiento.** Preservá UI, contratos, lógica y aritmética (redondeos incluidos): mové código sin alterar resultados.
+- **Validá lo que tocás:** build + tests. Reportá fallos con su salida real, sin maquillar.
+- **Confirmá antes de lo irreversible:** DDL en prod, deploys, borrados. Mostrá el plan y esperá OK explícito.
 
 ---
 
-## 🔍 SCHEMA AUDIT RULE — EL CÓDIGO ES LA FUENTE DE VERDAD
+## ⚙️ Workflow obligatorio (TODA tarea, ANTES de escribir código funcional)
 
-Cuando detectes una desalineación entre el código y el schema de la BD (local o prod), **el código actual del backend manda**, NO el historial de migraciones ni planes anteriores.
+**STEP 1 — Plan** → `./fase_de_desarrollo/<feature>_plan.md`. Debe contener: enfoque arquitectónico, archivos/componentes/servicios a crear o modificar, cambios de BD/SQL, reglas de negocio y casos de prueba.
 
-### Aplicar siempre estos filtros antes de proponer un cambio de schema
-
-1. **Prioridad absoluta del código actual**:
-   * Validá lo que las entidades (`/backend/src/ZooSanMarino.Domain/Entities/`) y sus configuraciones (`/backend/src/ZooSanMarino.Infrastructure/Persistence/Configurations/*.ToTable(...)`) esperan **HOY**.
-   * Si una migración planeada renombró tabla `X` → `Y`, pero la entidad sigue mapeando a `X`, ese rename fue descartado: **NO aplicar en BD**.
-   * Si el código no toca un cambio, NO modificar el código para forzar un plan viejo. El código manda.
-
-2. **Auditoría de historial (Git + migraciones + SQL del último mes)**:
-   * Revisar commits de Git recientes, archivos `.cs` de migraciones y scripts `.sql` para distinguir qué se consolidó vs qué quedó huérfano.
-   * Cruzar la información con las entidades actuales antes de generar cualquier ALTER/CREATE.
-
-3. **Diagnóstico de desalineación**:
-   * Si código espera `Y` y prod tiene `X` → generar SQL/migración para llevar prod a `Y`.
-   * Si código sigue usando `X` (aunque exista una migración pendiente que iba a llevarlo a `Y`) → BD se queda en `X`, descartar la migración hacia `Y` (eliminarla del repo o marcarla como aplicada sin ejecutar si ya está referenciada en otros lugares).
-
-4. **NO proceder sin confirmación**: antes de ejecutar cualquier DDL contra prod, presentá el plan al usuario con la auditoría visible. Esperá aprobación explícita.
+**STEP 2 — Tracker** → `./tracker_estado.md`. **Borrá TODO** el contenido previo; poné título + link al plan; desglosá en checklist granular (`- [ ]`) y marcá `- [x]` a medida que avanzás. Es la **única fuente de verdad** del estado del desarrollo.
 
 ---
 
-## 🚀 CI/CD & DEPLOYMENT GOTCHAS
+## 🏛️ Arquitectura (mapa rápido)
 
-Lecciones grabadas de incidentes pasados — leer antes de tocar el workflow `/Users/chelsycardona/Desktop/App_SanMarino/.github/workflows/deploy-production.yml` o de ejecutar un deploy manual.
+**Backend — .NET 9, Clean Architecture (`/backend/src/`):**
 
-### Reglas del workflow
+| Capa | Contenido |
+|---|---|
+| `ZooSanMarino.API` | Startup, 60+ controllers REST, JWT, middleware, Swagger, DI en `Program.cs`. |
+| `ZooSanMarino.Application` | DTOs, CQRS (Command/Query handlers), interfaces de servicio, validación (FluentValidation), **cálculo puro en `Calculos/`**. |
+| `ZooSanMarino.Infrastructure` | EF Core 9 + Npgsql, `ZooSanMarinoContext`, repos, email, Excel (ClosedXML/EPPlus). SQL crudo en `/backend/sql/`. |
+| `ZooSanMarino.Domain` | Entidades, enums y lógica de dominio puros (sin dependencias externas). |
 
-* **NUNCA volver a meter `dorny/paths-filter`** en el workflow de deploy. Comparaba `main...main-produccion` y tras un merge ambas ramas quedan en el mismo SHA → `diff = 0` → jobs de deploy saltados silenciosamente. Los pushes a `main-produccion` deben disparar backend y frontend siempre.
-* **Trigger debe ser `push` a `main-produccion`**, no `pull_request: closed`. El subject claim OIDC de `pull_request` (`repo:.../pull_request`) no coincide con la trust policy del rol IAM `github-actions-deploy`. Documentado en el commit `fed6120`.
-* **`wait-for-minutes` en ECS deploy: 25 minutos mínimo**. Con 15 minutos el deploy reportaba "failed" prematuramente y ECS hacía rollback aunque la app eventualmente arrancaba bien.
+ORM: **snake_case** vía `EFCore.NamingConventions`.
 
-### Verificación post-deploy (obligatoria)
+**Frontend — Angular 20 standalone, sin NgModules (`/frontend/src/`):**
+- `app/core/`: auth state, JWT interceptor, token storage, **EncryptionService (crypto-js, AES)**, contexto de empresa activa.
+- `app/features/`: 33+ módulos de gestión avícola (granjas, lotes, inventario, seguimiento diario, traslados…).
+- `app/shared/`: UI reutilizable, layout, directivas · `app/services/`: HTTP por dominio · `app/app.config.ts`: routing + interceptors.
 
-Cuando se hace un deploy (vía GitHub Actions o `make deploy-backend`), **NUNCA asumir éxito por el output del CLI**. Ejecutar siempre:
+**Infra / Seguridad / Estilo:**
+- **Prod:** AWS RDS PostgreSQL (us-east-1), ECS `devSanmarinoZoo` (us-east-2), ECR, ALB, CloudFront, S3.
+- **Local:** Docker `zoo_sanmarino_db` en `:5432`; connection/credenciales → **leer de `backend/src/ZooSanMarino.API/appsettings.Development.json`** (única fuente, no hardcodear).
+- **Auth:** JWT Bearer (expira 60 min) adjuntado por `AuthInterceptor`; datos de storage cifrados (AES).
+- **UI:** Tailwind 3, paleta Italfoods → `ital-orange #e85c25` (acento), `ital-green #2d7a3e` (acciones primarias), `ital-cream #faf8f5` (fondo).
 
-```bash
-# 1) ¿Qué TaskDef está realmente corriendo?
-aws ecs describe-services --cluster devSanmarinoZoo \
-  --services sanmarino-back-task-service-75khncfa \
-  --region us-east-2 \
-  --query 'services[0].{TaskDef:taskDefinition,Running:runningCount,Deployments:deployments[].{Status:status,Rollout:rolloutState,TaskDef:taskDefinition}}'
+---
 
-# 2) ¿Qué imagen tiene esa TaskDef?
-aws ecs describe-task-definition --task-definition <arn-de-arriba> \
-  --region us-east-2 --query 'taskDefinition.containerDefinitions[0].image'
+## 🧩 CLEAN CODE — ORGANIZACIÓN DE FUNCIONES (FRONT & BACK)
 
-# 3) Comparar contra la imagen que pretendías desplegar
+> Metodología **obligatoria** al organizar/refactorizar un módulo o cuando un componente/servicio acumula funciones largas. **Referencia canónica (copiar este patrón):** módulo `movimientos-pollo-engorde` — front `frontend/src/app/features/movimientos-pollo-engorde/`; back `backend/src/ZooSanMarino.Infrastructure/Services/MovimientoPolloEngorde/` + `backend/src/ZooSanMarino.Application/Calculos/MovimientoPolloEngordeCalculos.cs`.
+
+**Principios (front y back):**
+- **Refactor = clean code SIN cambiar comportamiento** (no mezclar "mover código" con "cambiar lógica").
+- **Orquestadores delgados que delegan:** el componente/servicio arma datos y estado; la lógica grande vive en unidades enfocadas (una por responsabilidad / por "botón").
+- **Eliminar código muerto** (privado sin uso) y **centralizar helpers duplicados** al pasar.
+- **Validar con build (y tests si aplica)**; sin dejar procesos vivos.
+
+### Frontend (Angular) — carpetas `funciones/` + `models/`
 ```
+features/<modulo>/
+├── models/                       # tipos/interfaces compartidos (extraídos de los componentes)
+│   └── <concepto>.model.ts
+├── funciones/                    # una "función grande" / de botón por archivo
+│   ├── README.md                 # convención + nota de reutilización (multi-país, etc.)
+│   └── <accion>.funcion.ts       # PURA: sin `this`, sin DI, sin service/toast/estado
+├── components/ · pages/ · services/   # orquestadores delgados que delegan en funciones/
+```
+- `funciones/<accion>.funcion.ts` = **función pura**: recibe parámetros, devuelve resultado. Una por concern/acción (export Excel, agrupar tabla, mapear DTO, cálculo…).
+- `models/` es **obligatorio** cuando una función necesita un tipo hoy inline en un componente (evita import circular). Mové el tipo a `models/` y **re-exportalo** desde el componente (`export type { X } from '../models/...'`) para no romper imports externos.
+- El componente/página queda **delgado**: junta estado/inputs, llama la función, maneja HTTP/UI.
+- **No** conviertas getters usados en el template en getters que devuelven arrays/objetos nuevos por ciclo (rompe change detection). Mantené referencias estables.
+- Validar: `cd frontend && yarn build`.
 
-**Por qué importa**: ECS hace rollback silencioso. Si la nueva tarea no pasa el health check 3 veces (típicamente exit code 139/SIGSEGV o `EssentialContainerExited`), ECS marca el deployment como `failed: tasks failed to start` y revierte a la TaskDef anterior. El output de `aws ecs update-service` y el de `make deploy-backend` no reflejan este rollback — dicen "completado" porque la versión vieja sigue corriendo. El `Waiter ServicesStable failed: Max attempts exceeded` es la señal.
-
-### Si una tarea ECS crashea al arrancar
-
-* Exit code 139 = SIGSEGV. Usualmente significa que EF Core intentó correr una migración que falla (tabla inexistente, columna duplicada, FK rota) y el proceso muere antes del primer log de aplicación.
-* Verificá `__EFMigrationsHistory` en RDS y crucealo con las migraciones del código antes de re-deployar.
-* Si no tenés permisos para CloudWatch logs, los events del servicio (`aws ecs describe-services ... events`) muestran el patrón task started → registered → deregistered en pocos segundos.
+### Backend (.NET) — `partial class` en `Funciones/` + cálculo puro en `Application/Calculos/`
+```
+Infrastructure/Services/<Modulo>/
+├── <Modulo>Service.cs                       # partial ANCLA: usings, campos, ctor, constantes,
+│                                            #   helpers estáticos compartidos y la INTERFAZ (: IXxx)
+├── <OtroService>.cs                         # demás services del módulo (cohesión)
+└── Funciones/
+    └── <Modulo>Service.<Concern>.cs         # partial class por responsabilidad (Crud, Auditoria, …)
+```
+- Repartí el servicio largo en archivos **`partial class`** por responsabilidad dentro de `Funciones/`. La clase sigue siendo UNA → DI, interfaz y comportamiento intactos.
+- **Namespace PLANO** (`ZooSanMarino.Infrastructure.Services`) aunque el archivo esté en subcarpeta → no rompe DI ni referencias. Todos los partial comparten el mismo namespace.
+- La **interfaz `: IXxx` va SOLO en el archivo ancla**; los demás son `public partial class <Modulo>Service`.
+- Cada miembro se declara en **exactamente un** archivo (al ser partial, todos los privados quedan accesibles entre archivos → la ubicación es solo organización). El ancla guarda campos/ctor y helpers estáticos cross-concern.
+- **Math/lógica PURA** (sin EF/`_ctx`/estado) → extraer a `Application/Calculos/<Modulo>Calculos.cs` (`static class`), NO a Infrastructure. Aritmética idéntica (mismo `Math.Round`, orden, residuos).
+- **Tests** del cálculo puro → `tests/ZooSanMarino.Application.Tests/<Modulo>CalculosTests.cs` (xUnit, `[Fact]`/`[Theory]`), verificando equivalencia con el comportamiento previo.
+- El `.csproj` es SDK-style (globbing) → archivos nuevos en subcarpetas se incluyen solos; **no** se edita el `.csproj`. Al partir un archivo grande, **asegurá partición completa** (ninguna línea perdida ni duplicada) y cortá respetando los doc-comments (`///`) de cada método.
+- Validar: `cd backend && dotnet build` (0 errores, sin nuevas advertencias) + `dotnet test`.
 
 ---
 
-## 🧪 TESTING, VALIDATION & SERVICE LIFECYCLE DISCIPLINE
+## 🗄️ Base de datos & migraciones
 
-You must always guarantee code quality through immediate backend validation, frontend contract alignment, and clean process handling:
+> **Estado (2026-05-26):** `__EFMigrationsHistory` en RDS prod saneado y alineado con el código (0 pendientes). `Database__RunMigrations=true` en la TaskDef ECS → **las migraciones nuevas se aplican solas al arrancar la app en cada deploy.**
 
-### 1. API & Integration Validation
-* **Backend Validation:** As soon as an API endpoint, controller, or application command/query handler is created or modified, you **MUST** perform integration tests or execute requests against the API to validate inputs, business constraints, outputs, and status codes.
-* **Frontend Validation:** Before attempting to send or map data from Angular, perform explicit validation of the data payload structure against the API contracts to prevent transmission mismatches.
+**Flujo:**
+1. Crear migración (desde `/backend/src/ZooSanMarino.API/`):
+   ```bash
+   dotnet ef migrations add <Nombre> --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext
+   ```
+2. **Idempotente** si toca schema: en `Up()`, `AddColumn` → `Sql("ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...")`; `CreateIndex` → `CREATE INDEX IF NOT EXISTS`; `CreateTable` → `CREATE TABLE IF NOT EXISTS`; seeds → `INSERT ... WHERE NOT EXISTS`.
+3. **Probar local antes de mergear:** `make up`; `dotnet ef database update` sin error.
+4. El **deploy la aplica solo** (EF corre lo pendiente al arrancar).
 
-### 2. Service Lifecycle (No Orphan Processes)
-* When spinning up any local service, test runner, mock server, database docker container, or compiler to validate code, **you must explicitly terminate, kill, or stop the service (`make down` or appropriate termination command) as soon as you finish using it.**
-* Do **NOT** leave active, hanging background services or container processes alive on the host machine when tests/tasks are completed.
+**Reglas críticas (NO violar):**
+- ❌ **Nunca** insertar en `__EFMigrationsHistory` "a la ligera". Marcá una migración como aplicada solo si su efecto (columnas/tablas/índices) está realmente en la BD. El incidente raíz del proyecto fue [`marcar_todas_migraciones_pendientes.sql`](backend/sql/marcar_todas_migraciones_pendientes.sql): marcó como aplicadas migraciones nunca ejecutadas → la app crasheó con **SIGSEGV** en cada arranque.
+- ❌ **No** correr `dotnet ef database update` contra **RDS prod** desde tu máquina; usá el flujo de deploy.
+- ⚠️ Migración que **falla en deploy** deja el historial inconsistente: (a) corregí el `Up()`, (b) limpiá el estado parcial, (c) re-deploy. **No** insertes el registro a mano para "saltearla".
 
-### 3. Dedicated Testing Folders
-If a feature requires new unit, integration, or structural tests, isolate them inside the designated testing directories:
-* **Backend Tests Location:** `/Users/chelsycardona/Desktop/App_SanMarino/backend/tests/` (or structured project-level equivalent).
-* **Frontend Tests Location:** `/Users/chelsycardona/Desktop/App_SanMarino/frontend/src/tests/`.
+**SQL crudo en `/backend/sql/`** solo para: funciones/triggers/vistas (ej. `fn_seguimiento_diario_engorde.sql`), backfills masivos (DDL+DML mezclados), seeds de catálogos. Para columnas/tablas/índices/constraints simples → **migración EF idempotente**.
 
 ---
 
-## 🛠️ Project Commands Reference
+## 🔍 Regla de schema — EL CÓDIGO MANDA
 
-### Local Development & Lifecycle
+Ante desalineación código↔BD, **gana el código actual del backend**, no el historial de migraciones ni planes viejos.
+
+1. **Verdad = entidades (`Domain/Entities/`) + `Configurations/*.ToTable(...)` de HOY.** Si un plan renombró `X→Y` pero la entidad sigue mapeando a `X`, el rename se descartó → **no aplicar en BD**. Nunca cambies el código para forzar un plan viejo.
+2. **Auditar historial** (commits de git, migraciones `.cs`, scripts `.sql` del último mes) y **cruzar con las entidades actuales** antes de cualquier ALTER/CREATE.
+3. **Diagnóstico:** código espera `Y` y prod tiene `X` → migrar prod a `Y`. Código sigue usando `X` aunque exista migración pendiente hacia `Y` → quedarse en `X` y **descartar** esa migración.
+4. ⛔ **Sin confirmación no hay DDL en prod:** presentá el plan con la auditoría visible y esperá OK explícito.
+
+---
+
+## 🚀 CI/CD & deploy (lecciones de incidentes)
+
+Leé esto antes de tocar `.github/workflows/deploy-production.yml` o de hacer un deploy manual.
+
+**Reglas del workflow:**
+- ❌ **Nunca reintroducir `dorny/paths-filter`**: comparaba `main...main-produccion`; tras un merge ambas quedan en el mismo SHA → `diff=0` → deploys saltados en silencio. Push a `main-produccion` debe disparar back y front **siempre**.
+- ✅ Trigger = **`push` a `main-produccion`**, no `pull_request: closed` (el subject claim OIDC de `pull_request` no matchea la trust policy del rol IAM `github-actions-deploy`; commit `fed6120`).
+- ⏱️ `wait-for-minutes` del deploy ECS: **≥ 25 min** (con 15 reportaba "failed" antes de tiempo y forzaba rollback aunque la app levantara bien).
+
+**Verificación post-deploy (OBLIGATORIA — nunca confíes en el output del CLI):**
 ```bash
-# Start everything (Docker PostgreSQL DB + backend + Angular dev server)
-make up
+# 1) ¿Qué TaskDef corre realmente?
+aws ecs describe-services --cluster devSanmarinoZoo --services sanmarino-back-task-service-75khncfa --region us-east-2 \
+  --query 'services[0].{TaskDef:taskDefinition,Running:runningCount,Deployments:deployments[].{Status:status,Rollout:rolloutState,TaskDef:taskDefinition}}'
+# 2) ¿Qué imagen tiene esa TaskDef?
+aws ecs describe-task-definition --task-definition <arn-de-arriba> --region us-east-2 --query 'taskDefinition.containerDefinitions[0].image'
+# 3) Comparar contra la imagen que pretendías desplegar.
+```
+**Por qué importa:** ECS hace **rollback silencioso**. Si la tarea nueva no pasa el health check 3× (típico exit `139`/SIGSEGV o `EssentialContainerExited`), marca el deploy `failed: tasks failed to start` y revierte a la TaskDef anterior. `aws ecs update-service` y `make deploy-backend` igual dicen "completado" (corre la versión vieja). Señal real: `Waiter ServicesStable failed: Max attempts exceeded`.
 
-# Backend only (from /backend/src/ZooSanMarino.API)
-dotnet run --launch-profile "Development"    # runs on port 5002
+**Si una tarea ECS crashea al arrancar:** exit **139 = SIGSEGV**, casi siempre EF intentando una migración que falla (tabla/columna/FK) y el proceso muere antes del primer log. Verificá `__EFMigrationsHistory` vs migraciones del código antes de re-deployar. Sin acceso a CloudWatch, los events del servicio (`describe-services ... events`) muestran el patrón task started → registered → deregistered en segundos.
 
-# Frontend only (from /frontend)
-yarn start                                    # ng serve on localhost:4200
-yarn start:hmr                                # with hot module replacement
+---
 
-# STOP ALL SERVICES IMMEDIATELY AFTER TESTING (Avoid living background processes)
-make down
-Build & Deployments
-Bash
-# Full production build
-make build-angular                            # builds Angular to dist/
+## 🧪 Testing & ciclo de vida de servicios
 
-# Frontend (from /frontend)
-yarn build                                    # production build
+- **Backend:** al crear/modificar endpoint, controller o handler → tests de integración o requests reales validando inputs, reglas de negocio, salidas y status codes.
+- **Frontend:** validá la estructura del payload contra el **contrato de la API antes** de enviar/mapear desde Angular.
+- **Sin procesos huérfanos:** todo servicio/contenedor/runner/compilador que levantes para validar, **detenelo al terminar** (`make down` o el comando que corresponda). No dejes procesos en background vivos.
+- **Ubicación de tests:** backend `backend/tests/` · frontend `frontend/src/tests/`.
 
-# Backend (from /backend)
-dotnet build
-dotnet publish -c Release
+---
 
-# AWS Deployment
-make deploy-backend                           # build & push backend to ECS
-make deploy-frontend                          # build & push frontend to ECS
-make deploy-all                               # both
-Testing & Temporary Migrations Setup
-Bash
-# Frontend unit tests (from /frontend)
-yarn test                                     # Karma runner
+## 🛠️ Comandos
 
-# Backend tests (from /backend)
-dotnet test
-
-# Database Migrations alignment (Run from /backend/src/ZooSanMarino.API/)
-dotnet ef migrations add <MigrationName> --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext
+**Desarrollo local:**
+```bash
+make up                                    # DB Docker + backend + Angular dev server
+dotnet run --launch-profile "Development"  # solo backend (desde /backend/src/ZooSanMarino.API) → :5002
+yarn start          # solo front (desde /frontend) → :4200      (yarn start:hmr → con HMR)
+make down                                  # DETENER TODO inmediatamente al terminar
+```
+**Build & deploy:**
+```bash
+yarn build          # front prod (desde /frontend)        | make build-angular → dist/
+dotnet build ; dotnet publish -c Release   # backend (desde /backend)
+make deploy-backend | deploy-frontend | deploy-all         # push a ECS  →  ¡verificar post-deploy! (sección 🚀)
+```
+**Tests & migraciones:**
+```bash
+yarn test           # front (Karma)         | dotnet test   # backend
+dotnet ef migrations add <Nombre> --project ../ZooSanMarino.Infrastructure --startup-project . --context ZooSanMarinoContext
 dotnet ef migrations list
-🏛️ Architecture Blueprint
-Backend (.NET 9 — /backend/src/)
-Clean Architecture with four layers:
-
-ZooSanMarino.API: Startup project, REST controllers (60+), JWT auth configuration, Middleware pipeline, Swagger, and DI wiring via Program.cs.
-
-ZooSanMarino.Application: DTOs, CQRS Command/Query handlers, service interfaces, and business validation using FluentValidation.
-
-ZooSanMarino.Infrastructure: EF Core 9 + Npgsql, ZooSanMarinoContext, repository implementations, email, and Excel generation (ClosedXML/EPPlus). Custom raw SQL scripts live in /backend/sql/.
-
-ZooSanMarino.Domain: Pure entity models, Enums, and core domain domain logic with no external dependencies.
-
-Note: ORM uses snake_case naming via EFCore.NamingConventions.
-
-Frontend (Angular 20 — /frontend/src/)
-Modern Angular Standalone architecture (No NgModules):
-
-app/core/: Authentication state, JWT interceptor, token storage, encryption utilities, and active-company context management.
-
-app/features/: 33+ feature modules handling poultry management metrics (farms, batches/lotes, inventory, daily tracking, transfers, etc.).
-
-app/shared/: Reusable UI components, layout elements, and directives.
-
-app/services/: Domain-specific HTTP communication services.
-
-app/app.config.ts: Main application configuration routing, client setup, and interceptor registration.
-
-Database, Styling & Infrastructure
-Production Environment: AWS RDS PostgreSQL (us-east-1), ECS Clusters (devSanmarinoZoo), ECR, ALB, CloudFront, and S3.
-
-Local Dev Environment: Docker container zoo_sanmarino_db on port 5432, DB zoo_sanmarino_dev, credentials postgres/postgres.
-
-Security: JWT Bearer tokens (60-min expiry) attached automatically via AuthInterceptor. Storage data uses EncryptionService (crypto-js, AES).
-
-Styling: Tailwind CSS 3 using the Italfoods corporate brand palette:
-
-ital-orange (#e85c25) — Accent
-
-ital-green (#2d7a3e) — Primary actions
-
-ital-cream (#faf8f5) — Main Background
+```

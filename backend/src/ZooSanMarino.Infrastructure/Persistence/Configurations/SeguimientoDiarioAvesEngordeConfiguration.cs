@@ -55,6 +55,8 @@ public class SeguimientoDiarioAvesEngordeConfiguration : IEntityTypeConfiguratio
         b.Property(x => x.SaldoAlimentoKg).HasColumnName("saldo_alimento_kg").HasPrecision(18, 3);
         b.Property(x => x.HistoricoConsumoAlimento).HasColumnName("historico_consumo_alimento").HasColumnType("jsonb");
 
+        b.Property(x => x.OrigenCruce).HasColumnName("origen_cruce").HasDefaultValue(false);
+
         b.HasIndex(x => x.LoteAveEngordeId).HasDatabaseName("ix_seguimiento_diario_aves_engorde_lote");
         b.HasIndex(x => x.Fecha).HasDatabaseName("ix_seguimiento_diario_aves_engorde_fecha");
 

@@ -13,8 +13,6 @@ namespace ZooSanMarino.Domain.Entities
         public string? Country { get; set; }
         public string? State { get; set; }
         public string? City { get; set; }
-        public byte[]? LogoBytes { get; set; }
-        public string? LogoContentType { get; set; }
         public string[] VisualPermissions { get; set; } = Array.Empty<string>();
         public bool MobileAccess { get; set; }
 
@@ -26,5 +24,6 @@ namespace ZooSanMarino.Domain.Entities
         public ICollection<UserCompany> UserCompanies { get; set; } = new List<UserCompany>();
         public ICollection<CompanyPais> CompanyPaises { get; set; } = new List<CompanyPais>();
         public ICollection<CompanyMenu> CompanyMenus { get; set; } = new List<CompanyMenu>();
+        public CompanyLogo? Logo { get; set; }
     }
 }

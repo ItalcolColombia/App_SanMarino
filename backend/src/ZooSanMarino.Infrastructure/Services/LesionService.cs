@@ -219,6 +219,8 @@ public class LesionService : ILesionService
         int?    clienteId,
         int?    farmId,
         int?    loteId,
+        string? galponId,
+        string? loteReproductoraId,
         CancellationToken ct)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
@@ -242,21 +244,37 @@ public class LesionService : ILesionService
         if (loteId.HasValue)
             query = query.Where(x => x.LoteId == loteId.Value);
 
-        var grouped = await query
+        if (!string.IsNullOrWhiteSpace(galponId))
+            query = query.Where(x => x.GalponId == galponId);
+
+        if (!string.IsNullOrWhiteSpace(loteReproductoraId))
+            query = query.Where(x => x.LoteReproductoraId == loteReproductoraId);
+
+        // Usar anonymous type en el Select del GroupBy para que EF Core pueda
+        // traducirlo a SQL sin generar .AsQueryable() no traducible.
+        var raw = await query
             .GroupBy(x => new { x.TipoLesion, x.ModuloOrigen })
-            .Select(g => new LesionResumenDto(
+            .Select(g => new
+            {
                 g.Key.TipoLesion,
                 g.Key.ModuloOrigen,
-                g.Count(),
-                g.Sum(x => x.AvesMacho  ?? 0),
-                g.Sum(x => x.AvesHembra ?? 0),
-                g.Sum(x => x.AvesMixtas ?? 0)
-            ))
+                TotalRegistros  = g.Count(),
+                TotalAvesMacho  = g.Sum(x => x.AvesMacho  ?? 0),
+                TotalAvesHembra = g.Sum(x => x.AvesHembra ?? 0),
+                TotalAvesMixtas = g.Sum(x => x.AvesMixtas ?? 0)
+            })
             .OrderBy(r => r.ModuloOrigen)
             .ThenBy(r => r.TipoLesion)
             .ToListAsync(ct);
 
-        return grouped;
+        return raw.Select(r => new LesionResumenDto(
+            r.TipoLesion,
+            r.ModuloOrigen,
+            r.TotalRegistros,
+            r.TotalAvesMacho,
+            r.TotalAvesHembra,
+            r.TotalAvesMixtas
+        ));
     }
 
     private static LesionDto ToDto(Lesion x) => new(

@@ -661,3 +661,32 @@
 
 
 
+
+/* Desglose por género de aves disponibles (devolución tras 7 días) */
+.pe-info-lote-genero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: .4rem 0 .5rem 0;
+}
+.pe-genero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem .7rem;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 600;
+  border: 1px solid;
+  strong { font-weight: 800; }
+}
+.pe-genero-chip--h {
+  background: #fdeee8;
+  color: #c0410f;
+  border-color: #f4c5b3;
+}
+.pe-genero-chip--m {
+  background: #e8f0fb;
+  color: #1c5aa8;
+  border-color: #b9d2f0;
+}

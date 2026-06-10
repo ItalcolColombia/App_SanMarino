@@ -90,10 +90,10 @@
 .lrae-modal__panel--form { max-width: 560px; }
 .lrae-modal__panel--form .lrae-modal__body { overflow-y: auto; }
 .lrae-modal__panel--edit {
-  max-width: 620px;
+  max-width: 860px;
   width: 100%;
 }
-.lrae-modal__panel--edit .lrae-modal__body { overflow-y: auto; max-height: 60vh; }
+.lrae-modal__panel--edit .lrae-modal__body { overflow-y: auto; max-height: 68vh; }
 .lrae-edit-card {
   background: var(--ital-cream);
   border: 1px solid var(--lrae-border);
@@ -109,7 +109,7 @@
 }
 .lrae-modal__panel--wide { max-width: 920px; }
 .lrae-modal__panel--create {
-  max-width: 980px;
+  max-width: 1160px;
   width: 100%;
 }
 .lrae-modal__header {
@@ -188,6 +188,7 @@
 .lrae-form-section--optional .lrae-form-section__title { color: var(--ital-muted); opacity: 0.8; }
 .lrae-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .lrae-form-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.lrae-form-grid--4 { grid-template-columns: repeat(4, 1fr); }
 .lrae-field--full { grid-column: 1 / -1; }
 .lrae-detail { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1.5rem; }
 .lrae-detail dt { font-weight: 600; color: var(--ital-muted); font-size: 0.9rem; }
@@ -267,8 +268,8 @@
 .lrae-create-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  height: 420px;
-  max-height: 55vh;
+  height: 480px;
+  max-height: 60vh;
   overflow-x: hidden;
   overflow-y: auto;
   padding: 1rem 1.25rem;
@@ -331,8 +332,47 @@
   border-top: 1px dashed var(--lrae-border);
   flex-shrink: 0;
 }
+/* Alerta 7 días completos */
+.lrae-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.lrae-alert--info {
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border: 1px solid var(--ital-orange-100);
+}
+
+/* Badge n/7 registros */
+.lrae-badge-registros {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--ital-green-50);
+  color: var(--ital-green-dark);
+  border: 1px solid var(--ital-green-100);
+}
+.lrae-badge-registros--completo {
+  background: var(--ital-orange-50);
+  color: var(--ital-orange-dark);
+  border-color: var(--ital-orange-100);
+}
+
+/* Tabla: fuente más compacta para acomodar más columnas */
+.lrae-table th, .lrae-table td { font-size: 0.82rem; padding: 0.5rem 0.6rem; }
+
 @media (max-width: 768px) {
   .lrae-modal__panel--create { max-width: 100%; margin: 0.5rem; }
+  .lrae-modal__panel--edit { max-width: 100%; margin: 0.5rem; }
   .lrae-create-scroll { height: 320px; max-height: 50vh; margin: 0 0.75rem; }
   .lrae-form-grid--create { grid-template-columns: 1fr; }
+  .lrae-form-grid--4 { grid-template-columns: 1fr 1fr; }
 }

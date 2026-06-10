@@ -17,6 +17,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
 
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Company> Companies { get; set; } = null!;
+        public DbSet<CompanyLogo> CompanyLogos { get; set; } = null!;
         public DbSet<Farm> Farms { get; set; } = null!;
         public DbSet<Nucleo> Nucleos { get; set; } = null!;
         public DbSet<Galpon> Galpones { get; set; } = null!;
@@ -89,6 +90,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<SeguimientoDiarioLoteReproductoraAvesEngorde> SeguimientoDiarioLoteReproductoraAvesEngorde => Set<SeguimientoDiarioLoteReproductoraAvesEngorde>();
         public DbSet<MovimientoPolloEngorde> MovimientoPolloEngorde => Set<MovimientoPolloEngorde>();
         public DbSet<HistorialLotePolloEngorde> HistorialLotePolloEngorde => Set<HistorialLotePolloEngorde>();
+        public DbSet<LiquidacionLoteEngordePanama> LiquidacionLoteEngordePanama => Set<LiquidacionLoteEngordePanama>();
         public DbSet<LoteRegistroHistoricoUnificado> LoteRegistroHistoricoUnificados => Set<LoteRegistroHistoricoUnificado>();
         public DbSet<LotePosturaLevante> LotePosturaLevante => Set<LotePosturaLevante>();
         public DbSet<LotePosturaProduccion> LotePosturaProduccion => Set<LotePosturaProduccion>();
@@ -108,10 +110,23 @@ namespace ZooSanMarino.Infrastructure.Persistence
         // Lesiones (Panamá — tab dentro de Seguimiento Diario Reproductora/Apoyo/Engorde)
         public DbSet<Lesion> Lesiones => Set<Lesion>();
 
+        // Módulo de tickets de soporte / requerimientos
+        public DbSet<Ticket> Tickets => Set<Ticket>();
+        public DbSet<TicketImagen> TicketImagenes => Set<TicketImagen>();
+        public DbSet<TicketAdjunto> TicketAdjuntos => Set<TicketAdjunto>();
+        public DbSet<TicketNota> TicketNotas => Set<TicketNota>();
+        public DbSet<TicketResolutor> TicketResolutores => Set<TicketResolutor>();
+        public DbSet<TicketPerfilUsuario> TicketPerfilesUsuario => Set<TicketPerfilUsuario>();
+        public DbSet<TicketResolutorRol> TicketResolutorRoles => Set<TicketResolutorRol>();
+
         // Módulo Mapas (documentos de mapeo ERP/CIESA)
         public DbSet<Mapa> Mapas => Set<Mapa>();
         public DbSet<MapaPaso> MapaPasos => Set<MapaPaso>();
         public DbSet<MapaEjecucion> MapaEjecuciones => Set<MapaEjecucion>();
+
+        // DB Studio: permisos por objeto + bitácora
+        public DbSet<DbStudioObjectGrant> DbStudioObjectGrants => Set<DbStudioObjectGrant>();
+        public DbSet<DbStudioAudit> DbStudioAudits => Set<DbStudioAudit>();
 
         // Nota: Los valores de guía genética se obtienen desde ProduccionAvicolaRaw
         // usando el servicio GuiaGeneticaService basado en Raza y AnoTablaGenetica del lote

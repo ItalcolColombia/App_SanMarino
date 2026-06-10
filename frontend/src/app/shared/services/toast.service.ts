@@ -1,5 +1,5 @@
 // src/app/shared/services/toast.service.ts
-import { Injectable, ComponentRef, ApplicationRef, Injector, createComponent, EnvironmentInjector } from '@angular/core';
+import { Injectable, ComponentRef, ApplicationRef, Injector, createComponent, EnvironmentInjector, NgZone } from '@angular/core';
 import { ToastNotificationComponent, ToastConfig } from '../components/toast-notification/toast-notification.component';
 
 @Injectable({
@@ -11,7 +11,8 @@ export class ToastService {
 
   constructor(
     private appRef: ApplicationRef,
-    private injector: EnvironmentInjector
+    private injector: EnvironmentInjector,
+    private ngZone: NgZone
   ) {
     this.createContainer();
   }
@@ -56,11 +57,14 @@ export class ToastService {
       this.appRef.attachView(componentRef.hostView);
       this.toasts.push(componentRef);
 
-      // Auto-remover después de la animación
-      if (config.duration && config.duration > 0) {
-        setTimeout(() => {
-          this.remove(componentRef);
-        }, config.duration + 300);
+      // Auto-remover fuera de la zona Angular para evitar bucle de change detection (NG0103)
+      const dur = config.duration;
+      if (dur && dur > 0) {
+        this.ngZone.runOutsideAngular(() => {
+          setTimeout(() => {
+            this.remove(componentRef);
+          }, dur + 300);
+        });
       }
     }
   }
@@ -85,11 +89,15 @@ export class ToastService {
     const index = this.toasts.indexOf(componentRef);
     if (index > -1) {
       this.toasts.splice(index, 1);
-      componentRef.instance.close();
-      setTimeout(() => {
-        this.appRef.detachView(componentRef.hostView);
-        componentRef.destroy();
-      }, 300);
+      this.ngZone.run(() => componentRef.instance.close());
+      this.ngZone.runOutsideAngular(() => {
+        setTimeout(() => {
+          this.ngZone.run(() => {
+            this.appRef.detachView(componentRef.hostView);
+            componentRef.destroy();
+          });
+        }, 300);
+      });
     }
   }
 

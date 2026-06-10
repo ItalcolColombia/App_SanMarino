@@ -14,9 +14,9 @@ import {
   UpdateSeguimientoDiarioLoteReproductoraDto,
   LoteReproductoraSeguimientoFilterItemDto
 } from '../../services/seguimiento-diario-lote-reproductora.service';
-import type { CreateSeguimientoLoteLevanteDto, UpdateSeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
-import { ModalCreateEditComponent } from '../../../lote-levante/pages/modal-create-edit/modal-create-edit.component';
-import { ModalDetalleSeguimientoLevanteComponent } from '../../../lote-levante/pages/modal-detalle-seguimiento/modal-detalle-seguimiento.component';
+import { LoteSeguimientoDto, CreateLoteSeguimientoDto, UpdateLoteSeguimientoDto } from '../../services/lote-seguimiento.service';
+import { ModalSeguimientoReproductoraComponent } from '../modal-seguimiento-reproductora/modal-seguimiento-reproductora.component';
+import { ModalDetalleSeguimientoReproductoraComponent } from '../modal-detalle-seguimiento-reproductora/modal-detalle-seguimiento-reproductora.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import { ShowIfCountryDirective } from '../../../../core/directives/show-if-country.directive';
 import { LesionTabComponent } from '../../../lesiones/components/lesion-tab/lesion-tab.component';
@@ -33,8 +33,8 @@ import { faPlus, faPen, faTrash, faFilter, faEye } from '@fortawesome/free-solid
   imports: [
     CommonModule,
     FormsModule,
-    ModalCreateEditComponent,
-    ModalDetalleSeguimientoLevanteComponent,
+    ModalSeguimientoReproductoraComponent,
+    ModalDetalleSeguimientoReproductoraComponent,
     ConfirmationModalComponent,
     FontAwesomeModule,
     ShowIfCountryDirective,
@@ -77,7 +77,11 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   activeTab: 'seguimiento' | 'lesiones' = 'seguimiento';
   modalOpen = false;
   detailModalOpen = false;
+
+  /** Registro seleccionado para vista detalle (modal solo lectura). */
   editing: SeguimientoLoteLevanteDto | null = null;
+  /** Registro mapeado al formato local para el modal de crear/editar. */
+  editingModal: LoteSeguimientoDto | null = null;
 
   /** Para el modal create/edit: "lotes" = solo el lote reproductora seleccionado (loteId = id del lote reproductora) */
   lotesParaModal: LoteDto[] = [];
@@ -102,9 +106,68 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     showCancel: false
   };
 
+  /** Máximo de registros diarios permitidos por lote reproductora (regla de negocio: 7 días). */
+  readonly MAX_DIAS_SEGUIMIENTO = 7;
+
   /** True si el lote reproductora actual está cerrado (no se permite nuevo registro). */
   get isLoteReproductoraCerrado(): boolean {
     return this.selectedReproductoraDetail?.estado === 'Cerrado';
+  }
+
+  /** True si el lote cerrado fue reabierto con novedad (habilita eliminar). */
+  get isReabierto(): boolean {
+    return this.selectedReproductoraDetail?.reabierto === true;
+  }
+
+  /** Se puede eliminar si el lote está abierto, o si está cerrado pero reabierto con novedad. */
+  get puedeEliminar(): boolean {
+    return !this.isLoteReproductoraCerrado || this.isReabierto;
+  }
+
+  /** Modal de reapertura: pide la novedad (motivo) para reabrir un lote cerrado. */
+  reabrirModalOpen = false;
+  novedadInput = '';
+  reabriendo = false;
+
+  /** True si ya se alcanzaron los 7 registros diarios del lote. */
+  get isSeguimientoCompleto(): boolean {
+    return this.seguimientos.length >= this.MAX_DIAS_SEGUIMIENTO;
+  }
+
+  /** True si se puede crear un nuevo registro (lote abierto + menos de 7 días). */
+  get canCreateSeguimiento(): boolean {
+    return !!this.selectedLoteReproductoraId
+      && !this.isLoteReproductoraCerrado
+      && !this.isSeguimientoCompleto;
+  }
+
+  /**
+   * Fecha sugerida para el próximo registro, siempre consecutiva:
+   * - Sin registros → fecha de encasetamiento del lote reproductora (día 0).
+   * - Con registros → último registro + 1 día.
+   * Si no hay fecha de encasetamiento disponible se usa hoy.
+   */
+  get nextSuggestedFecha(): string {
+    if (this.seguimientos.length === 0) {
+      // Primer registro: día siguiente al encasetamiento (día 1 = encasetamiento + 1)
+      const enc = this.selectedReproductoraDetail?.fechaEncasetamiento;
+      if (enc) return this.addDaysToYmd(String(enc).slice(0, 10), 1);
+      return this.todayYmd();
+    }
+    // Registro N: último registrado + 1 día
+    const last = this.seguimientos[this.seguimientos.length - 1];
+    const lastFecha = last?.fechaRegistro ? String(last.fechaRegistro).slice(0, 10) : this.todayYmd();
+    return this.addDaysToYmd(lastFecha, 1);
+  }
+
+  private addDaysToYmd(ymd: string, days: number): string {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d + days));
+    return date.toISOString().slice(0, 10);
+  }
+
+  private todayYmd(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 
   faPlus = faPlus;
@@ -116,18 +179,16 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   constructor(
     private segSvc: SeguimientoDiarioLoteReproductoraService,
     private loteReproductoraSvc: LoteReproductoraAveEngordeService,
-    private toastService: ToastService
-    , private lesionSvc: LesionService
+    private toastService: ToastService,
+    private lesionSvc: LesionService
   ) {}
 
   openLesionCreate(): void {
-    // Mantener compatibilidad: mostrar el panel de Lesiones y un recordatorio.
     this.activeTab = 'lesiones';
     this.lesionSvc.openCreate$.next();
   }
 
   onOpenLesion(): void {
-    // Método enlazado desde el header CTA; abre la pestaña Lesiones y solicita apertura del modal.
     this.activeTab = 'lesiones';
     this.lesionSvc.openCreate$.next();
   }
@@ -149,6 +210,11 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   get selectedLoteReproductoraNombre(): string {
     const r = this.lotesReproductoraFiltered.find(x => x.id === this.selectedLoteReproductoraId);
     return r?.nombreLote ?? (this.selectedLoteReproductoraId?.toString() ?? '');
+  }
+
+  /** selectedLoteReproductoraId como string para los inputs del modal local. */
+  get selectedReproIdStr(): string | null {
+    return this.selectedLoteReproductoraId != null ? String(this.selectedLoteReproductoraId) : null;
   }
 
   ngOnInit(): void {
@@ -295,9 +361,14 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     this.galpones.sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true, sensitivity: 'base' }));
   }
 
+  /** Fecha a usar como valor por defecto en el modal de nuevo registro */
+  modalDefaultFecha: string | null = null;
+
   create(): void {
-    if (!this.selectedLoteReproductoraId || this.isLoteReproductoraCerrado) return;
+    if (!this.canCreateSeguimiento) return;
     this.editing = null;
+    this.editingModal = null;
+    this.modalDefaultFecha = this.nextSuggestedFecha;
     const granjaId = this.getGranjaIdForModal();
     this.lotesParaModal = this.lotesReproductoraFiltered.map(r => ({
       loteId: r.id,
@@ -312,6 +383,7 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   edit(seg: SeguimientoLoteLevanteDto): void {
     if (this.isLoteReproductoraCerrado) return;
     this.editing = seg;
+    this.editingModal = this.mapSegToLocalDto(seg);
     const granjaId = this.getGranjaIdForModal();
     this.lotesParaModal = this.lotesReproductoraFiltered.map(r => ({
       loteId: r.id,
@@ -332,18 +404,92 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
     this.modalOpen = false;
     this.detailModalOpen = false;
     this.editing = null;
+    this.editingModal = null;
   }
 
-  /** Payload del modal (mismo shape que CreateSeguimientoDiarioLoteReproductoraDto). Envía a API SeguimientoDiarioLoteReproductora → tabla seguimiento_diario_lote_reproductora_aves_engorde. */
-  onSave(event: { data: CreateSeguimientoLoteLevanteDto | UpdateSeguimientoLoteLevanteDto; isEdit: boolean }): void {
+  /** Mapea SeguimientoLoteLevanteDto (formato API) → LoteSeguimientoDto (formato modal local). */
+  private mapSegToLocalDto(seg: SeguimientoLoteLevanteDto): LoteSeguimientoDto {
+    const s = seg as any;
+    return {
+      id: seg.id,
+      fecha: seg.fechaRegistro ?? '',
+      loteId: Number(this.selectedLoteReproductoraId),
+      reproductoraId: String(this.selectedLoteReproductoraId),
+      mortalidadH: s.mortalidadHembras ?? 0,
+      mortalidadM: s.mortalidadMachos ?? 0,
+      selH: seg.selH ?? 0,
+      selM: seg.selM ?? 0,
+      errorH: s.errorSexajeHembras ?? 0,
+      errorM: s.errorSexajeMachos ?? 0,
+      tipoAlimento: seg.tipoAlimento ?? '',
+      consumoAlimento: s.consumoKgHembras ?? 0,
+      consumoKgMachos: seg.consumoKgMachos ?? null,
+      observaciones: seg.observaciones ?? null,
+      ciclo: seg.ciclo ?? 'Normal',
+      pesoPromH: seg.pesoPromH ?? null,
+      pesoPromM: seg.pesoPromM ?? null,
+      uniformidadH: s.uniformidadH ?? null,
+      uniformidadM: s.uniformidadM ?? null,
+      cvH: s.cvH ?? null,
+      cvM: s.cvM ?? null,
+      consumoAguaDiario: s.consumoAguaDiario ?? null,
+      consumoAguaPh: s.consumoAguaPh ?? null,
+      consumoAguaOrp: s.consumoAguaOrp ?? null,
+      consumoAguaTemperatura: s.consumoAguaTemperatura ?? null,
+      pesoInicial: s.pesoInicial ?? null,
+      pesoFinal: s.pesoFinal ?? null,
+      metadata: seg.metadata ?? null,
+      itemsAdicionales: seg.itemsAdicionales ?? null,
+    };
+  }
+
+  /** Mapea el payload del modal local → DTO que espera el servicio de reproductora. */
+  private mapLocalDtoToServiceDto(
+    d: CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto
+  ): CreateSeguimientoDiarioLoteReproductoraDto {
+    return {
+      fechaRegistro: d.fecha,
+      loteId: d.loteId,
+      mortalidadHembras: d.mortalidadH ?? 0,
+      mortalidadMachos: d.mortalidadM ?? 0,
+      selH: d.selH ?? 0,
+      selM: d.selM ?? 0,
+      errorSexajeHembras: d.errorH ?? 0,
+      errorSexajeMachos: d.errorM ?? 0,
+      tipoAlimento: d.tipoAlimento ?? '',
+      consumoHembras: d.consumoAlimento ?? null,
+      consumoMachos: d.consumoKgMachos ?? null,
+      ciclo: d.ciclo ?? 'Normal',
+      observaciones: d.observaciones ?? null,
+      itemsHembras: d.metadata?.itemsHembras ?? null,
+      itemsMachos: d.metadata?.itemsMachos ?? null,
+      pesoPromH: d.pesoPromH ?? null,
+      pesoPromM: d.pesoPromM ?? null,
+      uniformidadH: d.uniformidadH ?? null,
+      uniformidadM: d.uniformidadM ?? null,
+      cvH: d.cvH ?? null,
+      cvM: d.cvM ?? null,
+      consumoAguaDiario: d.consumoAguaDiario ?? null,
+      consumoAguaPh: d.consumoAguaPh ?? null,
+      consumoAguaOrp: d.consumoAguaOrp ?? null,
+      consumoAguaTemperatura: d.consumoAguaTemperatura ?? null,
+    };
+  }
+
+  /** Recibe el evento save del modal local y llama al servicio correcto. */
+  onSave(event: { data: CreateLoteSeguimientoDto | UpdateLoteSeguimientoDto; isEdit: boolean }): void {
+    const serviceDto = this.mapLocalDtoToServiceDto(event.data);
+
     const op$ = event.isEdit
-      ? this.segSvc.update(event.data as UpdateSeguimientoDiarioLoteReproductoraDto)
-      : this.segSvc.create(event.data as CreateSeguimientoDiarioLoteReproductoraDto);
+      ? this.segSvc.update({ ...serviceDto, id: (event.data as UpdateLoteSeguimientoDto).id } as UpdateSeguimientoDiarioLoteReproductoraDto)
+      : this.segSvc.create(serviceDto);
+
     this.loading = true;
     op$.pipe(finalize(() => (this.loading = false))).subscribe({
       next: () => {
         this.modalOpen = false;
         this.editing = null;
+        this.editingModal = null;
         this.toastService.success(event.isEdit ? 'Registro actualizado.' : 'Registro creado.', 'Éxito', 4000);
         if (this.selectedLoteReproductoraId != null) {
           this.segSvc.getByLoteReproductoraId(this.selectedLoteReproductoraId).subscribe({
@@ -366,9 +512,42 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
   }
 
   delete(id: number): void {
-    if (this.isLoteReproductoraCerrado) return;
+    if (!this.puedeEliminar) return;
     this.pendingDeleteId = id;
     this.confirmModalOpen = true;
+  }
+
+  /** Abre el modal para reabrir un lote cerrado capturando la novedad (motivo). */
+  openReabrir(): void {
+    if (!this.selectedLoteReproductoraId || !this.isLoteReproductoraCerrado || this.isReabierto) return;
+    this.novedadInput = '';
+    this.reabrirModalOpen = true;
+  }
+
+  cancelReabrir(): void {
+    this.reabrirModalOpen = false;
+    this.novedadInput = '';
+  }
+
+  confirmReabrir(): void {
+    const id = this.selectedLoteReproductoraId;
+    const novedad = (this.novedadInput || '').trim();
+    if (!id || !novedad || this.reabriendo) return;
+    this.reabriendo = true;
+    this.loteReproductoraSvc.reabrir(id, novedad).subscribe({
+      next: detail => {
+        this.selectedReproductoraDetail = detail;
+        this.reabrirModalOpen = false;
+        this.reabriendo = false;
+        this.novedadInput = '';
+        this.loteCerradoModalOpen = false;
+        this.toastService.success('Lote reabierto. Ahora puede eliminar registros.', 'Reapertura', 4000);
+      },
+      error: err => {
+        this.reabriendo = false;
+        this.toastService.error(err?.error?.detail || err?.message || 'No se pudo reabrir el lote.', 'Error', 6000);
+      }
+    });
   }
 
   onConfirmDelete(): void {
@@ -406,6 +585,21 @@ export class SeguimientoDiarioLoteReproductoraListComponent implements OnInit {
 
   trackById = (_: number, r: SeguimientoLoteLevanteDto) => r.id;
   trackByIdx = (i: number) => i;
+
+  /**
+   * Días de edad del lote en el momento de un registro.
+   * Día 1 = primer día después del encasetamiento.
+   * Devuelve null si alguna fecha no está disponible o la fecha es anterior al encasetamiento.
+   */
+  calcularEdad(fechaRegistro: string | Date | null | undefined): number | null {
+    const base = this.selectedReproductoraDetail?.fechaEncasetamiento;
+    if (!base || !fechaRegistro) return null;
+    const inicio = new Date(base);
+    const registro = new Date(fechaRegistro);
+    if (isNaN(inicio.getTime()) || isNaN(registro.getTime())) return null;
+    const dias = Math.round((registro.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+    return dias > 0 ? dias : null;
+  }
 
   private hasValue(v: unknown): boolean {
     if (v === null || v === undefined) return false;

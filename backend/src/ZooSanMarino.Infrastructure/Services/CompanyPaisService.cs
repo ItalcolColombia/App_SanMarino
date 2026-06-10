@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -87,26 +88,28 @@ public class CompanyPaisService : ICompanyPaisService
 
     public async Task<List<CompanyDto>> GetCompaniesByPaisAsync(int paisId)
     {
-        return await _context.CompanyPaises
+        var rows = await _context.CompanyPaises
             .AsNoTracking()
             .Include(cp => cp.Company)
+                .ThenInclude(c => c.Logo)
             .Where(cp => cp.PaisId == paisId)
-            .Select(cp => new CompanyDto(
-                cp.Company.Id,
-                cp.Company.Name,
-                cp.Company.Identifier,
-                cp.Company.DocumentType,
-                cp.Company.Address,
-                cp.Company.Phone,
-                cp.Company.Email,
-                cp.Company.Country,
-                cp.Company.State,
-                cp.Company.City,
-                null,
-                cp.Company.MobileAccess,
-                cp.Company.VisualPermissions
-            ))
             .ToListAsync();
+
+        return rows.Select(cp => new CompanyDto(
+            cp.Company.Id,
+            cp.Company.Name,
+            cp.Company.Identifier,
+            cp.Company.DocumentType,
+            cp.Company.Address,
+            cp.Company.Phone,
+            cp.Company.Email,
+            cp.Company.Country,
+            cp.Company.State,
+            cp.Company.City,
+            CompanyCalculos.BuildLogoDataUrl(cp.Company.Logo?.LogoBytes, cp.Company.Logo?.LogoContentType),
+            cp.Company.MobileAccess,
+            cp.Company.VisualPermissions
+        )).ToList();
     }
 
     public async Task<List<PaisDto>> GetPaisesByCompanyAsync(int companyId)
@@ -124,19 +127,22 @@ public class CompanyPaisService : ICompanyPaisService
 
     public async Task<List<CompanyPaisDto>> GetAllCompanyPaisAsync()
     {
-        return await _context.CompanyPaises
+        var rows = await _context.CompanyPaises
             .AsNoTracking()
             .Include(cp => cp.Company)
+                .ThenInclude(c => c.Logo)
             .Include(cp => cp.Pais)
-            .Select(cp => new CompanyPaisDto
-            {
-                CompanyId = cp.CompanyId,
-                CompanyName = cp.Company.Name,
-                PaisId = cp.PaisId,
-                PaisNombre = cp.Pais.PaisNombre,
-                IsDefault = false // Este campo se determina desde UserCompany
-            })
             .ToListAsync();
+
+        return rows.Select(cp => new CompanyPaisDto
+        {
+            CompanyId          = cp.CompanyId,
+            CompanyName        = cp.Company.Name,
+            CompanyLogoDataUrl = CompanyCalculos.BuildLogoDataUrl(cp.Company.Logo?.LogoBytes, cp.Company.Logo?.LogoContentType),
+            PaisId             = cp.PaisId,
+            PaisNombre         = cp.Pais.PaisNombre,
+            IsDefault          = false
+        }).ToList();
     }
 
     public async Task<CompanyPaisDto> AssignUserToCompanyPaisAsync(AssignUserCompanyPaisDto dto)

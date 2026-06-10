@@ -127,6 +127,15 @@ export const appConfig: ApplicationConfig = {
             .then(m => m.LoteReproductoraModule)
       },
 
+      // Tickets de soporte / requerimientos (módulo independiente)
+      {
+        path: 'tickets',
+        canActivate: [authGuard],
+        loadChildren: () =>
+          import('./features/tickets/tickets.routes')
+            .then(m => m.TICKETS_ROUTES)
+      },
+
       {
         path: 'config',
         component: ConfigComponent,
@@ -220,7 +229,15 @@ export const appConfig: ApplicationConfig = {
           },
 
           // Gestión de Clientes
-          { path: 'clientes', component: ClienteListComponent }
+          { path: 'clientes', component: ClienteListComponent },
+
+          // DB Studio (ruta: /config/db-studio — coincide con la ruta del menú)
+          {
+            path: 'db-studio',
+            loadChildren: () =>
+              import('./features/db-studio/db-studio.module')
+                .then(m => m.DbStudioModule)
+          }
         ]
       },
       
@@ -266,15 +283,6 @@ export const appConfig: ApplicationConfig = {
         loadComponent: () =>
           import('./features/inventario/components/inventario-tabs/inventario-tabs.component')
             .then(m => m.InventarioTabsComponent)
-      },
-
-      // Módulo de DB Studio (lazy)
-      {
-        path: 'db-studio',
-        canActivate: [authGuard],
-        loadChildren: () =>
-          import('./features/db-studio/db-studio.module')
-            .then(m => m.DbStudioModule)
       },
 
       // Módulo de Traslados de Aves (lazy)

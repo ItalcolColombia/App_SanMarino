@@ -9,7 +9,7 @@
         <div class="ie-header__brand">
           <div class="ie-header__icon">📊</div>
           <div class="ie-header__text">
-            <h1 class="ie-header__title">Indicador Ecuador</h1>
+            <h1 class="ie-header__title">{{ tituloModulo }}</h1>
             <p class="ie-header__subtitle" *ngIf="vistaIndicador === 'polloEngorde'">
               Liquidación técnica · Pollo Engorde ·
               {{ tipoFiltroLotes === 'cerrados' ? 'Lotes cerrados administrativamente' : tipoFiltroLotes === 'aves_cero' ? 'Solo lotes con aves = 0' : 'Todos los lotes' }}
@@ -19,7 +19,7 @@
             </p>
           </div>
         </div>
-        <span class="ie-header__badge" *ngIf="vistaSelectDisabled">🇪🇨 Ecuador</span>
+        <span class="ie-header__badge" *ngIf="paisBadge">{{ paisBadge }}</span>
       </header>
 
       <!-- ═══════════════════════════════════════════
@@ -444,6 +444,16 @@
       <div *ngIf="loading" class="ie-loading ie-card" style="margin-bottom:1.25rem;">
         <div class="ie-spinner"></div>
         <p class="ie-loading__text">Calculando indicadores…</p>
+      </div>
+
+      <!-- ═══════════════════════════════════════════
+           RESULTADO — REPORTE LIQUIDACIÓN PANAMÁ
+           ═══════════════════════════════════════════ -->
+      <div *ngIf="!loading && esPanama && mostrarReportePanama && reportePanama" style="margin-bottom:1.25rem;">
+        <app-liquidacion-reporte-panama
+          [data]="reportePanama"
+          (cerrar)="mostrarReportePanama = false; reportePanama = null;">
+        </app-liquidacion-reporte-panama>
       </div>
 
       <!-- ═══════════════════════════════════════════

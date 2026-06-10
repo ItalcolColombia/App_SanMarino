@@ -60,6 +60,13 @@ export class LesionTabComponent implements OnInit, OnChanges {
   @Input() loteReproductoraId?: number | string | null | undefined;
   /** Nombre del lote reproductora para mostrar en el modal/header */
   @Input() loteNombre?: string | null | undefined;
+  /** Nombres de contexto para el banner del modal */
+  @Input() granjaNombre?: string | null;
+  @Input() nucleoNombre?: string | null;
+  @Input() galponNombre?: string | null;
+  @Input() loteEngorde?: string | null;
+  /** Fecha de encasetamiento del lote reproductora — para calcular edad automáticamente */
+  @Input() fechaEncasetamiento?: string | Date | null;
 
   // ── Dependencies ────────────────────────────────────────────────────────
   private readonly svc = inject(LesionService);
@@ -130,13 +137,60 @@ export class LesionTabComponent implements OnInit, OnChanges {
       galponId: [this.galponId ?? ''],
       loteId: [this.loteId ?? null],
       loteReproductoraId: [this.loteReproductoraId ?? ''],
-      edadDias: [null, [Validators.min(0)]],
+      edadDias: [this.calcularEdadDias(today), [Validators.min(0)]],
       avesMacho: [null, [Validators.min(0)]],
       avesHembra: [null, [Validators.min(0)]],
       avesMixtas: [null, [Validators.min(0)]],
       observaciones: ['', Validators.maxLength(500)],
       status: ['A']
     });
+
+    // Auto-calcular edad al cambiar la fecha de registro
+    this.form.get('fechaRegistro')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(fecha => {
+        const edad = this.calcularEdadDias(fecha);
+        if (edad !== null) {
+          this.form.get('edadDias')?.setValue(edad, { emitEvent: false });
+        }
+      });
+  }
+
+  /**
+   * Calcula la edad en días desde la fecha de encasetamiento hasta fechaRegistro.
+   * Usa solo la parte YYYY-MM-DD de ambas fechas y compara en UTC para evitar
+   * problemas de timezone (ej: backend devuelve "2025-05-28T00:00:00" sin Z,
+   * el input del form devuelve "2025-05-29" como UTC — sin esta normalización
+   * la diferencia horaria puede producir Math.floor un día menor).
+   *
+   * Ejemplo: encasetamiento=28-05-2025, registro=29-05-2025 → 1 día.
+   */
+  calcularEdadDias(fechaRegistro?: string | null): number | null {
+    if (!this.fechaEncasetamiento) return null;
+    const encasetUtc = this.toUtcDateOnly(this.fechaEncasetamiento);
+    const regUtc = fechaRegistro
+      ? this.toUtcDateOnly(fechaRegistro)
+      : this.toUtcDateOnly(new Date().toISOString().slice(0, 10));
+    if (!encasetUtc || !regUtc) return null;
+    const dias = Math.floor((regUtc - encasetUtc) / (1000 * 60 * 60 * 24));
+    return dias >= 0 ? dias : null;
+  }
+
+  /**
+   * Extrae solo la parte YYYY-MM-DD de cualquier formato de fecha y retorna
+   * un timestamp UTC representando ese día a medianoche UTC.
+   * Soporta: "2025-05-28", "2025-05-28T00:00:00", "2025-05-28T05:00:00Z", Date.
+   */
+  private toUtcDateOnly(date: string | Date): number | null {
+    let ymd: string;
+    if (date instanceof Date) {
+      ymd = date.toISOString().slice(0, 10);
+    } else {
+      ymd = String(date).slice(0, 10);
+    }
+    const [y, m, d] = ymd.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return Date.UTC(y, m - 1, d);
   }
 
   isInvalid(field: string): boolean {
@@ -234,7 +288,7 @@ export class LesionTabComponent implements OnInit, OnChanges {
       galponId: this.galponId ?? '',
       loteId: this.loteId ?? null,
       loteReproductoraId: this.loteReproductoraId ?? '',
-      edadDias: null,
+      edadDias: this.calcularEdadDias(today),
       avesMacho: null,
       avesHembra: null,
       avesMixtas: null,

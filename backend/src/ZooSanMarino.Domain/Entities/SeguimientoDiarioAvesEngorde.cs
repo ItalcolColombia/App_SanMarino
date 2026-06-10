@@ -66,5 +66,11 @@ public class SeguimientoDiarioAvesEngorde
     public decimal? QqHembras { get; set; }
     public decimal? QqMachos { get; set; }
 
+    /// <summary>
+    /// True cuando el registro fue generado automáticamente por el cruce de los lotes reproductora
+    /// (primeros 7 días). Estos registros son de solo lectura en UI y los regenera el trigger de BD.
+    /// </summary>
+    public bool OrigenCruce { get; set; }
+
     public virtual LoteAveEngorde? LoteAveEngorde { get; set; }
 }

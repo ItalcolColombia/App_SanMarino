@@ -46,6 +46,9 @@ export interface LiquidacionLoteEngordeResumenDto {
   avesVivasActuales: number;
   movimientosVentaCount: number;
   saldoAlimentoKg: number | null;
+  /** Merma ya registrada por Costos (para pre-poblar el modal). */
+  mermaUnidades: number | null;
+  mermaKilos: number | null;
 }
 
 export interface LoteRegistroHistoricoUnificadoDto {

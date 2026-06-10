@@ -72,6 +72,8 @@ public class MovimientoPolloEngordeConfiguration : IEntityTypeConfiguration<Movi
         // Factura única del despacho (Parte C / R3.3) y sobrante de aves (Parte B / R2)
         b.Property(x => x.FacturaId).HasColumnName("factura_id");
         b.Property(x => x.AvesSobrante).HasColumnName("aves_sobrante").HasDefaultValue(0);
+        // Venta Panamá: split H/M asignado sobre mixtas; el inventario sale/vuelve a mixtas (ver CantidadesEfectivasEnLote).
+        b.Property(x => x.EsVentaMixta).HasColumnName("es_venta_mixta").HasDefaultValue(false);
         b.HasIndex(x => x.FacturaId).HasDatabaseName("ix_mpe_factura_id").HasFilter("factura_id IS NOT NULL");
 
         b.Property(x => x.CompanyId).HasColumnName("company_id").IsRequired();

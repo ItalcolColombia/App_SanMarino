@@ -548,13 +548,14 @@ public class RoleCompositeService : IRoleCompositeService
                 }
             }
 
-            // (Opcional) validar permissions de cada menú
-            bool PassesPerm(dynamic m) =>
-                m.RequiredKeys.Length == 0 ||
-                m.RequiredKeys.Intersect(userPermKeys, StringComparer.OrdinalIgnoreCase).Any();
-
+            // (Opcional) validar permissions de cada menú.
+            // NOTA: sin `dynamic` — las extension methods de LINQ (Intersect) no se resuelven
+            // por dynamic dispatch y lanzan RuntimeBinderException cuando RequiredKeys != vacío.
+            // Se usa el tipo anónimo directo, igual que la rama de fallback de abajo.
             var filtered = all
-                .Where(m => include.Contains(m.Id) && PassesPerm(m))
+                .Where(m => include.Contains(m.Id) &&
+                            (m.RequiredKeys.Length == 0 ||
+                             m.RequiredKeys.Intersect(userPermKeys, StringComparer.OrdinalIgnoreCase).Any()))
                 .OrderBy(m => m.ParentId).ThenBy(m => m.Order)
                 .Select(m => new FlatMenu(m.Id, m.Label, m.Icon, m.Route, m.Order, m.ParentId))
                 .ToList();
