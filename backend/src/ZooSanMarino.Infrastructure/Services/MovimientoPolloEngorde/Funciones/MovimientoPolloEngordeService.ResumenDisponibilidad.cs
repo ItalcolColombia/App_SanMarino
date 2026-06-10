@@ -345,7 +345,7 @@ public partial class MovimientoPolloEngordeService
             return new AvesDisponiblesLotesResponse { Items = outItems };
         }
 
-        // LoteAveEngorde: usar la misma fórmula de "aves-disponibles" y además restar reservas Pendiente de ventas.
+        // LoteAveEngorde: misma fórmula que GetAvesDisponiblesAsync + restar reservas Pendiente de ventas.
         var lotesAe = await _ctx.LoteAveEngorde
             .AsNoTracking()
             .Where(l =>
@@ -367,13 +367,40 @@ public partial class MovimientoPolloEngordeService
             .ToListAsync();
         var aeById = lotesAe.ToDictionary(x => x.Id);
 
-        var asignadas = await _ctx.LoteReproductoraAveEngorde
+        // Reproductoras: asignadas + mortCaja propias + conteo para sieteDiasCompletos
+        const int diasSeguimientoReproductora = 7;
+        var reproData = await _ctx.LoteReproductoraAveEngorde
             .AsNoTracking()
             .Where(lr => ids.Contains(lr.LoteAveEngordeId))
             .GroupBy(lr => lr.LoteAveEngordeId)
-            .Select(g => new { Id = g.Key, H = g.Sum(x => x.H ?? 0), M = g.Sum(x => x.M ?? 0) })
+            .Select(g => new
+            {
+                Id = g.Key,
+                AsigH = g.Sum(x => x.H ?? 0),
+                AsigM = g.Sum(x => x.M ?? 0),
+                MortCajaH = g.Sum(x => x.MortCajaH ?? 0),
+                MortCajaM = g.Sum(x => x.MortCajaM ?? 0),
+                NTotal = g.Count()
+            })
             .ToListAsync();
-        var asignBy = asignadas.ToDictionary(x => x.Id, x => (H: x.H, M: x.M));
+        var reproById = reproData.ToDictionary(x => x.Id);
+
+        // Contar cuántos reproductora tienen >= 7 registros de seguimiento por lote
+        var reproComplData = await _ctx.LoteReproductoraAveEngorde
+            .AsNoTracking()
+            .Where(lr => ids.Contains(lr.LoteAveEngordeId))
+            .Select(lr => new
+            {
+                lr.LoteAveEngordeId,
+                Completo = _ctx.SeguimientoDiarioLoteReproductoraAvesEngorde
+                    .Count(s => s.LoteReproductoraAveEngordeId == lr.Id) >= diasSeguimientoReproductora
+            })
+            .ToListAsync();
+        var sieteDiasById = reproComplData
+            .GroupBy(x => x.LoteAveEngordeId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.All(x => x.Completo) && g.Any());
 
         var segAcum = await _ctx.SeguimientoDiarioAvesEngorde
             .AsNoTracking()
@@ -412,15 +439,16 @@ public partial class MovimientoPolloEngordeService
                 && ids.Contains(m.LoteAveEngordeOrigenId.Value))
             .Select(m => new { Id = m.LoteAveEngordeOrigenId!.Value, m.CantidadHembras, m.CantidadMachos, m.CantidadMixtas, m.EsVentaMixta })
             .ToListAsync();
-        // Reserva efectiva: una venta Panamá (EsVentaMixta) reserva H+M sobre MIXTAS, 0 sobre H/M.
+        // Reserva efectiva: siempre H sobre HembrasL y M sobre MachosL (Panama incluido).
+        // Para Panama (EsVentaMixta) no hay X reservado porque las aves viven en H/M.
         var pendVentaById = pendientes
             .GroupBy(x => x.Id)
             .ToDictionary(
                 g => g.Key,
                 g => (
-                    H: g.Sum(x => x.EsVentaMixta ? 0 : x.CantidadHembras),
-                    M: g.Sum(x => x.EsVentaMixta ? 0 : x.CantidadMachos),
-                    X: g.Sum(x => x.EsVentaMixta ? x.CantidadHembras + x.CantidadMachos : x.CantidadMixtas)
+                    H: g.Sum(x => x.CantidadHembras),
+                    M: g.Sum(x => x.CantidadMachos),
+                    X: g.Sum(x => x.EsVentaMixta ? 0 : x.CantidadMixtas)
                 ));
 
         var items = new List<AvesDisponiblesLotePorIdDto>(loteIds.Count);
@@ -432,17 +460,42 @@ public partial class MovimientoPolloEngordeService
                 continue;
             }
 
-            var asig = asignBy.GetValueOrDefault(id, (H: 0, M: 0));
+            var repro = reproById.GetValueOrDefault(id);
+            var asigH = repro?.AsigH ?? 0;
+            var asigM = repro?.AsigM ?? 0;
+            var mortCajaReproH = repro?.MortCajaH ?? 0;
+            var mortCajaReproM = repro?.MortCajaM ?? 0;
+            var sieteDias = sieteDiasById.GetValueOrDefault(id, false);
             var seg = segBy.GetValueOrDefault(id, (MortH: 0, MortM: 0, SelH: 0, SelM: 0, ErrH: 0, ErrM: 0));
             pendVentaById.TryGetValue(id, out var p);
 
-            var baseX = l.Mixtas;
-            if (l.HembrasL + l.MachosL + l.Mixtas == 0 && l.Encaset > 0)
-                baseX = l.Encaset;
+            int rawH, rawM;
+            if (sieteDias)
+            {
+                // Aves devueltas al lote: no se restan las asignadas a reproductora
+                rawH = Math.Max(0, l.HembrasL - l.MortCajaH - mortCajaReproH - seg.MortH - seg.SelH - seg.ErrH);
+                rawM = Math.Max(0, l.MachosL - l.MortCajaM - mortCajaReproM - seg.MortM - seg.SelM - seg.ErrM);
+            }
+            else
+            {
+                rawH = Math.Max(0, l.HembrasL - l.MortCajaH - asigH - seg.MortH - seg.SelH - seg.ErrH);
+                rawM = Math.Max(0, l.MachosL - l.MortCajaM - asigM - seg.MortM - seg.SelM - seg.ErrM);
+            }
 
-            var dispH = Math.Max(0, l.HembrasL - l.MortCajaH - asig.H - seg.MortH - seg.SelH - seg.ErrH - p.H);
-            var dispM = Math.Max(0, l.MachosL - l.MortCajaM - asig.M - seg.MortM - seg.SelM - seg.ErrM - p.M);
-            var dispX = Math.Max(0, baseX - p.X);
+            var dispH = Math.Max(0, rawH - p.H);
+            var dispM = Math.Max(0, rawM - p.M);
+
+            // dispX: lotes con reproductoras (Panama) → mixtas = dispH+dispM (aves en HembrasL/MachosL).
+            // Lotes sin reproductoras → usar campo Mixtas explícito o fallback Encaset.
+            int dispX;
+            if (repro != null)
+                dispX = dispH + dispM;
+            else if (l.Mixtas > 0)
+                dispX = Math.Max(0, l.Mixtas - p.X);
+            else if (l.HembrasL + l.MachosL + l.Mixtas == 0 && l.Encaset > 0)
+                dispX = Math.Max(0, l.Encaset - p.X);
+            else
+                dispX = 0;
 
             items.Add(new AvesDisponiblesLotePorIdDto(
                 id,

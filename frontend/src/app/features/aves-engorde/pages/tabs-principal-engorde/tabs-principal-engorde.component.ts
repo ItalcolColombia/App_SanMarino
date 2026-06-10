@@ -97,11 +97,12 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
 
   /** Columnas de la tabla de registros diarios (sin Acciones). */
   get colspanRegistroDiario(): number {
-    // +2 por las columnas de peso individual de despacho (R3.5)
-    // +2 en Panamá por consumo hembras/machos individual
+    // Base 30 (no-Panamá).
+    // Panamá: fórmula antigua era +2 (consumo H+M extra). Esta sesión mergea 4 pares H/M en Mixto → −4.
+    // Net: +2 − 4 = −2.
     return 30
       + (this.enriquecerTablaConHistoricoInventario ? 3 : 0)
-      + (this.isPanama ? 2 : 0);
+      + (this.isPanama ? -2 : 0);
   }
 
   // segId puede ser null (movs sin seguimiento, fix #14) → usar fecha como fallback único para trackBy

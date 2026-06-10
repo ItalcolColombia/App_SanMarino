@@ -108,77 +108,136 @@
 
             <div class="data-group">
               <h3 class="data-group-title">💀 Mortalidad, Selección y Error de sexaje</h3>
-              <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles" style="margin: 0 0 0.5rem 0;">
-                Aves disponibles en el lote (API) — Hembras: <strong>{{ avesDisponibles!.hembrasDisponibles | number:'1.0-0' }}</strong>,
-                Machos: <strong>{{ avesDisponibles!.machosDisponibles | number:'1.0-0' }}</strong>.
-              </p>
-              <p class="ux-hint ux-hint--warning" *ngIf="!editing && bloqueoAmbosSexosPorAves" role="status">
-                No hay aves disponibles ni en hembras ni en machos (ambos en cero). No puede registrar mortalidad, selección ni error de sexaje por sexo hasta que existan aves en el lote.
-              </p>
-              <p class="ux-hint ux-hint--warning" *ngIf="bloqueoHembrasPorAves && !bloqueoMachosPorAves" role="status">
-                <strong>Hembras:</strong> sin aves disponibles (0). Los campos de esta columna están deshabilitados; no se registran datos para hembras.
-              </p>
-              <p class="ux-hint ux-hint--warning" *ngIf="bloqueoMachosPorAves && !bloqueoHembrasPorAves" role="status">
-                <strong>Machos:</strong> sin aves disponibles (0). Los campos de esta columna están deshabilitados; no se registran datos para machos.
-              </p>
-              <div class="compare-grid">
-                <div class="compare-grid__row-title"></div>
-                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
-                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
+              <!-- Panamá: columna Mixto única -->
+              <ng-container *ngIf="isPanama">
+                <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles" style="margin: 0 0 0.5rem 0;">
+                  Aves disponibles en el lote (API) — Mixto: <strong>{{ avesDisponibles!.mixtasDisponibles | number:'1.0-0' }}</strong>.
+                </p>
+                <p class="ux-hint ux-hint--warning" *ngIf="!editing && bloqueoMixtoPorAves" role="status">
+                  Sin aves mixtas disponibles (0). Los campos están deshabilitados hasta que existan aves en el lote.
+                </p>
+                <div class="grid grid-3" style="gap: 1rem; margin-top: 0.5rem;">
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMixtoPorAves">
+                    <label for="f-mx">Mortalidad mixto</label>
+                    <input id="f-mx" type="number" min="0" formControlName="mortalidadMixtas" />
+                  </div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMixtoPorAves">
+                    <label for="f-selx">Selección mixto</label>
+                    <input id="f-selx" type="number" min="0" formControlName="selMixtas" />
+                  </div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMixtoPorAves">
+                    <label for="f-errx">Error de sexaje mixto</label>
+                    <input id="f-errx" type="number" min="0" formControlName="errorSexajeMixtas" />
+                  </div>
+                </div>
+              </ng-container>
 
-                <div class="compare-grid__row-title">Mortalidad</div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" /></div>
+              <!-- No-Panamá: columnas Hembras / Machos -->
+              <ng-container *ngIf="!isPanama">
+                <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles" style="margin: 0 0 0.5rem 0;">
+                  Aves disponibles en el lote (API) — Hembras: <strong>{{ avesDisponibles!.hembrasDisponibles | number:'1.0-0' }}</strong>,
+                  Machos: <strong>{{ avesDisponibles!.machosDisponibles | number:'1.0-0' }}</strong>.
+                </p>
+                <p class="ux-hint ux-hint--warning" *ngIf="!editing && bloqueoAmbosSexosPorAves" role="status">
+                  No hay aves disponibles ni en hembras ni en machos (ambos en cero). No puede registrar mortalidad, selección ni error de sexaje por sexo hasta que existan aves en el lote.
+                </p>
+                <p class="ux-hint ux-hint--warning" *ngIf="bloqueoHembrasPorAves && !bloqueoMachosPorAves" role="status">
+                  <strong>Hembras:</strong> sin aves disponibles (0). Los campos de esta columna están deshabilitados; no se registran datos para hembras.
+                </p>
+                <p class="ux-hint ux-hint--warning" *ngIf="bloqueoMachosPorAves && !bloqueoHembrasPorAves" role="status">
+                  <strong>Machos:</strong> sin aves disponibles (0). Los campos de esta columna están deshabilitados; no se registran datos para machos.
+                </p>
+                <div class="compare-grid">
+                  <div class="compare-grid__row-title"></div>
+                  <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
+                  <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
 
-                <div class="compare-grid__row-title">Selección</div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-selh" type="number" min="0" formControlName="selH" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-selm" type="number" min="0" formControlName="selM" /></div>
+                  <div class="compare-grid__row-title">Mortalidad</div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-mh" type="number" min="0" formControlName="mortalidadHembras" /></div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-mm" type="number" min="0" formControlName="mortalidadMachos" /></div>
 
-                <div class="compare-grid__row-title">Error de sexaje</div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" /></div>
-              </div>
+                  <div class="compare-grid__row-title">Selección</div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-selh" type="number" min="0" formControlName="selH" /></div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-selm" type="number" min="0" formControlName="selM" /></div>
+
+                  <div class="compare-grid__row-title">Error de sexaje</div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-errh" type="number" min="0" formControlName="errorSexajeHembras" /></div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-errm" type="number" min="0" formControlName="errorSexajeMachos" /></div>
+                </div>
+              </ng-container>
             </div>
 
             <div class="data-group">
               <h3 class="data-group-title">⚖️ Peso y Uniformidad</h3>
-              <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
-                <strong>Pesaje diario obligatorio (primeros 7 días).</strong>
-                Durante los primeros 7 días desde el encasetamiento el peso es obligatorio cada día. El peso promedio
-                <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
-                es obligatorio para guardar este registro.
-              </p>
-              <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && !esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
-                <strong>Día de pesaje semanal obligatorio.</strong>
-                La fecha seleccionada corresponde a una semana completa de seguimiento. El peso promedio
-                <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
-                es obligatorio para guardar este registro.
-              </p>
-              <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles && (bloqueoHembrasPorAves || bloqueoMachosPorAves)" style="margin: 0 0 0.75rem 0;">
-                Peso, uniformidad y CV solo aplican al sexo con aves disponibles.
-                <ng-container *ngIf="bloqueoHembrasPorAves"><strong> Hembras:</strong> sin aves (campos deshabilitados).</ng-container>
-                <ng-container *ngIf="bloqueoMachosPorAves"><strong> Machos:</strong> sin aves (campos deshabilitados).</ng-container>
-              </p>
-              <div class="compare-grid">
-                <div class="compare-grid__row-title"></div>
-                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
-                <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
-
-                <div class="compare-grid__row-title">
-                  Peso promedio (kg)
-                  <span *ngIf="esDiaPesoObligatorio && !editing" style="color: #d32f2f; font-weight: 700;" title="Obligatorio este día"> *</span>
+              <!-- Panamá: columna Mixto única para Peso/Uniformidad/CV -->
+              <ng-container *ngIf="isPanama">
+                <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                  <strong>Pesaje diario obligatorio (primeros 7 días).</strong>
+                  El peso promedio mixto es obligatorio para guardar este registro.
+                </p>
+                <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && !esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                  <strong>Día de pesaje semanal obligatorio.</strong>
+                  El peso promedio mixto es obligatorio para guardar este registro.
+                </p>
+                <div class="grid grid-3" style="gap: 1rem; margin-top: 0.5rem;">
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMixtoPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoMixtoPorAves && !form.get('pesoPromMixto')?.value">
+                    <label for="f-pmx">
+                      Peso promedio mixto (kg)
+                      <span *ngIf="esDiaPesoObligatorio && !editing" style="color: #d32f2f; font-weight: 700;" title="Obligatorio este día"> *</span>
+                    </label>
+                    <input id="f-pmx" type="number" step="0.01" min="0" formControlName="pesoPromMixto" />
+                  </div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMixtoPorAves">
+                    <label for="f-umx">Uniformidad mixto (%)</label>
+                    <input id="f-umx" type="number" step="0.1" min="0" max="100" formControlName="uniformidadMixta" />
+                  </div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMixtoPorAves">
+                    <label for="f-cvmx">CV mixto</label>
+                    <input id="f-cvmx" type="number" step="0.01" min="0" formControlName="cvMixto" />
+                  </div>
                 </div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoHembrasPorAves && !form.get('pesoPromH')?.value"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoMachosPorAves && !form.get('pesoPromM')?.value"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
+              </ng-container>
 
-                <div class="compare-grid__row-title">Uniformidad (%)</div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
+              <!-- No-Panamá: columnas Hembras / Machos -->
+              <ng-container *ngIf="!isPanama">
+                <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                  <strong>Pesaje diario obligatorio (primeros 7 días).</strong>
+                  Durante los primeros 7 días desde el encasetamiento el peso es obligatorio cada día. El peso promedio
+                  <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
+                  es obligatorio para guardar este registro.
+                </p>
+                <p class="ux-hint ux-hint--warning" *ngIf="esDiaPesoObligatorio && !esPrimeraSemana && !editing" role="alert" style="margin: 0 0 0.75rem 0;">
+                  <strong>Día de pesaje semanal obligatorio.</strong>
+                  La fecha seleccionada corresponde a una semana completa de seguimiento. El peso promedio
+                  <ng-container *ngIf="!bloqueoHembrasPorAves">de hembras</ng-container><ng-container *ngIf="!bloqueoHembrasPorAves && !bloqueoMachosPorAves"> y </ng-container><ng-container *ngIf="!bloqueoMachosPorAves">machos</ng-container>
+                  es obligatorio para guardar este registro.
+                </p>
+                <p class="ux-hint" *ngIf="muestraResumenAvesDisponibles && (bloqueoHembrasPorAves || bloqueoMachosPorAves)" style="margin: 0 0 0.75rem 0;">
+                  Peso, uniformidad y CV solo aplican al sexo con aves disponibles.
+                  <ng-container *ngIf="bloqueoHembrasPorAves"><strong> Hembras:</strong> sin aves (campos deshabilitados).</ng-container>
+                  <ng-container *ngIf="bloqueoMachosPorAves"><strong> Machos:</strong> sin aves (campos deshabilitados).</ng-container>
+                </p>
+                <div class="compare-grid">
+                  <div class="compare-grid__row-title"></div>
+                  <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoHembrasPorAves">Hembras</div>
+                  <div class="compare-grid__col-title" [class.compare-grid__col-title--blocked]="bloqueoMachosPorAves">Machos</div>
 
-                <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
-                <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
-              </div>
+                  <div class="compare-grid__row-title">
+                    Peso promedio (kg)
+                    <span *ngIf="esDiaPesoObligatorio && !editing" style="color: #d32f2f; font-weight: 700;" title="Obligatorio este día"> *</span>
+                  </div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoHembrasPorAves && !form.get('pesoPromH')?.value"><input id="f-ph" type="number" step="0.01" min="0" formControlName="pesoPromH" /></div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves" [class.is-invalid]="esDiaPesoObligatorio && !editing && !bloqueoMachosPorAves && !form.get('pesoPromM')?.value"><input id="f-pm" type="number" step="0.01" min="0" formControlName="pesoPromM" /></div>
+
+                  <div class="compare-grid__row-title">Uniformidad (%)</div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-uh" type="number" step="0.1" min="0" max="100" formControlName="uniformidadH" /></div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-um" type="number" step="0.1" min="0" max="100" formControlName="uniformidadM" /></div>
+
+                  <div class="compare-grid__row-title">Coeficiente variación (CV)</div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoHembrasPorAves"><input id="f-cvh" type="number" step="0.01" min="0" formControlName="cvH" /></div>
+                  <div class="form-field" [class.form-field--sexo-bloqueado]="bloqueoMachosPorAves"><input id="f-cvm" type="number" step="0.01" min="0" formControlName="cvM" /></div>
+                </div>
+              </ng-container>
             </div>
           </section>
 

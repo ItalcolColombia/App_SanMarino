@@ -608,10 +608,11 @@ public partial class MovimientoPolloEngordeService
         if (m.LoteAveEngordeOrigenId.HasValue && m.LoteAveEngordeOrigen != null)
         {
             var lote = m.LoteAveEngordeOrigen;
-            var (efH, efM, efX) = CantidadesEfectivasEnLote(m); // venta Panamá devuelve H+M a mixtas
+            var (efH, efM, efX) = CantidadesEfectivasEnLote(m); // venta Panamá: efH=H, efM=M, efX=0
             lote.HembrasL = (lote.HembrasL ?? 0) + efH;
             lote.MachosL = (lote.MachosL ?? 0) + efM;
-            lote.Mixtas = (lote.Mixtas ?? 0) + efX;
+            // Para ventas Panama, forzar Mixtas=0 al revertir (no acumular en campo que no aplica).
+            lote.Mixtas = m.EsVentaMixta ? 0 : (lote.Mixtas ?? 0) + efX;
         }
         else if (m.LoteReproductoraAveEngordeOrigenId.HasValue && m.LoteReproductoraAveEngordeOrigen != null)
         {
@@ -638,13 +639,14 @@ public partial class MovimientoPolloEngordeService
         if (m.LoteAveEngordeOrigenId.HasValue && m.LoteAveEngordeOrigen != null)
         {
             var lote = m.LoteAveEngordeOrigen;
-            var (efH, efM, efX) = CantidadesEfectivasEnLote(m); // venta Panamá descuenta H+M de mixtas
+            var (efH, efM, efX) = CantidadesEfectivasEnLote(m); // venta Panamá: efH=H, efM=M, efX=0
             var h = (lote.HembrasL ?? 0) - efH;
             var mach = (lote.MachosL ?? 0) - efM;
             var mix = (lote.Mixtas ?? 0) - efX;
             lote.HembrasL = Math.Max(0, h);
             lote.MachosL = Math.Max(0, mach);
-            lote.Mixtas = Math.Max(0, mix);
+            // Para ventas Panama, forzar Mixtas=0 (campo no aplica; aves viven en HembrasL/MachosL).
+            lote.Mixtas = m.EsVentaMixta ? 0 : Math.Max(0, mix);
             if ((lote.AvesEncasetadas ?? 0) > 0 && (lote.HembrasL ?? 0) + (lote.MachosL ?? 0) + (lote.Mixtas ?? 0) == 0)
                 lote.AvesEncasetadas = 0;
         }

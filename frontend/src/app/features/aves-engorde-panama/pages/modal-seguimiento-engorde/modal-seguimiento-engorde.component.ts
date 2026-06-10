@@ -31,6 +31,8 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   @Input() loadingRecord: boolean = false;
   /** Aves disponibles por sexo (GET aves-disponibles); solo reglas de UI en nuevo registro. */
   @Input() avesDisponibles: AvesDisponiblesDto | null = null;
+  /** Fechas de registros ya existentes (ISO o YYYY-MM-DD) para calcular el día siguiente como default. */
+  @Input() existingFechas: string[] = [];
 
   /** Pollo engorde: consumo solo alimento; UI simplificada (no comparte el modal de Levante). */
   readonly hembrasSoloAlimento = true;
@@ -82,6 +84,8 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
 
   // Propiedad para verificar si es Ecuador o Panamá
   isEcuadorOrPanama = false;
+  /** True cuando el país activo es Panamá → modo Mixto (una sola columna en lugar de H/M). */
+  get isPanama(): boolean { return this.countryFilter.isPanama(); }
   private sessionSubscription?: Subscription;
 
   constructor(
@@ -139,7 +143,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   // ================== FORMULARIO ==================
   private initializeForm(): void {
     this.form = this.fb.group({
-      fechaRegistro: [this.todayYMD(), Validators.required],
+      fechaRegistro: [this.computeDefaultFecha(), Validators.required],
       loteId: ['', Validators.required],
       mortalidadHembras: [0, [Validators.required, Validators.min(0)]],
       mortalidadMachos: [0, [Validators.required, Validators.min(0)]],
@@ -147,6 +151,13 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       selM: [0, [Validators.required, Validators.min(0)]],
       errorSexajeHembras: [0, [Validators.required, Validators.min(0)]],
       errorSexajeMachos: [0, [Validators.required, Validators.min(0)]],
+      // Campos Mixto (Panamá): reemplazan H/M en la UI; en onSave() se mapean a H con M=0.
+      mortalidadMixtas: [0, [Validators.required, Validators.min(0)]],
+      selMixtas: [0, [Validators.required, Validators.min(0)]],
+      errorSexajeMixtas: [0, [Validators.required, Validators.min(0)]],
+      pesoPromMixto: [null, [Validators.min(0)]],
+      uniformidadMixta: [null, [Validators.min(0), Validators.max(100)]],
+      cvMixto: [null, [Validators.min(0)]],
       tipoAlimento: [''],
       // FormArrays para múltiples ítems (alimentos y otros)
       itemsHembras: this.fb.array([]),
@@ -236,7 +247,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     }
 
     this.form.reset({
-      fechaRegistro: this.todayYMD(),
+      fechaRegistro: this.computeDefaultFecha(),
       loteId: this.selectedLoteId,
       mortalidadHembras: 0,
       mortalidadMachos: 0,
@@ -258,10 +269,17 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       consumoAguaPh: null,
       consumoAguaOrp: null,
       consumoAguaTemperatura: null,
-      // Campos específicos Panamá
+      // Campos específicos Panamá: quintales
       qqMixtas: null,
       qqHembras: null,
       qqMachos: null,
+      // Campos Mixto Panamá: mortalidad/selección/peso en columna única
+      mortalidadMixtas: 0,
+      selMixtas: 0,
+      errorSexajeMixtas: 0,
+      pesoPromMixto: null,
+      uniformidadMixta: null,
+      cvMixto: null,
     });
     this.inventarioDisponibleHembras = null;
     this.inventarioDisponibleMachos = null;
@@ -511,8 +529,17 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     return !this.editing && this.avesDisponibles != null && (this.avesDisponibles.machosDisponibles ?? 0) <= 0;
   }
 
+  /** Panamá: sin aves mixtas disponibles (total H+M = 0). */
+  get bloqueoMixtoPorAves(): boolean {
+    if (!this.isPanama) return false;
+    if (this.editing || this.avesDisponibles == null) return false;
+    const mixtas = this.avesDisponibles.mixtasDisponibles ?? 0;
+    return mixtas <= 0;
+  }
+
   /** Nuevo registro: no queda ningún ave del sexo en el lote (API aves-disponibles). */
   get bloqueoAmbosSexosPorAves(): boolean {
+    if (this.isPanama) return this.bloqueoMixtoPorAves;
     return this.bloqueoHembrasPorAves && this.bloqueoMachosPorAves;
   }
 
@@ -585,6 +612,10 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   /** True si es día semanal de pesaje obligatorio pero falta el peso en algún sexo activo. */
   get pesoPendienteEnDiaSemanal(): boolean {
     if (!this.esDiaPesoObligatorio) return false;
+    if (this.isPanama) {
+      const pesoMixto = this.form?.get('pesoPromMixto')?.value;
+      return !this.bloqueoMixtoPorAves && (pesoMixto === null || pesoMixto === '' || pesoMixto === undefined);
+    }
     const pesoH = this.form?.get('pesoPromH')?.value;
     const pesoM = this.form?.get('pesoPromM')?.value;
     const faltaH = !this.bloqueoHembrasPorAves && (pesoH === null || pesoH === '' || pesoH === undefined);
@@ -808,10 +839,17 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       consumoAguaPh: this.editing.consumoAguaPh ?? null,
       consumoAguaOrp: this.editing.consumoAguaOrp ?? null,
       consumoAguaTemperatura: this.editing.consumoAguaTemperatura ?? null,
-      // Campos específicos Panamá
+      // Campos específicos Panamá: quintales
       qqMixtas: this.editing.qqMixtas ?? null,
       qqHembras: this.editing.qqHembras ?? null,
       qqMachos: this.editing.qqMachos ?? null,
+      // Campos Mixto Panamá: H+M acumulados (compat. con registros históricos H/M y nuevos H=mixto,M=0)
+      mortalidadMixtas: (this.editing.mortalidadHembras ?? 0) + (this.editing.mortalidadMachos ?? 0),
+      selMixtas: (this.editing.selH ?? 0) + (this.editing.selM ?? 0),
+      errorSexajeMixtas: (this.editing.errorSexajeHembras ?? 0) + (this.editing.errorSexajeMachos ?? 0),
+      pesoPromMixto: this.editing.pesoPromH ?? this.editing.pesoPromM ?? null,
+      uniformidadMixta: this.editing.uniformidadH ?? this.editing.uniformidadM ?? null,
+      cvMixto: this.editing.cvH ?? this.editing.cvM ?? null,
     });
 
     // Si hay alimento seleccionado, necesitamos cargar el catálogo primero para obtener el tipo de ítem
@@ -879,6 +917,10 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
       'selM',
       'errorSexajeHembras',
       'errorSexajeMachos',
+      // Campos Mixto Panamá
+      'mortalidadMixtas',
+      'selMixtas',
+      'errorSexajeMixtas',
     ];
     bloqueados.forEach(k => this.form.get(k)?.disable({ emitEvent: false }));
     this.itemsHembrasArray.controls.forEach(ctrl => ctrl.disable({ emitEvent: false }));
@@ -893,45 +935,52 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     if (this.editing) return;
     if (!this.form) return;
     const adv = this.avesDisponibles;
+
+    // Panamá: bloqueo sobre la columna Mixto única
+    if (this.isPanama) {
+      const mixOk = adv == null || (adv.mixtasDisponibles ?? 0) > 0;
+      const mixtaKeys = [
+        'mortalidadMixtas', 'selMixtas', 'errorSexajeMixtas',
+        'pesoPromMixto', 'uniformidadMixta', 'cvMixto'
+      ] as const;
+      const esPeso = (k: string) => ['pesoPromMixto', 'uniformidadMixta', 'cvMixto'].includes(k);
+      for (const k of mixtaKeys) {
+        const c = this.form.get(k);
+        if (!c) continue;
+        if (mixOk) {
+          c.enable({ emitEvent: false });
+        } else {
+          c.setValue(esPeso(k) ? null : 0, { emitEvent: false });
+          c.disable({ emitEvent: false });
+        }
+      }
+      return;
+    }
+
+    // Resto de países: bloqueo por columna H/M
     const hOk = adv == null || (adv.hembrasDisponibles ?? 0) > 0;
     const mOk = adv == null || (adv.machosDisponibles ?? 0) > 0;
     const hemKeys = [
-      'mortalidadHembras',
-      'selH',
-      'errorSexajeHembras',
-      'pesoPromH',
-      'uniformidadH',
-      'cvH'
+      'mortalidadHembras', 'selH', 'errorSexajeHembras',
+      'pesoPromH', 'uniformidadH', 'cvH'
     ] as const;
     const machKeys = [
-      'mortalidadMachos',
-      'selM',
-      'errorSexajeMachos',
-      'pesoPromM',
-      'uniformidadM',
-      'cvM'
+      'mortalidadMachos', 'selM', 'errorSexajeMachos',
+      'pesoPromM', 'uniformidadM', 'cvM'
     ] as const;
     const valorBloqueo = (key: string) =>
       ['pesoPromH', 'pesoPromM', 'uniformidadH', 'uniformidadM', 'cvH', 'cvM'].includes(key) ? null : 0;
     for (const k of hemKeys) {
       const c = this.form.get(k);
       if (!c) continue;
-      if (hOk) {
-        c.enable({ emitEvent: false });
-      } else {
-        c.setValue(valorBloqueo(k), { emitEvent: false });
-        c.disable({ emitEvent: false });
-      }
+      if (hOk) { c.enable({ emitEvent: false }); }
+      else { c.setValue(valorBloqueo(k), { emitEvent: false }); c.disable({ emitEvent: false }); }
     }
     for (const k of machKeys) {
       const c = this.form.get(k);
       if (!c) continue;
-      if (mOk) {
-        c.enable({ emitEvent: false });
-      } else {
-        c.setValue(valorBloqueo(k), { emitEvent: false });
-        c.disable({ emitEvent: false });
-      }
+      if (mOk) { c.enable({ emitEvent: false }); }
+      else { c.setValue(valorBloqueo(k), { emitEvent: false }); c.disable({ emitEvent: false }); }
     }
   }
 
@@ -1685,28 +1734,42 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     // getRawValue() incluye todos los controles (también los que están en tabs condicionales como Agua)
     const raw = { ...this.form.getRawValue() };
     if (!this.editing && this.avesDisponibles) {
-      const h0 = (this.avesDisponibles.hembrasDisponibles ?? 0) <= 0;
-      const m0 = (this.avesDisponibles.machosDisponibles ?? 0) <= 0;
-      if (h0) {
-        Object.assign(raw, {
-          mortalidadHembras: 0,
-          selH: 0,
-          errorSexajeHembras: 0,
-          pesoPromH: null,
-          uniformidadH: null,
-          cvH: null
-        });
+      if (this.isPanama) {
+        // Panamá: si no hay mixtas, zeroise todos los campos de mixto
+        if ((this.avesDisponibles.mixtasDisponibles ?? 0) <= 0) {
+          Object.assign(raw, {
+            mortalidadMixtas: 0, selMixtas: 0, errorSexajeMixtas: 0,
+            pesoPromMixto: null, uniformidadMixta: null, cvMixto: null
+          });
+        }
+      } else {
+        const h0 = (this.avesDisponibles.hembrasDisponibles ?? 0) <= 0;
+        const m0 = (this.avesDisponibles.machosDisponibles ?? 0) <= 0;
+        if (h0) {
+          Object.assign(raw, { mortalidadHembras: 0, selH: 0, errorSexajeHembras: 0, pesoPromH: null, uniformidadH: null, cvH: null });
+        }
+        if (m0) {
+          Object.assign(raw, { mortalidadMachos: 0, selM: 0, errorSexajeMachos: 0, pesoPromM: null, uniformidadM: null, cvM: null });
+        }
       }
-      if (m0) {
-        Object.assign(raw, {
-          mortalidadMachos: 0,
-          selM: 0,
-          errorSexajeMachos: 0,
-          pesoPromM: null,
-          uniformidadM: null,
-          cvM: null
-        });
-      }
+    }
+
+    // Panamá: mapear campos Mixto → H (M=0) en el DTO antes de enviar al backend
+    if (this.isPanama) {
+      Object.assign(raw, {
+        mortalidadHembras: Number(raw.mortalidadMixtas) || 0,
+        mortalidadMachos: 0,
+        selH: Number(raw.selMixtas) || 0,
+        selM: 0,
+        errorSexajeHembras: Number(raw.errorSexajeMixtas) || 0,
+        errorSexajeMachos: 0,
+        pesoPromH: raw.pesoPromMixto ?? null,
+        pesoPromM: null,
+        uniformidadH: raw.uniformidadMixta ?? null,
+        uniformidadM: null,
+        cvH: raw.cvMixto ?? null,
+        cvM: null,
+      });
     }
     const loteId = raw.loteId;
     const lote = this.lotes.find(l => String(l.loteId) === String(loteId));
@@ -1952,6 +2015,46 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+
+  /**
+   * Calcula la fecha por defecto para un nuevo registro:
+   * → día siguiente al último registro existente; si no hay registros,
+   *   día siguiente al encasillamiento del lote; si nada aplica, hoy.
+   * El usuario puede cambiarla libremente en el formulario.
+   */
+  private computeDefaultFecha(): string {
+    // 1. Buscar la fecha más reciente entre los registros ya creados
+    let latest: Date | null = null;
+    for (const raw of this.existingFechas) {
+      if (!raw) continue;
+      const ymd = raw.substring(0, 10); // "2025-01-05"
+      const d = new Date(ymd + 'T00:00:00');
+      if (!isNaN(d.getTime()) && (!latest || d > latest)) {
+        latest = d;
+      }
+    }
+
+    // 2. Si no hay registros, usar la fecha de encasillamiento del lote
+    if (!latest && this.selectedLoteId) {
+      const lote = this.lotes.find(l => String(l.loteId) === String(this.selectedLoteId));
+      const encaset = lote?.fechaEncaset;
+      if (encaset) {
+        const ymd = String(encaset).substring(0, 10);
+        const d = new Date(ymd + 'T00:00:00');
+        if (!isNaN(d.getTime())) latest = d;
+      }
+    }
+
+    // 3. Sumar 1 día y devolver YYYY-MM-DD; si nada aplica, hoy
+    if (latest) {
+      latest.setDate(latest.getDate() + 1);
+      const y = latest.getFullYear();
+      const m = String(latest.getMonth() + 1).padStart(2, '0');
+      const dd = String(latest.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    }
+    return this.todayYMD();
   }
 
   /** Normaliza cadenas mm/dd/aaaa, dd/mm/aaaa, ISO o Date a YYYY-MM-DD (local) */

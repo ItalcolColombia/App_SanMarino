@@ -144,6 +144,11 @@ export class SeguimientoAvesEngordeListComponent implements OnInit {
     return (this.avesDisponibles.hembrasDisponibles ?? 0) + (this.avesDisponibles.machosDisponibles ?? 0);
   }
 
+  /** Array de fechas ISO de los registros ya existentes; alimenta el default del modal de creación. */
+  get tablaFechas(): string[] {
+    return this.tablaFilas.map(f => f.fecha);
+  }
+
   /** True si hay al menos un lote reproductora y todos están cerrados (sin aves). */
   get loteCerradoPorReproductoras(): boolean {
     if (this.lotesReproductora.length === 0) return false;

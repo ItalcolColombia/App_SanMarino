@@ -66,30 +66,48 @@
         <section class="detail-section" *ngIf="!sinMortalidad">
           <h3 class="detail-section__title">Mortalidad y selección</h3>
           <div class="detail-fields">
-            <div class="detail-field" *ngIf="hasValue(seguimiento.mortalidadHembras)">
-              <label class="detail-label">Mortalidad hembras</label>
-              <input type="text" class="detail-input" [value]="seguimiento.mortalidadHembras" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="hasValue(seguimiento.mortalidadMachos)">
-              <label class="detail-label">Mortalidad machos</label>
-              <input type="text" class="detail-input" [value]="seguimiento.mortalidadMachos" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="hasValue(seguimiento.selH)">
-              <label class="detail-label">Selección hembras</label>
-              <input type="text" class="detail-input" [value]="seguimiento.selH" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="hasValue(seguimiento.selM)">
-              <label class="detail-label">Selección machos</label>
-              <input type="text" class="detail-input" [value]="seguimiento.selM" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="hasValue(seguimiento.errorSexajeHembras)">
-              <label class="detail-label">Error sexaje hembras</label>
-              <input type="text" class="detail-input" [value]="seguimiento.errorSexajeHembras" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="hasValue(seguimiento.errorSexajeMachos)">
-              <label class="detail-label">Error sexaje machos</label>
-              <input type="text" class="detail-input" [value]="seguimiento.errorSexajeMachos" readonly disabled>
-            </div>
+            <!-- Panamá: columna Mixto única (H+M guardados en campos H) -->
+            <ng-container *ngIf="isPanama">
+              <div class="detail-field" *ngIf="hasValue((seguimiento.mortalidadHembras ?? 0) + (seguimiento.mortalidadMachos ?? 0))">
+                <label class="detail-label">Mortalidad mixto</label>
+                <input type="text" class="detail-input" [value]="(seguimiento.mortalidadHembras ?? 0) + (seguimiento.mortalidadMachos ?? 0)" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue((seguimiento.selH ?? 0) + (seguimiento.selM ?? 0))">
+                <label class="detail-label">Selección mixto</label>
+                <input type="text" class="detail-input" [value]="(seguimiento.selH ?? 0) + (seguimiento.selM ?? 0)" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue((seguimiento.errorSexajeHembras ?? 0) + (seguimiento.errorSexajeMachos ?? 0))">
+                <label class="detail-label">Error sexaje mixto</label>
+                <input type="text" class="detail-input" [value]="(seguimiento.errorSexajeHembras ?? 0) + (seguimiento.errorSexajeMachos ?? 0)" readonly disabled>
+              </div>
+            </ng-container>
+            <!-- No-Panamá: Hembras y Machos separados -->
+            <ng-container *ngIf="!isPanama">
+              <div class="detail-field" *ngIf="hasValue(seguimiento.mortalidadHembras)">
+                <label class="detail-label">Mortalidad hembras</label>
+                <input type="text" class="detail-input" [value]="seguimiento.mortalidadHembras" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue(seguimiento.mortalidadMachos)">
+                <label class="detail-label">Mortalidad machos</label>
+                <input type="text" class="detail-input" [value]="seguimiento.mortalidadMachos" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue(seguimiento.selH)">
+                <label class="detail-label">Selección hembras</label>
+                <input type="text" class="detail-input" [value]="seguimiento.selH" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue(seguimiento.selM)">
+                <label class="detail-label">Selección machos</label>
+                <input type="text" class="detail-input" [value]="seguimiento.selM" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue(seguimiento.errorSexajeHembras)">
+                <label class="detail-label">Error sexaje hembras</label>
+                <input type="text" class="detail-input" [value]="seguimiento.errorSexajeHembras" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="hasValue(seguimiento.errorSexajeMachos)">
+                <label class="detail-label">Error sexaje machos</label>
+                <input type="text" class="detail-input" [value]="seguimiento.errorSexajeMachos" readonly disabled>
+              </div>
+            </ng-container>
           </div>
         </section>
 
@@ -97,30 +115,48 @@
         <section class="detail-section" *ngIf="!sinPeso">
           <h3 class="detail-section__title">Peso y uniformidad</h3>
           <div class="detail-fields">
-            <div class="detail-field" *ngIf="seguimiento.pesoPromH != null">
-              <label class="detail-label">Peso prom. hembras (kg)</label>
-              <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromH) + ' kg'" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="seguimiento.uniformidadH != null">
-              <label class="detail-label">Uniformidad H (%)</label>
-              <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadH) + '%'" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="seguimiento.cvH != null">
-              <label class="detail-label">CV hembras</label>
-              <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvH)" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="seguimiento.pesoPromM != null">
-              <label class="detail-label">Peso prom. machos (kg)</label>
-              <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromM) + ' kg'" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="seguimiento.uniformidadM != null">
-              <label class="detail-label">Uniformidad M (%)</label>
-              <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadM) + '%'" readonly disabled>
-            </div>
-            <div class="detail-field" *ngIf="seguimiento.cvM != null">
-              <label class="detail-label">CV machos</label>
-              <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvM)" readonly disabled>
-            </div>
+            <!-- Panamá: columna Mixto única -->
+            <ng-container *ngIf="isPanama">
+              <div class="detail-field" *ngIf="seguimiento.pesoPromH != null">
+                <label class="detail-label">Peso prom. mixto (kg)</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromH) + ' kg'" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.uniformidadH != null">
+                <label class="detail-label">Uniformidad mixto (%)</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadH) + '%'" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.cvH != null">
+                <label class="detail-label">CV mixto</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvH)" readonly disabled>
+              </div>
+            </ng-container>
+            <!-- No-Panamá: Hembras y Machos separados -->
+            <ng-container *ngIf="!isPanama">
+              <div class="detail-field" *ngIf="seguimiento.pesoPromH != null">
+                <label class="detail-label">Peso prom. hembras (kg)</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromH) + ' kg'" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.uniformidadH != null">
+                <label class="detail-label">Uniformidad H (%)</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadH) + '%'" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.cvH != null">
+                <label class="detail-label">CV hembras</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvH)" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.pesoPromM != null">
+                <label class="detail-label">Peso prom. machos (kg)</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.pesoPromM) + ' kg'" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.uniformidadM != null">
+                <label class="detail-label">Uniformidad M (%)</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.uniformidadM) + '%'" readonly disabled>
+              </div>
+              <div class="detail-field" *ngIf="seguimiento.cvM != null">
+                <label class="detail-label">CV machos</label>
+                <input type="text" class="detail-input" [value]="formatNum(seguimiento.cvM)" readonly disabled>
+              </div>
+            </ng-container>
           </div>
         </section>
 

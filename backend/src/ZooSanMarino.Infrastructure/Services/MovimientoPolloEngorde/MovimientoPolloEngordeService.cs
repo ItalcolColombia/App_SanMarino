@@ -39,11 +39,11 @@ public partial class MovimientoPolloEngordeService : IMovimientoPolloEngordeServ
 
     /// <summary>
     /// Cantidades que realmente afectan el stock del lote (descuento/crédito/reserva). En ventas
-    /// Panamá (<see cref="MovimientoPolloEngorde.EsVentaMixta"/>) el split H/M se asignó sobre las
-    /// MIXTAS, así que el efecto es (0, 0, H+M); en el resto, (H, M, X) tal cual.
+    /// Panamá (<see cref="MovimientoPolloEngorde.EsVentaMixta"/>) las aves viven en HembrasL/MachosL,
+    /// así que el efecto es (H, M, 0) — se descuenta de cada columna directamente; Mixtas no cambia.
     /// </summary>
     private static (int H, int M, int X) CantidadesEfectivasEnLote(MovimientoPolloEngorde m)
         => m.EsVentaMixta
-            ? (0, 0, m.CantidadHembras + m.CantidadMachos)
+            ? (m.CantidadHembras, m.CantidadMachos, 0)
             : (m.CantidadHembras, m.CantidadMachos, m.CantidadMixtas);
 }
