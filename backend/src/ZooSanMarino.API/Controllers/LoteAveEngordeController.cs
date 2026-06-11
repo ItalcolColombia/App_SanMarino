@@ -194,15 +194,16 @@ public class LoteAveEngordeController : ControllerBase
     // ===========================
 
     /// <summary>
-    /// Diagnóstico de cuadre de aves disponibles por nombre de lote: contabilidad por género
-    /// (iniciales − bajas del seguimiento − ventas) vs disponibilidad vigente, género del
-    /// sobrante y ventas posteriores al último seguimiento. No modifica datos.
+    /// Diagnóstico de cuadre de aves por lote: contabilidad por género (iniciales − bajas del
+    /// seguimiento − ventas) vs disponibilidad vigente, ventas pendientes sin confirmar, drift
+    /// del maestro y género del sobrante. Sin loteNombre evalúa TODOS los lotes de la company.
+    /// No modifica datos.
     /// </summary>
     [HttpGet("aves-disponibles/validar")]
     [ProducesResponseType(typeof(IReadOnlyList<ValidacionAvesDisponiblesLoteDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyList<ValidacionAvesDisponiblesLoteDto>>> ValidarAvesDisponibles(
-        [FromQuery] string loteNombre, CancellationToken ct = default)
+        [FromQuery] string? loteNombre = null, CancellationToken ct = default)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var svc = scope.ServiceProvider.GetRequiredService<ICorreccionAvesDisponiblesEngordeService>();
@@ -215,9 +216,10 @@ public class LoteAveEngordeController : ControllerBase
     }
 
     /// <summary>
-    /// Corrige los lotes CERRADOS con aves disponibles fantasma del nombre indicado:
-    /// descuenta el sobrante de hembras_l/machos_l (nunca aumenta saldos) y deja auditoría
-    /// en historial_lote_pollo_engorde (TipoRegistro="Ajuste"). Idempotente.
+    /// Corrige los lotes con descuadre de saldos (loteNombre null ⇒ todos): confirma ventas
+    /// Pendientes vencidas vía el flujo real, re-sincroniza el maestro cuando ventas Completadas
+    /// no lo descontaron (solo con evidencia exacta) y lleva a 0 los disponibles fantasma de
+    /// lotes Cerrados. Nunca aumenta saldos; deja auditoría (TipoRegistro="Ajuste"); idempotente.
     /// Con dryRun=true (default) solo reporta lo que haría.
     /// </summary>
     [HttpPost("aves-disponibles/corregir")]

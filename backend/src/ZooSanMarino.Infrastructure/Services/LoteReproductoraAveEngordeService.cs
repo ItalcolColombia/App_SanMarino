@@ -478,20 +478,32 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
         int errH = segAcum?.ErrH ?? 0;
         int errM = segAcum?.ErrM ?? 0;
 
+        // Reserva por ventas/despachos Pendientes: descuentan disponibilidad aunque aún no
+        // tocan el maestro (mismo criterio que MovimientoPolloEngordeService.ResumenDisponibilidad).
+        var pend = await _ctx.MovimientoPolloEngorde.AsNoTracking()
+            .Where(m => m.Estado == "Pendiente" && m.DeletedAt == null
+                && (m.TipoMovimiento == "Venta" || m.TipoMovimiento == "Despacho" || m.TipoMovimiento == "Retiro")
+                && m.LoteAveEngordeOrigenId == loteAveEngordeId)
+            .GroupBy(_ => 1)
+            .Select(g => new { H = g.Sum(x => x.CantidadHembras), M = g.Sum(x => x.CantidadMachos) })
+            .SingleOrDefaultAsync();
+        int pendH = pend?.H ?? 0;
+        int pendM = pend?.M ?? 0;
+
         int hembrasDisponibles, machosDisponibles;
         if (sieteDiasCompletos)
         {
             // Aves devueltas al lote: NO se restan las asignadas (las aves regresan).
             // Las bajas diarias de los reproductora (días 1-7) ya están en los registros
             // de cruce de seguimiento_diario_aves_engorde → se restan vía mortSeg/sel/err.
-            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortCajaReproH - mortSegH - selH - errH);
-            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - mortCajaReproM - mortSegM - selM - errM);
+            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - mortCajaReproH - mortSegH - selH - errH - pendH);
+            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - mortCajaReproM - mortSegM - selM - errM - pendM);
         }
         else
         {
             // Aves aún distribuidas en los reproductora (no se devuelven hasta completar 7 días).
-            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - mortSegH - selH - errH);
-            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - asignadasM - mortSegM - selM - errM);
+            hembrasDisponibles = Math.Max(0, hembrasIniciales - mortCajaH - asignadasH - mortSegH - selH - errH - pendH);
+            machosDisponibles  = Math.Max(0, machosIniciales  - mortCajaM - asignadasM - mortSegM - selM - errM - pendM);
         }
 
         return new AvesDisponiblesDto
@@ -506,6 +518,8 @@ public class LoteReproductoraAveEngordeService : ILoteReproductoraAveEngordeServ
             MortCajaMachos = mortCajaM,
             AsignadasHembras = asignadasH,
             AsignadasMachos = asignadasM,
+            HembrasReservadasPendiente = pendH,
+            MachosReservadasPendiente = pendM,
             HembrasDisponibles = hembrasDisponibles,
             MachosDisponibles = machosDisponibles,
             // Total mixto: las aves no se devuelven por género, se suman en un solo valor.
