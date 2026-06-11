@@ -1,3 +1,34 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ZooSanMarino.Infrastructure.Migrations
+{
+    /// <summary>
+    /// v7 de fn_seguimiento_diario_engorde: las VENTA_AVES del lote ya no se acotan por
+    /// fecha_min/fecha_max en fechas_universo ni docs_por_fecha (solo por fecha_encaset).
+    /// En lotes cerrados aves_iniciales = bajas + ventas_totales (sin tope de fecha); una
+    /// venta posterior al corte por alimento=0 (v5) inflaba el inicial sin fila que la
+    /// restara, dejando saldo_aves residual fantasma (caso lote 23 "2601": venta de 8
+    /// machos el 2026-05-13 con corte 2026-03-18 mostraba saldo 8 en vez de 0).
+    /// Idempotente: CREATE OR REPLACE. SQL sincronizado con backend/sql/fn_seguimiento_diario_engorde.sql.
+    /// </summary>
+    public partial class FixFnSeguimientoEngordeVentasPostCierre : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(FN_SQL, suppressTransaction: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // La función queda en v7. Para revertirla, re-aplicar el SQL de
+            // 20260531194613_FixFnSeguimientoEngordeM1SaldoAlimento (v6).
+        }
+
+        private const string FN_SQL = @"
 -- =============================================================================
 -- fn_seguimiento_diario_engorde(p_lote_id INT)
 -- Devuelve la tabla diaria de seguimiento de un lote de pollo engorde.
@@ -7,9 +38,9 @@
 --   * Problema: en lotes CERRADOS `aves_iniciales = bajas + ventas_totales` (cierre en 0
 --     por construcción) y `ventas_totales` NO tiene tope de fecha, pero `fechas_universo`
 --     SÍ acotaba por fecha_max (cierre por alimento=0, v5). Una venta posterior al corte
---     (ej. lote 23: venta de 8 machos el 2026-05-13, reapertura "PARA TRASLADO", con corte
+--     (ej. lote 23: venta de 8 machos el 2026-05-13, reapertura ""PARA TRASLADO"", con corte
 --     2026-03-18) inflaba `inicial` sin fila que la restara → saldo_aves residual fantasma
---     (el lote "cerrado" mostraba saldo 8 en vez de 0).
+--     (el lote ""cerrado"" mostraba saldo 8 en vez de 0).
 --   * Solución: en `fechas_universo` y `docs_por_fecha` las VENTA_AVES del lote NO se
 --     acotan por fecha_min/fecha_max (solo por fecha_encaset). Las ventas pertenecen al
 --     lote (no al galpón), no hay riesgo de contaminación de otro ciclo. Los eventos de
@@ -20,7 +51,7 @@
 --   * Problema: la fn calculaba el saldo como GREATEST(0, acumulado) sobre el cumulativo
 --     desde apertura (modelo M0). Eso ARRASTRABA el déficit transitorio: cuando el consumo
 --     se adelantaba a un ingreso registrado tarde, el acumulado se volvía negativo, se
---     mostraba 0, y al llegar el ingreso "rebotaba" → el usuario lo veía como "no cuadra"
+--     mostraba 0, y al llegar el ingreso ""rebotaba"" → el usuario lo veía como ""no cuadra""
 --     (caso lote 75, 29→30 may-2026). Además, M0 NO coincidía con la lógica canónica del
 --     frontend (computeSaldoAlimentoKgPorSeguimiento) ni del backend C#
 --     (RecalcularSaldoAlimentoPorLoteAsync), que SÍ usan piso 0 con reseteo.
@@ -522,7 +553,7 @@ SELECT
     -- ⭐ v6 (M1): piso 0 con reseteo de base (Lindley). Alinea la fn con la lógica canónica
     -- del frontend (computeSaldoAlimentoKgPorSeguimiento) y del backend C#
     -- (RecalcularSaldoAlimentoPorLoteAsync): saldo_t = max(0, saldo_{t-1} + ingreso − consumo).
-    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). "Olvida" el déficit transitorio de timing.
+    -- Forma cerrada: P_t − LEAST(0, MIN(P_t) acumulado). ""Olvida"" el déficit transitorio de timing.
     (se.pt - LEAST(0, MIN(se.pt) OVER w_ord))::FLOAT8                                  AS saldo_alimento_kg,
     se.ingreso_alimento_kg,
     se.traslado_entrada_kg,
@@ -561,3 +592,6 @@ WINDOW
     w_prev AS (ORDER BY se.fecha, COALESCE(se.seg_id, 0) ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
 ORDER BY se.fecha, COALESCE(se.seg_id, 0);
 $$;
+";
+    }
+}

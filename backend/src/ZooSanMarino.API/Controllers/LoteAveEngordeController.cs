@@ -188,4 +188,52 @@ public class LoteAveEngordeController : ControllerBase
         catch (ArgumentException ex) { return BadRequest(ex.Message); }
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
     }
+
+    // ===========================
+    // VALIDACIÓN / CORRECCIÓN DE AVES DISPONIBLES (lotes cerrados con saldo fantasma)
+    // ===========================
+
+    /// <summary>
+    /// Diagnóstico de cuadre de aves disponibles por nombre de lote: contabilidad por género
+    /// (iniciales − bajas del seguimiento − ventas) vs disponibilidad vigente, género del
+    /// sobrante y ventas posteriores al último seguimiento. No modifica datos.
+    /// </summary>
+    [HttpGet("aves-disponibles/validar")]
+    [ProducesResponseType(typeof(IReadOnlyList<ValidacionAvesDisponiblesLoteDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<ValidacionAvesDisponiblesLoteDto>>> ValidarAvesDisponibles(
+        [FromQuery] string loteNombre, CancellationToken ct = default)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var svc = scope.ServiceProvider.GetRequiredService<ICorreccionAvesDisponiblesEngordeService>();
+        try
+        {
+            var res = await svc.ValidarPorNombreAsync(loteNombre, ct);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    /// <summary>
+    /// Corrige los lotes CERRADOS con aves disponibles fantasma del nombre indicado:
+    /// descuenta el sobrante de hembras_l/machos_l (nunca aumenta saldos) y deja auditoría
+    /// en historial_lote_pollo_engorde (TipoRegistro="Ajuste"). Idempotente.
+    /// Con dryRun=true (default) solo reporta lo que haría.
+    /// </summary>
+    [HttpPost("aves-disponibles/corregir")]
+    [ProducesResponseType(typeof(CorreccionAvesDisponiblesResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CorreccionAvesDisponiblesResponse>> CorregirAvesDisponibles(
+        [FromBody] CorregirAvesDisponiblesRequest? body, CancellationToken ct = default)
+    {
+        if (body is null) return BadRequest(new { message = "Body requerido." });
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var svc = scope.ServiceProvider.GetRequiredService<ICorreccionAvesDisponiblesEngordeService>();
+        try
+        {
+            var res = await svc.CorregirPorNombreAsync(body, ct);
+            return Ok(res);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
 }
