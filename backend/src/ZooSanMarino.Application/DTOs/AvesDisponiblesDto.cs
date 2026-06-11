@@ -12,6 +12,10 @@ public class AvesDisponiblesDto
     public int MortCajaMachos { get; set; }
     public int AsignadasHembras { get; set; }
     public int AsignadasMachos { get; set; }
+    /// <summary>Aves reservadas en ventas/despachos en estado Pendiente (descuentan disponibilidad, aún no el maestro).</summary>
+    public int HembrasReservadasPendiente { get; set; }
+    public int MachosReservadasPendiente { get; set; }
+
     public int HembrasDisponibles { get; set; }
     public int MachosDisponibles { get; set; }
 

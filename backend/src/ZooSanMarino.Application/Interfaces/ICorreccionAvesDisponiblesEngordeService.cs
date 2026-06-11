@@ -4,20 +4,21 @@ using ZooSanMarino.Application.DTOs;
 namespace ZooSanMarino.Application.Interfaces;
 
 /// <summary>
-/// Validación y corrección del descuadre entre las aves disponibles del maestro
-/// (hembras_l/machos_l − bajas del seguimiento) y la realidad del seguimiento diario
-/// en lotes de pollo engorde. Caso típico: lote Cerrado/liquidado que aún reporta
-/// disponibles porque las últimas bajas/ventas se registraron con el género contrario.
+/// Validación y corrección de descuadres entre el maestro de aves (hembras_l/machos_l),
+/// la disponibilidad y la realidad del seguimiento diario en lotes de pollo engorde.
+/// Casos: ventas Pendientes vencidas sin confirmar, ventas Completadas que no descontaron
+/// el maestro (bug histórico) y lotes Cerrados con disponibles fantasma.
 /// </summary>
 public interface ICorreccionAvesDisponiblesEngordeService
 {
-    /// <summary>Diagnóstico por nombre de lote (todos los lotes de la company con ese nombre).</summary>
-    Task<IReadOnlyList<ValidacionAvesDisponiblesLoteDto>> ValidarPorNombreAsync(string loteNombre, CancellationToken ct = default);
+    /// <summary>Diagnóstico por nombre de lote; loteNombre null ⇒ todos los lotes engorde de la company.</summary>
+    Task<IReadOnlyList<ValidacionAvesDisponiblesLoteDto>> ValidarPorNombreAsync(string? loteNombre, CancellationToken ct = default);
 
     /// <summary>
-    /// Corrige los lotes CERRADOS con disponibles fantasma: descuenta el sobrante de
-    /// hembras_l/machos_l (nunca aumenta) y deja auditoría en historial_lote_pollo_engorde
-    /// (TipoRegistro="Ajuste"). Idempotente. Con DryRun=true solo reporta.
+    /// Corrige los lotes con descuadre: (1) confirma ventas Pendientes vencidas vía el flujo
+    /// real de la app, (2) re-sincroniza el maestro cuando ventas Completadas no descontaron
+    /// (solo con evidencia exacta), (3) lleva a 0 los disponibles fantasma de lotes Cerrados.
+    /// Nunca aumenta saldos; deja auditoría; idempotente. Con DryRun=true solo reporta.
     /// </summary>
     Task<CorreccionAvesDisponiblesResponse> CorregirPorNombreAsync(CorregirAvesDisponiblesRequest request, CancellationToken ct = default);
 }

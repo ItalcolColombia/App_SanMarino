@@ -11,7 +11,9 @@ public class HistorialLotePolloEngorde
     public string TipoLote { get; set; } = null!; // "LoteAveEngorde" | "LoteReproductoraAveEngorde"
     public int? LoteAveEngordeId { get; set; }
     public int? LoteReproductoraAveEngordeId { get; set; }
-    public string TipoRegistro { get; set; } = "Inicio"; // "Inicio" | "Ajuste"
+    // "Inicio" | "Ajuste" (descuento por aves fantasma; participa en la conservación)
+    // | "AjusteResync" (sustituye el descuento de ventas Completadas que no descontaron; no se re-resta)
+    public string TipoRegistro { get; set; } = "Inicio";
     public int AvesHembras { get; set; }
     public int AvesMachos { get; set; }
     public int AvesMixtas { get; set; }
