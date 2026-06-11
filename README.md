@@ -33,7 +33,7 @@ App_SanMarino/
 
 ### Prerrequisitos
 
-- Docker Desktop
+- Docker
 - .NET 9 SDK (para backend)
 - Node.js 18+ y npm/yarn (para frontend)
 
@@ -85,11 +85,11 @@ make rebuild
 
 ## 🏛️ Arquitectura
 
-- **Backend**: .NET 8, Clean Architecture, Entity Framework Core
-- **Frontend**: Angular 17, Standalone Components, Tailwind CSS
+- **Backend**: .NET 9, Clean Architecture, Entity Framework Core
+- **Frontend**: Angular 20, Standalone Components, Tailwind CSS
 - **Base de Datos**: PostgreSQL
 - **Despliegue**: AWS ECS, Docker, CloudFront
 
 ## 📝 Licencia
 
-Proyecto privado - San Marino
+Proyecto privado - San Marino 
