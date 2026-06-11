@@ -11,6 +11,7 @@ import { LoteRegistroHistoricoUnificadoDto } from '../../services/seguimiento-av
 import { TEXTO_FORMULA_SALDO_ALIMENTO_TOOLTIP } from '../../utils/saldo-alimento-engorde.util';
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
 import { ModalCuadrarSaldosEngordeComponent } from '../modal-cuadrar-saldos-engorde/modal-cuadrar-saldos-engorde.component';
+import { TabReproductoraEngordeComponent } from '../../../aves-engorde/components/tab-reproductora-engorde/tab-reproductora-engorde.component';
 
 /** Texto explicativo del saldo de alimento (modal de ayuda en seguimiento diario). */
 export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fecha de registro. Ingreso/traslado/documento y despachos vienen del historial unificado. El saldo de alimento (kg) parte del stock ya registrado en el histórico con fecha anterior al primer día de seguimiento; a partir de ahí se aplican ingresos, traslados de entrada, ajustes; restas por traslado de salida, eliminaciones y consumo del día en seguimiento (hembras + machos); no se duplica INV_CONSUMO del histórico. Tras cada movimiento el saldo no baja de 0 kg: si el consumo supera lo disponible, queda en 0 y los ingresos o traslados de entrada posteriores suman sobre ese saldo disponible.`;
@@ -55,7 +56,7 @@ export interface RegistroDiarioTablaFilaEngorde {
 @Component({
   selector: 'app-tabs-principal-engorde',
   standalone: true,
-  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent],
+  imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent, TabReproductoraEngordeComponent],
   templateUrl: './tabs-principal-engorde.component.html',
   styleUrls: ['./tabs-principal-engorde.component.scss']
 })
@@ -80,7 +81,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   /** Emitido cuando se aplicaron correcciones de cuadre de saldos y hay que recargar datos. */
   @Output() saldosCuadrados = new EventEmitter<void>();
 
-  activeTab: 'general' | 'indicadores' | 'grafica' = 'general';
+  activeTab: 'general' | 'reproductora' | 'indicadores' | 'grafica' = 'general';
   isAdmin: boolean = false;
   diarioFilas: RegistroDiarioTablaFilaEngorde[] = [];
   /** Hay al menos un registro sin stock previo al primer consumo (desde encasetamiento). */
@@ -657,7 +658,7 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
     }
   }
 
-  onTabChange(tab: 'general' | 'indicadores' | 'grafica'): void {
+  onTabChange(tab: 'general' | 'reproductora' | 'indicadores' | 'grafica'): void {
     this.activeTab = tab;
   }
   onCreate(): void { this.create.emit(); }
