@@ -36,7 +36,7 @@
           </span>
 
           <span class="chip chip--muted" *ngIf="selectedLoteId">
-            {{ seguimientos.length || 0 }} registro(s)
+            {{ tablaFilas.length || 0 }} registro(s)
           </span>
 
           <span class="chip chip--warning" *ngIf="selectedLoteId && loteOperativoCerrado" role="status">
@@ -98,7 +98,7 @@
     <section *ngIf="selectedLoteId && selectedLote" class="ux-card ux-card--info pe-info-lote">
       <h2 class="ux-card__title">Información del lote y disponibilidad de aves</h2>
 
-      <p *ngIf="avesDisponiblesTotal === 0 && avesDisponibles" class="pe-info-lote__msg pe-info-lote__msg--error" role="alert">
+      <p *ngIf="avesDisponiblesTotal === 0 && avesDisponibles && lotesReproductora.length > 0" class="pe-info-lote__msg pe-info-lote__msg--error" role="alert">
         <strong>No se puede hacer seguimiento todavía</strong> porque las aves están asignadas a los lotes reproductora. Cuando se completen los <strong>7 días</strong> de seguimiento en todos los lotes reproductora, las aves vivas restantes se devolverán automáticamente al lote para continuar el seguimiento aquí.
       </p>
       <p *ngIf="loteCerradoPorReproductoras && lotesReproductora.length > 0" class="pe-info-lote__msg pe-info-lote__msg--warning" role="status">
@@ -133,8 +133,8 @@
               <span class="pe-genero-chip pe-genero-chip--m">🐓 Machos: <strong>{{ avesDisponibles.machosDisponibles | number:'1.0-0' }}</strong></span>
             </ng-container>
           </div>
-          <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal > 0">Saldo de aves devueltas al lote (mixto) tras completar los 7 días de los lotes reproductora (descontando mortalidad y selección registradas).</p>
-          <p class="pe-info-lote-hint" *ngIf="avesDisponiblesTotal === 0">Las aves están asignadas a los lotes reproductora. Al completar los 7 días de seguimiento en todos, las aves vivas se devolverán automáticamente al lote.</p>
+          <p  *ngIf="avesDisponiblesTotal === 0 && avesDisponibles && lotesReproductora.length > 0 && avesDisponiblesTotal > 0 " class="pe-info-lote-hint">Saldo de aves devueltas al lote (mixto) tras completar los 7 días de los lotes reproductora (descontando mortalidad y selección registradas).</p>
+          <p  *ngIf="avesDisponiblesTotal === 0 && avesDisponibles && lotesReproductora.length > 0 && avesDisponiblesTotal === 0 && lotesReproductora.length > 0" class="pe-info-lote-hint">Las aves están asignadas a los lotes reproductora. Al completar los 7 días de seguimiento en todos, las aves vivas se devolverán automáticamente al lote.</p>
         </div>
       </div>
     </section>
@@ -151,6 +151,7 @@
       [disableEditDelete]="loteOperativoCerrado"
       [showExportSeguimientoExcel]="true"
       [exportSeguimientoLoteNombre]="selectedLoteNombre"
+      [tieneReproductoras]="lotesReproductora.length > 0"
       (create)="create()"
       (edit)="edit($event)"
       (delete)="delete($event)"

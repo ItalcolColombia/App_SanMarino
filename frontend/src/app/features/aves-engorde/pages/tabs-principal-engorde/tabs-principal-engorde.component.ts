@@ -39,6 +39,8 @@ export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {
   @Input() tablaFilas: SeguimientoDiarioTablaFilaDto[] = [];
   /** Engorde: siempre true desde la lista (para traer ventas/ingresos/traslados). */
   @Input() enriquecerTablaConHistoricoInventario = true;
+  /** Controla la visibilidad del tab R. Reproductora. */
+  @Input() tieneReproductoras: boolean = false;
 
   @Output() create = new EventEmitter<void>();
   @Output() edit = new EventEmitter<SeguimientoLoteLevanteDto>();
