@@ -16,6 +16,17 @@
       <button
         type="button"
         class="tab-button"
+        [class.active]="activeTab === 'reproductora'"
+        (click)="onTabChange('reproductora')"
+        role="tab"
+        [attr.aria-selected]="activeTab === 'reproductora'"
+        aria-controls="reproductora-panel">
+        🐣 R. Reproductora
+      </button>
+
+      <button
+        type="button"
+        class="tab-button"
         [class.active]="activeTab === 'indicadores'"
         (click)="onTabChange('indicadores')"
         role="tab"
@@ -185,8 +196,8 @@
                   <td>{{ f.edadDia }}</td>
                   <td>{{ formatDiaSemanaCorto(f.fecha) }}</td>
                   <!-- Panamá: Mortalidad mixto + Selección mixto (H+M combinados) -->
-                  <td *ngIf="isPanama">{{ (f.mortalidadHembras ?? 0) + (f.mortalidadMachos ?? 0) }}</td>
-                  <td *ngIf="isPanama">{{ (f.selH ?? 0) + (f.selM ?? 0) }}</td>
+                  <td *ngIf="isPanama">{{ f.mortalidadHembras + f.mortalidadMachos }}</td>
+                  <td *ngIf="isPanama">{{ f.selH + f.selM }}</td>
                   <!-- No-Panamá: H y M separados -->
                   <td *ngIf="!isPanama">{{ f.mortalidadHembras }}</td>
                   <td *ngIf="!isPanama">{{ f.mortalidadMachos }}</td>
@@ -194,7 +205,7 @@
                   <td *ngIf="!isPanama">{{ f.selM }}</td>
                   <td class="num">{{ f.totalMortSelDia | number:'1.0-0' }}</td>
                   <!-- Panamá: despacho mixto (H+M combinados) -->
-                  <td *ngIf="isPanama" class="num">{{ ((f.despachoHembras ?? 0) + (f.despachoMachos ?? 0) + (f.despachoMixtas ?? 0)) | number:'1.0-0' }}</td>
+                  <td *ngIf="isPanama" class="num">{{ (f.despachoHembras + f.despachoMachos + f.despachoMixtas) | number:'1.0-0' }}</td>
                   <!-- No-Panamá: despacho H/M separado -->
                   <td *ngIf="!isPanama" class="num">{{ f.despachoHembras != null ? (f.despachoHembras | number:'1.0-0') : '—' }}</td>
                   <td *ngIf="!isPanama" class="num">{{ f.despachoMachos != null ? (f.despachoMachos | number:'1.0-0') : '—' }}</td>
@@ -276,6 +287,13 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- TAB R. REPRODUCTORA: lotes de pollitos primera semana (solo lectura) -->
+      <div *ngIf="activeTab === 'reproductora'" id="reproductora-panel" class="tab-panel" role="tabpanel">
+        <app-tab-reproductora-engorde
+          [loteAveEngordeId]="selectedLote.loteId">
+        </app-tab-reproductora-engorde>
       </div>
 
       <!-- TAB INDICADORES: SOLO DIARIO -->

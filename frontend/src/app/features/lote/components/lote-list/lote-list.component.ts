@@ -1,5 +1,5 @@
 // src/app/features/lote/pages/lote-list/lote-list.component.ts
-import { Component, OnInit, Directive, ElementRef, HostListener } from '@angular/core';
+import { Component, OnInit, Directive, ElementRef, HostListener, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule, NgControl
@@ -38,10 +38,19 @@ import { LotePosturaBaseService, LotePosturaBaseDto, CreateLotePosturaBaseDto, U
   standalone: true
 })
 export class ThousandSeparatorDirective {
-  private readonly formatter = new Intl.NumberFormat('es-CO', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
+  /**
+   * Número de decimales admitidos.
+   *  - 0 (por defecto): comportamiento histórico → enteros con separador de miles es-CO
+   *    (`Math.round`, `maximumFractionDigits: 0`). NO cambiar este default: el módulo `lote`
+   *    lo usa para forzar enteros.
+   *  - > 0: habilita decimales (p. ej. pesos en gramos o uniformidad, que el backend
+   *    almacena como `double`). El valor se redondea a esa cantidad de decimales.
+   */
+  @Input()
+  set decimals(v: number | string) { this._decimals = Math.max(0, Math.trunc(Number(v) || 0)); }
+  get decimals(): number { return this._decimals; }
+  private _decimals = 0;
+
   private decimalSeparator = ',';
   private thousandSeparator = '.';
 
@@ -49,6 +58,13 @@ export class ThousandSeparatorDirective {
     private el: ElementRef<HTMLInputElement>,
     private ngControl: NgControl
   ) {}
+
+  private get formatter(): Intl.NumberFormat {
+    return new Intl.NumberFormat('es-CO', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: this._decimals
+    });
+  }
 
   @HostListener('focus')
   onFocus() {
@@ -62,7 +78,7 @@ export class ThousandSeparatorDirective {
     const raw = this.unformat(input.value);
     const numeric = this.toNumber(raw);
     this.ngControl?.control?.setValue(
-      isNaN(numeric) ? null : Math.round(numeric),
+      isNaN(numeric) ? null : this.roundTo(numeric),
       { emitEvent: true, emitModelToViewChange: false }
     );
   }
@@ -78,12 +94,31 @@ export class ThousandSeparatorDirective {
     this.el.nativeElement.value = isNaN(n) ? '' : this.formatter.format(n);
   }
 
+  /** Redondea a la precisión configurada. `decimals=0` ⇒ `Math.round` (entero, igual que antes). */
+  private roundTo(n: number): number {
+    if (this._decimals <= 0) return Math.round(n);
+    const f = Math.pow(10, this._decimals);
+    return Math.round(n * f) / f;
+  }
+
   private unformat(val: string): string {
     if (!val) return '';
-    return val
-      .replace(new RegExp('\\' + this.thousandSeparator, 'g'), '')
-      .replace(this.decimalSeparator, '.')
-      .replace(/[^\d.-]/g, '');
+    if (this._decimals <= 0) {
+      // Enteros (histórico): '.' = miles, ',' = decimal (se descarta al redondear).
+      return val
+        .replace(new RegExp('\\' + this.thousandSeparator, 'g'), '')
+        .replace(this.decimalSeparator, '.')
+        .replace(/[^\d.-]/g, '');
+    }
+    // Decimales: el ÚLTIMO separador ('.' o ',') es el decimal; los anteriores son miles.
+    const cleaned = val.replace(/[^\d.,-]/g, '');
+    const sign = cleaned.trim().startsWith('-') ? '-' : '';
+    const body = cleaned.replace(/-/g, '');
+    const decPos = Math.max(body.lastIndexOf('.'), body.lastIndexOf(','));
+    if (decPos === -1) return sign + body.replace(/[.,]/g, '');
+    const intPart = body.slice(0, decPos).replace(/[.,]/g, '');
+    const decPart = body.slice(decPos + 1).replace(/[.,]/g, '');
+    return `${sign}${intPart}.${decPart}`;
   }
   private toNumber(val: string): number { return parseFloat(val); }
 }

@@ -199,6 +199,7 @@ builder.Services.AddScoped<ILoteAveEngordeService, LoteAveEngordeService>();
 builder.Services.AddScoped<ILoteReproductoraService, LoteReproductoraService>();
 builder.Services.AddScoped<ILoteReproductoraFilterDataService, LoteReproductoraFilterDataService>();
 builder.Services.AddScoped<ILoteReproductoraAveEngordeService, LoteReproductoraAveEngordeService>();
+builder.Services.AddScoped<ICorreccionAvesDisponiblesEngordeService, CorreccionAvesDisponiblesEngordeService>();
 builder.Services.AddScoped<ILoteReproductoraAveEngordeFilterDataService, LoteReproductoraAveEngordeFilterDataService>();
 builder.Services.AddScoped<ILoteProduccionFilterDataService, LoteProduccionFilterDataService>();
 builder.Services.AddScoped<ILoteLevanteFilterDataService, LoteLevanteFilterDataService>();

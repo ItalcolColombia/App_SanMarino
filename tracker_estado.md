@@ -1,25 +1,30 @@
-# Estado — Fix migración `AddDbStudioGrantsAndAudit` (arranque AWS/local)
+# Tracker — Corrección aves disponibles lotes engorde "2601" ✅ COMPLETO
 
-Plan: [fix_migracion_dbstudio_audit_plan.md](./fase_de_desarrollo/fix_migracion_dbstudio_audit_plan.md)
+**Plan:** [fase_de_desarrollo/correccion_aves_disponibles_engorde_2601_plan.md](fase_de_desarrollo/correccion_aves_disponibles_engorde_2601_plan.md)
 
 ## Diagnóstico
-- [x] Reproducir error en local contra la BD de producción
-- [x] Identificar que la app usa el PostgreSQL **nativo** de Windows en `localhost:5433` (no el contenedor Docker, que está vacío)
-- [x] Confirmar esquema viejo/incompatible de `public.dbstudio_audit` en prod (sin `created_at_utc`, etc.)
-- [x] Confirmar tabla vieja **vacía** (0 filas) y **sin** FKs/vistas dependientes
-- [x] Confirmar que `20260607213501` no está en `__EFMigrationsHistory` (última: `20260605024231`)
-- [x] Auditar el resto de la tanda pendiente (incl. `ExtractLogoToLogoCompanias`) → prod-safe
+- [x] Identificar cálculo de aves disponibles (`LoteReproductoraAveEngordeService.GetAvesDisponiblesAsync`)
+- [x] Identificar cálculo de saldo en tabla diaria (`fn_seguimiento_diario_engorde` v6)
+- [x] Cuantificar descuadre por género en BD para los 33 lotes "2601" → 8 cerrados con fantasma (lotes 14, 19, 20, 23, 28, 33, 55, 56)
+- [x] Lote 23: sobrante contable = 24 machos; el "8" de la tabla = venta tardía 2026-05-13 (8 machos, mov. #967, doc 76) fuera del rango de la fn
 
 ## Implementación
-- [x] Editar `Up()` de `20260607213501_AddDbStudioGrantsAndAudit.cs` con reconciliación idempotente
-- [x] `dotnet build` sin errores ni nuevas advertencias (4 warnings preexistentes, ajenos)
-- [x] El fix de `dbstudio_audit` **resuelve el error original** (la migración avanza más allá del `created_at_utc`)
-- [x] Decisión del usuario: **dejar solo el fix de código**, sin GRANT local. Validación de la cadena completa vía deploy.
-- [ ] (Deploy) Mergear a `main-produccion` → el deploy aplica las 6 migraciones al arrancar; verificar post-deploy (sección 🚀 del CLAUDE.md)
+- [x] fn v7: `backend/sql/fn_seguimiento_diario_engorde.sql` (VENTA_AVES sin tope de rango en `fechas_universo` y `docs_por_fecha`)
+- [x] Migración EF `20260611033748_FixFnSeguimientoEngordeVentasPostCierre` (CREATE OR REPLACE idempotente, SQL sincronizado)
+- [x] DTOs `CorreccionAvesDisponiblesEngordeDtos.cs`
+- [x] Interface `ICorreccionAvesDisponiblesEngordeService.cs`
+- [x] Servicio `CorreccionAvesDisponiblesEngordeService.cs` (validar + corregir, dryRun, auditoría `TipoRegistro='Ajuste'`)
+- [x] Endpoints en `LoteAveEngordeController` (`GET aves-disponibles/validar`, `POST aves-disponibles/corregir`)
+- [x] Registro DI en `Program.cs`
 
-## Hallazgos importantes
-- **EF Core corre toda la tanda pendiente en UNA transacción** → si una migración falla, revierte TODO. No quedan estados a medias.
-- **Producción NO fue modificada** (el rollback transaccional revierte todo, igual que en local).
-- ⚠️ **`appsettings.json` base apunta a PROD RDS** (`repropesa01@reproductoras-pesadas...`). `dotnet ef` sin `ASPNETCORE_ENVIRONMENT=Development` usa ese archivo → riesgo de pegarle a prod. Para validar local: forzar `Development` + `--connection` local explícita.
-- ⛔ **Segundo bloqueante (solo LOCAL):** la migración `20260608030455_ExtractLogoToLogoCompanias` falla con `42501: permission denied for schema public` en el chequeo de la FK. Causa: `companies`/`logo_companias` son propiedad de `repropesa01`, y el restore del dump custom **no trae los permisos de schema** de ese rol. En prod `repropesa01` es el usuario de la app (tiene USAGE/CREATE sobre `public`) → allá la migración corre bien.
-- Para validar la cadena completa en local hace falta replicar ese permiso: `GRANT USAGE, CREATE ON SCHEMA public TO repropesa01;` (solo en la copia local). Pendiente de tu OK.
+## Validación (BD local + API local :5002, token real del usuario)
+- [x] `dotnet build` → 0 errores, 0 advertencias nuevas · `dotnet test` → 2/2 OK
+- [x] Migración v7 aplicada al arrancar la API; lote 23: fila nueva 2026-05-13 (despacho 8 machos, doc 76) y `saldo_aves` final **0**; lote 24 (sin ventas post-cierre) idéntico
+- [x] `GET validar?loteNombre=2601` → 33 evaluados, 8 con `requiereCorreccion` y ajustes exactos (563/154, 0/1, 0/457, 0/24, 8/0, 0/290, 0/4, 42/9)
+- [x] `POST corregir dryRun=true` → reporta 8 y NO modifica BD (verificado por SQL)
+- [x] `POST corregir dryRun=false` → 8 corregidos; lote 23 `aves-disponibles` = **0/0/0**; 8 filas de auditoría `Ajuste` en `historial_lote_pollo_engorde`
+- [x] Idempotencia: 2ª corrida → descuadre=0, corregidos=0 · Lotes abiertos intactos (hembras_l/machos_l sin cambios)
+- [x] Procesos: API quedó corriendo en :5002 con el build nuevo (reemplaza la instancia previa del usuario, que hubo que detener para compilar)
+
+## Pendiente (decisión del usuario)
+- [ ] Aplicar en PROD: mergear/desplegar (la migración v7 se aplica sola) y luego ejecutar `POST /api/LoteAveEngorde/aves-disponibles/corregir {"loteNombre":"2601","dryRun":true→false}` con un token de prod — **requiere OK explícito**
