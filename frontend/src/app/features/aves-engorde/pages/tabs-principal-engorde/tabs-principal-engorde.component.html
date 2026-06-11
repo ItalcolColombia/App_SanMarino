@@ -292,7 +292,7 @@
       <!-- TAB R. REPRODUCTORA: lotes de pollitos primera semana (solo lectura) -->
       <div *ngIf="activeTab === 'reproductora'" id="reproductora-panel" class="tab-panel" role="tabpanel">
         <app-tab-reproductora-engorde
-          [loteAveEngordeId]="selectedLote?.loteId ?? null">
+          [loteAveEngordeId]="selectedLote.loteId">
         </app-tab-reproductora-engorde>
       </div>
 
