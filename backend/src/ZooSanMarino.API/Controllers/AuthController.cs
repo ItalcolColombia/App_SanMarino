@@ -369,6 +369,69 @@ public class AuthController : ControllerBase
         }
     }
 
+    /// <summary>Valida y usa un token de restablecimiento de contraseña de un solo uso.</summary>
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(ValidatePasswordResetTokenResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ResetPassword([FromBody] ValidatePasswordResetTokenDto dto, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            _logger.LogWarning("Validación fallida en /api/Auth/reset-password. Errores: {Errors}",
+                string.Join(", ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var result = await _auth.ValidateAndUsePasswordResetTokenAsync(dto);
+
+            if (result.Success)
+            {
+                _logger.LogInformation("Restablecimiento de contraseña exitoso mediante token.");
+            }
+            else
+            {
+                _logger.LogWarning("Intento de restablecimiento de contraseña con token inválido o expirado.");
+            }
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Argumento inválido en /api/Auth/reset-password.");
+            return BadRequest(new ValidatePasswordResetTokenResponseDto
+            {
+                Success = false,
+                Message = "Los datos proporcionados no son válidos."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Operación inválida en /api/Auth/reset-password.");
+            return BadRequest(new ValidatePasswordResetTokenResponseDto
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Error inesperado en /api/Auth/reset-password. ExceptionType: {ExceptionType}",
+                ex.GetType().Name);
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new ValidatePasswordResetTokenResponseDto
+            {
+                Success = false,
+                Message = "Ocurrió un error interno al procesar la solicitud. Por favor, intenta nuevamente más tarde."
+            });
+        }
+    }
+
     /// <summary>Obtiene el menú del usuario autenticado (datos encriptados).</summary>
     [Authorize]
     [HttpGet("menu")]

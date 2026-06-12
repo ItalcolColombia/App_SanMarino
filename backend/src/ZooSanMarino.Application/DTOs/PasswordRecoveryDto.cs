@@ -38,5 +38,33 @@ public class PasswordRecoveryResponseDto
     public int? EmailQueueId { get; set; }
 }
 
+/// <summary>
+/// DTO para validar e usar un token de restablecimiento de contraseña de un solo uso
+/// </summary>
+public class ValidatePasswordResetTokenDto
+{
+    /// <summary>Token de restablecimiento de contraseña</summary>
+    [Required(ErrorMessage = "El token es obligatorio")]
+    [MaxLength(512, ErrorMessage = "El token no puede exceder 512 caracteres")]
+    public string Token { get; set; } = null!;
 
+    /// <summary>Nueva contraseña</summary>
+    [Required(ErrorMessage = "La contraseña es obligatoria")]
+    [MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres")]
+    [MaxLength(100, ErrorMessage = "La contraseña no puede exceder 100 caracteres")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$",
+        ErrorMessage = "La contraseña debe incluir al menos una letra y un número")]
+    public string NewPassword { get; set; } = null!;
+}
 
+/// <summary>
+/// DTO para respuesta de validación de token
+/// </summary>
+public class ValidatePasswordResetTokenResponseDto
+{
+    /// <summary>Indica si el token es válido y fue consumido exitosamente</summary>
+    public bool Success { get; set; }
+
+    /// <summary>Mensaje descriptivo del resultado</summary>
+    public string Message { get; set; } = null!;
+}

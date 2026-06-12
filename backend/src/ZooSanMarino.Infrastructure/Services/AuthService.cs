@@ -497,22 +497,15 @@ public class AuthService : IAuthService
 
     public async Task<PasswordRecoveryResponseDto> RecoverPasswordAsync(PasswordRecoveryRequestDto dto)
     {
-        // Validar entrada
         if (string.IsNullOrWhiteSpace(dto.Email))
-        {
             throw new ArgumentException("El correo electrónico no puede estar vacío", nameof(dto.Email));
-        }
 
         try
         {
-            // Buscar el usuario por email
             var login = await _ctx.Logins
                 .Include(l => l.UserLogins).ThenInclude(ul => ul.User)
                 .FirstOrDefaultAsync(l => l.email == dto.Email && !l.IsDeleted);
 
-            // Anti-enumeración: NO revelar si el correo existe, si el usuario está
-            // inactivo, etc. En todos esos casos devolvemos la misma respuesta neutra
-            // que en el camino feliz para que un atacante no pueda distinguir cuentas.
             var user = login?.UserLogins.FirstOrDefault()?.User;
             if (login == null || user == null || !user.IsActive)
             {
@@ -525,39 +518,54 @@ public class AuthService : IAuthService
                 };
             }
 
-            // Generar nueva contraseña aleatoria
-            var newPassword = GenerateRandomPassword();
+            // Generar token único (CSPRNG-based, válido por 15 minutos)
+            var resetToken = GeneratePasswordResetToken();
+            var expiresAt = DateTime.UtcNow.AddMinutes(15);
 
-            // Actualizar la contraseña en la base de datos
-            login.PasswordHash = _hasher.HashPassword(login, newPassword);
-            
+            var passwordResetToken = new PasswordResetToken
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Token = resetToken,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = expiresAt,
+                IsUsed = false
+            };
+
+            // Invalidar tokens anteriores para este usuario
+            var oldTokens = await _ctx.PasswordResetTokens
+                .Where(t => t.UserId == user.Id && !t.IsUsed)
+                .ToListAsync();
+
+            foreach (var oldToken in oldTokens)
+                oldToken.IsUsed = true;
+
+            _ctx.PasswordResetTokens.Add(passwordResetToken);
+
             try
             {
                 await _ctx.SaveChangesAsync();
             }
             catch (DbUpdateException dbEx)
             {
-                // No exponer detalle de BD al cliente; el inner se conserva para los logs.
                 throw new InvalidOperationException("No se pudo procesar la solicitud.", dbEx);
             }
 
-            // Enviar email con la nueva contraseña (asíncrono, no bloquea).
-            // No fallar el flujo si el correo falla: la contraseña ya fue actualizada.
+            // Enviar email con el token (link a frontend para validar)
             try
             {
                 var userName = $"{user.firstName} {user.surName}".Trim();
                 if (string.IsNullOrWhiteSpace(userName))
                     userName = null;
 
-                await _emailService.SendPasswordRecoveryEmailAsync(dto.Email, newPassword, userName);
+                await _emailService.SendPasswordRecoveryEmailAsync(dto.Email, resetToken, userName);
             }
             catch (Exception)
             {
                 // El error de envío se registra en EmailService; aquí se ignora deliberadamente.
             }
 
-            // Respuesta neutra e idéntica al caso "no encontrado" para no filtrar la existencia
-            // de la cuenta (anti-enumeración). El detalle real queda solo en logs internos.
+            // Respuesta neutra: anti-enumeración
             return new PasswordRecoveryResponseDto
             {
                 Success = true,
@@ -568,17 +576,85 @@ public class AuthService : IAuthService
         }
         catch (ArgumentException)
         {
-            throw; // Re-lanzar para que el controlador lo maneje
+            throw;
         }
         catch (InvalidOperationException)
         {
-            throw; // Re-lanzar para que el controlador lo maneje
+            throw;
         }
         catch (DbUpdateException dbEx)
         {
-            // Detalle (incl. inner/stacktrace) se conserva en el objeto para los logs internos,
-            // pero el mensaje devuelto al cliente es genérico.
             throw new InvalidOperationException("No se pudo procesar la solicitud.", dbEx);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("No se pudo procesar la solicitud.", ex);
+        }
+    }
+
+    public async Task<ValidatePasswordResetTokenResponseDto> ValidateAndUsePasswordResetTokenAsync(ValidatePasswordResetTokenDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Token))
+            throw new ArgumentException("El token es obligatorio", nameof(dto.Token));
+
+        if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < 8)
+            throw new ArgumentException("La nueva contraseña debe tener al menos 8 caracteres", nameof(dto.NewPassword));
+
+        try
+        {
+            var resetToken = await _ctx.PasswordResetTokens
+                .Include(t => t.User)
+                .FirstOrDefaultAsync(t => t.Token == dto.Token && !t.IsUsed);
+
+            // Token inválido, expirado, o ya consumido
+            if (resetToken == null || resetToken.ExpiresAt < DateTime.UtcNow)
+            {
+                return new ValidatePasswordResetTokenResponseDto
+                {
+                    Success = false,
+                    Message = "El enlace de restablecimiento de contraseña es inválido o ha expirado."
+                };
+            }
+
+            // Marcar token como consumido
+            resetToken.IsUsed = true;
+            resetToken.UsedAt = DateTime.UtcNow;
+
+            // Obtener el login del usuario
+            var userLogin = await _ctx.UserLogins
+                .Include(ul => ul.Login)
+                .FirstOrDefaultAsync(ul => ul.UserId == resetToken.UserId);
+
+            if (userLogin?.Login == null)
+            {
+                return new ValidatePasswordResetTokenResponseDto
+                {
+                    Success = false,
+                    Message = "No se pudo procesar la solicitud."
+                };
+            }
+
+            // Actualizar contraseña
+            userLogin.Login.PasswordHash = _hasher.HashPassword(userLogin.Login, dto.NewPassword);
+
+            try
+            {
+                await _ctx.SaveChangesAsync();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                throw new InvalidOperationException("No se pudo procesar la solicitud.", dbEx);
+            }
+
+            return new ValidatePasswordResetTokenResponseDto
+            {
+                Success = true,
+                Message = "Contraseña restablecida exitosamente."
+            };
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -642,5 +718,16 @@ public class AuthService : IAuthService
         for (int i = 0; i < length; i++)
             buffer[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
         return new string(buffer);
+    }
+
+    private static string GeneratePasswordResetToken(int length = 64)
+    {
+        // URL-safe token: CSPRNG-generated random bytes encoded as base64url.
+        var buffer = new byte[length];
+        RandomNumberGenerator.Fill(buffer);
+        return Convert.ToBase64String(buffer)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
     }
 }

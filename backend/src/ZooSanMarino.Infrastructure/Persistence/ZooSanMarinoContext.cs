@@ -16,6 +16,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
             : base(options) { }
 
         public DbSet<User> Users { get; set; } = null!;
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
         public DbSet<Company> Companies { get; set; } = null!;
         public DbSet<CompanyLogo> CompanyLogos { get; set; } = null!;
         public DbSet<Farm> Farms { get; set; } = null!;

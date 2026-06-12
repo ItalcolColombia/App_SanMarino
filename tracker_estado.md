@@ -20,7 +20,7 @@
 - [x] 5 · H4 — rate limiting nativo (auth 5/min) — `Program.cs:536` activado ✅
 - [x] 6 · ⚠️ H2 — quitar allow-all, `FallbackPolicy = RequireAuthenticatedUser` — `Program.cs` ✅
 - [ ] 7 · ⚠️ H3 — `git rm --cached` appsettings + rotar secretos a env/Secrets Manager (⏳ alto: git destructivo)
-- [ ] 8 · H7 — recover con token de un solo uso (CSPRNG) + tabla `password_reset_tokens` (⏳ migración EF)
+- [x] 8 · H7 — recover con token de un solo uso (CSPRNG) + tabla `password_reset_tokens` + endpoint POST /reset-password ✅
 - [x] 9 · H9/H10/H12 — anti-enumeración, política contraseñas + lockout temporal, register consistente ✅
 
 ## BD
