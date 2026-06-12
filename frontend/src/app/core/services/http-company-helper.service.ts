@@ -151,6 +151,6 @@ export class HttpCompanyHelperService {
    */
   logActiveCompany(context: string): void {
     const activeCompany = this.getActiveCompany();
-    console.log(`[${context}] Empresa activa:`, activeCompany || 'Ninguna');
+    
   }
 }

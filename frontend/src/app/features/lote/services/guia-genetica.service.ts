@@ -116,12 +116,12 @@ export class GuiaGeneticaService {
    * Obtener todas las razas disponibles
    */
   getRazasDisponibles(): Observable<string[]> {
-    console.log('=== GuiaGeneticaService.getRazasDisponibles() ===');
-    console.log('URL:', `${this.baseUrl}/razas`);
+    
+    
     
     return this.http.get<string[]>(`${this.baseUrl}/razas`).pipe(
       tap(razas => {
-        console.log('✅ Razas recibidas del backend:', razas);
+        
       }),
       catchError(error => {
         console.error('❌ Error obteniendo razas:', error);

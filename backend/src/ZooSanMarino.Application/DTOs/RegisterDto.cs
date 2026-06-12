@@ -17,8 +17,10 @@ public class RegisterDto
     public string Email { get; set; } = null!;
 
     [Required(ErrorMessage = "La contraseña es obligatoria")]
-    [MinLength(6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres")]
+    [MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres")]
     [MaxLength(100, ErrorMessage = "La contraseña no puede exceder 100 caracteres")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$",
+        ErrorMessage = "La contraseña debe incluir al menos una letra y un número")]
     // NOTA: No se valida NoSqlInjection en contraseñas porque pueden contener cualquier carácter especial
     public string Password { get; set; } = null!;
 

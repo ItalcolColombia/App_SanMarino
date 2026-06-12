@@ -12,7 +12,7 @@ function fixImportsInFile(filePath) {
   content = content.replace(
     /from\s+['"](\.{1,2}\/[^'"]+?)\.js\.js(['"])/g,
     (_match, p1, q) => {
-      console.log(`🧹 Corrigiendo doble extensión en ${filePath}: ${p1}.js.js → ${p1}.js`);
+      
       modified = true;
       return `from '${p1}.js'`;
     }
@@ -23,7 +23,7 @@ function fixImportsInFile(filePath) {
     /from\s+['"](\.{1,2}\/[^'"]+?)(?<!\.js|\.json)(['"])/g,
     (_match, p1, q) => {
       // Solo agregar si no termina en .js ni .json
-      console.log(`🛠️  Agregando .js en ${filePath}: ${p1} → ${p1}.js`);
+      
       modified = true;
       return `from '${p1}.js'`;
     }
@@ -31,7 +31,7 @@ function fixImportsInFile(filePath) {
 
   if (modified) {
     fs.writeFileSync(filePath, content, 'utf8');
-    console.log(`✅ Guardado: ${filePath}`);
+    
   }
 }
 
@@ -48,6 +48,6 @@ function walkDirectory(dir) {
   }
 }
 
-console.log(`🔎 Buscando archivos JS en ${distDir}...`);
+
 walkDirectory(distDir);
-console.log('🚀 Proceso completado.');
+

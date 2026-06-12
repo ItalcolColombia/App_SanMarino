@@ -863,7 +863,7 @@ export class GuiaGeneticaAdvancedComponent implements OnInit {
   // Métodos de exportación
   exportarDatos(formato: 'excel' | 'csv' | 'pdf') {
     // Implementar exportación según formato
-    console.log(`Exportando ${this.guiasFiltradas.length} registros en formato ${formato}`);
+    
   }
 
   // Métodos de utilidad

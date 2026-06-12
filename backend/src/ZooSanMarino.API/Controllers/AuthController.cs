@@ -67,12 +67,7 @@ public class AuthController : ControllerBase
             // dto.Password NO se sanitiza - las contraseñas pueden tener cualquier carácter
             // dto.RecaptchaToken NO se sanitiza - los tokens de Google pueden contener cualquier carácter especial
 
-            // 2. Validar datos desencriptados
-            // Log para debugging (en producción, remover o usar nivel de log apropiado)
-            _logger.LogInformation("Datos desencriptados: Email={Email}, Password presente={HasPassword}", 
-                dto?.Email ?? "null", 
-                !string.IsNullOrWhiteSpace(dto?.Password));
-
+            // 2. Validar datos desencriptados (no se loguea email/credenciales por seguridad)
             if (dto == null)
                 return BadRequest(new { message = "Error al desencriptar: objeto nulo" });
 
@@ -133,41 +128,20 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
+            // El detalle (incl. tipo de BD/stack) se registra solo en logs internos.
+            // Al cliente se le devuelve un mensaje genérico para no revelar la infraestructura.
             _logger.LogError(ex, "Error inesperado en /api/Auth/login");
-            
-            // Detectar errores de base de datos
-            var exceptionType = ex.GetType().Name;
-            var exceptionMessage = ex.Message?.ToLower() ?? "";
-            var innerExceptionMessage = ex.InnerException?.Message?.ToLower() ?? "";
-            
-            // Verificar si es un error de conexión a base de datos
-            bool isDatabaseError = exceptionType.Contains("Npgsql") || 
-                                   exceptionType.Contains("Postgres") ||
-                                   exceptionMessage.Contains("database") ||
-                                   exceptionMessage.Contains("connection") ||
-                                   exceptionMessage.Contains("timeout") ||
-                                   exceptionMessage.Contains("unreachable") ||
-                                   exceptionMessage.Contains("refused") ||
-                                   innerExceptionMessage.Contains("database") ||
-                                   innerExceptionMessage.Contains("connection") ||
-                                   innerExceptionMessage.Contains("timeout") ||
-                                   innerExceptionMessage.Contains("unreachable") ||
-                                   innerExceptionMessage.Contains("refused");
-            
-            if (isDatabaseError)
-            {
-                return StatusCode(StatusCodes.Status500InternalServerError, new { 
-                    message = "Error de conexión a la base de datos. El servidor no puede conectarse a la base de datos en este momento. Por favor, intenta nuevamente en unos momentos o contacta al administrador.",
-                    detail = "Database connection error"
-                });
-            }
-            
-            return StatusCode(StatusCodes.Status500InternalServerError, new { message = "Error interno del servidor. Por favor, intenta nuevamente." });
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new { message = "No fue posible iniciar sesión en este momento. Por favor, intenta nuevamente más tarde." });
         }
     }
 
-    /// <summary>Registro por email/password.</summary>
-    [AllowAnonymous]
+    /// <summary>
+    /// Registro por email/password. Requiere autenticación: el alta de usuarios es una
+    /// función administrativa. NO acepta auto-asignación de roles/empresas desde este endpoint
+    /// (eso se hace por el flujo administrativo de usuarios). Defensa contra escalada de privilegios.
+    /// </summary>
+    [Authorize]
     [HttpPost("register")]
     [Consumes("application/json")]
     [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
@@ -177,6 +151,11 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterDto dto, CancellationToken ct = default)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+        // Anti-escalada de privilegios: este endpoint nunca asigna roles ni empresas
+        // controlados por el cliente. Se ignoran explícitamente.
+        dto.RoleIds = null;
+        dto.CompanyIds = Array.Empty<int>();
 
         try
         {
@@ -386,6 +365,69 @@ public class AuthController : ControllerBase
                 Message = "Ocurrió un error interno al procesar la solicitud. Por favor, intenta nuevamente más tarde.",
                 UserFound = false,
                 EmailSent = false
+            });
+        }
+    }
+
+    /// <summary>Valida y usa un token de restablecimiento de contraseña de un solo uso.</summary>
+    [AllowAnonymous]
+    [HttpPost("reset-password")]
+    [Consumes("application/json")]
+    [ProducesResponseType(typeof(ValidatePasswordResetTokenResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ResetPassword([FromBody] ValidatePasswordResetTokenDto dto, CancellationToken ct = default)
+    {
+        if (!ModelState.IsValid)
+        {
+            _logger.LogWarning("Validación fallida en /api/Auth/reset-password. Errores: {Errors}",
+                string.Join(", ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            var result = await _auth.ValidateAndUsePasswordResetTokenAsync(dto);
+
+            if (result.Success)
+            {
+                _logger.LogInformation("Restablecimiento de contraseña exitoso mediante token.");
+            }
+            else
+            {
+                _logger.LogWarning("Intento de restablecimiento de contraseña con token inválido o expirado.");
+            }
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Argumento inválido en /api/Auth/reset-password.");
+            return BadRequest(new ValidatePasswordResetTokenResponseDto
+            {
+                Success = false,
+                Message = "Los datos proporcionados no son válidos."
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Operación inválida en /api/Auth/reset-password.");
+            return BadRequest(new ValidatePasswordResetTokenResponseDto
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Error inesperado en /api/Auth/reset-password. ExceptionType: {ExceptionType}",
+                ex.GetType().Name);
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new ValidatePasswordResetTokenResponseDto
+            {
+                Success = false,
+                Message = "Ocurrió un error interno al procesar la solicitud. Por favor, intenta nuevamente más tarde."
             });
         }
     }

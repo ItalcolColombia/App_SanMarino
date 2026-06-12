@@ -89,25 +89,25 @@ export class ProfileComponent implements OnInit {
   ngOnInit(): void {
     this.storage.session$.subscribe(s => {
       if (!s?.user?.id) {
-        console.log('No session or user ID found:', s);
+        
         return;
       }
       this.userId = s.user.id;
-      console.log('User ID loaded:', this.userId);
+      
       this.loadUser();
     });
   }
 
   private loadUser() {
     if (!this.userId) {
-      console.log('No userId available for loading user data');
+      
       return;
     }
-    console.log('Loading user data for ID:', this.userId);
+    
     this.loading.set(true);
     this.profile.getById(this.userId).subscribe({
       next: (u) => {
-        console.log('User data loaded:', u);
+        
         this.infoForm.patchValue({
           firstName: u.firstName,
           surName:   u.surName,
@@ -142,12 +142,12 @@ export class ProfileComponent implements OnInit {
     };
     
     // Actualizar datos del usuario en el backend
-    console.log('🚀 Enviando datos al backend:', dto);
+    
     this.profile.update(this.userId, dto).subscribe({
       next: (updatedUser) => {
         this.loading.set(false);
         
-        console.log('✅ Backend respondió con usuario actualizado:', updatedUser);
+        
         
         // Actualizar solo los datos del usuario en el storage local
         this.storage.updateUserData({
@@ -155,7 +155,7 @@ export class ProfileComponent implements OnInit {
           surName: updatedUser.surName
         });
         
-        console.log('✅ Datos del usuario actualizados en el storage local');
+        
         this.showSuccessModal('Datos Actualizados', 'Tus datos personales han sido actualizados correctamente.');
       },
       error: (err) => {

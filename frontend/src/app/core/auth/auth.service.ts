@@ -35,22 +35,12 @@ export class AuthService {
       ),
       // 3. Desencriptar la respuesta del backend (puede ser grande con menús y datos)
       switchMap(encryptedResponse => {
-        console.log('🔐 Respuesta encriptada recibida, iniciando desencriptación...', encryptedResponse?.substring(0, 50) + '...');
+        
         return from(this.encryption.decryptFromBackend<LoginResult>(encryptedResponse));
       }),
       map(res => {
         // Debug completo del objeto recibido
         const rawRes = res as any;
-        console.log('✅ Datos desencriptados correctamente, procesando sesión...', {
-          allKeys: Object.keys(rawRes),
-          hasToken_camel: !!rawRes.token,
-          hasToken_Pascal: !!rawRes.Token,
-          tokenValue_camel: rawRes.token ? rawRes.token.substring(0, 30) + '...' : 'undefined',
-          tokenValue_Pascal: rawRes.Token ? rawRes.Token.substring(0, 30) + '...' : 'undefined',
-          hasMenu: !!(rawRes.menu || rawRes.Menu) && (rawRes.menu || rawRes.Menu)?.length > 0,
-          menuItems: (rawRes.menu || rawRes.Menu)?.length ?? 0,
-        });
-
         // Mapear campos del backend al formato esperado
         // El backend ahora envía en camelCase (configurado en EncryptionService)
         // Pero verificamos ambos casos por seguridad
@@ -96,19 +86,6 @@ export class AuthService {
           .map((cp: any) => cp.companyId || cp.CompanyId)
           .filter((id: any) => id != null && id !== undefined && id !== 0) as number[];
         const hasMultipleCompanies = companyIds.length > 1;
-
-        console.log('📋 Información de empresas extraída:', {
-          companyPaisesCount: companyPaises.length,
-          companyIds,
-          hasMultipleCompanies,
-          companyPaises: companyPaises.map((cp: any) => ({
-            companyId: cp.companyId || cp.CompanyId,
-            companyName: cp.companyName || cp.CompanyName,
-            paisId: cp.paisId || cp.PaisId,
-            paisNombre: cp.paisNombre || cp.PaisNombre,
-            isDefault: cp.isDefault || cp.IsDefault
-          }))
-        });
 
         // Calcular userId numérico desde el Guid (hash)
         let userIdNumeric: number | undefined;
@@ -164,25 +141,9 @@ export class AuthService {
           menu: menu,
           menusByRole: menusByRole
         };
-
-        console.log('💾 Guardando sesión en storage...', {
-          hasMenu: (session.menu?.length ?? 0) > 0,
-          hasRoles: (session.user.roles?.length ?? 0) > 0,
-          companyIds: session.companyIds,
-          activeCompanyId: session.activeCompanyId,
-          companyPaisesCount: session.companyPaises?.length ?? 0
-        });
-
         return session;
       }),
       tap(session => {
-        console.log('💾 Guardando sesión en storage...', {
-          hasToken: !!session.accessToken,
-          tokenLength: session.accessToken?.length ?? 0,
-          hasMenu: (session.menu?.length ?? 0) > 0,
-          hasRoles: (session.user.roles?.length ?? 0) > 0,
-          storageType: remember ? 'localStorage' : 'sessionStorage'
-        });
 
         this.storage.save(session, remember);
 
@@ -303,7 +264,7 @@ export class AuthService {
 
   // Carga el menú del usuario autenticado (separado del login, datos encriptados)
   loadMenu(companyId?: number) {
-    console.log('📋 Cargando menú del usuario...', { companyId });
+    
 
     const params = companyId ? new HttpParams().set('companyId', companyId.toString()) : undefined;
 
@@ -312,7 +273,7 @@ export class AuthService {
       responseType: 'text' // Recibimos texto plano encriptado
     }).pipe(
       switchMap(encryptedResponse => {
-        console.log('🔐 Menú encriptado recibido, iniciando desencriptación...');
+        
         return from(this.encryption.decryptFromBackend<{ menu: MenuItem[]; menusByRole: RoleMenusLite[] }>(encryptedResponse));
       }),
       tap(menuData => {
@@ -334,7 +295,7 @@ export class AuthService {
           const persistedInLocal = !!localStorage.getItem('auth_session');
           this.storage.save(updatedSession, persistedInLocal);
 
-          console.log('✅ Menú actualizado en la sesión');
+          
         } else {
           console.warn('⚠️ No hay sesión activa para actualizar el menú');
         }

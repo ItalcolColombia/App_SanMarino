@@ -80,7 +80,7 @@ export class UserManagementComponent implements OnInit {
   }
 
   onFarmsUpdated(): void {
-    console.log('Granjas actualizadas');
+    
   }
 
   openResetPasswordModal(user: UserListItem): void {
@@ -110,7 +110,7 @@ export class UserManagementComponent implements OnInit {
   }
 
   onUserSaved(user: UserListItem): void {
-    console.log('Usuario guardado:', user);
+    
     this.closeModal();
     // Aquí podrías emitir un evento para recargar la lista
   }

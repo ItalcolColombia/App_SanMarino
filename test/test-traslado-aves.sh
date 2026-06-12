@@ -66,7 +66,7 @@ async function testDisponibilidad(loteId = '13') {
       }
     });
     const data = await response.json();
-    console.log('📊 Disponibilidad del lote:', data);
+    
     return data;
   } catch (error) {
     console.error('❌ Error:', error);
@@ -83,7 +83,7 @@ async function testInventario(loteId = 13) {
       }
     });
     const data = await response.json();
-    console.log('📦 Inventario del lote:', data);
+    
     return data;
   } catch (error) {
     console.error('❌ Error:', error);
@@ -112,7 +112,7 @@ async function testCrearTrasladoVenta(loteId = '13', hembras = 10, machos = 5) {
       })
     });
     const data = await response.json();
-    console.log('✅ Traslado creado:', data);
+    
     return data;
   } catch (error) {
     console.error('❌ Error:', error);
@@ -129,7 +129,7 @@ async function testMovimientosLote(loteId = 13) {
       }
     });
     const data = await response.json();
-    console.log('📋 Movimientos del lote:', data);
+    
     return data;
   } catch (error) {
     console.error('❌ Error:', error);
@@ -138,71 +138,71 @@ async function testMovimientosLote(loteId = 13) {
 
 // 5. Flujo completo de prueba
 async function testFlujoCompleto(loteId = '13') {
-  console.log('🧪 Iniciando flujo completo de prueba...');
-  console.log('');
+  
+  
   
   // Paso 1: Consultar disponibilidad inicial
-  console.log('1️⃣ Consultando disponibilidad inicial...');
+  
   const disponibilidadInicial = await testDisponibilidad(loteId);
   if (!disponibilidadInicial) {
     console.error('❌ No se pudo obtener disponibilidad');
     return;
   }
-  console.log(`   Hembras disponibles: ${disponibilidadInicial.aves?.hembrasVivas || 0}`);
-  console.log(`   Machos disponibles: ${disponibilidadInicial.aves?.machosVivos || 0}`);
-  console.log('');
+  
+  
+  
   
   // Paso 2: Consultar inventario inicial
-  console.log('2️⃣ Consultando inventario inicial...');
+  
   const inventarioInicial = await testInventario(parseInt(loteId));
-  console.log('');
+  
   
   // Paso 3: Crear traslado
-  console.log('3️⃣ Creando traslado de prueba (10 hembras, 5 machos)...');
+  
   const traslado = await testCrearTrasladoVenta(loteId, 10, 5);
   if (!traslado) {
     console.error('❌ No se pudo crear el traslado');
     return;
   }
-  console.log(`   Movimiento ID: ${traslado.id}`);
-  console.log(`   Estado: ${traslado.estado}`);
-  console.log('');
+  
+  
+  
   
   // Esperar un momento para que se procese
-  console.log('⏳ Esperando 2 segundos para que se procese el movimiento...');
+  
   await new Promise(resolve => setTimeout(resolve, 2000));
-  console.log('');
+  
   
   // Paso 4: Consultar disponibilidad después del traslado
-  console.log('4️⃣ Consultando disponibilidad después del traslado...');
+  
   const disponibilidadFinal = await testDisponibilidad(loteId);
   if (disponibilidadFinal) {
-    console.log(`   Hembras disponibles: ${disponibilidadFinal.aves?.hembrasVivas || 0}`);
-    console.log(`   Machos disponibles: ${disponibilidadFinal.aves?.machosVivos || 0}`);
+    
+    
     
     // Verificar que se actualizó
     const hembrasReducidas = (disponibilidadInicial.aves?.hembrasVivas || 0) - (disponibilidadFinal.aves?.hembrasVivas || 0);
     const machosReducidos = (disponibilidadInicial.aves?.machosVivos || 0) - (disponibilidadFinal.aves?.machosVivos || 0);
     
     if (hembrasReducidas === 10 && machosReducidos === 5) {
-      console.log('✅ Disponibilidad actualizada correctamente');
+      
     } else {
-      console.log(`⚠️  Reducción esperada: H=10, M=5. Reducción real: H=${hembrasReducidas}, M=${machosReducidos}`);
+      
     }
   }
-  console.log('');
+  
   
   // Paso 5: Consultar inventario final
-  console.log('5️⃣ Consultando inventario final...');
+  
   const inventarioFinal = await testInventario(parseInt(loteId));
-  console.log('');
+  
   
   // Paso 6: Consultar movimientos
-  console.log('6️⃣ Consultando movimientos del lote...');
-  await testMovimientosLote(parseInt(loteId));
-  console.log('');
   
-  console.log('✅ Flujo completo de prueba finalizado');
+  await testMovimientosLote(parseInt(loteId));
+  
+  
+  
 }
 
 // Para ejecutar el flujo completo:

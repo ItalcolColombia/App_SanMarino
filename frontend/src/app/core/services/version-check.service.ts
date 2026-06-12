@@ -74,7 +74,7 @@ export class VersionCheckService {
       })
     ).subscribe(newVersion => {
       if (newVersion && this.currentVersion && newVersion !== this.currentVersion) {
-        console.log('New version detected! Current:', this.currentVersion, 'New:', newVersion);
+        
         this.handleNewVersion();
       } else if (newVersion && !this.currentVersion) {
         // First time, just store the version

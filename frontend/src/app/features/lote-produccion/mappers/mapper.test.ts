@@ -32,19 +32,19 @@ const mockFiltros: FiltrosVM = {
 // ==================== FUNCIONES DE PRUEBA ====================
 
 export function testMappers(): void {
-  console.log('🧪 Iniciando pruebas de mappers...');
+  
   
   // Prueba 1: Mapeo de filtros
-  console.log('\n1️⃣ Probando mapeo de filtros:');
+  
   const query = mapFiltrosVMToProduccionQuery(mockFiltros);
-  console.log('✅ Query generado:', query);
+  
   
   // Prueba 2: Mapeo de tabla
-  console.log('\n2️⃣ Probando mapeo de tabla:');
-  const tablaVM = mapProduccionToTablaVM(mockRegistros);
-  console.log('✅ Tabla VM generada:', tablaVM);
   
-  console.log('\n🎉 Pruebas completadas exitosamente!');
+  const tablaVM = mapProduccionToTablaVM(mockRegistros);
+  
+  
+  
 }
 
 // Función para ejecutar las pruebas desde la consola del navegador

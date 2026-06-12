@@ -929,7 +929,7 @@ Para volver a registrar el traslado tendrás que crearlo de nuevo desde el lote 
 
   exportarAnalisis(): void {
     // TODO: Implementar exportación de análisis
-    console.log('Exportar análisis');
+    
   }
 
   // =========== Traslado de Aves desde Seguimiento Diario (R3) ===========

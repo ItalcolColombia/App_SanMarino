@@ -298,7 +298,7 @@ export class MovimientosUnificadoFormComponent implements OnInit {
           reason: reason || '', 
           origin: origin || '' 
         };
-        console.log('Enviando entrada - farmId:', farmIdNum, 'payload:', payload);
+        
         request$ = this.invSvc.postEntry(farmIdNum, payload);
       } else {
         const payload = { 
@@ -310,7 +310,7 @@ export class MovimientosUnificadoFormComponent implements OnInit {
           reason: reason || '', 
           destination: destination || '' 
         };
-        console.log('Enviando salida - farmId:', farmIdNum, 'payload:', payload);
+        
         request$ = this.invSvc.postExit(farmIdNum, payload);
       }
     }

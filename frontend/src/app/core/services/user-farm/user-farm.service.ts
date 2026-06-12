@@ -73,8 +73,8 @@ export class UserFarmService {
 
   // Crear asociación usuario-granja (una sola granja)
   createUserFarm(dto: CreateUserFarmDto): Observable<UserFarmDto> {
-    console.log('UserFarmService - Enviando petición:', dto); // Debug log
-    console.log('UserFarmService - URL:', `${this.apiUrl}`); // Debug log
+     // Debug log
+     // Debug log
     
     return this.http.post<UserFarmDto>(`${this.apiUrl}`, dto);
   }

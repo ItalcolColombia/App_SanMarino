@@ -143,13 +143,13 @@ export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {
       IsDefault: this.userFarms.length === 0 // Primera granja es default
     };
 
-    console.log('Enviando petición para asignar granja:', dto); // Debug log
+     // Debug log
 
     this.userFarmService.createUserFarm(dto)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (newUserFarm) => {
-          console.log('Granja asignada exitosamente:', newUserFarm); // Debug log
+           // Debug log
           this.userFarms.push(newUserFarm);
           this.saving = false;
           this.granjasUpdated.emit();

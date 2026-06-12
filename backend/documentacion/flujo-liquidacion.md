@@ -314,9 +314,9 @@ async function calcularLiquidacionEstandar(loteId) {
         const liquidacion = await response.json();
         
         // 3. Procesar resultados
-        console.log(`Lote: ${liquidacion.loteNombre}`);
-        console.log(`Retiro Total: ${liquidacion.porcentajeRetiroTotalGeneral.toFixed(2)}%`);
-        console.log(`Diferencia Peso H: ${liquidacion.porcentajeDiferenciaPesoHembras?.toFixed(2)}%`);
+        
+        
+        
         
         return liquidacion;
         

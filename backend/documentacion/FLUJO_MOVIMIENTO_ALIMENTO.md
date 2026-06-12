@@ -296,7 +296,7 @@ const payload: InventoryEntryRequest = {
 
 this.inventarioService.postEntry(farmId, payload).subscribe({
   next: (movement) => {
-    console.log('Movimiento registrado:', movement);
+    
   },
   error: (err) => {
     console.error('Error:', err);

@@ -371,7 +371,7 @@ const response = await fetch('/api/LiquidacionTecnica/L001', {
 });
 
 const liquidacion = await response.json();
-console.log(`Retiro total: ${liquidacion.porcentajeRetiroTotalGeneral}%`);
+
 ```
 
 ### Caso 2: Validación Antes de Calcular

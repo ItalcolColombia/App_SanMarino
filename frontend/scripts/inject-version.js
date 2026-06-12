@@ -26,7 +26,7 @@ try {
   if (content.includes(placeholder)) {
     content = content.replace(placeholder, timestamp);
     fs.writeFileSync(indexPath, content, 'utf8');
-    console.log(`✓ Version timestamp injected: ${timestamp}`);
+    
   } else {
     console.warn(`Warning: Placeholder "${placeholder}" not found in index.html`);
   }

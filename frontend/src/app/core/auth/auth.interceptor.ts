@@ -14,11 +14,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next: HttpHandlerFn) => 
 
   // Debug log para verificar el token
   if (req.url.includes('/userfarm/') || req.url.includes('/Company')) {
-    console.log('AuthInterceptor - URL:', req.url);
-    console.log('AuthInterceptor - Token presente:', token ? 'SÍ' : 'NO');
-    console.log('AuthInterceptor - Empresa activa:', session?.activeCompany || 'Ninguna');
+    
+    
+    
     if (token) {
-      console.log('AuthInterceptor - Token:', token.substring(0, 50) + '...');
+      
     }
   }
 

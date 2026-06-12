@@ -317,7 +317,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     // Este endpoint calcula las aves actuales desde los registros diarios
     this.movimientosService.getInformacionLote(loteId).subscribe({
       next: (info) => {
-        console.log('Información del lote cargada:', info);
+        
         this.informacionLote.set(info);
         this.loadingInfo.set(false);
         
@@ -363,7 +363,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   private cargarUltimoNumeroDespacho(): void {
     this.movimientosService.getUltimoNumeroDespacho().subscribe({
       next: (response) => {
-        console.log('Respuesta último número de despacho:', response);
+        
         const siguienteNumero = response.siguienteNumero || response.ultimoId || 1;
         const numeroDespachoControl = this.formMovimiento.get('numeroDespacho');
         if (numeroDespachoControl) {
@@ -632,10 +632,10 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   }
 
   onSubmitMovimiento(): void {
-    console.log('=== onSubmitMovimiento llamado ===');
-    console.log('Form válido:', this.formMovimiento.valid);
-    console.log('Form errors:', this.formMovimiento.errors);
-    console.log('Form value:', this.formMovimiento.value);
+    
+    
+    
+    
     
     if (this.formMovimiento.invalid) {
       console.error('❌ Formulario inválido');
@@ -646,7 +646,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
 
     // Mostrar modal de confirmación antes de guardar
     const isEdit = this.editingMovimiento && this.isEditMode();
-    console.log('Mostrando modal de confirmación. isEdit:', isEdit);
+    
     this.confirmationModalData.set({
       title: isEdit ? 'Confirmar Actualización' : 'Confirmar Creación',
       message: isEdit 
@@ -659,13 +659,13 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     });
     this.isConfirmingSave.set(true);
     this.showConfirmationModal.set(true);
-    console.log('Modal de confirmación abierto. showConfirmationModal:', this.showConfirmationModal());
+    
   }
 
   onConfirmSave(): void {
-    console.log('=== onConfirmSave llamado ===');
-    console.log('isConfirmingSave:', this.isConfirmingSave());
-    console.log('showConfirmationModal:', this.showConfirmationModal());
+    
+    
+    
     console.trace('Stack trace de onConfirmSave');
     
     const wasConfirming = this.isConfirmingSave();
@@ -674,20 +674,20 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     this.showConfirmationModal.set(false);
     this.isConfirmingSave.set(false);
     
-    console.log('Modal cerrado. wasConfirming:', wasConfirming);
+    
     
     if (!wasConfirming) {
-      console.log('ℹ️ No es confirmación de guardado, cerrando modal');
+      
       this.onConfirmationModalClose();
       return;
     }
     
     // Ejecutar el guardado inmediatamente
-    console.log('✅ Ejecutando guardado...');
-    console.log('Llamando a executeSave()...');
+    
+    
     try {
       this.executeSave();
-      console.log('executeSave() llamado exitosamente');
+      
     } catch (error) {
       console.error('❌ Error al ejecutar executeSave():', error);
       this.loading.set(false);
@@ -696,7 +696,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   }
 
   onCancelSave(): void {
-    console.log('=== onCancelSave llamado ===');
+    
     this.showConfirmationModal.set(false);
     this.isConfirmingSave.set(false);
   }
@@ -707,9 +707,9 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
   }
 
   private executeSave(): void {
-    console.log('=== executeSave llamado ===');
-    console.log('loteId:', this.loteId);
-    console.log('informacionLote:', this.informacionLote());
+    
+    
+    
     
     // Validaciones
     if (!this.editingMovimiento && !this.loteId) {
@@ -730,7 +730,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
     this.success.set(null);
 
     const formValue = this.formMovimiento.getRawValue(); // Usar getRawValue() para obtener valores de campos disabled
-    console.log('Form value (getRawValue):', formValue);
+    
     const fechaMovimiento = typeof formValue.fechaMovimiento === 'string'
       ? new Date(formValue.fechaMovimiento)
       : (formValue.fechaMovimiento instanceof Date ? formValue.fechaMovimiento : new Date());
@@ -766,7 +766,7 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
 
       this.movimientosService.actualizarMovimientoAves(this.editingMovimiento.id, dto).subscribe({
         next: (movimiento) => {
-          console.log('✅ Movimiento actualizado exitosamente:', movimiento);
+          
           this.loading.set(false);
           this.showSuccessMessage(`Movimiento ${movimiento.numeroMovimiento} actualizado exitosamente`);
           this.save.emit(movimiento);
@@ -833,13 +833,13 @@ export class ModalMovimientoAvesComponent implements OnInit, OnChanges {
         return;
       }
       
-      console.log('✅ Validaciones del DTO pasadas, enviando al servicio...');
-      console.log('DTO completo a enviar:', JSON.stringify(dto, null, 2));
-      console.log('URL del servicio:', 'POST /api/MovimientoAves');
+      
+      
+      
       
       this.movimientosService.crearMovimientoAves(dto).subscribe({
         next: (movimiento) => {
-          console.log('✅ Movimiento creado exitosamente:', movimiento);
+          
           this.loading.set(false);
           const tipoMovimiento = formValue.tipoMovimiento?.toLowerCase().includes('venta') ? 'Venta' : 'Traslado';
           this.showSuccessMessage(`${tipoMovimiento} creado exitosamente. Número: ${movimiento.numeroMovimiento}`);
