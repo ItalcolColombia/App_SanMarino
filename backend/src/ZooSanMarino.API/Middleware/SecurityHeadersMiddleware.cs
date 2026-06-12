@@ -69,12 +69,8 @@ public class SecurityHeadersMiddleware
         response.Headers["Permissions-Policy"] = 
             "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=()";
 
-        // Rate Limiting Headers (informativos)
-        // Estos headers informan al cliente sobre los límites de rate limiting
-        // Los valores reales se configuran en el middleware de rate limiting
-        response.Headers["X-RateLimit-Limit"] = "100";
-        response.Headers["X-RateLimit-Remaining"] = "99";
-        response.Headers["X-RateLimit-Reset"] = DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds().ToString();
+        // NOTA: Los headers X-RateLimit-* los emite el rate limiter real (AddRateLimiter en Program.cs).
+        // Antes se enviaban valores fijos (100/99) que daban una falsa sensación de protección; se eliminaron.
 
         // Prevenir que el navegador cachee respuestas sensibles
         // (se puede sobrescribir en endpoints específicos si es necesario)

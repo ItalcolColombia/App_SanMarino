@@ -9,6 +9,7 @@ namespace ZooSanMarino.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // Gestión de usuarios: requiere sesión válida (antes quedaba accesible de forma anónima).
 public class UsersController : ControllerBase
 {
     private readonly IAuthService _auth;

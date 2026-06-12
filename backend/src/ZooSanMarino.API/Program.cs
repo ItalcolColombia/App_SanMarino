@@ -356,53 +356,38 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
         opts.Events = new JwtBearerEvents
         {
+            // No se loguean tokens ni el header Authorization (evita filtrar credenciales).
             OnMessageReceived = ctx =>
             {
-                Console.WriteLine($"=== JWT OnMessageReceived ===");
-                Console.WriteLine($"Request Method: {ctx.Request.Method}");
-                Console.WriteLine($"Request Path: {ctx.Request.Path}");
-                Console.WriteLine($"Authorization Header: {ctx.Request.Headers.Authorization}");
-                Console.WriteLine($"Token: {ctx.Token}");
-                
-                if (HttpMethods.IsOptions(ctx.Request.Method)) 
-                {
-                    Console.WriteLine("OPTIONS request - NoResult()");
+                // El preflight CORS (OPTIONS) no lleva token: no intentar autenticarlo.
+                if (HttpMethods.IsOptions(ctx.Request.Method))
                     ctx.NoResult();
-                }
-                else
-                {
-                    Console.WriteLine("Non-OPTIONS request - continuing");
-                }
-                
-                Console.WriteLine($"=== END JWT OnMessageReceived ===");
-                return Task.CompletedTask;
-            },
-            OnAuthenticationFailed = ctx =>
-            {
-                Console.WriteLine($"=== JWT OnAuthenticationFailed ===");
-                Console.WriteLine($"Exception: {ctx.Exception?.Message}");
-                Console.WriteLine($"Request Path: {ctx.Request.Path}");
-                Console.WriteLine($"=== END JWT OnAuthenticationFailed ===");
                 return Task.CompletedTask;
             }
         };
     });
 
 // ─────────────────────────────────────
-// 11) Authorization (allow-all + provider permisivo)
+// 11) Authorization (deny-by-default)
 // ─────────────────────────────────────
+// Antes existía un "allow-all" (DefaultPolicy/FallbackPolicy => true + AllowAllPolicyProvider)
+// que hacía que [Authorize] y [Authorize(Policy=...)] dejaran pasar a CUALQUIERA (incluso anónimos).
+// Ahora:
+//   - DefaultPolicy = RequireAuthenticatedUser (default del framework): [Authorize] exige token válido.
+//   - FallbackPolicy = RequireAuthenticatedUser: endpoints sin atributo también exigen sesión,
+//     salvo los marcados explícitamente con [AllowAnonymous] / .AllowAnonymous().
 builder.Services.AddAuthorization(opt =>
 {
-    var allowAll = new AuthorizationPolicyBuilder()
-        .RequireAssertion(_ => true)
+    opt.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
         .Build();
 
-    opt.DefaultPolicy  = allowAll;   // [Authorize] sin política
-    opt.FallbackPolicy = allowAll;   // endpoints sin atributo
+    // Políticas con nombre usadas por los controllers (Menu/Role/...). Antes las "resolvía"
+    // el AllowAllPolicyProvider dejándolas pasar; ahora exigen, como mínimo, usuario autenticado.
+    // TODO(seguridad): endurecer a permisos específicos (claim "permission") por política.
+    foreach (var policyName in new[] { "CanManageMenus", "CanManageUsers", "CanManageRoles" })
+        opt.AddPolicy(policyName, p => p.RequireAuthenticatedUser());
 });
-
-// Vital: este provider hace que CUALQUIER [Authorize(Policy="...")] también permita pasar
-builder.Services.AddSingleton<IAuthorizationPolicyProvider, AllowAllPolicyProvider>();
 
 // ─────────────────────────────────────
 // 12) Swagger + Bearer + CustomSchemaIds + Descarga JSON
@@ -548,15 +533,16 @@ app.UseCors("AppCors");
 app.UseSecurityHeaders();
 
 // 2. Rate Limiting (proteger contra DDoS y fuerza bruta)
-// DESHABILITADO: Comentado para permitir peticiones sin límites
-// app.UseRateLimiting();
+app.UseRateLimiting();
 
 // 3. Validar SECRET_UP después de CORS pero antes de Authentication/Authorization
 // El middleware ya maneja OPTIONS requests internamente
 app.UsePlatformSecret();
 
-// 14.1 CSS para tema oscuro de Swagger UI (sin archivos estáticos)
-const string swaggerDarkCss = """
+// 14.1-14.4 Swagger y UI: SOLO fuera de producción
+if (!app.Environment.IsProduction())
+{
+    const string swaggerDarkCss = """
 :root {
   --swagger-font-size: 14px;
 }
@@ -573,94 +559,79 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
 .swagger-ui .response-control-media-type__accept-message { color:#9ca3af; }
 .swagger-ui .opblock-tag { background:#0b1220; border:1px solid #1f2937; border-radius:6px; padding:8px 12px; }
 """;
-app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"));
+    app.MapGet("/swagger-ui/dark.css", () => Results.Text(swaggerDarkCss, "text/css"));
 
-// 14.2 Endpoint de login para Swagger (DEBE ir ANTES del middleware)
-app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config) =>
-{
-    var form = await context.Request.ReadFormAsync();
-    var password = form["password"].ToString();
-    var expectedPassword = config["Swagger:Password"] ?? "Swagger2024!SanMarino#API";
-    var cookieName = config["Swagger:SessionCookieName"] ?? "SwaggerAuth";
-
-    if (password == expectedPassword)
+    app.MapPost("/swagger/login", async (HttpContext context, IConfiguration config) =>
     {
-        // Detectar HTTPS vía proxy
-        var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
-        var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
-        var isSecure = context.Request.IsHttps || isHttpsViaProxy;
-        
-        // Crear cookie de autenticación
-        var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(
-            System.Text.Encoding.UTF8.GetBytes(expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
-        var hashString = Convert.ToBase64String(hash);
-        
-        var cookieOptions = new CookieOptions
+        var form = await context.Request.ReadFormAsync();
+        var password = form["password"].ToString();
+        var expectedPassword = config["Swagger:Password"] ?? "Swagger2024!SanMarino#API";
+        var cookieName = config["Swagger:SessionCookieName"] ?? "SwaggerAuth";
+
+        if (password == expectedPassword)
         {
-            HttpOnly = true, // Previene acceso desde JavaScript (protección XSS)
-            Secure = isSecure, // true en producción con HTTPS
-            SameSite = SameSiteMode.Strict, // Más estricto para cookies de autenticación
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6), // 6 minutos de sesión con renovación automática
-            Path = "/" // Aplicar a todo el sitio
-        };
+            var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+            var isHttpsViaProxy = string.Equals(forwardedProto, "https", StringComparison.OrdinalIgnoreCase);
+            var isSecure = context.Request.IsHttps || isHttpsViaProxy;
 
-        context.Response.Cookies.Append(cookieName, hashString, cookieOptions);
+            var hash = System.Security.Cryptography.SHA256.Create().ComputeHash(
+                System.Text.Encoding.UTF8.GetBytes(expectedPassword + context.Connection.RemoteIpAddress?.ToString()));
+            var hashString = Convert.ToBase64String(hash);
 
-        // Crear cookie de última actividad para tracking de inactividad
-        var lastActivityKey = $"{cookieName}_LastActivity";
-        var lastActivityOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = isSecure, // Debe ser Secure también
-            SameSite = SameSiteMode.Strict, // Más estricto para cookies de sesión
-            Expires = DateTimeOffset.UtcNow.AddMinutes(6),
-            Path = "/"
-        };
-        context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
-        context.Response.Redirect("/swagger");
-        return;
-    }
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = isSecure,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddMinutes(6),
+                Path = "/"
+            };
 
-    // Contraseña incorrecta - redirigir a login con error
-    context.Response.Redirect("/swagger?error=Contraseña incorrecta");
-});
+            context.Response.Cookies.Append(cookieName, hashString, cookieOptions);
 
-// 14.2.1 Protección de Swagger con contraseña (DEBE ir ANTES de UseSwagger)
-app.UseMiddleware<SwaggerPasswordMiddleware>();
+            var lastActivityKey = $"{cookieName}_LastActivity";
+            var lastActivityOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = isSecure,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddMinutes(6),
+                Path = "/"
+            };
+            context.Response.Cookies.Append(lastActivityKey, DateTime.UtcNow.ToString("O"), lastActivityOptions);
+            context.Response.Redirect("/swagger");
+            return;
+        }
 
-// 14.3 Swagger JSON como descarga forzada (protegido por middleware)
-app.MapGet("/swagger/download", (ISwaggerProvider provider) =>
-{
-    var doc = provider.GetSwagger("v1");
-    using var sw = new StringWriter();
-    var w = new Microsoft.OpenApi.Writers.OpenApiJsonWriter(sw);
-    doc.SerializeAsV3(w);
-    var bytes = Encoding.UTF8.GetBytes(sw.ToString());
-    return Results.File(bytes, "application/json", "swagger-v1.json");
-});
+        context.Response.Redirect("/swagger?error=Contraseña incorrecta");
+    });
 
-// 14.4 Swagger y UI (protegido por middleware)
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    // Documento principal
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "ItalGranja API v1");
+    app.UseMiddleware<SwaggerPasswordMiddleware>();
 
-    // UI
-    c.DocumentTitle = "ItalGranja — API Docs";
-    c.DisplayRequestDuration();
-    c.EnableFilter();                 // caja de búsqueda/filtrado
-    c.EnableDeepLinking();            // anclas navegables
-    c.DefaultModelExpandDepth(1);     // menos ruido en modelos
-    c.DefaultModelsExpandDepth(-1);   // oculta la sección "Schemas" por defecto
-    c.DocExpansion(DocExpansion.List);
+    app.MapGet("/swagger/download", (ISwaggerProvider provider) =>
+    {
+        var doc = provider.GetSwagger("v1");
+        using var sw = new StringWriter();
+        var w = new Microsoft.OpenApi.Writers.OpenApiJsonWriter(sw);
+        doc.SerializeAsV3(w);
+        var bytes = Encoding.UTF8.GetBytes(sw.ToString());
+        return Results.File(bytes, "application/json", "swagger-v1.json");
+    });
 
-    // Tema oscuro
-    c.InjectStylesheet("/swagger-ui/dark.css");
-
-    // (Opcional) Ruta: deja /swagger como UI
-    // c.RoutePrefix = string.Empty; // si quieres la UI en "/"
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "ItalGranja API v1");
+        c.DocumentTitle = "ItalGranja — API Docs";
+        c.DisplayRequestDuration();
+        c.EnableFilter();
+        c.EnableDeepLinking();
+        c.DefaultModelExpandDepth(1);
+        c.DefaultModelsExpandDepth(-1);
+        c.DocExpansion(DocExpansion.List);
+        c.InjectStylesheet("/swagger-ui/dark.css");
+    });
+}
 
 // Routing, CORS y SECRET_UP ya fueron configurados arriba (líneas 350-357)
 
@@ -671,40 +642,42 @@ app.UseMiddleware<ZooSanMarino.API.Infrastructure.ActiveCompanyMiddleware>();
 
 app.UseAuthorization();
 
-// Health
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-app.MapHealthChecks("/hc");
+// Health (público: lo consume el health check de ECS/ALB — NO debe requerir auth)
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+app.MapHealthChecks("/hc").AllowAnonymous();
 
-// Debug JWT
-app.MapGet("/debug/jwt", (IOptions<JwtOptions> opt) =>
+// Debug endpoints: SOLO fuera de producción (filtran configuración del backend: JWT, connection string).
+if (!app.Environment.IsProduction())
 {
-    var o = opt.Value;
-    string Mask(string s) => string.IsNullOrEmpty(s) ? "" : $"{s[..Math.Min(4, s.Length)]}***{s[^Math.Min(4, s.Length)..]}";
-    return Results.Ok(new
+    app.MapGet("/debug/jwt", (IOptions<JwtOptions> opt) =>
     {
-        Issuer = o.Issuer,
-        Audience = o.Audience,
-        Duration = o.DurationInMinutes,
-        KeyMasked = Mask(o.Key ?? ""),
-        KeyLength = o.Key?.Length ?? 0
-    });
-});
+        var o = opt.Value;
+        string Mask(string s) => string.IsNullOrEmpty(s) ? "" : $"{s[..Math.Min(4, s.Length)]}***{s[^Math.Min(4, s.Length)..]}";
+        return Results.Ok(new
+        {
+            Issuer = o.Issuer,
+            Audience = o.Audience,
+            Duration = o.DurationInMinutes,
+            KeyMasked = Mask(o.Key ?? ""),
+            KeyLength = o.Key?.Length ?? 0
+        });
+    }).AllowAnonymous();
 
-// Debug ConnectionString
-app.MapGet("/debug/config/conn", (IConfiguration cfg) =>
-{
-    var raw = cfg.GetConnectionString("ZooSanMarinoContext")
-           ?? cfg["ConnectionStrings:ZooSanMarinoContext"]
-           ?? cfg["ZOO_CONN"];
+    app.MapGet("/debug/config/conn", (IConfiguration cfg) =>
+    {
+        var raw = cfg.GetConnectionString("ZooSanMarinoContext")
+               ?? cfg["ConnectionStrings:ZooSanMarinoContext"]
+               ?? cfg["ZOO_CONN"];
 
-    var safe = string.IsNullOrEmpty(raw)
-        ? ""
-        : Regex.Replace(raw, "(Password=)([^;]+)", "$1******", RegexOptions.IgnoreCase);
+        var safe = string.IsNullOrEmpty(raw)
+            ? ""
+            : Regex.Replace(raw, "(Password=)([^;]+)", "$1******", RegexOptions.IgnoreCase);
 
-    return Results.Ok(new { ConnectionString = safe });
-});
+        return Results.Ok(new { ConnectionString = safe });
+    }).AllowAnonymous();
+}
 
-// Ping DB
+// Ping DB (público para monitoreo; no revela el detalle del error al cliente)
 app.MapGet("/db-ping", async (ZooSanMarinoContext ctx) =>
 {
     try
@@ -713,11 +686,11 @@ app.MapGet("/db-ping", async (ZooSanMarinoContext ctx) =>
         await ctx.Database.CloseConnectionAsync();
         return Results.Ok(new { status = "ok", db = "reachable" });
     }
-    catch (Exception ex)
+    catch
     {
-        return Results.Problem($"DB unreachable: {ex.Message}");
+        return Results.Problem("DB unreachable");
     }
-});
+}).AllowAnonymous();
 
 // Endpoints de seguridad estándar
 // security.txt - RFC 9116
@@ -731,7 +704,7 @@ Policy: https://example.com/security-policy
 
 # Nota: Actualizar con información de contacto real de seguridad";
     return Results.Text(securityTxt, "text/plain");
-});
+}).AllowAnonymous();
 
 // robots.txt
 app.MapGet("/robots.txt", () =>

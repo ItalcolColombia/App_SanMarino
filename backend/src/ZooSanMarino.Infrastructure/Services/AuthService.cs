@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/AuthService.cs
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,10 @@ public class AuthService : IAuthService
     private readonly JwtOptions _jwt;
     private readonly IRoleCompositeService _acl; // ← reemplaza a IMenuService
     private readonly IEmailService _emailService;
+
+    // Respuesta única para recuperación de contraseña: no revela si el correo existe (anti-enumeración).
+    private const string NeutralRecoveryMessage =
+        "Si el correo está registrado, recibirás un mensaje con instrucciones para restablecer tu contraseña.";
 
     public AuthService(
         ZooSanMarinoContext ctx,
@@ -134,8 +139,24 @@ public class AuthService : IAuthService
 
         var user = userLogin.User;
 
-        if (!user.IsActive || user.IsLocked || userLogin.IsLockedByAdmin)
+        // Bloqueo administrativo o cuenta inactiva: siempre cerrado.
+        if (!user.IsActive || userLogin.IsLockedByAdmin)
             throw new InvalidOperationException("El usuario está bloqueado");
+
+        // Bloqueo por intentos fallidos: TEMPORAL. Se auto-desbloquea tras LockoutMinutes
+        // para no convertir el login en un vector de DoS de cuenta.
+        const int LockoutMinutes = 15;
+        if (user.IsLocked)
+        {
+            var lockedSince = user.LockedAt ?? DateTime.UtcNow;
+            if (DateTime.UtcNow - lockedSince < TimeSpan.FromMinutes(LockoutMinutes))
+                throw new InvalidOperationException("El usuario está bloqueado temporalmente. Intenta más tarde.");
+
+            // Expiró el bloqueo → reabrir e iniciar de cero.
+            user.IsLocked = false;
+            user.LockedAt = null;
+            user.FailedAttempts = 0;
+        }
 
         var result = _hasher.VerifyHashedPassword(login, login.PasswordHash, dto.Password);
         if (result == PasswordVerificationResult.Failed)
@@ -170,8 +191,8 @@ public class AuthService : IAuthService
         if (check == PasswordVerificationResult.Failed)
             throw new InvalidOperationException("Contraseña actual inválida");
 
-        if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < 6)
-            throw new InvalidOperationException("La nueva contraseña debe tener al menos 6 caracteres");
+        if (string.IsNullOrWhiteSpace(dto.NewPassword) || dto.NewPassword.Length < 8)
+            throw new InvalidOperationException("La nueva contraseña debe tener al menos 8 caracteres");
 
         login.PasswordHash = _hasher.HashPassword(login, dto.NewPassword);
         await _ctx.SaveChangesAsync();
@@ -333,13 +354,6 @@ public class AuthService : IAuthService
         }
     }
 
-    // Log para verificación de CompanyIds y países
-    var companyIds = companyPaisesList.Select(cp => cp.CompanyId).Distinct().ToList();
-    Console.WriteLine($"=== AuthService.GenerateResponseAsync - Usuario {user.Id} ===");
-    Console.WriteLine($"Empresas asignadas: {userCompanies.Count}");
-    Console.WriteLine($"CompanyIds: {string.Join(", ", companyIds)}");
-    Console.WriteLine($"CompanyPaises: {string.Join(", ", companyPaisesList.Select(cp => $"CompanyID:{cp.CompanyId}, CompanyName:{cp.CompanyName}, PaisID:{cp.PaisId}, PaisNombre:{cp.PaisNombre}"))}");
-
     return new AuthResponseDto
     {
         Username = login.email,
@@ -496,41 +510,17 @@ public class AuthService : IAuthService
                 .Include(l => l.UserLogins).ThenInclude(ul => ul.User)
                 .FirstOrDefaultAsync(l => l.email == dto.Email && !l.IsDeleted);
 
-            if (login == null)
+            // Anti-enumeración: NO revelar si el correo existe, si el usuario está
+            // inactivo, etc. En todos esos casos devolvemos la misma respuesta neutra
+            // que en el camino feliz para que un atacante no pueda distinguir cuentas.
+            var user = login?.UserLogins.FirstOrDefault()?.User;
+            if (login == null || user == null || !user.IsActive)
             {
-                // No loguear el email completo por seguridad, solo los primeros caracteres
-                var emailMask = dto.Email.Length > 5 
-                    ? dto.Email.Substring(0, 5) + "***" 
-                    : "***";
-                
                 return new PasswordRecoveryResponseDto
                 {
-                    Success = false,
-                    Message = "No se encontró un usuario con ese correo electrónico. Verifica que el correo esté correcto.",
+                    Success = true,
+                    Message = NeutralRecoveryMessage,
                     UserFound = false,
-                    EmailSent = false
-                };
-            }
-
-            var user = login.UserLogins.FirstOrDefault()?.User;
-            if (user == null)
-            {
-                return new PasswordRecoveryResponseDto
-                {
-                    Success = false,
-                    Message = "El usuario asociado a este correo no existe en el sistema.",
-                    UserFound = true,
-                    EmailSent = false
-                };
-            }
-
-            if (!user.IsActive)
-            {
-                return new PasswordRecoveryResponseDto
-                {
-                    Success = false,
-                    Message = "Tu cuenta está inactiva. Contacta al administrador para reactivarla.",
-                    UserFound = true,
                     EmailSent = false
                 };
             }
@@ -547,53 +537,33 @@ public class AuthService : IAuthService
             }
             catch (DbUpdateException dbEx)
             {
-                throw new InvalidOperationException(
-                    $"Error al actualizar la contraseña en la base de datos: {dbEx.Message}", 
-                    dbEx);
+                // No exponer detalle de BD al cliente; el inner se conserva para los logs.
+                throw new InvalidOperationException("No se pudo procesar la solicitud.", dbEx);
             }
 
-            // Enviar email con la nueva contraseña (asíncrono, no bloquea)
-            int? emailQueueId = null;
-            bool emailQueued = false;
-            string? emailError = null;
-            
+            // Enviar email con la nueva contraseña (asíncrono, no bloquea).
+            // No fallar el flujo si el correo falla: la contraseña ya fue actualizada.
             try
             {
                 var userName = $"{user.firstName} {user.surName}".Trim();
                 if (string.IsNullOrWhiteSpace(userName))
                     userName = null;
 
-                // Agregar correo a la cola (no bloquea, se procesará en segundo plano)
-                emailQueueId = await _emailService.SendPasswordRecoveryEmailAsync(
-                    dto.Email,
-                    newPassword,
-                    userName
-                );
-                
-                emailQueued = emailQueueId.HasValue;
+                await _emailService.SendPasswordRecoveryEmailAsync(dto.Email, newPassword, userName);
             }
-            catch (Exception emailEx)
+            catch (Exception)
             {
-                // Log del error pero no fallar - la contraseña ya fue generada y actualizada
-                // El error se registra en EmailService, pero capturamos aquí para tener contexto
-                emailError = emailEx.Message;
-                // No lanzamos excepción porque la contraseña ya fue actualizada exitosamente
+                // El error de envío se registra en EmailService; aquí se ignora deliberadamente.
             }
 
-            // Siempre retornar éxito si se generó la contraseña (el correo se procesará en segundo plano)
-            var message = emailQueued 
-                ? "Se ha generado una nueva contraseña y se ha agregado a la cola de envío. Recibirás el correo en breve. Por favor, revisa tu bandeja de entrada y tu carpeta de spam."
-                : emailError != null
-                    ? $"Se ha generado una nueva contraseña. Hubo un problema al agregar el correo a la cola de envío. Contacta al administrador con el código de error: EMAIL_QUEUE_ERROR"
-                    : "Se ha generado una nueva contraseña. El correo se procesará en segundo plano. Si no lo recibes en unos minutos, contacta al administrador.";
-
+            // Respuesta neutra e idéntica al caso "no encontrado" para no filtrar la existencia
+            // de la cuenta (anti-enumeración). El detalle real queda solo en logs internos.
             return new PasswordRecoveryResponseDto
             {
                 Success = true,
-                Message = message,
-                UserFound = true,
-                EmailSent = emailQueued,
-                EmailQueueId = emailQueueId
+                Message = NeutralRecoveryMessage,
+                UserFound = false,
+                EmailSent = false
             };
         }
         catch (ArgumentException)
@@ -606,30 +576,20 @@ public class AuthService : IAuthService
         }
         catch (DbUpdateException dbEx)
         {
-            throw new InvalidOperationException(
-                $"Error de base de datos al recuperar contraseña: {dbEx.Message}. " +
-                $"InnerException: {dbEx.InnerException?.Message}", 
-                dbEx);
+            // Detalle (incl. inner/stacktrace) se conserva en el objeto para los logs internos,
+            // pero el mensaje devuelto al cliente es genérico.
+            throw new InvalidOperationException("No se pudo procesar la solicitud.", dbEx);
         }
         catch (Exception ex)
         {
-            var stackTrace = ex.StackTrace ?? string.Empty;
-            var stackTracePreview = stackTrace.Length > 500 
-                ? stackTrace.Substring(0, 500) + "..." 
-                : stackTrace;
-            
-            throw new InvalidOperationException(
-                $"Error inesperado al recuperar contraseña: {ex.Message}. " +
-                $"Tipo: {ex.GetType().Name}. " +
-                $"StackTrace: {stackTracePreview}", 
-                ex);
+            throw new InvalidOperationException("No se pudo procesar la solicitud.", ex);
         }
     }
 
     public async Task<AdminResetPasswordResponseDto> AdminResetPasswordAsync(Guid userId, string newPassword)
     {
-        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 6)
-            throw new InvalidOperationException("La nueva contraseña debe tener al menos 6 caracteres");
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+            throw new InvalidOperationException("La nueva contraseña debe tener al menos 8 caracteres");
 
         var loginData = await _ctx.UserLogins
             .Include(ul => ul.Login)
@@ -674,11 +634,13 @@ public class AuthService : IAuthService
         };
     }
 
-    private string GenerateRandomPassword(int length = 12)
+    private static string GenerateRandomPassword(int length = 16)
     {
+        // CSPRNG (no System.Random, que es predecible).
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-        var random = new Random();
-        return new string(Enumerable.Repeat(chars, length)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
+        var buffer = new char[length];
+        for (int i = 0; i < length; i++)
+            buffer[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
+        return new string(buffer);
     }
 }
