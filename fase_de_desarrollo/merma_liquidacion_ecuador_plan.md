@@ -103,6 +103,28 @@ Archivo: `Funciones/MovimientoPolloEngordeService.OrganizarPeso.cs`.
 - **Dry-run:** mantener; agregar por grupo `KgAntes` (suma peso_neto actual) vs `KgDespues`
   para ver el sobreconteo que se corrige.
 
+### 2.4-bis HALLAZGO en la auditoría de datos (2026-06-11) — cambió el diseño de 2.4
+
+Al cruzar el plan contra la copia local de prod aparecieron **tres** poblaciones, no una:
+
+1. **Clon global** (43 grupos): líneas con el MISMO bruto/tara (camión clonado). Casi todas ya
+   prorrateadas correctamente; 2 grupos (`143·granja 43`, `311·granja 42`) tienen netos
+   prorrateados contra OTRO global ≠ bruto−tara (datos contradictorios) → revisión manual.
+2. **Peso por línea** (45+ grupos): cada línea con su PROPIO bruto/tara (pesaje por galpón/viaje).
+   El individual correcto es SIEMPRE su bruto−tara. **El reproceso anterior corrompió 36 de estas
+   líneas** (agrupó solo por número de despacho, tomó el peso de la primera línea como "global" y
+   prorrateó pesajes propios): p. ej. el lote 12 pierde 31.899 kg y el lote 7 10.170 kg en su
+   liquidación. **Esta es la causa raíz del reclamo "la liquidación trae el peso global / por lote
+   no está bien".**
+3. **Despachos cuyas líneas cruzan fechas** (mismo número, días consecutivos) → la agrupación
+   definitiva es `factura_id` → `numero_despacho`+granja **sin fecha** (el clon se confirma por
+   identidad de pesos, no por la fecha).
+
+`OrganizarPesoAsync` final: clon ya prorrateado → solo normaliza `*_global` · clon sin prorratear
+→ re-prorratea · clon contra otro global → revisión manual · peso por línea → restaura
+`neto = bruto−tara` y `*_global` = suma del despacho · huérfanos/ambiguos → revisión manual.
+Para reparar datos ya marcados se invoca con `ReprocesarTodo=true`.
+
 ### 2.5 `UpdateAsync` re-prorratea (G6)
 Archivo: `Funciones/MovimientoPolloEngordeService.Crud.cs`.
 

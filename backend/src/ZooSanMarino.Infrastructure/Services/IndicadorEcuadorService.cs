@@ -182,12 +182,12 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
             promedioIndiceProductividad,
             promedioGananciaDia,
             indicadoresList,
-            // Totales de mermas, ajuste y sobrante (R1-R2)
-            indicadoresList.Sum(i => i.MermaUnidades),
-            indicadoresList.Sum(i => i.MermaKilos),
-            indicadoresList.Sum(i => i.AjusteAves),
+            // Totales de mermas, ajuste y sobrante (R1-R2). NULL = lote sin merma registrada (no suma).
+            indicadoresList.Sum(i => i.MermaUnidades ?? 0),
+            indicadoresList.Sum(i => i.MermaKilos ?? 0m),
+            indicadoresList.Sum(i => i.AjusteAves ?? 0),
             indicadoresList.Sum(i => i.ProduccionKiloEnPie),
-            indicadoresList.Sum(i => i.TotalKilosDespachadosCliente),
+            indicadoresList.Sum(i => i.TotalKilosDespachadosCliente ?? 0m),
             indicadoresList.Sum(i => i.AvesSobrante)
         );
     }

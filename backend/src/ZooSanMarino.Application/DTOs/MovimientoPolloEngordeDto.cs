@@ -271,12 +271,17 @@ public sealed class OrganizarPesoRequest
 public sealed class OrganizarPesoDespachoDetalle
 {
     public string? NumeroDespacho { get; set; }
+    public Guid? FacturaId { get; set; }
     public int CantidadMovimientos { get; set; }
     public int TotalAves { get; set; }
     public double? PesoBrutoGlobal { get; set; }
     public double? PesoTaraGlobal { get; set; }
     public double? PesoNetoGlobal { get; set; }
     public double? PesoPorAve { get; set; }
+    /// <summary>Suma del peso neto individual ACTUAL del grupo (global clonado ⇒ n× el neto real).</summary>
+    public double KgAntes { get; set; }
+    /// <summary>Suma del peso neto individual tras el prorrateo (== neto global del despacho).</summary>
+    public double KgDespues { get; set; }
     public List<int> MovimientoIds { get; set; } = new();
 }
 
@@ -288,4 +293,7 @@ public sealed class OrganizarPesoResponse
     public int MovimientosOmitidos { get; set; }
     public string Mensaje { get; set; } = string.Empty;
     public List<OrganizarPesoDespachoDetalle> Despachos { get; set; } = new();
+    /// <summary>Posibles despachos multi-lote sin factura_id ni numero_despacho (heurística granja+fecha+
+    /// peso bruto+placa). NO se corrigen automáticamente: requieren revisión manual.</summary>
+    public List<OrganizarPesoDespachoDetalle> RevisionManual { get; set; } = new();
 }

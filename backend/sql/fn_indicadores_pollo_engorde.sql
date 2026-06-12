@@ -8,6 +8,12 @@
 --     (peso INDIVIDUAL prorrateado, no el global clonado).
 --   * R1/R2: merma, ajuste de aves, % ajuste, producción kilo en pie,
 --     total a cliente, días de engorde, sobrante.
+--   * R1 (campos vacíos): cuando Costos NO registró merma (merma_unidades y
+--     merma_kilos ambos NULL en lote_ave_engorde), los 6 campos derivados
+--     (merma_unidades, merma_kilos, merma_porcentaje, ajuste_aves,
+--     porcentaje_ajuste, total_kilos_despachados_cliente) salen NULL para que
+--     el reporte los muestre vacíos. Con merma registrada la aritmética es
+--     idéntica a la versión previa.
 -- Resultado: 1 fila por lote padre (lote_ave_engorde).
 -- NO redondea (el servicio C# usa decimal sin redondeo intermedio).
 -- ============================================================================
@@ -81,8 +87,10 @@ WITH lote AS (
         l.fecha_alistamiento,
         l.estado_operativo_lote,
         l.liquidado_at,
-        COALESCE(l.merma_unidades,0)                            AS merma_unidades,
-        COALESCE(l.merma_kilos,0)                               AS merma_kilos,
+        l.merma_unidades,
+        l.merma_kilos,
+        -- R1: merma "registrada" = Costos digitó al menos uno de los dos valores.
+        (l.merma_unidades IS NOT NULL OR l.merma_kilos IS NOT NULL) AS merma_registrada,
         COALESCE(l.aves_sobrante,0)                             AS aves_sobrante
     FROM public.lote_ave_engorde l
     JOIN public.farms f       ON f.id = l.granja_id
@@ -230,14 +238,21 @@ SELECT
     d2.fecha_cierre_final,
     d2.lote_cerrado,
     d2.fecha_alistamiento,
-    d2.merma_unidades,
-    d2.merma_kilos,
-    ROUND(CASE WHEN d2.aves_sacrificadas > 0 THEN d2.merma_unidades::NUMERIC / d2.aves_sacrificadas * 100 ELSE 0 END, 6),
-    (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad - d2.merma_unidades)::INT,
-    ROUND(CASE WHEN d2.aves_encasetadas > 0
-         THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad - d2.merma_unidades)::NUMERIC / d2.aves_encasetadas * 100 ELSE 0 END, 6),
+    -- R1 (campos vacíos): NULL cuando Costos no registró merma; con merma, misma aritmética previa.
+    CASE WHEN d2.merma_registrada THEN COALESCE(d2.merma_unidades,0) END,
+    CASE WHEN d2.merma_registrada THEN COALESCE(d2.merma_kilos,0) END,
+    CASE WHEN d2.merma_registrada
+         THEN ROUND(CASE WHEN d2.aves_sacrificadas > 0 THEN COALESCE(d2.merma_unidades,0)::NUMERIC / d2.aves_sacrificadas * 100 ELSE 0 END, 6)
+    END,
+    CASE WHEN d2.merma_registrada
+         THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad - COALESCE(d2.merma_unidades,0))::INT
+    END,
+    CASE WHEN d2.merma_registrada
+         THEN ROUND(CASE WHEN d2.aves_encasetadas > 0
+              THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad - COALESCE(d2.merma_unidades,0))::NUMERIC / d2.aves_encasetadas * 100 ELSE 0 END, 6)
+    END,
     d2.kg_carne,
-    d2.kg_carne - d2.merma_kilos,
+    CASE WHEN d2.merma_registrada THEN d2.kg_carne - COALESCE(d2.merma_kilos,0) END,
     CASE WHEN d2.fecha_encaset IS NOT NULL AND d2.fecha_cierre_final IS NOT NULL
          THEN GREATEST(0, (d2.fecha_cierre_final::date - d2.fecha_encaset::date))
          ELSE 0 END,

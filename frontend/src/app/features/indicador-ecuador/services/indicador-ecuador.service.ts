@@ -50,14 +50,15 @@ export interface IndicadorEcuadorDto {
   /** true si aves actuales = 0 (según reglas del backend) */
   loteCerrado: boolean;
   fechaAlistamiento?: string | null;
-  // Mermas, ajuste y kilos a cliente (R1) — calculados por el backend
-  mermaUnidades?: number;
-  mermaKilos?: number;
-  mermaPorcentaje?: number;
-  ajusteAves?: number;
-  porcentajeAjuste?: number;
+  // Mermas, ajuste y kilos a cliente (R1) — calculados por el backend.
+  // null = Costos NO registró merma en el lote ⇒ el reporte muestra el campo VACÍO («—»).
+  mermaUnidades?: number | null;
+  mermaKilos?: number | null;
+  mermaPorcentaje?: number | null;
+  ajusteAves?: number | null;
+  porcentajeAjuste?: number | null;
   produccionKiloEnPie?: number;
-  totalKilosDespachadosCliente?: number;
+  totalKilosDespachadosCliente?: number | null;
   diasEngorde?: number;
   fechaLiquidacion?: string | null;
   avesSobrante?: number;

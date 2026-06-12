@@ -331,8 +331,8 @@
 
       </ng-container>
 
-      <!-- ── Merma (Costos) — R1 ──────────────────────────────────────────── -->
-      <div class="liq-lote__merma" *ngIf="resumen">
+      <!-- ── Merma (Costos) — R1 — solo Ecuador (no aplica al flujo Panamá) ── -->
+      <div class="liq-lote__merma" *ngIf="resumen && !esPanama">
         <h4 class="liq-lote__section-title">Merma (Costos)</h4>
         <p class="liq-lote__hint">
           Diferencia entre lo que sale de granja y lo que recibe el cliente (peso recibido en planta).
