@@ -48,37 +48,14 @@ export class EncryptionService {
         throw new Error('Datos encriptados vacíos o inválidos');
       }
 
-      console.log('🔓 Iniciando desencriptación de respuesta...', {
-        length: encryptedData.length,
-        preview: encryptedData.substring(0, 50) + '...'
-      });
-
       const decrypted = await this.decrypt(encryptedData, this.backendDecryptionKey);
 
       if (!decrypted || decrypted.trim().length === 0) {
         throw new Error('Datos desencriptados están vacíos');
       }
 
-      console.log('✅ Desencriptación exitosa, parseando JSON...', {
-        length: decrypted.length,
-        preview: decrypted.substring(0, 200) + '...'
-      });
-
       const parsed = JSON.parse(decrypted) as T;
       const parsedAny = parsed as any;
-
-      console.log('✅ JSON parseado correctamente', {
-        type: typeof parsed,
-        allKeys: Object.keys(parsedAny || {}),
-        hasToken_camel: !!parsedAny?.token,
-        hasToken_Pascal: !!parsedAny?.Token,
-        tokenValue_camel: parsedAny?.token,
-        tokenValue_Pascal: parsedAny?.Token,
-        tokenLength_camel: parsedAny?.token?.length,
-        tokenLength_Pascal: parsedAny?.Token?.length,
-        hasMenu: !!(parsedAny?.menu || parsedAny?.Menu),
-        firstFewChars: JSON.stringify(parsedAny).substring(0, 500) // Primeros 500 chars para ver estructura
-      });
 
       return parsed;
     } catch (error: any) {

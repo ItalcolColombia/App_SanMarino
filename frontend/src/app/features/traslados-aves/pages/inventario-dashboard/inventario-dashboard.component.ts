@@ -1066,10 +1066,6 @@ export class InventarioDashboardComponent implements OnInit {
       
       this.movimientosAvesLote.set(movimientosUnificados);
       this.movimientosLote.set(movimientosUnificados);
-      console.log(`[DEBUG] ✅ Signals actualizados. Valores actuales:`, {
-        movimientosAvesLote: this.movimientosAvesLote().length,
-        movimientosLote: this.movimientosLote().length
-      });
     } catch (err: any) {
       console.error(`[ERROR] ❌ Error al cargar movimientos del lote ${loteId}:`, err);
       console.error(`[ERROR] Detalles del error:`, {

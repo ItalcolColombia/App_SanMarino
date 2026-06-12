@@ -54,10 +54,7 @@ export class HomeComponent implements OnInit {
 
     this.auth.loadMenu(activeCompanyId).subscribe({
       next: (menuData) => {
-        console.log('✅ Menú cargado exitosamente', {
-          menuItems: menuData.menu.length,
-          menusByRole: menuData.menusByRole.length
-        });
+       
         this.loadingMenu = false;
       },
       error: (error) => {

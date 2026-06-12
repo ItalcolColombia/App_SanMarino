@@ -559,9 +559,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
         this.cacheGuiaRango.set(key, map);
         this.guiaRangoKeyActual = key;
         this.fuenteGuiaIndicadores = 'ecuador-mixto';
-        console.log(
-          `✅ Guía Ecuador (mixto) precargada: ${key} (semanas ${desdeClamped}-${hastaClamped}, ${rowsEc.length} filas)`
-        );
+      
         return;
       }
     } catch (e) {

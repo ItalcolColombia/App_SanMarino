@@ -23,14 +23,6 @@ export class TokenStorageService {
       const store = remember ? localStorage : sessionStorage;
       const sessionJson = JSON.stringify(session);
 
-      console.log('💾 TokenStorageService.save() - Guardando sesión:', {
-        remember,
-        storage: remember ? 'localStorage' : 'sessionStorage',
-        hasToken: !!session.accessToken,
-        tokenLength: session.accessToken.length,
-        sessionSize: sessionJson.length
-      });
-
       store.setItem(KEY, sessionJson);
 
       // Limpiar el otro storage
@@ -46,10 +38,6 @@ export class TokenStorageService {
         throw new Error('Error al guardar la sesión: token no encontrado después de guardar');
       }
 
-      console.log('✅ TokenStorageService.save() - Sesión guardada y verificada:', {
-        hasToken: !!saved.accessToken,
-        tokenMatches: saved.accessToken === session.accessToken
-      });
     } catch (error) {
       console.error('❌ Error al guardar sesión:', error);
       throw error;

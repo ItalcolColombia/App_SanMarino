@@ -135,12 +135,6 @@ preloadMyMenu(companyId?: number) {
       if (response.paisId && response.paisNombre) {
         const session = this.storage.get();
         if (session) {
-          console.log('🌍 Actualizando información del país en la sesión:', {
-            paisId: response.paisId,
-            paisNombre: response.paisNombre,
-            companyId: response.companyId,
-            companyName: response.companyName
-          });
           const updatedSession = {
             ...session,
             activePaisId: response.paisId,
@@ -148,10 +142,7 @@ preloadMyMenu(companyId?: number) {
           };
           const persistedInLocal = !!localStorage.getItem('auth_session');
           this.storage.save(updatedSession, persistedInLocal);
-          console.log('✅ País guardado en storage:', {
-            activePaisId: updatedSession.activePaisId,
-            activePaisNombre: updatedSession.activePaisNombre
-          });
+        
         } else {
           console.warn('⚠️ No hay sesión disponible para actualizar el país');
         }
