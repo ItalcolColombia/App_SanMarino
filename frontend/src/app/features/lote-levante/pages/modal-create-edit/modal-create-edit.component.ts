@@ -1286,7 +1286,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
     this.inventarioSvc.getInventory(granjaId, itemType).subscribe({
       next: (inventario) => {
         if (loadId !== this.inventarioLoadId) return;
-        console.log('Inventario recibido:', inventario);
+        
 
         // Si no viene catalogItemMetadata, necesitamos cargarlo desde el catálogo
         const itemsSinMetadata = inventario.filter(item =>
@@ -1594,7 +1594,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private actualizarMapasYFiltros(): void {
-    console.log('Alimentos catalog cargados:', this.alimentosCatalog);
+    
 
     // Actualizar mapas
     this.alimentosById.clear();
@@ -1850,7 +1850,7 @@ export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {
             this.inventarioUnidadHembras = unidad;
             this.inventarioCantidadOriginalHembras = cantidadOriginal;
 
-            console.log(`Inventario hembras cargado: ${cantidadOriginal} ${unidad}`);
+            
 
             // Convertir a gramos para mostrar en la interfaz (si el inventario está en kg)
             // Si el inventario está en gramos, no hay conversión

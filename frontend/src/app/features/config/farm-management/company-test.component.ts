@@ -81,7 +81,7 @@ export class CompanyTestComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(company => {
         this.activeCompany = company;
-        console.log('CompanyTest - Empresa activa:', company);
+        
       });
 
     // Suscribirse a empresas disponibles
@@ -89,7 +89,7 @@ export class CompanyTestComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(companies => {
         this.availableCompanies = companies;
-        console.log('CompanyTest - Empresas disponibles:', companies);
+        
       });
   }
 
@@ -102,8 +102,8 @@ export class CompanyTestComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
     
-    console.log('CompanyTest - Iniciando carga de empresas...');
-    console.log('CompanyTest - Empresa activa actual:', this.activeCompany);
+    
+    
     
     this.companyService.getAll()
       .pipe(takeUntil(this.destroy$))
@@ -111,7 +111,7 @@ export class CompanyTestComponent implements OnInit, OnDestroy {
         next: (data) => {
           this.companies = data;
           this.loading = false;
-          console.log('CompanyTest - Empresas cargadas exitosamente:', data);
+          
         },
         error: (err) => {
           this.error = err.message || 'Error desconocido';

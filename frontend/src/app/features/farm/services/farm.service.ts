@@ -76,10 +76,10 @@ export class FarmService {
     const session: AuthSession | null = this.tokenStorage.get();
     const userId = session?.user?.id;
 
-    console.log('=== FarmService.getAll() Debug ===');
-    console.log('Session completa:', session);
-    console.log('User ID:', userId);
-    console.log('User ID type:', typeof userId);
+    
+    
+    
+    
 
     // Si no hay sesión o user ID, esperar un poco y reintentar
     if (!session || !userId) {
@@ -90,7 +90,7 @@ export class FarmService {
           const retryUserId = retrySession?.user?.id;
 
           if (retrySession && retryUserId) {
-            console.log('✅ Sesión encontrada en reintento:', retryUserId);
+            
             this.getAllWithUserId(retryUserId).subscribe(observer);
           } else {
             console.error('❌ Aún no hay sesión después del reintento');
@@ -121,17 +121,17 @@ export class FarmService {
     let params = new HttpParams();
     params = params.set('id_user_session', userId.trim());
 
-    console.log('=== FarmService.getAllWithUserId() ===');
-    console.log('User ID:', userId);
-    console.log('User ID type:', typeof userId);
-    console.log('User ID length:', userId.length);
-    console.log('Parámetros enviados:', params.toString());
-    console.log('URL base:', this.baseUrl);
+    
+    
+    
+    
+    
+    
 
     return this.http.get<FarmDto[]>(this.baseUrl, { params }).pipe(
       tap(response => {
-        console.log('✅ Respuesta del backend:', response);
-        console.log('Cantidad de granjas recibidas:', response.length);
+        
+        
         if (response.length === 0) {
           console.warn('⚠️ No se recibieron granjas. Verificar que el usuario tenga granjas asignadas.');
         }
@@ -179,12 +179,12 @@ export class FarmService {
 
   // Método de prueba para diagnosticar problemas
   testConnection(): Observable<any> {
-    console.log('=== Test Connection ===');
-    console.log('Base URL:', this.baseUrl);
-    console.log('Environment API URL:', environment.apiUrl);
+    
+    
+    
 
     const session: AuthSession | null = this.tokenStorage.get();
-    console.log('Session:', session);
+    
 
     if (!session) {
       console.error('❌ No hay sesión de usuario');
@@ -192,7 +192,7 @@ export class FarmService {
     }
 
     const userId = session.user?.id;
-    console.log('User ID:', userId);
+    
 
     if (!userId) {
       console.error('❌ No hay user ID en la sesión');
@@ -201,7 +201,7 @@ export class FarmService {
 
     const params = new HttpParams().set('id_user_session', userId);
     const url = `${this.baseUrl}?${params.toString()}`;
-    console.log('URL de prueba:', url);
+    
 
     return this.http.get<any>(this.baseUrl, { params });
   }

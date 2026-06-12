@@ -185,7 +185,7 @@ const response = await fetch('/api/ExcelImport/produccion-avicola', {
 });
 
 const result = await response.json();
-console.log(`Procesadas: ${result.processedRows}, Errores: ${result.errorRows}`);
+
 ```
 
 ### **3. Validar antes de importar**:
@@ -196,7 +196,7 @@ const validateResponse = await fetch('/api/ExcelImport/validate-produccion-avico
 });
 
 const validData = await validateResponse.json();
-console.log(`Registros válidos: ${validData.length}`);
+
 ```
 
 ## ✅ Estado del Proyecto

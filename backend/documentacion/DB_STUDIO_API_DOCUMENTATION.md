@@ -16,7 +16,7 @@ El módulo DB Studio ahora está **100% alineado** entre backend y frontend, con
 ```typescript
 // Frontend
 this.dbService.getSchemas().subscribe(schemas => {
-  console.log('Esquemas:', schemas);
+  
 });
 
 this.dbService.exportSchema('public').subscribe(blob => {
@@ -42,9 +42,9 @@ this.dbService.exportSchema('public').subscribe(blob => {
 ```typescript
 // Obtener detalles de tabla
 this.dbService.getTableDetails('public', 'usuarios').subscribe(details => {
-  console.log('Columnas:', details.columns);
-  console.log('Índices:', details.indexes);
-  console.log('Claves foráneas:', details.foreignKeys);
+  
+  
+  
 });
 
 // Crear tabla
@@ -60,7 +60,7 @@ const createTableDto = {
 };
 
 this.dbService.createTable(createTableDto).subscribe(() => {
-  console.log('Tabla creada exitosamente');
+  
 });
 ```
 
@@ -82,7 +82,7 @@ const addColumnDto = {
 };
 
 this.dbService.addColumn('public', 'usuarios', addColumnDto).subscribe(() => {
-  console.log('Columna agregada');
+  
 });
 
 // Modificar columna
@@ -93,7 +93,7 @@ const alterColumnDto = {
 };
 
 this.dbService.alterColumn('public', 'usuarios', 'nombre', alterColumnDto).subscribe(() => {
-  console.log('Columna modificada');
+  
 });
 ```
 
@@ -113,7 +113,7 @@ const indexDto = {
 };
 
 this.dbService.createIndex('public', 'usuarios', indexDto).subscribe(() => {
-  console.log('Índice creado');
+  
 });
 
 // Crear índice compuesto
@@ -124,12 +124,12 @@ const compositeIndexDto = {
 };
 
 this.dbService.createIndex('public', 'logs', compositeIndexDto).subscribe(() => {
-  console.log('Índice compuesto creado');
+  
 });
 
 // Eliminar índice
 this.dbService.dropIndex('public', 'usuarios', 'idx_usuario_email').subscribe(() => {
-  console.log('Índice eliminado');
+  
 });
 ```
 
@@ -152,12 +152,12 @@ const fkDto = {
 };
 
 this.dbService.createForeignKey('public', 'usuarios', fkDto).subscribe(() => {
-  console.log('Clave foránea creada');
+  
 });
 
 // Eliminar clave foránea
 this.dbService.dropForeignKey('public', 'usuarios', 'fk_usuario_perfil').subscribe(() => {
-  console.log('Clave foránea eliminada');
+  
 });
 ```
 
@@ -177,7 +177,7 @@ const insertData = [
 ];
 
 this.dbService.insertData('public', 'usuarios', insertData).subscribe(() => {
-  console.log('Datos insertados');
+  
 });
 
 // Actualizar datos
@@ -185,14 +185,14 @@ const updateData = { edad: 31 };
 const whereCondition = { nombre: 'Juan Pérez' };
 
 this.dbService.updateData('public', 'usuarios', updateData, whereCondition).subscribe(() => {
-  console.log('Datos actualizados');
+  
 });
 
 // Eliminar datos
 const deleteCondition = { edad: 30 };
 
 this.dbService.deleteData('public', 'usuarios', deleteCondition).subscribe(() => {
-  console.log('Datos eliminados');
+  
 });
 ```
 
@@ -214,8 +214,8 @@ const selectQuery = {
 };
 
 this.dbService.runSelect(selectQuery).subscribe(result => {
-  console.log('Filas:', result.rows);
-  console.log('Total:', result.count);
+  
+  
 });
 
 // Ejecutar consulta general
@@ -225,15 +225,15 @@ const executeQuery = {
 };
 
 this.dbService.executeQuery(executeQuery).subscribe(result => {
-  console.log('Filas afectadas:', result.affectedRows);
+  
 });
 
 // Validar SQL
 this.dbService.validateSql('SELECT * FROM usuarios').subscribe(result => {
   if (result.valid) {
-    console.log('SQL válido');
+    
   } else {
-    console.log('Error:', result.error);
+    
   }
 });
 ```
@@ -251,7 +251,7 @@ const fileInput = document.getElementById('csvFile') as HTMLInputElement;
 const file = fileInput.files?.[0];
 if (file) {
   this.dbService.importTable('public', 'usuarios', file, 'csv').subscribe(() => {
-    console.log('Datos importados');
+    
   });
 }
 
@@ -275,16 +275,16 @@ this.dbService.exportTable('public', 'usuarios', 'csv').subscribe(blob => {
 ```typescript
 // Obtener dependencias de tabla
 this.dbService.getTableDependencies('public', 'usuarios').subscribe(deps => {
-  console.log('Dependencias:', deps.dependencies);
-  console.log('Dependientes:', deps.dependents);
+  
+  
 });
 
 // Análisis completo de base de datos
 this.dbService.analyzeDatabase().subscribe(analysis => {
-  console.log('Total esquemas:', analysis.totalSchemas);
-  console.log('Total tablas:', analysis.totalTables);
-  console.log('Total filas:', analysis.totalRows);
-  console.log('Tablas más grandes:', analysis.largestTables);
+  
+  
+  
+  
 });
 ```
 
@@ -297,7 +297,7 @@ this.dbService.analyzeDatabase().subscribe(analysis => {
 ```typescript
 // Obtener tipos de datos disponibles
 this.dbService.getDataTypes().subscribe(types => {
-  console.log('Tipos disponibles:', types);
+  
   // ['serial', 'varchar', 'integer', 'decimal', 'timestamp', ...]
 });
 ```

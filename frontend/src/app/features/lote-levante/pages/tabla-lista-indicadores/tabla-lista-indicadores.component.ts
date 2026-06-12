@@ -93,7 +93,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     if (changes['seguimientos'] || changes['selectedLote']) {
       // Limpiar cache cuando cambie el lote
       if (changes['selectedLote']) {
-        console.log('🔄 Lote cambiado, limpiando cache...');
+        
         this.cacheGuiaRango.clear();
         this.guiaRangoKeyActual = null;
         this.fuenteGuiaIndicadores = null;
@@ -126,7 +126,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     this.indicadoresSemanales = await this.calcularIndicadoresSemanales(registrosPorSemana);
     
     // 🔍 VALIDACIÓN AUTOMÁTICA: Ejecutar validación después de calcular
-    console.log('🔍 Ejecutando validación automática de tabla genética...');
+    
     await this.validarUsoTablaGenetica();
   }
 
@@ -181,13 +181,13 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     let pesoAnterior = this.selectedLote?.pesoInicialH || 0;
     let pesoTablaAnterior = 0;
 
-    console.log(`🔄 Procesando ${semanas.length} semanas...`);
+    
     
     for (let i = 0; i < semanas.length; i++) {
       const semana = semanas[i];
       const registros = grupos.get(semana) || [];
       
-      console.log(`📊 Procesando semana ${semana} (${i + 1}/${semanas.length})...`);
+      
       
       const indicador = await this.calcularIndicadorSemana(
         semana,
@@ -208,10 +208,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       pesoAnterior = indicador.pesoCierre;
       pesoTablaAnterior = indicador.pesoTabla;
       
-      console.log(`✅ Semana ${semana} procesada exitosamente`);
+      
     }
 
-    console.log(`🎉 Todas las semanas procesadas secuencialmente`);
+    
     return indicadores;
   }
 
@@ -367,11 +367,11 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       return;
     }
 
-    console.log('🔍 === VALIDACIÓN DE TABLA GENÉTICA ===');
-    console.log(`📋 Lote: ${this.selectedLote.loteNombre}`);
-    console.log(`🧬 Raza: ${this.selectedLote.raza}`);
-    console.log(`📅 Año Tabla: ${this.selectedLote.anoTablaGenetica}`);
-    console.log(`📊 Semanas a validar: ${this.indicadoresSemanales.length}`);
+    
+    
+    
+    
+    
 
     let semanasValidadas = 0;
     let semanasConErrores = 0;
@@ -394,21 +394,21 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     }
 
     // Mostrar resumen
-    console.log('\n📊 === RESUMEN DE VALIDACIÓN ===');
-    console.log(`✅ Semanas validadas: ${semanasValidadas}`);
-    console.log(`❌ Semanas con errores: ${semanasConErrores}`);
-    console.log(`📈 Diferencia promedio de consumo: ${(consumoPromedioDiferencia / semanasValidadas).toFixed(2)}%`);
-    console.log(`🔥 Piso térmico correcto: ${pisoTermicoCorrecto}/${semanasValidadas} semanas`);
+    
+    
+    
+    
+    
     
     if (semanasConErrores === 0) {
-      console.log('🎉 ¡EXCELENTE! Todas las semanas están usando correctamente la tabla genética');
+      
     } else if (semanasConErrores <= semanasValidadas * 0.2) {
-      console.log('✅ BUENO: La mayoría de semanas están correctas');
+      
     } else {
-      console.log('⚠️ ATENCIÓN: Hay problemas significativos en el uso de la tabla genética');
+      
     }
 
-    console.log('✅ === VALIDACIÓN COMPLETADA ===');
+    
   }
 
   /**
@@ -420,7 +420,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     pisoTermicoCorrecto: boolean;
   }> {
     const semana = indicador.semana;
-    console.log(`\n📊 === VALIDANDO SEMANA ${semana} ===`);
+    
 
     let tieneErrores = false;
     let diferenciaConsumo = 0;
@@ -431,64 +431,64 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       const datosGuia = await this.obtenerDatosCompletosGuia(semana);
       
       if (datosGuia) {
-        console.log(`✅ Datos de guía genética obtenidos para semana ${semana}:`);
-        console.log(`   🍽️ Consumo Hembras: ${datosGuia.consumoHembras}g/ave/día`);
-        console.log(`   🍽️ Consumo Machos: ${datosGuia.consumoMachos}g/ave/día`);
-        console.log(`   ⚖️ Peso Hembras: ${datosGuia.pesoHembras}g`);
-        console.log(`   ⚖️ Peso Machos: ${datosGuia.pesoMachos}g`);
-        console.log(`   💀 Mortalidad Hembras: ${datosGuia.mortalidadHembras}%`);
-        console.log(`   💀 Mortalidad Machos: ${datosGuia.mortalidadMachos}%`);
-        console.log(`   📏 Uniformidad: ${datosGuia.uniformidad}%`);
-        console.log(`   🔥 Piso Térmico: ${datosGuia.pisoTermicoRequerido ? 'Sí' : 'No'}`);
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
         // Validar consumo calculado vs tabla
         const consumoPromedioTabla = (datosGuia.consumoHembras + datosGuia.consumoMachos) / 2;
         diferenciaConsumo = Math.abs(indicador.consumoDiario - consumoPromedioTabla);
         const porcentajeDiferencia = (diferenciaConsumo / consumoPromedioTabla) * 100;
 
-        console.log(`\n🔍 === COMPARACIÓN DE CONSUMO ===`);
-        console.log(`   📊 Consumo Diario Calculado: ${indicador.consumoDiario.toFixed(2)}g/ave/día`);
-        console.log(`   📋 Consumo Tabla: ${consumoPromedioTabla.toFixed(2)}g/ave/día`);
-        console.log(`   📈 Diferencia: ${diferenciaConsumo.toFixed(2)}g (${porcentajeDiferencia.toFixed(1)}%)`);
+        
+        
+        
+        
 
         if (porcentajeDiferencia <= 1) {
-          console.log(`   ✅ EXCELENTE: Consumo coincide perfectamente`);
+          
         } else if (porcentajeDiferencia <= 5) {
-          console.log(`   ✅ BUENO: Consumo muy cercano a la tabla`);
+          
         } else if (porcentajeDiferencia <= 15) {
-          console.log(`   ⚠️ ACEPTABLE: Consumo dentro del rango aceptable`);
+          
         } else {
-          console.log(`   ❌ PROBLEMA: Consumo muy diferente de la tabla`);
+          
           tieneErrores = true;
         }
 
         // Validar piso térmico
-        console.log(`\n🔍 === VALIDACIÓN PISO TÉRMICO ===`);
-        console.log(`   🔥 Piso Térmico Calculado: ${indicador.pisoTermicoVisible ? 'Sí' : 'No'}`);
-        console.log(`   📋 Piso Térmico Tabla: ${datosGuia.pisoTermicoRequerido ? 'Sí' : 'No'}`);
+        
+        
+        
         
         pisoTermicoCorrecto = indicador.pisoTermicoVisible === datosGuia.pisoTermicoRequerido;
         
         if (pisoTermicoCorrecto) {
-          console.log(`   ✅ CORRECTO: Piso térmico coincide con la tabla`);
+          
         } else {
-          console.log(`   ❌ ERROR: Piso térmico no coincide con la tabla`);
+          
           tieneErrores = true;
         }
 
         // Validar indicadores calculados
-        console.log(`\n🔍 === INDICADORES CALCULADOS ===`);
-        console.log(`   🍽️ Consumo Diario: ${indicador.consumoDiario.toFixed(2)}g/ave/día`);
-        console.log(`   🍽️ Consumo Total Semana: ${indicador.consumoTotalSemana.toFixed(2)}g`);
-        console.log(`   📈 Ganancia Semana: ${indicador.gananciaSemana.toFixed(2)}g/día`);
-        console.log(`   🔄 Conversión Alimenticia: ${indicador.conversionAlimenticia.toFixed(2)}`);
-        console.log(`   ⚡ Eficiencia: ${indicador.eficiencia.toFixed(2)}`);
-        console.log(`   📊 IP: ${indicador.ip.toFixed(2)}`);
-        console.log(`   💪 VPI: ${indicador.vpi.toFixed(2)}`);
+        
+        
+        
+        
+        
+        
+        
+        
 
       } else {
-        console.log(`❌ No se pudieron obtener datos de guía genética para semana ${semana}`);
-        console.log(`   🔄 Usando valores por defecto`);
+        
+        
         tieneErrores = true;
       }
 
@@ -579,7 +579,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       this.fuenteGuiaIndicadores = map.size > 0 ? 'clasica' : null;
       this.cacheGuiaRango.set(key, map);
       this.guiaRangoKeyActual = key;
-      console.log(`✅ Guía genética clásica precargada: ${key} (semanas ${desdeClamped}-${hastaClamped})`);
+      
     } catch (error) {
       console.error('❌ Error precargando guía genética por rango:', error);
       this.fuenteGuiaIndicadores = null;

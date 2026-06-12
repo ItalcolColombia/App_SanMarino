@@ -296,10 +296,10 @@ export class LoteListComponent implements OnInit {
 
   // Método de prueba para diagnosticar problemas
   testFarmService(): void {
-    console.log('=== Test Farm Service ===');
+    
     this.farmSvc.testConnection().subscribe({
       next: (response) => {
-        console.log('✅ Test exitoso:', response);
+        
       },
       error: (error) => {
         console.error('❌ Test falló:', error);
@@ -391,18 +391,18 @@ export class LoteListComponent implements OnInit {
 
     // Chain: Raza -> Año Tabla Genética
     this.form.get('raza')!.valueChanges.subscribe(raza => {
-      console.log('=== LoteList: Cambio en raza ===');
-      console.log('Nueva raza seleccionada:', raza);
+      
+      
       
       this.selectedRaza = raza;
       this.anosDisponibles = [];
       this.form.patchValue({ anoTablaGenetica: null });
       
       if (raza) {
-        console.log('Cargando años para raza:', raza);
+        
         this.loadAnosDisponibles(raza);
       } else {
-        console.log('Raza vacía, no cargando años');
+        
       }
     });
 
@@ -1542,11 +1542,11 @@ export class LoteListComponent implements OnInit {
   // ===================== Métodos para años de tabla genética =====================
   
   private loadAnosDisponibles(raza: string): void {
-    console.log('=== LoteList: loadAnosDisponibles() ===');
-    console.log('Raza seleccionada:', raza);
+    
+    
     
     if (!raza || raza.trim() === '') {
-      console.log('Raza vacía, limpiando años');
+      
       this.anosDisponibles = [];
       this.loadingAnos = false;
       return;
@@ -1555,15 +1555,15 @@ export class LoteListComponent implements OnInit {
     this.loadingAnos = true;
     this.razaValida = true;
     
-    console.log('Llamando al servicio obtenerInformacionRaza...');
+    
     this.guiaGeneticaSvc.obtenerInformacionRaza(raza).subscribe({
       next: (info) => {
-        console.log('✅ Respuesta del servicio:', info);
+        
         this.anosDisponibles = info.anosDisponibles;
         this.razaValida = info.esValida;
         this.loadingAnos = false;
         
-        console.log('Años disponibles:', this.anosDisponibles);
+        
         
         if (!info.esValida) {
           console.warn(`No se encontraron años disponibles para la raza: ${raza}`);

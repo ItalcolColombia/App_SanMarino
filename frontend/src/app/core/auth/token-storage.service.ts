@@ -99,10 +99,10 @@ export class TokenStorageService {
 
   // Actualiza solo los datos del usuario en el storage manteniendo el tipo de persistencia
   updateUserData(userData: { firstName?: string; surName?: string }) {
-    console.log('🔄 TokenStorageService.updateUserData() llamado con:', userData);
+    
     const current = this.get();
     if (!current) {
-      console.log('❌ No hay sesión actual, cancelando actualización');
+      
       return;
     }
 
@@ -118,7 +118,7 @@ export class TokenStorageService {
       user: updatedUser
     };
 
-    console.log('✅ Actualizando storage con usuario:', updatedUser);
+    
     const persistedInLocal = !!localStorage.getItem(KEY);
     this.save(updated, persistedInLocal);
   }

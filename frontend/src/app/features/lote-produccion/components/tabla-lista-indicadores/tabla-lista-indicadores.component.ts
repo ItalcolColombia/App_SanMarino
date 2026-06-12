@@ -88,7 +88,7 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
           this.mensajeGuiaGenetica = response.mensajeGuiaGenetica ?? null;
           this.error = null;
 
-          console.log(`✅ Indicadores cargados: ${this.indicadoresSemanales.length} semanas`, response);
+          
         },
         error: (err) => {
           console.error('❌ Error al cargar indicadores semanales:', err);

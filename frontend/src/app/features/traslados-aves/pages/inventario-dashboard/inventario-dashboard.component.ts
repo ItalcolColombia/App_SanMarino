@@ -876,34 +876,34 @@ export class InventarioDashboardComponent implements OnInit {
 
   // 🔴 Cambios al seleccionar un lote en el filtro superior
   onLoteSelectChange(val: string | null): void {
-    console.log(`[DEBUG] ========== onLoteSelectChange LLAMADO ==========`);
-    console.log(`[DEBUG] Valor recibido: ${val} (tipo: ${typeof val})`);
+    
+    
     
     this.selectedLoteId = val;
     if (val) {
       this.filtros.loteId = val;
       // Cargar información completa del lote seleccionado
       const loteIdNum = parseInt(val, 10);
-      console.log(`[DEBUG] LoteId parseado: ${loteIdNum} (es válido: ${!isNaN(loteIdNum)})`);
+      
       
       if (!isNaN(loteIdNum)) {
-        console.log(`[DEBUG] Cargando información del lote ${loteIdNum}...`);
+        
         this.loteService.getById(loteIdNum).subscribe({
           next: (lote) => {
-            console.log(`[DEBUG] ✅ Lote cargado:`, lote);
+            
             this.loteCompleto.set(lote);
             
             // Buscar el inventario correspondiente para mostrar detalles
             const inventario = this.inventariosBase().find(inv => String(inv.loteId) === val);
-            console.log(`[DEBUG] Inventario encontrado en inventariosBase:`, inventario ? 'Sí' : 'No');
+            
             
             if (inventario) {
               // Si encontramos el inventario, usar el método completo
-              console.log(`[DEBUG] Usando método seleccionarLote() con inventario existente`);
+              
               this.seleccionarLote(inventario);
             } else {
               // Si no está en inventarios, crear un inventario "virtual" para mostrar los registros
-              console.log(`[DEBUG] Creando inventario virtual para lote ${val}`);
+              
               const inventarioVirtual: InventarioAvesDto = {
                 id: 0,
                 loteId: val,
@@ -919,12 +919,12 @@ export class InventarioDashboardComponent implements OnInit {
               };
               
               // Establecer el lote seleccionado y cargar todos los datos
-              console.log(`[DEBUG] Estableciendo loteSeleccionado con inventario virtual`);
+              
               this.loteSeleccionado.set(inventarioVirtual);
               this.tabRegistrosActivo.set('huevos');
               
               // Cargar todos los registros
-              console.log(`[DEBUG] Iniciando carga de todos los registros...`);
+              
               this.cargarMovimientosLote(loteIdNum);
               this.cargarHistorialTrasladosLote(loteIdNum);
               this.cargarTrasladosHuevosLote(val);
@@ -946,13 +946,13 @@ export class InventarioDashboardComponent implements OnInit {
         this.loteSeleccionado.set(null);
       }
     } else {
-      console.log(`[DEBUG] Limpiando selección de lote`);
+      
       delete this.filtros.loteId;
       this.loteCompleto.set(null);
       this.seleccionarLote(null);
     }
     this.recomputeList();
-    console.log(`[DEBUG] ========== FIN onLoteSelectChange ==========`);
+    
   }
 
   private resetLoteIfNotInContext(): void {
@@ -966,26 +966,26 @@ export class InventarioDashboardComponent implements OnInit {
 
   // ===================== Selección de Lote ====================
   seleccionarLote(inventario: InventarioAvesDto | null): void {
-    console.log(`[DEBUG] ========== seleccionarLote LLAMADO ==========`);
-    console.log(`[DEBUG] Inventario recibido:`, inventario);
+    
+    
     
     this.loteSeleccionado.set(inventario);
-    console.log(`[DEBUG] loteSeleccionado establecido:`, this.loteSeleccionado());
+    
 
     if (inventario) {
       // Inicializar tab de registros al primer tab con datos disponibles
       // Prioridad: Huevos > Aves > Lotes
       this.tabRegistrosActivo.set('huevos');
-      console.log(`[DEBUG] Tab activo establecido a: huevos`);
+      
       
       // Cargar información completa del lote
       const loteIdNum = parseInt(inventario.loteId, 10);
-      console.log(`[DEBUG] LoteId parseado: ${loteIdNum} (es válido: ${!isNaN(loteIdNum)})`);
+      
       
       if (!isNaN(loteIdNum)) {
         this.loteService.getById(loteIdNum).subscribe({
           next: (lote) => {
-            console.log(`[DEBUG] ✅ Lote completo cargado:`, lote);
+            
             this.loteCompleto.set(lote);
           },
           error: (err) => {
@@ -995,7 +995,7 @@ export class InventarioDashboardComponent implements OnInit {
         });
 
         // Cargar movimientos del lote
-        console.log(`[DEBUG] Iniciando carga de datos para lote ${loteIdNum}...`);
+        
         this.cargarMovimientosLote(loteIdNum);
         // Cargar historial de traslados de lotes
         this.cargarHistorialTrasladosLote(loteIdNum);
@@ -1009,28 +1009,28 @@ export class InventarioDashboardComponent implements OnInit {
         this.trasladosHuevosLote.set([]);
       }
     } else {
-      console.log(`[DEBUG] Limpiando selección (inventario es null)`);
+      
       this.loteCompleto.set(null);
       this.movimientosLote.set([]);
       this.historialTrasladosLote.set([]);
       this.trasladosHuevosLote.set([]);
     }
-    console.log(`[DEBUG] ========== FIN seleccionarLote ==========`);
+    
   }
 
   private async cargarMovimientosLote(loteId: number): Promise<void> {
     this.loadingMovimientos.set(true);
     try {
-      console.log(`[DEBUG] ========== INICIANDO CARGA DE MOVIMIENTOS DE AVES ==========`);
-      console.log(`[DEBUG] LoteId recibido: ${loteId} (tipo: ${typeof loteId})`);
+      
+      
       
       // Usar el endpoint directo que retorna TODOS los movimientos sin límite
-      console.log(`[DEBUG] Llamando a API: getMovimientosAvesPorLote(${loteId})`);
+      
       const movimientosAves = await firstValueFrom(
         this.trasladosService.getMovimientosAvesPorLote(loteId)
       );
-      console.log(`[DEBUG] ✅ Respuesta del API recibida:`, movimientosAves);
-      console.log(`[DEBUG] Cantidad de registros: ${movimientosAves?.length || 0}`);
+      
+      
       
       // Convertir MovimientoAvesDto[] a TrasladoUnificado[] para mantener compatibilidad
       const movimientosUnificados: TrasladoUnificado[] = (movimientosAves || []).map(m => ({
@@ -1062,8 +1062,8 @@ export class InventarioDashboardComponent implements OnInit {
         tieneSeguimientoProduccion: false
       }));
       
-      console.log(`[DEBUG] ✅ Movimientos unificados procesados:`, movimientosUnificados);
-      console.log(`[DEBUG] Estableciendo signals con ${movimientosUnificados.length} registros`);
+      
+      
       this.movimientosAvesLote.set(movimientosUnificados);
       this.movimientosLote.set(movimientosUnificados);
       console.log(`[DEBUG] ✅ Signals actualizados. Valores actuales:`, {
@@ -1082,18 +1082,18 @@ export class InventarioDashboardComponent implements OnInit {
       this.movimientosAvesLote.set([]);
     } finally {
       this.loadingMovimientos.set(false);
-      console.log(`[DEBUG] ========== FIN CARGA DE MOVIMIENTOS DE AVES ==========`);
+      
     }
   }
 
   private async cargarHistorialTrasladosLote(loteId: number): Promise<void> {
     this.loadingHistorialLotes.set(true);
     try {
-      console.log(`[DEBUG] Cargando historial de traslados para lote ${loteId}`);
+      
       const historial = await firstValueFrom(
         this.trasladosService.getHistorialTrasladosLote(loteId)
       );
-      console.log(`[DEBUG] Historial recibido:`, historial);
+      
       this.historialTrasladosLote.set(historial || []);
     } catch (err: any) {
       console.error('Error al cargar historial de traslados de lotes:', err);
@@ -1106,16 +1106,16 @@ export class InventarioDashboardComponent implements OnInit {
   private async cargarTrasladosHuevosLote(loteId: string): Promise<void> {
     this.loadingTrasladosHuevos.set(true);
     try {
-      console.log(`[DEBUG] ========== INICIANDO CARGA DE TRASLADOS DE HUEVOS ==========`);
-      console.log(`[DEBUG] LoteId recibido: ${loteId} (tipo: ${typeof loteId})`);
+      
+      
       
       // Usar el endpoint directo de traslados de huevos
-      console.log(`[DEBUG] Llamando a API: getTrasladosHuevosPorLote(${loteId})`);
+      
       const traslados = await firstValueFrom(
         this.trasladosService.getTrasladosHuevosPorLote(loteId)
       );
-      console.log(`[DEBUG] ✅ Respuesta del API recibida:`, traslados);
-      console.log(`[DEBUG] Cantidad de registros: ${traslados?.length || 0}`);
+      
+      
       
       // Asegurar que las fechas se conviertan correctamente
       const trasladosProcesados: TrasladoHuevosDto[] = (traslados || []).map(t => ({
@@ -1127,10 +1127,10 @@ export class InventarioDashboardComponent implements OnInit {
         updatedAt: t.updatedAt ? (typeof t.updatedAt === 'string' ? new Date(t.updatedAt) : t.updatedAt) : undefined
       }));
       
-      console.log(`[DEBUG] ✅ Traslados de huevos procesados:`, trasladosProcesados);
-      console.log(`[DEBUG] Estableciendo signal con ${trasladosProcesados.length} registros`);
+      
+      
       this.trasladosHuevosLote.set(trasladosProcesados);
-      console.log(`[DEBUG] ✅ Signal actualizado. Valor actual:`, this.trasladosHuevosLote());
+      
     } catch (err: any) {
       console.error(`[ERROR] ❌ Error al cargar traslados de huevos para lote ${loteId}:`, err);
       console.error(`[ERROR] Detalles del error:`, {
@@ -1142,7 +1142,7 @@ export class InventarioDashboardComponent implements OnInit {
       this.trasladosHuevosLote.set([]);
     } finally {
       this.loadingTrasladosHuevos.set(false);
-      console.log(`[DEBUG] ========== FIN CARGA DE TRASLADOS DE HUEVOS ==========`);
+      
     }
   }
 

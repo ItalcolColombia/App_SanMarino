@@ -55,8 +55,8 @@ export class FarmService {
 
     return this.http.get<Farm[]>(this.baseUrl, { headers, params }).pipe(
       tap(response => {
-        console.log('✅ Respuesta del backend:', response);
-        console.log('Cantidad de granjas recibidas:', response.length);
+        
+        
         if (response.length === 0 && userId) {
           console.warn('⚠️ No se recibieron granjas. Verificar que el usuario tenga granjas asignadas.');
         }

@@ -38,12 +38,12 @@ export class HomeComponent implements OnInit {
 
     // Si ya hay menú cargado, no volver a cargar
     if (session?.menu && session.menu.length > 0) {
-      console.log('✅ Menú ya está cargado en la sesión');
+      
       this.loadingMenu = false;
       return;
     }
 
-    console.log('📋 Cargando menú desde el backend...');
+    
     this.loadingMenu = true;
     this.menuError = null;
 

@@ -76,14 +76,14 @@ export class MovimientosListComponent implements OnInit {
   private async cargarMovimientosLote(loteId: number): Promise<void> {
     this.loadingMovimientos.set(true);
     try {
-      console.log(`[DEBUG] Cargando movimientos para lote ${loteId}`);
+      
       const movimientos = await firstValueFrom(
         this.trasladoNavigationService.getByLote(loteId, 100)
       );
-      console.log(`[DEBUG] Movimientos recibidos:`, movimientos);
+      
       // Filtrar solo movimientos de aves
       const movimientosAves = movimientos?.filter(m => m.tipoTraslado === 'Aves') || [];
-      console.log(`[DEBUG] Movimientos de aves filtrados:`, movimientosAves);
+      
       this.movimientosAvesLote.set(movimientosAves);
     } catch (err: any) {
       console.error('Error al cargar movimientos del lote:', err);
@@ -96,11 +96,11 @@ export class MovimientosListComponent implements OnInit {
   private async cargarHistorialTrasladosLote(loteId: number): Promise<void> {
     this.loadingHistorialLotes.set(true);
     try {
-      console.log(`[DEBUG] Cargando historial de traslados para lote ${loteId}`);
+      
       const historial = await firstValueFrom(
         this.trasladosService.getHistorialTrasladosLote(loteId)
       );
-      console.log(`[DEBUG] Historial recibido:`, historial);
+      
       this.historialTrasladosLote.set(historial || []);
     } catch (err: any) {
       console.error('Error al cargar historial de traslados de lotes:', err);
@@ -113,11 +113,11 @@ export class MovimientosListComponent implements OnInit {
   private async cargarTrasladosHuevosLote(loteId: string): Promise<void> {
     this.loadingTrasladosHuevos.set(true);
     try {
-      console.log(`[DEBUG] Cargando traslados de huevos para lote ${loteId}`);
+      
       const traslados = await firstValueFrom(
         this.trasladosService.getTrasladosHuevosPorLote(loteId)
       );
-      console.log(`[DEBUG] Traslados de huevos recibidos:`, traslados);
+      
       this.trasladosHuevosLote.set(traslados || []);
     } catch (err: any) {
       console.error('Error al cargar traslados de huevos:', err);

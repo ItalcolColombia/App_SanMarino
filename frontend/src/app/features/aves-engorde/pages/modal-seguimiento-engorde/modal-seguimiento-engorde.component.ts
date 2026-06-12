@@ -1109,7 +1109,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
     this.inventarioSvc.getInventory(granjaId, itemType).subscribe({
       next: (inventario) => {
         if (loadId !== this.inventarioLoadId) return;
-        console.log('Inventario recibido:', inventario);
+        
 
         // Si no viene catalogItemMetadata, necesitamos cargarlo desde el catálogo
         const itemsSinMetadata = inventario.filter(item =>
@@ -1396,7 +1396,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   }
 
   private actualizarMapasYFiltros(): void {
-    console.log('Alimentos catalog cargados:', this.alimentosCatalog);
+    
 
     // Actualizar mapas
     this.alimentosById.clear();
@@ -1637,7 +1637,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
             this.inventarioUnidadHembras = unidad;
             this.inventarioCantidadOriginalHembras = cantidadOriginal;
 
-            console.log(`Inventario hembras cargado: ${cantidadOriginal} ${unidad}`);
+            
 
             // Convertir a gramos para mostrar en la interfaz (si el inventario está en kg)
             // Si el inventario está en gramos, no hay conversión
@@ -1938,7 +1938,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
             reason: 'Consumo diario',
             destination: 'Consumo'
           }).toPromise().then(() => {
-            console.log(`Inventario hembras reducido: ${cantidadKg} ${unidadInventario}`);
+            
           }).catch(err => {
             console.error('Error al restar inventario hembras:', err);
             throw new Error('Error al registrar consumo en inventario (hembras)');
@@ -1972,7 +1972,7 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
             reason: 'Consumo diario',
             destination: 'Consumo'
           }).toPromise().then(() => {
-            console.log(`Inventario machos reducido: ${cantidadKg} ${unidadInventario}`);
+            
           }).catch(err => {
             console.error('Error al restar inventario machos:', err);
             throw new Error('Error al registrar consumo en inventario (machos)');

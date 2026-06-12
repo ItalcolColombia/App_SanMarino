@@ -178,8 +178,8 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
    */
   cargarDatosLote(): void {
     // Ya no se usa - los datos vienen de LiquidacionTecnicaDto
-    console.log('=== DEBUG: cargarDatosLote() ===');
-    console.log('Usando datos de liquidación directamente');
+    
+    
   }
 
   /**
@@ -258,12 +258,12 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
     const comparacion = this.comparacion();
     if (!liquidacion) return [];
 
-    console.log('=== DEBUG: get indicadores() ===');
-    console.log('mortalidadEsperadaHembrasGuia:', this.mortalidadEsperadaHembrasGuia);
-    console.log('mortalidadEsperadaMachosGuia:', this.mortalidadEsperadaMachosGuia);
-    console.log('uniformidadEsperadaGuia:', this.uniformidadEsperadaGuia);
-    console.log('pesoEsperadoHembrasGuia:', this.pesoEsperadoHembrasGuia);
-    console.log('pesoEsperadoMachosGuia:', this.pesoEsperadoMachosGuia);
+    
+    
+    
+    
+    
+    
 
     return [
       {
@@ -710,11 +710,11 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
   cargarComparacion(): void {
     const liquidacionData = this.liquidacion();
 
-    console.log('=== DEBUG: cargarComparacion() ===');
-    console.log('LiquidacionData:', liquidacionData);
-    console.log('Raza:', liquidacionData?.raza);
-    console.log('Año Tabla Genética:', liquidacionData?.anoTablaGenetica);
-    console.log('Fecha Encaset:', liquidacionData?.fechaEncaset);
+    
+    
+    
+    
+    
 
     if (!liquidacionData || !liquidacionData.raza || !liquidacionData.anoTablaGenetica) {
       console.warn('No se puede cargar comparación: faltan datos de raza o año tabla genética');
@@ -725,7 +725,7 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
 
     // Usar semana 25 (175 días) para liquidación técnica, no la edad actual
     const semanaLiquidacion = 25;
-    console.log('Semana de liquidación (fija): 25 (175 días)');
+    
 
     // Cargar datos de la guía genética para semana 25
     this.guiaGeneticaService.obtenerGuiaGenetica(
@@ -734,16 +734,16 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
       semanaLiquidacion
     ).subscribe({
       next: (guiaData) => {
-        console.log('=== DEBUG: Datos recibidos de guía genética ===');
-        console.log('guiaData:', guiaData);
-        console.log('datos:', guiaData?.datos);
+        
+        
+        
 
         if (guiaData?.datos) {
-          console.log('mortalidadHembras:', guiaData.datos.mortalidadHembras);
-          console.log('mortalidadMachos:', guiaData.datos.mortalidadMachos);
-          console.log('uniformidad:', guiaData.datos.uniformidad);
-          console.log('pesoHembras:', guiaData.datos.pesoHembras);
-          console.log('pesoMachos:', guiaData.datos.pesoMachos);
+          
+          
+          
+          
+          
 
           // Guardar pesos por sexo
           this.pesoEsperadoHembrasGuia = guiaData.datos.pesoHembras || 0;
@@ -763,12 +763,12 @@ export class LiquidacionTecnicaComponent implements OnInit, OnChanges {
           this.uniformidadEsperadaHembrasGuia = guiaData.datos.uniformidad || 0;
           this.uniformidadEsperadaMachosGuia = guiaData.datos.uniformidad || 0;
 
-          console.log('Valores finales guardados:');
-          console.log('mortalidadEsperadaHembrasGuia:', this.mortalidadEsperadaHembrasGuia);
-          console.log('mortalidadEsperadaMachosGuia:', this.mortalidadEsperadaMachosGuia);
-          console.log('uniformidadEsperadaGuia:', this.uniformidadEsperadaGuia);
-          console.log('pesoEsperadoHembrasGuia:', this.pesoEsperadoHembrasGuia);
-          console.log('pesoEsperadoMachosGuia:', this.pesoEsperadoMachosGuia);
+          
+          
+          
+          
+          
+          
 
           this.conversionEsperadaGuia = this.calcularConversionEsperada();
 

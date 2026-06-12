@@ -35,7 +35,7 @@ export class ActiveCompanyService {
     }
 
     this.storage.setActiveCompany(companyName);
-    console.log(`Empresa activa cambiada a: ${companyName}`);
+    
   }
 
   /**

@@ -203,7 +203,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
         next: (companies) => {
           this.companies = companies;
           this.updateCompanyMap();
-          console.log('Empresas cargadas en farm-management:', companies);
+          
         },
         error: (error) => {
           console.error('Error cargando empresas:', error);
@@ -229,7 +229,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(company => {
         this.activeCompany = company;
-        console.log('Empresa activa en farm-management:', company);
+        
         // Recargar empresas cuando cambie la empresa activa
         this.loadCompanies();
       });
@@ -291,7 +291,7 @@ export class FarmManagementComponent implements OnInit, OnDestroy {
   }
 
   onCompanyChanged(companyName: string): void {
-    console.log('Empresa cambiada en farm-management:', companyName);
+    
     // Las empresas se recargarán automáticamente por la suscripción
   }
 

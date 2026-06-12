@@ -416,13 +416,13 @@ if (validationResult.success) {
 ```javascript
 const result = await response.json();
 
-console.log(`Procesadas: ${result.totalRowsProcessed}`);
-console.log(`Importadas: ${result.totalRowsImported}`);
-console.log(`Errores: ${result.totalRowsFailed}`);
+
+
+
 
 if (result.errors.length > 0) {
-  console.log('Errores encontrados:');
-  result.errors.forEach(error => console.log(`- ${error}`));
+  
+  result.errors.forEach(error => 
 }
 ```
 

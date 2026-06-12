@@ -127,10 +127,10 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   ) {}
 
   ngOnInit(): void {
-    console.log('🚀 ========================================');
-    console.log('🚀 MODAL CREATE EDIT LOTE - INICIALIZANDO');
-    console.log('🚀 Component ID:', this.COMPONENT_ID);
-    console.log('🚀 ========================================');
+    
+    
+    
+    
     this.initForm();
     this.loadMasterData();
     this.setupFormChains();
@@ -142,18 +142,18 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    console.log('🔍 ========================================');
-    console.log('🔍 MODAL CREATE EDIT LOTE - ngOnChanges');
-    console.log('🔍 Component ID:', this.COMPONENT_ID);
-    console.log('🔍 isOpen:', this.isOpen);
-    console.log('🔍 editingLote:', this.editingLote);
-    console.log('🔍 changes:', changes);
-    console.log('🔍 ========================================');
+    
+    
+    
+    
+    
+    
+    
     
     if (this.isOpen) {
       // Si el modal se acaba de abrir
       if (changes['isOpen'] && changes['isOpen'].currentValue) {
-        console.log('✅ Modal abierto, inicializando formulario...');
+        
         this.loadMasterData();
         if (this.editingLote) {
           this.populateForm();
@@ -168,11 +168,11 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
         }
         // Inicializar esLotePadre
         this.esLotePadre = this.form.get('esLotePadre')?.value || false;
-        console.log('📦 esLotePadre inicializado:', this.esLotePadre);
+        
         // Forzar detección de cambios para mostrar el checkbox
         setTimeout(() => {
           this.cdr.detectChanges();
-          console.log('🔄 Detección de cambios forzada');
+          
         }, 100);
       }
       
@@ -224,7 +224,7 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     this.loading = true;
     this.loadingRazas = true;
     
-    console.log('=== Modal loadMasterData() ===');
+    
     
     // Verificar que la sesión esté disponible antes de cargar datos
     const session = this.tokenStorage.get();
@@ -236,7 +236,7 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       return;
     }
     
-    console.log('✅ Modal: Sesión disponible, cargando datos...');
+    
     
     forkJoin({
       farms: this.farmSvc.getAll(),
@@ -246,9 +246,9 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
       companies: this.companySvc.getAll(),
       razas: this.guiaGeneticaSvc.obtenerRazasDisponibles(),
     }).subscribe(({ farms, nucleos, galpones, tecnicos, companies, razas }) => {
-      console.log('✅ Modal: Datos cargados exitosamente');
-      console.log('Farms:', farms.length);
-      console.log('Razas:', razas);
+      
+      
+      
       
       this.farms = farms;
       this.nucleos = nucleos;
@@ -285,18 +285,18 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
 
     // Chain: Raza -> Año Tabla Genética
     this.form.get('raza')!.valueChanges.subscribe(raza => {
-      console.log('=== Modal: Cambio en raza ===');
-      console.log('Nueva raza seleccionada:', raza);
+      
+      
       
       this.selectedRaza = raza;
       this.anosDisponibles = [];
       this.form.patchValue({ anoTablaGenetica: null });
       
       if (raza) {
-        console.log('Cargando años para raza:', raza);
+        
         this.loadAnosDisponibles(raza);
       } else {
-        console.log('Raza vacía, no cargando años');
+        
       }
     });
 
@@ -351,11 +351,11 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
   }
 
   private loadAnosDisponibles(raza: string): void {
-    console.log('=== Modal: loadAnosDisponibles() ===');
-    console.log('Raza seleccionada:', raza);
+    
+    
     
     if (!raza || raza.trim() === '') {
-      console.log('Raza vacía, limpiando años');
+      
       this.anosDisponibles = [];
       this.loadingAnos = false;
       return;
@@ -364,16 +364,16 @@ export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChange
     this.loadingAnos = true;
     this.razaValida = true;
     
-    console.log('Llamando al servicio obtenerInformacionRaza...');
+    
     this.guiaGeneticaSvc.obtenerInformacionRaza(raza).subscribe({
       next: (info) => {
-        console.log('✅ Respuesta del servicio:', info);
+        
         this.anosDisponibles = info.anosDisponibles;
         this.razaValida = info.esValida;
         this.loadingAnos = false;
         this.cdr.detectChanges();
         
-        console.log('Años disponibles:', this.anosDisponibles);
+        
         
         if (!info.esValida) {
           console.warn(`No se encontraron años disponibles para la raza: ${raza}`);

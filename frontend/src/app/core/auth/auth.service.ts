@@ -35,7 +35,7 @@ export class AuthService {
       ),
       // 3. Desencriptar la respuesta del backend (puede ser grande con menús y datos)
       switchMap(encryptedResponse => {
-        console.log('🔐 Respuesta encriptada recibida, iniciando desencriptación...', encryptedResponse?.substring(0, 50) + '...');
+        
         return from(this.encryption.decryptFromBackend<LoginResult>(encryptedResponse));
       }),
       map(res => {
@@ -303,7 +303,7 @@ export class AuthService {
 
   // Carga el menú del usuario autenticado (separado del login, datos encriptados)
   loadMenu(companyId?: number) {
-    console.log('📋 Cargando menú del usuario...', { companyId });
+    
 
     const params = companyId ? new HttpParams().set('companyId', companyId.toString()) : undefined;
 
@@ -312,7 +312,7 @@ export class AuthService {
       responseType: 'text' // Recibimos texto plano encriptado
     }).pipe(
       switchMap(encryptedResponse => {
-        console.log('🔐 Menú encriptado recibido, iniciando desencriptación...');
+        
         return from(this.encryption.decryptFromBackend<{ menu: MenuItem[]; menusByRole: RoleMenusLite[] }>(encryptedResponse));
       }),
       tap(menuData => {
@@ -334,7 +334,7 @@ export class AuthService {
           const persistedInLocal = !!localStorage.getItem('auth_session');
           this.storage.save(updatedSession, persistedInLocal);
 
-          console.log('✅ Menú actualizado en la sesión');
+          
         } else {
           console.warn('⚠️ No hay sesión activa para actualizar el menú');
         }
