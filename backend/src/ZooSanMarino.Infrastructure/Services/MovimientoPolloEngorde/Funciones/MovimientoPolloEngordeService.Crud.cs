@@ -419,10 +419,86 @@ public partial class MovimientoPolloEngordeService
         if (dto.Conductor != null) m.Conductor = dto.Conductor;
         if (dto.PesoBruto.HasValue) m.PesoBruto = dto.PesoBruto;
         if (dto.PesoTara.HasValue) m.PesoTara = dto.PesoTara;
+
+        // G6: editar peso o cantidades invalida el peso individual prorrateado; recalcular
+        // (y re-prorratear las líneas hermanas si el movimiento pertenece a una factura).
+        var recalcularPeso = dto.PesoBruto.HasValue || dto.PesoTara.HasValue
+            || dto.CantidadHembras.HasValue || dto.CantidadMachos.HasValue || dto.CantidadMixtas.HasValue;
+        if (recalcularPeso)
+            await ReprorratearPesoTrasEdicionAsync(m);
+
         m.UpdatedByUserId = _currentUser.UserId;
         m.UpdatedAt = DateTime.UtcNow;
         await _ctx.SaveChangesAsync();
         return await GetByIdAsync(id);
+    }
+
+    /// <summary>
+    /// Recalcula el peso individual tras una edición (G6). En facturas multi-línea, el
+    /// PesoBruto/PesoTara del movimiento es el GLOBAL del camión clonado: se propaga a las líneas
+    /// hermanas (aunque estén Completadas — el peso no afecta saldos de aves, solo liquidación) y se
+    /// re-prorratea el individual de todas con el mismo algoritmo de la creación. En movimientos
+    /// simples solo se recalculan PesoNeto y PromedioPesoAve.
+    /// </summary>
+    private async Task ReprorratearPesoTrasEdicionAsync(MovimientoPolloEngorde m)
+    {
+        if (m.PesoBruto.HasValue && m.PesoTara.HasValue && m.PesoBruto.Value < m.PesoTara.Value)
+            throw new InvalidOperationException("El peso bruto no puede ser menor que el peso tara.");
+
+        var esFacturaMultiLinea = false;
+        List<MovimientoPolloEngorde> lineas = new() { m };
+        if (m.FacturaId.HasValue)
+        {
+            // Mismo DbContext ⇒ identity map: la línea editada vuelve como la MISMA instancia trackeada.
+            lineas = await _ctx.MovimientoPolloEngorde
+                .Where(x => x.FacturaId == m.FacturaId &&
+                            x.CompanyId == _currentUser.CompanyId &&
+                            x.DeletedAt == null &&
+                            x.Estado != "Cancelado")
+                .OrderBy(x => x.Id)
+                .ToListAsync();
+            if (!lineas.Any(x => x.Id == m.Id)) lineas.Add(m);
+            esFacturaMultiLinea = lineas.Count > 1;
+        }
+
+        if (!esFacturaMultiLinea)
+        {
+            // Movimiento simple: misma regla que CreateAsync (neto solo con bruto y tara presentes).
+            m.PesoNeto = (m.PesoBruto.HasValue && m.PesoTara.HasValue)
+                ? m.PesoBruto.Value - m.PesoTara.Value
+                : null;
+            m.PromedioPesoAve = (m.PesoNeto.HasValue && m.TotalAves > 0)
+                ? m.PesoNeto.Value / m.TotalAves
+                : null;
+            return;
+        }
+
+        var pesoBruto = m.PesoBruto ?? 0d;
+        var pesoTara = m.PesoTara ?? 0d;
+        if (pesoBruto == 0d && pesoTara == 0d) return; // factura sin peso: nada que repartir.
+
+        var pesoNetoGlobal = pesoBruto - pesoTara;
+        var avesPorLinea = lineas.Select(x => x.TotalAves).ToList();
+        var prorrateo = MovimientoPolloEngordeCalculos.ProrratearPesoPorLinea(pesoBruto, pesoTara, avesPorLinea);
+
+        for (int i = 0; i < lineas.Count; i++)
+        {
+            var l = lineas[i];
+            l.PesoBruto = m.PesoBruto;
+            l.PesoTara = m.PesoTara;
+            l.PesoBrutoGlobal = m.PesoBruto;
+            l.PesoTaraGlobal = m.PesoTara;
+            l.PesoNetoGlobal = pesoNetoGlobal;
+            l.PesoBrutoReal = prorrateo[i].Bruto;
+            l.PesoTaraReal = prorrateo[i].Tara;
+            l.PesoNeto = prorrateo[i].Neto;
+            l.PromedioPesoAve = prorrateo[i].Promedio;
+            if (l.Id != m.Id)
+            {
+                l.UpdatedByUserId = _currentUser.UserId;
+                l.UpdatedAt = DateTime.UtcNow;
+            }
+        }
     }
 
     public async Task<bool> CancelAsync(int id, string motivo)

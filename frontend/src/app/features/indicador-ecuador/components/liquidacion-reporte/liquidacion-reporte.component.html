@@ -87,22 +87,22 @@
       </tr>
       <tr class="alt">
         <td>Merma (Unidades)</td>
-        <td class="num">{{ fmt(item.indicador.mermaUnidades ?? 0, 0) }}</td>
+        <td class="num">{{ fmtONada(item.indicador.mermaUnidades, 0) }}</td>
         <td class="num secondary"></td>
       </tr>
       <tr>
         <td>Merma (%)</td>
-        <td class="num">{{ fmt(item.indicador.mermaPorcentaje ?? 0) }}</td>
+        <td class="num">{{ fmtONada(item.indicador.mermaPorcentaje) }}</td>
         <td class="num secondary"></td>
       </tr>
       <tr class="alt">
         <td>Ajuste en Aves</td>
-        <td class="num">{{ fmt(ajusteAves(item.indicador), 0) }}</td>
+        <td class="num">{{ fmtONada(ajusteAves(item.indicador), 0) }}</td>
         <td class="num secondary"></td>
       </tr>
       <tr>
         <td>Porcentaje de Ajuste (%)</td>
-        <td class="num">{{ fmt(item.indicador.porcentajeAjuste ?? pct(ajusteAves(item.indicador), item.indicador.avesEncasetadas)) }}</td>
+        <td class="num">{{ fmtONada(porcentajeAjuste(item.indicador)) }}</td>
         <td class="num secondary"></td>
       </tr>
       <tr class="alt">
@@ -137,7 +137,7 @@
       </tr>
       <tr>
         <td>Merma Planta (Kg)</td>
-        <td class="num">{{ fmt(item.indicador.mermaKilos ?? 0) }}</td>
+        <td class="num">{{ fmtONada(item.indicador.mermaKilos) }}</td>
         <td class="num secondary"></td>
       </tr>
       <tr class="alt">
@@ -147,7 +147,7 @@
       </tr>
       <tr>
         <td>Total Kilos Despachados a Cliente (Kg)</td>
-        <td class="num">{{ fmt(totalKilosCliente(item.indicador)) }}</td>
+        <td class="num">{{ fmtONada(totalKilosCliente(item.indicador)) }}</td>
         <td class="num secondary"></td>
       </tr>
       <tr class="alt">

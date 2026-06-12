@@ -698,6 +698,11 @@ export class IndicadorEcuadorListComponent implements OnInit {
     let prodKg = 0;
     let totCliente = 0;
     let sobrante = 0;
+    let diasEng = 0;
+    let lotesConDias = 0;
+    // R1: solo los lotes donde Costos registró merma aportan a los totales del bloque;
+    // si ninguno la tiene, los totales van null ⇒ la matriz muestra el campo vacío.
+    let lotesConMerma = 0;
     for (const r of R) {
       enc += r.avesEncasetadas;
       sac += r.avesSacrificadas;
@@ -705,13 +710,21 @@ export class IndicadorEcuadorListComponent implements OnInit {
       cons += r.consumoTotalAlimentoKg;
       kg += r.kgCarnePollos;
       m2 += r.metrosCuadrados;
-      mermaUni += r.mermaUnidades ?? 0;
-      mermaKg += r.mermaKilos ?? 0;
-      ajuste += r.ajusteAves ?? 0;
       prodKg += r.produccionKiloEnPie ?? r.kgCarnePollos;
-      totCliente += r.totalKilosDespachadosCliente ?? ((r.produccionKiloEnPie ?? r.kgCarnePollos) - (r.mermaKilos ?? 0));
       sobrante += r.avesSobrante ?? 0;
+      if ((r.diasEngorde ?? 0) > 0) {
+        diasEng += r.diasEngorde!;
+        lotesConDias++;
+      }
+      if (r.mermaUnidades != null || r.mermaKilos != null) {
+        lotesConMerma++;
+        mermaUni += r.mermaUnidades ?? 0;
+        mermaKg += r.mermaKilos ?? 0;
+        ajuste += r.ajusteAves ?? 0;
+        totCliente += r.totalKilosDespachadosCliente ?? ((r.produccionKiloEnPie ?? r.kgCarnePollos) - (r.mermaKilos ?? 0));
+      }
     }
+    const hayMerma = lotesConMerma > 0;
     const first = R[0];
     const pesoAj = first.pesoAjusteVariable;
     const divAj = first.divisorAjusteVariable;
@@ -754,18 +767,29 @@ export class IndicadorEcuadorListComponent implements OnInit {
       eficienciaEuropea: w(r => r.eficienciaEuropea),
       indiceProductividad: w(r => r.indiceProductividad),
       gananciaDia: w(r => r.gananciaDia),
-      mermaUnidades: mermaUni,
-      mermaKilos: mermaKg,
-      mermaPorcentaje: sac > 0 ? (mermaUni / sac) * 100 : 0,
-      ajusteAves: ajuste,
-      porcentajeAjuste: enc > 0 ? (ajuste / enc) * 100 : 0,
+      mermaUnidades: hayMerma ? mermaUni : null,
+      mermaKilos: hayMerma ? mermaKg : null,
+      mermaPorcentaje: hayMerma && sac > 0 ? (mermaUni / sac) * 100 : hayMerma ? 0 : null,
+      ajusteAves: hayMerma ? ajuste : null,
+      porcentajeAjuste: hayMerma && enc > 0 ? (ajuste / enc) * 100 : hayMerma ? 0 : null,
       produccionKiloEnPie: prodKg,
-      totalKilosDespachadosCliente: totCliente,
+      totalKilosDespachadosCliente: hayMerma ? totCliente : null,
+      diasEngorde: lotesConDias > 0 ? diasEng / lotesConDias : 0,
       avesSobrante: sobrante,
       fechaInicioLote: null,
       fechaCierreLote: null,
       loteCerrado: true
     };
+  }
+
+  /** R1: valor o «—» — merma no registrada ⇒ campo vacío en el reporte. */
+  fmtONada(v: number | null | undefined, decimales: number = 2): string {
+    return v == null ? '—' : this.formatearNumero(v, decimales);
+  }
+
+  /** R1: porcentaje o «—» cuando la merma no está registrada. */
+  fmtPctONada(v: number | null | undefined): string {
+    return v == null ? '—' : this.formatearPorcentaje(v);
   }
 
   etiquetaLoteFiltro(l: PeLoteAveEngordeItem): string {
@@ -932,6 +956,11 @@ export class IndicadorEcuadorListComponent implements OnInit {
     const fn = (v: number | null | undefined, d: number) => this.formatearNumero(v, d);
     const fp = (v: number | null | undefined) => this.formatearPorcentaje(v);
     const n0 = (v: number | null | undefined) => (v ?? 0).toLocaleString('es-EC');
+    // R1: variantes "o vacío" — merma no registrada ⇒ celda vacía en el Excel.
+    const nV = (v: number | null | undefined) => (v == null ? '' : v.toLocaleString('es-EC'));
+    const fnV = (v: number | null | undefined, d: number) => (v == null ? '' : fn(v, d));
+    const fpV = (v: number | null | undefined) => (v == null ? '' : fp(v));
+    const fecha = (v: string | null | undefined) => (v ? this.formatearFechaLote(v) : '—');
 
     // ── Hoja Consolidado ──────────────────────────────────────────
     const encCols = datos.items.map(it => this.etiquetaColumnaLiquidacion(it));
@@ -946,26 +975,30 @@ export class IndicadorEcuadorListComponent implements OnInit {
       ['ECUADOR ITALCOL — Liquidación Técnica Pollo Engorde'],
       ['Indicador', ...encCols, 'TOTAL'],
       fila('Granja', r => r.granjaNombre, tot?.granjaNombre ?? ''),
+      fila('Fecha alistamiento',          r => fecha(r.fechaAlistamiento),      '—'),
+      fila('Fecha encasetamiento',        r => fecha(r.fechaInicioLote),        '—'),
+      fila('Fecha liquidación',           r => fecha(r.fechaLiquidacion),       '—'),
       fila('Aves encasetadas',           r => n0(r.avesEncasetadas),           n0(tot?.avesEncasetadas)),
       fila('Aves vendidas / despacho',   r => n0(r.avesSacrificadas),          n0(tot?.avesSacrificadas)),
       fila('Aves agregadas de más (sobrante)', r => n0(r.avesSobrante ?? 0),    n0(tot?.avesSobrante ?? 0)),
       fila('Mortalidad (unidades)',       r => n0(r.mortalidad),                n0(tot?.mortalidad)),
       fila('Mortalidad (%)',              r => fp(r.mortalidadPorcentaje),      fp(tot?.mortalidadPorcentaje)),
-      fila('Merma (unidades)',            r => n0(r.mermaUnidades ?? 0),        n0(tot?.mermaUnidades ?? 0)),
-      fila('Merma (%)',                   r => fp(r.mermaPorcentaje ?? 0),      fp(tot?.mermaPorcentaje ?? 0)),
-      fila('Ajuste en aves',              r => n0(r.ajusteAves ?? 0),           n0(tot?.ajusteAves ?? 0)),
-      fila('Porcentaje de ajuste (%)',    r => fp(r.porcentajeAjuste ?? 0),     fp(tot?.porcentajeAjuste ?? 0)),
+      fila('Merma (unidades)',            r => nV(r.mermaUnidades),             nV(tot?.mermaUnidades)),
+      fila('Merma (%)',                   r => fpV(r.mermaPorcentaje),          fpV(tot?.mermaPorcentaje)),
+      fila('Ajuste en aves',              r => nV(r.ajusteAves),                nV(tot?.ajusteAves)),
+      fila('Porcentaje de ajuste (%)',    r => fpV(r.porcentajeAjuste),         fpV(tot?.porcentajeAjuste)),
       fila('Supervivencia (%)',           r => fp(r.supervivenciaPorcentaje),   fp(tot?.supervivenciaPorcentaje)),
       fila('Consumo total alimento (kg)', r => fn(r.consumoTotalAlimentoKg, 2), fn(tot?.consumoTotalAlimentoKg, 2)),
       fila('Consumo ave (g)',             r => fn(r.consumoAveGramos, 2),       fn(tot?.consumoAveGramos, 2)),
       fila('Producción kilo en pie (kg)', r => fn(r.produccionKiloEnPie ?? r.kgCarnePollos, 2), fn(tot?.produccionKiloEnPie ?? tot?.kgCarnePollos, 2)),
-      fila('Merma (kilos)',              r => fn(r.mermaKilos ?? 0, 2),        fn(tot?.mermaKilos ?? 0, 2)),
-      fila('Total kg despachados a cliente', r => fn(r.totalKilosDespachadosCliente ?? 0, 2), fn(tot?.totalKilosDespachadosCliente ?? 0, 2)),
+      fila('Merma (kilos)',              r => fnV(r.mermaKilos, 2),            fnV(tot?.mermaKilos, 2)),
+      fila('Total kg despachados a cliente', r => fnV(r.totalKilosDespachadosCliente, 2), fnV(tot?.totalKilosDespachadosCliente, 2)),
       fila('Kg carne pollo',             r => fn(r.kgCarnePollos, 2),          fn(tot?.kgCarnePollos, 2)),
       fila('Peso promedio (kg)',          r => fn(r.pesoPromedioKilos, 3),      fn(tot?.pesoPromedioKilos, 3)),
       fila('Conversión',                 r => fn(r.conversion, 3),             fn(tot?.conversion, 3)),
       fila(`Conv. ajustada (${pesoAj}/${divAj})`, r => fn(r.conversionAjustada2700, 3), fn(tot?.conversionAjustada2700, 3)),
       fila('Edad (días, ciclo)',         r => fn(r.edadPromedio, 1),           fn(tot?.edadPromedio, 1)),
+      fila('Días de engorde',            r => n0(r.diasEngorde ?? 0),          n0(Math.round(tot?.diasEngorde ?? 0))),
       fila('Metros cuadrados',           r => fn(r.metrosCuadrados, 2),        fn(tot?.metrosCuadrados, 2)),
       fila('Aves / m²',                  r => fn(r.avesPorMetroCuadrado, 2),   fn(tot?.avesPorMetroCuadrado, 2)),
       fila('Kg / m²',                    r => fn(r.kgPorMetroCuadrado, 2),     fn(tot?.kgPorMetroCuadrado, 2)),
@@ -996,16 +1029,16 @@ export class IndicadorEcuadorListComponent implements OnInit {
         ['Aves agregadas de más (sobrante)', n0(ind.avesSobrante ?? 0)],
         ['Mortalidad (unidades)',         n0(ind.mortalidad)],
         ['Mortalidad (%)',               fp(ind.mortalidadPorcentaje)],
-        ['Merma (unidades)',             n0(ind.mermaUnidades ?? 0)],
-        ['Merma (%)',                    fp(ind.mermaPorcentaje ?? 0)],
-        ['Ajuste en aves',               n0(ind.ajusteAves ?? 0)],
-        ['Porcentaje de ajuste (%)',     fp(ind.porcentajeAjuste ?? 0)],
+        ['Merma (unidades)',             nV(ind.mermaUnidades)],
+        ['Merma (%)',                    fpV(ind.mermaPorcentaje)],
+        ['Ajuste en aves',               nV(ind.ajusteAves)],
+        ['Porcentaje de ajuste (%)',     fpV(ind.porcentajeAjuste)],
         ['Supervivencia (%)',            fp(ind.supervivenciaPorcentaje)],
         ['Consumo total alimento (kg)', fn(ind.consumoTotalAlimentoKg, 2)],
         ['Consumo ave (g)',              fn(ind.consumoAveGramos, 2)],
         ['Producción kilo en pie (kg)', fn(ind.produccionKiloEnPie ?? ind.kgCarnePollos, 2)],
-        ['Merma (kilos)',               fn(ind.mermaKilos ?? 0, 2)],
-        ['Total kilos despachados a cliente (kg)', fn(ind.totalKilosDespachadosCliente ?? ((ind.produccionKiloEnPie ?? ind.kgCarnePollos) - (ind.mermaKilos ?? 0)), 2)],
+        ['Merma (kilos)',               fnV(ind.mermaKilos, 2)],
+        ['Total kilos despachados a cliente (kg)', fnV(ind.totalKilosDespachadosCliente, 2)],
         ['Kg carne pollo',              fn(ind.kgCarnePollos, 2)],
         ['Peso promedio (kg)',           fn(ind.pesoPromedioKilos, 3)],
         ['Conversión',                  fn(ind.conversion, 3)],

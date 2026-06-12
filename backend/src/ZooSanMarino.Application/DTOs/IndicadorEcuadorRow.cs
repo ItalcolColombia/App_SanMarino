@@ -38,13 +38,14 @@ public class IndicadorEcuadorRow
     public DateTime? FechaCierreLote { get; set; }
     public bool LoteCerrado { get; set; }
     public DateTime? FechaAlistamiento { get; set; }
-    public int MermaUnidades { get; set; }
-    public decimal MermaKilos { get; set; }
-    public decimal MermaPorcentaje { get; set; }
-    public int AjusteAves { get; set; }
-    public decimal PorcentajeAjuste { get; set; }
+    // R1 (campos vacíos): NULL cuando Costos no registró merma en el lote.
+    public int? MermaUnidades { get; set; }
+    public decimal? MermaKilos { get; set; }
+    public decimal? MermaPorcentaje { get; set; }
+    public int? AjusteAves { get; set; }
+    public decimal? PorcentajeAjuste { get; set; }
     public decimal ProduccionKiloEnPie { get; set; }
-    public decimal TotalKilosDespachadosCliente { get; set; }
+    public decimal? TotalKilosDespachadosCliente { get; set; }
     public int DiasEngorde { get; set; }
     public DateTime? FechaLiquidacion { get; set; }
     public int AvesSobrante { get; set; }

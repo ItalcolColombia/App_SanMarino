@@ -570,44 +570,91 @@
                   <td class="ie-matrix__total-cell">{{ tot.granjaNombre }}</td>
                 </tr>
                 <tr class="ie-matrix__stripe">
+                  <td class="ie-matrix__indicator-col">Fecha alistamiento</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ it.indicador.fechaAlistamiento ? formatearFechaLote(it.indicador.fechaAlistamiento) : '—' }}</td>
+                  <td class="ie-matrix__total-cell num">—</td>
+                </tr>
+                <tr>
+                  <td class="ie-matrix__indicator-col">Fecha encasetamiento</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ it.indicador.fechaInicioLote ? formatearFechaLote(it.indicador.fechaInicioLote) : '—' }}</td>
+                  <td class="ie-matrix__total-cell num">—</td>
+                </tr>
+                <tr class="ie-matrix__stripe">
+                  <td class="ie-matrix__indicator-col">Fecha liquidación</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ it.indicador.fechaLiquidacion ? formatearFechaLote(it.indicador.fechaLiquidacion) : '—' }}</td>
+                  <td class="ie-matrix__total-cell num">—</td>
+                </tr>
+                <tr>
                   <td class="ie-matrix__indicator-col">Aves encasetadas</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ it.indicador.avesEncasetadas | number:'1.0-0' }}</td>
                   <td class="ie-matrix__total-cell num">{{ tot.avesEncasetadas | number:'1.0-0' }}</td>
                 </tr>
-                <tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Aves vendidas / despacho</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ it.indicador.avesSacrificadas | number:'1.0-0' }}</td>
                   <td class="ie-matrix__total-cell num">{{ tot.avesSacrificadas | number:'1.0-0' }}</td>
                 </tr>
-                <tr class="ie-matrix__stripe">
+                <tr>
                   <td class="ie-matrix__indicator-col">Mortalidad (unidades)</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ it.indicador.mortalidad | number:'1.0-0' }}</td>
                   <td class="ie-matrix__total-cell num">{{ tot.mortalidad | number:'1.0-0' }}</td>
                 </tr>
-                <tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Mortalidad (%)</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearPorcentaje(it.indicador.mortalidadPorcentaje) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearPorcentaje(tot.mortalidadPorcentaje) }}</td>
                 </tr>
+                <!-- R1 — bloque merma/ajuste (vacío «—» cuando Costos no registró merma) -->
+                <tr>
+                  <td class="ie-matrix__indicator-col">Merma (unidades)</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtONada(it.indicador.mermaUnidades, 0) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ fmtONada(tot.mermaUnidades, 0) }}</td>
+                </tr>
                 <tr class="ie-matrix__stripe">
+                  <td class="ie-matrix__indicator-col">Merma (%)</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtPctONada(it.indicador.mermaPorcentaje) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ fmtPctONada(tot.mermaPorcentaje) }}</td>
+                </tr>
+                <tr>
+                  <td class="ie-matrix__indicator-col">Ajuste en Aves</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtONada(it.indicador.ajusteAves, 0) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ fmtONada(tot.ajusteAves, 0) }}</td>
+                </tr>
+                <tr class="ie-matrix__stripe">
+                  <td class="ie-matrix__indicator-col">Porcentaje de ajuste (%)</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtPctONada(it.indicador.porcentajeAjuste) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ fmtPctONada(tot.porcentajeAjuste) }}</td>
+                </tr>
+                <tr>
                   <td class="ie-matrix__indicator-col">Supervivencia (%)</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num text-success">{{ formatearPorcentaje(it.indicador.supervivenciaPorcentaje) }}</td>
                   <td class="ie-matrix__total-cell num text-success">{{ formatearPorcentaje(tot.supervivenciaPorcentaje) }}</td>
                 </tr>
-                <tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Consumo total alimento (kg)</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.consumoTotalAlimentoKg, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.consumoTotalAlimentoKg, 2) }}</td>
                 </tr>
-                <tr class="ie-matrix__stripe">
+                <tr>
                   <td class="ie-matrix__indicator-col">Consumo ave (g)</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.consumoAveGramos, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.consumoAveGramos, 2) }}</td>
                 </tr>
-                <tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Kg carne pollo</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.kgCarnePollos, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.kgCarnePollos, 2) }}</td>
+                </tr>
+                <!-- R1 — bloque kilos a cliente (vacío «—» cuando Costos no registró merma) -->
+                <tr>
+                  <td class="ie-matrix__indicator-col">Merma (kilos)</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtONada(it.indicador.mermaKilos, 2) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ fmtONada(tot.mermaKilos, 2) }}</td>
+                </tr>
+                <tr class="ie-matrix__stripe">
+                  <td class="ie-matrix__indicator-col">Total kilos despachados a cliente</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtONada(it.indicador.totalKilosDespachadosCliente, 2) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ fmtONada(tot.totalKilosDespachadosCliente, 2) }}</td>
                 </tr>
                 <tr class="ie-matrix__green">
                   <td class="ie-matrix__indicator-col">Peso promedio (kg)</td>
@@ -630,26 +677,31 @@
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.edadPromedio, 1) }}</td>
                 </tr>
                 <tr>
+                  <td class="ie-matrix__indicator-col">Días de engorde</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ (it.indicador.diasEngorde ?? 0) | number:'1.0-0' }}</td>
+                  <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.diasEngorde ?? 0, 0) }}</td>
+                </tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Metros cuadrados</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.metrosCuadrados, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.metrosCuadrados, 2) }}</td>
                 </tr>
-                <tr class="ie-matrix__stripe">
+                <tr>
                   <td class="ie-matrix__indicator-col">Aves / m²</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.avesPorMetroCuadrado, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.avesPorMetroCuadrado, 2) }}</td>
                 </tr>
-                <tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Kg / m²</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.kgPorMetroCuadrado, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.kgPorMetroCuadrado, 2) }}</td>
                 </tr>
-                <tr class="ie-matrix__stripe">
+                <tr>
                   <td class="ie-matrix__indicator-col">Eficiencia americana</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.eficienciaAmericana, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.eficienciaAmericana, 2) }}</td>
                 </tr>
-                <tr>
+                <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Eficiencia europea</td>
                   <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(it.indicador.eficienciaEuropea, 2) }}</td>
                   <td class="ie-matrix__total-cell num">{{ formatearNumero(tot.eficienciaEuropea, 2) }}</td>
@@ -715,12 +767,20 @@
                     <td class="num">{{ it.indicador.galponNombre || it.indicador.galponId || '—' }}</td>
                   </tr>
                   <tr>
+                    <td class="ie-matrix__indicator-col">Fecha alistamiento</td>
+                    <td class="num">{{ it.indicador.fechaAlistamiento ? formatearFechaLote(it.indicador.fechaAlistamiento) : '—' }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
                     <td class="ie-matrix__indicator-col">Fecha encasetamiento</td>
                     <td class="num">{{ it.indicador.fechaInicioLote ? formatearFechaLote(it.indicador.fechaInicioLote) : '—' }}</td>
                   </tr>
-                  <tr class="ie-matrix__stripe">
+                  <tr>
                     <td class="ie-matrix__indicator-col">Fecha cierre</td>
                     <td class="num">{{ it.indicador.fechaCierreLote ? formatearFechaLote(it.indicador.fechaCierreLote) : '—' }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Fecha liquidación</td>
+                    <td class="num">{{ it.indicador.fechaLiquidacion ? formatearFechaLote(it.indicador.fechaLiquidacion) : '—' }}</td>
                   </tr>
                   <tr>
                     <td class="ie-matrix__indicator-col">Aves encasetadas</td>
@@ -738,6 +798,23 @@
                     <td class="ie-matrix__indicator-col">Mortalidad (%)</td>
                     <td class="num">{{ formatearPorcentaje(it.indicador.mortalidadPorcentaje) }}</td>
                   </tr>
+                  <!-- R1 — bloque merma/ajuste (vacío «—» cuando Costos no registró merma) -->
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Merma (unidades)</td>
+                    <td class="num">{{ fmtONada(it.indicador.mermaUnidades, 0) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Merma (%)</td>
+                    <td class="num">{{ fmtPctONada(it.indicador.mermaPorcentaje) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Ajuste en Aves</td>
+                    <td class="num">{{ fmtONada(it.indicador.ajusteAves, 0) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Porcentaje de ajuste (%)</td>
+                    <td class="num">{{ fmtPctONada(it.indicador.porcentajeAjuste) }}</td>
+                  </tr>
                   <tr>
                     <td class="ie-matrix__indicator-col">Supervivencia (%)</td>
                     <td class="num text-success">{{ formatearPorcentaje(it.indicador.supervivenciaPorcentaje) }}</td>
@@ -753,6 +830,15 @@
                   <tr class="ie-matrix__stripe">
                     <td class="ie-matrix__indicator-col">Kg carne pollo</td>
                     <td class="num">{{ formatearNumero(it.indicador.kgCarnePollos, 2) }}</td>
+                  </tr>
+                  <!-- R1 — bloque kilos a cliente (vacío «—» cuando Costos no registró merma) -->
+                  <tr>
+                    <td class="ie-matrix__indicator-col">Merma (kilos)</td>
+                    <td class="num">{{ fmtONada(it.indicador.mermaKilos, 2) }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
+                    <td class="ie-matrix__indicator-col">Total kilos despachados a cliente</td>
+                    <td class="num">{{ fmtONada(it.indicador.totalKilosDespachadosCliente, 2) }}</td>
                   </tr>
                   <tr class="ie-matrix__green">
                     <td class="ie-matrix__indicator-col">Peso promedio (kg)</td>
@@ -771,6 +857,10 @@
                     <td class="num">{{ formatearNumero(it.indicador.edadPromedio, 1) }}</td>
                   </tr>
                   <tr>
+                    <td class="ie-matrix__indicator-col">Días de engorde</td>
+                    <td class="num">{{ (it.indicador.diasEngorde ?? 0) | number:'1.0-0' }}</td>
+                  </tr>
+                  <tr class="ie-matrix__stripe">
                     <td class="ie-matrix__indicator-col">Metros cuadrados</td>
                     <td class="num">{{ formatearNumero(it.indicador.metrosCuadrados, 2) }}</td>
                   </tr>

@@ -69,16 +69,17 @@ public record IndicadorEcuadorDto(
     DateTime? FechaAlistamiento = null,
 
     // ─── Mermas, ajuste de aves y kilos a cliente (Parte B / R1 — Costos) ───
-    int MermaUnidades = 0,                    // input Costos: aves granja − aves cliente
-    decimal MermaKilos = 0,                   // input Costos: kg granja − kg cliente
-    decimal MermaPorcentaje = 0,              // merma_und / aves_vendidas × 100
-    int AjusteAves = 0,                       // encasetadas − vendidas − mortalidad − merma_und (negativo ⇒ sobrante)
-    decimal PorcentajeAjuste = 0,             // ajuste / encasetadas × 100
-    decimal ProduccionKiloEnPie = 0,          // kg que salen de granja (= KgCarnePollos individual)
-    decimal TotalKilosDespachadosCliente = 0, // produccion_kilo_en_pie − merma_kilos
-    int DiasEngorde = 0,                      // días entre encasetamiento y fecha de cierre/último despacho
-    DateTime? FechaLiquidacion = null,        // lote.LiquidadoAt
-    int AvesSobrante = 0                      // excedente acumulado del lote (Parte B / R2)
+    // NULL = Costos no registró merma en el lote ⇒ el reporte muestra los campos VACÍOS.
+    int? MermaUnidades = null,                 // input Costos: aves granja − aves cliente
+    decimal? MermaKilos = null,                // input Costos: kg granja − kg cliente
+    decimal? MermaPorcentaje = null,           // merma_und / aves_vendidas × 100
+    int? AjusteAves = null,                    // encasetadas − vendidas − mortalidad − merma_und (negativo ⇒ sobrante)
+    decimal? PorcentajeAjuste = null,          // ajuste / encasetadas × 100
+    decimal ProduccionKiloEnPie = 0,           // kg que salen de granja (= KgCarnePollos individual)
+    decimal? TotalKilosDespachadosCliente = null, // produccion_kilo_en_pie − merma_kilos
+    int DiasEngorde = 0,                       // días entre encasetamiento y fecha de cierre/último despacho
+    DateTime? FechaLiquidacion = null,         // lote.LiquidadoAt
+    int AvesSobrante = 0                       // excedente acumulado del lote (Parte B / R2)
 );
 
 /// <summary>
