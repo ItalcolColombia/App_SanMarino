@@ -1,6 +1,6 @@
 # 🎫 MÓDULO DE TICKETS — Documentación Técnica
 
-> **Última actualización:** 2026-06-05
+> **Última actualización:** 2026-06-22
 > **Estado:** Producción · Backend (.NET 9, Clean Architecture) + Frontend (Angular 20 standalone)
 
 ## 📋 RESUMEN EJECUTIVO
@@ -98,6 +98,14 @@ El equipo de soporte/desarrollo está en la empresa central (ej. Agroavícola Sa
 - **IMPLEMENTADOR** → SOPORTE, DUDAS, DESARROLLO, REQUERIMIENTO.
 
 > Si el usuario tiene permiso `tickets.gestionar` o `tickets.admin`, se le trata como **IMPLEMENTADOR** automáticamente. Si no, se lee `ticket_perfiles_usuario.nivel` (default NORMAL).
+>
+> **El nivel es exclusivamente por usuario** (eje "quién CREA"). No existe nivel por rol.
+
+### 2.bis. Resolutor: dos niveles (eje "quién RECIBE")
+El enrutamiento de tickets lee **solo** `ticket_resolutores` (perfil por usuario). El perfil por **rol** (`ticket_resolutor_roles`) es una **plantilla**:
+- Al **asignar un rol** a un usuario (`UserService.CreateAsync`/`UpdateAsync`), se **siembra** automáticamente su perfil de resolutor desde la plantilla del rol (`SeedPerfilDesdeRolAsync`, idempotente y best-effort: si falla no rompe el alta).
+- Editar la plantilla luego no afecta a los usuarios existentes hasta usar **`POST /rol/{roleId}/reaplicar`** (botón "Aplicar a los usuarios de este rol" en Editar Rol). El re-seed solo **agrega** lo faltante; no borra ajustes hechos por usuario.
+- En la UI: **Editar Usuario → Perfil de Atención** muestra ① Creación (Nivel) y ② Atención (Resolutor) en tarjetas separadas; **Editar Rol** muestra solo la plantilla de Atención.
 
 ### 3. Bandejas
 | Bandeja | Endpoint | Qué muestra |
@@ -192,8 +200,9 @@ Transiciones (fuente de verdad: `TicketEstados.Transiciones`):
 | `GET` | `/tipos-permitidos` | Tipos que el usuario puede crear + asignables |
 | `GET` | `/asignables?tipo=&paisId=` | Resolutores disponibles |
 | `GET`/`PUT` | `/usuario/{userId}` | Perfil de atención de un usuario (nivel + resolutores) |
-| `GET`/`PUT` | `/rol/{roleId}` | Defaults de resolutor por rol |
+| `GET`/`PUT` | `/rol/{roleId}` | **Plantilla** de resolutor por rol |
 | `POST` | `/usuario/{userId}/seed-desde-rol/{roleId}` | Sembrar perfiles del rol en el usuario |
+| `POST` | `/rol/{roleId}/reaplicar` | Re-aplicar la plantilla del rol a **todos** sus usuarios (empresa activa) |
 
 ---
 

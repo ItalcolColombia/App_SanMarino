@@ -14,13 +14,32 @@ public class UserService : IUserService
     private readonly IPasswordHasher<Login> _hasher;
     private readonly ICurrentUser _currentUser;
     private readonly IUserPermissionService _userPermissionService;
+    private readonly ITicketPerfilService _ticketPerfil;
 
-    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService)
+    public UserService(ZooSanMarinoContext ctx, IPasswordHasher<Login> hasher, ICurrentUser currentUser, IUserPermissionService userPermissionService, ITicketPerfilService ticketPerfil)
     {
         _ctx = ctx;
         _hasher = hasher;
         _currentUser = currentUser;
         _userPermissionService = userPermissionService;
+        _ticketPerfil = ticketPerfil;
+    }
+
+    /// <summary>
+    /// Siembra los perfiles de resolutor desde la plantilla de cada rol asignado.
+    /// Idempotente y "best effort": un fallo aquí NUNCA debe romper el alta/edición del usuario.
+    /// </summary>
+    private async Task SeedTicketPerfilesAsync(Guid userId, IEnumerable<(int CompanyId, int RoleId)> pairs)
+    {
+        try
+        {
+            foreach (var p in pairs)
+                await _ticketPerfil.SeedPerfilDesdeRolAsync(userId, p.RoleId, p.CompanyId, CancellationToken.None);
+        }
+        catch
+        {
+            // El sembrado de perfiles de atención es accesorio: si falla, el usuario igual queda creado/editado.
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -110,6 +129,10 @@ public class UserService : IUserService
         }
 
         await tx.CommitAsync();
+
+        // Auto-aplicar la plantilla de resolutor de cada rol asignado (best effort).
+        var pairsToSeed = from c in companyIds from r in roleIds select (c, r);
+        await SeedTicketPerfilesAsync(user.Id, pairsToSeed);
 
         // Proyección
         var rolesNames = await _ctx.UserRoles
@@ -370,6 +393,9 @@ public class UserService : IUserService
         if (dto.RoleIds is not null)
             await ValidateRolesAsync(roleIdsIncoming);
 
+        // Pares (empresa, rol) recién asignados → se siembran sus plantillas tras el commit.
+        var pairsToSeed = new List<(int CompanyId, int RoleId)>();
+
         using var tx = await _ctx.Database.BeginTransactionAsync();
 
         // 1) Sincronizar compañías si se enviaron
@@ -424,11 +450,17 @@ public class UserService : IUserService
                     .Select(p => new UserRole { UserId = user.Id, CompanyId = p.c, RoleId = p.r })
                     .ToList();
                 if (toAdd.Count > 0) _ctx.UserRoles.AddRange(toAdd);
+
+                pairsToSeed.AddRange(toAdd.Select(ur => (ur.CompanyId, ur.RoleId)));
             }
         }
 
         await _ctx.SaveChangesAsync();
         await tx.CommitAsync();
+
+        // Auto-aplicar la plantilla de resolutor de cada rol recién asignado (best effort).
+        if (pairsToSeed.Count > 0)
+            await SeedTicketPerfilesAsync(user.Id, pairsToSeed);
 
         // Proyección final
         var rolesNames = await _ctx.UserRoles

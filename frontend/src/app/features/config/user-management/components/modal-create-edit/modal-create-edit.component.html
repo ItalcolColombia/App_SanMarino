@@ -442,9 +442,25 @@
 
         <!-- Tab: Perfil de Atención de Tickets (solo edición) -->
         <div *ngIf="activeTab === 'tickets' && isEditing && editingUser" class="tab-content p-4">
+          <!-- Callout explicativo -->
+          <div class="mb-4 flex gap-3 items-start rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-3.5 shadow-sm">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white shadow ring-1 ring-slate-200 text-base mt-0.5">🎫</span>
+            <div class="space-y-1">
+              <p class="text-xs font-semibold text-slate-700">Nivel de creación de tickets</p>
+              <p class="text-[0.72rem] text-slate-500 leading-relaxed">
+                Define qué tipos de ticket puede <strong>abrir</strong> esta persona.
+                <span class="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 ring-1 ring-orange-200 mx-0.5">Normal</span>
+                puede crear Soporte y Dudas.
+                <span class="inline-flex items-center rounded-md bg-orange-50 px-1.5 py-0.5 text-[11px] font-bold text-orange-700 ring-1 ring-orange-200 mx-0.5">Implementador</span>
+                además puede crear Desarrollo y Requerimiento.
+                La <strong>atención</strong> (quién recibe y gestiona) se configura desde los Roles.
+              </p>
+            </div>
+          </div>
           <app-ticket-perfil-editor
             modo="usuario"
-            [entityId]="editingUser!.id">
+            [entityId]="editingUser!.id"
+            [hideSaveButton]="true">
           </app-ticket-perfil-editor>
         </div>
 

@@ -564,7 +564,7 @@
      role="dialog"
      aria-modal="true"
      aria-labelledby="role-modal-title">
-  <div class="rm-modal rm-modal--lg">
+  <div class="rm-modal rm-modal--xl">
 
     <!-- Header del modal -->
     <div class="rm-modal__header">
@@ -583,24 +583,101 @@
     <div class="rm-modal__body">
       <form [formGroup]="form" (ngSubmit)="save()" class="rm-modal__form" novalidate>
 
-        <!-- Nombre del rol -->
-        <div class="rm-form-section">
-          <label class="rm-form-label">Nombre del rol <span class="rm-form-required">*</span></label>
-          <input formControlName="name"
-                 placeholder="p.ej. Supervisor de Planta"
-                 class="rm-form-input" />
-          <p class="rm-form-hint">Usa nombres claros y específicos que describan el alcance del rol.</p>
+        <!-- ── Navegador de pasos ──────────────────────────────────────────── -->
+        <div class="flex items-stretch gap-0 mb-6 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+
+          <!-- Paso 1: General -->
+          <button type="button"
+                  class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+                  [class.bg-white]="roleModalTab === 'general'"
+                  [class.text-ital-green-dark]="roleModalTab === 'general'"
+                  [class.shadow-sm]="roleModalTab === 'general'"
+                  [class.text-slate-500]="roleModalTab !== 'general'"
+                  (click)="setRoleTab('general')">
+            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                  [class.bg-ital-green]="roleModalTab === 'general'"
+                  [class.text-white]="roleModalTab === 'general'"
+                  [class.bg-slate-200]="roleModalTab !== 'general'"
+                  [class.text-slate-600]="roleModalTab !== 'general'">1</span>
+            General
+          </button>
+
+          <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+
+          <!-- Paso 2: Permisos -->
+          <button type="button"
+                  class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+                  [class.bg-white]="roleModalTab === 'permisos'"
+                  [class.text-ital-green-dark]="roleModalTab === 'permisos'"
+                  [class.shadow-sm]="roleModalTab === 'permisos'"
+                  [class.text-slate-500]="roleModalTab !== 'permisos'"
+                  (click)="setRoleTab('permisos')">
+            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                  [class.bg-ital-green]="roleModalTab === 'permisos'"
+                  [class.text-white]="roleModalTab === 'permisos'"
+                  [class.bg-slate-200]="roleModalTab !== 'permisos'"
+                  [class.text-slate-600]="roleModalTab !== 'permisos'">2</span>
+            Permisos
+          </button>
+
+          <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+
+          <!-- Paso 3: Empresas & Menús -->
+          <button type="button"
+                  class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+                  [class.bg-white]="roleModalTab === 'empresas'"
+                  [class.text-ital-green-dark]="roleModalTab === 'empresas'"
+                  [class.shadow-sm]="roleModalTab === 'empresas'"
+                  [class.text-slate-500]="roleModalTab !== 'empresas'"
+                  (click)="setRoleTab('empresas')">
+            <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                  [class.bg-ital-green]="roleModalTab === 'empresas'"
+                  [class.text-white]="roleModalTab === 'empresas'"
+                  [class.bg-slate-200]="roleModalTab !== 'empresas'"
+                  [class.text-slate-600]="roleModalTab !== 'empresas'">3</span>
+            Empresas &amp; Menús
+          </button>
+
+          <!-- Paso 4: Tickets (solo al editar un rol existente) -->
+          <ng-container *ngIf="form.value.id">
+            <div class="flex items-center px-1 text-slate-300 text-lg select-none">›</div>
+            <button type="button"
+                    class="flex flex-1 flex-col items-center gap-1 px-3 py-3 text-xs font-semibold transition"
+                    [class.bg-white]="roleModalTab === 'tickets'"
+                    [class.text-ital-green-dark]="roleModalTab === 'tickets'"
+                    [class.shadow-sm]="roleModalTab === 'tickets'"
+                    [class.text-slate-500]="roleModalTab !== 'tickets'"
+                    (click)="setRoleTab('tickets')">
+              <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition"
+                    [class.bg-ital-green]="roleModalTab === 'tickets'"
+                    [class.text-white]="roleModalTab === 'tickets'"
+                    [class.bg-slate-200]="roleModalTab !== 'tickets'"
+                    [class.text-slate-600]="roleModalTab !== 'tickets'">4</span>
+              <span class="flex items-center gap-1">🎫 Tickets
+                <span class="rounded bg-orange-100 px-1 text-[10px] font-semibold text-orange-600">Opcional</span>
+              </span>
+            </button>
+          </ng-container>
         </div>
 
-        <!-- Grid: Permisos + Empresas -->
-        <div class="rm-modal-grid">
+        <!-- ── Paso 1: General ──────────────────────────────────────────────── -->
+        <ng-container *ngIf="roleModalTab === 'general'">
+          <div class="rm-form-section">
+            <label class="rm-form-label">Nombre del rol <span class="rm-form-required">*</span></label>
+            <input formControlName="name"
+                   placeholder="p.ej. Supervisor de Planta"
+                   class="rm-form-input" />
+            <p class="rm-form-hint">Usa nombres claros y específicos que describan el alcance del rol.</p>
+          </div>
+        </ng-container>
 
-          <!-- Permisos -->
+        <!-- ── Paso 2: Permisos ─────────────────────────────────────────────── -->
+        <ng-container *ngIf="roleModalTab === 'permisos'">
           <fieldset class="rm-fieldset">
             <legend class="rm-fieldset__legend">
               Permisos <span class="rm-form-required">*</span>
             </legend>
-            <div class="rm-fieldset__body">
+            <div class="rm-fieldset__body rm-fieldset__body--grid3">
               <label *ngFor="let perm of permissions" class="rm-check-item">
                 <input type="checkbox"
                        [checked]="form.controls['permissions'].value.includes((perm.key || '').toLowerCase())"
@@ -614,13 +691,16 @@
             </div>
             <p class="rm-fieldset__hint">Selecciona uno o más permisos para este rol.</p>
           </fieldset>
+        </ng-container>
+
+        <!-- ── Paso 3: Empresas & Menús ────────────────────────────────────── -->
+        <ng-container *ngIf="roleModalTab === 'empresas'">
 
           <!-- Empresas -->
           <fieldset class="rm-fieldset">
             <legend class="rm-fieldset__legend">
               Empresas <span class="rm-form-required">*</span>
             </legend>
-
             <div *ngIf="isAdminUser" class="rm-fieldset__body rm-fieldset__body--grid">
               <label *ngFor="let c of companies" class="rm-check-item">
                 <input type="checkbox"
@@ -632,7 +712,6 @@
                 </span>
               </label>
             </div>
-
             <div *ngIf="!isAdminUser" class="rm-fieldset__body">
               <div class="rm-info-box">
                 <p>Este rol se asignará a la empresa activa en sesión:</p>
@@ -640,72 +719,81 @@
                 <p class="rm-info-box__note">Solo un administrador puede asignar el rol a otras empresas.</p>
               </div>
             </div>
-
             <p class="rm-fieldset__hint">Los menús se cargan según la primera empresa seleccionada.</p>
           </fieldset>
+
+          <!-- Menús -->
+          <fieldset class="rm-fieldset rm-fieldset--menus">
+            <legend class="rm-fieldset__legend">Menús</legend>
+
+            <div *ngIf="!form.controls['companyIds'].value?.length" class="rm-fieldset__body">
+              <div class="rm-info-box rm-info-box--neutral">
+                Selecciona al menos una empresa para cargar los menús disponibles.
+              </div>
+            </div>
+
+            <div *ngIf="roleModalMenusLoading && form.controls['companyIds'].value?.length"
+                 class="rm-fieldset__body rm-fieldset__loading">
+              <div class="spinner" aria-hidden="true"></div>
+              Cargando menús de la empresa…
+            </div>
+
+            <div *ngIf="!roleModalMenusLoading && form.controls['companyIds'].value?.length && roleModalFlatMenus.length === 0"
+                 class="rm-fieldset__body">
+              <div class="rm-info-box rm-info-box--warning">
+                La empresa seleccionada no tiene menús asignados. Asígnelos desde
+                <strong>Gestión de Empresas → Menú</strong>.
+              </div>
+            </div>
+
+            <div *ngIf="!roleModalMenusLoading && roleModalFlatMenus.length > 0"
+                 class="rm-fieldset__body rm-fieldset__body--grid3">
+              <label *ngFor="let m of roleModalFlatMenus" class="rm-check-item">
+                <input type="checkbox"
+                       [checked]="form.controls['menuIds'].value.includes(m.id)"
+                       (change)="toggleMenu(m.id)"
+                       class="rm-check" />
+                <span class="rm-check-item__text">
+                  <span class="rm-check-item__key">{{ m.label || m.key }}</span>
+                  <small *ngIf="m.route" class="rm-check-item__desc">{{ m.route }}</small>
+                </span>
+              </label>
+            </div>
+
+            <p *ngIf="roleModalFlatMenus.length > 0" class="rm-fieldset__hint">
+              Menús de la empresa seleccionada. Marca los que serán visibles para este rol.
+            </p>
+          </fieldset>
+        </ng-container>
+
+        <!-- ── Paso 4: Tickets (montado con [hidden] para que ViewChild quede disponible) ── -->
+        <div [hidden]="roleModalTab !== 'tickets'">
+          <app-ticket-perfil-editor
+            *ngIf="form.value.id"
+            modo="rol"
+            [entityId]="form.value.id.toString()"
+            [hideSaveButton]="true">
+          </app-ticket-perfil-editor>
         </div>
 
-        <!-- Menús -->
-        <fieldset class="rm-fieldset rm-fieldset--menus">
-          <legend class="rm-fieldset__legend">Menús</legend>
-
-          <div *ngIf="!form.controls['companyIds'].value?.length" class="rm-fieldset__body">
-            <div class="rm-info-box rm-info-box--neutral">
-              Selecciona al menos una empresa para cargar los menús disponibles.
-            </div>
-          </div>
-
-          <div *ngIf="roleModalMenusLoading && form.controls['companyIds'].value?.length"
-               class="rm-fieldset__body rm-fieldset__loading">
-            <div class="spinner" aria-hidden="true"></div>
-            Cargando menús de la empresa…
-          </div>
-
-          <div *ngIf="!roleModalMenusLoading && form.controls['companyIds'].value?.length && roleModalFlatMenus.length === 0"
-               class="rm-fieldset__body">
-            <div class="rm-info-box rm-info-box--warning">
-              La empresa seleccionada no tiene menús asignados. Asígnelos desde
-              <strong>Gestión de Empresas → Menú</strong>.
-            </div>
-          </div>
-
-          <div *ngIf="!roleModalMenusLoading && roleModalFlatMenus.length > 0"
-               class="rm-fieldset__body rm-fieldset__body--grid3">
-            <label *ngFor="let m of roleModalFlatMenus" class="rm-check-item">
-              <input type="checkbox"
-                     [checked]="form.controls['menuIds'].value.includes(m.id)"
-                     (change)="toggleMenu(m.id)"
-                     class="rm-check" />
-              <span class="rm-check-item__text">
-                <span class="rm-check-item__key">{{ m.label || m.key }}</span>
-                <small *ngIf="m.route" class="rm-check-item__desc">{{ m.route }}</small>
-              </span>
-            </label>
-          </div>
-
-          <p *ngIf="roleModalFlatMenus.length > 0" class="rm-fieldset__hint">
-            Menús de la empresa seleccionada. Marca los que serán visibles para este rol.
-          </p>
-        </fieldset>
-
-        <!-- Footer del formulario -->
+        <!-- ── Footer unificado ─────────────────────────────────────────────── -->
         <div class="rm-modal__footer">
+          <button type="button" class="rm-btn rm-btn--ghost"
+                  *ngIf="!isFirstRoleTab"
+                  (click)="prevRoleTab()">
+            ← Anterior
+          </button>
+          <div style="flex: 1"></div>
           <button type="button" class="rm-btn rm-btn--ghost" (click)="closeModal()">Cancelar</button>
+          <button type="button" class="rm-btn rm-btn--primary"
+                  *ngIf="!isLastRoleTab"
+                  (click)="nextRoleTab()">
+            Siguiente →
+          </button>
           <button type="submit" class="rm-btn rm-btn--primary" [disabled]="form.invalid || loading">
             <div *ngIf="loading" class="spinner rm-btn__spinner" aria-hidden="true"></div>
             {{ form.value.id ? 'Actualizar Rol' : 'Crear Rol' }}
           </button>
-        </div>
-
-        <!-- Perfil de atención de tickets (solo cuando el rol ya existe) -->
-        <div *ngIf="form.value.id" class="rm-form-section mt-4">
-          <h4 class="rm-form-section-title" style="font-size:0.85rem;font-weight:700;color:#2d7a3e;margin-bottom:0.75rem;">
-            🎫 Tipos de ticket que atiende este rol
-          </h4>
-          <app-ticket-perfil-editor
-            modo="rol"
-            [entityId]="form.value.id.toString()">
-          </app-ticket-perfil-editor>
         </div>
 
       </form>

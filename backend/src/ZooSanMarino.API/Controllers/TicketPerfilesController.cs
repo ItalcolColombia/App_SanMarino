@@ -79,4 +79,16 @@ public class TicketPerfilesController : ControllerBase
         await _svc.SeedPerfilDesdeRolAsync(userId, roleId, ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Re-aplica la plantilla de resolutor del rol a todos sus usuarios en la empresa activa.
+    /// Idempotente: solo agrega lo faltante, no elimina ajustes hechos por usuario.
+    /// </summary>
+    [HttpPost("rol/{roleId:int}/reaplicar")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ReaplicarPlantillaRol(int roleId, CancellationToken ct)
+    {
+        await _svc.ReaplicarPlantillaRolAsync(roleId, ct);
+        return NoContent();
+    }
 }

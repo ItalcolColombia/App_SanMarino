@@ -28,7 +28,19 @@ public interface ITicketPerfilService
 
     /// <summary>
     /// Siembra en <c>ticket_resolutores</c> los perfiles del rol para el usuario dado,
-    /// si aún no existen. Se llama al asignar un rol a un usuario.
+    /// si aún no existen. Usa la empresa activa del usuario actual.
     /// </summary>
     Task SeedPerfilDesdeRolAsync(Guid userId, int roleId, CancellationToken ct);
+
+    /// <summary>
+    /// Igual que el anterior pero sembrando para una <paramref name="companyId"/> concreta.
+    /// Se usa al asignar roles desde <c>UserService</c> (cada par empresa×rol).
+    /// </summary>
+    Task SeedPerfilDesdeRolAsync(Guid userId, int roleId, int companyId, CancellationToken ct);
+
+    /// <summary>
+    /// Re-aplica la plantilla de resolutor de un rol a TODOS los usuarios que lo tengan
+    /// en la empresa activa (idempotente: solo agrega lo faltante, no borra overrides).
+    /// </summary>
+    Task ReaplicarPlantillaRolAsync(int roleId, CancellationToken ct);
 }

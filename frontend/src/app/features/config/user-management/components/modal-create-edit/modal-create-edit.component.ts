@@ -1,5 +1,5 @@
 // src/app/features/config/user-management/components/modal-create-edit/modal-create-edit.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -7,7 +7,7 @@ import {
   faUserPlus, faUser, faSave, faTimes, faEnvelope, faPhone, faIdCard, faBuilding, faUsers,
   faEye, faEyeSlash, faCheck, faExclamationTriangle, faLaptop, faAt
 } from '@fortawesome/free-solid-svg-icons';
-import { Subject, takeUntil, forkJoin, switchMap, take } from 'rxjs';
+import { Subject, takeUntil, forkJoin, switchMap, take, of, catchError } from 'rxjs';
 
 import { UserService, UserListItem, CreateUserDto, UpdateUserDto } from '../../../../../core/services/user/user.service';
 import { Company, CompanyService } from '../../../../../core/services/company/company.service';
@@ -16,6 +16,7 @@ import { AuthService } from '../../../../../core/auth/auth.service';
 import { EmailQueueStatus } from '../../../../../core/auth/auth.models';
 import { ShowIfCountryDirective } from '../../../../../core/directives/show-if-country.directive';
 import { TicketPerfilEditorComponent } from '../../../../../features/tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
+import { TicketPerfilService } from '../../../../../features/tickets/services/ticket-perfil.service';
 import { interval, Subscription } from 'rxjs';
 
 // === Validador: array requerido (>=1 ítem) ===
@@ -94,6 +95,8 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   // Formulario
   userForm!: FormGroup;
 
+  @ViewChild(TicketPerfilEditorComponent) ticketEditor?: TicketPerfilEditorComponent;
+
   private destroy$ = new Subject<void>();
   private fb = inject(FormBuilder);
   private userService = inject(UserService);
@@ -101,6 +104,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   private roleService = inject(RoleService);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private ticketPerfilSvc = inject(TicketPerfilService);
 
   ngOnInit(): void {
     this.initForm();
@@ -364,8 +368,12 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
         roleIds: formValue.roleIds
       };
 
-      this.userService.update(this.editingUser.id, updateDto)
-        .pipe(takeUntil(this.destroy$))
+      const userId = this.editingUser.id;
+      this.userService.update(userId, updateDto)
+        .pipe(
+          switchMap(() => this.saveTicketPerfilIfLoaded(userId)),
+          takeUntil(this.destroy$)
+        )
         .subscribe({
           next: (result: any) => {
             this.saving = false;
@@ -423,6 +431,17 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
           }
         });
     }
+  }
+
+  /** Guarda el perfil de tickets si el editor fue abierto. Errores silenciosos — no bloquea el guardado principal. */
+  private saveTicketPerfilIfLoaded(userId: string) {
+    const editor = this.ticketEditor;
+    if (!editor || editor.loading()) return of(null);
+    const resolutores = editor.tipos
+      .filter(t => editor.resolutorActivo[t.value])
+      .map(t => ({ tipo: t.value, paisId: editor.resolutorPais[t.value] ?? null }));
+    return this.ticketPerfilSvc.upsertPerfilUsuario(userId, { nivel: editor.nivel, resolutores })
+      .pipe(catchError(() => of(null)));
   }
 
   closeModal(): void {
