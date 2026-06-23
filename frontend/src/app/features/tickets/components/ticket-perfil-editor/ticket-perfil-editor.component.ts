@@ -35,6 +35,8 @@ export class TicketPerfilEditorComponent implements OnInit {
   @Input({ required: true }) modo!: Modo;
   /** Para modo='usuario': Guid del usuario. Para modo='rol': roleId como string. */
   @Input({ required: true }) entityId!: string;
+  /** Cuando es true, oculta el footer con los botones de guardado (el padre controla el save). */
+  @Input() hideSaveButton = false;
   @Output() saved = new EventEmitter<void>();
 
   private readonly svc = inject(TicketPerfilService);
@@ -42,8 +44,14 @@ export class TicketPerfilEditorComponent implements OnInit {
   private readonly storage = inject(TokenStorageService);
 
   readonly tipos = TIPOS_TICKET;
+  /** Niveles de solicitante (referencia estable para el template). */
+  readonly niveles = [
+    { v: 'NORMAL',        label: 'Normal',        desc: 'Crea Soporte y Dudas' },
+    { v: 'IMPLEMENTADOR', label: 'Implementador', desc: 'Crea además Desarrollo y Requerimiento' },
+  ];
   readonly loading = signal(false);
   readonly saving = signal(false);
+  readonly reaplicando = signal(false);
 
   nivel = 'NORMAL';
   /** Estado del toggle por tipo: true = activo como resolutor */
@@ -155,5 +163,26 @@ export class TicketPerfilEditorComponent implements OnInit {
     } else {
       this.svc.upsertPerfilRol(Number(this.entityId), { resolutores }).subscribe({ next: onDone, error: onError });
     }
+  }
+
+  /**
+   * Re-aplica la plantilla del rol a todos los usuarios que lo tengan (solo modo='rol').
+   * Idempotente: solo agrega lo faltante, no borra ajustes por usuario.
+   */
+  reaplicarPlantilla(): void {
+    if (this.modo !== 'rol') return;
+    const ok = confirm(
+      'Se aplicará esta plantilla de atención a TODOS los usuarios que tengan este rol.\n' +
+      'Solo se agregan los tipos faltantes; no se quitan los ajustes que cada usuario haya hecho.\n\n¿Continuar?'
+    );
+    if (!ok) return;
+
+    this.reaplicando.set(true);
+    this.svc.reaplicarPlantillaRol(Number(this.entityId))
+      .pipe(finalize(() => this.reaplicando.set(false)))
+      .subscribe({
+        next: () => this.toast.success('Plantilla aplicada a los usuarios del rol.'),
+        error: () => this.toast.error('No se pudo aplicar la plantilla a los usuarios.'),
+      });
   }
 }

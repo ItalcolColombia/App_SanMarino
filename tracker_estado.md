@@ -1,32 +1,24 @@
-# Tracker de estado — Endurecimiento de seguridad de Login y Registro
+# Tracker — Reorg tickets: "quién crea" vs "quién recibe"
 
-**Plan:** [fase_de_desarrollo/seguridad_login_registro_plan.md](./fase_de_desarrollo/seguridad_login_registro_plan.md)
-**Estado:** Plan concreto listo. Fase 0 (diagnóstico AWS) ✅. Pendiente OK para ejecutar items de alto riesgo (#6, #7, Swagger, CORS).
+**Plan:** [17_tickets_reorg_solicitante_resolutor_plan.md](fase_de_desarrollo/17_tickets_reorg_solicitante_resolutor_plan.md)
+**Sin migración de BD.** Reutiliza `ticket_resolutor_roles` + `ticket_resolutores`.
 
----
+## Backend
+- [x] `ITicketPerfilService`: overload `SeedPerfilDesdeRolAsync(userId, roleId, companyId, ct)` + `ReaplicarPlantillaRolAsync(roleId, ct)`
+- [x] `TicketPerfilService`: implementar overload por empresa (el existente delega) + `ReaplicarPlantillaRolAsync`
+- [x] `UserService`: inyectar `ITicketPerfilService`; auto-seed post-commit en `CreateAsync` y `UpdateAsync` (try/catch, no rompe el alta)
+- [x] `TicketPerfilesController`: `POST /rol/{roleId}/reaplicar`
+- [x] `dotnet build` 0 errores + `dotnet test` (16+1 OK)
 
-## FASE 0 — Diagnóstico ✅ (verificado en AWS)
-- [x] TaskDef ECS `103`, `ASPNETCORE_ENVIRONMENT=Production`, `Secrets: null`
-- [x] JWT key sobreescrita en prod (≠ repo) pero plano + adivinable → H5 = MEDIA
-- [x] Encryption/Recaptcha/Swagger/PlatformSecret = del `appsettings.json` versionado → H3 CRÍTICA
-- [x] `AllowedOrigins` incluye localhost + http ALB → recortar
-- [x] `/Auth/register` sin consumidor front (alta va por `POST /Users`) → H1 riesgo nulo
-
-## Orden ejecutable
-- [x] 1 · H1 — `/Auth/register`: blindar (`[Authorize]`+permiso) o quitar `RoleIds`/`CompanyIds` — `AuthController.cs`, `RegisterDto.cs` ✅
-- [x] 2 · Swagger off en prod — `Program.cs:543` gate `!IsProduction()` ✅
-- [x] 3 · H8 — borrar `Console.WriteLine` de token/header/datos; login error genérico; recover sin StackTrace — `Program.cs`, `AuthController.cs`, `AuthService.cs` ✅
-- [x] 4 · H11 — CORS solo `https://sanmarinoapp.com` — TaskDef `AllowedOrigins` (en config, no cambio) ✅
-- [x] 5 · H4 — rate limiting nativo (auth 5/min) — `Program.cs:536` activado ✅
-- [x] 6 · ⚠️ H2 — quitar allow-all, `FallbackPolicy = RequireAuthenticatedUser` — `Program.cs` ✅
-- [ ] 7 · ⚠️ H3 — `git rm --cached` appsettings + rotar secretos a env/Secrets Manager (⏳ alto: git destructivo)
-- [x] 8 · H7 — recover con token de un solo uso (CSPRNG) + tabla `password_reset_tokens` + endpoint POST /reset-password ✅
-- [x] 9 · H9/H10/H12 — anti-enumeración, política contraseñas + lockout temporal, register consistente ✅
-
-## BD
-- [ ] Migración EF idempotente: `password_reset_tokens` (H7); opcional `lockout_until` (H10)
+## Frontend
+- [x] `ticket-perfil.service.ts`: `reaplicarPlantillaRol(roleId)`
+- [x] `ticket-perfil-editor.html`: 2 tarjetas mode-aware (Usuario: ①Creación/②Atención · Rol: Plantilla + nota + botón aplicar)
+- [x] `ticket-perfil-editor.ts`: `reaplicarPlantilla()` (modo rol)
+- [x] `role-management.component.html`: alinear título externo (sin doble título)
+- [x] `modal-create-edit.component.html`: intro corta en el tab
+- [x] `yarn build` (OK; warning de budget preexistente)
 
 ## Validación
-- [ ] `dotnet build` + `dotnet test` (0 errores)
-- [ ] `yarn build`
-- [ ] `make down`
+- [x] Actualizar `backend/documentacion/MODULO_TICKETS.md`
+- [ ] E2E manual (HMR) de los 6 casos del plan — pendiente con el usuario
+- [ ] `make down` (sin procesos huérfanos) tras el e2e

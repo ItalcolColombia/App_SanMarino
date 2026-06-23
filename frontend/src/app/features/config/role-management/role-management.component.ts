@@ -1,5 +1,5 @@
 // src/app/features/config/role-management/role-management.component.ts
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
@@ -58,6 +58,7 @@ import {
 
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { TicketPerfilEditorComponent } from '../../tickets/components/ticket-perfil-editor/ticket-perfil-editor.component';
+import { TicketPerfilService } from '../../tickets/services/ticket-perfil.service';
 
 import {
   BehaviorSubject,
@@ -143,9 +144,36 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
   isAdminUser = false;
   activeCompanyId: number | null = null;
 
+  @ViewChild(TicketPerfilEditorComponent) ticketEditor?: TicketPerfilEditorComponent;
+
   // Modal Roles
   modalOpen = false;
   editing = false;
+  /** Tab activo dentro del modal de rol. */
+  roleModalTab: 'general' | 'permisos' | 'empresas' | 'tickets' = 'general';
+  /** true si el usuario abrió explícitamente el tab de Tickets (para no llamar la API si nunca lo tocó). */
+  ticketTabVisited = false;
+
+  /** Lista de tabs disponibles según si estamos creando o editando. */
+  get roleTabs(): Array<'general' | 'permisos' | 'empresas' | 'tickets'> {
+    return this.form?.value?.id
+      ? ['general', 'permisos', 'empresas', 'tickets']
+      : ['general', 'permisos', 'empresas'];
+  }
+  get roleModalTabIndex(): number { return this.roleTabs.indexOf(this.roleModalTab); }
+  get isFirstRoleTab(): boolean   { return this.roleModalTabIndex === 0; }
+  get isLastRoleTab(): boolean    { return this.roleModalTabIndex === this.roleTabs.length - 1; }
+
+  setRoleTab(tab: 'general' | 'permisos' | 'empresas' | 'tickets'): void {
+    this.roleModalTab = tab;
+    if (tab === 'tickets') this.ticketTabVisited = true;
+  }
+  nextRoleTab(): void {
+    if (!this.isLastRoleTab) this.setRoleTab(this.roleTabs[this.roleModalTabIndex + 1]);
+  }
+  prevRoleTab(): void {
+    if (!this.isFirstRoleTab) this.setRoleTab(this.roleTabs[this.roleModalTabIndex - 1]);
+  }
 
   // Modal Permisos
   permModalOpen = false;
@@ -175,6 +203,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
     private companyMenuSvc: CompanyMenuService,
     private sidebarMenuSvc: SidebarMenuService,
     private authService: AuthService,
+    private ticketPerfilSvc: TicketPerfilService,
     library: FaIconLibrary
   ) {
     library.addIcons(
@@ -606,6 +635,8 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
         this.loadRoleModalMenusByCompany(defaultCompanyIds);
       }
     }
+    this.roleModalTab = 'general';
+    this.ticketTabVisited = false;
     this.modalOpen = true;
   }
 
@@ -723,6 +754,7 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
           if (permsRemoved.length) ops.push(this.roleSvc.unassignPermissions(roleId, permsRemoved));
           return ops.length ? forkJoin(ops) : of(null);
         }),
+        switchMap(() => this.saveTicketPerfilIfLoaded(roleId)),
         catchError(err => {
           alert(err?.error?.message || 'Error al guardar cambios del rol');
           return of(null);
@@ -732,9 +764,19 @@ export class RoleManagementComponent implements OnInit, OnDestroy {
       )
       .subscribe(() => {
         this.refreshRolesPage();
-        // Refrescar menú del sidebar para que el usuario vea los cambios de menú sin cerrar sesión
         this.sidebarMenuSvc.preloadMyMenu(this.activeCompanyId ?? undefined).pipe(take(1)).subscribe();
       });
+  }
+
+  /** Guarda el perfil de tickets del rol solo si el usuario abrió el tab. Errores silenciosos — no bloquea el guardado principal. */
+  private saveTicketPerfilIfLoaded(roleId: number) {
+    const editor = this.ticketEditor;
+    if (!editor || editor.loading() || !this.ticketTabVisited) return of(null);
+    const resolutores = editor.tipos
+      .filter(t => editor.resolutorActivo[t.value])
+      .map(t => ({ tipo: t.value, paisId: editor.resolutorPais[t.value] ?? null }));
+    return this.ticketPerfilSvc.upsertPerfilRol(roleId, { resolutores })
+      .pipe(catchError(() => of(null)));
   }
 
   deleteRole(id: number) {

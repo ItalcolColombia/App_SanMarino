@@ -196,6 +196,11 @@ public class TicketPerfilService : ITicketPerfilService
     public async Task SeedPerfilDesdeRolAsync(Guid userId, int roleId, CancellationToken ct)
     {
         var companyId = await GetEffectiveCompanyIdAsync();
+        await SeedPerfilDesdeRolAsync(userId, roleId, companyId, ct);
+    }
+
+    public async Task SeedPerfilDesdeRolAsync(Guid userId, int roleId, int companyId, CancellationToken ct)
+    {
         var defaults = await _ctx.TicketResolutorRoles.AsNoTracking()
             .Where(r => r.RoleId == roleId && r.CompanyId == companyId && r.Activo)
             .ToListAsync(ct);
@@ -211,6 +216,21 @@ public class TicketPerfilService : ITicketPerfilService
                 _ctx.TicketResolutores.Add(new TicketResolutor { UserId = userId, Tipo = d.Tipo, PaisId = d.PaisId, CompanyId = companyId, CreatedAt = now });
         }
         await _ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task ReaplicarPlantillaRolAsync(int roleId, CancellationToken ct)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync();
+
+        // Usuarios que tienen este rol en la empresa activa.
+        var userIds = await _ctx.UserRoles.AsNoTracking()
+            .Where(ur => ur.RoleId == roleId && ur.CompanyId == companyId)
+            .Select(ur => ur.UserId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        foreach (var uid in userIds)
+            await SeedPerfilDesdeRolAsync(uid, roleId, companyId, ct);
     }
 
     private static string TipoLabel(string tipo) => tipo switch

@@ -47,4 +47,9 @@ export class TicketPerfilService {
   seedDesdeRol(userId: string, roleId: number): Observable<void> {
     return this.http.post<void>(`${this.base}/usuario/${userId}/seed-desde-rol/${roleId}`, {});
   }
+
+  /** Re-aplica la plantilla de resolutor del rol a todos sus usuarios (empresa activa). */
+  reaplicarPlantillaRol(roleId: number): Observable<void> {
+    return this.http.post<void>(`${this.base}/rol/${roleId}/reaplicar`, {});
+  }
 }
