@@ -92,11 +92,19 @@
             </div>
           </div>
 
+          <!-- Hint cuando aún no se seleccionó nivel -->
+          @if (nivel === '') {
+            <p class="mb-2 rounded-lg bg-orange-50 px-3 py-2 text-[11px] font-medium text-orange-600 ring-1 ring-orange-100">
+              Seleccioná un nivel para este usuario antes de guardar.
+            </p>
+          }
+
           <!-- Cards de nivel (radio) -->
           <div class="grid grid-cols-2 gap-2">
             @for (n of niveles; track n.v) {
               <label class="cursor-pointer select-none">
-                <input type="radio" [(ngModel)]="nivel" [value]="n.v" class="sr-only" />
+                <input type="radio" [(ngModel)]="nivel" [value]="n.v" class="sr-only"
+                       (change)="changed.emit()" />
                 <div class="rounded-xl border-2 p-3.5 transition-all"
                      [class.border-ital-orange]="nivel === n.v"
                      [class.bg-orange-50]="nivel === n.v"
@@ -162,7 +170,7 @@
                 </div>
                 <!-- Toggle ON/OFF -->
                 <button type="button"
-                        (click)="resolutorActivo[t.value] = !resolutorActivo[t.value]"
+                        (click)="resolutorActivo[t.value] = !resolutorActivo[t.value]; changed.emit()"
                         class="relative h-6 w-11 shrink-0 rounded-full border-2 transition-colors focus:outline-none"
                         [class.bg-ital-green]="resolutorActivo[t.value]"
                         [class.border-ital-green]="resolutorActivo[t.value]"

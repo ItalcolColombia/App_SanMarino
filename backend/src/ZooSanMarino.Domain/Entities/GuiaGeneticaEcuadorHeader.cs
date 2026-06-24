@@ -10,6 +10,9 @@ public class GuiaGeneticaEcuadorHeader : AuditableEntity
 {
     public int Id { get; set; }
 
+    /// <summary>País al que pertenece la guía (0 = sin país / legado). Filtra por x-active-pais.</summary>
+    public int PaisId { get; set; }
+
     public string Raza { get; set; } = null!;
     public int AnioGuia { get; set; }
 

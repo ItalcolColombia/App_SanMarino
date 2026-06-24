@@ -2,18 +2,21 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
 import {
   TicketListItem, PagedResult, EstadoTicket,
-  ESTADOS_TICKET, ESTADO_LABEL, TIPO_LABEL, ESTADO_DOT,
+  ESTADOS_TICKET, ESTADO_LABEL, TIPO_LABEL, ESTADO_DOT, TICKET_PERMS,
 } from '../../models/ticket.models';
 import { TicketListComponent } from '../../components/ticket-list/ticket-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { UserPermissionService } from '../../../../core/auth/user-permission.service';
 
-/** Bandeja "Mis solicitudes" (Perfil A: Solicitante). */
+/** Bandeja "Mis solicitudes" (Perfil A: Solicitante).
+ *  Si el usuario no tiene tickets.crear pero sí gestionar/admin,
+ *  redirige a la bandeja correcta para evitar ver una lista vacía. */
 @Component({
   selector: 'app-mis-tickets',
   standalone: true,
@@ -24,6 +27,8 @@ export class MisTicketsComponent implements OnInit {
   private readonly svc = inject(TicketService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly perm = inject(UserPermissionService);
+  private readonly router = inject(Router);
 
   readonly loading = signal(false);
   readonly data = signal<PagedResult<TicketListItem> | null>(null);
@@ -46,6 +51,17 @@ export class MisTicketsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    // Usuarios sin tickets.crear no deben aterrizar aquí: su bandeja real es gestión/admin.
+    if (!this.perm.has(TICKET_PERMS.crear)) {
+      if (this.perm.has(TICKET_PERMS.admin)) {
+        this.router.navigate(['/tickets/admin'], { replaceUrl: true });
+        return;
+      }
+      if (this.perm.has(TICKET_PERMS.gestionar)) {
+        this.router.navigate(['/tickets/gestion'], { replaceUrl: true });
+        return;
+      }
+    }
     this.load();
   }
 

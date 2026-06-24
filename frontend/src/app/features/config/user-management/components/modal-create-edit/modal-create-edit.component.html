@@ -460,7 +460,8 @@
           <app-ticket-perfil-editor
             modo="usuario"
             [entityId]="editingUser!.id"
-            [hideSaveButton]="true">
+            [hideSaveButton]="true"
+            (changed)="onTicketEditorChanged()">
           </app-ticket-perfil-editor>
         </div>
 
@@ -487,6 +488,9 @@
       >
         <fa-icon [icon]="faSave" class="mr-2"></fa-icon>
         {{ submitButtonText }}
+        <span *ngIf="ticketEditorDirty"
+              class="ml-2 inline-flex h-2 w-2 rounded-full bg-yellow-400 ring-2 ring-white"
+              title="Hay cambios de perfil de tickets pendientes de guardar"></span>
       </button>
     </div>
   </div>

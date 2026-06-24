@@ -71,6 +71,8 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
   showConfirmPassword = false;
   activeTab: 'personal' | 'access' | 'roles' | 'tickets' = 'personal';
   isPlatformUser = false;
+  /** true cuando el editor de tickets tiene cambios pendientes sin guardar. */
+  ticketEditorDirty = false;
 
   readonly PLATFORM_DOMAIN = '@zootecnico.com';
 
@@ -377,6 +379,7 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
         .subscribe({
           next: (result: any) => {
             this.saving = false;
+            this.ticketEditorDirty = false;
             this.userSaved.emit(result);
             this.closeModal();
           },
@@ -552,6 +555,10 @@ export class ModalCreateEditComponent implements OnInit, OnDestroy {
 
   setActiveTab(tab: 'personal' | 'access' | 'roles' | 'tickets'): void {
     this.activeTab = tab;
+  }
+
+  onTicketEditorChanged(): void {
+    this.ticketEditorDirty = true;
   }
 
   togglePasswordVisibility(): void {

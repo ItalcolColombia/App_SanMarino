@@ -249,7 +249,16 @@ export const appConfig: ApplicationConfig = {
           import('./features/indicador-ecuador/indicador-ecuador.module')
             .then(m => m.IndicadorEcuadorModule)
       },
-      
+
+      // Informe Semanal Pollo de Engorde (Panamá)
+      {
+        path: 'informe-semanal-engorde',
+        canActivate: [authGuard],
+        loadComponent: () =>
+          import('./features/informe-semanal-engorde/pages/informe-semanal-engorde-list/informe-semanal-engorde-list.component')
+            .then(m => m.InformeSemanalEngordeListComponent)
+      },
+
       // Inventario (fuera de config, ruta independiente)
       {
         path: 'inventario',

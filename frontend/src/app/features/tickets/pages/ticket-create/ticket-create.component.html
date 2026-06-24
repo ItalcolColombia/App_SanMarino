@@ -129,6 +129,15 @@
             <app-image-dropzone (imagesChange)="onImages($event)"></app-image-dropzone>
           </div>
 
+          <!-- Adjuntos: documentos + links -->
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">
+              Adjuntos
+              <span class="font-normal text-ital-muted">(PDF, Word, Excel o links externos — opcional)</span>
+            </label>
+            <app-ticket-adjuntos-input (adjuntosChange)="onAdjuntosChange($event)"></app-ticket-adjuntos-input>
+          </div>
+
           <!-- Acciones -->
           <div class="flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
             <a routerLink="/tickets"

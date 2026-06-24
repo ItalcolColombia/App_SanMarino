@@ -78,25 +78,58 @@ public class TicketPerfilService : ITicketPerfilService
     private async Task<IReadOnlyList<AsignableDto>> GetAsignablesInternalAsync(
         string tipo, int? paisId, int companyId, CancellationToken ct)
     {
-        // Resolutores válidos: tipo coincide Y (pais_id == paisId OR pais_id IS NULL) Y activo.
-        // Sin filtro de company: los resolutores son globales (equipo central de soporte).
-        var query = _ctx.TicketResolutores.AsNoTracking()
+        var result = new List<AsignableDto>();
+        var addedUserIds = new HashSet<Guid>();
+
+        // 1. Resolutores directos por usuario: tipo + (pais_id == paisId OR global).
+        var directResolutores = await _ctx.TicketResolutores.AsNoTracking()
             .Where(r => r.Activo &&
                         r.Tipo == tipo.ToUpperInvariant() &&
-                        (r.PaisId == null || r.PaisId == paisId));
+                        (r.PaisId == null || r.PaisId == paisId))
+            .Select(r => new { r.UserId, r.PaisId })
+            .ToListAsync(ct);
 
-        var resolutores = await query.Select(r => new { r.UserId, r.PaisId }).ToListAsync(ct);
-
-        var result = new List<AsignableDto>();
-        foreach (var r in resolutores)
+        foreach (var r in directResolutores)
         {
+            if (!addedUserIds.Add(r.UserId)) continue;
             var user = await _ctx.Set<User>().AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == r.UserId, ct);
             if (user == null) continue;
-            var nombre = $"{user.firstName} {user.surName}".Trim();
-            var paisLabel = r.PaisId == null ? "Global" : $"País #{r.PaisId}";
-            result.Add(new AsignableDto(r.UserId, nombre, paisLabel));
+            result.Add(new AsignableDto(r.UserId,
+                $"{user.firstName} {user.surName}".Trim(),
+                r.PaisId == null ? "Global" : $"País #{r.PaisId}"));
         }
+
+        // 2. Resolutores por rol: usuarios de la empresa que tengan un rol configurado
+        //    como resolutor para este tipo+país. Cubre el caso donde el admin configura
+        //    el rol en "Perfil de Atención" sin necesidad de "Reaplicar" manualmente.
+        var roleResolutores = await _ctx.TicketResolutorRoles.AsNoTracking()
+            .Where(r => r.Activo &&
+                        r.Tipo == tipo.ToUpperInvariant() &&
+                        (r.PaisId == null || r.PaisId == paisId))
+            .Select(r => new { r.RoleId, r.PaisId })
+            .ToListAsync(ct);
+
+        foreach (var rr in roleResolutores)
+        {
+            var userIds = await _ctx.UserRoles.AsNoTracking()
+                .Where(ur => ur.RoleId == rr.RoleId && ur.CompanyId == companyId)
+                .Select(ur => ur.UserId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var uid in userIds)
+            {
+                if (!addedUserIds.Add(uid)) continue;
+                var user = await _ctx.Set<User>().AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.Id == uid, ct);
+                if (user == null) continue;
+                result.Add(new AsignableDto(uid,
+                    $"{user.firstName} {user.surName}".Trim(),
+                    rr.PaisId == null ? "Global" : $"País #{rr.PaisId}"));
+            }
+        }
+
         return result;
     }
 
@@ -114,7 +147,7 @@ public class TicketPerfilService : ITicketPerfilService
             .Select(r => new ResolutorItemDto(r.Id, r.Tipo, r.PaisId, r.Activo))
             .ToListAsync(ct);
 
-        return new TicketPerfilDto(userId, perfil?.Nivel ?? NivelTicket.Normal, resolutores);
+        return new TicketPerfilDto(userId, perfil?.Nivel ?? NivelTicket.Normal, resolutores, perfil != null);
     }
 
     public async Task<TicketPerfilDto> UpsertPerfilUsuarioAsync(Guid userId, UpsertTicketPerfilRequest req, CancellationToken ct)

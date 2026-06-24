@@ -9,7 +9,7 @@ export interface UpsertTicketPerfilRequest { nivel: string; resolutores: Resolut
 export interface UpsertTicketResolutorRolRequest { resolutores: ResolutorItemRequest[]; }
 
 export interface ResolutorItemDto { id: number; tipo: string; paisId: number | null; activo: boolean; }
-export interface TicketPerfilDto { userId: string; nivel: string; resolutores: ResolutorItemDto[]; }
+export interface TicketPerfilDto { userId: string; nivel: string; resolutores: ResolutorItemDto[]; hasProfile?: boolean; }
 export interface AsignableDto { userId: string; nombreCompleto: string; paisLabel: string | null; }
 export interface TipoPermitidoDto { tipo: string; label: string; asignables: AsignableDto[]; }
 export interface TicketResolutorRolDto { roleId: number; resolutores: ResolutorItemDto[]; }
