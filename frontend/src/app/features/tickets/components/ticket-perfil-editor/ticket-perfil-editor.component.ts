@@ -1,6 +1,6 @@
 // src/app/features/tickets/components/ticket-perfil-editor/ticket-perfil-editor.component.ts
 import {
-  Component, EventEmitter, Input, OnInit, Output, inject, signal,
+  Component, EventEmitter, Input, OnInit, Output, inject, signal, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -38,10 +38,13 @@ export class TicketPerfilEditorComponent implements OnInit {
   /** Cuando es true, oculta el footer con los botones de guardado (el padre controla el save). */
   @Input() hideSaveButton = false;
   @Output() saved = new EventEmitter<void>();
+  /** Emite cada vez que el usuario modifica nivel o toggles (para que el padre detecte cambios pendientes). */
+  @Output() changed = new EventEmitter<void>();
 
   private readonly svc = inject(TicketPerfilService);
   private readonly toast = inject(ToastService);
   private readonly storage = inject(TokenStorageService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly tipos = TIPOS_TICKET;
   /** Niveles de solicitante (referencia estable para el template). */
@@ -53,7 +56,8 @@ export class TicketPerfilEditorComponent implements OnInit {
   readonly saving = signal(false);
   readonly reaplicando = signal(false);
 
-  nivel = 'NORMAL';
+  /** Vacío si no hay perfil guardado (evita pre-selección sin historial). */
+  nivel = '';
   /** Estado del toggle por tipo: true = activo como resolutor */
   resolutorActivo: Record<string, boolean> = {};
   /** País por tipo (null = global) */
@@ -126,10 +130,14 @@ export class TicketPerfilEditorComponent implements OnInit {
   private load(): void {
     this.loading.set(true);
     const onData = (dto: TicketPerfilDto | TicketResolutorRolDto) => {
-      if ('nivel' in dto) this.nivel = dto.nivel;
+      if ('nivel' in dto) {
+        // Solo pre-seleccionar nivel si hay un perfil guardado previamente.
+        const perfilDto = dto as TicketPerfilDto;
+        if (perfilDto.hasProfile) this.nivel = perfilDto.nivel;
+        // else: nivel queda '' → ningún radio pre-seleccionado.
+      }
       for (const t of this.tipos) {
         this.resolutorActivo[t.value] = false;
-        // Pre-selecciona el país del usuario como default de cada toggle
         this.resolutorPais[t.value] = this._defaultPaisId;
       }
       for (const r of dto.resolutores) {

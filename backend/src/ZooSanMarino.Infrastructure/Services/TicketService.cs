@@ -52,14 +52,32 @@ public class TicketService : ITicketService
         var companyId = await GetEffectiveCompanyIdAsync();
         var now = DateTime.UtcNow;
 
-        // Validar que el resolutor sea asignable para (tipo, país).
-        // Sin filtro de company: los resolutores son globales (equipo central de soporte).
+        // Validar que el resolutor sea asignable para (tipo, país): directo O por rol.
         var paisId = _currentUser.PaisId;
+        var tipoUpper = req.Tipo.ToUpperInvariant();
+
         var resolutorValido = await _ctx.TicketResolutores.AsNoTracking()
             .AnyAsync(r => r.UserId == req.AssignedToUserGuid &&
-                           r.Tipo == req.Tipo.ToUpperInvariant() &&
+                           r.Tipo == tipoUpper &&
                            r.Activo &&
                            (r.PaisId == null || r.PaisId == paisId), ct);
+
+        if (!resolutorValido)
+        {
+            // Verificar si es resolutor por rol.
+            var roleIds = await _ctx.TicketResolutorRoles.AsNoTracking()
+                .Where(r => r.Activo && r.Tipo == tipoUpper &&
+                            (r.PaisId == null || r.PaisId == paisId))
+                .Select(r => r.RoleId)
+                .ToListAsync(ct);
+
+            if (roleIds.Count > 0)
+                resolutorValido = await _ctx.UserRoles.AsNoTracking()
+                    .AnyAsync(ur => ur.UserId == req.AssignedToUserGuid &&
+                                    roleIds.Contains(ur.RoleId) &&
+                                    ur.CompanyId == companyId, ct);
+        }
+
         if (!resolutorValido)
             throw new InvalidOperationException("El resolutor seleccionado no está disponible para este tipo y país.");
 
@@ -749,13 +767,17 @@ public class TicketService : ITicketService
         (t.CreatedByUserId != 0 && t.CreatedByUserId == _currentUser.UserId)
         || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
 
+    /// <summary>True si el usuario tiene tickets.admin (puede gestionar cualquier ticket).</summary>
+    private bool EsAdmin() =>
+        _currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase);
+
     public async Task<TicketDetailDto?> TomarAsync(long id, CancellationToken ct)
     {
         var ticket = await _ctx.Tickets
             .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
 
-        if (EsCreador(ticket))
+        if (EsCreador(ticket) && !EsAdmin())
             throw new InvalidOperationException("Sos el solicitante de este ticket; lo toma y gestiona el equipo que atiende.");
 
         var now = DateTime.UtcNow;
@@ -801,9 +823,9 @@ public class TicketService : ITicketService
             .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
 
-        // El solicitante NO gestiona su propio ticket, salvo REABRIR (SOLUCIONADO → EN_ANALISIS)
-        // cuando no está conforme con la solución.
-        if (EsCreador(ticket))
+        // El solicitante NO gestiona su propio ticket, salvo REABRIR (SOLUCIONADO → EN_ANALISIS).
+        // El admin puede gestionar cualquier ticket, incluido los que él mismo creó.
+        if (EsCreador(ticket) && !EsAdmin())
         {
             var esReapertura = string.Equals(ticket.Estado, TicketEstados.Solucionado, StringComparison.OrdinalIgnoreCase)
                                && nuevo == TicketEstados.EnAnalisis;

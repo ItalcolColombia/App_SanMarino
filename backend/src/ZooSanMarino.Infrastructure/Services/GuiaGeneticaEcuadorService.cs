@@ -44,6 +44,8 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         return _currentUser.CompanyId;
     }
 
+    private int GetEffectivePaisId() => _currentUser.PaisId ?? 0;
+
     private static string NormalizeEstado(string? estado)
     {
         var e = (estado ?? "active").Trim().ToLowerInvariant();
@@ -266,6 +268,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
 
     private async Task<GuiaGeneticaEcuadorHeader> GetOrCreateHeaderAsync(
         int companyId,
+        int paisId,
         string raza,
         int anioGuia,
         string estado,
@@ -274,7 +277,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         var razaTrim = raza.Trim();
         var header = await _ctx.GuiaGeneticaEcuadorHeader
             .FirstOrDefaultAsync(
-                h => h.CompanyId == companyId && h.Raza == razaTrim && h.AnioGuia == anioGuia && h.DeletedAt == null,
+                h => h.CompanyId == companyId && h.PaisId == paisId && h.Raza == razaTrim && h.AnioGuia == anioGuia && h.DeletedAt == null,
                 ct);
 
         var now = DateTime.UtcNow;
@@ -284,6 +287,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         {
             header = new GuiaGeneticaEcuadorHeader
             {
+                PaisId = paisId,
                 Raza = razaTrim,
                 AnioGuia = anioGuia,
                 Estado = estado,
@@ -335,15 +339,16 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
     public async Task<GuiaGeneticaEcuadorFiltersDto> GetFiltersAsync(CancellationToken ct = default)
     {
         var cid = await GetEffectiveCompanyIdAsync(ct);
+        var pid = GetEffectivePaisId();
         var razas = await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
-            .Where(h => h.CompanyId == cid && h.DeletedAt == null)
+            .Where(h => h.CompanyId == cid && h.PaisId == pid && h.DeletedAt == null)
             .Select(h => h.Raza)
             .Distinct()
             .OrderBy(r => r)
             .ToListAsync(ct);
 
         var anos = await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
-            .Where(h => h.CompanyId == cid && h.DeletedAt == null)
+            .Where(h => h.CompanyId == cid && h.PaisId == pid && h.DeletedAt == null)
             .Select(h => h.AnioGuia)
             .Distinct()
             .OrderBy(a => a)
@@ -357,11 +362,13 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         if (string.IsNullOrWhiteSpace(raza)) return Array.Empty<int>();
 
         var cid = await GetEffectiveCompanyIdAsync(ct);
+        var pid = GetEffectivePaisId();
         var razaTrim = raza.Trim();
 
         return await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
             .Where(h =>
                 h.CompanyId == cid &&
+                h.PaisId == pid &&
                 h.DeletedAt == null &&
                 h.Estado == "active" &&
                 EF.Functions.ILike(h.Raza, razaTrim))
@@ -377,11 +384,13 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
             return Array.Empty<string>();
 
         var cid = await GetEffectiveCompanyIdAsync(ct);
+        var pid = GetEffectivePaisId();
         var razaTrim = raza.Trim();
 
         var headerId = await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
             .Where(h =>
                 h.CompanyId == cid &&
+                h.PaisId == pid &&
                 h.DeletedAt == null &&
                 h.Estado == "active" &&
                 h.AnioGuia == anioGuia &&
@@ -409,11 +418,13 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
 
         var sexoN = NormalizeSexo(sexo);
         var cid = await GetEffectiveCompanyIdAsync(ct);
+        var pid = GetEffectivePaisId();
         var razaTrim = raza.Trim();
 
         var headerId = await _ctx.GuiaGeneticaEcuadorHeader.AsNoTracking()
             .Where(h =>
                 h.CompanyId == cid &&
+                h.PaisId == pid &&
                 h.DeletedAt == null &&
                 h.AnioGuia == anioGuia &&
                 EF.Functions.ILike(h.Raza, razaTrim))
@@ -517,6 +528,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
 
         var estadoN = NormalizeEstado(estado);
         var cid = await GetEffectiveCompanyIdAsync(ct);
+        var pid = GetEffectivePaisId();
 
         int filasProcesadas = 0;
         int detallesInsertados = 0;
@@ -531,7 +543,7 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
         {
             try
             {
-                var header = await GetOrCreateHeaderAsync(cid, raza, anioGuia, estadoN, ct);
+                var header = await GetOrCreateHeaderAsync(cid, pid, raza, anioGuia, estadoN, ct);
 
                 foreach (var sexo in SexosValidos)
                 {
@@ -634,9 +646,10 @@ public class GuiaGeneticaEcuadorService : IGuiaGeneticaEcuadorService
             throw new ArgumentException("Debe enviar al menos un ítem de detalle.");
 
         var cid = await GetEffectiveCompanyIdAsync(ct);
+        var pid = GetEffectivePaisId();
         await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
 
-        var header = await GetOrCreateHeaderAsync(cid, request.Raza, request.AnioGuia, estadoN, ct);
+        var header = await GetOrCreateHeaderAsync(cid, pid, request.Raza, request.AnioGuia, estadoN, ct);
 
         var dias = new HashSet<int>();
         var nuevos = new List<GuiaGeneticaEcuadorDetalle>();

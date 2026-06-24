@@ -263,6 +263,9 @@ builder.Services.AddScoped<IIndicadoresProduccionService, IndicadoresProduccionS
 // Indicador Ecuador Service
 builder.Services.AddScoped<IIndicadorEcuadorService, IndicadorEcuadorService>();
 
+// Informe Semanal Pollo de Engorde (Panamá)
+builder.Services.AddScoped<IInformeSemanalPolloEngordeService, InformeSemanalPolloEngordeService>();
+
 // Reporte Indicador Panamá Service (liquidación Pollo Engorde Panamá)
 builder.Services.AddScoped<IReporteIndicadorPanamaService, ReporteIndicadorPanamaService>();
 

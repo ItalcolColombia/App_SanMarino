@@ -22,6 +22,7 @@ import {
   GuiaGeneticaEcuadorImportResultDto,
   GuiaGeneticaEcuadorService
 } from '../guia-genetica-ecuador.service';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 
 type SexoTab = 'mixto' | 'hembra' | 'macho';
 
@@ -56,6 +57,8 @@ export class GuiaGeneticaEcuadorPageComponent implements OnInit, OnDestroy {
 
   tab: SexoTab = 'mixto';
   filas: GuiaGeneticaEcuadorDetalleDto[] = [];
+
+  activePaisNombre: string | undefined;
 
   private razaChangeDebounce?: number;
 
@@ -103,6 +106,7 @@ export class GuiaGeneticaEcuadorPageComponent implements OnInit, OnDestroy {
 
   constructor(
     private svc: GuiaGeneticaEcuadorService,
+    private countryFilter: CountryFilterService,
     library: FaIconLibrary
   ) {
     library.addIcons(
@@ -119,6 +123,9 @@ export class GuiaGeneticaEcuadorPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.activePaisNombre = this.countryFilter.getActiveCountryName();
+    this.razaSel = '';
+
     this.svc
       .getFilters()
       .pipe(takeUntil(this.destroy$))
@@ -128,6 +135,11 @@ export class GuiaGeneticaEcuadorPageComponent implements OnInit, OnDestroy {
           // Los años dependen de la raza; se consultan cuando el usuario elige/edita la raza.
           this.anos = [];
           this.anioSel = null;
+
+          if (this.razas.length === 1) {
+            this.razaSel = this.razas[0];
+            this.onRazaChange(this.razas[0]);
+          }
         },
         error: () => (this.error = 'No se pudieron cargar los filtros.')
       });

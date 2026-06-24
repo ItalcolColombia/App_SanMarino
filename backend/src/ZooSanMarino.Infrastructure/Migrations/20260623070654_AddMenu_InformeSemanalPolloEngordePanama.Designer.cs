@@ -3,6 +3,7 @@ using System;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ZooSanMarino.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using ZooSanMarino.Infrastructure.Persistence;
 namespace ZooSanMarino.Infrastructure.Migrations
 {
     [DbContext(typeof(ZooSanMarinoContext))]
-    partial class ZooSanMarinoContextModelSnapshot : ModelSnapshot
+    [Migration("20260623070654_AddMenu_InformeSemanalPolloEngordePanama")]
+    partial class AddMenu_InformeSemanalPolloEngordePanama
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1418,12 +1421,6 @@ namespace ZooSanMarino.Infrastructure.Migrations
                         .HasDefaultValue("active")
                         .HasColumnName("estado");
 
-                    b.Property<int>("PaisId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("pais_id");
-
                     b.Property<string>("Raza")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -1441,9 +1438,9 @@ namespace ZooSanMarino.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_guia_genetica_ecuador_header");
 
-                    b.HasIndex("CompanyId", "PaisId", "Raza", "AnioGuia")
+                    b.HasIndex("CompanyId", "Raza", "AnioGuia")
                         .IsUnique()
-                        .HasDatabaseName("ix_guia_genetica_ecuador_header_company_id_pais_id_raza_anio_g");
+                        .HasDatabaseName("ix_guia_genetica_ecuador_header_company_id_raza_anio_guia");
 
                     b.ToTable("guia_genetica_ecuador_header", (string)null);
                 });

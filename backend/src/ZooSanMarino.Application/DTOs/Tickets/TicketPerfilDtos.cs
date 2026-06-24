@@ -26,7 +26,8 @@ public record UpsertTicketResolutorRolRequest(
 public record TicketPerfilDto(
     Guid UserId,
     string Nivel,
-    IReadOnlyList<ResolutorItemDto> Resolutores
+    IReadOnlyList<ResolutorItemDto> Resolutores,
+    bool HasProfile = false
 );
 
 public record ResolutorItemDto(

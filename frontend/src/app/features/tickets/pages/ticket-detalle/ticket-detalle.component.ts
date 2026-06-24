@@ -66,12 +66,27 @@ export class TicketDetalleComponent implements OnInit {
   readonly estadoLabel = ESTADO_LABEL;
   readonly tipoLabel = TIPO_LABEL;
 
-  /** Tiene permiso de gestión (resolutor/admin). El panel además se oculta si es el creador. */
+  readonly esAdmin       = this.perm.has(TICKET_PERMS.admin);
+  readonly esResolutor   = this.perm.has(TICKET_PERMS.gestionar);
+
+  /** Ruta de vuelta según el rol del usuario (para el botón "Volver"). */
+  readonly volverRuta: string = (() => {
+    if (this.esAdmin)     return '/tickets/admin';
+    if (this.esResolutor) return '/tickets/gestion';
+    return '/tickets';
+  })();
+
+  /** Tiene permiso de gestión (resolutor/admin). */
   readonly tienePermisoGestion = this.perm.hasAny([TICKET_PERMS.gestionar, TICKET_PERMS.admin]);
 
-  /** El panel de gestión solo lo ve quien ATIENDE: tiene permiso y NO es el solicitante. */
+  /**
+   * El panel de gestión se muestra a quien ATIENDE el ticket.
+   * El admin puede gestionar cualquier ticket (incluido los que creó).
+   * El resolutor solo los que no creó él mismo.
+   */
   puedeGestionarTicket(t: TicketDetail): boolean {
-    return this.tienePermisoGestion && !t.soyCreador;
+    if (this.esAdmin) return true;
+    return this.esResolutor && !t.soyCreador;
   }
 
   /** Transiciones de estado válidas desde el estado actual. */

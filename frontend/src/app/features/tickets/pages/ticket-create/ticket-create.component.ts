@@ -9,13 +9,15 @@ import { TicketService } from '../../services/ticket.service';
 import { TicketPerfilService, TipoPermitidoDto, AsignableDto } from '../../services/ticket-perfil.service';
 import { CreateTicketRequest, TipoTicket, TicketImagenInput } from '../../models/ticket.models';
 import { ImageDropzoneComponent } from '../../components/image-dropzone/image-dropzone.component';
+import { TicketAdjuntosInputComponent, AdjuntosInputState } from '../../components/ticket-adjuntos-input/ticket-adjuntos-input.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { forkJoin, of } from 'rxjs';
 
 /** Formulario de creación de ticket. Tipos y asignados filtrados por perfil del usuario y país. */
 @Component({
   selector: 'app-ticket-create',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, ImageDropzoneComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, ImageDropzoneComponent, TicketAdjuntosInputComponent],
   templateUrl: './ticket-create.component.html',
 })
 export class TicketCreateComponent implements OnInit {
@@ -32,6 +34,7 @@ export class TicketCreateComponent implements OnInit {
   tiposPermitidos: TipoPermitidoDto[] = [];
   asignablesActuales: AsignableDto[] = [];
   private imagenes: TicketImagenInput[] = [];
+  private adjuntosStaged: AdjuntosInputState = { archivos: [], links: [] };
 
   readonly form = this.fb.nonNullable.group({
     titulo: ['', [Validators.required, Validators.maxLength(160)]],
@@ -66,6 +69,8 @@ export class TicketCreateComponent implements OnInit {
 
   onImages(imgs: TicketImagenInput[]): void { this.imagenes = imgs; }
 
+  onAdjuntosChange(state: AdjuntosInputState): void { this.adjuntosStaged = state; }
+
   submit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -87,8 +92,26 @@ export class TicketCreateComponent implements OnInit {
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: t => {
-          this.toast.success(`Ticket ${t.codigo ?? ''} creado correctamente.`);
-          this.router.navigate(['/tickets']);
+          const ticketId = t.id;
+          const { archivos, links } = this.adjuntosStaged;
+          const calls = [
+            ...archivos.map(a => this.svc.addDocumento(ticketId, {
+              base64: a.base64, fileName: a.fileName,
+              contentType: a.contentType, sizeBytes: a.sizeBytes,
+            })),
+            ...links.map(l => this.svc.addLink(ticketId, { url: l.url, titulo: l.titulo || null })),
+          ];
+          const post$ = calls.length ? forkJoin(calls) : of([]);
+          post$.subscribe({
+            next: () => {
+              this.toast.success(`Ticket ${t.codigo ?? ''} creado correctamente.`);
+              this.router.navigate(['/tickets']);
+            },
+            error: () => {
+              this.toast.warning(`Ticket ${t.codigo ?? ''} creado, pero algunos adjuntos no se pudieron subir.`);
+              this.router.navigate(['/tickets', t.id]);
+            },
+          });
         },
         error: (err) => {
           const msg = err?.error || 'No se pudo crear el ticket.';

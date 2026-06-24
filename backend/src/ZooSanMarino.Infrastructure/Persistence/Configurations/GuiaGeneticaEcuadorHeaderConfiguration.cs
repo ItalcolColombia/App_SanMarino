@@ -12,6 +12,11 @@ public class GuiaGeneticaEcuadorHeaderConfiguration : IEntityTypeConfiguration<G
 
         e.HasKey(x => x.Id);
 
+        e.Property(x => x.PaisId)
+            .HasColumnName("pais_id")
+            .HasDefaultValue(0)
+            .IsRequired();
+
         e.Property(x => x.Raza)
             .HasColumnName("raza")
             .HasMaxLength(120)
@@ -34,7 +39,7 @@ public class GuiaGeneticaEcuadorHeaderConfiguration : IEntityTypeConfiguration<G
         e.Property(x => x.UpdatedAt).HasColumnName("updated_at").IsRequired(false);
         e.Property(x => x.DeletedAt).HasColumnName("deleted_at").IsRequired(false);
 
-        e.HasIndex(x => new { x.CompanyId, x.Raza, x.AnioGuia }).IsUnique();
+        e.HasIndex(x => new { x.CompanyId, x.PaisId, x.Raza, x.AnioGuia }).IsUnique();
 
         e.HasMany(x => x.Detalles)
             .WithOne(d => d.GuiaGeneticaEcuadorHeader)
