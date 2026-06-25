@@ -40,18 +40,18 @@ export class LiquidacionReporteComponent {
     return ind.mermaUnidades != null || ind.mermaKilos != null;
   }
 
-  /** Ajuste de aves: backend (incluye merma); null = sin merma registrada ⇒ campo vacío. */
-  ajusteAves(ind: IndicadorEcuadorDto): number | null {
-    if (ind.ajusteAves != null) return ind.ajusteAves;
-    if (!this.mermaRegistrada(ind)) return null;
-    return ind.avesEncasetadas - ind.mortalidad - ind.avesSacrificadas - (ind.mermaUnidades ?? 0);
+  /**
+   * Ajuste de aves = encasetadas − vendidas − (mortalidad + selección).
+   * Se recalcula SIEMPRE en el front (no se usa ind.ajusteAves del backend, que aún puede
+   * traer la fórmula vieja con merma) para que aplique a todos los lotes de forma consistente.
+   */
+  ajusteAves(ind: IndicadorEcuadorDto): number {
+    return ind.avesEncasetadas - ind.avesSacrificadas - ind.mortalidad;
   }
 
-  /** % de ajuste: backend; null = sin merma registrada ⇒ campo vacío. */
-  porcentajeAjuste(ind: IndicadorEcuadorDto): number | null {
-    if (ind.porcentajeAjuste != null) return ind.porcentajeAjuste;
+  /** % de ajuste = (ajuste / encasetadas) × 100. Se muestra en todos los lotes. */
+  porcentajeAjuste(ind: IndicadorEcuadorDto): number {
     const ajuste = this.ajusteAves(ind);
-    if (ajuste == null) return null;
     return ind.avesEncasetadas > 0 ? (ajuste / ind.avesEncasetadas) * 100 : 0;
   }
 

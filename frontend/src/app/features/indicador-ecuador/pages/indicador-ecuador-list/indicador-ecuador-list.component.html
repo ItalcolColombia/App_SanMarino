@@ -19,7 +19,12 @@
             </p>
           </div>
         </div>
-        <span class="ie-header__badge" *ngIf="paisBadge">{{ paisBadge }}</span>
+        <div class="ie-header__right">
+          <span class="ie-header__badge" *ngIf="paisBadge">{{ paisBadge }}</span>
+          <button class="ie-btn ie-btn--ghost ie-btn--sm ie-btn--formulas" (click)="showFormulasModal = true">
+            <span class="ie-btn__icon">𝑓</span> Fórmulas
+          </button>
+        </div>
       </header>
 
       <!-- ═══════════════════════════════════════════
@@ -617,13 +622,13 @@
                 </tr>
                 <tr>
                   <td class="ie-matrix__indicator-col">Ajuste en Aves</td>
-                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtONada(it.indicador.ajusteAves, 0) }}</td>
-                  <td class="ie-matrix__total-cell num">{{ fmtONada(tot.ajusteAves, 0) }}</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearNumero(ajusteDe(it.indicador), 0) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ formatearNumero(ajusteDe(tot), 0) }}</td>
                 </tr>
                 <tr class="ie-matrix__stripe">
                   <td class="ie-matrix__indicator-col">Porcentaje de ajuste (%)</td>
-                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ fmtPctONada(it.indicador.porcentajeAjuste) }}</td>
-                  <td class="ie-matrix__total-cell num">{{ fmtPctONada(tot.porcentajeAjuste) }}</td>
+                  <td *ngFor="let it of resultadoLiquidacionPollo.items" class="num">{{ formatearPorcentaje(porcentajeAjusteDe(it.indicador)) }}</td>
+                  <td class="ie-matrix__total-cell num">{{ formatearPorcentaje(porcentajeAjusteDe(tot)) }}</td>
                 </tr>
                 <tr>
                   <td class="ie-matrix__indicator-col">Supervivencia (%)</td>
@@ -809,11 +814,11 @@
                   </tr>
                   <tr>
                     <td class="ie-matrix__indicator-col">Ajuste en Aves</td>
-                    <td class="num">{{ fmtONada(it.indicador.ajusteAves, 0) }}</td>
+                    <td class="num">{{ formatearNumero(ajusteDe(it.indicador), 0) }}</td>
                   </tr>
                   <tr class="ie-matrix__stripe">
                     <td class="ie-matrix__indicator-col">Porcentaje de ajuste (%)</td>
-                    <td class="num">{{ fmtPctONada(it.indicador.porcentajeAjuste) }}</td>
+                    <td class="num">{{ formatearPorcentaje(porcentajeAjusteDe(it.indicador)) }}</td>
                   </tr>
                   <tr>
                     <td class="ie-matrix__indicator-col">Supervivencia (%)</td>
@@ -1176,3 +1181,153 @@
     </div><!-- /ie-page -->
   </div>
 </div>
+
+<!-- ═══════════════════════════════════════════
+     MODAL FÓRMULAS
+     ═══════════════════════════════════════════ -->
+<div class="ie-fm-backdrop" *ngIf="showFormulasModal" (click)="showFormulasModal = false">
+  <div class="ie-fm-modal" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="ie-fm-header">
+      <div class="ie-fm-header__left">
+        <span class="ie-fm-header__icon">𝑓</span>
+        <div>
+          <h3 class="ie-fm-header__title">Fórmulas de indicadores</h3>
+          <p class="ie-fm-header__sub">Cálculos aplicados por <code>fn_indicadores_pollo_engorde</code></p>
+        </div>
+      </div>
+      <button class="ie-fm-close" (click)="showFormulasModal = false" title="Cerrar">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="ie-fm-body">
+
+      <!-- POBLACIÓN -->
+      <div class="ie-fm-section">
+        <div class="ie-fm-section__label">Población</div>
+        <div class="ie-fm-list">
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Mortalidad %</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">mortalidad</span> / <span class="fm-var">aves_encasetadas</span> × 100</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Supervivencia %</div>
+            <div class="ie-fm-row__expr">( <span class="fm-var">aves_encasetadas</span> − <span class="fm-var">mortalidad</span> ) / <span class="fm-var">aves_encasetadas</span> × 100</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Ajuste de aves</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">aves_encasetadas</span> − <span class="fm-var">aves_vendidas</span> − ( <span class="fm-var">mortalidad</span> + <span class="fm-var">selección</span> )</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">% Ajuste</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">ajuste_aves</span> / <span class="fm-var">aves_encasetadas</span> × 100</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Merma % <span class="ie-fm-badge ie-fm-badge--gray">solo si merma</span></div>
+            <div class="ie-fm-row__expr"><span class="fm-var">merma_unidades</span> / <span class="fm-var">aves_vendidas</span> × 100</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALIMENTO + PRODUCCIÓN en grid 2 cols -->
+      <div class="ie-fm-cols">
+        <div class="ie-fm-section">
+          <div class="ie-fm-section__label">Alimento</div>
+          <div class="ie-fm-list">
+            <div class="ie-fm-row">
+              <div class="ie-fm-row__name">Consumo ave (g)</div>
+              <div class="ie-fm-row__expr">( <span class="fm-var">consumo_total_kg</span> / <span class="fm-var">aves_vendidas</span> ) × 1000</div>
+            </div>
+          </div>
+        </div>
+        <div class="ie-fm-section">
+          <div class="ie-fm-section__label">Tiempo</div>
+          <div class="ie-fm-list">
+            <div class="ie-fm-row">
+              <div class="ie-fm-row__name">Días de engorde</div>
+              <div class="ie-fm-row__expr"><span class="fm-var">fecha_cierre</span> − <span class="fm-var">fecha_encasetamiento</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRODUCCIÓN -->
+      <div class="ie-fm-section">
+        <div class="ie-fm-section__label">Producción</div>
+        <div class="ie-fm-list">
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Kg carne</div>
+            <div class="ie-fm-row__expr">Σ <span class="fm-var">peso_neto</span> por movimiento de despacho <span class="ie-fm-badge ie-fm-badge--blue">¹</span></div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Peso promedio (kg)</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">kg_carne</span> / <span class="fm-var">aves_vendidas</span></div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Producción kilo en pie</div>
+            <div class="ie-fm-row__expr">= <span class="fm-var">kg_carne</span></div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Total kilos a cliente <span class="ie-fm-badge ie-fm-badge--gray">solo si merma</span></div>
+            <div class="ie-fm-row__expr"><span class="fm-var">producción_kilo_en_pie</span> − <span class="fm-var">merma_kilos</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EFICIENCIAS -->
+      <div class="ie-fm-section">
+        <div class="ie-fm-section__label">Eficiencias</div>
+        <div class="ie-fm-list">
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Conversión</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">consumo_total_kg</span> / <span class="fm-var">kg_carne</span></div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Conversión ajustada <span class="ie-fm-badge ie-fm-badge--green">P=2.7 · D=4.5</span></div>
+            <div class="ie-fm-row__expr"><span class="fm-var">conversión</span> + ( ( <span class="fm-var">P</span> − <span class="fm-var">peso_prom</span> ) / <span class="fm-var">D</span> )</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Eficiencia americana</div>
+            <div class="ie-fm-row__expr">( <span class="fm-var">peso_prom</span> / <span class="fm-var">conversión</span> ) × 100</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Eficiencia europea (IEEP)</div>
+            <div class="ie-fm-row__expr">( <span class="fm-var">peso_prom</span> × <span class="fm-var">supervivencia%</span> ) / ( <span class="fm-var">días</span> × <span class="fm-var">conversión</span> ) × 100</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Índice de productividad</div>
+            <div class="ie-fm-row__expr">( <span class="fm-var">peso_prom</span> / <span class="fm-var">conversión</span>² ) × 100</div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Ganancia / día (g)</div>
+            <div class="ie-fm-row__expr">( <span class="fm-var">peso_prom</span> / <span class="fm-var">días_engorde</span> ) × 1000</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DENSIDAD -->
+      <div class="ie-fm-section">
+        <div class="ie-fm-section__label">Densidad</div>
+        <div class="ie-fm-list">
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Aves / m²</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">aves_vendidas</span> / <span class="fm-var">m²</span></div>
+          </div>
+          <div class="ie-fm-row">
+            <div class="ie-fm-row__name">Kg / m²</div>
+            <div class="ie-fm-row__expr"><span class="fm-var">kg_carne</span> / <span class="fm-var">m²</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notas -->
+      <div class="ie-fm-notes">
+        <div class="ie-fm-note"><span class="ie-fm-note__num">¹</span> Si no hay <code>peso_neto</code>: usa <code>peso_bruto − peso_tara</code>. Fuente: <code>movimiento_pollo_engorde</code> tipo Venta / Despacho / Retiro.</div>
+        <div class="ie-fm-note"><span class="ie-fm-note__num">mortalidad</span> incluye selección del seguimiento diario: <code>mortalidad_hembras + mortalidad_machos + sel_h + sel_m</code>.</div>
+        <div class="ie-fm-note"><span class="ie-fm-note__num">P / D</span> son parámetros configurables por lote (por defecto 2.7 / 4.5).</div>
+      </div>
+
+    </div><!-- /ie-fm-body -->
+  </div><!-- /ie-fm-modal -->
+</div><!-- /ie-fm-backdrop -->

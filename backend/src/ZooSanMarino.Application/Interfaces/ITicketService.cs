@@ -35,6 +35,7 @@ public interface ITicketService
 
     // ── Super Admin ──────────────────────────────────────────────
     Task<PagedResult<TicketListItemDto>> SearchAdminAsync(TicketSearchRequest req, CancellationToken ct);
+    Task<IReadOnlyList<ResolutorListItemDto>> GetResolutoresAdminAsync(CancellationToken ct);
 
     // ── Transferir (REQUERIMIENTO -> DESARROLLO) ─────────────────
     Task<TicketDetailDto?> TransferirAsync(long id, TransferirTicketRequest req, CancellationToken ct);

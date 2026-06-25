@@ -71,11 +71,13 @@ public class TicketService : ITicketService
                 .Select(r => r.RoleId)
                 .ToListAsync(ct);
 
+            // Sin filtro de company: los resolutores por rol son globales. Espeja a
+            // TicketPerfilService.GetAsignablesInternalAsync para que el resolutor ofrecido en el
+            // dropdown (admin con rol en la empresa central) también valide al crear en otra empresa.
             if (roleIds.Count > 0)
                 resolutorValido = await _ctx.UserRoles.AsNoTracking()
                     .AnyAsync(ur => ur.UserId == req.AssignedToUserGuid &&
-                                    roleIds.Contains(ur.RoleId) &&
-                                    ur.CompanyId == companyId, ct);
+                                    roleIds.Contains(ur.RoleId), ct);
         }
 
         if (!resolutorValido)
@@ -196,30 +198,9 @@ public class TicketService : ITicketService
         if (!userGuid.HasValue)
             return new PagedResult<TicketListItemDto> { Page=1,PageSize=req.PageSize,Total=0,Items=Array.Empty<TicketListItemDto>() };
 
-        // Perfiles de resolutor activos del usuario (globales, sin filtro de empresa).
-        var perfiles = await _ctx.TicketResolutores.AsNoTracking()
-            .Where(r => r.UserId == userGuid.Value && r.Activo)
-            .Select(r => new { r.Tipo, r.PaisId })
-            .ToListAsync(ct);
-
-        if (perfiles.Count == 0)
-        {
-            // Fallback: si el usuario no es resolutor de nada, gestión local por empresa/país.
-            var companyId = await GetEffectiveCompanyIdAsync();
-            var local = BaseQuery(companyId);
-            if (_currentUser.PaisId.HasValue)
-                local = local.Where(x => x.PaisId == _currentUser.PaisId.Value);
-            return await PageAsync(ApplyFilters(local, req), req, ct);
-        }
-
-        // Bandeja por perfil: tickets cuyo (tipo, país) matchea cualquiera de mis perfiles.
-        // Un perfil con PaisId NULL = global → atiende ese tipo en TODOS los países.
-        var tiposGlobales = perfiles.Where(p => p.PaisId == null).Select(p => p.Tipo).Distinct().ToList();
-        var paresPais = perfiles.Where(p => p.PaisId != null)
-            .Select(p => (Tipo: p.Tipo, PaisId: p.PaisId!.Value)).Distinct().ToList();
-
-        var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
-        query = query.Where(BuildResolutorPredicate(tiposGlobales, paresPais));
+        // Bandeja personal: solo tickets asignados explícitamente a mí.
+        var query = _ctx.Tickets.AsNoTracking()
+            .Where(x => x.AssignedToUserGuid == userGuid.Value && x.DeletedAt == null);
         return await PageAsync(ApplyFilters(query, req), req, ct);
     }
 
@@ -257,12 +238,31 @@ public class TicketService : ITicketService
 
     public async Task<PagedResult<TicketListItemDto>> SearchAdminAsync(TicketSearchRequest req, CancellationToken ct)
     {
-        // Super admin: global dentro de la empresa (todos los países), con filtros opcionales.
-        var companyId = req.CompanyId ?? await GetEffectiveCompanyIdAsync();
-        var query = BaseQuery(companyId);
+        // Admin global: todos los tickets de todas las empresas/países, sin filtro implícito.
+        var query = _ctx.Tickets.AsNoTracking().Where(x => x.DeletedAt == null);
         if (req.PaisId.HasValue)
             query = query.Where(x => x.PaisId == req.PaisId.Value);
         return await PageAsync(ApplyFilters(query, req), req, ct);
+    }
+
+    public async Task<IReadOnlyList<ResolutorListItemDto>> GetResolutoresAdminAsync(CancellationToken ct)
+    {
+        var guids = await _ctx.Tickets.AsNoTracking()
+            .Where(x => x.AssignedToUserGuid != null && x.DeletedAt == null)
+            .Select(x => x.AssignedToUserGuid!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (guids.Count == 0) return Array.Empty<ResolutorListItemDto>();
+
+        var users = await _ctx.Set<User>().AsNoTracking()
+            .Where(u => guids.Contains(u.Id))
+            .Select(u => new { u.Id, u.firstName, u.surName })
+            .ToListAsync(ct);
+
+        return users.Select(u => new ResolutorListItemDto(u.Id, $"{u.firstName} {u.surName}".Trim()))
+                    .OrderBy(r => r.Nombre)
+                    .ToList();
     }
 
     private IQueryable<Ticket> BaseQuery(int companyId) =>
@@ -284,6 +284,9 @@ public class TicketService : ITicketService
             var t = req.Tipo.ToUpperInvariant();
             query = query.Where(x => x.Tipo == t);
         }
+
+        if (req.AssignedToGuid.HasValue)
+            query = query.Where(x => x.AssignedToUserGuid == req.AssignedToGuid.Value);
 
         return query;
     }
@@ -767,17 +770,15 @@ public class TicketService : ITicketService
         (t.CreatedByUserId != 0 && t.CreatedByUserId == _currentUser.UserId)
         || (_currentUser.UserGuid.HasValue && t.CreatedByUserGuid == _currentUser.UserGuid.Value);
 
-    /// <summary>True si el usuario tiene tickets.admin (puede gestionar cualquier ticket).</summary>
-    private bool EsAdmin() =>
-        _currentUser.Permissions.Contains("tickets.admin", StringComparer.OrdinalIgnoreCase);
-
     public async Task<TicketDetailDto?> TomarAsync(long id, CancellationToken ct)
     {
         var ticket = await _ctx.Tickets
             .FirstOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ticket is null) return null;
 
-        if (EsCreador(ticket) && !EsAdmin())
+        // El solicitante NO gestiona su propio ticket — ni siquiera el admin: la gestión la hace
+        // el equipo que atiende. El admin sigue gestionando tickets ajenos (ahí EsCreador es falso).
+        if (EsCreador(ticket))
             throw new InvalidOperationException("Sos el solicitante de este ticket; lo toma y gestiona el equipo que atiende.");
 
         var now = DateTime.UtcNow;
@@ -824,8 +825,9 @@ public class TicketService : ITicketService
         if (ticket is null) return null;
 
         // El solicitante NO gestiona su propio ticket, salvo REABRIR (SOLUCIONADO → EN_ANALISIS).
-        // El admin puede gestionar cualquier ticket, incluido los que él mismo creó.
-        if (EsCreador(ticket) && !EsAdmin())
+        // Aplica también al admin cuando es el creador: la gestión la hace el equipo que atiende
+        // (sobre tickets ajenos, donde EsCreador es falso, el admin gestiona normalmente).
+        if (EsCreador(ticket))
         {
             var esReapertura = string.Equals(ticket.Estado, TicketEstados.Solucionado, StringComparison.OrdinalIgnoreCase)
                                && nuevo == TicketEstados.EnAnalisis;

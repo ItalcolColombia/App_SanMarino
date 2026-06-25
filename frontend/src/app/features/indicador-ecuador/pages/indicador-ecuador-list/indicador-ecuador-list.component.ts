@@ -154,6 +154,7 @@ export class IndicadorEcuadorListComponent implements OnInit {
   loading: boolean = false;
   loadingFilterData: boolean = true;
   error: string | null = null;
+  showFormulasModal = false;
 
   // Inyección moderna
   private indicadorService = inject(IndicadorEcuadorService);
@@ -694,7 +695,6 @@ export class IndicadorEcuadorListComponent implements OnInit {
     let m2 = 0;
     let mermaUni = 0;
     let mermaKg = 0;
-    let ajuste = 0;
     let prodKg = 0;
     let totCliente = 0;
     let sobrante = 0;
@@ -720,7 +720,6 @@ export class IndicadorEcuadorListComponent implements OnInit {
         lotesConMerma++;
         mermaUni += r.mermaUnidades ?? 0;
         mermaKg += r.mermaKilos ?? 0;
-        ajuste += r.ajusteAves ?? 0;
         totCliente += r.totalKilosDespachadosCliente ?? ((r.produccionKiloEnPie ?? r.kgCarnePollos) - (r.mermaKilos ?? 0));
       }
     }
@@ -770,8 +769,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
       mermaUnidades: hayMerma ? mermaUni : null,
       mermaKilos: hayMerma ? mermaKg : null,
       mermaPorcentaje: hayMerma && sac > 0 ? (mermaUni / sac) * 100 : hayMerma ? 0 : null,
-      ajusteAves: hayMerma ? ajuste : null,
-      porcentajeAjuste: hayMerma && enc > 0 ? (ajuste / enc) * 100 : hayMerma ? 0 : null,
+      // Ajuste y % de ajuste: SIEMPRE (no dependen de merma) = encasetadas − vendidas − (mort + sel).
+      ajusteAves: enc - sac - mort,
+      porcentajeAjuste: enc > 0 ? ((enc - sac - mort) / enc) * 100 : 0,
       produccionKiloEnPie: prodKg,
       totalKilosDespachadosCliente: hayMerma ? totCliente : null,
       diasEngorde: lotesConDias > 0 ? diasEng / lotesConDias : 0,
@@ -790,6 +790,21 @@ export class IndicadorEcuadorListComponent implements OnInit {
   /** R1: porcentaje o «—» cuando la merma no está registrada. */
   fmtPctONada(v: number | null | undefined): string {
     return v == null ? '—' : this.formatearPorcentaje(v);
+  }
+
+  /**
+   * Ajuste de aves = encasetadas − vendidas − (mortalidad + selección).
+   * Se calcula SIEMPRE en el front (la mortalidad del DTO ya incluye selección y
+   * avesSacrificadas = aves vendidas), de modo que aplica a TODOS los lotes, no solo
+   * a los que tienen merma registrada. NO depende de la merma.
+   */
+  ajusteDe(ind: IndicadorEcuadorDto): number {
+    return ind.avesEncasetadas - ind.avesSacrificadas - ind.mortalidad;
+  }
+
+  /** % de ajuste = (ajuste / encasetadas) × 100. Se calcula para todos los lotes. */
+  porcentajeAjusteDe(ind: IndicadorEcuadorDto): number {
+    return ind.avesEncasetadas > 0 ? (this.ajusteDe(ind) / ind.avesEncasetadas) * 100 : 0;
   }
 
   etiquetaLoteFiltro(l: PeLoteAveEngordeItem): string {
@@ -985,8 +1000,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
       fila('Mortalidad (%)',              r => fp(r.mortalidadPorcentaje),      fp(tot?.mortalidadPorcentaje)),
       fila('Merma (unidades)',            r => nV(r.mermaUnidades),             nV(tot?.mermaUnidades)),
       fila('Merma (%)',                   r => fpV(r.mermaPorcentaje),          fpV(tot?.mermaPorcentaje)),
-      fila('Ajuste en aves',              r => nV(r.ajusteAves),                nV(tot?.ajusteAves)),
-      fila('Porcentaje de ajuste (%)',    r => fpV(r.porcentajeAjuste),         fpV(tot?.porcentajeAjuste)),
+      fila('Ajuste en aves',              r => n0(this.ajusteDe(r)),            tot ? n0(this.ajusteDe(tot)) : ''),
+      fila('Porcentaje de ajuste (%)',    r => fp(this.porcentajeAjusteDe(r)),  tot ? fp(this.porcentajeAjusteDe(tot)) : ''),
       fila('Supervivencia (%)',           r => fp(r.supervivenciaPorcentaje),   fp(tot?.supervivenciaPorcentaje)),
       fila('Consumo total alimento (kg)', r => fn(r.consumoTotalAlimentoKg, 2), fn(tot?.consumoTotalAlimentoKg, 2)),
       fila('Consumo ave (g)',             r => fn(r.consumoAveGramos, 2),       fn(tot?.consumoAveGramos, 2)),
@@ -1031,8 +1046,8 @@ export class IndicadorEcuadorListComponent implements OnInit {
         ['Mortalidad (%)',               fp(ind.mortalidadPorcentaje)],
         ['Merma (unidades)',             nV(ind.mermaUnidades)],
         ['Merma (%)',                    fpV(ind.mermaPorcentaje)],
-        ['Ajuste en aves',               nV(ind.ajusteAves)],
-        ['Porcentaje de ajuste (%)',     fpV(ind.porcentajeAjuste)],
+        ['Ajuste en aves',               n0(this.ajusteDe(ind))],
+        ['Porcentaje de ajuste (%)',     fp(this.porcentajeAjusteDe(ind))],
         ['Supervivencia (%)',            fp(ind.supervivenciaPorcentaje)],
         ['Consumo total alimento (kg)', fn(ind.consumoTotalAlimentoKg, 2)],
         ['Consumo ave (g)',              fn(ind.consumoAveGramos, 2)],

@@ -80,13 +80,15 @@ export class TicketDetalleComponent implements OnInit {
   readonly tienePermisoGestion = this.perm.hasAny([TICKET_PERMS.gestionar, TICKET_PERMS.admin]);
 
   /**
-   * El panel de gestión se muestra a quien ATIENDE el ticket.
-   * El admin puede gestionar cualquier ticket (incluido los que creó).
-   * El resolutor solo los que no creó él mismo.
+   * El panel de gestión se muestra SOLO a quien ATIENDE el ticket (resolutor o admin)
+   * y NUNCA al solicitante sobre su propio ticket — ni siquiera si es admin: el creador
+   * actúa como solicitante (en "Mis solicitudes" todos los tickets son propios). El cierre
+   * lo confirma/reabre el solicitante en su panel aparte ("Validá la solución").
+   * Un usuario con solo `tickets.crear` no es resolutor ni admin → no ve el panel.
    */
   puedeGestionarTicket(t: TicketDetail): boolean {
-    if (this.esAdmin) return true;
-    return this.esResolutor && !t.soyCreador;
+    if (t.soyCreador) return false;
+    return this.esResolutor || this.esAdmin;
   }
 
   /** Transiciones de estado válidas desde el estado actual. */

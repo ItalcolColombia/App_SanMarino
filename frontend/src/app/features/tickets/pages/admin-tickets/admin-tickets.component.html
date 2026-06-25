@@ -9,7 +9,7 @@
       </div>
       <div>
         <h1 class="text-2xl font-bold tracking-tight text-slate-800">Administración de tickets</h1>
-        <p class="text-sm text-ital-muted">Vista global de todos los países de la empresa.</p>
+        <p class="text-sm text-ital-muted">Vista global de todos los tickets de todas las empresas.</p>
       </div>
     </div>
 
@@ -39,9 +39,20 @@
         </select>
       </div>
       <div>
-        <label class="mb-1 block text-xs font-medium text-ital-muted">País (Id)</label>
-        <input type="number" [(ngModel)]="paisId" (ngModelChange)="onFilterChange()" placeholder="Todos" min="1"
-               class="w-24 rounded-lg border-slate-200 py-1.5 pl-3 pr-2 text-sm font-medium text-slate-700 shadow-sm focus:border-ital-green focus:ring-ital-green" />
+        <label class="mb-1 block text-xs font-medium text-ital-muted">País</label>
+        <select [(ngModel)]="paisId" (ngModelChange)="onFilterChange()"
+                class="rounded-lg border-slate-200 py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:border-ital-green focus:ring-ital-green">
+          <option [ngValue]="null">Todos</option>
+          @for (p of paises; track p.paisId) { <option [ngValue]="p.paisId">{{ p.paisNombre }}</option> }
+        </select>
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-medium text-ital-muted">Resolutor</label>
+        <select [(ngModel)]="assignedToGuid" (ngModelChange)="onFilterChange()"
+                class="rounded-lg border-slate-200 py-1.5 pl-3 pr-8 text-sm font-medium text-slate-700 shadow-sm focus:border-ital-green focus:ring-ital-green">
+          <option [ngValue]="null">Todos</option>
+          @for (r of resolutores; track r.guid) { <option [ngValue]="r.guid">{{ r.nombre }}</option> }
+        </select>
       </div>
     </div>
 

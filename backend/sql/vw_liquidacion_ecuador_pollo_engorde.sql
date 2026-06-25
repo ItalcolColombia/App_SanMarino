@@ -246,13 +246,9 @@ SELECT company_id,
     CASE WHEN merma_registrada
          THEN round(CASE WHEN aves_sacrificadas > 0 THEN COALESCE(merma_unidades_raw, 0)::numeric / aves_sacrificadas::numeric * 100::numeric ELSE 0::numeric END, 6)
     END AS merma_porcentaje,
-    CASE WHEN merma_registrada
-         THEN (aves_encasetadas - aves_sacrificadas - mort_sel_padre - COALESCE(merma_unidades_raw, 0))::integer
-    END AS ajuste_aves,
-    CASE WHEN merma_registrada
-         THEN round(CASE WHEN aves_encasetadas > 0
-              THEN (aves_encasetadas - aves_sacrificadas - mort_sel_padre - COALESCE(merma_unidades_raw, 0))::numeric / aves_encasetadas::numeric * 100::numeric ELSE 0::numeric END, 6)
-    END AS porcentaje_ajuste,
+    (aves_encasetadas - aves_sacrificadas - mort_sel_padre)::integer AS ajuste_aves,
+    ROUND(CASE WHEN aves_encasetadas > 0
+         THEN (aves_encasetadas - aves_sacrificadas - mort_sel_padre)::numeric / aves_encasetadas::numeric * 100::numeric ELSE 0::numeric END, 6) AS porcentaje_ajuste,
     kg_carne_pollos AS produccion_kilo_en_pie,
     CASE WHEN merma_registrada THEN kg_carne_pollos - COALESCE(merma_kilos_raw, 0::numeric) END AS total_kilos_despachados_cliente,
     COALESCE(aves_sobrante_raw, 0) AS aves_sobrante,

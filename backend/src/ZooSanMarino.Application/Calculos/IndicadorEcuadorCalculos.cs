@@ -11,9 +11,9 @@ public static class IndicadorEcuadorCalculos
     public static decimal MermaPorcentaje(int mermaUnidades, int avesVendidas)
         => avesVendidas > 0 ? (decimal)mermaUnidades / avesVendidas * 100 : 0m;
 
-    /// <summary>Ajuste de aves = encasetadas − vendidas − mortalidad − merma_unidades. Negativo ⇒ sobrante.</summary>
-    public static int AjusteAves(int avesEncasetadas, int avesVendidas, int mortalidad, int mermaUnidades)
-        => avesEncasetadas - avesVendidas - mortalidad - mermaUnidades;
+    /// <summary>Ajuste de aves = encasetadas − vendidas − (mortalidad + selección). Negativo ⇒ sobrante.</summary>
+    public static int AjusteAves(int avesEncasetadas, int avesVendidas, int mortalidad)
+        => avesEncasetadas - avesVendidas - mortalidad;
 
     /// <summary>% de ajuste = ajuste / encasetadas × 100.</summary>
     public static decimal PorcentajeAjuste(int ajusteAves, int avesEncasetadas)
