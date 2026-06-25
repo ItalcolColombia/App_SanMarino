@@ -2,17 +2,21 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs';
 import { TicketService } from '../../services/ticket.service';
 import {
   TicketListItem, PagedResult, EstadoTicket, TipoTicket,
-  ESTADOS_TICKET, ESTADO_LABEL, TIPOS_TICKET,
+  ESTADOS_TICKET, ESTADO_LABEL, TIPOS_TICKET, ResolutorAdminDto,
 } from '../../models/ticket.models';
 import { TicketListComponent } from '../../components/ticket-list/ticket-list.component';
 import { ToastService } from '../../../../shared/services/toast.service';
+import { environment } from '../../../../../environments/environment';
 
-/** Bandeja global (Perfil C: Super Admin) — todos los países de la empresa, filtros multi-dimensión. */
+interface PaisOpcion { paisId: number; paisNombre: string; }
+
+/** Bandeja global (Perfil C: Super Admin) — todos los tickets sin filtro de empresa. */
 @Component({
   selector: 'app-admin-tickets',
   standalone: true,
@@ -22,6 +26,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
 export class AdminTicketsComponent implements OnInit {
   private readonly svc = inject(TicketService);
   private readonly toast = inject(ToastService);
+  private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly loading = signal(false);
@@ -35,8 +40,12 @@ export class AdminTicketsComponent implements OnInit {
   estado: EstadoTicket | '' = '';
   tipo: TipoTicket | '' = '';
   paisId: number | null = null;
+  assignedToGuid: string | null = null;
   page = 1;
   pageSize = 10;
+
+  paises: PaisOpcion[] = [];
+  resolutores: ResolutorAdminDto[] = [];
 
   readonly anios: number[] = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
   readonly totalPages = computed(() => {
@@ -44,7 +53,20 @@ export class AdminTicketsComponent implements OnInit {
     return d ? Math.max(1, Math.ceil(d.total / d.pageSize)) : 1;
   });
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.loadCatalogos();
+    this.load();
+  }
+
+  private loadCatalogos(): void {
+    this.http.get<PaisOpcion[]>(`${environment.apiUrl}/pais`)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: p => this.paises = p, error: () => {} });
+
+    this.svc.getResolutoresAdmin()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: r => this.resolutores = r, error: () => {} });
+  }
 
   load(): void {
     this.loading.set(true);
@@ -53,6 +75,7 @@ export class AdminTicketsComponent implements OnInit {
       estado: this.estado || undefined,
       tipo: this.tipo || undefined,
       paisId: this.paisId ?? undefined,
+      assignedToGuid: this.assignedToGuid ?? undefined,
       page: this.page,
       pageSize: this.pageSize,
     })

@@ -112,8 +112,12 @@ public class TicketPerfilService : ITicketPerfilService
 
         foreach (var rr in roleResolutores)
         {
+            // Resolutores globales: el rol identifica al equipo que atiende (tipo, país); su
+            // pertenencia NO se filtra por empresa. Así un admin con el rol registrado solo en la
+            // empresa central sigue siendo asignable al crear tickets de cualquier subsidiaria,
+            // sin tener que duplicar su UserRole en cada país/empresa.
             var userIds = await _ctx.UserRoles.AsNoTracking()
-                .Where(ur => ur.RoleId == rr.RoleId && ur.CompanyId == companyId)
+                .Where(ur => ur.RoleId == rr.RoleId)
                 .Select(ur => ur.UserId)
                 .Distinct()
                 .ToListAsync(ct);

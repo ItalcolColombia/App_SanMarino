@@ -221,20 +221,27 @@ public class TicketsController : ControllerBase
 
     // ───────────────────────── Super Admin ─────────────────────────
 
-    /// <summary>Bandeja global del super admin (todos los países de la empresa, filtros multi-dimensión).</summary>
+    /// <summary>Bandeja global del super admin (todos los tickets, sin filtro de empresa, con filtros opcionales).</summary>
     [HttpGet("admin")]
     [ProducesResponseType(typeof(PagedResult<TicketListItemDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResult<TicketListItemDto>>> Admin(
-        [FromQuery] int?    paisId    = null,
-        [FromQuery] int?    companyId = null,
-        [FromQuery] int?    anio      = null,
-        [FromQuery] string? estado    = null,
-        [FromQuery] string? tipo      = null,
-        [FromQuery] int     page      = 1,
-        [FromQuery] int     pageSize  = 20,
+        [FromQuery] int?    paisId         = null,
+        [FromQuery] Guid?   assignedToGuid = null,
+        [FromQuery] int?    companyId      = null,
+        [FromQuery] int?    anio           = null,
+        [FromQuery] string? estado         = null,
+        [FromQuery] string? tipo           = null,
+        [FromQuery] int     page           = 1,
+        [FromQuery] int     pageSize       = 20,
         CancellationToken ct = default)
         => Ok(await _service.SearchAdminAsync(
-            new TicketSearchRequest(anio, estado, tipo, paisId, companyId, page, pageSize), ct));
+            new TicketSearchRequest(anio, estado, tipo, paisId, companyId, page, pageSize, assignedToGuid), ct));
+
+    /// <summary>Lista de resolutores con tickets asignados (para el dropdown de filtro del admin).</summary>
+    [HttpGet("admin/resolutores")]
+    [ProducesResponseType(typeof(IReadOnlyList<ResolutorListItemDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<ResolutorListItemDto>>> GetResolutoresAdmin(CancellationToken ct)
+        => Ok(await _service.GetResolutoresAdminAsync(ct));
 
     // ───────────────────────── Bandeja asignados ─────────────────────────
 

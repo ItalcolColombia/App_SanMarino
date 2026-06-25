@@ -21,6 +21,7 @@ import {
   AddTicketLinkRequest,
   TicketAdjunto,
   TicketDocumento,
+  ResolutorAdminDto,
 } from '../models/ticket.models';
 
 /**
@@ -119,6 +120,10 @@ export class TicketService {
   admin(filter: TicketListFilter = {}): Observable<PagedResult<TicketListItem>> {
     return this.http.get<PagedResult<TicketListItem>>(
       `${this.baseUrl}/admin`, { params: this.toParams(filter) });
+  }
+
+  getResolutoresAdmin(): Observable<ResolutorAdminDto[]> {
+    return this.http.get<ResolutorAdminDto[]>(`${this.baseUrl}/admin/resolutores`);
   }
 
   // ── Común ────────────────────────────────────────────────────

@@ -244,13 +244,9 @@ SELECT
     CASE WHEN d2.merma_registrada
          THEN ROUND(CASE WHEN d2.aves_sacrificadas > 0 THEN COALESCE(d2.merma_unidades,0)::NUMERIC / d2.aves_sacrificadas * 100 ELSE 0 END, 6)
     END,
-    CASE WHEN d2.merma_registrada
-         THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad - COALESCE(d2.merma_unidades,0))::INT
-    END,
-    CASE WHEN d2.merma_registrada
-         THEN ROUND(CASE WHEN d2.aves_encasetadas > 0
-              THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad - COALESCE(d2.merma_unidades,0))::NUMERIC / d2.aves_encasetadas * 100 ELSE 0 END, 6)
-    END,
+    (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad)::INT,
+    ROUND(CASE WHEN d2.aves_encasetadas > 0
+         THEN (d2.aves_encasetadas - d2.aves_sacrificadas - d2.mortalidad)::NUMERIC / d2.aves_encasetadas * 100 ELSE 0 END, 6),
     d2.kg_carne,
     CASE WHEN d2.merma_registrada THEN d2.kg_carne - COALESCE(d2.merma_kilos,0) END,
     CASE WHEN d2.fecha_encaset IS NOT NULL AND d2.fecha_cierre_final IS NOT NULL

@@ -104,8 +104,15 @@ export interface TicketListFilter {
   tipo?: string;
   paisId?: number;
   companyId?: number;
+  assignedToGuid?: string;
   page?: number;
   pageSize?: number;
+}
+
+/** Usuario resolutor para el dropdown de filtro del admin. */
+export interface ResolutorAdminDto {
+  guid: string;
+  nombre: string;
 }
 
 // ───────────────────────── Salida ─────────────────────────

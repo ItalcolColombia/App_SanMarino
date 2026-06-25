@@ -61,8 +61,12 @@ public record TicketSearchRequest(
     int? PaisId = null,
     int? CompanyId = null,
     int Page = 1,
-    int PageSize = 20
+    int PageSize = 20,
+    Guid? AssignedToGuid = null
 );
+
+/// <summary>Usuario resolutor (para el dropdown de filtro del admin).</summary>
+public record ResolutorListItemDto(Guid Guid, string Nombre);
 
 // ──────────────── Salida — LISTADO (ligero, sin Base64) ────────────────
 
