@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
+import { AuditoriaLiquidacionResultado, AuditoriaScopeInput, AplicarCorreccionResultado } from '../models/auditoria-liquidacion.model';
 
 export interface IndicadorEcuadorRequest {
   granjaId?: number | null;
@@ -268,5 +269,31 @@ export class IndicadorEcuadorService {
   /** Liquidación técnica: solo lotes padre liquidados (aves = 0), sin reproductoras. */
   liquidacionPolloEngordeReporte(request: LiquidacionPolloEngordeReporteRequest): Observable<LiquidacionPolloEngordeReporteDto> {
     return this.http.post<LiquidacionPolloEngordeReporteDto>(`${this.baseUrl}/liquidacion-pollo-engorde-reporte`, request);
+  }
+
+  /**
+   * Verificador de liquidación: sube el Excel correcto (multipart) y devuelve el análisis armado
+   * por la BD (reconciliación + hallazgos + simulación). El back solo parsea y delega en la fn.
+   */
+  auditarLiquidacion(scope: AuditoriaScopeInput, excel: File): Observable<AuditoriaLiquidacionResultado> {
+    const fd = new FormData();
+    fd.append('granjaId', String(scope.granjaId));
+    if (scope.nucleoId) fd.append('nucleoId', scope.nucleoId);
+    if (scope.loteCodigo) fd.append('loteCodigo', scope.loteCodigo);
+    fd.append('excel', excel);
+    return this.http.post<AuditoriaLiquidacionResultado>(`${this.baseUrl}/auditoria-liquidacion`, fd);
+  }
+
+  /**
+   * Aplica la corrección sugerida (carga kgTotal en los despachos sin peso de la corrida).
+   * Requiere permiso 'liquidacion.aplicar_correccion' (validado en el back → 403 si no).
+   */
+  aplicarCorreccionLiquidacion(scope: AuditoriaScopeInput, kgTotal: number): Observable<AplicarCorreccionResultado> {
+    return this.http.post<AplicarCorreccionResultado>(`${this.baseUrl}/auditoria-liquidacion/aplicar`, {
+      granjaId: scope.granjaId,
+      nucleoId: scope.nucleoId,
+      loteCodigo: scope.loteCodigo,
+      kgTotal
+    });
   }
 }

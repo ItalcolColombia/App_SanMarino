@@ -56,4 +56,24 @@ public interface IIndicadorEcuadorService
     Task<LiquidacionPolloEngordeReporteDto> LiquidacionPolloEngordeReporteAsync(
         LiquidacionPolloEngordeReporteRequest request,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Verificador de liquidación: compara los datos del sistema contra los valores "correctos"
+    /// del Excel (ya parseados a clave→valor) y devuelve el JSON armado por
+    /// fn_auditoria_liquidacion_engorde (reconciliación + hallazgos + simulación de corrección).
+    /// El back NO calcula nada: solo serializa los valores y delega en la función de BD.
+    /// </summary>
+    Task<string> AuditarLiquidacionAsync(
+        AuditoriaLiquidacionRequest request,
+        IReadOnlyDictionary<string, decimal?> valoresExcel,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Aplica la corrección sugerida (carga el peso faltante en los despachos sin peso de la corrida,
+    /// distribuyendo KgTotal por aves). Devuelve el JSON de fn_aplicar_correccion_despachos_sin_peso.
+    /// El control de permiso se hace en el controller.
+    /// </summary>
+    Task<string> AplicarCorreccionSinPesoAsync(
+        AplicarCorreccionRequest request,
+        CancellationToken ct = default);
 }

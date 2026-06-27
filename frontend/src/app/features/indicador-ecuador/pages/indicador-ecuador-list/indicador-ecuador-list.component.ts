@@ -18,6 +18,8 @@ import {
 } from '../../services/indicador-ecuador.service';
 import { LiquidacionReporteComponent } from '../../components/liquidacion-reporte/liquidacion-reporte.component';
 import { LiquidacionReportePanamaComponent } from '../../components/liquidacion-reporte-panama/liquidacion-reporte-panama.component';
+import { AuditoriaLiquidacionModalComponent } from '../../components/auditoria-liquidacion-modal/auditoria-liquidacion-modal.component';
+import { AuditoriaScopeInput } from '../../models/auditoria-liquidacion.model';
 import { environment } from '../../../../../environments/environment';
 
 /** Misma estructura que devuelve SeguimientoLoteLevante/filter-data (granjas, núcleos, galpones, lotes en una sola llamada). */
@@ -49,7 +51,7 @@ interface FilterDataPolloEngordeResponse {
 @Component({
   selector: 'app-indicador-ecuador-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, LiquidacionReporteComponent, LiquidacionReportePanamaComponent],
+  imports: [CommonModule, FormsModule, LiquidacionReporteComponent, LiquidacionReportePanamaComponent, AuditoriaLiquidacionModalComponent],
   templateUrl: './indicador-ecuador-list.component.html',
   styleUrls: ['./indicador-ecuador-list.component.scss']
 })
@@ -122,6 +124,10 @@ export class IndicadorEcuadorListComponent implements OnInit {
   tabActivaLiquidacion: 'consolidado' | number = 'consolidado';
 
   resultadoLiquidacionPollo: LiquidacionPolloEngordeReporteDto | null = null;
+
+  // Verificador de liquidación (modal de auditoría)
+  mostrarAuditoria = false;
+  scopeAuditoria: AuditoriaScopeInput | null = null;
   mostrarLiquidacionPollo = false;
   showReporte = false;
 
@@ -670,6 +676,24 @@ export class IndicadorEcuadorListComponent implements OnInit {
     }
   }
 
+  /** Abre el verificador de liquidación con el alcance de la corrida cargada. */
+  abrirAuditoria(): void {
+    const items = this.resultadoLiquidacionPollo?.items ?? [];
+    const granjaId = items[0]?.indicador?.granjaId ?? this.peGranjaId ?? this.rangoGranjaId ?? 0;
+    if (!granjaId) {
+      this.error = 'Genere primero la liquidación para poder verificarla.';
+      return;
+    }
+    const nucleoId = (this.peNucleoId || this.rangoNucleoId || null) as string | null;
+    const loteCodigo = (this.loteConvertido || items[0]?.loteNombre || null) as string | null;
+    this.scopeAuditoria = { granjaId, nucleoId, loteCodigo };
+    this.mostrarAuditoria = true;
+  }
+
+  cerrarAuditoria(): void {
+    this.mostrarAuditoria = false;
+  }
+
   /** Encabezado de columna en la planilla: galpón · lote · edad (días de ciclo). */
   etiquetaColumnaLiquidacion(item: LiquidacionPolloEngordeItemDto): string {
     const ind = item.indicador;
@@ -696,12 +720,12 @@ export class IndicadorEcuadorListComponent implements OnInit {
     let mermaUni = 0;
     let mermaKg = 0;
     let prodKg = 0;
-    let totCliente = 0;
     let sobrante = 0;
     let diasEng = 0;
     let lotesConDias = 0;
-    // R1: solo los lotes donde Costos registró merma aportan a los totales del bloque;
-    // si ninguno la tiene, los totales van null ⇒ la matriz muestra el campo vacío.
+    // R1: la merma se digita UNA vez por corrida (queda en un solo lote). El total a cliente
+    // se calcula a nivel corrida (prodKg − mermaKg), NO por lote, para no excluir lotes sin merma.
+    // Si NINGÚN lote tiene merma, el total a cliente va null ⇒ la matriz muestra el campo vacío.
     let lotesConMerma = 0;
     for (const r of R) {
       enc += r.avesEncasetadas;
@@ -720,7 +744,6 @@ export class IndicadorEcuadorListComponent implements OnInit {
         lotesConMerma++;
         mermaUni += r.mermaUnidades ?? 0;
         mermaKg += r.mermaKilos ?? 0;
-        totCliente += r.totalKilosDespachadosCliente ?? ((r.produccionKiloEnPie ?? r.kgCarnePollos) - (r.mermaKilos ?? 0));
       }
     }
     const hayMerma = lotesConMerma > 0;
@@ -773,7 +796,9 @@ export class IndicadorEcuadorListComponent implements OnInit {
       ajusteAves: enc - sac - mort,
       porcentajeAjuste: enc > 0 ? ((enc - sac - mort) / enc) * 100 : 0,
       produccionKiloEnPie: prodKg,
-      totalKilosDespachadosCliente: hayMerma ? totCliente : null,
+      // Total a cliente de la CORRIDA: producción total (todos los lotes) − merma única.
+      // Antes se acumulaba solo por lotes con merma ⇒ excluía los lotes sin merma del total.
+      totalKilosDespachadosCliente: hayMerma ? (prodKg - mermaKg) : null,
       diasEngorde: lotesConDias > 0 ? diasEng / lotesConDias : 0,
       avesSobrante: sobrante,
       fechaInicioLote: null,
