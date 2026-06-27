@@ -436,6 +436,53 @@ public class IndicadorEcuadorService : IIndicadorEcuadorService
         throw new InvalidOperationException("Modo debe ser UnLote, Rango o TodosLiquidados.");
     }
 
+    /// <inheritdoc />
+    public async Task<string> AuditarLiquidacionAsync(
+        AuditoriaLiquidacionRequest request,
+        IReadOnlyDictionary<string, decimal?> valoresExcel,
+        CancellationToken ct = default)
+    {
+        // Solo los valores presentes; se serializan a JSON para el parámetro jsonb de la función.
+        // Toda la lógica de auditoría (reconciliación, hallazgos, simulación) vive en BD.
+        var presentes = valoresExcel
+            .Where(kv => kv.Value.HasValue)
+            .ToDictionary(kv => kv.Key, kv => kv.Value!.Value);
+        var excelJson = System.Text.Json.JsonSerializer.Serialize(presentes);
+
+        var rows = await _context.Database
+            .SqlQueryRaw<string>(
+                "SELECT fn_auditoria_liquidacion_engorde({0}, {1}, {2}, {3}, {4}::jsonb)::text AS \"Value\"",
+                _currentUser.CompanyId,
+                request.GranjaId,
+                (object?)request.NucleoId ?? DBNull.Value,
+                (object?)request.LoteCodigo ?? DBNull.Value,
+                excelJson)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return rows.FirstOrDefault() ?? "{}";
+    }
+
+    /// <inheritdoc />
+    public async Task<string> AplicarCorreccionSinPesoAsync(
+        AplicarCorreccionRequest request,
+        CancellationToken ct = default)
+    {
+        var rows = await _context.Database
+            .SqlQueryRaw<string>(
+                "SELECT fn_aplicar_correccion_despachos_sin_peso({0}, {1}, {2}, {3}, {4}, {5})::text AS \"Value\"",
+                _currentUser.CompanyId,
+                request.GranjaId,
+                (object?)request.NucleoId ?? DBNull.Value,
+                (object?)request.LoteCodigo ?? DBNull.Value,
+                request.KgTotal,
+                _currentUser.UserId)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return rows.FirstOrDefault() ?? "{\"ok\":false,\"error\":\"Sin respuesta de la función.\"}";
+    }
+
     /// <summary>
     /// Calcula indicadores de Pollo Engorde (Lote padre + reproductores) según documento
     /// LIQUIDACION_TECNICA_POLLO_ENGORDE.md: aves encasetadas, sacrificadas, mortalidad+selección,

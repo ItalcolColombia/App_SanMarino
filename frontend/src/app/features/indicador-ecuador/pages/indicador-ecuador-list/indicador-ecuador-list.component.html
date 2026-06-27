@@ -487,6 +487,11 @@
               [disabled]="!resultadoLiquidacionPollo.items.length">
               🖨️ {{ showReporte ? 'Ocultar Reporte' : 'Ver Reporte / Imprimir' }}
             </button>
+            <button type="button" class="ie-btn ie-btn--secondary ie-btn--sm"
+              (click)="abrirAuditoria()"
+              [disabled]="!resultadoLiquidacionPollo.items.length">
+              🔎 Verificar liquidación
+            </button>
             <button type="button" class="ie-btn ie-btn--ghost ie-btn--sm"
               (click)="mostrarLiquidacionPollo = false; resultadoLiquidacionPollo = null; tabActivaLiquidacion = 'consolidado'; showReporte = false">
               ✕ Cerrar
@@ -1331,3 +1336,10 @@
     </div><!-- /ie-fm-body -->
   </div><!-- /ie-fm-modal -->
 </div><!-- /ie-fm-backdrop -->
+
+<!-- Modal verificador de liquidación -->
+<app-auditoria-liquidacion-modal
+  *ngIf="mostrarAuditoria && scopeAuditoria"
+  [scope]="scopeAuditoria"
+  (cerrar)="cerrarAuditoria()">
+</app-auditoria-liquidacion-modal>
