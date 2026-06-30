@@ -222,7 +222,8 @@ public class TicketsController : ControllerBase
     // ───────────────────────── Super Admin ─────────────────────────
 
     /// <summary>Bandeja global del super admin (todos los tickets, sin filtro de empresa, con filtros opcionales).</summary>
-    [HttpGet("admin")]
+    /// <remarks>Ruta "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.</remarks>
+    [HttpGet("global")]
     [ProducesResponseType(typeof(PagedResult<TicketListItemDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResult<TicketListItemDto>>> Admin(
         [FromQuery] int?    paisId         = null,
@@ -238,7 +239,8 @@ public class TicketsController : ControllerBase
             new TicketSearchRequest(anio, estado, tipo, paisId, companyId, page, pageSize, assignedToGuid), ct));
 
     /// <summary>Lista de resolutores con tickets asignados (para el dropdown de filtro del admin).</summary>
-    [HttpGet("admin/resolutores")]
+    /// <remarks>Ruta "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.</remarks>
+    [HttpGet("global/resolutores")]
     [ProducesResponseType(typeof(IReadOnlyList<ResolutorListItemDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ResolutorListItemDto>>> GetResolutoresAdmin(CancellationToken ct)
         => Ok(await _service.GetResolutoresAdminAsync(ct));

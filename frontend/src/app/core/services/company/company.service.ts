@@ -42,8 +42,9 @@ export class CompanyService extends BaseHttpService {
   }
 
   /** Trae TODAS las empresas sin filtro para administración */
+  // Ruta "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.
   getAllForAdmin(): Observable<Company[]> {
-    return this.get<Company[]>(`${this.baseUrl}/admin`, { context: 'CompanyService.getAllForAdmin' });
+    return this.get<Company[]>(`${this.baseUrl}/global`, { context: 'CompanyService.getAllForAdmin' });
   }
 
   /** Crea una nueva */

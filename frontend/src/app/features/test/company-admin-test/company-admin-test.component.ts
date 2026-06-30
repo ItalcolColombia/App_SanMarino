@@ -68,7 +68,7 @@ import { CompanySelectorComponent } from '../../../shared/components/company-sel
         <!-- Endpoint Admin -->
         <div class="border rounded-lg p-4">
           <h3 class="text-lg font-semibold text-green-800 mb-3">
-            Endpoint Admin (/api/Company/admin)
+            Endpoint Admin (/api/Company/global)
           </h3>
           <div class="text-sm text-gray-600 mb-2">
             <strong>Sin Filtro:</strong> Todas las empresas
@@ -171,7 +171,7 @@ export class CompanyAdminTestComponent implements OnInit, OnDestroy {
   testAdminEndpoint(): void {
     this.loading = true;
     this.loadingType = 'admin';
-    this.addLog('Probando endpoint admin (/api/Company/admin)...');
+    this.addLog('Probando endpoint admin (/api/Company/global)...');
     
     this.companyService.getAllForAdmin()
       .pipe(takeUntil(this.destroy$))
