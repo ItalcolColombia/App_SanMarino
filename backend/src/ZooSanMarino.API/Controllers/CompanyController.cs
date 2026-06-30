@@ -28,7 +28,8 @@ public class CompanyController : ControllerBase
     /// <summary>
     /// Obtiene TODAS las empresas sin filtro para administración
     /// </summary>
-    [HttpGet("admin")]
+    /// <remarks>Ruta "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.</remarks>
+    [HttpGet("global")]
     public async Task<IActionResult> GetAllForAdmin() =>
         Ok(await _svc.GetAllForAdminAsync());
 

@@ -117,13 +117,14 @@ export class TicketService {
   }
 
   // ── Super Admin ──────────────────────────────────────────────
+  // Rutas "global" (no "admin"): AWS WAF AdminProtection bloquea cualquier path con /admin.
   admin(filter: TicketListFilter = {}): Observable<PagedResult<TicketListItem>> {
     return this.http.get<PagedResult<TicketListItem>>(
-      `${this.baseUrl}/admin`, { params: this.toParams(filter) });
+      `${this.baseUrl}/global`, { params: this.toParams(filter) });
   }
 
   getResolutoresAdmin(): Observable<ResolutorAdminDto[]> {
-    return this.http.get<ResolutorAdminDto[]>(`${this.baseUrl}/admin/resolutores`);
+    return this.http.get<ResolutorAdminDto[]>(`${this.baseUrl}/global/resolutores`);
   }
 
   // ── Común ────────────────────────────────────────────────────
