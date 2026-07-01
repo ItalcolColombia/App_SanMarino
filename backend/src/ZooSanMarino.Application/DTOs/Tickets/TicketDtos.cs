@@ -9,7 +9,9 @@ public record CreateTicketRequest(
     string Descripcion,
     /// <summary>Guid del resolutor obligatorio — debe ser asignable para (Tipo, País).</summary>
     Guid AssignedToUserGuid,
-    List<TicketImagenInput>? Imagenes
+    List<TicketImagenInput>? Imagenes,
+    /// <summary>Guids de usuarios registrados a notificar (copiados) por correo. Opcional.</summary>
+    List<Guid>? NotificarUserGuids = null
 );
 
 /// <summary>Transfiere un ticket de REQUERIMIENTO a DESARROLLO, reasignándolo.</summary>
@@ -123,8 +125,15 @@ public record TicketDetailDto(
     bool NotificadoCorreo = false,
     DateTime? FechaNotificacionCorreo = null,
     string? CorreoNotificadoA = null,
-    IReadOnlyList<TicketAdjuntoDto>? Adjuntos = null
+    IReadOnlyList<TicketAdjuntoDto>? Adjuntos = null,
+    IReadOnlyList<TicketNotificadoDto>? Notificados = null
 );
+
+/// <summary>Persona notificada/copiada en el ticket (no es solicitante ni resolutor).</summary>
+public record TicketNotificadoDto(long Id, Guid? UserGuid, string? Nombre, string Email);
+
+/// <summary>Usuario registrado candidato a ser notificado (para el selector del frontend).</summary>
+public record UsuarioNotificableDto(Guid Guid, string Nombre, string Email, string? Rol);
 
 public record TicketNotaDto(
     long Id,

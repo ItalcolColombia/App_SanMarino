@@ -245,6 +245,34 @@
   font-weight: 600;
 }
 
+/* Leyenda de comparación con la guía genética */
+.leyenda-guia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--warm-700, #57534e);
+}
+.leyenda-titulo { font-weight: 700; }
+.leyenda-item { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda-chip {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  display: inline-block;
+  &.diferencia-ok { background: var(--brand-green, #2d7a3e); }
+  &.diferencia-warning { background: var(--brand-orange, #e85c25); }
+  &.diferencia-danger { background: #ef4444; }
+}
+
+/* Separadores verticales entre grupos de métricas (mejor lectura de la tabla ancha) */
+.indicadores-table th.grp,
+.indicadores-table td.grp {
+  border-left: 2px solid var(--warm-300, #d6d3d1);
+}
+
 /* Estados */
 .estado-ok {
   background: var(--brand-green);

@@ -1,9 +1,9 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
-import { SeguimientoItemDto } from '../../services/produccion.service';
+import { SeguimientoItemDto, ProduccionService, IndicadorProduccionSemanalDto, IndicadoresProduccionRequest } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 
 interface IndicadorSemanal {
@@ -42,6 +42,19 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   /** Fecha de encaset (fuente confiable para calcular semanas de edad). */
   @Input() fechaEncaset: string | Date | null = null;
   @Input() loading: boolean = false;
+  /** IDs para traer los indicadores del API (mismos que usa la tabla): comparación REAL vs GUÍA. */
+  @Input() lotePosturaProduccionId: number | null = null;
+  @Input() produccionLoteId: number | null = null;
+
+  private readonly produccionSvc = inject(ProduccionService);
+
+  // ===== Comparativo Real vs Guía (alimentado por el API de indicadores, ya corregido) =====
+  indicadoresApi: IndicadorProduccionSemanalDto[] = [];
+  cargandoComparativo = false;
+  metricaComparativa: 'consumo' | 'peso' | 'produccion' | 'mortalidad' | 'htaa' = 'consumo';
+  sexoComparativo: 'H' | 'M' = 'H';
+  comparativoGuiaChartData: ChartData<'line'> = { labels: [], datasets: [] };
+  comparativoGuiaChartOptions: ChartConfiguration['options'] = {};
 
   // Constantes para producción
   readonly SEMANA_INICIO_PRODUCCION = 26;
@@ -107,6 +120,150 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     if (changes['seguimientos'] || changes['selectedLote']) {
       this.prepararDatosGraficas();
     }
+    if (changes['lotePosturaProduccionId'] || changes['produccionLoteId']) {
+      this.cargarIndicadoresApi();
+    }
+  }
+
+  // ================== COMPARATIVO REAL vs GUÍA (desde el API de indicadores) ==================
+  /** Trae los indicadores semanales del API (mismos que la tabla: calcs corregidos + guía por semana). */
+  private cargarIndicadoresApi(): void {
+    const hasLpp = this.lotePosturaProduccionId != null && this.lotePosturaProduccionId > 0;
+    const hasLegacy = this.produccionLoteId != null && this.produccionLoteId > 0;
+    if (!hasLpp && !hasLegacy) { this.indicadoresApi = []; this.construirComparativoGuia(); return; }
+
+    const req: IndicadoresProduccionRequest = {
+      loteId: hasLegacy ? this.produccionLoteId! : 0,
+      lotePosturaProduccionId: hasLpp ? this.lotePosturaProduccionId! : null,
+      semanaDesde: 26,
+      semanaHasta: null,
+      fechaDesde: null,
+      fechaHasta: null
+    };
+    this.cargandoComparativo = true;
+    this.produccionSvc.obtenerIndicadoresSemanales(req).subscribe({
+      next: resp => {
+        this.indicadoresApi = resp.indicadores || [];
+        this.construirComparativoGuia();
+        this.prepararDatosGraficas(); // reconstruye TODAS las gráficas desde la fuente correcta
+        this.cargandoComparativo = false;
+      },
+      error: () => { this.indicadoresApi = []; this.construirComparativoGuia(); this.cargandoComparativo = false; }
+    });
+  }
+
+  /**
+   * Mapea los indicadores del API (IndicadorProduccionSemanalDto) al modelo IndicadorSemanal que
+   * usan las gráficas. Reemplaza el cálculo client-side (que tenía consumoTabla=157 hardcodeado y
+   * conversión alimenticia, que no aplica a reproductoras). El "consumo tabla" pasa a ser la GUÍA
+   * real convertida a kg/semana; la conversión alimenticia se anula.
+   */
+  private mapApiToIndicadorSemanal(api: IndicadorProduccionSemanalDto[]): IndicadorSemanal[] {
+    let mortAcum = 0, huevTotAcum = 0, huevIncAcum = 0;
+    return (api || []).map(d => {
+      const avesIni = (d.avesHembrasInicioSemana || 0) + (d.avesMachosInicioSemana || 0);
+      const avesFin = (d.avesHembrasFinSemana || 0) + (d.avesMachosFinSemana || 0);
+      const mortH = d.porcentajeMortalidadHembras || 0;
+      const mortM = d.porcentajeMortalidadMachos || 0;
+      const huevTot = d.huevosTotales || 0;
+      const huevInc = d.huevosIncubables || 0;
+      // Guía de consumo (g/ave/día) → kg/semana comparable: g/ave/día × aves × 7 / 1000
+      const consumoGuiaKgSemana =
+        (((d.consumoGuiaHembras ?? 0) * (d.avesHembrasInicioSemana || 0)) +
+         ((d.consumoGuiaMachos ?? 0) * (d.avesMachosInicioSemana || 0))) * 7 / 1000;
+      mortAcum += (mortH + mortM);
+      huevTotAcum += huevTot;
+      huevIncAcum += huevInc;
+      return {
+        semana: d.semana,
+        fechaInicio: String(d.fechaInicioSemana ?? ''),
+        avesInicioSemana: avesIni,
+        avesFinSemana: avesFin,
+        consumoReal: Number(d.consumoTotalKg ?? 0),
+        consumoTabla: Number(consumoGuiaKgSemana.toFixed(2)),
+        conversionAlimenticia: 0, // no aplica a reproductoras (REQ-002h)
+        huevosTotales: huevTot,
+        huevosIncubables: huevInc,
+        mortalidadHembras: mortH,
+        mortalidadMachos: mortM,
+        mortalidadTotal: mortH + mortM,
+        eficiencia: d.eficienciaProduccion || 0,
+        ip: 0,
+        vpi: 0,
+        mortalidadAcum: mortAcum,
+        huevosTotalesAcum: huevTotAcum,
+        huevosIncubablesAcum: huevIncAcum,
+        porcentajeIncubables: huevTot > 0 ? (huevInc / huevTot) * 100 : 0,
+        pesoHuevoPromedio: d.pesoHuevoPromedio ?? 0
+      } as IndicadorSemanal;
+    });
+  }
+
+  /** Reconstruye la gráfica comparativa Real vs Guía según la métrica y sexo seleccionados. */
+  construirComparativoGuia(): void {
+    const data = this.indicadoresApi || [];
+    const labels = data.map(d => `S${d.semana}`);
+    const sexo = this.sexoComparativo;
+
+    const real: (number | null)[] = [];
+    const guia: (number | null)[] = [];
+    let etiqueta = '';
+    let unidad = '';
+
+    for (const d of data) {
+      switch (this.metricaComparativa) {
+        case 'consumo': {
+          etiqueta = `Consumo ${sexo}`; unidad = 'g/ave/día';
+          const kg = sexo === 'H' ? d.consumoKgHembras : d.consumoKgMachos;
+          const aves = sexo === 'H' ? d.avesHembrasInicioSemana : d.avesMachosInicioSemana;
+          const dias = d.totalRegistros || 0;
+          real.push(aves > 0 && dias > 0 ? Number(((kg * 1000) / (dias * aves)).toFixed(1)) : null);
+          guia.push(sexo === 'H' ? (d.consumoGuiaHembras ?? null) : (d.consumoGuiaMachos ?? null));
+          break;
+        }
+        case 'peso': {
+          etiqueta = `Peso ${sexo}`; unidad = 'kg';
+          real.push(sexo === 'H' ? (d.pesoPromedioHembras ?? null) : (d.pesoPromedioMachos ?? null));
+          guia.push(sexo === 'H' ? (d.pesoGuiaHembras ?? null) : (d.pesoGuiaMachos ?? null));
+          break;
+        }
+        case 'mortalidad': {
+          etiqueta = `% Mortalidad ${sexo}`; unidad = '%';
+          real.push(sexo === 'H' ? d.porcentajeMortalidadHembras : d.porcentajeMortalidadMachos);
+          guia.push(sexo === 'H' ? (d.mortalidadGuiaHembras ?? null) : (d.mortalidadGuiaMachos ?? null));
+          break;
+        }
+        case 'produccion': {
+          etiqueta = '% Producción'; unidad = '%';
+          real.push(d.eficienciaProduccion ?? null);
+          guia.push(d.porcentajeProduccionGuia ?? null);
+          break;
+        }
+        case 'htaa': {
+          etiqueta = 'H.T.A.A (acum/ave)'; unidad = 'huevos/ave';
+          real.push(d.htaaReal ?? null);
+          guia.push(d.huevosTotalesGuia ?? null);
+          break;
+        }
+      }
+    }
+
+    this.comparativoGuiaChartData = {
+      labels,
+      datasets: [
+        { data: real, label: `${etiqueta} — Real`, borderColor: '#2d7a3e', backgroundColor: 'rgba(45,122,62,0.15)', tension: 0.3, spanGaps: true, pointRadius: 2 },
+        { data: guia, label: `${etiqueta} — Guía`, borderColor: '#e85c25', backgroundColor: 'rgba(232,92,37,0.10)', borderDash: [6, 4], tension: 0.3, spanGaps: true, pointRadius: 2 }
+      ]
+    };
+    this.comparativoGuiaChartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top' },
+        title: { display: true, text: `${etiqueta} — Real vs Guía (${unidad})` }
+      },
+      scales: { y: { beginAtZero: false, title: { display: true, text: unidad } } }
+    };
   }
 
   // ========== INICIALIZACIÓN DE OPCIONES DE GRÁFICAS ==========
@@ -221,14 +378,18 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
   // ================== PREPARACIÓN DE DATOS ==================
   private prepararDatosGraficas(): void {
-    if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
+    // FUENTE CORRECTA: los indicadores del API (calcs corregidos + guía por semana).
+    // El cálculo client-side legacy (con consumoTabla=157 y conversión alimenticia) queda
+    // solo como fallback si el API aún no cargó o no hay ids de lote.
+    if (this.indicadoresApi && this.indicadoresApi.length > 0) {
+      this.indicadoresSemanales = this.mapApiToIndicadorSemanal(this.indicadoresApi);
+    } else if (this.seguimientos && this.seguimientos.length > 0 && this.selectedLote) {
+      this.indicadoresSemanales = this.calcularIndicadoresSemanales();
+    } else {
       this.indicadoresSemanales = [];
       this.semanasDisponibles = [];
       return;
     }
-
-    // Calcular indicadores semanales
-    this.indicadoresSemanales = this.calcularIndicadoresSemanales();
 
     // Actualizar semanas disponibles (solo semanas de producción: 25-75)
     this.semanasDisponibles = this.indicadoresSemanales
@@ -419,14 +580,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       labels,
       datasets: [
         {
-          label: 'Consumo Real (kg)',
+          label: 'Consumo Real (kg/sem)',
           data: this.indicadoresSemanales.map(ind => ind.consumoReal || 0),
           backgroundColor: 'rgba(211, 47, 47, 0.7)',
           borderColor: 'rgba(211, 47, 47, 1)',
           borderWidth: 2
         },
         {
-          label: 'Consumo Tabla (kg)',
+          label: 'Consumo Guía (kg/sem)',
           data: this.indicadoresSemanales.map(ind => ind.consumoTabla || 0),
           backgroundColor: 'rgba(25, 118, 210, 0.7)',
           borderColor: 'rgba(25, 118, 210, 1)',

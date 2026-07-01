@@ -202,7 +202,6 @@
                   <th scope="col" class="th-diario">Fecha</th>
                   <th scope="col" class="th-diario">Semana</th>
                   <th scope="col" class="th-diario">Edad <span class="th-diario__sub">(días vida)</span></th>
-                  <th scope="col" class="th-diario">Día <span class="th-diario__sub">(calendario)</span></th>
                   <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">hembras</span></th>
                   <th scope="col" class="th-diario">Mortalidad <span class="th-diario__sub">machos</span></th>
                   <th scope="col" class="th-diario">Selección <span class="th-diario__sub">hembras</span></th>
@@ -217,7 +216,7 @@
                   <th scope="col" class="th-diario th-diario--num">Consumo kg <span class="th-diario__sub">machos</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo real <span class="th-diario__sub">día (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Consumo <span class="th-diario__sub">acumulado (kg)</span></th>
-                  <th scope="col" class="th-diario th-diario--num">% pérdidas <span class="th-diario__sub">del día</span></th>
+                  <th scope="col" class="th-diario th-diario--num">% Retiro <span class="th-diario__sub">(Mort+Sel)/aves</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">hembras (kg)</span></th>
                   <th scope="col" class="th-diario th-diario--num">Peso prom. <span class="th-diario__sub">machos (kg)</span></th>
 
@@ -246,7 +245,6 @@
                   <td>{{ formatDMY(f.seg.fechaRegistro) }}</td>
                   <td>{{ f.semana }}</td>
                   <td>{{ f.edadDia }}</td>
-                  <td>{{ f.diaCorto }}</td>
                   <td>{{ f.seg.mortalidadHembras }}</td>
                   <td>{{ f.seg.mortalidadMachos }}</td>
                   <td>{{ f.seg.selH }}</td>

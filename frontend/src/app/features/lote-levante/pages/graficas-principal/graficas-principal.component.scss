@@ -1106,3 +1106,19 @@
     flex-direction: column;
   }
 }
+
+/* Comparativo Real vs Guía (levante) */
+.comparativo-guia-card {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--warm-200, #e7e5e4);
+  border-radius: 12px;
+  background: var(--white, #fff);
+}
+.comparativo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 10px; }
+.comparativo-titulo { font-weight: 700; color: var(--brand-green, #2d7a3e); margin-right: auto; }
+.comparativo-label {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: var(--warm-700, #57534e);
+  select { padding: 5px 8px; border: 1px solid var(--warm-300, #d6d3d1); border-radius: 8px; font-size: 0.82rem; }
+}
+.comparativo-chart { position: relative; height: 320px; }

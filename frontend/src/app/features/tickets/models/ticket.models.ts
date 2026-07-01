@@ -39,6 +39,8 @@ export interface CreateTicketRequest {
   /** Guid del resolutor — obligatorio (validado en backend). */
   assignedToUserGuid: string;
   imagenes?: TicketImagenInput[] | null;
+  /** Guids de usuarios a notificar (copiados) — opcional. */
+  notificarUserGuids?: string[];
 }
 
 export interface TransferirTicketRequest {
@@ -162,6 +164,22 @@ export interface TicketImagenMeta {
   createdAt: string;
 }
 
+/** Usuario notificado (copiado) en un ticket. */
+export interface TicketNotificadoDto {
+  id: number;
+  userGuid: string | null;
+  nombre: string | null;
+  email: string;
+}
+
+/** Usuario candidato para ser notificado (dropdown del create). */
+export interface UsuarioNotificableDto {
+  guid: string;
+  nombre: string;
+  email: string;
+  rol: string | null;
+}
+
 /** Detalle: incluye notas + metadata de imágenes (base64 se pide aparte). */
 export interface TicketDetail {
   id: number;
@@ -195,6 +213,8 @@ export interface TicketDetail {
   fechaNotificacionCorreo: string | null;
   correoNotificadoA: string | null;
   adjuntos: TicketAdjunto[] | null;
+  /** Usuarios notificados (copiados) al crear el ticket. */
+  notificados?: TicketNotificadoDto[];
 }
 
 /** Una imagen on-demand (con base64). */

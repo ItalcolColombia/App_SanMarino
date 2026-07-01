@@ -23,14 +23,12 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
   @Input() produccionLote: ProduccionLoteDetalleDto | null = null;
   /** ID del lote en fase Producción (hijo o mismo). Mismo que usa listado y modal de seguimiento diario. */
   @Input() produccionLoteId: number | null = null;
+  /** ID del lote postura producción (flujo LPP). Necesario para los indicadores/gráfica por semana de vida. */
+  @Input() lotePosturaProduccionId: number | null = null;
   /** Lote postura producción seleccionado (flujo LPP). Incluye aves, estado. */
   @Input() selectedLoteLPP: LotePosturaProduccionFilterItem | null = null;
   /** Información general del lote (nuevo endpoint). */
   @Input() informacionLote: InformacionLoteDto | null = null;
-  /** ID del lote postura producción (flujo LPP). Se pasa a indicadores/gráfica. */
-  get lotePosturaProduccionId(): number | null {
-    return this.selectedLoteLPP?.lotePosturaProduccionId ?? null;
-  }
   @Input() loading: boolean = false;
 
   @Output() create = new EventEmitter<void>();

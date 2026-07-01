@@ -43,6 +43,10 @@ public interface ITicketService
     // ── Bandeja personal del resolutor ────────────────────────────
     Task<PagedResult<TicketListItemDto>> GetAsignadosAsync(TicketSearchRequest req, CancellationToken ct);
 
+    // ── Notificados (copiados) ────────────────────────────────────
+    /// <summary>Usuarios de la empresa efectiva con email, candidatos a notificar (excluye al usuario actual).</summary>
+    Task<IReadOnlyList<UsuarioNotificableDto>> GetNotificablesAsync(CancellationToken ct);
+
     // ── Común ────────────────────────────────────────────────────────
     Task<bool> DeleteAsync(long id, CancellationToken ct);
 }

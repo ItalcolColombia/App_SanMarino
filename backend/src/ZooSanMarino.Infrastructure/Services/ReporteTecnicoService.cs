@@ -1757,9 +1757,9 @@ public class ReporteTecnicoService : IReporteTecnicoService
 
                 RelMH = hembra > 0 ? (saldoMacho / (double)hembra * 100) : null,
                 PorcMortH = hembraIni > 0 ? (mortH / (double)hembraIni * 100) : null,
-                PorcMortHGUIA = guiaGenetica != null ? guiaGenetica.MortalidadHembras : null,
-                DifMortH = guiaGenetica != null && hembraIni > 0 
-                    ? (mortH / (double)hembraIni * 100) - guiaGenetica.MortalidadHembras 
+                PorcMortHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.MortSemH) : null,
+                DifMortH = guiaRaw != null && hembraIni > 0
+                    ? (mortH / (double)hembraIni * 100) - ParseGuiaRaw(guiaRaw.MortSemH)
                     : null,
                 ACMortH = acMortH,
 
@@ -1771,13 +1771,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 MSEH = mortH + selH + errorH,
                 RetAcH = acMortH + acSelH + acErrH,
                 PorcRetiroH = hembraIni > 0 ? ((acMortH + acSelH + acErrH) / (double)hembraIni * 100) : null,
-                RetiroHGUIA = guiaGenetica != null ? guiaGenetica.RetiroAcumuladoHembras : null,
+                RetiroHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.RetiroAcH) : null,
 
                 AcConsH = acConsH,
                 ConsAcGrH = hembraIni > 0 ? (acConsH * 1000) / hembraIni : null,
                 ConsAcGrHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.ConsAcH) : null, // ConsAcH de la guía (consumo acumulado en gramos)
                 GrAveDiaH = hembra > 0 ? (consKgH * 1000) / hembra / 7 : null,
-                GrAveDiaGUIAH = guiaGenetica != null ? guiaGenetica.ConsumoHembras : null, // GrAveDiaH de la guía (gramos por ave por día)
+                GrAveDiaGUIAH = guiaRaw != null ? ParseGuiaRaw(guiaRaw.GrAveDiaH) : null, // GrAveDiaH de la guía (g/ave/día)
                 IncrConsH = consAcGrHAnterior.HasValue 
                     ? ((acConsH * 1000) / hembraIni) - consAcGrHAnterior.Value 
                     : null,
@@ -1788,16 +1788,19 @@ public class ReporteTecnicoService : IReporteTecnicoService
                     ? (((acConsH * 1000) / hembraIni) - ParseGuiaRaw(guiaRaw.ConsAcH)) / ParseGuiaRaw(guiaRaw.ConsAcH) * 100
                     : null,
 
-                PesoHGUIA = guiaGenetica != null ? guiaGenetica.PesoHembras / 1000.0 : null, // Convertir de gramos a kg
-                PorcDifPesoH = guiaGenetica != null && guiaGenetica.PesoHembras > 0 && pesoH > 0
-                    ? (pesoH - (guiaGenetica.PesoHembras / 1000.0)) / (guiaGenetica.PesoHembras / 1000.0) * 100
+                // Poblar desde guiaRaw (ProduccionAvicolaRaw) que resuelve confiablemente por raza+año+edad,
+                // igual que ConsAcGrHGUIA; guiaGenetica (ObtenerGuiaGeneticaRangoAsync) a veces viene vacío
+                // y dejaba PesoHGUIA/UnifHGUIA en null pese a haber guía.
+                PesoHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.PesoH) / 1000.0 : null, // guía peso_h (g) → kg
+                PorcDifPesoH = guiaRaw != null && ParseGuiaRaw(guiaRaw.PesoH) > 0 && pesoH > 0
+                    ? (pesoH - (ParseGuiaRaw(guiaRaw.PesoH) / 1000.0)) / (ParseGuiaRaw(guiaRaw.PesoH) / 1000.0) * 100
                     : null,
-                UnifHGUIA = guiaGenetica != null ? guiaGenetica.Uniformidad : null,
+                UnifHGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.Uniformidad) : null,
 
                 PorcMortM = machoIni > 0 ? (mortM / (double)machoIni * 100) : null,
-                PorcMortMGUIA = guiaGenetica != null ? guiaGenetica.MortalidadMachos : null,
-                DifMortM = guiaGenetica != null && machoIni > 0
-                    ? (mortM / (double)machoIni * 100) - guiaGenetica.MortalidadMachos
+                PorcMortMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.MortSemM) : null,
+                DifMortM = guiaRaw != null && machoIni > 0
+                    ? (mortM / (double)machoIni * 100) - ParseGuiaRaw(guiaRaw.MortSemM)
                     : null,
                 ACMortM = acMortM,
 
@@ -1809,13 +1812,13 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 MSEM = mortM + selM + errorM,
                 RetAcM = acMortM + acSelM + acErrM,
                 PorcRetAcM = machoIni > 0 ? ((acMortM + acSelM + acErrM) / (double)machoIni * 100) : null,
-                RetiroMGUIA = guiaGenetica != null ? guiaGenetica.RetiroAcumuladoMachos : null,
+                RetiroMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.RetiroAcM) : null,
 
                 AcConsM = acConsM,
                 ConsAcGrM = machoIni > 0 ? (acConsM * 1000) / machoIni : null,
                 ConsAcGrMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.ConsAcM) : null, // ConsAcM de la guía (consumo acumulado en gramos)
                 GrAveDiaM = saldoMacho > 0 ? (consKgM * 1000) / saldoMacho / 7 : null,
-                GrAveDiaMGUIA = guiaGenetica != null ? guiaGenetica.ConsumoMachos : null, // GrAveDiaM de la guía (gramos por ave por día)
+                GrAveDiaMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.GrAveDiaM) : null, // GrAveDiaM de la guía (g/ave/día)
                 IncrConsM = consAcGrMAnterior.HasValue
                     ? ((acConsM * 1000) / machoIni) - consAcGrMAnterior.Value
                     : null,
@@ -1826,11 +1829,11 @@ public class ReporteTecnicoService : IReporteTecnicoService
                     ? ((acConsM * 1000) / machoIni) - ParseGuiaRaw(guiaRaw.ConsAcM)
                     : null,
 
-                PesoMGUIA = guiaGenetica != null ? guiaGenetica.PesoMachos / 1000.0 : null, // Convertir de gramos a kg
-                PorcDifPesoM = guiaGenetica != null && guiaGenetica.PesoMachos > 0 && pesoM > 0
-                    ? (pesoM - (guiaGenetica.PesoMachos / 1000.0)) / (guiaGenetica.PesoMachos / 1000.0) * 100
+                PesoMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.PesoM) / 1000.0 : null, // guía peso_m (g) → kg
+                PorcDifPesoM = guiaRaw != null && ParseGuiaRaw(guiaRaw.PesoM) > 0 && pesoM > 0
+                    ? (pesoM - (ParseGuiaRaw(guiaRaw.PesoM) / 1000.0)) / (ParseGuiaRaw(guiaRaw.PesoM) / 1000.0) * 100
                     : null,
-                UnifMGUIA = guiaGenetica != null ? guiaGenetica.Uniformidad : null,
+                UnifMGUIA = guiaRaw != null ? ParseGuiaRaw(guiaRaw.Uniformidad) : null,
 
                 ErrSexAcH = null, // No está en la guía genética, se puede agregar manualmente si es necesario
                 PorcErrSxAcH = null,
@@ -3064,32 +3067,33 @@ public class ReporteTecnicoService : IReporteTecnicoService
                 ProtSemH = Math.Round(protSemH, 4),
                 ProtSemAcH = Math.Round(acProtSemH, 4),
 
-                // ---- Cruce Genético (Tarea 1.6): campos GUIA desde ProduccionAvicolaRaw ----
-                PorcMortHGUIA = guiaGenetica?.MortalidadHembras,
-                DifMortH = guiaGenetica != null ? Math.Round(porcMortH - guiaGenetica.MortalidadHembras, 4) : null,
-                RetiroHGUIA = guiaGenetica?.RetiroAcumuladoHembras,
+                // ---- Cruce Genético: campos GUIA desde ProduccionAvicolaRaw (guiaRaw), fuente confiable.
+                // Antes peso/unif/grAveDia/mort/retiro salían de guiaGenetica (a veces vacío) → null pese a haber guía.
+                PorcMortHGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.MortSemH) : null,
+                DifMortH = guiaRaw != null ? Math.Round(porcMortH - ParseGuiaV(guiaRaw.MortSemH), 4) : null,
+                RetiroHGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.RetiroAcH) : null,
                 ConsAcGrHGUIA = consAcGrHGUIA.HasValue ? Math.Round(consAcGrHGUIA.Value, 2) : null,
-                GrAveDiaGUIAH = guiaGenetica?.ConsumoHembras,
+                GrAveDiaGUIAH = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.GrAveDiaH) : null,
                 IncrConsHGUIA = incrConsHGUIA.HasValue ? Math.Round(incrConsHGUIA.Value, 2) : null,
                 PorcDifConsH = consAcGrHGUIA.HasValue && consAcGrHGUIA.Value > 0
                     ? Math.Round((consAcGrH - consAcGrHGUIA.Value) / consAcGrHGUIA.Value * 100, 2) : null,
-                PesoHGUIA = guiaGenetica != null ? guiaGenetica.PesoHembras / 1000.0 : null,
-                PorcDifPesoH = guiaGenetica != null && guiaGenetica.PesoHembras > 0 && pesoH > 0
-                    ? Math.Round((pesoH - guiaGenetica.PesoHembras / 1000.0) / (guiaGenetica.PesoHembras / 1000.0) * 100, 2) : null,
-                UnifHGUIA = guiaGenetica?.Uniformidad,
+                PesoHGUIA = guiaRaw != null ? ParseGuiaV(guiaRaw.PesoH) / 1000.0 : null,
+                PorcDifPesoH = guiaRaw != null && ParseGuiaV(guiaRaw.PesoH) > 0 && pesoH > 0
+                    ? Math.Round((pesoH - ParseGuiaV(guiaRaw.PesoH) / 1000.0) / (ParseGuiaV(guiaRaw.PesoH) / 1000.0) * 100, 2) : null,
+                UnifHGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.Uniformidad) : null,
 
-                PorcMortMGUIA = guiaGenetica?.MortalidadMachos,
-                DifMortM = guiaGenetica != null ? Math.Round(porcMortM - guiaGenetica.MortalidadMachos, 4) : null,
-                RetiroMGUIA = guiaGenetica?.RetiroAcumuladoMachos,
+                PorcMortMGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.MortSemM) : null,
+                DifMortM = guiaRaw != null ? Math.Round(porcMortM - ParseGuiaV(guiaRaw.MortSemM), 4) : null,
+                RetiroMGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.RetiroAcM) : null,
                 ConsAcGrMGUIA = consAcGrMGUIA.HasValue ? Math.Round(consAcGrMGUIA.Value, 2) : null,
-                GrAveDiaMGUIA = guiaGenetica?.ConsumoMachos,
+                GrAveDiaMGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.GrAveDiaM) : null,
                 IncrConsMGUIA = incrConsMGUIA.HasValue ? Math.Round(incrConsMGUIA.Value, 2) : null,
                 DifConsM = consAcGrMGUIA.HasValue
                     ? Math.Round(consAcGrM - consAcGrMGUIA.Value, 2) : null,
-                PesoMGUIA = guiaGenetica != null ? guiaGenetica.PesoMachos / 1000.0 : null,
-                PorcDifPesoM = guiaGenetica != null && guiaGenetica.PesoMachos > 0 && pesoM > 0
-                    ? Math.Round((pesoM - guiaGenetica.PesoMachos / 1000.0) / (guiaGenetica.PesoMachos / 1000.0) * 100, 2) : null,
-                UnifMGUIA = guiaGenetica?.Uniformidad,
+                PesoMGUIA = guiaRaw != null ? ParseGuiaV(guiaRaw.PesoM) / 1000.0 : null,
+                PorcDifPesoM = guiaRaw != null && ParseGuiaV(guiaRaw.PesoM) > 0 && pesoM > 0
+                    ? Math.Round((pesoM - ParseGuiaV(guiaRaw.PesoM) / 1000.0) / (ParseGuiaV(guiaRaw.PesoM) / 1000.0) * 100, 2) : null,
+                UnifMGUIA = guiaRaw != null ? (double?)ParseGuiaV(guiaRaw.Uniformidad) : null,
 
                 DifConsAcH = consAcGrHGUIA.HasValue
                     ? Math.Round(acConsH - (consAcGrHGUIA.Value * avesHInicialesTotal / 1000.0), 3) : null,
