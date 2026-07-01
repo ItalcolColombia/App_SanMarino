@@ -15,8 +15,9 @@ public record IndicadorProduccionSemanalDto(
     int MortalidadMachos,
     decimal PorcentajeMortalidadHembras,
     decimal PorcentajeMortalidadMachos,
-    int MortalidadGuiaHembras,
-    int MortalidadGuiaMachos,
+    // Guía = % de mortalidad semanal (ej. 0,33 %); NO enteros (antes se truncaba a 0).
+    decimal? MortalidadGuiaHembras,
+    decimal? MortalidadGuiaMachos,
     decimal? DiferenciaMortalidadHembras,
     decimal? DiferenciaMortalidadMachos,
     
@@ -86,7 +87,12 @@ public record IndicadorProduccionSemanalDto(
     
     // Aves al final de la semana
     int AvesHembrasFinSemana,
-    int AvesMachosFinSemana
+    int AvesMachosFinSemana,
+
+    // H.T.A.A / H.I.A.A reales (acumulados por ave alojada) — comparables con h_total_aa / h_inc_aa
+    // de la guía. Se agregan al final para no alterar el orden posicional de los campos previos.
+    decimal HtaaReal,
+    decimal HiaaReal
 );
 
 /// <summary>

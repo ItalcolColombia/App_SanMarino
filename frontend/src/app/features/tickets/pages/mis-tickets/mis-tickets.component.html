@@ -1,5 +1,5 @@
 <!-- src/app/features/tickets/pages/mis-tickets/mis-tickets.component.html -->
-<div class="min-h-full bg-gradient-to-b from-ital-cream/60 to-transparent">
+<div class="min-h-full bg-white bg-gradient-to-b from-ital-orange-50 via-white to-white">
   <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
 
     <!-- Hero header -->
@@ -42,14 +42,14 @@
     <div class="mb-5 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
       <button (click)="selectEstado('')"
               class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition"
-              [class.bg-slate-800]="estado === ''" [class.text-white]="estado === ''" [class.ring-slate-800]="estado === ''"
+              [class.bg-ital-green]="estado === ''" [class.text-white]="estado === ''" [class.ring-ital-green]="estado === ''"
               [class.bg-white]="estado !== ''" [class.text-slate-600]="estado !== ''" [class.ring-slate-200]="estado !== ''">
         Todos
       </button>
       @for (e of estados; track e) {
         <button (click)="selectEstado(e)"
                 class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition"
-                [class.bg-slate-800]="estado === e" [class.text-white]="estado === e" [class.ring-slate-800]="estado === e"
+                [class.bg-ital-green]="estado === e" [class.text-white]="estado === e" [class.ring-ital-green]="estado === e"
                 [class.bg-white]="estado !== e" [class.text-slate-600]="estado !== e" [class.ring-slate-200]="estado !== e">
           <span class="h-1.5 w-1.5 rounded-full" [class]="estadoDot[e]"></span>
           {{ estadoLabel[e] }}

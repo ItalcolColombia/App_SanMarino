@@ -1,5 +1,5 @@
 <!-- src/app/features/tickets/pages/ticket-detalle/ticket-detalle.component.html -->
-<div class="min-h-full bg-gradient-to-b from-ital-cream/60 to-transparent">
+<div class="min-h-full bg-white bg-gradient-to-b from-ital-orange-50 via-white to-white">
   <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
 
     @if (loading() && !ticket()) {
@@ -249,6 +249,20 @@
                 </div>
               }
             </dl>
+
+            <!-- Notificados (copiados) -->
+            @if (t.notificados && t.notificados.length > 0) {
+              <div class="mt-4 border-t border-slate-100 pt-3.5">
+                <p class="mb-2 text-xs font-bold uppercase tracking-wider text-ital-muted">Notificados</p>
+                <ul class="flex flex-wrap gap-1.5" aria-label="Usuarios notificados de este ticket">
+                  @for (n of t.notificados; track n.id) {
+                    <li class="rounded-full bg-ital-orange-50 px-2.5 py-1 text-[11px] font-medium text-ital-orange-dark ring-1 ring-ital-orange-100">
+                      {{ n.nombre || n.email }}
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
           </div>
 
           <!-- Gestión: SOLO para quien atiende (no el solicitante) -->
@@ -291,7 +305,8 @@
                         Transferir a Desarrollo →
                       </button>
                     } @else {
-                      <p class="mb-2 text-[11px] font-bold uppercase tracking-wide text-indigo-600">Transferir a Desarrollo</p>
+                      <p class="mb-1 text-[11px] font-bold uppercase tracking-wide text-indigo-600">Transferir a Desarrollo</p>
+                      <p class="mb-2 text-[11px] text-indigo-500">El nuevo resolutor será notificado por correo.</p>
                       <select [(ngModel)]="transferirAsignado"
                               class="mb-2 w-full rounded-lg border-slate-200 py-1.5 text-xs focus:border-ital-green focus:ring-ital-green">
                         <option value="">— Elegí resolutor —</option>

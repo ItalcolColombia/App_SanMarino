@@ -22,6 +22,7 @@ import {
   TicketAdjunto,
   TicketDocumento,
   ResolutorAdminDto,
+  UsuarioNotificableDto,
 } from '../models/ticket.models';
 
 /**
@@ -37,6 +38,11 @@ export class TicketService {
   // ── Solicitante ──────────────────────────────────────────────
   crear(req: CreateTicketRequest): Observable<TicketDetail> {
     return this.http.post<TicketDetail>(this.baseUrl, req);
+  }
+
+  /** Usuarios candidatos a ser notificados (copiados) al crear un ticket. */
+  getNotificables(): Observable<UsuarioNotificableDto[]> {
+    return this.http.get<UsuarioNotificableDto[]>(`${this.baseUrl}/notificables`);
   }
 
   misTickets(filter: TicketListFilter = {}): Observable<PagedResult<TicketListItem>> {

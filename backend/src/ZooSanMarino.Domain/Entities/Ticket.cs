@@ -68,4 +68,5 @@ public class Ticket : AuditableEntity
     public ICollection<TicketImagen> Imagenes { get; set; } = new List<TicketImagen>();
     public ICollection<TicketNota> Notas { get; set; } = new List<TicketNota>();
     public ICollection<TicketAdjunto> Adjuntos { get; set; } = new List<TicketAdjunto>();
+    public ICollection<TicketNotificado> Notificados { get; set; } = new List<TicketNotificado>();
 }

@@ -116,6 +116,7 @@ namespace ZooSanMarino.Infrastructure.Persistence
         public DbSet<TicketImagen> TicketImagenes => Set<TicketImagen>();
         public DbSet<TicketAdjunto> TicketAdjuntos => Set<TicketAdjunto>();
         public DbSet<TicketNota> TicketNotas => Set<TicketNota>();
+        public DbSet<TicketNotificado> TicketNotificados => Set<TicketNotificado>();
         public DbSet<TicketResolutor> TicketResolutores => Set<TicketResolutor>();
         public DbSet<TicketPerfilUsuario> TicketPerfilesUsuario => Set<TicketPerfilUsuario>();
         public DbSet<TicketResolutorRol> TicketResolutorRoles => Set<TicketResolutorRol>();

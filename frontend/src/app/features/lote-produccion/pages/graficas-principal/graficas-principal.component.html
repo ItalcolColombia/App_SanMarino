@@ -7,6 +7,35 @@
     </p>
   </div>
 
+  <!-- ===== Comparativo Real vs Guía Genética (indicadores del API: calcs corregidos + guía por semana) ===== -->
+  <div class="grafica-card comparativo-guia-card" *ngIf="indicadoresApi.length > 0">
+    <div class="comparativo-controls">
+      <span class="comparativo-titulo">📈 Comparativo con Guía Genética (Real vs Guía)</span>
+      <label class="comparativo-label">Métrica
+        <select [(ngModel)]="metricaComparativa" (ngModelChange)="construirComparativoGuia()">
+          <option value="consumo">Consumo (g/ave/día)</option>
+          <option value="peso">Peso (kg)</option>
+          <option value="produccion">% Producción</option>
+          <option value="mortalidad">% Mortalidad</option>
+          <option value="htaa">H.T.A.A</option>
+        </select>
+      </label>
+      <label class="comparativo-label" *ngIf="metricaComparativa==='consumo' || metricaComparativa==='peso' || metricaComparativa==='mortalidad'">Grupo
+        <select [(ngModel)]="sexoComparativo" (ngModelChange)="construirComparativoGuia()">
+          <option value="H">Hembras</option>
+          <option value="M">Machos</option>
+        </select>
+      </label>
+    </div>
+    <div class="comparativo-chart">
+      <canvas baseChart
+              [type]="lineChartType"
+              [data]="comparativoGuiaChartData"
+              [options]="comparativoGuiaChartOptions">
+      </canvas>
+    </div>
+  </div>
+
   <!-- Estado de carga -->
   <div class="loading-state" *ngIf="loading">
     <div class="spinner"></div>

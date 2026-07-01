@@ -100,6 +100,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       });
   }
 
+  /**
+   * Descarga UN libro Excel con los datos de los tabs en HOJAS SEPARADAS:
+   * "Seguimiento" (registros diarios) e "Indicadores" (métricas semanales vs guía).
+   */
   descargarIndicadoresExcel(): void {
     const loteNombre = (this.selectedLote?.loteNombre || `Lote_${this.selectedLote?.loteId ?? ''}`)
       .trim()
@@ -111,9 +115,76 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       ? Math.max(...this.indicadoresSemanales.map(x => x.semana || 0))
       : 0;
     const stamp = new Date().toISOString().slice(0, 10);
-    const filename = `produccion-lote-${loteNombre}-tap-indicador-semana-${maxSemana || 'NA'}-${stamp}.xlsx`;
+    const filename = `produccion-lote-${loteNombre}-seguimiento-indicadores-semana-${maxSemana || 'NA'}-${stamp}.xlsx`;
 
-    const rows = (this.indicadoresSemanales || []).map(ind => ({
+    const wb = XLSX.utils.book_new();
+
+    // ── Hoja 1: Seguimiento (registros diarios) ──
+    const segRows = this.buildSeguimientoRows();
+    if (segRows.length) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(segRows), 'Seguimiento');
+    }
+
+    // ── Hoja 2: Indicadores (métricas semanales + comparación con guía) ──
+    const indRows = this.buildIndicadoresRows();
+    if (indRows.length) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(indRows), 'Indicadores');
+    }
+
+    if (!wb.SheetNames.length) return;
+    XLSX.writeFile(wb, filename);
+  }
+
+  /** Filas de la hoja "Seguimiento" (registros diarios de producción). */
+  private buildSeguimientoRows(): any[] {
+    return (this.seguimientos || []).map(s => ({
+      Id: s.id,
+      Fecha: this.formatearFecha(s.fechaRegistro),
+      Etapa: s.etapa,
+      MortalidadH: s.mortalidadH,
+      MortalidadM: s.mortalidadM,
+      SeleccionH: s.selH,
+      SeleccionM: s.selM,
+      ConsumoKgH: s.consKgH,
+      ConsumoKgM: s.consKgM,
+      TipoAlimento: s.tipoAlimento,
+      HuevosTotales: s.huevosTotales,
+      HuevosIncubables: s.huevosIncubables,
+      HuevoLimpio: (s as any).huevoLimpio ?? 0,
+      HuevoTratado: (s as any).huevoTratado ?? 0,
+      HuevoSucio: (s as any).huevoSucio ?? 0,
+      HuevoDeforme: (s as any).huevoDeforme ?? 0,
+      HuevoBlanco: (s as any).huevoBlanco ?? 0,
+      HuevoDobleYema: (s as any).huevoDobleYema ?? 0,
+      HuevoPiso: (s as any).huevoPiso ?? 0,
+      HuevoPequeno: (s as any).huevoPequeno ?? 0,
+      HuevoRoto: (s as any).huevoRoto ?? 0,
+      HuevoDesecho: (s as any).huevoDesecho ?? 0,
+      HuevoOtro: (s as any).huevoOtro ?? 0,
+      PesoHuevo: s.pesoHuevo,
+      PesoH: (s as any).pesoH ?? null,
+      PesoM: (s as any).pesoM ?? null,
+      Uniformidad: (s as any).uniformidad ?? null,
+      CoeficienteVariacion: (s as any).coeficienteVariacion ?? null,
+      Observaciones: s.observaciones ?? null
+    }));
+  }
+
+  /** Redondea a 2 decimales los valores numéricos de una fila (evita ruido de punto flotante en el Excel). */
+  private redondearFila(row: Record<string, any>): Record<string, any> {
+    const out: Record<string, any> = {};
+    for (const k in row) {
+      const v = row[k];
+      out[k] = (typeof v === 'number' && Number.isFinite(v) && !Number.isInteger(v))
+        ? Number(v.toFixed(2))
+        : v;
+    }
+    return out;
+  }
+
+  /** Filas de la hoja "Indicadores" (métricas semanales + comparación con guía). */
+  private buildIndicadoresRows(): any[] {
+    return (this.indicadoresSemanales || []).map(ind => this.redondearFila({
       Semana: ind.semana,
       FechaInicio: this.formatearFecha(ind.fechaInicioSemana),
       FechaFin: this.formatearFecha(ind.fechaFinSemana),
@@ -155,6 +226,8 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       PesoHuevoProm: ind.pesoHuevoPromedio,
       PesoHuevoGuia: ind.pesoHuevoGuia,
       DifPesoHuevo: ind.diferenciaPesoHuevo,
+      HTAA: ind.htaaReal,
+      HIAA: ind.hiaaReal,
 
       PesoH: ind.pesoPromedioHembras,
       PesoHGuia: ind.pesoGuiaHembras,
@@ -184,11 +257,6 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       HuevoDesecho: ind.huevosDesecho,
       HuevoOtro: ind.huevosOtro
     }));
-
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Indicadores');
-    XLSX.writeFile(wb, filename);
   }
 
   // ================== HELPERS ==================

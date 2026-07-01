@@ -7,7 +7,7 @@
         class="btn btn--outline"
         (click)="descargarIndicadoresExcel()"
         [disabled]="!indicadoresSemanales || indicadoresSemanales.length === 0">
-        Descargar indicadores (Excel)
+        ⬇ Descargar Excel (Seguimiento + Indicadores)
       </button>
     </div>
     <p class="indicadores-subtitle">
@@ -16,6 +16,14 @@
     </p>
     <div *ngIf="mensajeGuiaGenetica" class="mensaje-guia-info" role="alert">
       ℹ️ {{ mensajeGuiaGenetica }}
+    </div>
+
+    <!-- Leyenda de comparación con la guía genética -->
+    <div *ngIf="tieneDatosGuiaGenetica && indicadoresSemanales.length > 0" class="leyenda-guia">
+      <span class="leyenda-titulo">Diferencia vs guía:</span>
+      <span class="leyenda-item"><span class="leyenda-chip diferencia-ok"></span> Óptimo (≤ 5%)</span>
+      <span class="leyenda-item"><span class="leyenda-chip diferencia-warning"></span> Aceptable (≤ 15%)</span>
+      <span class="leyenda-item"><span class="leyenda-chip diferencia-danger"></span> Requiere atención (&gt; 15%)</span>
     </div>
   </div>
 
@@ -45,15 +53,15 @@
           <th rowspan="2" class="sticky-left sticky-col-4">Reg.</th>
           <th rowspan="2" class="sticky-left sticky-col-5">Detalle</th>
 
-          <th colspan="8">💀 Mortalidad / Selección</th>
-          <th colspan="10">🌾 Consumo</th>
-          <th colspan="12">🥚 Producción Huevos</th>
-          <th colspan="10">⚖️ Peso / Uniformidad</th>
-          <th colspan="4">🐔 Aves</th>
+          <th colspan="8" class="grp">💀 Mortalidad / Selección</th>
+          <th colspan="10" class="grp">🌾 Consumo</th>
+          <th colspan="14" class="grp">🥚 Producción Huevos</th>
+          <th colspan="10" class="grp">⚖️ Peso / Uniformidad</th>
+          <th colspan="4" class="grp">🐔 Aves</th>
         </tr>
         <tr>
           <!-- Mortalidad / selección -->
-          <th>Mort H</th>
+          <th class="grp">Mort H</th>
           <th>Mort M</th>
           <th>%Mort H</th>
           <th>%Mort M</th>
@@ -65,7 +73,7 @@
           <th>%Sel H</th>
 
           <!-- Consumo -->
-          <th>Kg H</th>
+          <th class="grp">Kg H</th>
           <th>Kg M</th>
           <th>Kg Total</th>
           <th>Prom/día Kg</th>
@@ -77,7 +85,7 @@
           <th>Dif Cons M</th>
 
           <!-- Huevos -->
-          <th>Tot</th>
+          <th class="grp">Tot</th>
           <th>Guía Tot</th>
           <th>Dif Tot</th>
           <th>Inc</th>
@@ -89,9 +97,11 @@
           <th>Dif %Prod</th>
           <th>Peso huevo (g)</th>
           <th>Guía huevo (g)</th>
+          <th>HTAA</th>
+          <th>HIAA</th>
 
           <!-- Peso / Uniformidad -->
-          <th>Peso H (kg)</th>
+          <th class="grp">Peso H (kg)</th>
           <th>Guía H (kg)</th>
           <th>Dif Peso H</th>
           <th>Peso M (kg)</th>
@@ -103,7 +113,7 @@
           <th>CV prom</th>
 
           <!-- Aves -->
-          <th>H ini</th>
+          <th class="grp">H ini</th>
           <th>M ini</th>
           <th>H fin</th>
           <th>M fin</th>
@@ -130,19 +140,19 @@
           </td>
 
           <!-- Mortalidad / selección -->
-          <td>{{ ind.mortalidadHembras }}</td>
+          <td class="grp">{{ ind.mortalidadHembras }}</td>
           <td>{{ ind.mortalidadMachos }}</td>
           <td>{{ ind.porcentajeMortalidadHembras | number:'1.0-2' }}%</td>
           <td>{{ ind.porcentajeMortalidadMachos | number:'1.0-2' }}%</td>
-          <td>{{ ind.mortalidadGuiaHembras || 0 }}</td>
-          <td>{{ ind.mortalidadGuiaMachos || 0 }}</td>
+          <td>{{ ind.mortalidadGuiaHembras != null ? (ind.mortalidadGuiaHembras | number:'1.0-2') + '%' : '—' }}</td>
+          <td>{{ ind.mortalidadGuiaMachos != null ? (ind.mortalidadGuiaMachos | number:'1.0-2') + '%' : '—' }}</td>
           <td [class]="getDiferenciaClass(ind.diferenciaMortalidadHembras)">{{ formatearPorcentaje(ind.diferenciaMortalidadHembras) }}</td>
           <td [class]="getDiferenciaClass(ind.diferenciaMortalidadMachos)">{{ formatearPorcentaje(ind.diferenciaMortalidadMachos) }}</td>
           <td>{{ ind.seleccionHembras }}</td>
           <td>{{ ind.porcentajeSeleccionHembras | number:'1.0-2' }}%</td>
 
           <!-- Consumo -->
-          <td>{{ ind.consumoKgHembras | number:'1.0-2' }}</td>
+          <td class="grp">{{ ind.consumoKgHembras | number:'1.0-2' }}</td>
           <td>{{ ind.consumoKgMachos | number:'1.0-2' }}</td>
           <td>{{ ind.consumoTotalKg | number:'1.0-2' }}</td>
           <td>{{ ind.consumoPromedioDiarioKg | number:'1.0-2' }}</td>
@@ -162,7 +172,7 @@
           <td [class]="getDiferenciaClass(ind.diferenciaConsumoMachos)">{{ formatearPorcentaje(ind.diferenciaConsumoMachos) }}</td>
 
           <!-- Producción huevos -->
-          <td>{{ ind.huevosTotales | number:'1.0-0' }}</td>
+          <td class="grp">{{ ind.huevosTotales | number:'1.0-0' }}</td>
           <td>{{ ind.huevosTotalesGuia !== null && ind.huevosTotalesGuia !== undefined ? (ind.huevosTotalesGuia | number:'1.0-0') : '—' }}</td>
           <td [class]="getDiferenciaClass(ind.diferenciaHuevosTotales)">{{ formatearPorcentaje(ind.diferenciaHuevosTotales) }}</td>
           <td>{{ ind.huevosIncubables | number:'1.0-0' }}</td>
@@ -174,9 +184,11 @@
           <td [class]="getDiferenciaClass(ind.diferenciaPorcentajeProduccion)">{{ formatearPorcentaje(ind.diferenciaPorcentajeProduccion) }}</td>
           <td>{{ ind.pesoHuevoPromedio !== null && ind.pesoHuevoPromedio !== undefined ? (ind.pesoHuevoPromedio | number:'1.0-2') : '—' }}</td>
           <td>{{ ind.pesoHuevoGuia !== null && ind.pesoHuevoGuia !== undefined ? (ind.pesoHuevoGuia | number:'1.0-2') : '—' }}</td>
+          <td>{{ ind.htaaReal != null ? (ind.htaaReal | number:'1.0-2') : '—' }}</td>
+          <td>{{ ind.hiaaReal != null ? (ind.hiaaReal | number:'1.0-2') : '—' }}</td>
 
           <!-- Peso / Uniformidad -->
-          <td>{{ ind.pesoPromedioHembras ? (ind.pesoPromedioHembras | number:'1.0-2') : '—' }}</td>
+          <td class="grp">{{ ind.pesoPromedioHembras ? (ind.pesoPromedioHembras | number:'1.0-2') : '—' }}</td>
           <td>{{ ind.pesoGuiaHembras !== null && ind.pesoGuiaHembras !== undefined ? (ind.pesoGuiaHembras | number:'1.0-2') : '—' }}</td>
           <td [class]="getDiferenciaClass(ind.diferenciaPesoHembras)">{{ formatearPorcentaje(ind.diferenciaPesoHembras) }}</td>
           <td>{{ ind.pesoPromedioMachos ? (ind.pesoPromedioMachos | number:'1.0-2') : '—' }}</td>
@@ -188,7 +200,7 @@
           <td>{{ ind.coeficienteVariacionPromedio !== null && ind.coeficienteVariacionPromedio !== undefined ? (ind.coeficienteVariacionPromedio | number:'1.0-2') : '—' }}</td>
 
           <!-- Aves -->
-          <td>{{ ind.avesHembrasInicioSemana | number:'1.0-0' }}</td>
+          <td class="grp">{{ ind.avesHembrasInicioSemana | number:'1.0-0' }}</td>
           <td>{{ ind.avesMachosInicioSemana | number:'1.0-0' }}</td>
           <td>{{ ind.avesHembrasFinSemana | number:'1.0-0' }}</td>
           <td>{{ ind.avesMachosFinSemana | number:'1.0-0' }}</td>

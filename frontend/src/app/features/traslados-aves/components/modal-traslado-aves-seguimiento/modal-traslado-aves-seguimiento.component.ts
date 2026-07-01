@@ -78,6 +78,11 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   trasladoMachos  = 0;
   observaciones   = '';
 
+  /** Fecha REAL del evento de traslado (editable; default = fecha sugerida). REQ-009. */
+  fechaEvento = '';
+  /** Hoy (YYYY-MM-DD) para acotar el máximo del date picker. */
+  readonly hoyStr = new Date().toISOString().split('T')[0];
+
   // ── Saldo REAL del origen (Feature 13) ─────────────────────────
   /** Resumen de mortalidad — saldoHembras/saldoMachos son las "aves vivas". */
   resumenOrigen: LoteMortalidadResumenDto | null = null;
@@ -98,6 +103,7 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['isOpen'] && this.isOpen) {
       this.resetForm();
+      this.fechaEvento = this.origen?.fechaSeguimiento || new Date().toISOString().split('T')[0];
       this.cargarDatosIniciales();
     }
   }
@@ -243,7 +249,7 @@ export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {
     const dto: TrasladoAvesDesdeSegDiarioDto = {
       loteOrigenId:    this.origen.loteId,
       tipoOrigen:      this.origen.tipoLote,
-      fechaSeguimiento: this.origen.fechaSeguimiento,
+      fechaSeguimiento: this.fechaEvento || this.origen.fechaSeguimiento,
       trasladoHembras: this.trasladoHembras,
       trasladoMachos:  this.trasladoMachos,
       loteDestinoId:   Number(this.loteDestinoId),

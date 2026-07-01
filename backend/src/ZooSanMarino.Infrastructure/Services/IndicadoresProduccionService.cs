@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -487,6 +488,10 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         var avesHembrasActuales = avesHembrasIniciales;
         var avesMachosActuales = avesMachosIniciales;
 
+        // Acumuladores para H.T.A.A / H.I.A.A reales (huevos acumulados por ave alojada).
+        long cumHuevosTotales = 0;
+        long cumHuevosIncubables = 0;
+
         foreach (var grupoSemana in semanasFiltradas)
         {
             var semana = grupoSemana.Key;
@@ -506,15 +511,25 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             var huevosIncubables = seguimientosSemana.Sum(s => s.HuevoInc);
             var promedioHuevosPorDia = seguimientosSemana.Count > 0 ? (decimal)huevosTotales / seguimientosSemana.Count : 0;
 
-            var eficiencia = avesHembrasActuales + avesMachosActuales > 0
-                ? (decimal)promedioHuevosPorDia / (avesHembrasActuales + avesMachosActuales) * 100
-                : 0;
+            // % Producción (hen-day): los huevos los ponen las HEMBRAS. Se excluyen los machos del
+            // denominador para que el indicador cuadre con la guía genética (prod_porcentaje es por
+            // hembra). Antes dividía por (hembras+machos), lo que subestimaba el % producción. REQ-004.
+            var eficiencia = ProduccionCalculos.PorcentajeProduccion(promedioHuevosPorDia, avesHembrasActuales);
 
+            // Acumulados de la semana para H.T.A.A / H.I.A.A reales (por ave alojada).
+            cumHuevosTotales += huevosTotales;
+            cumHuevosIncubables += huevosIncubables;
+            var htaaReal = ProduccionCalculos.Htaa(cumHuevosTotales, avesHembrasIniciales);
+            var hiaaReal = ProduccionCalculos.Hiaa(cumHuevosIncubables, avesHembrasIniciales);
+
+            // El peso de pesaje se ingresa/almacena en GRAMOS (ej. 3307 g); la guía se compara en kg
+            // (peso_h/1000). Normalizamos el real a kg para que CUADRE con la guía y no salga un número
+            // excesivo (antes: real 3307 g vs guía 3.235 kg → diferencia absurda). REQ-004.
             var pesoPromedioH = seguimientosSemana.Where(s => s.PesoH.HasValue).Count() > 0
-                ? (decimal?)seguimientosSemana.Where(s => s.PesoH.HasValue).Average(s => (double)s.PesoH!.Value)
+                ? (decimal?)NormalizarPesoKg((decimal)seguimientosSemana.Where(s => s.PesoH.HasValue).Average(s => (double)s.PesoH!.Value))
                 : null;
             var pesoPromedioM = seguimientosSemana.Where(s => s.PesoM.HasValue).Count() > 0
-                ? (decimal?)seguimientosSemana.Where(s => s.PesoM.HasValue).Average(s => (double)s.PesoM!.Value)
+                ? (decimal?)NormalizarPesoKg((decimal)seguimientosSemana.Where(s => s.PesoM.HasValue).Average(s => (double)s.PesoM!.Value))
                 : null;
             var uniformidadPromedio = seguimientosSemana.Where(s => s.Uniformidad.HasValue).Count() > 0
                 ? (decimal?)seguimientosSemana.Where(s => s.Uniformidad.HasValue).Average(s => (double)s.Uniformidad!.Value)
@@ -573,10 +588,10 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
             var difPesoH = CalcularDiferenciaPorcentual(pesoPromedioH, pesoGuiaH);
             var difPesoM = CalcularDiferenciaPorcentual(pesoPromedioM, pesoGuiaM);
             var difUniformidad = CalcularDiferenciaPorcentual(uniformidadPromedio, uniformidadGuia);
-            var difHuevosTotales = CalcularDiferenciaPorcentual((decimal?)promedioHuevosPorDia, huevosTotalesGuia);
-            var difHuevosIncubables = seguimientosSemana.Count > 0
-                ? CalcularDiferenciaPorcentual((decimal?)huevosIncubables / seguimientosSemana.Count, huevosIncubablesGuia)
-                : null;
+            // H.T.A.A / H.I.A.A de la guía (h_total_aa / h_inc_aa) son ACUMULADOS por ave alojada:
+            // se comparan contra el HTAA/HIAA real acumulado, no contra el promedio de huevos/día.
+            var difHuevosTotales = CalcularDiferenciaPorcentual(htaaReal, huevosTotalesGuia);
+            var difHuevosIncubables = CalcularDiferenciaPorcentual(hiaaReal, huevosIncubablesGuia);
             var difPorcentajeProduccion = CalcularDiferenciaPorcentual((decimal?)eficiencia, porcentajeProduccionGuia);
             var difPesoHuevo = CalcularDiferenciaPorcentual(pesoHuevoPromedio, pesoHuevoGuia);
 
@@ -592,8 +607,8 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 mortalidadM,
                 porcMortalidadH,
                 porcMortalidadM,
-                (int)(mortalidadGuiaH ?? 0),
-                (int)(mortalidadGuiaM ?? 0),
+                mortalidadGuiaH,
+                mortalidadGuiaM,
                 difMortalidadH,
                 difMortalidadM,
                 seleccionH,
@@ -643,7 +658,9 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
                 avesHembrasInicioSemana,
                 avesMachosInicioSemana,
                 avesHembrasActuales,
-                avesMachosActuales));
+                avesMachosActuales,
+                htaaReal,
+                hiaaReal));
 
         }
 
@@ -691,6 +708,13 @@ public class IndicadoresProduccionService : IIndicadoresProduccionService
         var clean = value.Trim().Replace(",", ".");
         return decimal.TryParse(clean, NumberStyles.Any, CultureInfo.InvariantCulture, out var result) ? result : null;
     }
+
+    /// <summary>
+    /// Normaliza el peso de aves a KG. Los pesajes se ingresan en gramos (ej. 3307 g ≈ 3,3 kg);
+    /// la guía también viene en gramos y se muestra en kg (÷1000). Si el valor ya viniera en kg
+    /// (&lt; 100, imposible en gramos para un ave), se deja tal cual. Así el real cuadra con la guía.
+    /// </summary>
+    private static decimal NormalizarPesoKg(decimal peso) => peso > 100m ? peso / 1000m : peso;
 
     private static decimal? CalcularDiferenciaPorcentual(decimal? valorReal, decimal? valorGuia)
     {

@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
+import * as XLSX from 'xlsx';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
@@ -82,6 +83,59 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   fuenteGuiaIndicadores: 'ecuador-mixto' | 'clasica' | null = null;
 
   constructor(private guiaGeneticaService: GuiaGeneticaService) { }
+
+  /** Descarga UN libro Excel con HOJAS SEPARADAS: "Seguimiento" (registros diarios) e "Indicadores". */
+  descargarExcel(): void {
+    const nombre = ((this.selectedLote as any)?.loteNombre || 'lote')
+      .toString().trim().replace(/[\\/:*?"<>|]+/g, '-').slice(0, 100) || 'lote';
+    const stamp = new Date().toISOString().slice(0, 10);
+    const wb = XLSX.utils.book_new();
+
+    const seg = (this.seguimientos || []).map(s => ({
+      Id: s.id,
+      Fecha: (s.fechaRegistro || '').toString().slice(0, 10),
+      MortalidadH: s.mortalidadHembras ?? 0,
+      MortalidadM: s.mortalidadMachos ?? 0,
+      SeleccionH: s.selH ?? 0,
+      SeleccionM: s.selM ?? 0,
+      ErrorSexajeH: s.errorSexajeHembras ?? 0,
+      ErrorSexajeM: s.errorSexajeMachos ?? 0,
+      TipoAlimento: s.tipoAlimento,
+      ConsumoKgH: s.consumoKgHembras ?? 0,
+      ConsumoKgM: s.consumoKgMachos ?? 0,
+      PesoPromH: s.pesoPromH ?? null,
+      PesoPromM: s.pesoPromM ?? null,
+      UniformidadH: s.uniformidadH ?? null,
+      UniformidadM: s.uniformidadM ?? null,
+      CvH: s.cvH ?? null,
+      CvM: s.cvM ?? null
+    }));
+    if (seg.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(seg), 'Seguimiento');
+
+    const ind = (this.indicadoresSemanales || []).map((i: any) => ({
+      Semana: i.semana,
+      AvesInicio: i.avesInicioSemana,
+      AvesFin: i.avesFinSemana,
+      ConsumoDiaGrAve: i.consumoDiario,
+      ConsumoGuiaGrAve: i.consumoTabla,
+      PesoReal: i.pesoCierre,
+      PesoGuia: i.pesoTabla,
+      DifPesoPct: i.difPesoPct,
+      GananciaSem: i.gananciaSemana,
+      GananciaGuia: i.gananciaTabla,
+      UnifReal: i.unifReal,
+      UnifGuia: i.unifTabla,
+      PorcMortSem: i.mortalidadSem,
+      MortGuia: i.mortTabla,
+      PorcSelSem: i.seleccionSem,
+      PorcErrSexajeSem: i.errorSexajeSem,
+      PorcRetiroSem: i.mortalidadMasSeleccion
+    }));
+    if (ind.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ind), 'Indicadores');
+
+    if (!wb.SheetNames.length) return;
+    XLSX.writeFile(wb, `levante-lote-${nombre}-seguimiento-indicadores-${stamp}.xlsx`);
+  }
 
   ngOnInit(): void {
     this.calcularIndicadores().catch(error => {
@@ -232,10 +286,21 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     // Aves al final de la semana
     const avesFin = avesInicio - mortalidadTotal - seleccionTotal;
     
-    // Peso promedio de la semana (usar el último registro de la semana)
+    // Peso/uniformidad del PESAJE de la semana: el pesaje se registra 1 vez por semana (no todos
+    // los días), por lo que el ÚLTIMO día suele venir en 0. Se busca el último registro de la
+    // semana que tenga peso > 0 y se promedian solo los sexos con dato (evita peso=0 y ganancia
+    // negativa cuando el pesaje no cae el último día).
     const ultimoRegistro = registros[registros.length - 1];
-    const pesoPromedio = ((ultimoRegistro?.pesoPromH || 0) + (ultimoRegistro?.pesoPromM || 0)) / 2;
-    const unifReal = ((ultimoRegistro?.uniformidadH || 0) + (ultimoRegistro?.uniformidadM || 0)) / 2;
+    const regPesaje = [...registros].reverse().find(r => (r.pesoPromH || 0) > 0 || (r.pesoPromM || 0) > 0) || ultimoRegistro;
+    const _pH = regPesaje?.pesoPromH || 0;
+    const _pM = regPesaje?.pesoPromM || 0;
+    let pesoPromedio = (_pH > 0 && _pM > 0) ? (_pH + _pM) / 2 : (_pH > 0 ? _pH : _pM);
+    // Semana sin pesaje (hueco de datos): arrastrar el último peso conocido para no mostrar 0
+    // (evita ganancia negativa y diferencia -100% engañosas). Estándar en pesajes semanales.
+    if (pesoPromedio <= 0) pesoPromedio = pesoAnterior || 0;
+    const _uH = regPesaje?.uniformidadH || 0;
+    const _uM = regPesaje?.uniformidadM || 0;
+    const unifReal = (_uH > 0 && _uM > 0) ? (_uH + _uM) / 2 : (_uH > 0 ? _uH : _uM);
     
     // 🔧 MEJORA: Consumo real en gramos (convertir de kg a gramos)
     const consumoTotalGramos = consumoTotal * 1000;

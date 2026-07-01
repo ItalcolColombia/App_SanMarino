@@ -1,11 +1,13 @@
 import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
+import { GuiaGeneticaDto, GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 
 interface PuntoGrafica {
   semana: number;
@@ -86,7 +88,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     { id: 'consumoReal', nombre: 'Consumo Real (g)', icono: '🍽️', color: 'rgba(211, 47, 47, 1)' },
     { id: 'consumoTabla', nombre: 'Consumo Tabla (g)', icono: '📊', color: 'rgba(25, 118, 210, 1)' },
     { id: 'peso', nombre: 'Peso Promedio (g)', icono: '⚖️', color: 'rgba(56, 142, 60, 1)' },
-    { id: 'conversion', nombre: 'Conversión Alimenticia', icono: '🔄', color: 'rgba(33, 150, 243, 1)' },
+    // Conversión Alimenticia removida: es parámetro de pollo de engorde, no aplica a reproductoras (REQ-002h).
     { id: 'seleccion', nombre: 'Selección (%)', icono: '📋', color: 'rgba(156, 39, 176, 1)' },
     { id: 'aves', nombre: 'Aves Vivas', icono: '🐔', color: 'rgba(123, 31, 162, 1)' }
   ];
@@ -140,17 +142,89 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   pieChartType: ChartType = 'pie';
   doughnutChartType: ChartType = 'doughnut';
 
-  constructor() {
+  /** Guía genética por semana (edad), para reemplazar el consumo tabla hardcodeado. */
+  private guiaMap: Map<number, GuiaGeneticaDto> = new Map();
+
+  // ===== Comparativo Real vs Guía (levante) =====
+  metricaComparativa: 'consumo' | 'peso' | 'mortalidad' | 'retiro' = 'consumo';
+  comparativoGuiaChartData: ChartData<'line'> = { labels: [], datasets: [] };
+  comparativoGuiaChartOptions: ChartConfiguration['options'] = {};
+
+  /** Construye la gráfica comparativa Real vs Guía (semanas 1-25) según la métrica seleccionada. */
+  construirComparativoGuia(): void {
+    const data = (this.indicadoresSemanales || []) as any[];
+    const labels = data.map(d => `S${d.semana}`);
+    const real: (number | null)[] = [];
+    const guia: (number | null)[] = [];
+    let etiqueta = '', unidad = '';
+
+    for (const d of data) {
+      const g = this.guiaMap.get(d.semana);
+      switch (this.metricaComparativa) {
+        case 'consumo':
+          etiqueta = 'Consumo'; unidad = 'g/ave/día';
+          real.push(d.consumoReal ?? null);
+          guia.push(d.consumoTabla || (g ? ((g.consumoHembras || 0) + (g.consumoMachos || 0)) / 2 : null));
+          break;
+        case 'peso':
+          etiqueta = 'Peso'; unidad = 'g';
+          real.push(d.pesoCierre ?? null);
+          guia.push(g ? ((g.pesoHembras || 0) + (g.pesoMachos || 0)) / 2 : null);
+          break;
+        case 'mortalidad':
+          etiqueta = '% Mortalidad semana'; unidad = '%';
+          real.push(d.mortalidadSem ?? null);
+          guia.push(g ? ((g.mortalidadHembras || 0) + (g.mortalidadMachos || 0)) / 2 : null);
+          break;
+        case 'retiro':
+          etiqueta = '% Retiro (Mort+Sel+ErrSex)'; unidad = '%';
+          real.push(d.retiroSem ?? null);
+          guia.push(g ? ((g.retiroAcumuladoHembras || 0) + (g.retiroAcumuladoMachos || 0)) / 2 : null);
+          break;
+      }
+    }
+
+    this.comparativoGuiaChartData = {
+      labels,
+      datasets: [
+        { data: real, label: `${etiqueta} — Real`, borderColor: '#2d7a3e', backgroundColor: 'rgba(45,122,62,0.15)', tension: 0.3, spanGaps: true, pointRadius: 2 },
+        { data: guia, label: `${etiqueta} — Guía`, borderColor: '#e85c25', backgroundColor: 'rgba(232,92,37,0.10)', borderDash: [6, 4], tension: 0.3, spanGaps: true, pointRadius: 2 }
+      ]
+    };
+    this.comparativoGuiaChartOptions = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'top' }, title: { display: true, text: `${etiqueta} — Real vs Guía (${unidad})` } },
+      scales: { y: { beginAtZero: false, title: { display: true, text: unidad } } }
+    };
+  }
+
+  constructor(private guiaGeneticaService: GuiaGeneticaService) {
     this.initChartOptions();
   }
 
   ngOnInit(): void {
-    this.prepararDatosGraficas();
+    void this.prepararDatosGraficas();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos'] || changes['selectedLote']) {
-      this.prepararDatosGraficas();
+      void this.prepararDatosGraficas();
+    }
+  }
+
+  /** Prefetch de la guía genética por rango de semanas (raza + año del lote). */
+  private async prefetchGuia(desde: number, hasta: number): Promise<void> {
+    this.guiaMap = new Map();
+    const raza = (this.selectedLote as any)?.raza;
+    const ano = (this.selectedLote as any)?.anoTablaGenetica;
+    if (!raza || !ano) return;
+    try {
+      const d = Math.max(1, Math.min(desde, hasta));
+      const h = Math.max(desde, hasta);
+      const guias = await firstValueFrom(this.guiaGeneticaService.obtenerGuiaGeneticaRango(raza, ano, d, h));
+      (guias || []).forEach(g => this.guiaMap.set(g.edad, g));
+    } catch {
+      this.guiaMap = new Map();
     }
   }
 
@@ -327,15 +401,20 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   // ================== PREPARACIÓN DE DATOS ==================
-  private prepararDatosGraficas(): void {
+  private async prepararDatosGraficas(): Promise<void> {
     if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
       this.seriesGraficas = [];
       this.indicadoresSemanales = [];
       return;
     }
 
-    // Calcular indicadores semanales (reutilizar lógica del componente de indicadores)
-    this.indicadoresSemanales = this.calcularIndicadoresSemanales();
+    // Prefetch de la guía genética para reemplazar el consumo tabla hardcodeado (157).
+    await this.prefetchGuia(1, 25);
+
+    // Calcular indicadores semanales (reutilizar lógica del componente de indicadores).
+    // Levante = semanas 1..25: acotar para no mostrar una semana que no existe/fuera de consecutivo (REQ-008).
+    this.indicadoresSemanales = this.calcularIndicadoresSemanales()
+      .filter((ind: any) => ind.semana >= 1 && ind.semana <= 25);
 
     // Inicializar rangos de filtro con el total de datos disponibles
     if (this.indicadoresSemanales.length > 0) {
@@ -365,6 +444,9 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
 
     // Preparar datos de Chart.js
     this.prepararChartData();
+
+    // Comparativo Real vs Guía
+    this.construirComparativoGuia();
   }
 
   /** Aplicar filtro y refrescar gráficas. */
@@ -771,21 +853,30 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     // Aves al final de la semana
     const avesFin = avesInicio - mortalidadTotal - seleccionTotal - errorSexajeTotal;
 
-    // Peso promedio de la semana (usar el último registro de la semana)
+    // Peso/uniformidad del PESAJE de la semana (el pesaje es semanal, no diario → el último día
+    // suele venir en 0). Se usa el último registro con peso>0 y se arrastra el último conocido si
+    // la semana no tiene pesaje (evita peso=0 y ganancia negativa).
     const ultimoRegistro = registros[registros.length - 1];
-    const pesoPromedio = ((ultimoRegistro?.pesoPromH || 0) + (ultimoRegistro?.pesoPromM || 0)) / 2;
+    const regPesaje = [...registros].reverse().find(r => (r.pesoPromH || 0) > 0 || (r.pesoPromM || 0) > 0) || ultimoRegistro;
+    const _pH = regPesaje?.pesoPromH || 0;
+    const _pM = regPesaje?.pesoPromM || 0;
+    let pesoPromedio = (_pH > 0 && _pM > 0) ? (_pH + _pM) / 2 : (_pH > 0 ? _pH : _pM);
+    if (pesoPromedio <= 0) pesoPromedio = pesoAnterior || 0;
+    const _uH = regPesaje?.uniformidadH || 0;
+    const _uM = regPesaje?.uniformidadM || 0;
+    const uniformidadPromedio = (_uH > 0 && _uM > 0) ? (_uH + _uM) / 2 : (_uH > 0 ? _uH : _uM);
+    const cvPromedio = ((regPesaje?.cvH || 0) + (regPesaje?.cvM || 0)) / 2;
 
-    // Uniformidad y CV (promedio de hembras y machos)
-    const uniformidadPromedio = ((ultimoRegistro?.uniformidadH || 0) + (ultimoRegistro?.uniformidadM || 0)) / 2;
-    const cvPromedio = ((ultimoRegistro?.cvH || 0) + (ultimoRegistro?.cvM || 0)) / 2;
-
-    // Consumo real en gramos por ave (convertir de kg a gramos)
+    // Consumo real en g/ave/DÍA (convertir kg→g y dividir por días con registro), comparable
+    // con la guía (que está en g/ave/día). Antes se dividía solo por aves (g/ave/semana).
     const avesPromedio = (avesInicio + avesFin) / 2;
+    const diasConRegistro = registros.length || 1;
     const consumoRealTotal = consumoTotal * 1000;
-    const consumoRealPorAve = avesPromedio > 0 ? consumoRealTotal / avesPromedio : 0;
+    const consumoRealPorAve = avesPromedio > 0 ? consumoRealTotal / (avesPromedio * diasConRegistro) : 0;
 
-    // Consumo tabla (valor fijo por ahora, debería venir de la tabla genética)
-    const consumoTabla = 157;
+    // Consumo tabla = GUÍA GENÉTICA real por semana (g/ave/día), NO el 157 hardcodeado.
+    const _guia = this.guiaMap.get(semana);
+    const consumoTabla = _guia ? ((_guia.consumoHembras || 0) + (_guia.consumoMachos || 0)) / 2 : 0;
 
     // Conversión alimenticia
     const conversionAlimenticia = avesFin > 0 ? consumoRealTotal / avesFin : 0;

@@ -465,6 +465,10 @@ export interface IndicadorProduccionSemanalDto {
   avesMachosInicioSemana: number;
   avesHembrasFinSemana: number;
   avesMachosFinSemana: number;
+
+  // H.T.A.A / H.I.A.A reales (acumulados por ave alojada) — comparables con la guía
+  htaaReal?: number | null;
+  hiaaReal?: number | null;
 }
 
 export interface IndicadoresProduccionRequest {

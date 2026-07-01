@@ -284,6 +284,12 @@ public class TicketsController : ControllerBase
     public ActionResult Catalogos()
         => Ok(new { tipos = TicketTipos.Todos, estados = TicketEstados.Todos });
 
+    /// <summary>Usuarios de la empresa efectiva candidatos a notificar (copiados) al crear un ticket.</summary>
+    [HttpGet("notificables")]
+    [ProducesResponseType(typeof(IReadOnlyList<UsuarioNotificableDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UsuarioNotificableDto>>> GetNotificables(CancellationToken ct)
+        => Ok(await _service.GetNotificablesAsync(ct));
+
     /// <summary>Eliminación lógica del ticket.</summary>
     [HttpDelete("{id:long}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

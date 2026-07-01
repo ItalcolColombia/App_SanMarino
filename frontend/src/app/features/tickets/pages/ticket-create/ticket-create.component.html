@@ -1,5 +1,5 @@
 <!-- src/app/features/tickets/pages/ticket-create/ticket-create.component.html -->
-<div class="min-h-full bg-gradient-to-b from-ital-cream/60 to-transparent">
+<div class="min-h-full bg-white bg-gradient-to-b from-ital-orange-50 via-white to-white">
   <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
 
     <!-- Hero header -->
@@ -118,6 +118,57 @@
                       [class.border-rose-400]="f.descripcion.invalid && f.descripcion.touched"></textarea>
             @if (f.descripcion.invalid && f.descripcion.touched) {
               <p class="mt-1 text-xs text-rose-600">La descripción es requerida.</p>
+            }
+          </div>
+
+          <!-- Notificar a (opcional): buscador + chips de seleccionados -->
+          <div>
+            <label for="notificados-buscador" class="mb-1.5 block text-sm font-semibold text-slate-700">
+              Notificar a <span class="font-normal text-ital-muted">(opcional)</span>
+            </label>
+            <p class="mb-2 text-xs text-ital-muted">Estas personas recibirán un correo con la información del ticket, sin ser el resolutor.</p>
+
+            <div class="relative">
+              <input id="notificados-buscador" type="text" autocomplete="off"
+                     [ngModel]="notificadosBusqueda" [ngModelOptions]="{standalone: true}"
+                     (ngModelChange)="onNotificadosBusquedaChange($event)"
+                     placeholder="Buscar por nombre o email…"
+                     class="w-full rounded-xl border-slate-200 px-3.5 py-2.5 text-sm shadow-sm focus:border-ital-green focus:ring-ital-green"
+                     aria-label="Buscar usuario a notificar"
+                     [attr.aria-expanded]="notificadosResultados().length > 0"
+                     role="combobox" aria-autocomplete="list" />
+
+              @if (notificadosResultados().length > 0) {
+                <ul class="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-xl bg-white py-1 shadow-lg ring-1 ring-slate-200"
+                    role="listbox">
+                  @for (u of notificadosResultados(); track u.guid) {
+                    <li role="option">
+                      <button type="button" (click)="seleccionarNotificado(u)"
+                              class="flex w-full flex-col items-start gap-0 px-3.5 py-2 text-left text-sm transition hover:bg-ital-green-50">
+                        <span class="font-medium text-slate-700">{{ u.nombre }}</span>
+                        <span class="text-xs text-slate-400">{{ u.email }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            @if (notificadosSeleccionados().length > 0) {
+              <ul class="mt-2.5 flex flex-wrap gap-2" aria-label="Usuarios seleccionados a notificar">
+                @for (u of notificadosSeleccionados(); track u.guid) {
+                  <li class="flex items-center gap-1.5 rounded-full bg-ital-green-50 py-1 pl-3 pr-1.5 text-xs font-medium text-ital-green-dark ring-1 ring-ital-green-100">
+                    <span>{{ u.nombre }}</span>
+                    <span class="text-ital-green-dark/60">·</span>
+                    <span class="text-ital-green-dark/70">{{ u.email }}</span>
+                    <button type="button" (click)="quitarNotificado(u.guid)"
+                            [attr.aria-label]="'Quitar ' + u.nombre + ' de notificados'"
+                            class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ital-green-dark/70 transition hover:bg-ital-green hover:text-white">
+                      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                    </button>
+                  </li>
+                }
+              </ul>
             }
           </div>
 

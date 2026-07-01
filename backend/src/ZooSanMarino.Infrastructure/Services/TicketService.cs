@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using ZooSanMarino.Application.DTOs.Common;
 using ZooSanMarino.Application.DTOs.Tickets;
 using ZooSanMarino.Application.Interfaces;
@@ -19,15 +20,27 @@ public class TicketService : ITicketService
     private readonly ICurrentUser _currentUser;
     private readonly ICompanyResolver _companyResolver;
     private readonly IEmailQueueService _emailQueue;
+    private readonly IConfiguration _configuration;
+    private readonly string _logoUrl;
+    private readonly string _brandName;
+    private readonly string _brandTagline;
+    private readonly string _applicationUrl;
 
     public TicketService(ZooSanMarinoContext ctx, ICurrentUser currentUser,
-        ICompanyResolver companyResolver, IEmailQueueService emailQueue)
+        ICompanyResolver companyResolver, IEmailQueueService emailQueue, IConfiguration configuration)
     {
         _ctx = ctx;
         _currentUser = currentUser;
         _companyResolver = companyResolver;
         _emailQueue = emailQueue;
+        _configuration = configuration;
+        _applicationUrl = _configuration["Email:ApplicationUrl"] ?? "http://localhost:4200";
+        _brandName = _configuration["Email:BrandName"] ?? "ItalGranja";
+        _brandTagline = _configuration["Email:Tagline"] ?? "Gestión de granjas avícolas · Italcol";
+        _logoUrl = _configuration["Email:LogoUrl"] ?? $"{_applicationUrl}/assets/brand/logo_intalfoods_zootenico.png";
     }
+
+    private string BrandLine => $"{_brandName} · {_brandTagline}";
 
     private async Task<int> GetEffectiveCompanyIdAsync()
     {
@@ -121,6 +134,65 @@ public class TicketService : ITicketService
         entity.Codigo = $"TK-{now:yyyy}-{entity.Id:D6}";
         await _ctx.SaveChangesAsync(ct);
 
+        // Notificados (copiados): resolver email + nombre por cada Guid recibido. Se omite
+        // silenciosamente cualquier Guid sin email (Email es requerido en TicketNotificado).
+        List<TicketNotificado> notificadosPersistidos = new();
+        if (req.NotificarUserGuids is { Count: > 0 })
+        {
+            var guids = req.NotificarUserGuids.Distinct().ToList();
+            var infos = await _ctx.Set<User>().AsNoTracking()
+                .Where(u => guids.Contains(u.Id))
+                .Select(u => new
+                {
+                    u.Id, u.firstName, u.surName, u.cedula,
+                    Email = u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault()
+                })
+                .ToListAsync(ct);
+
+            foreach (var info in infos)
+            {
+                if (string.IsNullOrWhiteSpace(info.Email)) continue;
+                var notificado = new TicketNotificado
+                {
+                    TicketId        = entity.Id,
+                    UserGuid        = info.Id,
+                    Cedula          = info.cedula,
+                    Email           = info.Email!,
+                    Nombre          = $"{info.firstName} {info.surName}".Trim(),
+                    CreatedAt       = now,
+                    CreatedByUserId = _currentUser.UserId
+                };
+                _ctx.TicketNotificados.Add(notificado);
+                notificadosPersistidos.Add(notificado);
+            }
+
+            if (notificadosPersistidos.Count > 0)
+                await _ctx.SaveChangesAsync(ct);
+        }
+
+        // Encolar correo "ticket_creado" a cada notificado. No bloquea la creación del ticket.
+        if (notificadosPersistidos.Count > 0)
+        {
+            var (_, creadorNombre) = await ResolveSolicitanteEmailAsync(entity.CreatedByUserGuid, entity.CreatedByUserId, ct);
+            var asignadoNombre = await ResolveNombrePorGuidAsync(entity.AssignedToUserGuid, ct);
+            var body = TicketEmailTemplates.Creado(entity, creadorNombre, asignadoNombre,
+                _logoUrl, _brandName, BrandLine, _applicationUrl);
+
+            foreach (var notificado in notificadosPersistidos)
+            {
+                try
+                {
+                    await _emailQueue.EnqueueEmailAsync(
+                        notificado.Email,
+                        $"[{entity.Codigo}] Nuevo ticket: {entity.Titulo}",
+                        body,
+                        "ticket_creado",
+                        $"{{\"ticketId\":{entity.Id},\"codigo\":\"{entity.Codigo}\"}}");
+                }
+                catch { /* si la cola falla, no bloquea la creación */ }
+            }
+        }
+
         return (await GetByIdInternalAsync(entity.Id, ct))!;
     }
 
@@ -181,6 +253,26 @@ public class TicketService : ITicketService
         });
 
         await _ctx.SaveChangesAsync(ct);
+
+        // Notificar al nuevo resolutor que le asignaron un ticket. No bloquea la transferencia.
+        try
+        {
+            var (nuevoEmail, nuevoNombre) = await ResolveSolicitanteEmailAsync(req.NuevoAsignadoGuid, 0, ct);
+            if (!string.IsNullOrWhiteSpace(nuevoEmail))
+            {
+                var asignadorNombre = await ResolveNombrePorGuidAsync(_currentUser.UserGuid, ct);
+                var body = TicketEmailTemplates.Asignado(ticket, nuevoNombre, asignadorNombre,
+                    _logoUrl, _brandName, BrandLine, _applicationUrl);
+                await _emailQueue.EnqueueEmailAsync(
+                    nuevoEmail!,
+                    $"[{ticket.Codigo}] Te transfirieron un ticket",
+                    body,
+                    "ticket_transferido",
+                    $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");
+            }
+        }
+        catch { /* si la cola falla, no bloquea la transferencia */ }
+
         return await GetByIdInternalAsync(id, ct);
     }
 
@@ -513,6 +605,9 @@ public class TicketService : ITicketService
                 // Adjuntos — solo metadata (sin contenido_base64).
                 Adjuntos = x.Adjuntos.OrderBy(a => a.CreatedAt)
                     .Select(a => new { a.Id, a.Tipo, a.FileName, a.ContentType, a.SizeBytes, a.Url, a.Titulo, a.CreatedByUserId, a.CreatedAt })
+                    .ToList(),
+                Notificados = x.Notificados.OrderBy(n => n.CreatedAt)
+                    .Select(n => new TicketNotificadoDto(n.Id, n.UserGuid, n.Nombre, n.Email))
                     .ToList()
             })
             .FirstOrDefaultAsync(ct);
@@ -582,7 +677,8 @@ public class TicketService : ITicketService
             t.NotificadoCorreo,
             t.FechaNotificacionCorreo,
             t.CorreoNotificadoA,
-            adjuntosDto);
+            adjuntosDto,
+            t.Notificados);
     }
 
     // ───────────────────────────── IMÁGENES ─────────────────────────────
@@ -924,6 +1020,60 @@ public class TicketService : ITicketService
             CreatedAt        = now
         });
         await _ctx.SaveChangesAsync(ct);
+
+        // Notificar el cierre al solicitante + notificados (copiados): resumen de solución +
+        // histórico de la bitácora pública (EsInterna == false). No bloquea el cierre.
+        try
+        {
+            var notasPublicas = await _ctx.TicketNotas.AsNoTracking()
+                .Where(n => n.TicketId == ticket.Id && !n.EsInterna)
+                .OrderBy(n => n.CreatedAt)
+                .Select(n => new { n.UserId, n.Nota, n.CreatedAt })
+                .ToListAsync(ct);
+
+            var autorInfo = await BuildNotaUserInfoAsync(
+                notasPublicas.Select(n => n.UserId).Where(x => x != 0).Distinct().ToList(),
+                ticket.CompanyId, ct);
+
+            var notasResumen = notasPublicas.Select(n =>
+            {
+                autorInfo.TryGetValue(n.UserId, out var info);
+                return new TicketEmailTemplates.NotaResumen(info.Nombre, n.CreatedAt, n.Nota);
+            }).ToList();
+
+            var destinatarios = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+            var (solicitanteEmail, solicitanteNombre) = await ResolveSolicitanteEmailAsync(
+                ticket.CreatedByUserGuid, ticket.CreatedByUserId, ct);
+            if (!string.IsNullOrWhiteSpace(solicitanteEmail))
+                destinatarios[solicitanteEmail!] = solicitanteNombre;
+
+            var notificados = await _ctx.TicketNotificados.AsNoTracking()
+                .Where(n => n.TicketId == ticket.Id)
+                .Select(n => new { n.Email, n.Nombre })
+                .ToListAsync(ct);
+            foreach (var n in notificados)
+                if (!string.IsNullOrWhiteSpace(n.Email))
+                    destinatarios.TryAdd(n.Email, n.Nombre);
+
+            foreach (var (email, nombre) in destinatarios)
+            {
+                try
+                {
+                    var body = TicketEmailTemplates.Cerrado(ticket, nombre, notasResumen,
+                        _logoUrl, _brandName, BrandLine, _applicationUrl);
+                    await _emailQueue.EnqueueEmailAsync(
+                        email,
+                        $"[{ticket.Codigo}] Ticket cerrado",
+                        body,
+                        "ticket_cerrado",
+                        $"{{\"ticketId\":{ticket.Id},\"codigo\":\"{ticket.Codigo}\"}}");
+                }
+                catch { /* si la cola falla para un destinatario, se sigue con los demás */ }
+            }
+        }
+        catch { /* si falla la resolución de destinatarios, no bloquea el cierre */ }
+
         return await GetByIdInternalAsync(id, ct);
     }
 
@@ -950,6 +1100,47 @@ public class TicketService : ITicketService
                 return (u.Email, $"{u.firstName} {u.surName}".Trim());
         }
         return (null, null);
+    }
+
+    /// <summary>Nombre completo de un usuario por Guid (helper liviano para los correos de tickets).</summary>
+    private async Task<string?> ResolveNombrePorGuidAsync(Guid? guid, CancellationToken ct)
+    {
+        if (!guid.HasValue) return null;
+        var u = await _ctx.Set<User>().AsNoTracking()
+            .Where(x => x.Id == guid.Value)
+            .Select(x => new { x.firstName, x.surName })
+            .FirstOrDefaultAsync(ct);
+        return u is null ? null : $"{u.firstName} {u.surName}".Trim();
+    }
+
+    // ───────────────────────────── NOTIFICADOS (copiados) ─────────────────────────────
+
+    /// <summary>
+    /// Usuarios de la empresa efectiva con email registrado, candidatos a ser notificados
+    /// (copiados) al crear un ticket. Excluye al usuario actual.
+    /// </summary>
+    public async Task<IReadOnlyList<UsuarioNotificableDto>> GetNotificablesAsync(CancellationToken ct)
+    {
+        var companyId = await GetEffectiveCompanyIdAsync();
+        var currentGuid = _currentUser.UserGuid;
+
+        var rows = await _ctx.Set<User>().AsNoTracking()
+            .Where(u => u.UserRoles.Any(ur => ur.CompanyId == companyId))
+            .Select(u => new
+            {
+                u.Id, u.firstName, u.surName,
+                Email = u.UserLogins.Select(ul => ul.Login.email).FirstOrDefault(),
+                Rol = u.UserRoles.Where(ur => ur.CompanyId == companyId)
+                                 .Select(ur => ur.Role.Name).FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        return rows
+            .Where(u => !string.IsNullOrWhiteSpace(u.Email))
+            .Where(u => !currentGuid.HasValue || u.Id != currentGuid.Value)
+            .Select(u => new UsuarioNotificableDto(u.Id, $"{u.firstName} {u.surName}".Trim(), u.Email!, u.Rol))
+            .OrderBy(u => u.Nombre)
+            .ToList();
     }
 
     private static string BuildSolucionEmailBody(Ticket t, string? nombreSolicitante)

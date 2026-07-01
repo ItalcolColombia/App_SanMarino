@@ -139,7 +139,8 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
    *  por género (↘ Ing.H, ↘ Ing.M, ↗ Sal.H, ↗ Sal.M) en lugar de 2 totales,
    *  por lo que sumamos +2 columnas al cómputo base. */
   get colspanRegistroDiario(): number {
-    return 25 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
+    // 24 columnas base (se quitó "Día (calendario)"; la fecha ya lo cubre — REQ-007e).
+    return 24 + (this.enriquecerTablaConHistoricoInventario ? 3 : 0);
   }
 
   trackByDiarioFila = (_: number, f: RegistroDiarioTablaFila) => f.seg.id;
@@ -567,7 +568,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Fecha',
       'Semana',
       'Edad (días vida)',
-      'Día (calendario)',
       'Mortalidad hembras',
       'Mortalidad machos',
       'Selección hembras',
@@ -589,7 +589,7 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
       'Consumo kg machos',
       'Consumo real día (kg)',
       'Consumo acumulado (kg)',
-      '% pérdidas del día',
+      '% Retiro (Mort+Sel)/aves',
       'Peso prom. hembras (kg)',
       'Peso prom. machos (kg)',
       'Observaciones',
@@ -606,7 +606,6 @@ export class TabsPrincipalComponent implements OnInit, OnChanges {
         this.formatDMY(s.fechaRegistro),
         f.semana,
         f.edadDia,
-        f.diaCorto,
         s.mortalidadHembras ?? 0,
         s.mortalidadMachos ?? 0,
         s.selH ?? 0,
