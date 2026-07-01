@@ -21,7 +21,7 @@
 - [ ] DECISIÓN USUARIO: `features/test/company-admin-test` y `config/farm-management/company-test.component` SÍ están montados en la UI de farm-management (paneles "test" visibles) — quitarlos cambia UI
 - [x] Barrido: servicios back sin registro DI → solo `RoleService` (eliminado); `TicketEmailTemplates` es estático y vivo
 - [x] Barrido bruto: 45 clases TS sin referencias externas → reporte en scratchpad `front_sin_referencias.txt` (contiene falsos positivos; verificar 1×1)
-- [ ] Verificar y eliminar candidatos confirmados del barrido front (prioridad: `MockGuiaGeneticaService`, `TrasladoNavigationDemoComponent`, `FichaLoteSelectComponent` ×2, `SeguimientoDiarioLoteReproductoraLocalService`, tablas `reportes-tecnicos/tabla-datos-*` ×6, pipes/módulos sueltos)
+- [x] Verificados y eliminados 70 archivos de código muerto front (−6.461 líneas). Falsos positivos restaurados: `is-ecuador.pipe`, `lote-seguimiento.service`. Quedan vivos (confirmado uso): `lazy-observe`, `show-if-ecuador`, `conteo-fisico`, `movimiento-alimento-form`, `tabla-indicadores-diarios`
 - [ ] Barrido: DTOs y modelos huérfanos
 - [ ] Clasificar `/backend/sql/`: scripts vivos (fn_/vw_/triggers) vs diagnósticos históricos (solo documentar)
 
@@ -57,3 +57,4 @@
 |---|---|---|---|
 | 1 | Código muerto back (managerUser, RoleService/IRoleService/RolePermissionsController) + front (features/company, http-helper-test) | `7c14080` | dotnet build 0 err · yarn build OK · visual: app carga y login OK |
 | 2 | Fase 0 cerrada: tests baseline (26 ✅), entorno local arriba (back :5002 + front :4200), barrido bruto front (45 candidatos) | (tracker) | backend arranca sin conflictos de ruta; login renderiza sin errores de consola |
+| 3 | 70 archivos de código muerto front eliminados (−6.461 líneas), 2 falsos positivos restaurados | `e1e28a4` | ng build OK (122 s) · app recargada y login OK en :4200 |
