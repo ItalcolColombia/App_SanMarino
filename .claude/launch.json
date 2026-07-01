@@ -7,6 +7,13 @@
       "runtimeArgs": ["start", "--", "--port", "4200"],
       "cwd": "frontend",
       "port": 4200
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run"],
+      "cwd": "backend/src/ZooSanMarino.API",
+      "port": 5002
     }
   ]
 }

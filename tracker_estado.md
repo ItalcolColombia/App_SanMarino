@@ -9,9 +9,10 @@
 ## Fase 0 — Línea base
 - [x] Rama `refactor/optimizacion-multipais` creada desde `main`
 - [x] Build backend baseline: **0 errores, 6 advertencias** (SeguimientoDiarioService x3 null-refs, EmailQueueProcessorService x1)
-- [ ] Build frontend baseline (`yarn build`) — en curso
-- [ ] `dotnet test` baseline
-- [ ] Entorno local arriba para validación visual (`make up` / preview)
+- [x] Build frontend baseline (`yarn build`) ✅ OK (259 s, 0 errores)
+- [x] `dotnet test` baseline: **26 pasan / 0 fallan** (1 Domain + 25 Application.Tests)
+- [x] Docker arriba; **GOTCHA:** la BD local real es el **Postgres NATIVO de Windows en :5433** (95 tablas, `sanmarinoapplocal`), NO el contenedor `sanmarino-postgres` (mapea 5433→5432 pero su volumen está VACÍO; conflicto de puerto con el nativo). EF conecta al nativo.
+- [x] Entorno local arriba para validación visual: backend :5002 (Development, BD local nativa, migraciones OK) + front :4200 vía preview. **Validación visual ciclo 1:** login renderiza, app carga, sin errores de consola propios (solo 401 esperado sin sesión). Swagger protegido por login propio → validación E2E de endpoints autenticados requiere credenciales del usuario.
 
 ## Fase 1 — Código muerto (bajo riesgo)
 - [x] Eliminar `backend/.../Services/managerUser.cs` (namespace UserAdmin, 0 referencias) + build ✅ 0 errores
@@ -19,7 +20,8 @@
 - [ ] Eliminar `frontend/src/app/features/test/http-helper-test/` (sin ruta ni import) + `features/company/` (service huérfano, la vía viva es `core/services/company`) — esperar build baseline front
 - [ ] DECISIÓN USUARIO: `features/test/company-admin-test` y `config/farm-management/company-test.component` SÍ están montados en la UI de farm-management (paneles "test" visibles) — quitarlos cambia UI
 - [x] Barrido: servicios back sin registro DI → solo `RoleService` (eliminado); `TicketEmailTemplates` es estático y vivo
-- [ ] Barrido: componentes/servicios front sin ruta ni import (madge o grep sistemático)
+- [x] Barrido bruto: 45 clases TS sin referencias externas → reporte en scratchpad `front_sin_referencias.txt` (contiene falsos positivos; verificar 1×1)
+- [ ] Verificar y eliminar candidatos confirmados del barrido front (prioridad: `MockGuiaGeneticaService`, `TrasladoNavigationDemoComponent`, `FichaLoteSelectComponent` ×2, `SeguimientoDiarioLoteReproductoraLocalService`, tablas `reportes-tecnicos/tabla-datos-*` ×6, pipes/módulos sueltos)
 - [ ] Barrido: DTOs y modelos huérfanos
 - [ ] Clasificar `/backend/sql/`: scripts vivos (fn_/vw_/triggers) vs diagnósticos históricos (solo documentar)
 
@@ -37,7 +39,9 @@
 - [ ] Revisar índices para filtros frecuentes (lote, fecha, company_id, pais_id)
 
 ## Fase 4 — Normalización y limpieza BD
-- [ ] Cruce `information_schema` local vs entidades mapeadas → informe de tablas sin uso
+- [x] Cruce inicial `information_schema` local (95 tablas) vs entidades mapeadas. Candidatas a DROP (confirmar en prod antes): `_backup_cuadre_expected_2026_06_01`, `_migracion_saldo_alimento_2026_05_28`, `_migracion_saldo_alimento_2026_05_31`, `_migracion_saldo_alimento_m1_2026_05_31`, `guia_semana`, `user_paises` (las 2 últimas: sin entidad ni servicio, solo aparecen en la migración `AddMissingDbFunctionsTriggersAndViews`)
+- [ ] Investigar: `seguimiento_diario_aves_engorde_ecuador` y `_panama` están mapeadas en EF pero NO existen en BD local y EF dice "0 pendientes" → ¿creadas solo por SQL crudo en prod? ¿o tablas fantasma sin uso? (memoria: los datos de Ecuador viven en `seguimiento_diario_aves_engorde` compartida)
+- [ ] Confirmar en prod (solo lectura) los conteos de filas de las candidatas a DROP
 - [ ] Informe de columnas legacy no mapeadas
 - [ ] Script `DROP IF EXISTS` propuesto (NO ejecutar sin OK explícito)
 
@@ -49,3 +53,5 @@
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
 |---|---|---|---|
+| 1 | Código muerto back (managerUser, RoleService/IRoleService/RolePermissionsController) + front (features/company, http-helper-test) | `7c14080` | dotnet build 0 err · yarn build OK · visual: app carga y login OK |
+| 2 | Fase 0 cerrada: tests baseline (26 ✅), entorno local arriba (back :5002 + front :4200), barrido bruto front (45 candidatos) | (tracker) | backend arranca sin conflictos de ruta; login renderiza sin errores de consola |
