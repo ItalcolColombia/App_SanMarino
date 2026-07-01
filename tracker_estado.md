@@ -40,7 +40,9 @@
 
 ## Fase 4 — Normalización y limpieza BD
 - [x] Cruce inicial `information_schema` local (95 tablas) vs entidades mapeadas. Candidatas a DROP (confirmar en prod antes): `_backup_cuadre_expected_2026_06_01`, `_migracion_saldo_alimento_2026_05_28`, `_migracion_saldo_alimento_2026_05_31`, `_migracion_saldo_alimento_m1_2026_05_31`, `guia_semana`, `user_paises` (las 2 últimas: sin entidad ni servicio, solo aparecen en la migración `AddMissingDbFunctionsTriggersAndViews`)
-- [ ] Investigar: `seguimiento_diario_aves_engorde_ecuador` y `_panama` están mapeadas en EF pero NO existen en BD local y EF dice "0 pendientes" → ¿creadas solo por SQL crudo en prod? ¿o tablas fantasma sin uso? (memoria: los datos de Ecuador viven en `seguimiento_diario_aves_engorde` compartida)
+- [x] Investigado: `SeguimientoDiarioAvesEngordeEcuador` (entidad+DbSet+config) es artefacto MUERTO del modelo — ningún servicio la usa; Ecuador escribe en la tabla compartida `seguimiento_diario_aves_engorde`. La `_panama` SÍ la usa `SeguimientoAvesEngordePanamaService` pero la tabla no existe en BD local (creada por SQL crudo en prod) → módulo Panamá crashearía local.
+- [ ] DECISIÓN USUARIO: eliminar entidad `SeguimientoDiarioAvesEngordeEcuador` del modelo (genera migración con DropTable → editar a no-op o `DROP IF EXISTS` según confirmes si la tabla existe en prod con datos)
+- [ ] Crear migración idempotente `CREATE TABLE IF NOT EXISTS seguimiento_diario_aves_engorde_panama` para alinear local con el código (el código manda)
 - [ ] Confirmar en prod (solo lectura) los conteos de filas de las candidatas a DROP
 - [ ] Informe de columnas legacy no mapeadas
 - [ ] Script `DROP IF EXISTS` propuesto (NO ejecutar sin OK explícito)
