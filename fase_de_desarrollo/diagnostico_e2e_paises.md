@@ -15,10 +15,16 @@
 - [x] Venta de Aves: validado en ciclo 24 (peso obligatorio, bloqueo + aviso) ✔
 - Hallazgos: **H1** registrado abajo (NG0103)
 
-### A2. Panamá (admin.panama) — GOTCHA: ItalcolPanama sin granjas/lotes en BD local
-- [ ] Documentar límite: sin datos no hay flujo de creación posible → validar carga de módulos, estados vacíos sin errores de consola, y Liquidación técnica / Informe Semanal en vacío
-- [ ] Decidir con el usuario si se crean datos semilla de Panamá (granja+lote de prueba) para E2E completo
-- Hallazgos: (pendiente)
+### A2. Panamá (admin.panama) — CERRADA 2026-07-02 (limitada por datos)
+- [x] Módulos cargados en vacío SIN errores de consola: Liquidación técnica (`/indicador-ecuador` renderiza **"Indicador Panamá"** con 🇵🇦 — country-aware ✔, "Calcular Indicadores" en vacío no explota), Informe Semanal Pollo Engorde (encabezado 🇵🇦), Lote Aves de Engorde (config), aves-engorde (filtros vacíos)
+- [x] **LÍMITE DOCUMENTADO**: ItalcolPanama (company 5) tiene 0 granjas y 0 lotes en la BD local → imposible probar crear→ver→eliminar. **DECISIÓN USUARIO pendiente**: crear datos semilla de Panamá (granja+galpón+lote de prueba) para E2E completo, o esperar copia de prod con datos Panamá
+- Hallazgos: ninguno nuevo (estados vacíos sanos)
+
+### A3-resultado. Colombia (solangyramirez, postura) — CERRADA 2026-07-02
+- [x] Seguimiento Diario de Producción (NIZA III / Modulo I=324 / Galpon 3=G0010 / lote P-K345A): 301 registros cargan sin errores → **crear** registro 02/07 (100 huevos, 90 incubables, peso 60, obs PRUEBA-E2E) → guardado y visible (302 filas) → **eliminar** con confirmación (301, BD limpia) ✔
+- [x] Pestaña Indicadores postura: 43 semanas con comparación vs guía genética Colombia y semáforo (Óptimo ≤5% / Aceptable ≤15% / atención >15%) ✔
+- [x] Seguimiento de Levante: sin lotes activos en la cascada (lotes ya trasladados a producción) — no es bug; CRUD no probado por falta de lote abierto de levante
+- Hallazgos: **H2** registrado abajo
 
 ### A3. Colombia (solangyramirez, postura) — módulos: Lote Postura, Seg. Levante, Seg. Producción, Seg. Reproductora, Inventario, Traslados
 - [ ] Seguimiento Diario de Levante: crear registro, ver en tabla/indicadores, editar/eliminar
@@ -38,4 +44,5 @@
 ## Registro de hallazgos (se llena en FASE A)
 | # | País | Módulo | Severidad prelim. | Descripción | Evidencia |
 |---|---|---|---|---|---|
+| H2 | Colombia | Filtros levante/producción | Media (UX/datos) | Dropdown de galpón muestra "Galpon 3" DOS veces (son galpones distintos: G0023 y G0024 con el mismo nombre) — el usuario no puede distinguirlos. Aplica a levante y producción (mismo componente de filtros). Fix candidato: mostrar `nombre (código)` en las opciones; opcional: informe de datos con nombres duplicados por núcleo. | Opciones del select con values `3: G0023` y `4: G0024`, mismo texto |
 | H1 | Ecuador | front (por aislar) | **Alta** | Ráfaga de ~100 `NG0103: Infinite change detection` en consola durante el flujo E2E (sesión con: modal venta granja ciclo 24 → CRUD seguimiento → tabs → liquidación → gestion-inventario). NO reproducido al re-ejecutar individualmente: gestion-inventario (0), indicador-ecuador+generar (0), gráficas (0), indicadores (0), modal venta+cantidad (0). Sospechosos para QA: modal-seguimiento-engorde durante guardar/eliminar (recarga de datos), y getters que crean arrays por ciclo (`prorateoPreview`, patrón vetado por CLAUDE.md) bajo algún estado intermedio. NG0103 detiene el ciclo de CD → riesgo de UI congelada para el usuario. | preview_console_logs 108 entradas; contadores por página en 0 al reintentar |
