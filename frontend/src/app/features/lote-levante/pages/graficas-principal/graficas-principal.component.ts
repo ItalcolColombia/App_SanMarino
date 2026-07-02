@@ -4,10 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
-import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
+import { SeguimientoLoteLevanteDto, SeguimientoLoteLevanteService, IndicadorSemanalLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
-import { GuiaGeneticaDto, GuiaGeneticaService } from '../../../../services/guia-genetica.service';
 
 interface PuntoGrafica {
   semana: number;
@@ -142,9 +141,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   pieChartType: ChartType = 'pie';
   doughnutChartType: ChartType = 'doughnut';
 
-  /** Guía genética por semana (edad), para reemplazar el consumo tabla hardcodeado. */
-  private guiaMap: Map<number, GuiaGeneticaDto> = new Map();
-
   // ===== Comparativo Real vs Guía (levante) =====
   metricaComparativa: 'consumo' | 'peso' | 'mortalidad' | 'retiro' = 'consumo';
   comparativoGuiaChartData: ChartData<'line'> = { labels: [], datasets: [] };
@@ -158,28 +154,30 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     const guia: (number | null)[] = [];
     let etiqueta = '', unidad = '';
 
+    // Los valores "tabla" (guía) vienen del DTO calculado en la BD (fn_indicadores_levante_postura):
+    // consumoTabla, pesoTabla, mortTabla. El front ya NO consulta la guía genética.
     for (const d of data) {
-      const g = this.guiaMap.get(d.semana);
       switch (this.metricaComparativa) {
         case 'consumo':
           etiqueta = 'Consumo'; unidad = 'g/ave/día';
           real.push(d.consumoReal ?? null);
-          guia.push(d.consumoTabla || (g ? ((g.consumoHembras || 0) + (g.consumoMachos || 0)) / 2 : null));
+          guia.push((d.consumoTabla ?? 0) > 0 ? d.consumoTabla : null);
           break;
         case 'peso':
           etiqueta = 'Peso'; unidad = 'g';
           real.push(d.pesoCierre ?? null);
-          guia.push(g ? ((g.pesoHembras || 0) + (g.pesoMachos || 0)) / 2 : null);
+          guia.push((d.pesoTabla ?? 0) > 0 ? d.pesoTabla : null);
           break;
         case 'mortalidad':
           etiqueta = '% Mortalidad semana'; unidad = '%';
           real.push(d.mortalidadSem ?? null);
-          guia.push(g ? ((g.mortalidadHembras || 0) + (g.mortalidadMachos || 0)) / 2 : null);
+          guia.push((d.mortTabla ?? 0) > 0 ? d.mortTabla : null);
           break;
         case 'retiro':
+          // La BD no expone una guía de retiro (mort+sel+errSex); se muestra solo la serie real.
           etiqueta = '% Retiro (Mort+Sel+ErrSex)'; unidad = '%';
           real.push(d.retiroSem ?? null);
-          guia.push(g ? ((g.retiroAcumuladoHembras || 0) + (g.retiroAcumuladoMachos || 0)) / 2 : null);
+          guia.push(null);
           break;
       }
     }
@@ -198,7 +196,7 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     };
   }
 
-  constructor(private guiaGeneticaService: GuiaGeneticaService) {
+  constructor(private seguimientoSvc: SeguimientoLoteLevanteService) {
     this.initChartOptions();
   }
 
@@ -209,22 +207,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['seguimientos'] || changes['selectedLote']) {
       void this.prepararDatosGraficas();
-    }
-  }
-
-  /** Prefetch de la guía genética por rango de semanas (raza + año del lote). */
-  private async prefetchGuia(desde: number, hasta: number): Promise<void> {
-    this.guiaMap = new Map();
-    const raza = (this.selectedLote as any)?.raza;
-    const ano = (this.selectedLote as any)?.anoTablaGenetica;
-    if (!raza || !ano) return;
-    try {
-      const d = Math.max(1, Math.min(desde, hasta));
-      const h = Math.max(desde, hasta);
-      const guias = await firstValueFrom(this.guiaGeneticaService.obtenerGuiaGeneticaRango(raza, ano, d, h));
-      (guias || []).forEach(g => this.guiaMap.set(g.edad, g));
-    } catch {
-      this.guiaMap = new Map();
     }
   }
 
@@ -401,6 +383,14 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
   }
 
   // ================== PREPARACIÓN DE DATOS ==================
+  /**
+   * Los indicadores semanales de levante se calculan en la BD
+   * (fn_indicadores_levante_postura, endpoint …/por-lote/{id}/indicadores).
+   * El front SOLO pinta: no recalcula desde los seguimientos crudos ni consulta
+   * la guía genética en el cliente. Los valores "tabla" (consumo/peso/mortalidad
+   * de guía) llegan dentro del mismo DTO, garantizando consistencia con la tabla
+   * de indicadores.
+   */
   private async prepararDatosGraficas(): Promise<void> {
     if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
       this.seriesGraficas = [];
@@ -408,13 +398,28 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Prefetch de la guía genética para reemplazar el consumo tabla hardcodeado (157).
-    await this.prefetchGuia(1, 25);
-
-    // Calcular indicadores semanales (reutilizar lógica del componente de indicadores).
-    // Levante = semanas 1..25: acotar para no mostrar una semana que no existe/fuera de consecutivo (REQ-008).
-    this.indicadoresSemanales = this.calcularIndicadoresSemanales()
-      .filter((ind: any) => ind.semana >= 1 && ind.semana <= 25);
+    // Traer indicadores calculados en la BD (misma fuente que la tabla).
+    // Levante = semanas 1..25: acotar por si la fn devolviera algo fuera de rango (REQ-008).
+    const loteId = this.resolverLoteId();
+    if (loteId == null) {
+      this.seriesGraficas = [];
+      this.indicadoresSemanales = [];
+      return;
+    }
+    let dtos: IndicadorSemanalLevanteDto[] = [];
+    try {
+      dtos = await firstValueFrom(this.seguimientoSvc.getIndicadores(loteId)) || [];
+    } catch (e) {
+      console.warn('Indicadores desde BD no disponibles para gráficas:', e);
+      this.seriesGraficas = [];
+      this.indicadoresSemanales = [];
+      return;
+    }
+    this.indicadoresSemanales = dtos
+      .filter(d => d.semana >= 1 && d.semana <= 25)
+      .sort((a, b) => a.semana - b.semana)
+      .map(d => this.mapDtoAIndicador(d));
+    this.calcularIncrementosConsumo(this.indicadoresSemanales);
 
     // Inicializar rangos de filtro con el total de datos disponibles
     if (this.indicadoresSemanales.length > 0) {
@@ -739,7 +744,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
         'seleccion': '📋',
         'retiro': '📉',
         'uniformidad': '📐',
-        'cv': '📈',
         'difConsumo': '🔀',
         'incrConsumo': '📊',
         'aves': '🐔'
@@ -760,167 +764,62 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     return titulos[this.tipoGraficaSeleccionada] || '📊 Gráfica';
   }
 
-  private calcularIndicadoresSemanales(): any[] {
-    // Agrupar registros por semana
-    const registrosPorSemana = this.agruparPorSemana(this.seguimientos);
-
-    // Calcular indicadores para cada semana
-    return this.calcularIndicadoresSemanalesFromGrupos(registrosPorSemana);
+  /** loteId numérico (lotes.lote_id) para pedir los indicadores a la BD. */
+  private resolverLoteId(): number | null {
+    const candidatos = [
+      (this.selectedLote as any)?.loteId,
+      (this.seguimientos?.[0] as any)?.loteId
+    ];
+    for (const c of candidatos) {
+      const n = Number(c);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
   }
 
-  private agruparPorSemana(registros: SeguimientoLoteLevanteDto[]): Map<number, SeguimientoLoteLevanteDto[]> {
-    const grupos = new Map<number, SeguimientoLoteLevanteDto[]>();
-
-    registros.forEach(registro => {
-      const semana = this.calcularSemana(registro.fechaRegistro);
-      if (!grupos.has(semana)) {
-        grupos.set(semana, []);
-      }
-      grupos.get(semana)!.push(registro);
-    });
-
-    // Ordenar registros dentro de cada semana por fecha
-    grupos.forEach((registros, semana) => {
-      registros.sort((a, b) => new Date(a.fechaRegistro).getTime() - new Date(b.fechaRegistro).getTime());
-    });
-
-    return grupos;
-  }
-
-  private calcularSemana(fechaRegistro: string | Date): number {
-    if (!this.selectedLote?.fechaEncaset) return 1;
-
-    const fechaEncaset = new Date(this.selectedLote.fechaEncaset);
-    const fechaReg = new Date(fechaRegistro);
-    const diffTime = fechaReg.getTime() - fechaEncaset.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    return Math.max(1, Math.ceil(diffDays / 7));
-  }
-
-  private calcularIndicadoresSemanalesFromGrupos(grupos: Map<number, SeguimientoLoteLevanteDto[]>): any[] {
-    const indicadores: any[] = [];
-    const semanas = Array.from(grupos.keys()).sort((a, b) => a - b);
-
-    let avesAcumuladas = this.selectedLote?.avesEncasetadas || 0;
-    let mortalidadAcumulada = 0;
-    let seleccionAcumulada = 0;
-    let pesoAnterior = this.selectedLote?.pesoInicialH || 0;
-    let consumoAnterior = 0;
-    let consumoTablaAnterior = 0;
-
-    semanas.forEach((semana, index) => {
-      const registros = grupos.get(semana) || [];
-      const indicador = this.calcularIndicadorSemana(semana, registros, avesAcumuladas, mortalidadAcumulada, seleccionAcumulada, pesoAnterior);
-
-      // Calcular incrementos de consumo (comparar con semana anterior)
-      if (index > 0 && consumoAnterior > 0) {
-        indicador.incrConsumoReal = indicador.consumoReal - consumoAnterior;
-        indicador.incrConsumoTabla = indicador.consumoTabla - consumoTablaAnterior;
-      } else {
-        indicador.incrConsumoReal = 0;
-        indicador.incrConsumoTabla = 0;
-      }
-
-      indicadores.push(indicador);
-
-      // Actualizar acumulados para la siguiente semana
-      avesAcumuladas = indicador.avesFinSemana;
-      mortalidadAcumulada += indicador.mortalidadSem;
-      seleccionAcumulada += indicador.seleccionSem;
-      pesoAnterior = indicador.pesoCierre;
-      consumoAnterior = indicador.consumoReal;
-      consumoTablaAnterior = indicador.consumoTabla;
-    });
-
-    return indicadores;
-  }
-
-  private calcularIndicadorSemana(
-    semana: number,
-    registros: SeguimientoLoteLevanteDto[],
-    avesInicio: number,
-    mortalidadAcum: number,
-    seleccionAcum: number,
-    pesoAnterior: number
-  ): any {
-    // Calcular totales de la semana
-    const mortalidadTotal = registros.reduce((sum, r) => sum + (r.mortalidadHembras || 0) + (r.mortalidadMachos || 0), 0);
-    const seleccionTotal = registros.reduce((sum, r) => sum + (r.selH || 0) + (r.selM || 0), 0);
-    const errorSexajeTotal = registros.reduce((sum, r) => sum + (r.errorSexajeHembras || 0) + (r.errorSexajeMachos || 0), 0);
-    const consumoTotal = registros.reduce((sum, r) => sum + (r.consumoKgHembras || 0) + (r.consumoKgMachos || 0), 0);
-
-    // Aves al final de la semana
-    const avesFin = avesInicio - mortalidadTotal - seleccionTotal - errorSexajeTotal;
-
-    // Peso/uniformidad del PESAJE de la semana (el pesaje es semanal, no diario → el último día
-    // suele venir en 0). Se usa el último registro con peso>0 y se arrastra el último conocido si
-    // la semana no tiene pesaje (evita peso=0 y ganancia negativa).
-    const ultimoRegistro = registros[registros.length - 1];
-    const regPesaje = [...registros].reverse().find(r => (r.pesoPromH || 0) > 0 || (r.pesoPromM || 0) > 0) || ultimoRegistro;
-    const _pH = regPesaje?.pesoPromH || 0;
-    const _pM = regPesaje?.pesoPromM || 0;
-    let pesoPromedio = (_pH > 0 && _pM > 0) ? (_pH + _pM) / 2 : (_pH > 0 ? _pH : _pM);
-    if (pesoPromedio <= 0) pesoPromedio = pesoAnterior || 0;
-    const _uH = regPesaje?.uniformidadH || 0;
-    const _uM = regPesaje?.uniformidadM || 0;
-    const uniformidadPromedio = (_uH > 0 && _uM > 0) ? (_uH + _uM) / 2 : (_uH > 0 ? _uH : _uM);
-    const cvPromedio = ((regPesaje?.cvH || 0) + (regPesaje?.cvM || 0)) / 2;
-
-    // Consumo real en g/ave/DÍA (convertir kg→g y dividir por días con registro), comparable
-    // con la guía (que está en g/ave/día). Antes se dividía solo por aves (g/ave/semana).
-    const avesPromedio = (avesInicio + avesFin) / 2;
-    const diasConRegistro = registros.length || 1;
-    const consumoRealTotal = consumoTotal * 1000;
-    const consumoRealPorAve = avesPromedio > 0 ? consumoRealTotal / (avesPromedio * diasConRegistro) : 0;
-
-    // Consumo tabla = GUÍA GENÉTICA real por semana (g/ave/día), NO el 157 hardcodeado.
-    const _guia = this.guiaMap.get(semana);
-    const consumoTabla = _guia ? ((_guia.consumoHembras || 0) + (_guia.consumoMachos || 0)) / 2 : 0;
-
-    // Conversión alimenticia
-    const conversionAlimenticia = avesFin > 0 ? consumoRealTotal / avesFin : 0;
-
-    // Porcentajes
-    const mortalidadSem = avesInicio > 0 ? (mortalidadTotal / avesInicio) * 100 : 0;
-    const seleccionSem = avesInicio > 0 ? (seleccionTotal / avesInicio) * 100 : 0;
-    const errorSexajeSem = avesInicio > 0 ? (errorSexajeTotal / avesInicio) * 100 : 0;
-    const retiroSem = mortalidadSem + seleccionSem + errorSexajeSem;
-
-    // Diferencias porcentuales (vs guía)
-    const difConsumoPorc = consumoTabla > 0 ? ((consumoRealPorAve - consumoTabla) / consumoTabla) * 100 : 0;
-    // Nota: difPesoPorc requiere peso de guía genética (se calculará cuando esté disponible)
-
-    // Incrementos de consumo (comparar con semana anterior si existe)
-    // Esto se calculará después cuando tengamos todas las semanas
-
-    // Eficiencia
-    const eficiencia = conversionAlimenticia > 0 ? pesoPromedio / conversionAlimenticia / 10 : 0;
-
-    // IP (Índice de Productividad)
-    const ip = conversionAlimenticia > 0 ? ((pesoPromedio / conversionAlimenticia) / 10) / conversionAlimenticia : 0;
-
+  /**
+   * Mapea el DTO de la BD al modelo que consumen las gráficas. Los campos derivados
+   * (retiroSem, difConsumoPorc) se obtienen SOLO de los valores ya calculados en la BD,
+   * el front no recalcula. `fechaInicio` es contexto (no cálculo) para el filtro por fecha.
+   */
+  private mapDtoAIndicador(d: IndicadorSemanalLevanteDto): any {
+    const consumoReal = d.consumoDiario;
+    const consumoTabla = d.consumoTabla;
     return {
-      semana,
-      fechaInicio: this.obtenerFechaInicioSemana(semana),
-      avesInicioSemana: avesInicio,
-      avesFinSemana: avesFin,
-      consumoReal: consumoRealPorAve, // Ahora es por ave en gramos
+      semana: d.semana,
+      fechaInicio: this.obtenerFechaInicioSemana(d.semana),
+      avesInicioSemana: d.avesInicioSemana,
+      avesFinSemana: d.avesFinSemana,
+      consumoReal,
       consumoTabla,
-      conversionAlimenticia,
-      mortalidadSem,
-      seleccionSem,
-      errorSexajeSem,
-      retiroSem,
-      uniformidad: uniformidadPromedio,
-      cv: cvPromedio,
-      difConsumoPorc,
-      eficiencia,
-      ip,
-      pesoCierre: pesoPromedio,
-      pesoInicial: pesoAnterior,
-      gananciaSemana: pesoPromedio - pesoAnterior
+      conversionAlimenticia: d.conversionAlimenticia,
+      mortalidadSem: d.mortalidadSem,
+      seleccionSem: d.seleccionSem,
+      errorSexajeSem: d.errorSexajeSem,
+      retiroSem: d.mortalidadSem + d.seleccionSem + d.errorSexajeSem,
+      uniformidad: d.unifReal,
+      difConsumoPorc: consumoTabla > 0 ? ((consumoReal - consumoTabla) / consumoTabla) * 100 : 0,
+      eficiencia: d.eficiencia,
+      ip: d.ip,
+      pesoCierre: d.pesoCierre,
+      pesoInicial: d.pesoInicial,
+      pesoTabla: d.pesoTabla,
+      mortTabla: d.mortTabla,
+      gananciaSemana: d.gananciaSemana,
+      // Se completan en calcularIncrementosConsumo (diferencia vs semana anterior).
+      incrConsumoReal: 0,
+      incrConsumoTabla: 0
     };
+  }
+
+  /** Incrementos de consumo (real/tabla) respecto a la semana anterior. No es un cálculo de negocio; es un delta de presentación sobre los valores ya calculados en la BD. */
+  private calcularIncrementosConsumo(indicadores: any[]): void {
+    for (let i = 1; i < indicadores.length; i++) {
+      const prev = indicadores[i - 1];
+      const cur = indicadores[i];
+      cur.incrConsumoReal = (cur.consumoReal || 0) - (prev.consumoReal || 0);
+      cur.incrConsumoTabla = (cur.consumoTabla || 0) - (prev.consumoTabla || 0);
+    }
   }
 
   private prepararSeriesGraficas(): SerieGrafica[] {
@@ -1247,7 +1146,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       'seleccion': 'rgba(156, 39, 176, 1)',
       'retiro': 'rgba(244, 67, 54, 1)',
       'uniformidad': 'rgba(156, 39, 176, 1)',
-      'cv': 'rgba(63, 81, 181, 1)',
       'difConsumo': 'rgba(233, 30, 99, 1)',
       'incrConsumo': 'rgba(255, 152, 0, 1)',
       'aves': 'rgba(123, 31, 162, 1)'
@@ -1262,7 +1160,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
       'seleccion': 'Selección (%)',
       'retiro': 'Retiro (%)',
       'uniformidad': 'Uniformidad (%)',
-      'cv': 'CV (%)',
       'difConsumo': 'Dif. Consumo (%)',
       'incrConsumo': 'Incr. Consumo Real',
       'aves': 'Aves Vivas'
@@ -1295,9 +1192,6 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
           break;
         case 'uniformidad':
           data = ind.map((x: any) => x.uniformidad || 0);
-          break;
-        case 'cv':
-          data = ind.map((x: any) => x.cv || 0);
           break;
         case 'difConsumo':
           data = ind.map((x: any) => x.difConsumoPorc || 0);
