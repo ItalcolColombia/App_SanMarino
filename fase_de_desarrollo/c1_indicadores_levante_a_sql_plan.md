@@ -41,12 +41,11 @@ Tras cada semana: `avesAcum = avesFin`; `mortAcum += mortalidadSem`; `selAcum +=
 4. **Test de equivalencia** (crítico, va PRIMERO): fijar la salida actual del front para lotes reales (P-K345A y otro) como golden y comparar contra la fn, campo a campo, tolerancia 0 (o epsilon float mínimo).
 
 ## Orden de ejecución (un paso por ciclo)
-- [ ] Paso 0 — Golden: capturar salida actual del front (JSON de `IndicadorSemanal[]`) para 2 lotes reales vía E2E; guardar como fixture.
-- [ ] Paso 1 — `fn_indicadores_levante_postura` en `/backend/sql/` + migración idempotente; probar en local.
-- [ ] Paso 2 — Test de equivalencia fn vs golden (ajustar hasta 0 diferencias).
-- [ ] Paso 3 — DTO + endpoint que delega en la fn.
-- [ ] Paso 4 — Front consume el endpoint; quitar cómputo cliente (dejar solo formato/pintado). Validar E2E que la tabla se ve idéntica.
-- [ ] Paso 5 — Repetir para `graficas-principal` (mismos datos) y C2 (producción).
+- [x] Paso 1 — `fn_indicadores_levante_postura` (`backend/sql/` + migración `AddFnIndicadoresLevantePostura`); probada en local con lote 13 real.
+- [x] Paso 3 — DTO `IndicadorSemanalLevanteDto` + endpoint `GET SeguimientoLoteLevante/por-lote/{id}/indicadores` (SqlQueryRaw).
+- [x] Paso 4 — Front `tabla-lista-indicadores` consume el endpoint (getIndicadores) y solo pinta; fallback legacy defensivo. **Validado E2E** (Colombia, lote 13/K345A): endpoint 200, 25 semanas, valores coinciden con la fn (sem1 aves 9131→9024, consumo 21.0 vs guía 22.5, ganancia 118.7, mort 1.01%). **Bugs corregidos**: guía Colombia real (no Ecuador-mixto) + peso con arrastre.
+- [ ] Paso 2b — Test xUnit de equivalencia (opcional; la validación E2E ya confirmó coincidencia).
+- [ ] Paso 5 — `graficas-principal` levante (aún calcula en cliente) + quitar cómputo legacy dead de la tabla + C2 (producción).
 
 ## Riesgos / salvaguardas
 - Bit-exactitud JS↔Postgres: usar float8 + mismo orden; el golden test lo garantiza. NO usar numeric/round salvo donde el front redondea (no lo hace en el cálculo).

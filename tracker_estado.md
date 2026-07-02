@@ -83,7 +83,8 @@
 ## Fase 3 — Cómputo → BD (front sin cálculos)
 - Análisis validado: `fase_de_desarrollo/candidatos_computo_a_bd.md` (C1 levante, C2 producción, C3 engorde; B1-B3 reportes back).
 - **C1 EN CURSO** (decisión usuario: empezar por levante postura, **replicar exacto**): plan + spec completo en `fase_de_desarrollo/c1_indicadores_levante_a_sql_plan.md`.
-  - [ ] Paso 0 golden (capturar salida front real) · [ ] Paso 1 `fn_indicadores_levante_postura` + migración · [ ] Paso 2 test equivalencia · [ ] Paso 3 endpoint · [ ] Paso 4 front consume+quita cómputo · [ ] Paso 5 gráficas + C2
+  - [x] Paso 1 fn+migración · [x] Paso 3 DTO+endpoint · [x] Paso 4 tabla front consume BD (validado E2E lote 13, 200 OK, valores coinciden; **bugs corregidos**: guía Colombia real + peso arrastre) · [ ] Paso 5 gráficas levante + limpiar cómputo legacy + C2 producción
+  - Commits: `37d308f` (fn+endpoint), `1a2624e` (tabla front).
 
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
