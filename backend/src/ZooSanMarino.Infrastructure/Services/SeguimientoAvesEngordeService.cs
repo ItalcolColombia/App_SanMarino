@@ -1218,17 +1218,10 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     }
 
     private static (double? kcalAveH, double? protAveH) CalcularDerivados(double consumoKgHembras, double? kcalAlH, double? protAlH)
-    {
-        double? kcal = kcalAlH is null ? null : Math.Round(consumoKgHembras * kcalAlH.Value, 3);
-        double? prot = protAlH is null ? null : Math.Round(consumoKgHembras * protAlH.Value, 3);
-        return (kcal, prot);
-    }
+        => SeguimientoEngordeCalculos.CalcularDerivados(consumoKgHembras, kcalAlH, protAlH);
 
     private static int CalcularSemana(DateTime fechaEncaset, DateTime fechaRegistro)
-    {
-        var dias = (fechaRegistro.Date - fechaEncaset.Date).TotalDays;
-        return Math.Max(1, (int)Math.Floor(dias / 7.0) + 1);
-    }
+        => SeguimientoEngordeCalculos.CalcularSemana(fechaEncaset, fechaRegistro);
 
     public async Task<ResultadoLevanteResponse> GetResultadoAsync(int loteId, DateTime? desde, DateTime? hasta, bool recalcular = true)
     {
