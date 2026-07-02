@@ -54,7 +54,8 @@
   3. `ReporteTecnicoProduccionService` (6/22, 1.953) y `ReporteTecnicoService` (5/21, 3.110) — informes técnicos completos en C#
   4. `LoteReproductoraAveEngordeService` (7/5), `MovimientoPolloEngordeService.Auditoria` (5/9), `IndicadoresProduccionService` (4/5)
   > Referencia del patrón: `IndicadorEcuadorService` ya delega en `fn_indicadores_pollo_engorde` (3 SqlQueryRaw); `fn_seguimiento_diario_engorde` y `fn_informe_semanal_pollo_engorde` existentes.
-- [ ] Migrar candidato nº1 (`ResumenDisponibilidad`) a función SQL + migración idempotente + test de equivalencia numérica
+- [x] Evaluado candidato nº1 (`ResumenDisponibilidad`): **NO migrar a SQL** — ya está batcheado (7 queries, GroupBy pesados se traducen a SQL) y es lógica de validación del flujo de VENTAS (path de escritura); duplicarla en PL/pgSQL crearía riesgo de deriva C#↔SQL en datos críticos — ciclo 16
+- [ ] DECISIÓN USUARIO (priorización Fase 3): los objetivos reales son los reportes de solo lectura, cada uno es un esfuerzo dedicado: (a) `ReporteContableService` → `fn_reporte_contable`, (b) `ReporteTecnicoService`/`ReporteTecnicoProduccionService` → fn por informe. ¿Cuál duele más en prod para empezar?
 - [ ] Por candidato: función SQL + migración EF idempotente + test de equivalencia numérica
 - [ ] Revisar índices para filtros frecuentes (lote, fecha, company_id, pais_id)
 
@@ -65,7 +66,7 @@
 - [ ] Crear migración idempotente `CREATE TABLE IF NOT EXISTS seguimiento_diario_aves_engorde_panama` para alinear local con el código (el código manda)
 - [ ] Confirmar en prod (solo lectura) los conteos de filas de las candidatas a DROP
 - [ ] Informe de columnas legacy no mapeadas
-- [ ] Script `DROP IF EXISTS` propuesto (NO ejecutar sin OK explícito)
+- [x] Scripts entregables creados — ciclo 16: `backend/sql/verificacion_tablas_sin_uso.sql` (solo lectura: conteos + dependencias, correr en PROD) y `backend/sql/propuesta_drop_tablas_sin_uso.sql` (DROPs comentados; ejecutar solo con OK + backup)
 
 ## Fase 5 — Segunda pasada del loop
 - [ ] Re-barrido de mejoras sobre lo refactorizado
@@ -90,3 +91,4 @@
 | 13 | `MetadataEngordeCalculos` (ToKg/ParseMetadataItemsToKg/MergeMetadataWithPatch dedup) + 9 tests | `c6acdb4` | dotnet build 0 err · 53/53 tests verdes |
 | 14 | `SaldoAlimentoEngordeCalculos` (TryGetHistDeltaAndOrd dedup) + hallazgo divergencia `YmdHistoricoEfectivo` (Ecuador sin fecha efectiva → DECISIÓN USUARIO) | `86bf085` | dotnet build 0 err · 53/53 tests verdes |
 | 15 | MovimientoPolloEngordePanama verificado (ya canónico) + inventario Fase 3 con ranking de candidatos a fn SQL | (tracker) | análisis, sin cambios de código |
+| 16 | ResumenDisponibilidad evaluado (NO migrar: write-path crítico ya batcheado) + scripts Fase 4 (verificación + DROP propuesto) | (este ciclo) | scripts solo lectura / DROPs comentados |
