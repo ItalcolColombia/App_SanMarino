@@ -32,7 +32,10 @@
   - [x] Deduplicados los idénticos: tabla-indicadores, modal-detalle, graficas-indicadores (componentes completos) + saldo-alimento util → engorde-comun con shims (−1.626 líneas netas) — ciclo 6 `eb0a277`
   - [x] modal-cuadrar-saldos unificado con patrón `CuadrarSaldosEngordeApi` (abstracta + useExisting por país) — ciclo 7 `b10d39d` (−1.006 líneas netas)
   - [x] seguimiento-aves-engorde-form unificado (`SeguimientoEngordeCrudApi` + token `ENGORDE_FORM_OPCIONES` con QQ condicional; providers por ruta) — ciclo 8 `3d43127` (−361 netas)
-  - [ ] Pares con deriva restantes (mismo patrón DI): seguimiento-aves-engorde-list (79 líneas diff), modal-seguimiento-engorde (157), modal-liquidacion (201), tabs-principal (819 — dejar de último, tiene lógica Panamá propia: RegistroDiarioTablaFilaEngorde, agregados históricos)
+  - [x] modal-seguimiento-engorde unificado (superset Panamá; QQ gated por `isPanama` en template y payload) — ciclo 9 `d5842be` (−2.918 netas)
+  - [ ] DECISIÓN USUARIO: `seguimiento-aves-engorde-list` — derivas de producto, no mecánicas: Colombia tiene tabla diaria de BD (`getTablaDiaria`/`fn_seguimiento_diario_engorde`), chips desglose por género y mensajería de reproductoras que Panamá no tiene. ¿Panamá debe recibir esas mejoras (unificar con flags) o su versión simple es intencional?
+  - [ ] modal-liquidacion (201 líneas diff) — revisar si mecánica o producto
+  - [ ] tabs-principal (819 líneas diff) — dejar de último; tiene lógica Panamá propia (RegistroDiarioTablaFilaEngorde, agregados históricos)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
@@ -68,3 +71,4 @@
 | 6 | 3 componentes idénticos + util movidos a engorde-comun (−1.626) | `eb0a277` | ng build OK (87 s) · visual OK |
 | 7 | modal-cuadrar-saldos unificado con `CuadrarSaldosEngordeApi` + DI por país (−1.006) | `b10d39d` | ng build OK (100 s) · visual OK |
 | 8 | form seguimiento engorde unificado (QQ condicional por token; providers por ruta) (−361) | `3d43127` | ng build OK (98 s) · visual OK |
+| 9 | modal-seguimiento-engorde unificado (−2.918); list marcado DECISIÓN USUARIO | `d5842be` | ng build OK (85 s) · visual OK |
