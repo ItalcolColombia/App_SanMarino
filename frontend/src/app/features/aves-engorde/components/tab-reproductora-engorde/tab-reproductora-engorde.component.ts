@@ -1,7 +1,7 @@
 // Tab «R. Reproductora» — lotes de pollitos primera semana (lotes reproductoras).
 // Orquestador delgado: carga lotes reproductora + seguimientos y delega TODO el
 // cálculo a las funciones puras de ../../funciones. Solo lectura.
-// Compartido por aves-engorde (Ecuador) y aves-engorde-panama.
+// Compartido por los paises que usan el modulo aves-engorde (Ecuador y Panama).
 import { Component, Input, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { forkJoin, of } from 'rxjs';

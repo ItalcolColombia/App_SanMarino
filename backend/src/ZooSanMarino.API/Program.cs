@@ -226,7 +226,6 @@ builder.Services.AddScoped<ISeguimientoLoteLevanteService, SeguimientoLoteLevant
 builder.Services.AddScoped<ISeguimientoAvesEngordeService, SeguimientoAvesEngordeService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeFilterDataService, SeguimientoAvesEngordeFilterDataService>();
 builder.Services.AddScoped<ISeguimientoAvesEngordeEcuadorService, SeguimientoAvesEngordeEcuadorService>();
-builder.Services.AddScoped<ISeguimientoAvesEngordePanamaService, SeguimientoAvesEngordePanamaService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraService, SeguimientoDiarioLoteReproductoraService>();
 builder.Services.AddScoped<ISeguimientoDiarioLoteReproductoraFilterDataService, SeguimientoDiarioLoteReproductoraFilterDataService>();
 builder.Services.AddScoped<IProduccionLoteService, ProduccionLoteService>();

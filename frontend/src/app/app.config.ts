@@ -108,12 +108,6 @@ export const appConfig: ApplicationConfig = {
             loadChildren: () =>
               import('./features/aves-engorde/seguimiento-aves-engorde.module')
                 .then(m => m.SeguimientoAvesEngordeModule)
-          },
-          {
-            path: 'aves-engorde-panama',
-            loadChildren: () =>
-              import('./features/aves-engorde-panama/seguimiento-aves-engorde-panama.module')
-                .then(m => m.SeguimientoAvesEngordePanamaModule)
           }
         ]
       },

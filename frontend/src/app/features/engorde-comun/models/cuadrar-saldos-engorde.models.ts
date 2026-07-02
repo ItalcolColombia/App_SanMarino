@@ -1,6 +1,5 @@
 // DTOs compartidos multi-país del flujo "Cuadrar saldos" de pollo engorde.
-// Fuente única: antes duplicados en seguimiento-aves-engorde.service.ts (Colombia)
-// y seguimiento-aves-engorde-panama.service.ts (Panamá).
+// Fuente unica (antes duplicados en los servicios de seguimiento de engorde por pais).
 
 export interface FilaExcelCuadrarSaldosDto {
   fecha: string;

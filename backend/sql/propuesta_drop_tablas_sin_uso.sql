@@ -17,6 +17,9 @@
 BEGIN;
 
 -- Descomentar UNA VEZ verificado todo lo anterior:
+-- (fork aves-engorde-panama eliminado 2026-07-02: entidad retirada del modelo EF;
+--  verificar count(*)=0 en prod antes de soltar la tabla)
+-- DROP TABLE IF EXISTS public.seguimiento_diario_aves_engorde_panama;
 -- DROP TABLE IF EXISTS public._backup_cuadre_expected_2026_06_01;
 -- DROP TABLE IF EXISTS public._migracion_saldo_alimento_2026_05_28;
 -- DROP TABLE IF EXISTS public._migracion_saldo_alimento_2026_05_31;
