@@ -344,12 +344,20 @@
               <input id="conductor" type="text" formControlName="conductor" class="form-input" placeholder="Nombre del cliente" />
             </div>
             <div class="form-group">
-              <label for="pesoBruto">Peso bruto (kg)</label>
-              <input id="pesoBruto" type="number" step="0.01" min="0" formControlName="pesoBruto" class="form-input" />
+              <label for="pesoBruto">Peso bruto (kg) <span class="req-mark" title="Obligatorio en ventas">*</span></label>
+              <input id="pesoBruto" type="number" step="0.01" min="0.01" formControlName="pesoBruto" class="form-input"
+                     [class.form-input--invalid]="form.get('pesoBruto')?.touched && form.get('pesoBruto')?.invalid" />
+              <small class="field-error" *ngIf="form.get('pesoBruto')?.touched && form.get('pesoBruto')?.invalid">
+                Obligatorio en ventas: peso báscula bruto mayor a 0.
+              </small>
             </div>
             <div class="form-group">
-              <label for="pesoTara">Peso tara (kg)</label>
-              <input id="pesoTara" type="number" step="0.01" min="0" formControlName="pesoTara" class="form-input" />
+              <label for="pesoTara">Peso tara (kg) <span class="req-mark" title="Obligatorio en ventas">*</span></label>
+              <input id="pesoTara" type="number" step="0.01" min="0" formControlName="pesoTara" class="form-input"
+                     [class.form-input--invalid]="form.get('pesoTara')?.touched && form.get('pesoTara')?.invalid" />
+              <small class="field-error" *ngIf="form.get('pesoTara')?.touched && form.get('pesoTara')?.invalid">
+                Obligatorio en ventas: peso tara (0 o más).
+              </small>
             </div>
           </div>
           <div class="form-despacho-totals" *ngIf="pesoNeto != null || promedioPesoAve != null">
@@ -414,6 +422,9 @@
       </section>
 
       <div class="modal__actions">
+        <p class="field-error field-error--footer" *ngIf="isDespacho && (form.get('pesoBruto')?.invalid || form.get('pesoTara')?.invalid)">
+          ⚖️ El peso báscula es obligatorio para registrar la venta: digite peso bruto (&gt; 0) y peso tara.
+        </p>
         <button type="button" class="btn-italfoods-secondary" (click)="onClose()">Cancelar</button>
         <button
           type="submit"

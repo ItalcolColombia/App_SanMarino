@@ -12,6 +12,26 @@ public static class MovimientoPolloEngordeCalculos
     public readonly record struct PesoLineaProrrateado(double? Bruto, double? Tara, double? Neto, double? Promedio);
 
     /// <summary>
+    /// Peso báscula OBLIGATORIO al registrar ventas (regla de negocio tras el incidente
+    /// de una venta guardada con pesos NULL: quedaba en 0 kg y descuadraba la liquidación
+    /// y los reportes de indicadores). Aplica cuando el tipo de movimiento es "Venta";
+    /// los traslados no pasan por báscula.
+    /// </summary>
+    public static void ValidarPesoObligatorioEnVenta(string? tipoMovimiento, double? pesoBruto, double? pesoTara)
+    {
+        if (tipoMovimiento != "Venta") return;
+        if (!pesoBruto.HasValue || !pesoTara.HasValue)
+            throw new InvalidOperationException(
+                "El peso báscula es obligatorio para registrar la venta: indique peso bruto y peso tara.");
+        if (pesoBruto.Value <= 0)
+            throw new InvalidOperationException("El peso bruto de la venta debe ser mayor a 0 kg.");
+        if (pesoTara.Value < 0)
+            throw new InvalidOperationException("El peso tara no puede ser negativo.");
+        if (pesoBruto.Value < pesoTara.Value)
+            throw new InvalidOperationException("El peso bruto no puede ser menor que el peso tara.");
+    }
+
+    /// <summary>
     /// Distribuye el peso bruto/tara/neto global proporcionalmente a las aves de cada línea, con
     /// ajuste del residuo de redondeo (3 decimales) a la línea con más aves — espejo del frontend
     /// (prorateo-peso). El neto global se deriva como bruto − tara. Si no hay aves en el despacho

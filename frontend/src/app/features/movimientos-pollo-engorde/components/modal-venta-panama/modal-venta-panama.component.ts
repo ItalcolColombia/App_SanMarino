@@ -87,8 +87,9 @@ export class ModalVentaPanamaComponent implements OnChanges {
       sellos: [null as string | null],
       ayuno: [null as string | null],
       conductor: [null as string | null],
-      pesoBruto: [null as number | null],
-      pesoTara: [null as number | null],
+      // Peso báscula obligatorio en ventas (misma regla que la venta Ecuador).
+      pesoBruto: [null as number | null, [Validators.required, Validators.min(0.01)]],
+      pesoTara: [null as number | null, [Validators.required, Validators.min(0)]],
       motivoMovimiento: [null as string | null],
       observaciones: [null as string | null]
     });
@@ -208,7 +209,10 @@ export class ModalVentaPanamaComponent implements OnChanges {
   async onSubmit(): Promise<void> {
     if (this.loading || this.loadingLineas) return;
     if (this.form.invalid) {
-      this.error = 'Complete la fecha del despacho.';
+      this.form.markAllAsTouched();
+      this.error = (this.form.get('pesoBruto')?.invalid || this.form.get('pesoTara')?.invalid)
+        ? 'El peso báscula es obligatorio para registrar la venta: digite peso bruto (> 0) y peso tara.'
+        : 'Complete la fecha del despacho.';
       return;
     }
     if (!this.hayLineasConCantidad) {

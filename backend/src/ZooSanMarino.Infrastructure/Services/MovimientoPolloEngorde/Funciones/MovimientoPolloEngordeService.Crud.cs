@@ -24,6 +24,8 @@ public partial class MovimientoPolloEngordeService
         if (dto.CantidadHembras + dto.CantidadMachos + dto.CantidadMixtas <= 0)
             throw new InvalidOperationException("Las cantidades deben ser mayores a cero.");
 
+        ValidarPesoObligatorioEnVenta(dto.TipoMovimiento, dto.PesoBruto, dto.PesoTara);
+
         var movimiento = new MovimientoPolloEngorde
         {
             FechaMovimiento = dto.FechaMovimiento,
