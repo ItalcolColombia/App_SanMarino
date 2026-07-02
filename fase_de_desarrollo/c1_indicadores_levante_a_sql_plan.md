@@ -49,10 +49,21 @@ Tras cada semana: `avesAcum = avesFin`; `mortAcum += mortalidadSem`; `selAcum +=
 - [x] Paso 5b — Fallback legacy de `tabla-lista-indicadores` eliminado (−534 líneas: `calcularIndicadorSemana`, `obtenerGuiaSemana/ConsumoTabla/PisoTermico`, `prefetchGuiaGeneticaRango`, `validarUsoTablaGenetica/validarSemanaIndicador`, `agruparPorSemana` + campos `cacheGuiaRango/guiaRangoKeyActual` + `GuiaGeneticaService`). Conservado lo vivo: `fuenteGuiaIndicadores` (hint template), `mostrarFormulas`/modal, `validarConsumo/Ganancia/Mortalidad`, helpers de fecha/contexto y `calcularSemana` (usado por `observacionesDeSemana`). La tabla queda 100% endpoint-only como las gráficas. **Validado E2E** lote 13/K345A: 25 filas, valores = gráficas (aves 8.393, consumo 121.5 vs tabla 120.0), 0 NG0103, `yarn build` 0 errores. Commit `6037f49`.
 - **C1 CERRADO**: tabla + gráficas de levante 100% desde la BD; el front ya no calcula ni consulta la guía genética. Bugs históricos corregidos (guía Colombia real + peso arrastre).
 
-## C2 — Indicadores de producción postura → función SQL (SIGUIENTE)
-- Mismo patrón que C1. Target front: `lote-produccion/` — OJO: tiene DOS juegos (`pages/` y `components/`) de `tabla-lista-indicadores` + `graficas-principal` + `tabs-principal`. Confirmar cuál está montado en la ruta viva antes de tocar.
-- Pasos: (1) analizar el algoritmo de indicadores de producción (spec, como se hizo con levante), (2) `fn_indicadores_produccion_postura` + migración idempotente, (3) DTO + endpoint, (4) front consume (pages y/o components), (5) validar E2E Colombia (lote en producción).
-- Postura Colombia arrastra bugs de comparación vs guía → decidir con el usuario si se replican exacto o se corrigen (como en C1 se corrigieron).
+## C2 — Indicadores de producción postura → función SQL
+
+### Hallazgos del diagnóstico (2026-07-02)
+Componentes vivos de `lote-produccion` (ruta `/daily-log/produccion` → `LoteProduccionListComponent` → `pages/tabs-principal`):
+- **Vivos**: `components/tabla-lista-indicadores`, `pages/graficas-principal`, `pages/tabs-principal`.
+- **MUERTOS** (sin ninguna referencia en todo `src`): `pages/tabla-lista-indicadores`, `components/graficas-principal`, `components/tabs-principal` → trío duplicado, candidato a borrar (bonus cleanup aparte).
+
+Estado real "front no calcula":
+- **Tabla viva** (`components/tabla-lista-indicadores`): YA server-only — llama `produccionService.obtenerIndicadoresSemanales` y solo pinta. ✔
+- **Gráficas vivas** (`pages/graficas-principal`): eran híbridas (API + fallback cliente con `consumoTabla=157` hardcodeado y conversión que no aplica a reproductoras). **[x] Fallback eliminado — commit `bb1bf2c`**, validado E2E (P-K345A: tabla 43 filas, gráficas 8 canvas desde API, 0 NG0103).
+
+### Pieza pendiente (la grande): backend C# → SQL
+- `IndicadoresProduccionService.cs` (**727 líneas, 44 GroupBy/ToList/Sum/Round/for en memoria, 0 fn SQL**) computa TODO en C#. Endpoint `POST Produccion/indicadores-semanales`. Este es el verdadero target de "mover cómputo a la BD / reducir consumo del back".
+- Pasos: (1) spec del algoritmo C# (huevos totales/incubables, %postura, %incubabilidad, peso huevo, HTAA, mort H/M, consumo real vs guía, acumulados), (2) `fn_indicadores_produccion_postura` + migración idempotente, (3) `IndicadoresProduccionService` delega vía `SqlQueryRaw` (mantener el mismo DTO de respuesta), (4) **test de equivalencia numérica** (crítico: es una migración numérica grande; fijar golden del C# actual y comparar campo a campo), (5) validar E2E Colombia.
+- **Decisión usuario pendiente**: replicar exacto vs corregir bugs de comparación vs guía (como en C1 se corrigieron). Riesgo: divergencia numérica → el test de equivalencia es obligatorio y va primero.
 - [ ] Paso 6 — C2 (producción postura → fn SQL), mismo patrón.
 
 ## Riesgos / salvaguardas

@@ -86,7 +86,8 @@
   - [x] Paso 1 fn+migración · [x] Paso 3 DTO+endpoint · [x] Paso 4 tabla front consume BD (validado E2E lote 13, 200 OK, valores coinciden; **bugs corregidos**: guía Colombia real + peso arrastre) · [x] Paso 5a **gráficas levante consumen el endpoint** (front ya no calcula; eliminado cómputo cliente + `GuiaGeneticaService` + métrica CV; validado E2E lote 13/K345A: 25 semanas, 8 canvas, valores = tabla, 0 NG0103) · [x] Paso 5b **fallback cliente de la tabla eliminado** (−534 líneas; tabla 100% endpoint-only; validado E2E: 25 filas, valores = gráficas, 0 NG0103)
   - **C1 CERRADO**: tabla + gráficas levante 100% desde BD, front no calcula.
   - Commits: `37d308f` (fn+endpoint), `1a2624e` (tabla), `68468e1` (gráficas), `6037f49` (limpieza fallback tabla).
-- **C2 SIGUIENTE**: producción postura → fn SQL (mismo patrón). Target `lote-produccion/` (tiene `pages/` y `components/` duplicados — confirmar el vivo). Plan en `c1_indicadores_levante_a_sql_plan.md` (sección C2).
+- **C2 EN CURSO** (producción postura): diagnóstico hecho. Tabla viva YA server-only; **gráficas: fallback cliente eliminado** (commit `bb1bf2c`, validado E2E P-K345A: 43 filas, 8 canvas, 0 NG0103). Hallazgo bonus: trío de componentes duplicados MUERTOS (`pages/tabla-lista-indicadores`, `components/graficas-principal`, `components/tabs-principal`) → candidatos a borrar.
+  - **Pendiente (grande)**: backend `IndicadoresProduccionService` (727 líneas C# en memoria, 0 fn SQL) → `fn_indicadores_produccion_postura` + test de equivalencia + delegar SqlQueryRaw. Decisión usuario: replicar exacto vs corregir bugs guía. Detalle en `c1_indicadores_levante_a_sql_plan.md` (sección C2).
 
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
