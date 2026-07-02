@@ -80,6 +80,11 @@
 - FASE A (diagnóstico) cerrada: Ecuador CRUD+liquidación OK, Panamá vacío sano, Colombia CRUD producción OK.
 - FASE C (fixes): **H2** galpones duplicados corregido (`dba4562`); **H1** NG0103 en modal-seguimiento-engorde corregido (memoización de `getAlimentosFiltradosPorTipo`); **H3** mismo NG0103 latente en modales postura Colombia (lote-produccion/modal-seguimiento-diario + lote-levante/modal-create-edit) corregido, validado E2E; **H4** NG0103 en gestion-inventario-page (EC/PA, uso diario): 16 getters + 8 métodos memoizados con helper `listaEstable`, reproducido y verificado 0 en Ingresos/Traslados/Histórico.
 
+## Fase 3 — Cómputo → BD (front sin cálculos)
+- Análisis validado: `fase_de_desarrollo/candidatos_computo_a_bd.md` (C1 levante, C2 producción, C3 engorde; B1-B3 reportes back).
+- **C1 EN CURSO** (decisión usuario: empezar por levante postura, **replicar exacto**): plan + spec completo en `fase_de_desarrollo/c1_indicadores_levante_a_sql_plan.md`.
+  - [ ] Paso 0 golden (capturar salida front real) · [ ] Paso 1 `fn_indicadores_levante_postura` + migración · [ ] Paso 2 test equivalencia · [ ] Paso 3 endpoint · [ ] Paso 4 front consume+quita cómputo · [ ] Paso 5 gráficas + C2
+
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
 |---|---|---|---|
