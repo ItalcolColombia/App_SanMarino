@@ -34,7 +34,8 @@
   - [x] seguimiento-aves-engorde-form unificado (`SeguimientoEngordeCrudApi` + token `ENGORDE_FORM_OPCIONES` con QQ condicional; providers por ruta) — ciclo 8 `3d43127` (−361 netas)
   - [x] modal-seguimiento-engorde unificado (superset Panamá; QQ gated por `isPanama` en template y payload) — ciclo 9 `d5842be` (−2.918 netas)
   - [ ] DECISIÓN USUARIO: `seguimiento-aves-engorde-list` — derivas de producto, no mecánicas: Colombia tiene tabla diaria de BD (`getTablaDiaria`/`fn_seguimiento_diario_engorde`), chips desglose por género y mensajería de reproductoras que Panamá no tiene. ¿Panamá debe recibir esas mejoras (unificar con flags) o su versión simple es intencional?
-  - [ ] modal-liquidacion (201 líneas diff) — revisar si mecánica o producto
+  - [x] modal-liquidacion analizado — **HALLAZGO CRÍTICO DE DERIVA**: la copia de Colombia es el superset y contiene los features de PANAMÁ (merma R1 de Costos + 6 insumos de liquidación `panamaDiasEnGranja/diasEngorde/avesFinalGranja/avesBeneficiada/produccionKiloPie/metrosCuadrados`, gated por `esPanama`, precarga vía `IndicadorEcuadorService.getReporteIndicadoresPanama`). La copia del módulo aves-engorde-panama es una versión VIEJA sin nada de eso → los usuarios de Panamá hoy NO ven los insumos de liquidación ni la merma al cerrar lote desde su módulo.
+  - [ ] DECISIÓN USUARIO (recomendado SÍ): unificar modal-liquidacion sobre el superset Colombia → el módulo Panamá GANA merma + 6 insumos obligatorios al cerrar (cambio funcional visible para Panamá; es cerrar la deriva, pero exige tu OK). Si OK: patrón DI (`SeguimientoEngorde…Api`) igual que ciclos 7-9.
   - [ ] tabs-principal (819 líneas diff) — dejar de último; tiene lógica Panamá propia (RegistroDiarioTablaFilaEngorde, agregados históricos)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
@@ -72,3 +73,4 @@
 | 7 | modal-cuadrar-saldos unificado con `CuadrarSaldosEngordeApi` + DI por país (−1.006) | `b10d39d` | ng build OK (100 s) · visual OK |
 | 8 | form seguimiento engorde unificado (QQ condicional por token; providers por ruta) (−361) | `3d43127` | ng build OK (98 s) · visual OK |
 | 9 | modal-seguimiento-engorde unificado (−2.918); list marcado DECISIÓN USUARIO | `d5842be` | ng build OK (85 s) · visual OK |
+| 10 | Análisis modal-liquidacion: deriva CRÍTICA detectada (Panamá sin merma ni insumos de liquidación que Colombia sí tiene gated por esPanama) → DECISIÓN USUARIO; mapa de métodos back Colombia/Ecuador para unificación | (tracker) | solo análisis, sin cambios de código |
