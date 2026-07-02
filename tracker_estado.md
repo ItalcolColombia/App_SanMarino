@@ -78,7 +78,7 @@
 
 ## Pipeline E2E multi-país (doc: fase_de_desarrollo/diagnostico_e2e_paises.md)
 - FASE A (diagnóstico) cerrada: Ecuador CRUD+liquidación OK, Panamá vacío sano, Colombia CRUD producción OK.
-- FASE C (fixes): **H2** galpones duplicados corregido (`dba4562`); **H1** NG0103 en modal-seguimiento-engorde corregido (memoización de `getAlimentosFiltradosPorTipo`); **H3** mismo NG0103 latente en modales postura Colombia (lote-produccion/modal-seguimiento-diario + lote-levante/modal-create-edit) corregido con la misma memoización, validado E2E (modal producción P-K345A, 0 NG0103).
+- FASE C (fixes): **H2** galpones duplicados corregido (`dba4562`); **H1** NG0103 en modal-seguimiento-engorde corregido (memoización de `getAlimentosFiltradosPorTipo`); **H3** mismo NG0103 latente en modales postura Colombia (lote-produccion/modal-seguimiento-diario + lote-levante/modal-create-edit) corregido, validado E2E; **H4** NG0103 en gestion-inventario-page (EC/PA, uso diario): 16 getters + 8 métodos memoizados con helper `listaEstable`, reproducido y verificado 0 en Ingresos/Traslados/Histórico.
 
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
