@@ -38,6 +38,8 @@
   - [ ] DECISIÓN USUARIO (recomendado SÍ): unificar modal-liquidacion sobre el superset Colombia → el módulo Panamá GANA merma + 6 insumos obligatorios al cerrar (cambio funcional visible para Panamá; es cerrar la deriva, pero exige tu OK). Si OK: patrón DI (`SeguimientoEngorde…Api`) igual que ciclos 7-9.
   - [ ] tabs-principal (819 líneas diff) — dejar de último; tiene lógica Panamá propia (RegistroDiarioTablaFilaEngorde, agregados históricos)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
+  - [x] `LiquidacionEngordeCalculos` extraído (CalcularAvesInicio + CalcularAvesVivas, usados por Colombia y Ecuador) + 9 tests — ciclo 11 `648ddff`
+  - [ ] Revisar más aritmética duplicada Colombia/Ecuador (Create/Update: recálculo saldo alimento, validaciones)
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
 - [ ] Validación visual de cada módulo unificado (datos idénticos pre/post)
@@ -74,3 +76,4 @@
 | 8 | form seguimiento engorde unificado (QQ condicional por token; providers por ruta) (−361) | `3d43127` | ng build OK (98 s) · visual OK |
 | 9 | modal-seguimiento-engorde unificado (−2.918); list marcado DECISIÓN USUARIO | `d5842be` | ng build OK (85 s) · visual OK |
 | 10 | Análisis modal-liquidacion: deriva CRÍTICA detectada (Panamá sin merma ni insumos de liquidación que Colombia sí tiene gated por esPanama) → DECISIÓN USUARIO; mapa de métodos back Colombia/Ecuador para unificación | (tracker) | solo análisis, sin cambios de código |
+| 11 | `LiquidacionEngordeCalculos` (cálculo puro compartido back Colombia+Ecuador) + 9 tests | `648ddff` | dotnet build 0 err · 34/34 tests verdes |
