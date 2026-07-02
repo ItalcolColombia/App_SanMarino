@@ -39,7 +39,8 @@
 - [ ] Priorizar backlog para FASE C
 
 ## FASE C — Desarrollo (un fix por ciclo, patrón del refactor)
-- [ ] (se llena desde FASE B) — cada fix: implementar → build back+front → tests → validación E2E con el perfil del país → commit
+- [x] **H2 CORREGIDO** — galpones con nombre duplicado: helper `disambiguateGalponLabels` en los dos `filtro-select` (levante y producción) agrega `(código)` solo cuando el nombre se repite. Validado E2E (NIZA I / Modulo I): dropdown ahora muestra "Galpon 3 (G0023)" y "Galpon 3 (G0024)"; los únicos ("Galpon 1", "Galpon 2") quedan sin código. ng build OK.
+- [ ] **H1 EN INVESTIGACIÓN** — NG0103 change detection (ver hallazgo)
 
 ## Registro de hallazgos (se llena en FASE A)
 | # | País | Módulo | Severidad prelim. | Descripción | Evidencia |
