@@ -40,7 +40,7 @@
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
   - [x] `LiquidacionEngordeCalculos` extraído (CalcularAvesInicio + CalcularAvesVivas, usados por Colombia y Ecuador) + 9 tests — ciclo 11 `648ddff`
   - [x] `SeguimientoEngordeCalculos` extraído (CalcularDerivados + CalcularSemana, byte-idénticos entre países) + 10 tests — ciclo 12 `babd852`
-  - [ ] `ParseMetadataItemsToKg` y `MergeMetadataWithPatch` difieren entre Colombia y Ecuador (C:1689 vs E:1126 chars) — analizar si la diferencia es intencional o deriva
+  - [x] `MetadataEngordeCalculos` extraído (ToKg + ParseMetadataItemsToKg + MergeMetadataWithPatch — la "diferencia" era solo formato + guarda defensiva de Ecuador, ahora aplicada a ambos) + 9 tests — ciclo 13 `c6acdb4`
   - [ ] Revisar recálculo saldo alimento (RecalcularSaldoAlimentoPorLoteAsync) entre países
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
@@ -80,3 +80,4 @@
 | 10 | Análisis modal-liquidacion: deriva CRÍTICA detectada (Panamá sin merma ni insumos de liquidación que Colombia sí tiene gated por esPanama) → DECISIÓN USUARIO; mapa de métodos back Colombia/Ecuador para unificación | (tracker) | solo análisis, sin cambios de código |
 | 11 | `LiquidacionEngordeCalculos` (cálculo puro compartido back Colombia+Ecuador) + 9 tests | `648ddff` | dotnet build 0 err · 34/34 tests verdes |
 | 12 | `SeguimientoEngordeCalculos` (CalcularDerivados/CalcularSemana dedup) + 10 tests | `babd852` | dotnet build 0 err · 44/44 tests verdes |
+| 13 | `MetadataEngordeCalculos` (ToKg/ParseMetadataItemsToKg/MergeMetadataWithPatch dedup) + 9 tests | `c6acdb4` | dotnet build 0 err · 53/53 tests verdes |
