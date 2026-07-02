@@ -63,7 +63,7 @@
 - [x] Cruce inicial `information_schema` local (95 tablas) vs entidades mapeadas. Candidatas a DROP (confirmar en prod antes): `_backup_cuadre_expected_2026_06_01`, `_migracion_saldo_alimento_2026_05_28`, `_migracion_saldo_alimento_2026_05_31`, `_migracion_saldo_alimento_m1_2026_05_31`, `guia_semana`, `user_paises` (las 2 últimas: sin entidad ni servicio, solo aparecen en la migración `AddMissingDbFunctionsTriggersAndViews`)
 - [x] Investigado: `SeguimientoDiarioAvesEngordeEcuador` (entidad+DbSet+config) es artefacto MUERTO del modelo — ningún servicio la usa; Ecuador escribe en la tabla compartida `seguimiento_diario_aves_engorde`. La `_panama` SÍ la usa `SeguimientoAvesEngordePanamaService` pero la tabla no existe en BD local (creada por SQL crudo en prod) → módulo Panamá crashearía local.
 - [ ] DECISIÓN USUARIO: eliminar entidad `SeguimientoDiarioAvesEngordeEcuador` del modelo (genera migración con DropTable → editar a no-op o `DROP IF EXISTS` según confirmes si la tabla existe en prod con datos)
-- [ ] Crear migración idempotente `CREATE TABLE IF NOT EXISTS seguimiento_diario_aves_engorde_panama` para alinear local con el código (el código manda)
+- [x] Migración idempotente `EnsureSeguimientoDiarioAvesEngordePanamaTable` creada y aplicada en local (38 columnas + índices + FK guard; en prod será no-op porque la tabla ya existe) — ciclo 17 `877c07b`
 - [ ] Confirmar en prod (solo lectura) los conteos de filas de las candidatas a DROP
 - [ ] Informe de columnas legacy no mapeadas
 - [x] Scripts entregables creados — ciclo 16: `backend/sql/verificacion_tablas_sin_uso.sql` (solo lectura: conteos + dependencias, correr en PROD) y `backend/sql/propuesta_drop_tablas_sin_uso.sql` (DROPs comentados; ejecutar solo con OK + backup)
@@ -91,4 +91,5 @@
 | 13 | `MetadataEngordeCalculos` (ToKg/ParseMetadataItemsToKg/MergeMetadataWithPatch dedup) + 9 tests | `c6acdb4` | dotnet build 0 err · 53/53 tests verdes |
 | 14 | `SaldoAlimentoEngordeCalculos` (TryGetHistDeltaAndOrd dedup) + hallazgo divergencia `YmdHistoricoEfectivo` (Ecuador sin fecha efectiva → DECISIÓN USUARIO) | `86bf085` | dotnet build 0 err · 53/53 tests verdes |
 | 15 | MovimientoPolloEngordePanama verificado (ya canónico) + inventario Fase 3 con ranking de candidatos a fn SQL | (tracker) | análisis, sin cambios de código |
-| 16 | ResumenDisponibilidad evaluado (NO migrar: write-path crítico ya batcheado) + scripts Fase 4 (verificación + DROP propuesto) | (este ciclo) | scripts solo lectura / DROPs comentados |
+| 16 | ResumenDisponibilidad evaluado (NO migrar: write-path crítico ya batcheado) + scripts Fase 4 (verificación + DROP propuesto) | `f8ee8d5` | scripts solo lectura / DROPs comentados |
+| 17 | Migración idempotente tabla `seguimiento_diario_aves_engorde_panama` (código manda) | `877c07b` | ef database update OK local (38 cols) · backend arranca sin errores |
