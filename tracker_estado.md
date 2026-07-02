@@ -43,12 +43,18 @@
   - [x] `MetadataEngordeCalculos` extraído (ToKg + ParseMetadataItemsToKg + MergeMetadataWithPatch — la "diferencia" era solo formato + guarda defensiva de Ecuador, ahora aplicada a ambos) + 9 tests — ciclo 13 `c6acdb4`
   - [x] Recálculo saldo alimento comparado: cuerpo del método y helpers equivalentes salvo `YmdHistoricoEfectivo`. `TryGetHistDeltaAndOrd` extraído a `SaldoAlimentoEngordeCalculos` — ciclo 14
   - [ ] DECISIÓN USUARIO (recomendado SÍ): `YmdHistoricoEfectivo` — Colombia extrae fecha efectiva de la referencia del evento (regex seguimiento / INV_CONSUMO) con fallback a FechaOperacion; Ecuador usa FechaOperacion a secas → eventos tardíos caen en el día equivocado del recálculo de saldo en Ecuador (posible fuente de descuadres). ¿Adoptar la versión Colombia en Ecuador? Tras unificar, extraer también `ComputeSaldoAperturaGalponAntesPrimerSeguimiento` (idéntico) y el fold completo a Calculos.
-- [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
+- [x] Back: `MovimientoPolloEngordePanama` verificado — YA sigue el patrón canónico (servicio delgado de 153 líneas que delega en `IMovimientoPolloEngordeService` compartido + `MovimientoPolloEngordeCalculos`). Sin dedup necesario — ciclo 15
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
 - [ ] Validación visual de cada módulo unificado (datos idénticos pre/post)
 
 ## Fase 3 — Optimización BD (cómputo → funciones/vistas SQL)
-- [ ] Inventariar endpoints con agregaciones pesadas en C# (candidatos: indicadores, liquidaciones, informes semanales)
+- [x] Inventario de agregaciones pesadas en C# (ranking por GroupBy/ToListAsync en memoria, sin fn SQL) — ciclo 15:
+  1. `MovimientoPolloEngordeService.ResumenDisponibilidad` (9 GroupBy / 13 ToList, 519 líneas) — candidato nº1 a `fn_resumen_disponibilidad_engorde`
+  2. `ReporteContableService` (7 GroupBy / 12 ToList, 1.458 líneas) — candidato a `fn_reporte_contable`
+  3. `ReporteTecnicoProduccionService` (6/22, 1.953) y `ReporteTecnicoService` (5/21, 3.110) — informes técnicos completos en C#
+  4. `LoteReproductoraAveEngordeService` (7/5), `MovimientoPolloEngordeService.Auditoria` (5/9), `IndicadoresProduccionService` (4/5)
+  > Referencia del patrón: `IndicadorEcuadorService` ya delega en `fn_indicadores_pollo_engorde` (3 SqlQueryRaw); `fn_seguimiento_diario_engorde` y `fn_informe_semanal_pollo_engorde` existentes.
+- [ ] Migrar candidato nº1 (`ResumenDisponibilidad`) a función SQL + migración idempotente + test de equivalencia numérica
 - [ ] Por candidato: función SQL + migración EF idempotente + test de equivalencia numérica
 - [ ] Revisar índices para filtros frecuentes (lote, fecha, company_id, pais_id)
 
@@ -82,4 +88,5 @@
 | 11 | `LiquidacionEngordeCalculos` (cálculo puro compartido back Colombia+Ecuador) + 9 tests | `648ddff` | dotnet build 0 err · 34/34 tests verdes |
 | 12 | `SeguimientoEngordeCalculos` (CalcularDerivados/CalcularSemana dedup) + 10 tests | `babd852` | dotnet build 0 err · 44/44 tests verdes |
 | 13 | `MetadataEngordeCalculos` (ToKg/ParseMetadataItemsToKg/MergeMetadataWithPatch dedup) + 9 tests | `c6acdb4` | dotnet build 0 err · 53/53 tests verdes |
-| 14 | `SaldoAlimentoEngordeCalculos` (TryGetHistDeltaAndOrd dedup) + hallazgo divergencia `YmdHistoricoEfectivo` (Ecuador sin fecha efectiva → DECISIÓN USUARIO) | (este ciclo) | dotnet build 0 err · 53/53 tests verdes |
+| 14 | `SaldoAlimentoEngordeCalculos` (TryGetHistDeltaAndOrd dedup) + hallazgo divergencia `YmdHistoricoEfectivo` (Ecuador sin fecha efectiva → DECISIÓN USUARIO) | `86bf085` | dotnet build 0 err · 53/53 tests verdes |
+| 15 | MovimientoPolloEngordePanama verificado (ya canónico) + inventario Fase 3 con ranking de candidatos a fn SQL | (tracker) | análisis, sin cambios de código |
