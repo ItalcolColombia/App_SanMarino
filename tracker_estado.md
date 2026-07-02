@@ -29,7 +29,8 @@
 > Diagnóstico: `aves-engorde-panama` = clon de `aves-engorde` (33 de 45 archivos duplicados; `indicadores-diarios-engorde-compute.service.ts` byte-idéntico; modal seguimiento 2100 vs 2109 líneas con deriva). Riesgo actual: fix en un país no llega al otro.
 - [ ] Front: `aves-engorde` vs `aves-engorde-panama` → funciones/modelos compartidos, orquestadores por país
   - [x] Creado `features/engorde-comun/` (README con convención); `indicadores-diarios-engorde-compute.service.ts` + models deduplicados (fuente única + shims re-export) — ciclo 5 `37528e1`
-  - [ ] Deduplicar siguientes pares idénticos/casi idénticos (por tamaño: modal-seguimiento-engorde 2100/2109, seguimiento-aves-engorde-list 683/675, modal-liquidacion 565/428, tabs-principal, graficas-indicadores, modal-detalle, modal-cuadrar-saldos)
+  - [x] Deduplicados los idénticos: tabla-indicadores, modal-detalle, graficas-indicadores (componentes completos) + saldo-alimento util → engorde-comun con shims (−1.626 líneas netas) — ciclo 6 `eb0a277`
+  - [ ] Pares con deriva (unificar parametrizando país): modal-cuadrar-saldos (6 líneas diff), seguimiento-aves-engorde-form (48), seguimiento-aves-engorde-list (79), modal-seguimiento-engorde (157), modal-liquidacion (201), tabs-principal (819)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
