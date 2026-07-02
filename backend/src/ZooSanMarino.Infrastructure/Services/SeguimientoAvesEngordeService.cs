@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -213,23 +214,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
             .OrderBy(h => h.Id)
             .FirstOrDefaultAsync();
 
-        int hInicio;
-        int mInicio;
-        int xInicio;
-        if (ini != null)
-        {
-            hInicio = ini.AvesHembras;
-            mInicio = ini.AvesMachos;
-            xInicio = ini.AvesMixtas;
-        }
-        else
-        {
-            hInicio = lote.HembrasL ?? 0;
-            mInicio = lote.MachosL ?? 0;
-            xInicio = lote.Mixtas ?? 0;
-            if (hInicio + mInicio + xInicio == 0 && lote.AvesEncasetadas.HasValue && lote.AvesEncasetadas.Value > 0)
-                xInicio = lote.AvesEncasetadas.Value;
-        }
+        var (hInicio, mInicio, xInicio) = LiquidacionEngordeCalculos.CalcularAvesInicio(
+            ini != null, ini?.AvesHembras ?? 0, ini?.AvesMachos ?? 0, ini?.AvesMixtas ?? 0,
+            lote.HembrasL, lote.MachosL, lote.Mixtas, lote.AvesEncasetadas);
 
         var totalInicio = hInicio + mInicio + xInicio;
 
@@ -244,7 +231,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                 (s.ErrorSexajeHembras ?? 0) +
                 (s.ErrorSexajeMachos ?? 0))
             .SumAsync();
-        var avesVivas = Math.Max(0, totalInicio - bajas - (vh + vm + vx));
+        var avesVivas = LiquidacionEngordeCalculos.CalcularAvesVivas(totalInicio, bajas, vh + vm + vx);
 
         return new LiquidacionLoteEngordeResumenDto(
             lote.LoteAveEngordeId ?? loteId,
