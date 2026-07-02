@@ -45,7 +45,9 @@ Tras cada semana: `avesAcum = avesFin`; `mortAcum += mortalidadSem`; `selAcum +=
 - [x] Paso 3 — DTO `IndicadorSemanalLevanteDto` + endpoint `GET SeguimientoLoteLevante/por-lote/{id}/indicadores` (SqlQueryRaw).
 - [x] Paso 4 — Front `tabla-lista-indicadores` consume el endpoint (getIndicadores) y solo pinta; fallback legacy defensivo. **Validado E2E** (Colombia, lote 13/K345A): endpoint 200, 25 semanas, valores coinciden con la fn (sem1 aves 9131→9024, consumo 21.0 vs guía 22.5, ganancia 118.7, mort 1.01%). **Bugs corregidos**: guía Colombia real (no Ecuador-mixto) + peso con arrastre.
 - [ ] Paso 2b — Test xUnit de equivalencia (opcional; la validación E2E ya confirmó coincidencia).
-- [ ] Paso 5 — `graficas-principal` levante (aún calcula en cliente) + quitar cómputo legacy dead de la tabla + C2 (producción).
+- [x] Paso 5a — `graficas-principal` levante consume el endpoint (getIndicadores) y solo pinta. Eliminado TODO el cómputo cliente (`calcularIndicadorSemana`, `agruparPorSemana`, `calcularSemana`, `prefetchGuia`, `guiaMap`) y la dependencia de `GuiaGeneticaService` en el front: los valores "tabla" (consumo/peso/mortalidad de guía) llegan en el mismo DTO. Sin fallback cliente (misma fuente y falla-conjunta que la tabla). Métrica **CV** retirada (la fn no la calcula → evitar ceros engañosos). **Validado E2E** (Colombia, lote 13/K345A): endpoint `por-lote/13/indicadores` llamado, 8 canvas renderizan, "25 semanas registradas", valores coherentes con la tabla (Peso 3.683,5g, Aves 8.393, Consumo Real 66 vs Tabla 74g), 0 NG0103 al interactuar. Commit `68468e1`.
+- [ ] Paso 5b — Quitar el fallback legacy de `tabla-lista-indicadores` (cómputo cliente + prefetchGuia), dejándola 100% dependiente del endpoint como las gráficas.
+- [ ] Paso 6 — C2 (producción postura → fn SQL), mismo patrón.
 
 ## Riesgos / salvaguardas
 - Bit-exactitud JS↔Postgres: usar float8 + mismo orden; el golden test lo garantiza. NO usar numeric/round salvo donde el front redondea (no lo hace en el cálculo).
