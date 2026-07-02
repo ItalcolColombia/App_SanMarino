@@ -57,7 +57,7 @@
 - [x] Evaluado candidato nº1 (`ResumenDisponibilidad`): **NO migrar a SQL** — ya está batcheado (7 queries, GroupBy pesados se traducen a SQL) y es lógica de validación del flujo de VENTAS (path de escritura); duplicarla en PL/pgSQL crearía riesgo de deriva C#↔SQL en datos críticos — ciclo 16
 - [ ] DECISIÓN USUARIO (priorización Fase 3): los objetivos reales son los reportes de solo lectura, cada uno es un esfuerzo dedicado: (a) `ReporteContableService` → `fn_reporte_contable`, (b) `ReporteTecnicoService`/`ReporteTecnicoProduccionService` → fn por informe. ¿Cuál duele más en prod para empezar?
 - [ ] Por candidato: función SQL + migración EF idempotente + test de equivalencia numérica
-- [ ] Revisar índices para filtros frecuentes (lote, fecha, company_id, pais_id)
+- [x] Índices revisados en tablas calientes (seguimiento_diario_aves_engorde, lote_registro_historico_unificado, historial_lote_pollo_engorde, movimiento_pollo_engorde): **bien cubiertos** (compuestos lote+fecha DESC, company+fecha, parciales en FKs nullables, únicos de negocio). Sin cambios especulativos; para más, pedir `pg_stat_statements` de prod — ciclo 19
 
 ## Fase 4 — Normalización y limpieza BD
 - [x] Cruce inicial `information_schema` local (95 tablas) vs entidades mapeadas. Candidatas a DROP (confirmar en prod antes): `_backup_cuadre_expected_2026_06_01`, `_migracion_saldo_alimento_2026_05_28`, `_migracion_saldo_alimento_2026_05_31`, `_migracion_saldo_alimento_m1_2026_05_31`, `guia_semana`, `user_paises` (las 2 últimas: sin entidad ni servicio, solo aparecen en la migración `AddMissingDbFunctionsTriggersAndViews`)
@@ -65,7 +65,7 @@
 - [ ] DECISIÓN USUARIO: eliminar entidad `SeguimientoDiarioAvesEngordeEcuador` del modelo (genera migración con DropTable → editar a no-op o `DROP IF EXISTS` según confirmes si la tabla existe en prod con datos)
 - [x] Migración idempotente `EnsureSeguimientoDiarioAvesEngordePanamaTable` creada y aplicada en local (38 columnas + índices + FK guard; en prod será no-op porque la tabla ya existe) — ciclo 17 `877c07b`
 - [ ] Confirmar en prod (solo lectura) los conteos de filas de las candidatas a DROP
-- [ ] Informe de columnas legacy no mapeadas
+- [x] Informe de columnas legacy → `backend/sql/INFORME_COLUMNAS_NO_MAPEADAS.md` (89 tablas analizadas; 11 con columnas fuera de EF: 6 vivas vía SQL crudo → recomendado mapearlas; 4 candidatas a DROP con verificación en prod) — ciclo 19
 - [x] Scripts entregables creados — ciclo 16: `backend/sql/verificacion_tablas_sin_uso.sql` (solo lectura: conteos + dependencias, correr en PROD) y `backend/sql/propuesta_drop_tablas_sin_uso.sql` (DROPs comentados; ejecutar solo con OK + backup)
 
 ## Fase 5 — Segunda pasada del loop
@@ -94,3 +94,4 @@
 | 16 | ResumenDisponibilidad evaluado (NO migrar: write-path crítico ya batcheado) + scripts Fase 4 (verificación + DROP propuesto) | `f8ee8d5` | scripts solo lectura / DROPs comentados |
 | 17 | Migración idempotente tabla `seguimiento_diario_aves_engorde_panama` (código manda) | `877c07b` | ef database update OK local (38 cols) · backend arranca sin errores |
 | 18 | Todas las advertencias baseline resueltas (6 → 0) | `074d5b6` | dotnet build 0 err / 0 warn · 54/54 tests |
+| 19 | Índices revisados (OK, sin cambios) + informe columnas no mapeadas (11 tablas) | (este ciclo) | análisis contra BD local alineada a migraciones |
