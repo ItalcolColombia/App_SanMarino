@@ -1129,68 +1129,13 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     }
 
     private static JsonDocument? MergeMetadataWithPatch(JsonDocument? existing, Dictionary<string, object?> patch)
-    {
-        if ((patch is null || patch.Count == 0) && existing is null)
-            return null;
-
-        if (patch is null || patch.Count == 0)
-            return existing;
-
-        Dictionary<string, object?> dict;
-        if (existing != null)
-        {
-            dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(existing.RootElement.GetRawText())
-                   ?? new Dictionary<string, object?>();
-        }
-        else
-        {
-            dict = new Dictionary<string, object?>();
-        }
-
-        foreach (var kv in patch)
-            dict[kv.Key] = kv.Value;
-
-        return JsonDocument.Parse(JsonSerializer.Serialize(dict));
-    }
+        => MetadataEngordeCalculos.MergeMetadataWithPatch(existing, patch);
 
     private static decimal ToKg(double cantidad, string? unidad)
-    {
-        var u = (unidad ?? "kg").Trim().ToLowerInvariant();
-        if (u == "g" || u == "gramos" || u == "gramo") return (decimal)(cantidad / 1000.0);
-        return (decimal)cantidad;
-    }
+        => MetadataEngordeCalculos.ToKg(cantidad, unidad);
 
     private static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
-    {
-        var byItemId = new Dictionary<int, decimal>();
-        if (root.TryGetProperty("itemsHembras", out var arrH))
-            foreach (var e in arrH.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        if (root.TryGetProperty("itemsMachos", out var arrM))
-            foreach (var e in arrM.EnumerateArray())
-            {
-                var id = 0;
-                if (e.TryGetProperty("itemInventarioEcuadorId", out var pid) && pid.ValueKind != JsonValueKind.Null)
-                    id = pid.GetInt32();
-                if (id <= 0 && e.TryGetProperty("catalogItemId", out var cid))
-                    id = cid.GetInt32();
-                if (id <= 0) continue;
-                var cant = e.TryGetProperty("cantidad", out var c) ? c.GetDouble() : 0;
-                var un = e.TryGetProperty("unidad", out var u) ? u.GetString() : "kg";
-                byItemId[id] = byItemId.GetValueOrDefault(id) + ToKg(cant, un);
-            }
-        return byItemId;
-    }
+        => MetadataEngordeCalculos.ParseMetadataItemsToKg(root);
 
     private async Task<int> CalcularHembrasVivasAsync(int loteAveEngordeId)
     {
