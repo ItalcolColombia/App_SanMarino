@@ -94,6 +94,11 @@ export class ModalLiquidacionLoteEngordeComponent implements OnChanges {
     return this.countryFilter.isPanama();
   }
 
+  /** País activo = Ecuador: única sección Merma (Costos) — regla de negocio del liquidador Ecuador. */
+  get esEcuador(): boolean {
+    return this.countryFilter.isEcuador();
+  }
+
   /** Los 6 insumos Panamá están completos (> 0) — habilita el cierre. */
   get panamaCamposCompletos(): boolean {
     return (

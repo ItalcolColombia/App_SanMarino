@@ -224,12 +224,17 @@ export class SeguimientoAvesEngordeService {
     return dd.toISOString();
   }
 
+  // Cuadrar saldos: las rutas viven SOLO en el controller SeguimientoAvesEngorde
+  // (mismo esquema de datos: tabla compartida seguimiento_diario_aves_engorde).
+  // Con baseUrl (SeguimientoAvesEngordeEcuador) daban 404.
+  private readonly cuadrarUrl = `${environment.apiUrl}/SeguimientoAvesEngorde`;
+
   cuadrarSaldosValidar(
     loteId: number,
     filasExcel: FilaExcelCuadrarSaldosDto[]
   ): Observable<CuadrarSaldosValidarResponseDto> {
     return this.http.post<CuadrarSaldosValidarResponseDto>(
-      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/validar`,
+      `${this.cuadrarUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/validar`,
       { filasExcel }
     );
   }
@@ -240,7 +245,7 @@ export class SeguimientoAvesEngordeService {
     filasExcel?: FilaExcelCuadrarSaldosDto[]
   ): Observable<CuadrarSaldosAplicarResponseDto> {
     return this.http.post<CuadrarSaldosAplicarResponseDto>(
-      `${this.baseUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/aplicar`,
+      `${this.cuadrarUrl}/por-lote/${encodeURIComponent(loteId.toString())}/cuadrar-saldos/aplicar`,
       { acciones, filasExcel: filasExcel ?? [] }
     );
   }

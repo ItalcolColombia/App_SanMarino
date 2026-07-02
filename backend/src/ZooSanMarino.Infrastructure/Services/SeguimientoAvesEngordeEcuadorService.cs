@@ -99,7 +99,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
                 l.HembrasL,
                 l.MachosL,
                 l.Mixtas,
-                l.AvesEncasetadas
+                l.AvesEncasetadas,
+                l.MermaUnidades,
+                l.MermaKilos
             })
             .SingleOrDefaultAsync();
         if (lote is null) return null;
@@ -158,7 +160,9 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
             vx,
             avesVivas,
             ventas.Count,
-            saldo);
+            saldo,
+            lote.MermaUnidades,
+            lote.MermaKilos);
     }
 
     // ─── Tabla diaria via función SQL ────────────────────────────────────────
