@@ -28,6 +28,8 @@
 ## Fase 2 — Unificación multi-país (un dominio por ciclo)
 > Diagnóstico: `aves-engorde-panama` = clon de `aves-engorde` (33 de 45 archivos duplicados; `indicadores-diarios-engorde-compute.service.ts` byte-idéntico; modal seguimiento 2100 vs 2109 líneas con deriva). Riesgo actual: fix en un país no llega al otro.
 - [ ] Front: `aves-engorde` vs `aves-engorde-panama` → funciones/modelos compartidos, orquestadores por país
+  - [x] Creado `features/engorde-comun/` (README con convención); `indicadores-diarios-engorde-compute.service.ts` + models deduplicados (fuente única + shims re-export) — ciclo 5 `37528e1`
+  - [ ] Deduplicar siguientes pares idénticos/casi idénticos (por tamaño: modal-seguimiento-engorde 2100/2109, seguimiento-aves-engorde-list 683/675, modal-liquidacion 565/428, tabs-principal, graficas-indicadores, modal-detalle, modal-cuadrar-saldos)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
@@ -59,3 +61,4 @@
 | 2 | Fase 0 cerrada: tests baseline (26 ✅), entorno local arriba (back :5002 + front :4200), barrido bruto front (45 candidatos) | (tracker) | backend arranca sin conflictos de ruta; login renderiza sin errores de consola |
 | 3 | 70 archivos de código muerto front eliminados (−6.461 líneas), 2 falsos positivos restaurados | `e1e28a4` | ng build OK (122 s) · app recargada y login OK en :4200 |
 | 4 | Clasificación SQL (`CLASIFICACION_SCRIPTS.md`) + 5 DTOs huérfanos back eliminados | `19a6999` | dotnet build 0 err/0 warn · backend re-levantado :5002 |
+| 5 | `engorde-comun/` creado; compute service + models deduplicados (Colombia/Panamá) con shims | `37528e1` | ng build OK (90 s) · app sin errores nuevos de consola |
