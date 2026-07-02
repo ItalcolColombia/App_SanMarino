@@ -70,7 +70,7 @@
 
 ## Fase 5 — Segunda pasada del loop
 - [ ] Re-barrido de mejoras sobre lo refactorizado
-- [ ] Resolver las 6 advertencias baseline del backend
+- [x] Resueltas TODAS las advertencias baseline del backend → `dotnet build` 0 err / **0 warn** (SeguimientoDiarioService ×3, EmailQueueProcessorService, TrasladoHuevosService var muerta) — ciclo 18 `074d5b6`
 - [ ] Resumen final: diff vs `main` + checklist de regresión visual
 
 ## Registro de ciclos cerrados
@@ -93,3 +93,4 @@
 | 15 | MovimientoPolloEngordePanama verificado (ya canónico) + inventario Fase 3 con ranking de candidatos a fn SQL | (tracker) | análisis, sin cambios de código |
 | 16 | ResumenDisponibilidad evaluado (NO migrar: write-path crítico ya batcheado) + scripts Fase 4 (verificación + DROP propuesto) | `f8ee8d5` | scripts solo lectura / DROPs comentados |
 | 17 | Migración idempotente tabla `seguimiento_diario_aves_engorde_panama` (código manda) | `877c07b` | ef database update OK local (38 cols) · backend arranca sin errores |
+| 18 | Todas las advertencias baseline resueltas (6 → 0) | `074d5b6` | dotnet build 0 err / 0 warn · 54/54 tests |
