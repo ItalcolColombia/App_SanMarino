@@ -147,8 +147,10 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         }
         else
         {
+            // useLppFlow garantiza HasValue (se evaluó arriba).
+            var lppId = dto.LotePosturaProduccionId!.Value;
             var lpp = await _ctx.LotePosturaProduccion.AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == dto.LotePosturaProduccionId.Value
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == lppId
                     && l.CompanyId == _current.CompanyId && l.DeletedAt == null, ct);
             if (lpp is null)
                 throw new InvalidOperationException("El lote postura producción no existe o no pertenece a la compañía.");
@@ -164,10 +166,11 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
                     .AnyAsync(el => el.LoteId == loteIdInt.Value, ct);
                 if (!existeEtapa)
                 {
+                    // tipo=="levante" implica !useLppFlow → lote no es null aquí.
                     _ctx.LoteEtapaLevante.Add(new LoteEtapaLevante
                     {
                         LoteId = loteIdInt.Value,
-                        AvesInicioHembras = lote.HembrasL ?? 0,
+                        AvesInicioHembras = lote!.HembrasL ?? 0,
                         AvesInicioMachos = lote.MachosL ?? 0,
                         FechaInicio = lote.FechaEncaset ?? DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow
@@ -434,8 +437,10 @@ public class SeguimientoDiarioService : ISeguimientoDiarioService
         }
         else
         {
+            // Rama del flujo LPP: HasValue garantizado por la condición que la selecciona.
+            var lppId = dto.LotePosturaProduccionId!.Value;
             var lpp = await _ctx.LotePosturaProduccion.AsNoTracking()
-                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == dto.LotePosturaProduccionId.Value
+                .FirstOrDefaultAsync(l => l.LotePosturaProduccionId == lppId
                     && l.CompanyId == _current.CompanyId && l.DeletedAt == null, ct);
             if (lpp is null)
                 throw new InvalidOperationException("El lote postura producción no existe o no pertenece a la compañía.");

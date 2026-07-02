@@ -497,7 +497,7 @@ public class EmailQueueProcessorService : BackgroundService
                 ? $"{metadata["error_history"]}\nAttempt {retryCount}: {errorDetails}"
                 : $"Attempt {retryCount}: {errorDetails}";
             
-            metadata["last_error"] = errorDetails;
+            metadata["last_error"] = errorDetails ?? string.Empty;
             metadata["last_error_at"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
             metadata["total_retries"] = retryCount;
             
