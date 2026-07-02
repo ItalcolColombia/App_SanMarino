@@ -30,7 +30,8 @@
 - [ ] Front: `aves-engorde` vs `aves-engorde-panama` → funciones/modelos compartidos, orquestadores por país
   - [x] Creado `features/engorde-comun/` (README con convención); `indicadores-diarios-engorde-compute.service.ts` + models deduplicados (fuente única + shims re-export) — ciclo 5 `37528e1`
   - [x] Deduplicados los idénticos: tabla-indicadores, modal-detalle, graficas-indicadores (componentes completos) + saldo-alimento util → engorde-comun con shims (−1.626 líneas netas) — ciclo 6 `eb0a277`
-  - [ ] Pares con deriva (unificar parametrizando país): modal-cuadrar-saldos (6 líneas diff), seguimiento-aves-engorde-form (48), seguimiento-aves-engorde-list (79), modal-seguimiento-engorde (157), modal-liquidacion (201), tabs-principal (819)
+  - [x] modal-cuadrar-saldos unificado con patrón `CuadrarSaldosEngordeApi` (abstracta + useExisting por país) — ciclo 7 `b10d39d` (−1.006 líneas netas)
+  - [ ] Pares con deriva restantes (mismo patrón DI): seguimiento-aves-engorde-form (48 líneas diff), seguimiento-aves-engorde-list (79), modal-seguimiento-engorde (157), modal-liquidacion (201), tabs-principal (819 — dejar de último, tiene lógica Panamá propia: RegistroDiarioTablaFilaEngorde, agregados históricos)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
@@ -63,3 +64,5 @@
 | 3 | 70 archivos de código muerto front eliminados (−6.461 líneas), 2 falsos positivos restaurados | `e1e28a4` | ng build OK (122 s) · app recargada y login OK en :4200 |
 | 4 | Clasificación SQL (`CLASIFICACION_SCRIPTS.md`) + 5 DTOs huérfanos back eliminados | `19a6999` | dotnet build 0 err/0 warn · backend re-levantado :5002 |
 | 5 | `engorde-comun/` creado; compute service + models deduplicados (Colombia/Panamá) con shims | `37528e1` | ng build OK (90 s) · app sin errores nuevos de consola |
+| 6 | 3 componentes idénticos + util movidos a engorde-comun (−1.626) | `eb0a277` | ng build OK (87 s) · visual OK |
+| 7 | modal-cuadrar-saldos unificado con `CuadrarSaldosEngordeApi` + DI por país (−1.006) | `b10d39d` | ng build OK (100 s) · visual OK |
