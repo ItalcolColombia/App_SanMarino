@@ -76,6 +76,10 @@
 - [x] Resumen final — **LOOP CERRADO 2026-07-01**: 20 ciclos, 32 commits, `main..HEAD` = 160 archivos, +15.867/−18.304 (−2.437 netas). El loop se reactiva cuando el usuario resuelva las DECISIÓN USUARIO pendientes (buscar "DECISIÓN USUARIO" en este tracker).
 - [ ] ⏸️ EN PAUSA (esperan OK del usuario): unificar modal-liquidacion (deriva crítica Panamá), YmdHistoricoEfectivo Ecuador, seguimiento-aves-engorde-list, tabs-principal, paneles test farm-management, DROP 6 tablas + 4 grupos de columnas, priorización de reportes → fn SQL, entidad SeguimientoDiarioAvesEngordeEcuador
 
+## Pipeline E2E multi-país (doc: fase_de_desarrollo/diagnostico_e2e_paises.md)
+- FASE A (diagnóstico) cerrada: Ecuador CRUD+liquidación OK, Panamá vacío sano, Colombia CRUD producción OK.
+- FASE C (fixes): **H2** galpones duplicados corregido (`dba4562`); **H1** NG0103 en modal-seguimiento-engorde corregido (memoización de `getAlimentosFiltradosPorTipo`).
+
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
 |---|---|---|---|

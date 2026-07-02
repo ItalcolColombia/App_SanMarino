@@ -40,7 +40,7 @@
 
 ## FASE C — Desarrollo (un fix por ciclo, patrón del refactor)
 - [x] **H2 CORREGIDO** — galpones con nombre duplicado: helper `disambiguateGalponLabels` en los dos `filtro-select` (levante y producción) agrega `(código)` solo cuando el nombre se repite. Validado E2E (NIZA I / Modulo I): dropdown ahora muestra "Galpon 3 (G0023)" y "Galpon 3 (G0024)"; los únicos ("Galpon 1", "Galpon 2") quedan sin código. ng build OK.
-- [ ] **H1 EN INVESTIGACIÓN** — NG0103 change detection (ver hallazgo)
+- [x] **H1 CORREGIDO** — NG0103 Infinite change detection. **Causa raíz**: en `modal-seguimiento-engorde.component.html:75` un `*ngFor` iteraba sobre `getAlimentosFiltradosPorTipo(...)`, método que SIEMPRE alocaba (`.map`/`.filter` + `filtrarAlimentosConStockDisponible`) → array nuevo por ciclo de CD → loop infinito (patrón vetado por CLAUDE.md). **Fix**: memoización por igualdad de contenido (mismos ids/orden) que devuelve la MISMA referencia cuando no cambian los datos; el cómputo se movió a `computeAlimentosFiltradosPorTipo`. Reproducido de forma confiable (contador de NG0103 antes del fix >0 al abrir modal) y verificado 0 después (abrir modal → seleccionar ítem → cantidad → guardar → eliminar, todo con contador fresco en 0). ng build OK.
 
 ## Registro de hallazgos (se llena en FASE A)
 | # | País | Módulo | Severidad prelim. | Descripción | Evidencia |

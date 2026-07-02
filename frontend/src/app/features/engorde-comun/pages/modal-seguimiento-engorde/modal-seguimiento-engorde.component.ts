@@ -411,7 +411,26 @@ export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDe
   // Obtener alimentos filtrados para un ítem específico
   // Ecuador/Panamá: filtra por concepto (tipo ítem = conceptos de item_inventario_ecuador); mismo criterio en tabs hembras y machos
   /** `selectedCatalogId`: id ya elegido en la fila; se mantiene en la lista aunque el stock sea 0 (p. ej. edición). */
+  /**
+   * Caché de referencias estables por (tipoItem|idSeleccionado). El template usa este método
+   * dentro de un *ngFor; devolver un array nuevo en cada ciclo de detección de cambios provocaba
+   * NG0103 (Infinite change detection). Se recalcula el contenido, pero si el resultado es igual
+   * (mismos ids en el mismo orden) se devuelve la MISMA referencia previa para no romper el CD.
+   */
+  private readonly _alimentosFiltradosCache = new Map<string, CatalogItemDto[]>();
+
   getAlimentosFiltradosPorTipo(tipoItem: string | null, selectedCatalogId?: number | string | null): CatalogItemDto[] {
+    const computed = this.computeAlimentosFiltradosPorTipo(tipoItem, selectedCatalogId);
+    const key = `${tipoItem ?? ''}|${selectedCatalogId ?? ''}`;
+    const prev = this._alimentosFiltradosCache.get(key);
+    if (prev && prev.length === computed.length && prev.every((a, i) => a.id === computed[i].id)) {
+      return prev;
+    }
+    this._alimentosFiltradosCache.set(key, computed);
+    return computed;
+  }
+
+  private computeAlimentosFiltradosPorTipo(tipoItem: string | null, selectedCatalogId?: number | string | null): CatalogItemDto[] {
     let list: CatalogItemDto[];
     if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
