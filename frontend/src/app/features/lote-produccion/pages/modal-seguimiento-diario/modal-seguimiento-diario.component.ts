@@ -301,7 +301,26 @@ export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {
     this.itemsMachosArray.removeAt(index);
   }
 
+  /**
+   * Caché de referencias estables por tipoItem. Este método se usa dentro de un *ngFor;
+   * devolver un array nuevo en cada ciclo de detección de cambios provoca NG0103
+   * (Infinite change detection). Se recalcula el contenido, pero si es igual (mismos ids
+   * en el mismo orden) se devuelve la MISMA referencia previa para no romper el CD.
+   */
+  private readonly _alimentosFiltradosCache = new Map<string, CatalogItemExtended[]>();
+
   getAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemExtended[] {
+    const computed = this.computeAlimentosFiltradosPorTipo(tipoItem);
+    const key = `${tipoItem ?? ''}`;
+    const prev = this._alimentosFiltradosCache.get(key);
+    if (prev && prev.length === computed.length && prev.every((a, i) => a.id === computed[i].id)) {
+      return prev;
+    }
+    this._alimentosFiltradosCache.set(key, computed);
+    return computed;
+  }
+
+  private computeAlimentosFiltradosPorTipo(tipoItem: string | null): CatalogItemExtended[] {
     if (this.isEcuadorOrPanama && this.itemsEcuadorPanama.length > 0) {
       const c = (tipoItem ?? '').trim().toLowerCase();
       if (!c) return this.itemsEcuadorPanama.map(i => this.itemEcuadorToExtended(i));

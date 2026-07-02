@@ -33,6 +33,10 @@
 - [ ] Inventario y Traslados: carga y flujo básico
 - Hallazgos: (pendiente)
 
+### A-extra (barrido estático NG0103, 2026-07-02)
+- [x] Barrido de `*ngFor` sobre métodos que alocan (misma causa que H1) en TODO el front. La mayoría de `foo()` en `*ngFor` son **signals** (referencia estable, OK). Confirmado el mismo patrón alocador de `getAlimentosFiltradosPorTipo` en **dos modales más de Colombia postura**: `lote-produccion/modal-seguimiento-diario` y `lote-levante/modal-create-edit` → **H3**, corregidos con la misma memoización. Validado E2E: modal producción Colombia (lote P-K345A) abre e interactúa con **0 NG0103**.
+- [ ] Candidatos restantes a revisar en próximos ciclos (métodos, no signals, que devuelven arrays dentro de `*ngFor`; requieren reproducción para confirmar): `indicador-ecuador/auditoria-liquidacion-modal columnasRegistro(h)`, `catalogo-alimentos metaChips()/getMetadataAsArray()`, `traslados-aves/traslado-navigation-* getLoteInfo()/getPaginas()`, `gestion-inventario *Filtered()` (verificar si son métodos o signals).
+
 ## FASE B — QA / triaje (cuando A1-A3 estén cerradas)
 - [ ] Consolidar hallazgos → tabla: severidad (bloqueante/alta/media/baja), módulo, país, repro, hipótesis de causa
 - [ ] Verificar duplicados con problemas ya conocidos (tracker_estado.md, memorias)
