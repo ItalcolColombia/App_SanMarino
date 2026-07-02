@@ -23,7 +23,7 @@
 - [x] Barrido bruto: 45 clases TS sin referencias externas → reporte en scratchpad `front_sin_referencias.txt` (contiene falsos positivos; verificar 1×1)
 - [x] Verificados y eliminados 70 archivos de código muerto front (−6.461 líneas). Falsos positivos restaurados: `is-ecuador.pipe`, `lote-seguimiento.service`. Quedan vivos (confirmado uso): `lazy-observe`, `show-if-ecuador`, `conteo-fisico`, `movimiento-alimento-form`, `tabla-indicadores-diarios`
 - [ ] Barrido: DTOs y modelos huérfanos
-- [ ] Clasificar `/backend/sql/`: scripts vivos (fn_/vw_/triggers) vs diagnósticos históricos (solo documentar)
+- [x] Clasificar `/backend/sql/` → `backend/sql/CLASIFICACION_SCRIPTS.md` (vivos / DDL histórico / one-shots / diagnóstico / cuarentena)
 
 ## Fase 2 — Unificación multi-país (un dominio por ciclo)
 > Diagnóstico: `aves-engorde-panama` = clon de `aves-engorde` (33 de 45 archivos duplicados; `indicadores-diarios-engorde-compute.service.ts` byte-idéntico; modal seguimiento 2100 vs 2109 líneas con deriva). Riesgo actual: fix en un país no llega al otro.
