@@ -2,7 +2,7 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChange
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import * as XLSX from 'xlsx';
-import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
+import { SeguimientoLoteLevanteDto, SeguimientoLoteLevanteService, IndicadorSemanalLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
 import { LotePosturaLevanteDto } from '../../../lote/services/lote-postura-levante.service';
 import { GuiaGeneticaDto, GuiaGeneticaService } from '../../../../services/guia-genetica.service';
@@ -82,7 +82,10 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
   /** Origen de los valores "tabla" para comparativos: Ecuador mixto (prioritario) o guía clásica produccion_avicola. */
   fuenteGuiaIndicadores: 'ecuador-mixto' | 'clasica' | null = null;
 
-  constructor(private guiaGeneticaService: GuiaGeneticaService) { }
+  constructor(
+    private guiaGeneticaService: GuiaGeneticaService,
+    private seguimientoSvc: SeguimientoLoteLevanteService
+  ) { }
 
   /** Descarga UN libro Excel con HOJAS SEPARADAS: "Seguimiento" (registros diarios) e "Indicadores". */
   descargarExcel(): void {
@@ -159,7 +162,17 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
     }
   }
 
-  // ================== CÁLCULOS DE INDICADORES ==================
+  // ================== INDICADORES (calculados en la BD) ==================
+  /**
+   * Los indicadores semanales de levante se calculan en la BD
+   * (fn_indicadores_levante_postura, endpoint …/por-lote/{id}/indicadores).
+   * El front SOLO pinta: no recalcula desde los seguimientos crudos ni compara
+   * contra la guía en el cliente. La función usa la guía Colombia correcta
+   * (guia_genetica_sanmarino_colombia), no la Ecuador-mixto que el front usaba antes.
+   *
+   * Si no se puede resolver el loteId o el endpoint falla, cae al cálculo legacy
+   * en cliente (fallback defensivo) para no romper la vista.
+   */
   private async calcularIndicadores(): Promise<void> {
     if (!this.seguimientos || this.seguimientos.length === 0 || !this.selectedLote) {
       this.indicadoresSemanales = [];
@@ -167,21 +180,91 @@ export class TablaListaIndicadoresComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Agrupar registros por semana
-    const registrosPorSemana = this.agruparPorSemana(this.seguimientos);
+    const loteId = this.resolverLoteId();
+    if (loteId != null) {
+      try {
+        const dto = await firstValueFrom(this.seguimientoSvc.getIndicadores(loteId));
+        this.indicadoresSemanales = (dto || []).map(d => this.mapDtoAIndicador(d));
+        this.fuenteGuiaIndicadores = 'clasica'; // guía Colombia real (BD)
+        return;
+      } catch (e) {
+        console.warn('Indicadores desde BD no disponibles; se usa cálculo local (fallback):', e);
+      }
+    }
 
-    // Prefetch guía genética en UNA sola petición (rango 1..25)
+    // Fallback legacy (cálculo en cliente)
+    const registrosPorSemana = this.agruparPorSemana(this.seguimientos);
     const semanas = Array.from(registrosPorSemana.keys());
     const minSemana = semanas.length ? Math.max(1, Math.min(...semanas)) : 1;
     const maxSemana = semanas.length ? Math.min(25, Math.max(...semanas)) : 25;
     await this.prefetchGuiaGeneticaRango(minSemana, maxSemana);
-    
-    // Calcular indicadores para cada semana
     this.indicadoresSemanales = await this.calcularIndicadoresSemanales(registrosPorSemana);
-    
-    // 🔍 VALIDACIÓN AUTOMÁTICA: Ejecutar validación después de calcular
-    
-    await this.validarUsoTablaGenetica();
+  }
+
+  /** loteId numérico (lotes.lote_id) para pedir los indicadores a la BD. */
+  private resolverLoteId(): number | null {
+    const candidatos = [
+      (this.selectedLote as any)?.loteId,
+      (this.seguimientos?.[0] as any)?.loteId
+    ];
+    for (const c of candidatos) {
+      const n = Number(c);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  }
+
+  /** Mapea el DTO de la BD al modelo de la tabla; los campos de contexto (fechas, ubicación, observaciones) no son cálculo. */
+  private mapDtoAIndicador(d: IndicadorSemanalLevanteDto): IndicadorSemanal {
+    const obsSem = this.observacionesDeSemana(d.semana);
+    return {
+      semana: d.semana,
+      fechaInicio: this.obtenerFechaInicioSemana(d.semana),
+      fechaFin: this.obtenerFechaFinSemana(d.semana),
+      region: this.selectedLote?.regional || null,
+      granja: (this.selectedLote as any)?.farm?.name || null,
+      nave: (this.selectedLote as any)?.nucleo?.nucleoNombre || null,
+      sublote: this.extraerSublote((this.selectedLote as any)?.loteNombre || ''),
+      avesInicioSemana: d.avesInicioSemana,
+      avesFinSemana: d.avesFinSemana,
+      consumoDiario: d.consumoDiario,
+      consumoTabla: d.consumoTabla,
+      consumoTotalSemana: d.consumoTotalSemana,
+      conversionAlimenticia: d.conversionAlimenticia,
+      pesoTabla: d.pesoTabla,
+      unifReal: d.unifReal,
+      unifTabla: d.unifTabla,
+      mortTabla: d.mortTabla,
+      difPesoPct: d.difPesoPct,
+      gananciaSemana: d.gananciaSemana,
+      gananciaDiariaAcumulada: d.gananciaDiariaAcumulada,
+      gananciaTabla: d.gananciaTabla,
+      mortalidadSem: d.mortalidadSem,
+      seleccionSem: d.seleccionSem,
+      errorSexajeSem: d.errorSexajeSem,
+      mortalidadMasSeleccion: d.mortalidadMasSeleccion,
+      eficiencia: d.eficiencia,
+      ip: d.ip,
+      vpi: d.vpi,
+      saldoAvesSemanal: d.saldoAvesSemanal,
+      mortalidadAcum: d.mortalidadAcum,
+      seleccionAcum: d.seleccionAcum,
+      mortalidadMasSeleccionAcum: d.mortalidadMasSeleccionAcum,
+      pisoTermicoVisible: d.pisoTermicoVisible,
+      pesoInicial: d.pesoInicial,
+      pesoCierre: d.pesoCierre,
+      pesoAnterior: d.pesoInicial,
+      pesoTablaAnterior: 0,
+      observaciones: obsSem
+    };
+  }
+
+  /** Observaciones del último registro de la semana (contexto, no cálculo). */
+  private observacionesDeSemana(semana: number): string | null {
+    const regs = (this.seguimientos || [])
+      .filter(r => this.calcularSemana(r.fechaRegistro) === semana)
+      .sort((a, b) => (this.toYMD(a.fechaRegistro) ?? '').localeCompare(this.toYMD(b.fechaRegistro) ?? ''));
+    return regs.length ? (regs[regs.length - 1].observaciones || null) : null;
   }
 
   private agruparPorSemana(registros: SeguimientoLoteLevanteDto[]): Map<number, SeguimientoLoteLevanteDto[]> {
