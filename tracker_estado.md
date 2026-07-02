@@ -22,7 +22,7 @@
 - [x] Barrido: servicios back sin registro DI → solo `RoleService` (eliminado); `TicketEmailTemplates` es estático y vivo
 - [x] Barrido bruto: 45 clases TS sin referencias externas → reporte en scratchpad `front_sin_referencias.txt` (contiene falsos positivos; verificar 1×1)
 - [x] Verificados y eliminados 70 archivos de código muerto front (−6.461 líneas). Falsos positivos restaurados: `is-ecuador.pipe`, `lote-seguimiento.service`. Quedan vivos (confirmado uso): `lazy-observe`, `show-if-ecuador`, `conteo-fisico`, `movimiento-alimento-form`, `tabla-indicadores-diarios`
-- [ ] Barrido: DTOs y modelos huérfanos
+- [x] Barrido DTOs backend: 182 archivos analizados → 5 huérfanos eliminados (CreateLoteWrapper, UpdateLoteWrapper, GalponDto, CreateSeguimientoProduccionRequest, SaveMapaPasosDto)
 - [x] Clasificar `/backend/sql/` → `backend/sql/CLASIFICACION_SCRIPTS.md` (vivos / DDL histórico / one-shots / diagnóstico / cuarentena)
 
 ## Fase 2 — Unificación multi-país (un dominio por ciclo)
@@ -58,3 +58,4 @@
 | 1 | Código muerto back (managerUser, RoleService/IRoleService/RolePermissionsController) + front (features/company, http-helper-test) | `7c14080` | dotnet build 0 err · yarn build OK · visual: app carga y login OK |
 | 2 | Fase 0 cerrada: tests baseline (26 ✅), entorno local arriba (back :5002 + front :4200), barrido bruto front (45 candidatos) | (tracker) | backend arranca sin conflictos de ruta; login renderiza sin errores de consola |
 | 3 | 70 archivos de código muerto front eliminados (−6.461 líneas), 2 falsos positivos restaurados | `e1e28a4` | ng build OK (122 s) · app recargada y login OK en :4200 |
+| 4 | Clasificación SQL (`CLASIFICACION_SCRIPTS.md`) + 5 DTOs huérfanos back eliminados | `19a6999` | dotnet build 0 err/0 warn · backend re-levantado :5002 |
