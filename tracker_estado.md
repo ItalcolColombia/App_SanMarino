@@ -31,7 +31,8 @@
   - [x] Creado `features/engorde-comun/` (README con convención); `indicadores-diarios-engorde-compute.service.ts` + models deduplicados (fuente única + shims re-export) — ciclo 5 `37528e1`
   - [x] Deduplicados los idénticos: tabla-indicadores, modal-detalle, graficas-indicadores (componentes completos) + saldo-alimento util → engorde-comun con shims (−1.626 líneas netas) — ciclo 6 `eb0a277`
   - [x] modal-cuadrar-saldos unificado con patrón `CuadrarSaldosEngordeApi` (abstracta + useExisting por país) — ciclo 7 `b10d39d` (−1.006 líneas netas)
-  - [ ] Pares con deriva restantes (mismo patrón DI): seguimiento-aves-engorde-form (48 líneas diff), seguimiento-aves-engorde-list (79), modal-seguimiento-engorde (157), modal-liquidacion (201), tabs-principal (819 — dejar de último, tiene lógica Panamá propia: RegistroDiarioTablaFilaEngorde, agregados históricos)
+  - [x] seguimiento-aves-engorde-form unificado (`SeguimientoEngordeCrudApi` + token `ENGORDE_FORM_OPCIONES` con QQ condicional; providers por ruta) — ciclo 8 `3d43127` (−361 netas)
+  - [ ] Pares con deriva restantes (mismo patrón DI): seguimiento-aves-engorde-list (79 líneas diff), modal-seguimiento-engorde (157), modal-liquidacion (201), tabs-principal (819 — dejar de último, tiene lógica Panamá propia: RegistroDiarioTablaFilaEngorde, agregados históricos)
 - [ ] Back: `SeguimientoAvesEngorde{,Ecuador,Panama}Service` → cálculo puro común en `Application/Calculos/` + parametrización país
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
@@ -66,3 +67,4 @@
 | 5 | `engorde-comun/` creado; compute service + models deduplicados (Colombia/Panamá) con shims | `37528e1` | ng build OK (90 s) · app sin errores nuevos de consola |
 | 6 | 3 componentes idénticos + util movidos a engorde-comun (−1.626) | `eb0a277` | ng build OK (87 s) · visual OK |
 | 7 | modal-cuadrar-saldos unificado con `CuadrarSaldosEngordeApi` + DI por país (−1.006) | `b10d39d` | ng build OK (100 s) · visual OK |
+| 8 | form seguimiento engorde unificado (QQ condicional por token; providers por ruta) (−361) | `3d43127` | ng build OK (98 s) · visual OK |
