@@ -268,6 +268,17 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         return all;
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<IndicadorSemanalLevanteDto>> GetIndicadoresSemanalesAsync(int loteId)
+    {
+        // Cálculo en la BD (fn_indicadores_levante_postura): el front solo pinta, no calcula.
+        return await _ctx.Database
+            .SqlQueryRaw<IndicadorSemanalLevanteDto>(
+                "SELECT * FROM fn_indicadores_levante_postura({0}::int)", loteId)
+            .ToListAsync()
+            .ConfigureAwait(false);
+    }
+
     public async Task<SeguimientoLoteLevanteDto?> GetByIdAsync(int id)
     {
         var u = await _seguimientoDiarioService.GetByIdAsync((long)id);
