@@ -87,7 +87,8 @@
   - **C1 CERRADO**: tabla + gráficas levante 100% desde BD, front no calcula.
   - Commits: `37d308f` (fn+endpoint), `1a2624e` (tabla), `68468e1` (gráficas), `6037f49` (limpieza fallback tabla).
 - **C2 EN CURSO** (producción postura): diagnóstico hecho. Tabla viva YA server-only; **gráficas: fallback cliente eliminado** (commit `bb1bf2c`, validado E2E P-K345A: 43 filas, 8 canvas, 0 NG0103). Hallazgo bonus: trío de componentes duplicados MUERTOS (`pages/tabla-lista-indicadores`, `components/graficas-principal`, `components/tabs-principal`) → candidatos a borrar.
-  - **Pendiente (grande)**: backend `IndicadoresProduccionService` (727 líneas C# en memoria, 0 fn SQL) → `fn_indicadores_produccion_postura` + test de equivalencia + delegar SqlQueryRaw. Decisión usuario: replicar exacto vs corregir bugs guía. Detalle en `c1_indicadores_levante_a_sql_plan.md` (sección C2).
+  - [x] Trío de componentes duplicados MUERTOS eliminado (commit `06535cc`, −1.602 líneas; build OK, módulo carga).
+  - **Pendiente (grande)**: backend `IndicadoresProduccionService` (727 líneas C# en memoria, 0 fn SQL) → `fn_indicadores_produccion_postura` + test de equivalencia + delegar SqlQueryRaw. **Política (usuario): replicar exacto + corregir bugs** (como C1). En curso: spec del algoritmo. Detalle en `c1_indicadores_levante_a_sql_plan.md` (sección C2).
 
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
