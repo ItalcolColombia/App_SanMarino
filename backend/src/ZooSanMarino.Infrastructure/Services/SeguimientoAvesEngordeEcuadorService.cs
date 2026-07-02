@@ -870,26 +870,7 @@ public class SeguimientoAvesEngordeEcuadorService : ISeguimientoAvesEngordeEcuad
         => FormatYmd(h.FechaOperacion);
 
     private static bool TryGetHistDeltaAndOrd(LoteRegistroHistoricoUnificado h, out decimal delta, out int ord)
-    {
-        delta = 0;
-        ord = 0;
-        if (h.Anulado) return false;
-        var kg = h.CantidadKg ?? 0;
-        switch (h.TipoEvento)
-        {
-            case "INV_INGRESO":
-                if (kg == 0) return false;
-                delta = kg; ord = 0; return true;
-            case "INV_TRASLADO_ENTRADA":
-                if (kg == 0) return false;
-                delta = kg; ord = 1; return true;
-            case "INV_TRASLADO_SALIDA":
-                if (kg == 0) return false;
-                delta = -Math.Abs(kg); ord = 2; return true;
-            default:
-                return false;
-        }
-    }
+        => SaldoAlimentoEngordeCalculos.TryGetHistDeltaAndOrd(h, out delta, out ord);
 
     /// <summary>
     /// ⚠️ FIX #12 (2026-05-28): si <paramref name="fechaEncaset"/> se proporciona, los movimientos

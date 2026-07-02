@@ -41,7 +41,8 @@
   - [x] `LiquidacionEngordeCalculos` extraído (CalcularAvesInicio + CalcularAvesVivas, usados por Colombia y Ecuador) + 9 tests — ciclo 11 `648ddff`
   - [x] `SeguimientoEngordeCalculos` extraído (CalcularDerivados + CalcularSemana, byte-idénticos entre países) + 10 tests — ciclo 12 `babd852`
   - [x] `MetadataEngordeCalculos` extraído (ToKg + ParseMetadataItemsToKg + MergeMetadataWithPatch — la "diferencia" era solo formato + guarda defensiva de Ecuador, ahora aplicada a ambos) + 9 tests — ciclo 13 `c6acdb4`
-  - [ ] Revisar recálculo saldo alimento (RecalcularSaldoAlimentoPorLoteAsync) entre países
+  - [x] Recálculo saldo alimento comparado: cuerpo del método y helpers equivalentes salvo `YmdHistoricoEfectivo`. `TryGetHistDeltaAndOrd` extraído a `SaldoAlimentoEngordeCalculos` — ciclo 14
+  - [ ] DECISIÓN USUARIO (recomendado SÍ): `YmdHistoricoEfectivo` — Colombia extrae fecha efectiva de la referencia del evento (regex seguimiento / INV_CONSUMO) con fallback a FechaOperacion; Ecuador usa FechaOperacion a secas → eventos tardíos caen en el día equivocado del recálculo de saldo en Ecuador (posible fuente de descuadres). ¿Adoptar la versión Colombia en Ecuador? Tras unificar, extraer también `ComputeSaldoAperturaGalponAntesPrimerSeguimiento` (idéntico) y el fold completo a Calculos.
 - [ ] Back: `MovimientoPolloEngorde` vs `MovimientoPolloEngordePanama` → compartir core
 - [ ] Liquidaciones Colombia/Ecuador → core común (sin tocar vistas Power BI)
 - [ ] Validación visual de cada módulo unificado (datos idénticos pre/post)
@@ -81,3 +82,4 @@
 | 11 | `LiquidacionEngordeCalculos` (cálculo puro compartido back Colombia+Ecuador) + 9 tests | `648ddff` | dotnet build 0 err · 34/34 tests verdes |
 | 12 | `SeguimientoEngordeCalculos` (CalcularDerivados/CalcularSemana dedup) + 10 tests | `babd852` | dotnet build 0 err · 44/44 tests verdes |
 | 13 | `MetadataEngordeCalculos` (ToKg/ParseMetadataItemsToKg/MergeMetadataWithPatch dedup) + 9 tests | `c6acdb4` | dotnet build 0 err · 53/53 tests verdes |
+| 14 | `SaldoAlimentoEngordeCalculos` (TryGetHistDeltaAndOrd dedup) + hallazgo divergencia `YmdHistoricoEfectivo` (Ecuador sin fecha efectiva → DECISIÓN USUARIO) | (este ciclo) | dotnet build 0 err · 53/53 tests verdes |
