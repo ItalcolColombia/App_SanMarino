@@ -69,9 +69,10 @@
 - [x] Scripts entregables creados — ciclo 16: `backend/sql/verificacion_tablas_sin_uso.sql` (solo lectura: conteos + dependencias, correr en PROD) y `backend/sql/propuesta_drop_tablas_sin_uso.sql` (DROPs comentados; ejecutar solo con OK + backup)
 
 ## Fase 5 — Segunda pasada del loop
-- [ ] Re-barrido de mejoras sobre lo refactorizado
+- [x] Re-barrido final: dotnet build 0 err/0 warn · 54/54 tests · ng build OK (194 s) · app carga y login renderiza — ciclo 20
 - [x] Resueltas TODAS las advertencias baseline del backend → `dotnet build` 0 err / **0 warn** (SeguimientoDiarioService ×3, EmailQueueProcessorService, TrasladoHuevosService var muerta) — ciclo 18 `074d5b6`
-- [ ] Resumen final: diff vs `main` + checklist de regresión visual
+- [x] Resumen final — **LOOP CERRADO 2026-07-01**: 20 ciclos, 32 commits, `main..HEAD` = 160 archivos, +15.867/−18.304 (−2.437 netas). El loop se reactiva cuando el usuario resuelva las DECISIÓN USUARIO pendientes (buscar "DECISIÓN USUARIO" en este tracker).
+- [ ] ⏸️ EN PAUSA (esperan OK del usuario): unificar modal-liquidacion (deriva crítica Panamá), YmdHistoricoEfectivo Ecuador, seguimiento-aves-engorde-list, tabs-principal, paneles test farm-management, DROP 6 tablas + 4 grupos de columnas, priorización de reportes → fn SQL, entidad SeguimientoDiarioAvesEngordeEcuador
 
 ## Registro de ciclos cerrados
 | # | Ítem | Commit | Validación |
