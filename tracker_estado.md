@@ -128,5 +128,10 @@ Plan: [`fase_de_desarrollo/inventario_unificacion_plan.md`](fase_de_desarrollo/i
 |---|---|---|---|
 | S1 | **Bugfix descuento cross-país (CRÍTICO).** Gate por PAÍS DEL LOTE en los 3 servicios (Levante, Engorde Ecuador, Engorde Colombia): solo descontar del modelo B si el lote es Ecuador(2)/Panamá(3). Helper puro `InventarioConsumoGate` + `ResolverPaisIdLoteAsync` (país = `lote.PaisId ?? farm→departamento→pais`, misma cadena que el inventario). `PaisId` añadido a los Select de Delete. Catches mudos → `ILogger`. NO se tocó el parser. 8 tests nuevos. Fila espuria: DOCUMENTADA, requiere OK (NO ejecutada). | (este commit) | dotnet build 0/0 · dotnet test 26/26 (18 previos + 8 nuevos gate) |
 | S2 | Ruta huérfana `/inventario-management` eliminada de `app.config.ts` (sin menú/routerLink; único uso era la propia ruta). `InventarioTabsComponent` se conserva (lo usa `/inventario`). | (este commit) | yarn build OK (87 s; warning de budget pre-existente) |
-| S3 | Kardex Colombia → fn SQL (window function) | ⏳ pendiente | |
+| S3 | **Kardex Colombia → fn SQL.** `fn_kardex_farm_inventory` (+ `fn_kardex_signo`) con `SUM(delta) OVER (PARTITION BY catalog_item_id ORDER BY created_at, id)`. Signo replica EXACTO el switch C# (movement_type string; Adjust=`qty>=0?+1:-1`; no mapeado=0). `FarmInventoryReportService.GetKardexAsync` delega vía `SqlQueryRaw<KardexBdRow>` (validación granja/empresa se queda en C#). Migración idempotente hecha a mano (`20260703130000`, Designer copiado del snapshot). Oráculo puro `FarmInventoryKardexCalculos` + golden tests. Aplicada en local (`ef database update`). | (este commit) | dotnet build 0/0 · dotnet test 38/38 · **golden SQL: 18/18 pares Colombia, 0 diferencias** (saldo final idéntico; sin created_at duplicados → desempate por id irrelevante pero determinista) |
 | S4 | Dedup front | DIFERIDO a Fase 2 (modelos/APIs distintos; riesgo medio-alto) | |
+
+**Diferido / requiere OK del usuario (documentado, NO ejecutado):**
+- Limpieza de la fila espuria en `inventario_gestion_movimiento` (company 1 / pais 1 = Colombia) creada por el bug pre-S1. Requiere OK antes de borrar.
+- Menús BD duplicados `/inventario` (ids 10 y 32, empresa 1) — limpieza posterior con OK.
+- S4 (unificación real de UI de inventario) → Fase 2, depende de normalizar el modelo A→B.

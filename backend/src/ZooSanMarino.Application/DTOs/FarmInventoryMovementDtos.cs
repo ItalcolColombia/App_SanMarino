@@ -94,3 +94,20 @@ public class StockCountItemRequest
     public int CatalogItemId { get; set; }
     public decimal Conteo { get; set; }
 }
+
+/// <summary>
+/// Fila cruda devuelta por fn_kardex_farm_inventory (saldo calculado en la BD con
+/// window function). Nombres = columnas snake_case de la fn, mapeados por EF SqlQueryRaw.
+/// El servicio la convierte a KardexItemDto sin alterar valores (misma aritmética/orden
+/// que el foreach C# previo; equivalencia golden verificada).
+/// </summary>
+public sealed class KardexBdRow
+{
+    public DateTime Fecha { get; set; }
+    public string Tipo { get; set; } = null!;
+    public string? Referencia { get; set; }
+    public decimal Cantidad { get; set; }
+    public string Unidad { get; set; } = "kg";
+    public decimal Saldo { get; set; }
+    public string? Motivo { get; set; }
+}
