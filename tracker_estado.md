@@ -66,3 +66,8 @@
 - Limpieza espurios + widening `movement_type` en **PROD** (requieren OK; en local ya aplicados).
 - **Prerrequisito operativo del rollout**: cargar stock inicial de Colombia (modelo A) o el bloqueo rechazará seguimientos con ítems sin stock.
 - **Fase 3** (futura): fusión real de catálogos/rutas A↔B (unificar la UI), fuera del alcance de Fase 2.
+
+## Fase 3 (paso 1) — Migración de stock Colombia A→B (creada + validada, NO ejecutada)
+- Verificación: stock Colombia (17 ítems, 667.421 u.) vive en modelo A; modelo B tiene 0 Colombia; **0 overlap de códigos A↔B** → hay que crear el catálogo Colombia en B (scope company 1/pais 1, sin colisión con Ecuador).
+- Script: `backend/sql/fase3_migracion_stock_co_a_b.sql` (backfill DML idempotente). Dry-run local: 61 catálogo + 17 stock, **suma conservada 667.421 == 667.421**.
+- ⚠️ Es SOLO el movimiento de datos. Falta (Fase 3 paso 2, coordinar antes de ejecutar): **switch de consumo Colombia A→B**, granularidad núcleo/galpón para alimento, migración de movimientos/kardex, retiro del modelo A / ruta `/inventario`. Ejecutar el backfill junto con el switch para no dejar stock duplicado. PROD requiere OK+backup.
