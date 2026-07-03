@@ -31,7 +31,7 @@
 - [x] Registrado en DI (Program.cs) como Scoped
 - [x] `InventarioConsumoGate.ResolverModelo(paisId)` → ModeloB (EC/PA) / ModeloA (CO) / Ninguno
 - [x] Tests dispatch (53 tests OK); DebeDescontarModeloB conservado (compat EC/PA)
-- [ ] Commit
+- [x] Commit 7c9ceeb
 
 ## S4 — Activar en levante + producción (Colombia) ✅
 - [x] Levante Create/Update/Delete: dispatch por modelo; CO=modelo A con tx única +
@@ -41,10 +41,14 @@
       vs new; tx única; devolución total en delete
 - [x] EC/PA sin cambios (flujo B tolerante, sin tx nueva)
 - [x] Inyección opcional IFarmInventoryConsumoService en ambos servicios (build 0/0, 54 tests OK)
-- [ ] Commit
+- [x] Commit 04892b9
 
-## S5 — Tests de NO-AFECTACIÓN
-- [ ] (a) Contable Colombia: ConsumoSeguimiento NO entra en buckets → cifras idénticas
-- [ ] (b) Indicadores: evidencia/test que fn no leen inventario
-- [ ] (c) Kardex golden re-verificado con nuevos tipos
-- [ ] Commit
+## S5 — Tests de NO-AFECTACIÓN ✅
+- [x] (a) Contable: ReporteContableNoAfectacionTests (tipos Fase 2 fuera de los 3 buckets;
+      solo Entry/TransferIn/TransferOut/Exit entran) + verificación SQL buckets ANTES==DESPUES
+- [x] (b) Indicadores: fn_indicadores_levante/produccion_postura = 0 refs a inventario
+      (código + fn desplegada en BD) → indicadores idénticos
+- [x] (c) Kardex golden re-verificado: fn firma ConsumoSeguimiento=-1 / DevolucionSeguimiento=+1
+      contra data real (farm 3/item 61): consumo -100, devolución +30, saldos correctos
+- [x] Script `backend/sql/fase2_verificacion_no_afectacion.sql` (read-only + BEGIN/ROLLBACK). 57 tests OK
+- [x] Commit
