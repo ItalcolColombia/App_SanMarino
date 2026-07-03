@@ -59,3 +59,14 @@
 - Enum `ModeloInventarioConsumo.ModeloBNivelGranja` (nuevo) = Colombia unifica en modelo B pero por (granja, ítem) sin galpón; `ModeloB` (EC/PA) sigue con núcleo/galpón. Así el switch NO rompe Ecuador.
 - `FarmInventoryConsumoService` (modelo A) + campos `_farmInventoryConsumo` quedan por diseño (path modelo A ya no lo llama Colombia).
 - Pendiente futuro (fuera de alcance): PROD requiere OK+backup para el backfill; retiro del modelo A / ruta `/inventario`; migración de movimientos/kardex históricos A→B.
+
+## Fase 3 paso 2 — QA: ESTABLE ✅ (merge FF, 88 commits)
+- Colombia consume del modelo B a NIVEL GRANJA (id-mapping catalogItemId→codigo→item_inventario_ecuador; `ColombiaInventarioConsumoService` + `RegistrarConsumo/IngresoNivelGranjaAsync` aditivos). Gate: Colombia→`ModeloBNivelGranja`.
+- QA (BEGIN/ROLLBACK): stock B baja/sube correcto (455343→454343→454743); bloqueo previo a persistir; **Ecuador INTACTO** (RegistrarConsumoAsync con galpón sin cambios; CO 1/1 nivel granja 17 filas vs EC 3/2 galpón 132, disjuntos); **contable e indicadores idénticos**. build 0/0, tests 105.
+- Backfill ejecutado en local (catálogo 61 + stock 17, suma 667421). PROD: backfill requiere OK+backup.
+
+## Fase 3 paso 3 — Alineación FRONT Colombia con modelo B (EN CURSO)
+- Objetivo: que Colombia VEA y OPERE su inventario B (hoy su menú apunta a `/inventario` = modelo A frozen).
+- [ ] Menú: company_menus Colombia (1) → `/gestion-inventario` (50) + `/config/item-inventario-ecuador` (49). Idempotente local; prod OK.
+- [ ] UI nivel granja para Colombia: ingreso/traslado en gestion-inventario NO exigen núcleo/galpón para alimento cuando es Colombia (consistente con el back); wire ingreso nivel granja para carga inicial de stock.
+- [ ] Validar (QA + visual) que Colombia ve el stock migrado y puede cargar/consumir; Ecuador intacto.
