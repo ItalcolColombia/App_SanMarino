@@ -9,11 +9,14 @@
 -- a mano (no altera el ModelSnapshot). Fuente de verdad: FarmInventoryReportService.cs.
 --
 -- Equivalencia con el C# (replicada EXACTO):
---   * movement_type se persiste como STRING (varchar(20)) con el nombre del enum
---     (Entry/Exit/TransferIn/TransferOut/Adjust). El signo replica el switch C#:
+--   * movement_type se persiste como STRING (varchar(30) desde Fase 2) con el nombre del enum
+--     (Entry/Exit/TransferIn/TransferOut/Adjust/ConsumoSeguimiento/DevolucionSeguimiento).
+--     El signo replica el switch C#:
 --       Entry, TransferIn      -> +1
 --       Exit,  TransferOut     -> -1
 --       Adjust                 -> quantity >= 0 ? +1 : -1
+--       ConsumoSeguimiento     -> -1   (Fase 2: consumo automático Colombia)
+--       DevolucionSeguimiento  -> +1   (Fase 2: devolución automática Colombia)
 --       (cualquier otro)       -> 0   (== el _ => 0m del C#)
 --   * delta = sign * quantity;  Cantidad emitida = delta (con signo).
 --   * saldo = SUM(delta) OVER (PARTITION BY catalog_item_id ORDER BY created_at, id).
@@ -35,11 +38,13 @@
 CREATE OR REPLACE FUNCTION fn_kardex_signo(p_movement_type text, p_quantity numeric)
 RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
     SELECT CASE p_movement_type
-        WHEN 'Entry'       THEN 1
-        WHEN 'TransferIn'  THEN 1
-        WHEN 'Exit'        THEN -1
-        WHEN 'TransferOut' THEN -1
-        WHEN 'Adjust'      THEN CASE WHEN p_quantity >= 0 THEN 1 ELSE -1 END
+        WHEN 'Entry'                 THEN 1
+        WHEN 'TransferIn'            THEN 1
+        WHEN 'Exit'                  THEN -1
+        WHEN 'TransferOut'           THEN -1
+        WHEN 'Adjust'                THEN CASE WHEN p_quantity >= 0 THEN 1 ELSE -1 END
+        WHEN 'ConsumoSeguimiento'    THEN -1   -- Fase 2: consumo automático Colombia
+        WHEN 'DevolucionSeguimiento' THEN 1    -- Fase 2: devolución automática Colombia
         ELSE 0
     END::numeric;
 $$;

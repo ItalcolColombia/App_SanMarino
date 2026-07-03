@@ -7,6 +7,9 @@
 //   Exit,  TransferOut     -> -1
 //   Adjust                 -> quantity >= 0 ? +1 : -1
 //   (cualquier otro)       -> 0
+// Fase 2 (S2) suma los tipos automáticos del descuento Colombia (modelo A):
+//   ConsumoSeguimiento     -> -1 (baja stock, como Exit)
+//   DevolucionSeguimiento  -> +1 (repone stock, como Entry)
 // El saldo es la suma acumulada de (signo * quantity) en el orden dado (created_at, id).
 namespace ZooSanMarino.Application.Calculos;
 
@@ -18,12 +21,14 @@ public static class FarmInventoryKardexCalculos
     /// </summary>
     public static decimal Signo(string movementType, decimal quantity) => movementType switch
     {
-        "Entry"       => +1m,
-        "TransferIn"  => +1m,
-        "Exit"        => -1m,
-        "TransferOut" => -1m,
-        "Adjust"      => quantity >= 0 ? +1m : -1m,
-        _             => 0m
+        "Entry"                 => +1m,
+        "TransferIn"            => +1m,
+        "Exit"                  => -1m,
+        "TransferOut"           => -1m,
+        "Adjust"                => quantity >= 0 ? +1m : -1m,
+        "ConsumoSeguimiento"    => -1m,  // Fase 2: consumo automático Colombia (baja stock)
+        "DevolucionSeguimiento" => +1m,  // Fase 2: devolución automática Colombia (repone stock)
+        _                       => 0m
     };
 
     /// <summary>Delta con signo de un movimiento (== Cantidad emitida en el kardex).</summary>

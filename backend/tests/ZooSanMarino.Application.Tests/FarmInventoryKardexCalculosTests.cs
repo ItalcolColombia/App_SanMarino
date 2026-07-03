@@ -18,9 +18,30 @@ public class FarmInventoryKardexCalculosTests
     [InlineData("Adjust", 10, +1)]     // quantity >= 0
     [InlineData("Adjust", 0, +1)]      // 0 => +1 (>=)
     [InlineData("Adjust", -5, -1)]     // quantity < 0
+    [InlineData("ConsumoSeguimiento", 10, -1)]     // Fase 2: consumo automático Colombia => -1 (como Exit)
+    [InlineData("DevolucionSeguimiento", 10, +1)]  // Fase 2: devolución automática Colombia => +1 (como Entry)
     [InlineData("Desconocido", 10, 0)] // tipo no mapeado => 0
     public void Signo_ReplicaSwitchCSharp(string tipo, decimal cantidad, decimal signoEsperado)
         => Assert.Equal(signoEsperado, FarmInventoryKardexCalculos.Signo(tipo, cantidad));
+
+    [Fact]
+    public void SaldosAcumulados_Fase2_ConsumoYDevolucion()
+    {
+        // Golden Fase 2: consumo automático baja el saldo; la devolución lo repone.
+        // Debe equivaler a Exit/Entry del mismo monto (mismo signo).
+        var movs = new (string, decimal)[]
+        {
+            ("Entry",                 1000m),  // saldo 1000
+            ("ConsumoSeguimiento",     300m),  // saldo 700  (-300)
+            ("ConsumoSeguimiento",     200m),  // saldo 500  (-200)
+            ("DevolucionSeguimiento",  120m),  // saldo 620  (+120, p.ej. ajuste de edición)
+        };
+        Assert.Equal(new[] { 1000m, 700m, 500m, 620m }, FarmInventoryKardexCalculos.SaldosAcumulados(movs));
+
+        // Deltas con signo (== Cantidad emitida en el kardex).
+        Assert.Equal(-300m, FarmInventoryKardexCalculos.Delta("ConsumoSeguimiento", 300m));
+        Assert.Equal(+120m, FarmInventoryKardexCalculos.Delta("DevolucionSeguimiento", 120m));
+    }
 
     [Fact]
     public void Delta_EntradaPositiva_SalidaNegativa()
