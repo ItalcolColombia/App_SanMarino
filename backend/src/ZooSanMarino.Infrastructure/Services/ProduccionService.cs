@@ -1,6 +1,7 @@
 // src/ZooSanMarino.Infrastructure/Services/ProduccionService.cs
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.DTOs.Produccion;
 using ZooSanMarino.Application.Interfaces;
@@ -19,21 +20,73 @@ public class ProduccionService : IProduccionService
     private readonly ICurrentUser _currentUser;
     private readonly ILoteService _loteService;
     private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
+    private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;   // Fase 2: modelo A (Colombia)
 
     /// <summary>
-    /// Seguimiento diario postura (producción) no aplica consumo/devolución sobre inventario-gestion.
-    /// El inventario nuevo (inventario-gestion / item_inventario_ecuador) es exclusivo del módulo Seguimiento diario pollo de engorde.
+    /// Fase 2 (S4): producción postura Colombia ahora SÍ descuenta inventario (modelo A) desde
+    /// sus seguimientos (antes no tocaba inventario). Ecuador/Panamá no operan producción postura
+    /// por esta ruta, por eso no hay flujo modelo B aquí. El descuento es lógica NUEVA:
+    /// resuelve GranjaId del lote y descuenta desde los DTOs ItemsHembras/ItemsMachos (no re-parsea JSON),
+    /// con validación previa de stock y transacción única (todo-o-nada) idéntica a levante.
     /// </summary>
     public ProduccionService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
         ILoteService loteService,
-        IEspejoHuevoProduccionSyncService espejoHuevoSync)
+        IEspejoHuevoProduccionSyncService espejoHuevoSync,
+        IFarmInventoryConsumoService? farmInventoryConsumo = null)
     {
         _context = context;
         _currentUser = currentUser;
         _loteService = loteService;
         _espejoHuevoSync = espejoHuevoSync;
+        _farmInventoryConsumo = farmInventoryConsumo;
+    }
+
+    /// <summary>
+    /// Resuelve (GranjaId, ModeloInventarioConsumo) del lote de producción para gatear el descuento.
+    /// País: lote.PaisId si está poblado; si no, granja→departamento→pais (misma cadena que el inventario).
+    /// </summary>
+    private async Task<(int? GranjaId, ModeloInventarioConsumo Modelo)> ResolverGranjaYModeloAsync(int loteId)
+    {
+        var lote = await _context.Lotes.AsNoTracking()
+            .Where(l => l.LoteId == loteId && l.CompanyId == _currentUser.CompanyId && l.DeletedAt == null)
+            .Select(l => new { l.GranjaId, l.PaisId })
+            .FirstOrDefaultAsync();
+        if (lote == null) return (null, ModeloInventarioConsumo.Ninguno);
+
+        int? paisId = lote.PaisId;
+        if (paisId is not > 0)
+            paisId = await _context.Farms.AsNoTracking()
+                .Where(f => f.Id == lote.GranjaId)
+                .Join(_context.Departamentos.AsNoTracking(),
+                    f => f.DepartamentoId, d => d.DepartamentoId, (f, d) => (int?)d.PaisId)
+                .FirstOrDefaultAsync();
+
+        return (lote.GranjaId, InventarioConsumoGate.ResolverModelo(paisId));
+    }
+
+    /// <summary>
+    /// Acumula por catalogItemId los kg de los ítems del request (ItemsHembras + ItemsMachos),
+    /// usando la MISMA conversión g→kg que ParseMetadataItemsToKg. TODOS los tipos (alimento +
+    /// medicamento + insumo), sin re-parsear el JSON del metadata. catalogItemId &lt;= 0 se ignora.
+    /// </summary>
+    private static Dictionary<int, decimal> AcumularItemsRequestPorCatalogItem(
+        List<ItemSeguimientoDto>? itemsHembras, List<ItemSeguimientoDto>? itemsMachos)
+    {
+        var byItem = new Dictionary<int, decimal>();
+        void Acumular(List<ItemSeguimientoDto>? items)
+        {
+            if (items == null) return;
+            foreach (var i in items)
+            {
+                if (i.CatalogItemId <= 0) continue;
+                byItem[i.CatalogItemId] = byItem.GetValueOrDefault(i.CatalogItemId) + ToKg(i.Cantidad, i.Unidad);
+            }
+        }
+        Acumular(itemsHembras);
+        Acumular(itemsMachos);
+        return byItem;
     }
 
     /// <summary>
@@ -324,6 +377,33 @@ public class ProduccionService : IProduccionService
             ConsumoAguaTemperatura = request.ConsumoAguaTemperatura
         };
 
+        // ── Colombia (modelo A) — BLOQUEO ATÓMICO (Fase 2 / S4) ──────────────────────────
+        // Descuento desde los DTOs del request (TODOS los ítems: alimento + medicamento + insumo).
+        // Validación previa de stock ANTES de persistir; guardado + consumo en UNA tx. Si falta
+        // stock/ítem → throw por ítem → rollback → NO se guarda el seguimiento.
+        var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
+        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && granjaId is > 0 && useItems)
+        {
+            var byItem = AcumularItemsRequestPorCatalogItem(request.ItemsHembras, request.ItemsMachos);
+            var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            await _farmInventoryConsumo.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            _context.SeguimientoProduccion.Add(entity);
+            await _context.SaveChangesAsync();
+            if (positivos.Count > 0)
+            {
+                var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
+                await _farmInventoryConsumo.AplicarConsumoAsync(granjaId.Value, positivos, refStr);
+                await _context.SaveChangesAsync();
+            }
+            await tx.CommitAsync();
+            if (lotePosturaProduccionId.HasValue)
+                await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
+            return entity.Id;
+        }
+
         _context.SeguimientoProduccion.Add(entity);
         await _context.SaveChangesAsync();
         if (lotePosturaProduccionId.HasValue)
@@ -419,6 +499,12 @@ public class ProduccionService : IProduccionService
         if (entity == null)
             throw new InvalidOperationException("No se encontró el registro o no tiene permisos para actualizarlo.");
 
+        // Fase 2 (S4) — capturar el consumo ANTERIOR (desde el metadata guardado) ANTES de pisarlo,
+        // para calcular el diff old/new en el descuento Colombia (modelo A).
+        var oldByItemId = entity.Metadata != null
+            ? MetadataEngordeCalculos.ParseMetadataItemsToKg(entity.Metadata.RootElement)
+            : new Dictionary<int, decimal>();
+
         entity.LoteId = loteId;
         entity.LotePosturaProduccionId = lotePosturaProduccionId;
         entity.Fecha = request.FechaRegistro;
@@ -455,6 +541,33 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaPh = request.ConsumoAguaPh;
         entity.ConsumoAguaOrp = request.ConsumoAguaOrp;
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
+
+        // ── Colombia (modelo A) — BLOQUEO ATÓMICO en edición (Fase 2 / S4) ────────────────
+        // diff old/new por catalogItemId: diff>0 = ConsumoSeguimiento adicional; diff<0 = DevolucionSeguimiento.
+        // Validación previa del stock de los diff POSITIVOS ANTES de persistir; save + diff en UNA tx.
+        var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
+        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && granjaId is > 0)
+        {
+            var newByItemId = AcumularItemsRequestPorCatalogItem(request.ItemsHembras, request.ItemsMachos);
+            var incrementos = new Dictionary<int, decimal>();
+            var allIds = new HashSet<int>(oldByItemId.Keys);
+            foreach (var k in newByItemId.Keys) allIds.Add(k);
+            foreach (var itemId in allIds)
+            {
+                var diff = newByItemId.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
+                if (diff > 0) incrementos[itemId] = diff;
+            }
+            await _farmInventoryConsumo.ValidarStockConsumoAsync(granjaId.Value, incrementos); // lanza si falta (antes de persistir)
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
+            await _farmInventoryConsumo.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+            await tx.CommitAsync();
+            if (lotePosturaProduccionId.HasValue)
+                await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lotePosturaProduccionId.Value).ConfigureAwait(false);
+            return;
+        }
 
         await _context.SaveChangesAsync().ConfigureAwait(false);
         if (lotePosturaProduccionId.HasValue)
@@ -748,8 +861,9 @@ public class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Elimina un seguimiento diario de producción (tabla unificada seguimiento_diario).
-    /// El inventario nuevo (inventario-gestion) no se usa en este módulo; solo en Seguimiento diario pollo de engorde.
+    /// Elimina un seguimiento diario de producción. Fase 2 (S4): para lotes Colombia (modelo A)
+    /// devuelve el stock consumido (DevolucionSeguimiento total) y el borrado + la devolución van
+    /// en UNA transacción (todo-o-nada). Ecuador/Panamá no usan esta ruta de inventario.
     /// </summary>
     public async Task<bool> EliminarSeguimientoAsync(int seguimientoId)
     {
@@ -764,6 +878,30 @@ public class ProduccionService : IProduccionService
         if (!isMine) return false;
 
         var lppId = e.LotePosturaProduccionId;
+        var loteId = e.LoteId;
+
+        var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
+        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && granjaId is > 0)
+        {
+            var byItem = e.Metadata != null
+                ? MetadataEngordeCalculos.ParseMetadataItemsToKg(e.Metadata.RootElement)
+                : new Dictionary<int, decimal>();
+            var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            await using var tx = await _context.Database.BeginTransactionAsync();
+            if (positivos.Count > 0)
+            {
+                var refStr = $"Seguimiento producción #{seguimientoId} (devolución por eliminación)";
+                await _farmInventoryConsumo.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción");
+            }
+            _context.SeguimientoProduccion.Remove(e);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
+            await tx.CommitAsync();
+            if (lppId.HasValue)
+                await _espejoHuevoSync.RecalcularEspejoHuevoProduccionAsync(lppId.Value).ConfigureAwait(false);
+            return true;
+        }
+
         _context.SeguimientoProduccion.Remove(e);
         await _context.SaveChangesAsync().ConfigureAwait(false);
         if (lppId.HasValue)

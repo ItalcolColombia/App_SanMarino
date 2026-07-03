@@ -28,6 +28,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
     private readonly ICurrentUser _current;
     private readonly IMovimientoAvesService _movimientoAvesService;
     private readonly IInventarioGestionService? _inventarioGestionService;
+    private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;   // Fase 2: modelo A (Colombia)
     private readonly ILogger<SeguimientoLoteLevanteService>? _logger;
 
     public SeguimientoLoteLevanteService(
@@ -38,6 +39,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         ICurrentUser current,
         IMovimientoAvesService movimientoAvesService,
         IInventarioGestionService? inventarioGestionService = null,
+        IFarmInventoryConsumoService? farmInventoryConsumo = null,
         ILogger<SeguimientoLoteLevanteService>? logger = null)
     {
         _ctx = ctx;
@@ -47,6 +49,7 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
         _current = current;
         _movimientoAvesService = movimientoAvesService;
         _inventarioGestionService = inventarioGestionService;
+        _farmInventoryConsumo = farmInventoryConsumo;
         _logger = logger;
     }
 
@@ -430,13 +433,39 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var createDto = MapToCreateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
+
+        var modelo = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+
+        // ── Colombia (modelo A) — BLOQUEO ATÓMICO (Fase 2 / S4) ──────────────────────────
+        // Validación previa de stock de TODOS los ítems ANTES de persistir; guardado del
+        // seguimiento (+ el ajuste de aves centralizado dentro de CreateAsync) + descuento
+        // envueltos en UNA IDbContextTransaction. Si falta stock/ítem → throw por ítem →
+        // rollback → NO se guarda el seguimiento. (Cambia el patrón tolerante de EC/PA: intencional.)
+        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && dto.Metadata != null)
+        {
+            var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
+            var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            await _farmInventoryConsumo.ValidarStockConsumoAsync(lote.GranjaId, positivos); // lanza si falta (antes de persistir)
+
+            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            var createdCo = await _seguimientoDiarioService.CreateAsync(createDto);
+            if (positivos.Count > 0)
+            {
+                var refStr = $"Seguimiento lote levante #{createdCo.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+                await _farmInventoryConsumo.AplicarConsumoAsync(lote.GranjaId, positivos, refStr);
+            }
+            await _ctx.SaveChangesAsync();
+            await tx.CommitAsync();
+            return MapToLevanteDto(createdCo);
+        }
+
         var created = await _seguimientoDiarioService.CreateAsync(createDto);
 
         // Ecuador/Panamá: consumo por ítems en metadata (item_inventario_ecuador) → inventario_gestion.
-        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B. Para lotes Colombia
-        // NO se invoca (evita el descuento cross-país silencioso por el fallback catalogItemId→item_inventario_ecuador_id).
-        if (_inventarioGestionService != null && dto.Metadata != null &&
-            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId)))
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B (flujo tolerante,
+        // sin tx nueva). Para lotes Colombia se usó el bloque modelo A de arriba.
+        if (_inventarioGestionService != null && dto.Metadata != null && modelo == ModeloInventarioConsumo.ModeloB)
         {
             try
             {
@@ -494,12 +523,51 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
 
         var (kcalAveH, protAveH) = CalcularDerivados(consumoKgH, kcalAlH, protAlH);
         var updateDto = MapToUpdateUnificado(dto, consumoKgH, kcalAlH, protAlH, kcalAveH, protAveH);
+
+        var modelo = InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId));
+
+        // ── Colombia (modelo A) — BLOQUEO ATÓMICO en edición (Fase 2 / S4) ────────────────
+        // diff old/new por catalogItemId: diff>0 = ConsumoSeguimiento adicional; diff<0 = DevolucionSeguimiento.
+        // Validación previa del stock de los diff POSITIVOS ANTES de persistir; update + diff +
+        // ajuste de aves envueltos en UNA tx (todo-o-nada). Si falta stock → rollback, NO se guarda.
+        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null)
+        {
+            var newByItemId = dto.Metadata != null ? ParseMetadataItemsToKg(dto.Metadata.RootElement) : new Dictionary<int, decimal>();
+            var incrementos = new Dictionary<int, decimal>();
+            var allIds = new HashSet<int>(oldByItemId.Keys);
+            foreach (var k in newByItemId.Keys) allIds.Add(k);
+            foreach (var id in allIds)
+            {
+                var diff = newByItemId.GetValueOrDefault(id) - oldByItemId.GetValueOrDefault(id);
+                if (diff > 0) incrementos[id] = diff;
+            }
+            await _farmInventoryConsumo.ValidarStockConsumoAsync(lote.GranjaId, incrementos); // lanza si falta (antes de persistir)
+
+            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            var updatedCo = await _seguimientoDiarioService.UpdateAsync(updateDto);
+            if (updatedCo is null) { await tx.RollbackAsync(); return null; }
+
+            var refCo = $"Seguimiento lote levante #{dto.Id} {dto.FechaRegistro:yyyy-MM-dd}";
+            await _farmInventoryConsumo.AplicarDiffAsync(lote.GranjaId, oldByItemId, newByItemId, refCo);
+
+            var newHCo = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
+            var newMCo = dto.MortalidadMachos + dto.SelM + dto.ErrorSexajeMachos;
+            var deltaHCo = oldH - newHCo;
+            var deltaMCo = oldM - newMCo;
+            if (deltaHCo != 0 || deltaMCo != 0)
+                await AjustarAvesEnLotePosturaLevanteAsync(dto.LoteId, dto.LotePosturaLevanteId, deltaHCo, deltaMCo);
+
+            await _ctx.SaveChangesAsync();
+            await tx.CommitAsync();
+            return MapToLevanteDto(updatedCo);
+        }
+
         var updated = await _seguimientoDiarioService.UpdateAsync(updateDto);
         if (updated is null) return null;
 
-        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B.
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B (flujo tolerante).
         if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
-            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId)))
+            modelo == ModeloInventarioConsumo.ModeloB)
         {
             try
             {
@@ -545,44 +613,67 @@ public class SeguimientoLoteLevanteService : ISeguimientoLoteLevanteService
     public async Task<bool> DeleteAsync(int id)
     {
         var rec = await _seguimientoDiarioService.GetByIdAsync((long)id);
-        if (rec != null && rec.TipoSeguimiento == TipoLevante)
-        {
-            if (_inventarioGestionService != null && rec.Metadata != null)
-            {
-                try
-                {
-                    if (int.TryParse(rec.LoteId, out var loteIdInt))
-                    {
-                        var loteRow = await _ctx.Lotes.AsNoTracking()
-                            .Where(l => l.LoteId == loteIdInt && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
-                            .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId, l.PaisId })
-                            .FirstOrDefaultAsync();
-                        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá devuelven al modelo B.
-                        if (loteRow != null &&
-                            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(loteRow.GranjaId, loteRow.PaisId)))
-                        {
-                            var byItem = ParseMetadataItemsToKg(rec.Metadata.RootElement);
-                            var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
-                            foreach (var kv in byItem)
-                                if (kv.Value > 0)
-                                    await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
-                                        loteRow.GranjaId, loteRow.NucleoId?.Trim(), loteRow.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento lote levante"));
-                        }
-                    }
-                }
-                catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento levante"); }
-            }
+        if (rec == null || rec.TipoSeguimiento != TipoLevante)
+            return await _seguimientoDiarioService.DeleteAsync((long)id);
 
-            var hembras = (rec.MortalidadHembras ?? 0) + (rec.SelH ?? 0) + (rec.ErrorSexajeHembras ?? 0);
-            var machos = (rec.MortalidadMachos ?? 0) + (rec.SelM ?? 0) + (rec.ErrorSexajeMachos ?? 0);
-            if (hembras > 0 || machos > 0)
+        int? loteIdInt = int.TryParse(rec.LoteId, out var lid) ? lid : null;
+        var loteRow = loteIdInt.HasValue
+            ? await _ctx.Lotes.AsNoTracking()
+                .Where(l => l.LoteId == loteIdInt.Value && l.CompanyId == _current.CompanyId && l.DeletedAt == null)
+                .Select(l => new { l.GranjaId, l.NucleoId, l.GalponId, l.PaisId })
+                .FirstOrDefaultAsync()
+            : null;
+        var modelo = loteRow != null
+            ? InventarioConsumoGate.ResolverModelo(await ResolverPaisIdLoteAsync(loteRow.GranjaId, loteRow.PaisId))
+            : ModeloInventarioConsumo.Ninguno;
+
+        var hembras = (rec.MortalidadHembras ?? 0) + (rec.SelH ?? 0) + (rec.ErrorSexajeHembras ?? 0);
+        var machos = (rec.MortalidadMachos ?? 0) + (rec.SelM ?? 0) + (rec.ErrorSexajeMachos ?? 0);
+
+        // ── Colombia (modelo A) — devolución total + restauración de aves + borrado, ATÓMICO ──
+        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && loteRow != null)
+        {
+            var byItem = rec.Metadata != null ? ParseMetadataItemsToKg(rec.Metadata.RootElement) : new Dictionary<int, decimal>();
+            var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            await using var tx = await _ctx.Database.BeginTransactionAsync();
+            if (positivos.Count > 0)
             {
-                try
-                {
-                    await AjustarAvesEnLotePosturaLevanteAsync(int.Parse(rec.LoteId), rec.LotePosturaLevanteId, hembras, machos);
-                }
-                catch (Exception ex) { _logger?.LogError(ex, "Error al restaurar aves al eliminar seguimiento levante"); }
+                var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
+                await _farmInventoryConsumo.AplicarDevolucionAsync(loteRow.GranjaId, positivos, refStr, "Devolución por eliminación de seguimiento lote levante");
             }
+            if ((hembras > 0 || machos > 0) && loteIdInt.HasValue)
+                await AjustarAvesEnLotePosturaLevanteAsync(loteIdInt.Value, rec.LotePosturaLevanteId, hembras, machos);
+
+            var okCo = await _seguimientoDiarioService.DeleteAsync((long)id);
+            if (!okCo) { await tx.RollbackAsync(); return false; }
+            await _ctx.SaveChangesAsync();
+            await tx.CommitAsync();
+            return true;
+        }
+
+        // Ecuador/Panamá (modelo B) y resto — flujo tolerante (sin tx nueva), como antes.
+        if (_inventarioGestionService != null && rec.Metadata != null && modelo == ModeloInventarioConsumo.ModeloB && loteRow != null)
+        {
+            try
+            {
+                var byItem = ParseMetadataItemsToKg(rec.Metadata.RootElement);
+                var refStr = $"Seguimiento lote levante #{id} (devolución por eliminación)";
+                foreach (var kv in byItem)
+                    if (kv.Value > 0)
+                        await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
+                            loteRow.GranjaId, loteRow.NucleoId?.Trim(), loteRow.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento lote levante"));
+            }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento levante"); }
+        }
+
+        if ((hembras > 0 || machos > 0) && loteIdInt.HasValue)
+        {
+            try
+            {
+                await AjustarAvesEnLotePosturaLevanteAsync(loteIdInt.Value, rec.LotePosturaLevanteId, hembras, machos);
+            }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al restaurar aves al eliminar seguimiento levante"); }
         }
         return await _seguimientoDiarioService.DeleteAsync((long)id);
     }

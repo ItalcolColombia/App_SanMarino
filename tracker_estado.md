@@ -33,10 +33,14 @@
 - [x] Tests dispatch (53 tests OK); DebeDescontarModeloB conservado (compat EC/PA)
 - [ ] Commit
 
-## S4 — Activar en levante + producción (Colombia)
-- [ ] Levante (Create/Update/Delete): tx única + validación previa de stock ANTES de persistir
-- [ ] ProduccionService (Crear/Actualizar/Eliminar): lógica nueva, resolver GranjaId, descontar desde DTOs
-- [ ] EC/PA sin cambios (flujo B tolerante)
+## S4 — Activar en levante + producción (Colombia) ✅
+- [x] Levante Create/Update/Delete: dispatch por modelo; CO=modelo A con tx única +
+      validación previa de stock ANTES de persistir; ajuste de aves dentro de la misma tx
+- [x] ProduccionService Crear/Actualizar/Eliminar: lógica NUEVA; resuelve GranjaId+modelo;
+      descuenta desde DTOs ItemsHembras/Machos (no re-parsea JSON); diff old (del metadata guardado)
+      vs new; tx única; devolución total en delete
+- [x] EC/PA sin cambios (flujo B tolerante, sin tx nueva)
+- [x] Inyección opcional IFarmInventoryConsumoService en ambos servicios (build 0/0, 54 tests OK)
 - [ ] Commit
 
 ## S5 — Tests de NO-AFECTACIÓN
