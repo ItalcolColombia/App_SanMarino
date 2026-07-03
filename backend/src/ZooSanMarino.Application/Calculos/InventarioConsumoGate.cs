@@ -14,8 +14,24 @@
 // (que tiene un test verde fijando ese comportamiento).
 namespace ZooSanMarino.Application.Calculos;
 
+/// <summary>
+/// Modelo de inventario al que debe descontar un seguimiento, según el país del lote.
+/// </summary>
+public enum ModeloInventarioConsumo
+{
+    /// <summary>El país no descuenta de ningún inventario automáticamente.</summary>
+    Ninguno = 0,
+    /// <summary>Modelo B (Ecuador/Panamá): inventario_gestion / item_inventario_ecuador.</summary>
+    ModeloB = 1,
+    /// <summary>Modelo A (Colombia, Fase 2): farm_product_inventory / farm_inventory_movements por catalogItemId.</summary>
+    ModeloA = 2
+}
+
 public static class InventarioConsumoGate
 {
+    /// <summary>Id de país Colombia en la tabla <c>paises</c>.</summary>
+    public const int PaisColombia = 1;
+
     /// <summary>Id de país Ecuador en la tabla <c>paises</c>.</summary>
     public const int PaisEcuador = 2;
 
@@ -34,4 +50,17 @@ public static class InventarioConsumoGate
     /// </param>
     public static bool DebeDescontarModeloB(int? paisIdDelLote)
         => paisIdDelLote is PaisEcuador or PaisPanama;
+
+    /// <summary>
+    /// Fase 2 — despacho por país: a qué modelo de inventario descuenta el seguimiento.
+    /// Ecuador/Panamá → modelo B (sin cambios); Colombia → modelo A (nuevo, por catalogItemId);
+    /// cualquier otro país / null → ninguno. El descuento en modelo A NUNCA usa el fallback
+    /// catalogItemId→item_inventario_ecuador_id, por eso el bug cerrado en Fase 1 no reaparece.
+    /// </summary>
+    public static ModeloInventarioConsumo ResolverModelo(int? paisIdDelLote) => paisIdDelLote switch
+    {
+        PaisEcuador or PaisPanama => ModeloInventarioConsumo.ModeloB,
+        PaisColombia              => ModeloInventarioConsumo.ModeloA,
+        _                         => ModeloInventarioConsumo.Ninguno
+    };
 }

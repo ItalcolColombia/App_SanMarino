@@ -42,7 +42,33 @@ public class InventarioConsumoGateTests
     public void Constantes_PaisIds_CoincidenConTablaPaises()
     {
         // paises: 1=Colombia, 2=Ecuador, 3=Panama (BD local y prod).
+        Assert.Equal(1, InventarioConsumoGate.PaisColombia);
         Assert.Equal(2, InventarioConsumoGate.PaisEcuador);
         Assert.Equal(3, InventarioConsumoGate.PaisPanama);
+    }
+
+    // Fase 2 (S3): despacho por país al modelo de inventario correcto.
+    [Theory]
+    [InlineData(1, ModeloInventarioConsumo.ModeloA)]  // Colombia → modelo A (nuevo)
+    [InlineData(2, ModeloInventarioConsumo.ModeloB)]  // Ecuador  → modelo B (sin cambios)
+    [InlineData(3, ModeloInventarioConsumo.ModeloB)]  // Panamá   → modelo B (sin cambios)
+    [InlineData(4, ModeloInventarioConsumo.Ninguno)]  // otro país → ninguno
+    [InlineData(0, ModeloInventarioConsumo.Ninguno)]
+    public void ResolverModelo_DespachaPorPais(int paisId, ModeloInventarioConsumo esperado)
+        => Assert.Equal(esperado, InventarioConsumoGate.ResolverModelo(paisId));
+
+    [Fact]
+    public void ResolverModelo_PaisNull_Ninguno()
+        => Assert.Equal(ModeloInventarioConsumo.Ninguno, InventarioConsumoGate.ResolverModelo(null));
+
+    [Fact]
+    public void ResolverModelo_Coherente_ConDebeDescontarModeloB()
+    {
+        // El dispatch no puede contradecir el gate booleano existente para EC/PA.
+        foreach (var pais in new int?[] { 1, 2, 3, 4, null })
+        {
+            var esModeloB = InventarioConsumoGate.ResolverModelo(pais) == ModeloInventarioConsumo.ModeloB;
+            Assert.Equal(InventarioConsumoGate.DebeDescontarModeloB(pais), esModeloB);
+        }
     }
 }

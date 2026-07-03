@@ -240,6 +240,9 @@ builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
 // Configuración segura de credenciales - temporalmente comentada para debug
 // builder.Services.AddSecureConfiguration(builder.Configuration);
 builder.Services.AddScoped<IFarmInventoryMovementService, FarmInventoryMovementService>();
+// Fase 2 (S3): descuento/devolución automáticos del inventario Colombia (modelo A) desde
+// seguimientos. NO abre tx propia; participa de la tx externa del servicio de seguimiento.
+builder.Services.AddScoped<IFarmInventoryConsumoService, FarmInventoryConsumoService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
 builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
 builder.Services.AddScoped<IItemInventarioEcuadorService, ItemInventarioEcuadorService>();

@@ -19,17 +19,18 @@
 - [x] Golden: casos nuevos en FarmInventoryKardexCalculosTests (40 tests OK) + re-verificado vs fn local
 - [x] Commit
 
-## S2b — Extender parser a itemsGenerales
-- [ ] `MetadataEngordeCalculos.ParseMetadataItemsToKg`: agregar `itemsGenerales` (aditivo)
-- [ ] No romper test verde Ecuador; leer SOLO de Metadata
-- [ ] Test nuevo cubriendo generales
-- [ ] Commit
+## S2b — Extender parser a itemsGenerales ✅ commit 6bf8715
+- [x] `MetadataEngordeCalculos.ParseMetadataItemsToKg`: agregar `itemsGenerales` (aditivo)
+- [x] No romper Ecuador (no usa generales; parser preserva fallback); leer SOLO de Metadata
+- [x] Test nuevo MetadataEngordeCalculosTests (6 casos, 46 tests OK)
+- [x] Commit
 
-## S3 — FarmInventoryConsumoService (modelo A, sin tx propia)
-- [ ] Nuevo servicio/método: valida stock, decrementa Quantity, inserta movimiento (Consumo/Devolucion)
-- [ ] NO abrir BeginTransactionAsync propia (participa de tx externa)
-- [ ] Registrar en DI (Program.cs) como Scoped
-- [ ] Extender `InventarioConsumoGate` para despachar por país (CO→modelo A)
+## S3 — FarmInventoryConsumoService (modelo A, sin tx propia) ✅
+- [x] Nuevo IFarmInventoryConsumoService + FarmInventoryConsumoService: Validar/Consumo/Devolucion/Diff
+- [x] NO abre BeginTransactionAsync propia (participa de tx externa; solo SaveChanges de alta stock)
+- [x] Registrado en DI (Program.cs) como Scoped
+- [x] `InventarioConsumoGate.ResolverModelo(paisId)` → ModeloB (EC/PA) / ModeloA (CO) / Ninguno
+- [x] Tests dispatch (53 tests OK); DebeDescontarModeloB conservado (compat EC/PA)
 - [ ] Commit
 
 ## S4 — Activar en levante + producción (Colombia)
