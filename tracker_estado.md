@@ -52,3 +52,17 @@
       contra data real (farm 3/item 61): consumo -100, devolución +30, saldos correctos
 - [x] Script `backend/sql/fase2_verificacion_no_afectacion.sql` (read-only + BEGIN/ROLLBACK). 57 tests OK
 - [x] Commit
+
+## QA final (agente) → `QA: ESTABLE` — Fase 2 CERRADA
+- Build 0/0 · dotnet test **102/102** (41/41 tests Fase 2) · `ef has-pending-model-changes`=No changes · migración `20260703140000` aplicada · `movement_type`=varchar(30).
+- **Descuento demostrado en BD** (BEGIN/ROLLBACK, farm 3/item 61): stock 455343 → consumo 1000 → **454343** (kardex −1000) → devolución 300 → **454643** (kardex +1) → post-rollback 455343 (sin datos alterados).
+- **Bloqueo**: `ValidarStockConsumoAsync` lanza por ítem ANTES de `BeginTransactionAsync`/persistir, en levante y producción → no se guarda el seguimiento si falta stock.
+- **Contable NO afectado**: buckets ANTES==DESPUÉS (entradas 32→32, traslados 1→1, retiros 153→153) pese a +2 movimientos.
+- **Indicadores NO afectados**: 0 refs a inventario en `fn_indicadores_levante/produccion_postura`.
+- **EC/PA (modelo B) intacto**; kardex Colombia golden OK.
+- Integrado a la rama por merge FF (81 commits). Visual DOM: `/inventario` Colombia renderiza OK (screenshot tool del entorno no responde → capturas manuales pendientes).
+
+**Pendiente de decisión/OK (documentado, NO ejecutado):**
+- Limpieza espurios + widening `movement_type` en **PROD** (requieren OK; en local ya aplicados).
+- **Prerrequisito operativo del rollout**: cargar stock inicial de Colombia (modelo A) o el bloqueo rechazará seguimientos con ítems sin stock.
+- **Fase 3** (futura): fusión real de catálogos/rutas A↔B (unificar la UI), fuera del alcance de Fase 2.
