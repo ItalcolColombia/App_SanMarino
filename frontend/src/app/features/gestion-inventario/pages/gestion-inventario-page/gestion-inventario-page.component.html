@@ -179,7 +179,10 @@
         <p *ngIf="showNucleoGalpon" class="hint field-full" style="margin: 0">
           <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Los ingresos de alimento quedan a nivel galpón.
         </p>
-        <p *ngIf="!showNucleoGalpon" class="hint field-full" style="margin: 0">
+        <p *ngIf="!showNucleoGalpon && isColombiaInventario" class="hint field-full" style="margin: 0">
+          <strong>Colombia:</strong> el inventario se maneja a nivel <strong>granja</strong> (sin núcleo/galpón).
+        </p>
+        <p *ngIf="!showNucleoGalpon && !isColombiaInventario" class="hint field-full" style="margin: 0">
           <strong>No alimento:</strong> el stock es solo a nivel <strong>granja</strong> (sin núcleo/galpón).
         </p>
         <!-- Origen: solo para concepto Alimento -->
@@ -316,7 +319,7 @@
 
         <div class="field field-full traslado-modos">
           <span class="form-label">Tipo de traslado *</span>
-          <div class="radio-row">
+          <div class="radio-row" *ngIf="!isColombiaInventario">
             <label class="radio-pill">
               <input type="radio" name="trasladoModo" [value]="'mismaGranja'" [(ngModel)]="trasladoModo" (ngModelChange)="onTrasladoModoChange()" />
               Misma granja (entre galpones)
@@ -326,7 +329,8 @@
               Otra granja (sale a tránsito)
             </label>
           </div>
-          <p class="hint" *ngIf="trasladoModo === 'mismaGranja'">Solo aplica a <strong>Alimento</strong>: misma granja, galpón destino distinto al de origen.</p>
+          <p class="hint" *ngIf="isColombiaInventario"><strong>Colombia:</strong> traslado entre granjas distintas (inventario a nivel granja).</p>
+          <p class="hint" *ngIf="!isColombiaInventario && trasladoModo === 'mismaGranja'">Solo aplica a <strong>Alimento</strong>: misma granja, galpón destino distinto al de origen.</p>
           <p class="hint" *ngIf="trasladoModo === 'interGranja'">Granja destino distinta a la de origen. El stock se <strong>descuenta en origen</strong> al guardar; en <strong>Tránsito</strong> la granja destino confirma la recepción para sumar el ítem allí (mismo ID de catálogo).</p>
         </div>
 

@@ -22,6 +22,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { HasPermissionDirective } from '../../../../core/auth/has-permission.directive';
+import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
 import {
   GestionInventarioService,
   InventarioGestionFilterDataDto,
@@ -196,14 +197,29 @@ export class GestionInventarioPageComponent implements OnInit {
 
   private allCatalogItems: ItemInventarioEcuadorDto[] = [];
 
+  /**
+   * Fase 3 (paso 3) — Colombia opera el inventario modelo B unificado a NIVEL GRANJA:
+   * el alimento NO usa núcleo/galpón (stock B con nucleo/galpon NULL). Se calcula una vez
+   * (el país activo no cambia dentro de la vista) para no romper change detection.
+   * Ecuador/Panamá quedan igual (alimento con núcleo/galpón).
+   */
+  readonly isColombiaInventario: boolean;
+
   constructor(
     private svc: GestionInventarioService,
-    private route: ActivatedRoute
-  ) {}
+    private route: ActivatedRoute,
+    private country: CountryFilterService
+  ) {
+    this.isColombiaInventario = this.country.isColombia();
+  }
 
   ngOnInit(): void {
     this.ingresoFechaMovimiento = this.todayYmd();
     this.trasladoFechaMovimiento = this.todayYmd();
+    // Colombia: el inventario es a nivel granja → traslado siempre entre granjas (no galpón-a-galpón).
+    if (this.isColombiaInventario) {
+      this.trasladoModo = 'interGranja';
+    }
     this.loadFilterData();
     this.loadCatalogItems();
   }
@@ -765,11 +781,15 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   get showNucleoGalpon(): boolean {
+    // Colombia: inventario a nivel granja → nunca núcleo/galpón (aunque sea alimento).
+    if (this.isColombiaInventario) return false;
     return this.isAlimentoConcept(this.selectedConcept);
   }
 
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
   get stockShowNucleoGalpon(): boolean {
+    // Colombia: stock a nivel granja → sin columnas núcleo/galpón.
+    if (this.isColombiaInventario) return false;
     const c = (this.stockConceptFilter ?? '').trim();
     if (!c) return true;
     return this.isAlimentoConcept(c);
@@ -1369,6 +1389,8 @@ export class GestionInventarioPageComponent implements OnInit {
   }
 
   recepcionNeedsNucleoGalpon(itemId: number): boolean {
+    // Colombia: recepción a nivel granja → sin núcleo/galpón.
+    if (this.isColombiaInventario) return false;
     const item = this.allCatalogItems.find(i => i.id === itemId);
     if (!item) return false;
     return this.isAlimentoConcept(item.concepto ?? item.tipoItem);
