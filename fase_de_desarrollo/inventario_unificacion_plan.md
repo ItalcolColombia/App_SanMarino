@@ -51,3 +51,17 @@ Validar estable + cumple requerimiento: catálogo, stock, ingresos, traslados (m
 
 ## Orden de ejecución (autónomo, un slice por commit, con build/test/E2E)
 S1 (bugfix) → S2 (dead code) → S3 (kardex→SQL, luego vistas gestión) → S4 (dedup front por país). Fase 2 queda para decisión del usuario.
+
+---
+
+## ✅ Correcciones del validador (arquitecto) — INCORPORADAS (VEREDICTO: APROBADO)
+1. **S1 alcance real = 3 servicios** (no solo levante): `SeguimientoLoteLevanteService`, `SeguimientoAvesEngordeEcuadorService` y `SeguimientoAvesEngordeService` (engorde **Colombia**, el más peligroso: es servicio Colombia que inyecta inventario Ecuador). Los dos de engorde delegan en `Application/Calculos/MetadataEngordeCalculos.ParseMetadataItemsToKg` (misma lógica de fallback); levante tiene copia propia `private static`.
+2. **S1 enfoque: NO modificar el parser.** Gatear el descuento AGUAS ARRIBA en cada servicio: invocar `RegistrarConsumoAsync`/`RegistrarIngresoAsync` **solo cuando el ítem aporta `itemInventarioEcuadorId > 0`** y además gatear por país del lote (`Lote.PaisId`, nullable, existe). Así NO se rompe el test verde `MetadataEngordeCalculosTests.cs:34-37` que fija el fallback como correcto.
+3. **S1 Delete de levante**: el `Select` (~529-532) NO trae `PaisId` → añadirlo.
+4. **S1 tests**: agregar, para los 3 servicios, un test que garantice que un ítem **solo-Colombia** (sin `itemInventarioEcuadorId`) NO genera consumo en modelo B. (El parser de levante es `private static` y no hay proyecto de test de Infrastructure → o testear vía el gating, o extraer el parser a `Application/Calculos/`.)
+5. **S2**: `features/inventario/page/inventario-managemen/` **ya NO existe** (no-op). Solo eliminar la ruta huérfana `/inventario-management` (`app.config.ts:283-289`) + documentar (no ejecutar) los menús BD duplicados (ids 10/32).
+6. **S3**: golden con `ORDER BY created_at, id` (desempate por `id` es determinista → mejora, no regresión aunque una columna `Saldo` intermedia difiera del orden indeterminado actual). `movement_type` se persiste como **string** (`v.ToString()`) → `sign` con `CASE movement_type WHEN 'Entry'...`; `Adjust` = `CASE WHEN quantity>=0 THEN 1 ELSE -1`; tipos no mapeados → `0m` (replicar el `_ => 0m`).
+7. **S4 riesgo real = medio-ALTO**: A y B tienen **modelos de datos y APIs distintos** (no es "la misma UI parametrizable"); la lógica común real es limitada (etiquetas de tipo de movimiento, estructura de tablas). `gestion-inventario-page` = monolito 1496 líneas. → S4 se limita a extraer utilidades genuinamente compartidas de bajo riesgo; la unificación real de UI depende de normalizar el modelo (Fase 2). Si no es claramente seguro, **diferir S4 a Fase 2**.
+8. Confirmado: `ProduccionService` NO toca inventario (acierto del plan).
+
+**Scope autónomo definitivo:** S1 (los 3 servicios) + S2 (ruta huérfana) + S3 (kardex→SQL; vistas de gestión OPCIONAL con cuidado de la semántica invertida `from_farm_id`). S4 minimal/diferible.
