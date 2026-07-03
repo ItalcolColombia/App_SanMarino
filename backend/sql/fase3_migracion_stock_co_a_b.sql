@@ -26,10 +26,30 @@
 BEGIN;
 
 -- Paso 1 — Catálogo Colombia A → B (idempotente por (company, pais, codigo)).
+-- Alineación de campos para que el front del catálogo (item-inventario-ecuador) muestre/edite
+-- los ítems migrados igual que los de Ecuador, sin campos faltantes que afecten:
+--   * tipo_item / concepto = item_type NORMALIZADO A MINÚSCULA → coincide con el <select> del
+--     form (['alimento','medicamento','insumo','otro']); si quedara 'Alimento' el select saldría
+--     en blanco. IsAlimento compara OrdinalIgnoreCase, así que la granularidad no se afecta.
+--   * referencia = codigo · descripcion / descripcion_item = nombre  (misma convención que los
+--     ítems reales de Ecuador, que traen referencia=codigo y descripcion=nombre).
+--   * unidad = 'kg' (A no guarda unidad en el catálogo; todos los ítems Colombia son alimento/kg).
+--   * grupo / tipo_inventario_codigo / descripcion_tipo_inventario = NULL: son códigos propios de
+--     Ecuador (p.ej. '0501 - SE SAN MARINO') sin equivalente en A; son NULLABLE y el front los
+--     maneja null-safe (`?? ''`) → no rompen. Se pueden completar luego desde el UI si se requiere.
 INSERT INTO item_inventario_ecuador
-    (codigo, nombre, tipo_item, concepto, unidad, activo, company_id, pais_id, created_at, updated_at)
-SELECT ci.codigo, ci.nombre, ci.item_type, lower(btrim(ci.item_type)), 'kg',
-       COALESCE(ci.activo, true), 1, 1, now(), now()
+    (codigo, nombre, tipo_item, unidad, descripcion, activo, referencia, descripcion_item, concepto,
+     company_id, pais_id, created_at, updated_at)
+SELECT ci.codigo,
+       ci.nombre,
+       lower(btrim(ci.item_type)),   -- tipo_item (coincide con el select del front)
+       'kg',                         -- unidad
+       ci.nombre,                    -- descripcion = nombre
+       COALESCE(ci.activo, true),
+       ci.codigo,                    -- referencia = codigo (convención Ecuador)
+       ci.nombre,                    -- descripcion_item = nombre
+       lower(btrim(ci.item_type)),   -- concepto (= tipo_item; IsAlimento case-insensitive)
+       1, 1, now(), now()
   FROM catalogo_items ci
  WHERE ci.company_id = 1
    AND NOT EXISTS (
