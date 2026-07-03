@@ -3,6 +3,7 @@
 // Inventario: mismo patrón que SeguimientoAvesEngordeService — descuenta al crear, ajusta al editar, restituye al eliminar.
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
 using ZooSanMarino.Domain.Entities;
@@ -121,6 +122,18 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
         return (row.GranjaId, row.NucleoId, row.GalponId);
     }
 
+    /// <summary>
+    /// País efectivo para gatear el descuento del inventario modelo B (S1). Aquí el origen es la
+    /// GRANJA del lote reproductora (no hay lote.PaisId): farm.DepartamentoId → departamentos.PaisId,
+    /// la misma cadena que usa el inventario. Devuelve null si no se puede resolver.
+    /// </summary>
+    private async Task<int?> ResolverPaisIdPorGranjaAsync(int granjaId)
+        => await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId)
+            .Join(_ctx.Departamentos.AsNoTracking(),
+                f => f.DepartamentoId, d => d.DepartamentoId, (f, d) => (int?)d.PaisId)
+            .FirstOrDefaultAsync();
+
     // ─── Queries ──────────────────────────────────────────────────────────────
 
     public async Task<IEnumerable<SeguimientoLoteLevanteDto>> GetByLoteReproductoraAsync(int loteReproductoraId)
@@ -231,7 +244,10 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             try
             {
                 var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
-                if (ubicacion.HasValue)
+                // Gate por PAÍS (S1): solo Ecuador/Panamá descuentan del modelo B; para lotes Colombia
+                // NO se invoca (evita el descuento cross-país silencioso por el fallback catalogItemId).
+                if (ubicacion.HasValue &&
+                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
                 {
                     var (farmId, nucleoId, galponId) = ubicacion.Value;
                     var byItem = ParseMetadataItemsToKg(dto.Metadata.RootElement);
@@ -312,7 +328,9 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             try
             {
                 var ubicacion = await GetLoteUbicacionAsync(dto.LoteId);
-                if (ubicacion.HasValue)
+                // Gate por PAÍS (S1): solo Ecuador/Panamá ajustan el modelo B.
+                if (ubicacion.HasValue &&
+                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
                 {
                     var (farmId, nucleoId, galponId) = ubicacion.Value;
                     var newByItemId = dto.Metadata != null
@@ -397,7 +415,9 @@ public class SeguimientoDiarioLoteReproductoraService : ISeguimientoDiarioLoteRe
             try
             {
                 var ubicacion = await GetLoteUbicacionAsync(ent.LoteReproductoraAveEngordeId);
-                if (ubicacion.HasValue)
+                // Gate por PAÍS (S1): solo Ecuador/Panamá devuelven al modelo B.
+                if (ubicacion.HasValue &&
+                    InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdPorGranjaAsync(ubicacion.Value.FarmId)))
                 {
                     var (farmId, nucleoId, galponId) = ubicacion.Value;
                     var byItem = ParseMetadataItemsToKg(ent.Metadata.RootElement);
