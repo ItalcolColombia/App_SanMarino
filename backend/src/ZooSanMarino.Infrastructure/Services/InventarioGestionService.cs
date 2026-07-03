@@ -354,6 +354,15 @@ public class InventarioGestionService : IInventarioGestionService
         return string.Equals(item.TipoItem?.Trim(), "alimento", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Fase 3 (paso 3) — Colombia (pais 1) opera el modelo B unificado a NIVEL GRANJA: el stock y los
+    /// movimientos de alimento NO usan núcleo/galpón (stock migrado A→B con nucleo/galpon NULL). Para
+    /// estos países, ingreso y traslado NO exigen ni admiten núcleo/galpón aunque el ítem sea alimento.
+    /// Ecuador/Panamá (pais 2/3) siguen con la ubicación estructurada núcleo/galpón (sin cambios).
+    /// </summary>
+    private static bool EsInventarioNivelGranja(int paisId)
+        => paisId == ZooSanMarino.Application.Calculos.InventarioConsumoGate.PaisColombia;
+
     private async Task<(int CompanyId, int PaisId)> GetFarmCompanyAndPaisAsync(int farmId, CancellationToken ct)
     {
         var farm = await _db.Farms.AsNoTracking().FirstOrDefaultAsync(f => f.Id == farmId, ct);
@@ -368,11 +377,6 @@ public class InventarioGestionService : IInventarioGestionService
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad debe ser positiva.");
         var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
-        var isAlimento = IsAlimento(item);
-        if (isAlimento && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
-            throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
-        if (!isAlimento && (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
-            throw new InvalidOperationException("Para ítems que no son alimento el inventario es solo a nivel granja (no use Núcleo/Galpón).");
 
         var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
         if (_current?.CompanyId > 0 && _current.CompanyId != companyId)
@@ -380,6 +384,17 @@ public class InventarioGestionService : IInventarioGestionService
         var effectivePais = await GetEffectivePaisIdAsync(req.FarmId, ct);
         if (effectivePais > 0 && paisId != effectivePais)
             throw new InvalidOperationException("La granja no pertenece al país activo.");
+
+        // Colombia (nivel granja): alimento sin núcleo/galpón. EC/PA: alimento con núcleo+galpón.
+        var nivelGranja = EsInventarioNivelGranja(paisId);
+        var isAlimento = IsAlimento(item);
+        var usaUbicacion = isAlimento && !nivelGranja;
+        if (usaUbicacion && (string.IsNullOrWhiteSpace(req.NucleoId) || string.IsNullOrWhiteSpace(req.GalponId)))
+            throw new InvalidOperationException("Para ítem tipo alimento debe indicar Núcleo y Galpón.");
+        if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.NucleoId) || !string.IsNullOrWhiteSpace(req.GalponId)))
+            throw new InvalidOperationException(nivelGranja
+                ? "En Colombia el inventario es solo a nivel granja (no use Núcleo/Galpón)."
+                : "Para ítems que no son alimento el inventario es solo a nivel granja (no use Núcleo/Galpón).");
 
         var origenTipoNorm = req.OrigenTipo?.Trim() ?? "";
         if (string.Equals(origenTipoNorm, "granja", StringComparison.OrdinalIgnoreCase))
@@ -401,8 +416,8 @@ public class InventarioGestionService : IInventarioGestionService
                 throw new InvalidOperationException("La granja de la bodega de origen debe pertenecer a la misma empresa.");
         }
 
-        var nucleoId = isAlimento ? req.NucleoId!.Trim() : null;
-        var galponId = isAlimento ? req.GalponId!.Trim() : null;
+        var nucleoId = usaUbicacion ? req.NucleoId!.Trim() : null;
+        var galponId = usaUbicacion ? req.GalponId!.Trim() : null;
 
         var existing = await _db.InventarioGestionStock
             .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == nucleoId && x.GalponId == galponId, ct);
@@ -467,14 +482,22 @@ public class InventarioGestionService : IInventarioGestionService
         if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad debe ser positiva.");
         var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
         if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
+
+        // Colombia (nivel granja): alimento sin núcleo/galpón → mismo camino que un ítem no-alimento
+        // (traslado a nivel granja). EC/PA conservan el galpón-a-galpón para alimento.
+        var (_, paisIdOrigen) = await GetFarmCompanyAndPaisAsync(req.FromFarmId, ct);
+        var nivelGranja = EsInventarioNivelGranja(paisIdOrigen);
         var isAlimento = IsAlimento(item);
+        var usaUbicacion = isAlimento && !nivelGranja;
 
         var mismaGranja = req.FromFarmId == req.ToFarmId;
 
         if (mismaGranja)
         {
-            if (!isAlimento)
-                throw new InvalidOperationException("Para ítems que no son alimento no aplica traslado entre galpones en la misma granja (el stock es solo a nivel granja). Use traslado entre granjas distintas si aplica.");
+            if (!usaUbicacion)
+                throw new InvalidOperationException(nivelGranja
+                    ? "En Colombia el inventario es solo a nivel granja: no aplica traslado dentro de la misma granja. Use traslado entre granjas distintas."
+                    : "Para ítems que no son alimento no aplica traslado entre galpones en la misma granja (el stock es solo a nivel granja). Use traslado entre granjas distintas si aplica.");
             if (string.IsNullOrWhiteSpace(req.FromNucleoId) || string.IsNullOrWhiteSpace(req.FromGalponId) ||
                 string.IsNullOrWhiteSpace(req.ToNucleoId) || string.IsNullOrWhiteSpace(req.ToGalponId))
                 throw new InvalidOperationException("Para alimento en la misma granja debe indicar Núcleo y Galpón de origen y destino.");
@@ -487,7 +510,7 @@ public class InventarioGestionService : IInventarioGestionService
             return await RegistrarTrasladoMismaGranjaAsync(req, item, fn, fg, tn, tg, ct);
         }
 
-        return await RegistrarTrasladoInterGranjaTransitoAsync(req, item, isAlimento, ct);
+        return await RegistrarTrasladoInterGranjaTransitoAsync(req, item, usaUbicacion, ct);
     }
 
     /// <summary>Traslado entre galpones de la misma granja: descuenta origen y suma destino en una sola operación (2 movimientos).</summary>
@@ -756,16 +779,19 @@ public class InventarioGestionService : IInventarioGestionService
             throw new InvalidOperationException("La granja de recepción debe ser la granja destino del traslado.");
 
         var item = salida.ItemInventarioEcuador;
-        var isAlimento = IsAlimento(item);
-        if (isAlimento && (string.IsNullOrWhiteSpace(req.ToNucleoId) || string.IsNullOrWhiteSpace(req.ToGalponId)))
-            throw new InvalidOperationException("Para alimento debe indicar Núcleo y Galpón de recepción en la granja destino.");
-        if (!isAlimento && (!string.IsNullOrWhiteSpace(req.ToNucleoId) || !string.IsNullOrWhiteSpace(req.ToGalponId)))
-            throw new InvalidOperationException("Para ítems que no son alimento la recepción es solo a nivel granja.");
-
-        var toNucleoId = isAlimento ? req.ToNucleoId!.Trim() : null;
-        var toGalponId = isAlimento ? req.ToGalponId!.Trim() : null;
-
         var (companyIdTo, paisIdTo) = await GetFarmCompanyAndPaisAsync(req.ToFarmId, ct);
+
+        // Colombia (nivel granja): recepción de alimento sin núcleo/galpón. EC/PA sin cambios.
+        var isAlimento = IsAlimento(item);
+        var usaUbicacion = isAlimento && !EsInventarioNivelGranja(paisIdTo);
+        if (usaUbicacion && (string.IsNullOrWhiteSpace(req.ToNucleoId) || string.IsNullOrWhiteSpace(req.ToGalponId)))
+            throw new InvalidOperationException("Para alimento debe indicar Núcleo y Galpón de recepción en la granja destino.");
+        if (!usaUbicacion && (!string.IsNullOrWhiteSpace(req.ToNucleoId) || !string.IsNullOrWhiteSpace(req.ToGalponId)))
+            throw new InvalidOperationException("La recepción es solo a nivel granja (sin Núcleo/Galpón).");
+
+        var toNucleoId = usaUbicacion ? req.ToNucleoId!.Trim() : null;
+        var toGalponId = usaUbicacion ? req.ToGalponId!.Trim() : null;
+
         if (salida.CompanyId != companyIdTo)
             throw new InvalidOperationException("La granja destino no pertenece a la misma empresa que la salida.");
 
