@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ZooSanMarino.Application.Calculos;
 using ZooSanMarino.Application.DTOs;
 using ZooSanMarino.Application.Interfaces;
@@ -24,6 +25,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
     private readonly ICurrentUser _current;
     private readonly IMovimientoAvesService _movimientoAvesService;
     private readonly IInventarioGestionService? _inventarioGestionService;
+    private readonly ILogger<SeguimientoAvesEngordeService>? _logger;
 
     public SeguimientoAvesEngordeService(
         ZooSanMarinoContext ctx,
@@ -31,7 +33,8 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         IGramajeProvider gramaje,
         ICurrentUser current,
         IMovimientoAvesService movimientoAvesService,
-        IInventarioGestionService? inventarioGestionService = null)
+        IInventarioGestionService? inventarioGestionService = null,
+        ILogger<SeguimientoAvesEngordeService>? logger = null)
     {
         _ctx = ctx;
         _alimentos = alimentos;
@@ -39,6 +42,24 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         _current = current;
         _movimientoAvesService = movimientoAvesService;
         _inventarioGestionService = inventarioGestionService;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// País efectivo del lote (lote_ave_engorde) para gatear el descuento del inventario modelo B.
+    /// Este servicio atiende engorde Colombia (el caso peligroso: inyecta el inventario Ecuador),
+    /// por eso el gate es crítico. Fuente: <c>lote.PaisId</c> si está poblado; si no, derivado desde
+    /// la granja (farm.DepartamentoId → departamentos.PaisId), la misma cadena que usa el inventario.
+    /// </summary>
+    private async Task<int?> ResolverPaisIdLoteAsync(int granjaId, int? paisIdLote)
+    {
+        if (paisIdLote is > 0) return paisIdLote;
+        var paisId = await _ctx.Farms.AsNoTracking()
+            .Where(f => f.Id == granjaId)
+            .Join(_ctx.Departamentos.AsNoTracking(),
+                f => f.DepartamentoId, d => d.DepartamentoId, (f, d) => (int?)d.PaisId)
+            .FirstOrDefaultAsync();
+        return paisId;
     }
 
     private static readonly string[] _docMetadataKeys =
@@ -718,7 +739,10 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         _ctx.SeguimientoDiarioAvesEngorde.Add(ent);
         await _ctx.SaveChangesAsync();
 
-        if (_inventarioGestionService != null && dto.Metadata != null)
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá descuentan del modelo B. Este servicio
+        // atiende engorde Colombia → un lote Colombia NO debe disparar consumo del inventario Ecuador.
+        if (_inventarioGestionService != null && dto.Metadata != null &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId)))
         {
             try
             {
@@ -729,7 +753,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                         await _inventarioGestionService.RegistrarConsumoAsync(new InventarioGestionConsumoRequest(
                             lote.GranjaId, lote.NucleoId?.Trim(), lote.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, null));
             }
-            catch (Exception ex) { Console.WriteLine($"Error al registrar consumo inventario (aves engorde): {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al registrar consumo inventario (aves engorde)"); }
         }
 
         var totalRetiradas = dto.MortalidadHembras + dto.MortalidadMachos + dto.SelH + dto.SelM + dto.ErrorSexajeHembras + dto.ErrorSexajeMachos;
@@ -845,7 +869,9 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         _ctx.Entry(ent).Property(e => e.HistoricoConsumoAlimento).IsModified = true;
         await _ctx.SaveChangesAsync();
 
-        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0))
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá ajustan el modelo B.
+        if (_inventarioGestionService != null && (dto.Metadata != null || oldByItemId.Count > 0) &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(lote.GranjaId, lote.PaisId)))
         {
             try
             {
@@ -869,7 +895,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                             farmId, nucleoId, galponId, itemId, -diff, "kg", refStr + " (devolución)", "Devolución desde seguimiento aves engorde"));
                 }
             }
-            catch (Exception ex) { Console.WriteLine($"Error al actualizar inventario (aves engorde): {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al actualizar inventario (aves engorde)"); }
         }
 
         var newHRet = dto.MortalidadHembras + dto.SelH + dto.ErrorSexajeHembras;
@@ -915,12 +941,14 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
         var ent = await (from s in _ctx.SeguimientoDiarioAvesEngorde
                          join l in _ctx.LoteAveEngorde.AsNoTracking() on s.LoteAveEngordeId equals l.LoteAveEngordeId
                          where s.Id == id && l.CompanyId == companyId && l.DeletedAt == null
-                         select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId, l.EstadoOperativoLote }).SingleOrDefaultAsync();
+                         select new { Seguimiento = s, l.GranjaId, l.NucleoId, l.GalponId, l.PaisId, l.EstadoOperativoLote }).SingleOrDefaultAsync();
         if (ent is null) return false;
         if (string.Equals(ent.EstadoOperativoLote, "Cerrado", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El lote está cerrado (liquidado). No se puede eliminar el registro.");
 
-        if (_inventarioGestionService != null && ent.Seguimiento.Metadata != null)
+        // Gate por PAÍS DEL LOTE (S1): solo Ecuador/Panamá devuelven al modelo B.
+        if (_inventarioGestionService != null && ent.Seguimiento.Metadata != null &&
+            InventarioConsumoGate.DebeDescontarModeloB(await ResolverPaisIdLoteAsync(ent.GranjaId, ent.PaisId)))
         {
             try
             {
@@ -931,7 +959,7 @@ public class SeguimientoAvesEngordeService : ISeguimientoAvesEngordeService
                         await _inventarioGestionService.RegistrarIngresoAsync(new InventarioGestionIngresoRequest(
                             ent.GranjaId, ent.NucleoId?.Trim(), ent.GalponId?.Trim(), kv.Key, kv.Value, "kg", refStr, "Devolución por eliminación de seguimiento aves engorde"));
             }
-            catch (Exception ex) { Console.WriteLine($"Error al devolver inventario al eliminar seguimiento aves engorde: {ex.Message}"); }
+            catch (Exception ex) { _logger?.LogError(ex, "Error al devolver inventario al eliminar seguimiento aves engorde"); }
         }
 
         // Anular INV_CONSUMO del seguimiento eliminado en el histórico unificado.

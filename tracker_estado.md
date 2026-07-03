@@ -118,3 +118,15 @@
 | 22 | **Validación E2E con sesiones reales (EC/PA/CO)**: login 3 países OK · Ecuador ve Merma y precarga funciona (lote 2602: 5 uds / 10,66 kg desde BD) · resumen devuelve mermaUnidades/mermaKilos · menú Panamá usa módulo compartido (fork inalcanzable, sin menú en BD) · Colombia postura (lote, levante, producción) carga sin errores nuevos | (validación) | sesiones admin.ecuador / admin.panama / solangyramirez |
 | 23 | Fork `aves-engorde-panama` eliminado (front+back+entidad; tabla física preservada como candidata a DROP) | `6b5b6cd` | build 0 err/0 warn · 54/54 tests · ng build OK · smoke Panamá OK |
 | 24 | **Peso báscula OBLIGATORIO en ventas de pollo engorde** (incidente mov sin peso → reportes descuadrados). Front: validadores dinámicos + aviso junto a Guardar (ambos modales). Back: `ValidarPesoObligatorioEnVenta` en Calculos, aplicado en Crud + VentaGranja + VentaPanamá + 10 tests | `d4c98ac` | 63/63 tests · ng build OK · E2E Ecuador: sin peso bloquea con aviso; con peso habilita (neto 10) |
+
+---
+
+## Inventario multipaís — FASE 1 (autónoma)
+Plan: [`fase_de_desarrollo/inventario_unificacion_plan.md`](fase_de_desarrollo/inventario_unificacion_plan.md) (sección "✅ Correcciones del validador — INCORPORADAS"). Scope autónomo: S1 (bugfix cross-país) + S2 (ruta huérfana) + S3 (kardex→SQL). S4 diferido a Fase 2.
+
+| Slice | Ítem | Commit | Validación |
+|---|---|---|---|
+| S1 | **Bugfix descuento cross-país (CRÍTICO).** Gate por PAÍS DEL LOTE en los 3 servicios (Levante, Engorde Ecuador, Engorde Colombia): solo descontar del modelo B si el lote es Ecuador(2)/Panamá(3). Helper puro `InventarioConsumoGate` + `ResolverPaisIdLoteAsync` (país = `lote.PaisId ?? farm→departamento→pais`, misma cadena que el inventario). `PaisId` añadido a los Select de Delete. Catches mudos → `ILogger`. NO se tocó el parser. 8 tests nuevos. Fila espuria: DOCUMENTADA, requiere OK (NO ejecutada). | (este commit) | dotnet build 0/0 · dotnet test 26/26 (18 previos + 8 nuevos gate) |
+| S2 | Ruta huérfana `/inventario-management` | ⏳ pendiente | |
+| S3 | Kardex Colombia → fn SQL (window function) | ⏳ pendiente | |
+| S4 | Dedup front | DIFERIDO a Fase 2 (modelos/APIs distintos; riesgo medio-alto) | |
