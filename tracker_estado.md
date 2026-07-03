@@ -28,12 +28,13 @@
 - [x] `dotnet build` 0/0
 - [ ] Commit
 
-## S4 — Tests
-- [ ] `InventarioConsumoGateTests`: Colombia → ModeloB (actualizar)
-- [ ] Test id-mapping / consumo nivel granja (donde sea puro)
-- [ ] Bloqueo si no hay stock B (validación previa)
-- [ ] Contable/indicadores sin cambios (golden vigente + verificación BD)
-- [ ] `dotnet build` 0/0 + `dotnet test` verde
+## S4 — Tests ✅
+- [x] `InventarioConsumoGateTests`: Colombia → ModeloBNivelGranja (actualizado) + test "ya no usa modelo A" + coherencia
+- [x] Contable no-afectación: agregado test tipos modelo B ('Consumo'/'Ingreso') fuera de los buckets del contable modelo A
+- [x] id-mapping / consumo nivel granja verificado por BD (BEGIN/ROLLBACK; no es puro → verificación SQL)
+- [x] Bloqueo si no hay stock B (validación previa) verificado por BD
+- [x] Contable/indicadores sin cambios (golden vigente + verificación BD)
+- [x] `dotnet build` 0/0 + `dotnet test` verde (Domain 1/1, Application 60/60)
 - [ ] Commit
 
 ## Evidencia
@@ -43,3 +44,18 @@
 - Idempotencia: re-run → INSERT 0 0 / INSERT 0 0 (sin duplicar).
 - F (alineación catálogo B): 61/61 tipo_item minúscula ('alimento'), 61/61 referencia=codigo, 61/61 descripcion=nombre.
 - Stock B a nivel granja: 17/17 con nucleo_id/galpon_id NULL.
+
+### S2/S3/S4 (código + BD)
+- **Build/test**: `dotnet build` 0 warnings/0 errors; `dotnet test` 61/61 (Domain 1 + Application 60; +3 tests nuevos).
+- **id-mapping A→B** (verificado): catalogItemId 61 (codigo 040475) → item B 259; batch por código, company 1/pais 1.
+- **Colombia descuenta B nivel granja** (BEGIN/ROLLBACK, farm 3/item 259): stock 455343 → consumo −1000 → **454343** (movimiento 'Consumo', nucleo/galpon NULL) → devolución +300 → **454643** → post-rollback 455343 (sin datos alterados).
+- **Bloqueo**: `ValidarStockConsumoAsync` (replica SQL) → pedir 999999999 kg (disp. 455343) = THROW insuficiente ANTES de persistir → no se guarda el seguimiento.
+- **Ecuador intacto**: stock B pais 2 = 132 filas TODAS con núcleo/galpón (con_ubicacion=132, nivel_granja=0); Colombia (pais 1) = 17 filas nivel granja, aisladas. Sin mezcla.
+- **Contable NO afectado**: model A buckets Colombia idénticos (Entry 31/730679, Exit 153/63257.8, TransferIn 1/323, TransferOut 1/323); 0 filas ConsumoSeguimiento/DevolucionSeguimiento en model A → estado pre-Fase-2. Los tipos 'Consumo'/'Ingreso' del modelo B NO figuran en ningún bucket del contable (test + el contable no lee inventario_gestion).
+- **Indicadores NO afectados**: 0 referencias a tablas de inventario en `fn_indicadores_levante/produccion_postura`.
+- **Sin migración EF**: cambios app-level (enum ModeloInventarioConsumo, no entidad). `InventoryMovementType` sin tocar. Backfill data-only.
+
+## Notas / diseño
+- Enum `ModeloInventarioConsumo.ModeloBNivelGranja` (nuevo) = Colombia unifica en modelo B pero por (granja, ítem) sin galpón; `ModeloB` (EC/PA) sigue con núcleo/galpón. Así el switch NO rompe Ecuador.
+- `FarmInventoryConsumoService` (modelo A) + campos `_farmInventoryConsumo` quedan por diseño (path modelo A ya no lo llama Colombia).
+- Pendiente futuro (fuera de alcance): PROD requiere OK+backup para el backfill; retiro del modelo A / ruta `/inventario`; migración de movimientos/kardex históricos A→B.

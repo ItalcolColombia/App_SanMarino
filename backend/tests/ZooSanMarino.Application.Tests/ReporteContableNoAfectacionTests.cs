@@ -64,4 +64,21 @@ public class ReporteContableNoAfectacionTests
         Assert.DoesNotContain("ConsumoSeguimiento", entran);
         Assert.DoesNotContain("DevolucionSeguimiento", entran);
     }
+
+    // Fase 3 (paso 2) — Colombia pasó a consumir del MODELO B (inventario_gestion), con movimientos
+    // tipo "Consumo"/"Ingreso". El contable lee EXCLUSIVAMENTE el modelo A (farm_inventory_movements)
+    // y no consulta inventario_gestion_movimiento en absoluto → los movimientos B de Colombia son
+    // invisibles para el contable. Además, al dejar de escribir en A, los buckets A ya NO reciben
+    // consumos nuevos de Colombia → el estado del contable A es el pre-Fase-2 (idéntico).
+    [Theory]
+    [InlineData("Consumo")]   // tipo del modelo B (nivel granja Colombia)
+    [InlineData("Ingreso")]   // devolución en modelo B
+    public void TiposModeloB_NoEntranEnNingunBucketDelContableModeloA(string tipoModeloB)
+    {
+        // Los literales del contable (modelo A) no incluyen los tipos del modelo B.
+        Assert.False(EsEntrada(tipoModeloB));
+        Assert.False(EsTraslado(tipoModeloB));
+        Assert.False(EsRetiro(tipoModeloB));
+        Assert.False(EntraAlContable(tipoModeloB));
+    }
 }

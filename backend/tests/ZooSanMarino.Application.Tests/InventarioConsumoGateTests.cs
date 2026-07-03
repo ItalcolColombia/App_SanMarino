@@ -47,12 +47,13 @@ public class InventarioConsumoGateTests
         Assert.Equal(3, InventarioConsumoGate.PaisPanama);
     }
 
-    // Fase 2 (S3): despacho por país al modelo de inventario correcto.
+    // Fase 3 (paso 2): despacho por país al modelo de inventario correcto.
+    // Colombia migró de modelo A → modelo B a NIVEL GRANJA (unificación); EC/PA sin cambios.
     [Theory]
-    [InlineData(1, ModeloInventarioConsumo.ModeloA)]  // Colombia → modelo A (nuevo)
-    [InlineData(2, ModeloInventarioConsumo.ModeloB)]  // Ecuador  → modelo B (sin cambios)
-    [InlineData(3, ModeloInventarioConsumo.ModeloB)]  // Panamá   → modelo B (sin cambios)
-    [InlineData(4, ModeloInventarioConsumo.Ninguno)]  // otro país → ninguno
+    [InlineData(1, ModeloInventarioConsumo.ModeloBNivelGranja)]  // Colombia → modelo B nivel granja (Fase 3)
+    [InlineData(2, ModeloInventarioConsumo.ModeloB)]             // Ecuador  → modelo B con galpón (sin cambios)
+    [InlineData(3, ModeloInventarioConsumo.ModeloB)]             // Panamá   → modelo B con galpón (sin cambios)
+    [InlineData(4, ModeloInventarioConsumo.Ninguno)]             // otro país → ninguno
     [InlineData(0, ModeloInventarioConsumo.Ninguno)]
     public void ResolverModelo_DespachaPorPais(int paisId, ModeloInventarioConsumo esperado)
         => Assert.Equal(esperado, InventarioConsumoGate.ResolverModelo(paisId));
@@ -62,13 +63,25 @@ public class InventarioConsumoGateTests
         => Assert.Equal(ModeloInventarioConsumo.Ninguno, InventarioConsumoGate.ResolverModelo(null));
 
     [Fact]
+    public void ResolverModelo_Colombia_YaNoUsaModeloA()
+    {
+        // Fase 3: Colombia dejó de consumir del modelo A. El path A queda sin uso.
+        Assert.NotEqual(ModeloInventarioConsumo.ModeloA, InventarioConsumoGate.ResolverModelo(1));
+        Assert.Equal(ModeloInventarioConsumo.ModeloBNivelGranja, InventarioConsumoGate.ResolverModelo(1));
+    }
+
+    [Fact]
     public void ResolverModelo_Coherente_ConDebeDescontarModeloB()
     {
-        // El dispatch no puede contradecir el gate booleano existente para EC/PA.
+        // El dispatch al modelo B "con galpón" (EC/PA) no puede contradecir el gate booleano.
+        // Colombia (ModeloBNivelGranja) NO es ModeloB literal → DebeDescontarModeloB(1) sigue false.
         foreach (var pais in new int?[] { 1, 2, 3, 4, null })
         {
-            var esModeloB = InventarioConsumoGate.ResolverModelo(pais) == ModeloInventarioConsumo.ModeloB;
-            Assert.Equal(InventarioConsumoGate.DebeDescontarModeloB(pais), esModeloB);
+            var esModeloBConGalpon = InventarioConsumoGate.ResolverModelo(pais) == ModeloInventarioConsumo.ModeloB;
+            Assert.Equal(InventarioConsumoGate.DebeDescontarModeloB(pais), esModeloBConGalpon);
         }
+        // Colombia unifica en B pero por nivel granja, no por el gate booleano de EC/PA.
+        Assert.False(InventarioConsumoGate.DebeDescontarModeloB(1));
+        Assert.Equal(ModeloInventarioConsumo.ModeloBNivelGranja, InventarioConsumoGate.ResolverModelo(1));
     }
 }
