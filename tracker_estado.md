@@ -10,13 +10,13 @@
 - [x] Confirmar idempotencia (re-run INSERT 0 0) + alineación catálogo (F: tipo_item minúscula, referencia=codigo, descripcion=nombre)
 - [ ] Commit (documentar ejecución en el tracker)
 
-## S2 — Helper id-mapping A→B + consumo nivel granja en B
-- [ ] `InventarioGestionService`: `RegistrarConsumoNivelGranjaAsync` + `RegistrarIngresoNivelGranjaAsync` (aditivos, sin tx propia, stock nucleo/galpon NULL, validación de stock preservada)
-- [ ] Interfaz `IInventarioGestionService` extendida con los 2 métodos nuevos
-- [ ] `IColombiaInventarioConsumoService` + `ColombiaInventarioConsumoService`: id-mapping `catalogItemId → catalogo_items.codigo → item_inventario_ecuador.id` (batch) + delega en el consumo nivel granja
-- [ ] NO romper Ecuador (ruta ModeloB con núcleo/galpón intacta)
-- [ ] Registrado en DI (Program.cs) como Scoped
-- [ ] `dotnet build` 0/0
+## S2 — Helper id-mapping A→B + consumo nivel granja en B ✅
+- [x] `InventarioGestionService`: `RegistrarConsumoNivelGranjaAsync` + `RegistrarIngresoNivelGranjaAsync` (aditivos, sin tx propia, stock nucleo/galpon NULL, validación de stock preservada)
+- [x] Interfaz `IInventarioGestionService` extendida con los 2 métodos nuevos
+- [x] `IColombiaInventarioConsumoService` + `ColombiaInventarioConsumoService`: id-mapping `catalogItemId → catalogo_items.codigo → item_inventario_ecuador.id` (batch) + delega en el consumo nivel granja
+- [x] NO romper Ecuador (ruta ModeloB con núcleo/galpón intacta; métodos nuevos son aditivos)
+- [x] Registrado en DI (Program.cs) como Scoped
+- [x] `dotnet build` 0/0
 - [ ] Commit
 
 ## S3 — Switch del gate + servicios (levante + producción)

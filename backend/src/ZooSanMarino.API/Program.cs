@@ -242,7 +242,11 @@ builder.Services.AddScoped<IFarmInventoryService, FarmInventoryService>();
 builder.Services.AddScoped<IFarmInventoryMovementService, FarmInventoryMovementService>();
 // Fase 2 (S3): descuento/devolución automáticos del inventario Colombia (modelo A) desde
 // seguimientos. NO abre tx propia; participa de la tx externa del servicio de seguimiento.
+// (Fase 3 paso 2: Colombia migró a modelo B; este servicio queda registrado pero ya no lo llama Colombia.)
 builder.Services.AddScoped<IFarmInventoryConsumoService, FarmInventoryConsumoService>();
+// Fase 3 (paso 2): descuento/devolución del inventario Colombia en el MODELO B unificado
+// (nivel granja, id-mapping A→B). Reemplaza a FarmInventoryConsumoService para lotes Colombia.
+builder.Services.AddScoped<IColombiaInventarioConsumoService, ColombiaInventarioConsumoService>();
 builder.Services.AddScoped<IFarmInventoryReportService, FarmInventoryReportService>();
 builder.Services.AddScoped<IInventarioGestionService, InventarioGestionService>();
 builder.Services.AddScoped<IItemInventarioEcuadorService, ItemInventarioEcuadorService>();

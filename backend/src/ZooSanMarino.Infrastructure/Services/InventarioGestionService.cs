@@ -1149,6 +1149,114 @@ public class InventarioGestionService : IInventarioGestionService
             ?? new InventarioGestionStockDto(stock.Id, stock.FarmId, stock.NucleoId, stock.GalponId, stock.ItemInventarioEcuadorId, item.Codigo, item.Nombre, item.TipoItem ?? "alimento", stock.Quantity, stock.Unit, null, null, null, stock.CreatedAt);
     }
 
+    // ─── Fase 3 (paso 2) — consumo/devolución a NIVEL GRANJA (Colombia) ─────────────────────
+    // El stock Colombia migrado a modelo B vive a nivel granja (nucleo_id/galpon_id = NULL), a
+    // diferencia de Ecuador/Panamá (alimento exige núcleo+galpón). Estos métodos son ADITIVOS: NO
+    // cambian el comportamiento de RegistrarConsumoAsync/RegistrarIngresoAsync (que EXIGEN
+    // núcleo+galpón para alimento). Descuentan/reponen SIEMPRE contra el stock (farm, item,
+    // nucleo=NULL, galpon=NULL), sin exigir galpón, y NO abren transacción propia: participan de la
+    // IDbContextTransaction externa que abre el servicio de seguimiento (levante/producción), igual
+    // que FarmInventoryConsumoService. Mantienen la validación de stock (si insuficiente → throw)
+    // para respetar el bloqueo atómico. Movimientos con MovementType 'Consumo'/'Ingreso' (como hoy
+    // Ecuador) y NucleoId/GalponId = NULL, aislados por company+pais de la granja.
+
+    /// <summary>
+    /// Fase 3 — consumo a nivel granja (Colombia): descuenta <c>inventario_gestion_stock</c> por
+    /// (farm, item, nucleo=NULL, galpon=NULL) e inserta un movimiento <c>Consumo</c> sin ubicación
+    /// estructurada. NO abre transacción propia (participa de la externa) ni exige galpón. Lanza si
+    /// no hay stock suficiente (bloqueo). No mueve nada de Ecuador/Panamá.
+    /// </summary>
+    public async Task RegistrarConsumoNivelGranjaAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default)
+    {
+        if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad de consumo debe ser positiva.");
+        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
+
+        var stock = await _db.InventarioGestionStock
+            .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == null && x.GalponId == null, ct);
+        if (stock == null || stock.Quantity < req.Quantity)
+            throw new InvalidOperationException(
+                $"Stock insuficiente para '{item.Codigo} - {item.Nombre}' (granja {req.FarmId}): disponible {(stock?.Quantity ?? 0m):0.###}, requerido {req.Quantity:0.###}.");
+
+        stock.Quantity -= req.Quantity;
+        stock.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
+        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+        {
+            CompanyId = companyId,
+            PaisId = paisId,
+            FarmId = req.FarmId,
+            NucleoId = null,
+            GalponId = null,
+            ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+            Quantity = req.Quantity,
+            Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+            MovementType = "Consumo",
+            Estado = "Consumo",
+            Reference = req.Reference?.Trim(),
+            Reason = req.Reason?.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedByUserId = _current?.UserId.ToString()
+        });
+        // NO SaveChanges/tx aquí: el orquestador externo commitea (bloqueo atómico).
+    }
+
+    /// <summary>
+    /// Fase 3 — devolución a nivel granja (Colombia): repone <c>inventario_gestion_stock</c> por
+    /// (farm, item, nucleo=NULL, galpon=NULL) e inserta un movimiento <c>Ingreso</c>. Crea el stock
+    /// si no existe (idéntico a la devolución/edición). NO abre transacción propia.
+    /// </summary>
+    public async Task RegistrarIngresoNivelGranjaAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default)
+    {
+        if (req.Quantity <= 0) throw new InvalidOperationException("La cantidad debe ser positiva.");
+        var item = await _db.ItemInventarioEcuador.AsNoTracking().FirstOrDefaultAsync(c => c.Id == req.ItemInventarioEcuadorId, ct);
+        if (item == null) throw new InvalidOperationException("El ítem de inventario no existe.");
+
+        var (companyId, paisId) = await GetFarmCompanyAndPaisAsync(req.FarmId, ct);
+
+        var stock = await _db.InventarioGestionStock
+            .FirstOrDefaultAsync(x => x.FarmId == req.FarmId && x.ItemInventarioEcuadorId == req.ItemInventarioEcuadorId && x.NucleoId == null && x.GalponId == null, ct);
+        if (stock == null)
+        {
+            stock = new InventarioGestionStock
+            {
+                CompanyId = companyId,
+                PaisId = paisId,
+                FarmId = req.FarmId,
+                NucleoId = null,
+                GalponId = null,
+                ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+                Quantity = 0,
+                Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            _db.InventarioGestionStock.Add(stock);
+        }
+        stock.Quantity += req.Quantity;
+        stock.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _db.InventarioGestionMovimientos.Add(new InventarioGestionMovimiento
+        {
+            CompanyId = companyId,
+            PaisId = paisId,
+            FarmId = req.FarmId,
+            NucleoId = null,
+            GalponId = null,
+            ItemInventarioEcuadorId = req.ItemInventarioEcuadorId,
+            Quantity = req.Quantity,
+            Unit = string.IsNullOrWhiteSpace(req.Unit) ? "kg" : req.Unit.Trim(),
+            MovementType = "Ingreso",
+            Estado = "Ingreso",
+            Reference = req.Reference?.Trim(),
+            Reason = req.Reason?.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedByUserId = _current?.UserId.ToString()
+        });
+        // NO SaveChanges/tx aquí: el orquestador externo commitea.
+    }
+
     private static void ApplyUbicacionMovimientoFilter(
         ref IQueryable<InventarioGestionMovimiento> query,
         string? nucleoId,

@@ -26,6 +26,19 @@ public interface IInventarioGestionService
     /// <summary>Registra consumo (reduce stock). Para devolución usar RegistrarIngresoAsync.</summary>
     Task<InventarioGestionStockDto> RegistrarConsumoAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default);
 
+    /// <summary>
+    /// Fase 3 — consumo a NIVEL GRANJA (Colombia): descuenta stock por (farm, item, nucleo=NULL,
+    /// galpon=NULL) sin exigir galpón; NO abre transacción propia (participa de la externa); lanza si
+    /// no hay stock suficiente (bloqueo). Aditivo: NO cambia RegistrarConsumoAsync (EC/PA con galpón).
+    /// </summary>
+    Task RegistrarConsumoNivelGranjaAsync(InventarioGestionConsumoRequest req, CancellationToken ct = default);
+
+    /// <summary>
+    /// Fase 3 — devolución/ingreso a NIVEL GRANJA (Colombia): repone stock por (farm, item, nucleo=NULL,
+    /// galpon=NULL); crea el stock si no existe; NO abre transacción propia. Aditivo (no toca EC/PA).
+    /// </summary>
+    Task RegistrarIngresoNivelGranjaAsync(InventarioGestionIngresoRequest req, CancellationToken ct = default);
+
     /// <summary>Histórico de movimientos (entradas, salidas, traslados) con filtros.</summary>
     Task<List<InventarioGestionMovimientoDto>> GetMovimientosAsync(
         int? farmId = null,
