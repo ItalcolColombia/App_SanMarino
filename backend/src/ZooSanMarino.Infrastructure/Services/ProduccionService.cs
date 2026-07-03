@@ -20,27 +20,30 @@ public class ProduccionService : IProduccionService
     private readonly ICurrentUser _currentUser;
     private readonly ILoteService _loteService;
     private readonly IEspejoHuevoProduccionSyncService _espejoHuevoSync;
-    private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;   // Fase 2: modelo A (Colombia)
+    private readonly IFarmInventoryConsumoService? _farmInventoryConsumo;      // Fase 2: modelo A (Colombia) — sin uso tras Fase 3 paso 2
+    private readonly IColombiaInventarioConsumoService? _colombiaConsumoB;     // Fase 3 paso 2: modelo B nivel granja (Colombia)
 
     /// <summary>
-    /// Fase 2 (S4): producción postura Colombia ahora SÍ descuenta inventario (modelo A) desde
-    /// sus seguimientos (antes no tocaba inventario). Ecuador/Panamá no operan producción postura
-    /// por esta ruta, por eso no hay flujo modelo B aquí. El descuento es lógica NUEVA:
-    /// resuelve GranjaId del lote y descuenta desde los DTOs ItemsHembras/ItemsMachos (no re-parsea JSON),
-    /// con validación previa de stock y transacción única (todo-o-nada) idéntica a levante.
+    /// Fase 3 (paso 2): producción postura Colombia descuenta inventario en el MODELO B unificado a
+    /// NIVEL GRANJA (antes Fase 2 usaba modelo A). Ecuador/Panamá no operan producción postura por
+    /// esta ruta, por eso no hay flujo modelo B con galpón aquí. El descuento resuelve GranjaId del
+    /// lote y descuenta desde los DTOs ItemsHembras/ItemsMachos (no re-parsea JSON), con validación
+    /// previa de stock y transacción única (todo-o-nada) idéntica a levante.
     /// </summary>
     public ProduccionService(
         ZooSanMarinoContext context,
         ICurrentUser currentUser,
         ILoteService loteService,
         IEspejoHuevoProduccionSyncService espejoHuevoSync,
-        IFarmInventoryConsumoService? farmInventoryConsumo = null)
+        IFarmInventoryConsumoService? farmInventoryConsumo = null,
+        IColombiaInventarioConsumoService? colombiaConsumoB = null)
     {
         _context = context;
         _currentUser = currentUser;
         _loteService = loteService;
         _espejoHuevoSync = espejoHuevoSync;
         _farmInventoryConsumo = farmInventoryConsumo;
+        _colombiaConsumoB = colombiaConsumoB;
     }
 
     /// <summary>
@@ -377,17 +380,17 @@ public class ProduccionService : IProduccionService
             ConsumoAguaTemperatura = request.ConsumoAguaTemperatura
         };
 
-        // ── Colombia (modelo A) — BLOQUEO ATÓMICO (Fase 2 / S4) ──────────────────────────
-        // Descuento desde los DTOs del request (TODOS los ítems: alimento + medicamento + insumo).
-        // Validación previa de stock ANTES de persistir; guardado + consumo en UNA tx. Si falta
+        // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO (Fase 3 paso 2) ────────────
+        // Descuento desde los DTOs del request (TODOS los ítems), id-mapping catalogItemId→ítem B.
+        // Validación previa de stock B ANTES de persistir; guardado + consumo en UNA tx. Si falta
         // stock/ítem → throw por ítem → rollback → NO se guarda el seguimiento.
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
-        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && granjaId is > 0 && useItems)
+        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0 && useItems)
         {
             var byItem = AcumularItemsRequestPorCatalogItem(request.ItemsHembras, request.ItemsMachos);
             var positivos = byItem.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value);
 
-            await _farmInventoryConsumo.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
+            await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, positivos); // lanza si falta (antes de persistir)
 
             await using var tx = await _context.Database.BeginTransactionAsync();
             _context.SeguimientoProduccion.Add(entity);
@@ -395,7 +398,7 @@ public class ProduccionService : IProduccionService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
-                await _farmInventoryConsumo.AplicarConsumoAsync(granjaId.Value, positivos, refStr);
+                await _colombiaConsumoB.AplicarConsumoAsync(granjaId.Value, positivos, refStr);
                 await _context.SaveChangesAsync();
             }
             await tx.CommitAsync();
@@ -542,11 +545,11 @@ public class ProduccionService : IProduccionService
         entity.ConsumoAguaOrp = request.ConsumoAguaOrp;
         entity.ConsumoAguaTemperatura = request.ConsumoAguaTemperatura;
 
-        // ── Colombia (modelo A) — BLOQUEO ATÓMICO en edición (Fase 2 / S4) ────────────────
-        // diff old/new por catalogItemId: diff>0 = ConsumoSeguimiento adicional; diff<0 = DevolucionSeguimiento.
-        // Validación previa del stock de los diff POSITIVOS ANTES de persistir; save + diff en UNA tx.
+        // ── Colombia (modelo B nivel granja) — BLOQUEO ATÓMICO en edición (Fase 3 paso 2) ──
+        // diff old/new por catalogItemId (id-mapping A→B): diff>0 = consumo adicional; diff<0 = devolución.
+        // Validación previa del stock B de los diff POSITIVOS ANTES de persistir; save + diff en UNA tx.
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
-        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && granjaId is > 0)
+        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
             var newByItemId = AcumularItemsRequestPorCatalogItem(request.ItemsHembras, request.ItemsMachos);
             var incrementos = new Dictionary<int, decimal>();
@@ -557,11 +560,11 @@ public class ProduccionService : IProduccionService
                 var diff = newByItemId.GetValueOrDefault(itemId) - oldByItemId.GetValueOrDefault(itemId);
                 if (diff > 0) incrementos[itemId] = diff;
             }
-            await _farmInventoryConsumo.ValidarStockConsumoAsync(granjaId.Value, incrementos); // lanza si falta (antes de persistir)
+            await _colombiaConsumoB.ValidarStockConsumoAsync(granjaId.Value, incrementos); // lanza si falta (antes de persistir)
 
             await using var tx = await _context.Database.BeginTransactionAsync();
             var refStr = $"Seguimiento producción #{entity.Id} {request.FechaRegistro:yyyy-MM-dd}";
-            await _farmInventoryConsumo.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr);
+            await _colombiaConsumoB.AplicarDiffAsync(granjaId.Value, oldByItemId, newByItemId, refStr);
             await _context.SaveChangesAsync().ConfigureAwait(false);
             await tx.CommitAsync();
             if (lotePosturaProduccionId.HasValue)
@@ -861,8 +864,8 @@ public class ProduccionService : IProduccionService
     }
 
     /// <summary>
-    /// Elimina un seguimiento diario de producción. Fase 2 (S4): para lotes Colombia (modelo A)
-    /// devuelve el stock consumido (DevolucionSeguimiento total) y el borrado + la devolución van
+    /// Elimina un seguimiento diario de producción. Fase 3 (paso 2): para lotes Colombia (modelo B
+    /// nivel granja) devuelve el stock consumido (Ingreso total) y el borrado + la devolución van
     /// en UNA transacción (todo-o-nada). Ecuador/Panamá no usan esta ruta de inventario.
     /// </summary>
     public async Task<bool> EliminarSeguimientoAsync(int seguimientoId)
@@ -881,7 +884,7 @@ public class ProduccionService : IProduccionService
         var loteId = e.LoteId;
 
         var (granjaId, modelo) = await ResolverGranjaYModeloAsync(loteId);
-        if (modelo == ModeloInventarioConsumo.ModeloA && _farmInventoryConsumo != null && granjaId is > 0)
+        if (modelo == ModeloInventarioConsumo.ModeloBNivelGranja && _colombiaConsumoB != null && granjaId is > 0)
         {
             var byItem = e.Metadata != null
                 ? MetadataEngordeCalculos.ParseMetadataItemsToKg(e.Metadata.RootElement)
@@ -892,7 +895,7 @@ public class ProduccionService : IProduccionService
             if (positivos.Count > 0)
             {
                 var refStr = $"Seguimiento producción #{seguimientoId} (devolución por eliminación)";
-                await _farmInventoryConsumo.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción");
+                await _colombiaConsumoB.AplicarDevolucionAsync(granjaId.Value, positivos, refStr, "Devolución por eliminación de seguimiento producción");
             }
             _context.SeguimientoProduccion.Remove(e);
             await _context.SaveChangesAsync().ConfigureAwait(false);

@@ -19,13 +19,13 @@
 - [x] `dotnet build` 0/0
 - [ ] Commit
 
-## S3 — Switch del gate + servicios (levante + producción)
-- [ ] `InventarioConsumoGate.ResolverModelo`: Colombia (1) → ModeloB
-- [ ] Levante Create/Update/Delete: rama Colombia usa el nuevo servicio (item B + nivel granja), misma tx única + validación previa
-- [ ] ProduccionService Crear/Actualizar/Eliminar: idem
-- [ ] Path modelo A de Colombia queda sin uso (FarmInventoryConsumoService se deja)
-- [ ] EC/PA (modelo B con galpón) sin cambios
-- [ ] `dotnet build` 0/0
+## S3 — Switch del gate + servicios (levante + producción) ✅
+- [x] `InventarioConsumoGate.ResolverModelo`: Colombia (1) → ModeloBNivelGranja (enum nuevo, distinto de ModeloB de EC/PA para no exigir galpón)
+- [x] Levante Create/Update/Delete: rama Colombia usa `IColombiaInventarioConsumoService` (item B + nivel granja), misma tx única + validación previa
+- [x] ProduccionService Crear/Actualizar/Eliminar: idem
+- [x] Path modelo A de Colombia queda sin uso (FarmInventoryConsumoService + campo `_farmInventoryConsumo` se dejan por diseño; ya no se llaman en CO)
+- [x] EC/PA (modelo B con galpón) sin cambios; `DebeDescontarModeloB` intacto (reproductora/engorde siguen sin descontar CO)
+- [x] `dotnet build` 0/0
 - [ ] Commit
 
 ## S4 — Tests

@@ -21,10 +21,16 @@ public enum ModeloInventarioConsumo
 {
     /// <summary>El país no descuenta de ningún inventario automáticamente.</summary>
     Ninguno = 0,
-    /// <summary>Modelo B (Ecuador/Panamá): inventario_gestion / item_inventario_ecuador.</summary>
+    /// <summary>Modelo B (Ecuador/Panamá): inventario_gestion / item_inventario_ecuador, con ubicación núcleo/galpón (alimento exige galpón).</summary>
     ModeloB = 1,
-    /// <summary>Modelo A (Colombia, Fase 2): farm_product_inventory / farm_inventory_movements por catalogItemId.</summary>
-    ModeloA = 2
+    /// <summary>Modelo A (Colombia, Fase 2 — histórico): farm_product_inventory / farm_inventory_movements por catalogItemId. Fase 3 dejó de usarlo para Colombia.</summary>
+    ModeloA = 2,
+    /// <summary>
+    /// Modelo B a NIVEL GRANJA (Colombia, Fase 3 paso 2): inventario_gestion / item_inventario_ecuador
+    /// unificado, pero con stock/movimientos por (granja, ítem) sin núcleo/galpón. El ítem se resuelve
+    /// desde el catalogItemId (id-mapping A→B por código). Unifica con Ecuador/Panamá SIN exigir galpón.
+    /// </summary>
+    ModeloBNivelGranja = 3
 }
 
 public static class InventarioConsumoGate
@@ -52,15 +58,18 @@ public static class InventarioConsumoGate
         => paisIdDelLote is PaisEcuador or PaisPanama;
 
     /// <summary>
-    /// Fase 2 — despacho por país: a qué modelo de inventario descuenta el seguimiento.
-    /// Ecuador/Panamá → modelo B (sin cambios); Colombia → modelo A (nuevo, por catalogItemId);
-    /// cualquier otro país / null → ninguno. El descuento en modelo A NUNCA usa el fallback
-    /// catalogItemId→item_inventario_ecuador_id, por eso el bug cerrado en Fase 1 no reaparece.
+    /// Despacho por país: a qué modelo de inventario descuenta el seguimiento.
+    /// Ecuador/Panamá → modelo B con núcleo/galpón (sin cambios).
+    /// Colombia → modelo B a NIVEL GRANJA (Fase 3 paso 2): unificado con Ecuador/Panamá sobre
+    ///   inventario_gestion / item_inventario_ecuador, resolviendo el ítem desde catalogItemId
+    ///   (id-mapping A→B por código) y descontando por (granja, ítem) sin exigir galpón. Antes
+    ///   (Fase 2) Colombia usaba <see cref="ModeloInventarioConsumo.ModeloA"/>; ese path quedó sin uso.
+    /// cualquier otro país / null → ninguno.
     /// </summary>
     public static ModeloInventarioConsumo ResolverModelo(int? paisIdDelLote) => paisIdDelLote switch
     {
         PaisEcuador or PaisPanama => ModeloInventarioConsumo.ModeloB,
-        PaisColombia              => ModeloInventarioConsumo.ModeloA,
+        PaisColombia              => ModeloInventarioConsumo.ModeloBNivelGranja,
         _                         => ModeloInventarioConsumo.Ninguno
     };
 }
