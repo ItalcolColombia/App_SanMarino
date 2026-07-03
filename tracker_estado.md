@@ -135,3 +135,9 @@ Plan: [`fase_de_desarrollo/inventario_unificacion_plan.md`](fase_de_desarrollo/i
 - Limpieza de la fila espuria en `inventario_gestion_movimiento` (company 1 / pais 1 = Colombia) creada por el bug pre-S1. Requiere OK antes de borrar.
 - Menús BD duplicados `/inventario` (ids 10 y 32, empresa 1) — limpieza posterior con OK.
 - S4 (unificación real de UI de inventario) → Fase 2, depende de normalizar el modelo A→B.
+
+**QA (agente) → `QA: ESTABLE`** + hallazgo corregido:
+- S1/S2/S3 estables: build 0/0, test 91/91, `has-pending-model-changes`=No changes, golden kardex 18/18 (re-verificado por QA vía psql, 188/188 filas + 18/18 pares), sin regresión (14 archivos, `InventarioGestionService`/tránsito/traslados/stock/gastos byte-idénticos).
+- **S1b — `67569d6`**: el QA halló un **4º camino** sin gatear (`SeguimientoDiarioLoteReproductoraService` Create/Update/Delete, mismo `ParseMetadataItemsToKg`). Gate aplicado (país por granja→departamento→pais). Bug cross-país cerrado en los **4 caminos**. build 0/0, test 91.
+- **Visual (Colombia):** `/inventario` carga (Movimientos/Ajuste/Kardex/Stock/Catálogo), Kardex renderiza sin errores, `/inventario-management` ya no resuelve (S2 ✓). Ecuador tránsito/stock sin cambios de código → sin regresión.
+- **Fase 1 CERRADA y validada.** Fase 2 (fusión A→B, Colombia auto-descuento, limpieza datos/menús) = pendiente de decisión de negocio.
