@@ -17,8 +17,11 @@ public static class MetadataEngordeCalculos
 
     /// <summary>
     /// Acumula por ítem (item_inventario_ecuador_id o catalog_item_id) los kg de
-    /// itemsHembras + itemsMachos del metadata del seguimiento.
+    /// itemsHembras + itemsMachos + itemsGenerales del metadata del seguimiento.
     /// Propiedades que no sean arrays se ignoran (guarda defensiva).
+    /// Nota Fase 2: itemsGenerales es ADITIVO (Ecuador no usa generales → sin impacto;
+    /// Colombia sí, para descontar "todos los ítems"). Se lee SOLO del Metadata del
+    /// seguimiento, nunca de ItemsAdicionales, para evitar doble descuento.
     /// </summary>
     public static Dictionary<int, decimal> ParseMetadataItemsToKg(JsonElement root)
     {
@@ -42,6 +45,7 @@ public static class MetadataEngordeCalculos
         }
         Acumular("itemsHembras");
         Acumular("itemsMachos");
+        Acumular("itemsGenerales");
         return byItemId;
     }
 
