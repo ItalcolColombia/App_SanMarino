@@ -278,15 +278,6 @@ export const appConfig: ApplicationConfig = {
           import('./features/gastos-inventario/pages/gastos-inventario-page/gastos-inventario-page.component')
             .then(m => m.GastosInventarioPageComponent)
       },
-      
-      // Ruta alternativa para inventario (también protegida)
-      {
-        path: 'inventario-management',
-        canActivate: [authGuard],
-        loadComponent: () =>
-          import('./features/inventario/components/inventario-tabs/inventario-tabs.component')
-            .then(m => m.InventarioTabsComponent)
-      },
 
       // Módulo de Traslados de Aves (lazy)
       {

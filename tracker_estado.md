@@ -127,6 +127,6 @@ Plan: [`fase_de_desarrollo/inventario_unificacion_plan.md`](fase_de_desarrollo/i
 | Slice | Ítem | Commit | Validación |
 |---|---|---|---|
 | S1 | **Bugfix descuento cross-país (CRÍTICO).** Gate por PAÍS DEL LOTE en los 3 servicios (Levante, Engorde Ecuador, Engorde Colombia): solo descontar del modelo B si el lote es Ecuador(2)/Panamá(3). Helper puro `InventarioConsumoGate` + `ResolverPaisIdLoteAsync` (país = `lote.PaisId ?? farm→departamento→pais`, misma cadena que el inventario). `PaisId` añadido a los Select de Delete. Catches mudos → `ILogger`. NO se tocó el parser. 8 tests nuevos. Fila espuria: DOCUMENTADA, requiere OK (NO ejecutada). | (este commit) | dotnet build 0/0 · dotnet test 26/26 (18 previos + 8 nuevos gate) |
-| S2 | Ruta huérfana `/inventario-management` | ⏳ pendiente | |
+| S2 | Ruta huérfana `/inventario-management` eliminada de `app.config.ts` (sin menú/routerLink; único uso era la propia ruta). `InventarioTabsComponent` se conserva (lo usa `/inventario`). | (este commit) | yarn build OK (87 s; warning de budget pre-existente) |
 | S3 | Kardex Colombia → fn SQL (window function) | ⏳ pendiente | |
 | S4 | Dedup front | DIFERIDO a Fase 2 (modelos/APIs distintos; riesgo medio-alto) | |
