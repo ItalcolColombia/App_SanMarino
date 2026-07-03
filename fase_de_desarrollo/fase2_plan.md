@@ -17,11 +17,16 @@
 4. **Contable**: verificar que `ReporteContableService` NO incluya `ConsumoSeguimiento` en ningún bucket (por diseño no lo incluye; agregar test/afirmación).
 5. **Pre-limpieza (con OK)**: eliminar las 2 filas espurias de Colombia en modelo B (mov id 5705, stock id 352) + 3 filas Ecuador en `catalogo_items` — script idempotente, ejecutar solo con OK.
 
-## Forks que requieren TU decisión (afectan alcance/comportamiento)
-- **F1 — ¿Qué seguimientos de Colombia descuentan?** Levante postura (mínimo) · +Producción postura (hoy NO toca inventario → lógica nueva) · +Engorde CO · +Reproductora.
-- **F2 — ¿Qué ítems?** Solo `alimento` (recomendado) vs también medicamentos/vacunas/insumos.
-- **F3 — ¿Stock insuficiente?** Permitir saldo negativo / registrar igual (recomendado: Colombia no precarga stock, bloquear haría fallar todo) vs bloquear el guardado.
-- **F4 — Consumo tras cierre de lote**: seguir patrón actual (permitir con reapertura) vs bloquear.
+## Decisiones del usuario (RESUELTAS — 2026-07-03)
+- **F1 = Levante + Producción postura** descuentan. **Producción postura hoy NO toca inventario** (`ProduccionService`) → es lógica NUEVA (Create/Update/Delete + parseo de ítems del metadata JSONB, patrón levante).
+- **F2 = TODOS los ítems** (alimento + medicamentos/vacunas/insumos), no solo alimento. Ubicación: alimento → granja+galpón; otros → granja (regla `IsAlimento` como en Ecuador). Requiere que los ítems existan en `catalogo_items` con stock.
+- **F3 = BLOQUEAR el guardado** si el stock es insuficiente. ⚠️ **RIESGO OPERATIVO ALTO**: Colombia hoy casi no tiene stock precargado en modelo A → los seguimientos con ítems fallarán hasta que se carguen ingresos. **Prerrequisito de rollout: seed/carga de inventario inicial Colombia.** Implementar con **validación previa transaccional** (chequear stock de TODOS los ítems ANTES de persistir el seguimiento; si falta alguno → rechazar con mensaje claro por ítem, sin dejar el seguimiento a medias). El bloqueo debe ser atómico con el guardado del seguimiento.
+- **F4 = Sí, limpiar datos espurios en local ahora** (2 filas Colombia en modelo B: mov 5705, stock 352 + 3 filas Ecuador en `catalogo_items`). Prod → OK aparte.
+
+## Implicancias de las decisiones para el diseño
+- **Bloqueo atómico**: el descuento Colombia debe validarse ANTES de guardar el seguimiento y ser transaccional — si algún ítem no tiene stock, se rechaza TODO el guardado (no puede quedar el seguimiento sin el descuento ni el descuento a medias). Esto cambia el patrón actual (Ecuador descuenta DESPUÉS de guardar, en try/catch tolerante). Para Colombia se requiere validación previa + transacción.
+- **Producción postura**: agregar consumo desde `ProduccionService` (hoy solo guarda JSONB) resolviendo ubicación del lote y despachando a modelo A.
+- **Todos los ítems**: `catalogo_items` debe tener los medicamentos/insumos; si un ítem del seguimiento no existe en el catálogo Colombia → el bloqueo lo rechaza (mensaje claro).
 
 ## Validación (por slice + QA final)
 - `dotnet build` 0/0 + `dotnet test`; `yarn build`; golden kardex re-verificado con `ConsumoSeguimiento`.
