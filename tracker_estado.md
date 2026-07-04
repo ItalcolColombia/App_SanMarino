@@ -1,74 +1,52 @@
-# Tracker — Refactor UX/Visual PRO del Front (paleta Italcol naranja/dorado/blanco)
+# Tracker — Upgrade Angular 20 → 22
 
-> Plan: [`fase_de_desarrollo/refactor_ux_pro_front_plan.md`](fase_de_desarrollo/refactor_ux_pro_front_plan.md) · Paleta: [memoria paleta-marca-italcol]
-> Modo: autónomo hasta terminar · Piloto primero (login/registro + shell) · BD tocada+probada+cumple → migración.
+> Plan: [`fase_de_desarrollo/upgrade_angular_20_a_22_plan.md`](fase_de_desarrollo/upgrade_angular_20_a_22_plan.md)
+> Sesión previa commiteada (6495db7 back · 52bf914 front · 1b9a1bf docs) → upgrade aislado.
 
-## Fase 0 — Fundación / Piloto
-- [x] Tokens de marca en `tailwind.config.js` (ADITIVOS: primary/accent/success/warning/danger/info/ink/muted/line/canvas/surface) — legacy intacto
-- [x] **Login** migrado a la paleta: gradientes dorado→naranja (sin rojo), sombras limpias, fondo blanco cálido, footer minimal, link/checkbox naranja — recompila OK, sin cambio de comportamiento
-- [x] **Registro**: N/A — no hay registro público (usuarios se crean en config); auth = login + recuperar (ambos migrados)
-- [x] **Menú/sidebar PRO** (agente): estado activo naranja, header con acento naranja→dorado, avatar gradiente, focus WCAG, hover 150ms, label "NAVEGACIÓN", scrollbar prolija, logout en rojo-peligro. Routing/árbol de menú INTACTO. Validado: renderiza pro, nav funciona, 0 verde, consola limpia.
-- [x] **Auditoría color residual** (agente): ~25 archivos — greens de marca/naranja legacy en `.ts` de charts (2 series Real/Guía), tokens `--*-green*` stale, hovers Tailwind arbitrarios. PRESERVÓ verdes semánticos (éxito/ok/activo → `#16A34A`) y paletas categóricas de charts. `yarn build` 0 err.
-- [x] **VALIDACIÓN FINAL**: `yarn build` completo 0 errores (ambos agentes + trabajo previo) · menú pro validado en vivo · 0 verde residual · consola limpia.
-- [x] **Recuperar contraseña** migrado (consistente con login; verde solo "éxito" → `#16A34A`) — recompila OK, screenshot validado
-- [x] **Rebrand GLOBAL verde→naranja (toda la app de una)**:
-  - `styles/theme-italfoods.scss`: `--ital-green*`→naranja, bordes verdes→neutro, `.btn-danger` (bug: era verde)→rojo `--danger`, +tokens `--success/--danger`
-  - `tailwind.config.js`: legacy `ital-green*`→naranja (242 clases `*-ital-green`), `ital-orange`/`brand-red` afinados al palette exacto
-  - Sweep de hex hardcodeado en 31 archivos (#2d7a3e/#1e5c2a/#3d9b52…→naranja); semántico `.diferencia-ok`→verde `--success`
-  - `yarn build` OK · gestion-inventario validado (header verde→naranja `#F5821F`, consola limpia) · 0 verde de marca restante
-- [ ] Pulido por módulo (contraste texto celda→neutro, spacing, charts .ts con verde) — Fase 1
-- [ ] **Shell** afinado: sidebar/topbar (ya naranja) + CSS vars globales
-- [ ] UI kit `shared/ui` (Button, Input, Card, Table, Modal, Toast, Tabs, Badge, EmptyState…)
+## Salto 1 — Angular 20 → 21 ✅ COMPLETO (commit 430e4d0)
+- [x] `ng update` core/cli/cdk@21 (+ TS 5.9) → migración control-flow `*ngIf/*ngFor`→`@if/@for`
+- [x] Fixes: fontawesome `[spin]`→`[animation]`; trackBy 1-arg→`track $index` (13); Uint8Array→BufferSource
+- [x] Peer-deps: fontawesome 0.14→4; ng-recaptcha (abandonado)→ng-recaptcha-2@21
+- [x] `yarn build` 0 err (19 warnings NG8107 cosméticos pendientes)
 
-## Fase 1 — Alto tráfico (paso PRO por módulo: UX/IX + botones/transiciones + reducción de peticiones + código)
-### gestion-inventario (en progreso)
-- [x] Rebrand validado (0 verde, header naranja)
-- [x] **Auditoría de peticiones**: carga inicial = 3 req (lean, 0 duplicadas). Hallazgo: cambiar de tab re-fetcheaba `historico-filtros` (meta ESTÁTICA) en cada visita.
-- [x] **Optimización**: cache de sesión en `loadHistoricoMeta` (guard `if(this.historicoMeta) return`) → secuencia Histórico→Stock→Histórico pasó de 5→4 req; `movimientos` sigue refrescando (datos vivos). Validado + consola limpia.
-- [x] **Perf: paginación client-side del histórico** (100/página, 30 págs) → DOM de 3000→100 filas (30× menos nodos); export CSV sigue exportando todo; controles Anterior/Siguiente. Validado (página 2 de 30, consola limpia).
-- [x] gestion-inventario ITERACIÓN PRO COMPLETA (rebrand + cache 5→4 + paginación). Sin errores.
-- [ ] (2ª pasada opcional: skeletons de carga · dirty-flag stock · validar Colombia/Panamá)
+## Salto 2 — Angular 21 → 22 ✅ COMPLETO (commit b704757) — vía Node PORTABLE
+- **Solución al bloqueo de Node (sin admin/IT):** Node 22.23.1 **portable** descomprimido en `C:\Users\SAN MARINO\node-portable\node-v22.23.1-win-x64\` (el Node del sistema 22.15 queda intacto). Cumple Angular 22 (≥22.22.3).
+- `yarn add fontawesome@5.1 + ng-recaptcha-2@22`; `ng update` core/cli/cdk@22 (con node portable) → **TypeScript 6**
+- Migración automática 22: `changeDetection: ChangeDetectionStrategy.Eager` (preserva comportamiento)
+- `yarn build` **0 errores** (node portable)
+- **Para el dev server Angular 22:** config `frontend-node22` en `.claude/launch.json` (usa el node portable). Para builds/serve manuales: `export PATH="/c/Users/SAN MARINO/node-portable/node-v22.23.1-win-x64:$PATH"` antes de `yarn`.
+- ⚠️ Nota: hasta que IT instale Node ≥22.22.3 a nivel sistema, hay que usar el node portable para build/serve. (`OpenJS.NodeJS.22`=22.23.1 vía winget, o instalador oficial.)
 
-### Loop → siguiente módulo
-- [ ] Auditar+optimizar: dashboard/inventario · lotes (levante/produccion/engorde/reproductora) · seguimientos · movimientos-aves · movimientos-pollo-engorde · traslados
+## Dependencias / librerías (peer-deps al día para Angular 22)
+- [x] `@fortawesome/angular-fontawesome` `0.14`→`4` (21) → luego `5.1` (22)
+- [x] `ng-recaptcha` (abandonado en Angular 17) → **`ng-recaptcha-2`** `@21` → luego `@22` (+ import en login)
+- [ ] Auditar resto de deps desactualizadas/deprecadas (`yarn outdated`) y subir las seguras
+- [ ] `ng-recaptcha-2`/otros → versión Angular 22 en el salto 2
 
-## Fase 2 — Resto (config, profile, clientes, farm, galpon, nucleo, catalogo-alimentos, gastos-inventario, aves-engorde, engorde-comun, indicador-ecuador, informe-semanal-engorde, lesiones, mapas, tickets, db-studio, reporte-contable, reporte-tecnico-*, reportes-tecnicos)
-- [ ] (checklist por módulo al llegar)
+## Node
+- [ ] Verificar Node vs requerimiento de Angular 22 (^20.19 || ^22.12 || ^24). Actual 22.15 ✓; evaluar LTS más nuevo (24) + pin en `package.json engines` / `.nvmrc`
 
-## Definition of Done por módulo
-levantar → auditar (UX+clean-code) → refactor (sin cambiar comportamiento) → `yarn build` + preview + responsive + consola limpia → probar en web → (si BD: migración idempotente) → cerrar + commit → siguiente.
+## NG8107 ✅ RESUELTO (0 warnings)
+- Angular 22 **ya no emite** NG8107 → 0 warnings en build 22 (no requirió fix manual). Verificado.
+
+## Migración build-system ✅ COMPLETO (commit 44edc13)
+- `angular.json`: `@angular-devkit/build-angular:*` → `@angular/build:*` (application/dev-server/extract-i18n/karma)
+- Eliminado target `server` (SSR muerto: sin main.server.ts/@angular/ssr; Docker = SPA nginx) + `tsconfig.server.json`
+- Removida dep huérfana `@angular-devkit/build-angular` (webpack). Dev server ahora sobre **vite**.
+- `yarn build` 0 errores/0 deprecaciones; login validado en runtime (vite), consola limpia.
+
+## Backend .NET 9 → 10 (LTS) ✅ COMPLETO (commit ad26c95)
+- **SDK 10 portable** (sin admin) en `C:\Users\SAN MARINO\dotnet-portable\` (SDK 10.0.301). Sistema sigue con 9.0.301/8.0.408.
+- `net9.0`→`net10.0` (6 proyectos) + paquetes 9.x→10.x (EF Core 10.0.9, Npgsql 10.0.2, NamingConventions 10.0.1)
+- Swashbuckle 8.1.2→10.2.3; fixes breaking **Microsoft.OpenApi v2**: namespace `.Models`→raíz; `Type` string→`JsonSchemaType`; security por `OpenApiSecuritySchemeReference` + `AddSecurityRequirement` con factory; `OpenApiJsonWriter`
+- SYSLIB0060: `Rfc2898DeriveBytes` ctor → `Pbkdf2` (hash idéntico) · removido `Microsoft.Extensions.Configuration.Json`
+- **`dotnet build` 0/0 · `dotnet test` 122 verdes · app arranca (EF 10 migraciones OK) · E2E login Angular22+.NET10 → /home**
+- Build/run con SDK portable: `export PATH="/c/Users/SAN MARINO/dotnet-portable:$PATH"`. IT: instalar .NET 10 SDK a nivel sistema.
+
+## Validación final (flujo completo)
+- [ ] `yarn build` 0 err + `yarn test`
+- [ ] preview: login → home → módulos clave (inventario, lotes, seguimientos, reportes) sin errores de consola · rebrand intacto · funcionalidad preservada
+- [ ] arreglar cualquier error/deprecación que aparezca en el camino
 
 ## Evidencia
-- Fase 0: tailwind tokens OK; login recompila limpio (bundle complete), screenshot validado (paleta aplicada, sin rojo de marca).
-- Rebrand global: `yarn build` completo (0 err); gestion-inventario header `#2d7a3e`→`#F5821F` (inspect).
-- **Recorrido de validación (loop, admin Ecuador) — cada opción: 0 verde residual + consola limpia:**
-  - login · recuperar-contraseña (screenshots)
-  - home/inicio · gestion-inventario (header naranja) · config/farm-management (galpones, screenshot) · daily-log/produccion · config/role-management · movimiento-pollo-engorde/venta (screenshot) · profile · daily-log/seguimiento (levante)
-  - Escáner DOM `rgb(45,122,62)` = 0 en todas · `preview_console_logs` = sin errores en todas.
-
-## MAPA COMPLETO — 37 módulos (secuencia + estado real tras auditoría de código)
-> Hallazgo clave de la auditoría: **la app ya está bien construida** — 26 componentes de lista YA paginan (`pageSize`/`slice`); peticiones lean (filter-first, 1-2 req/carga); el rebrand es global. No hay backlog grande de perf; las "gaps" restantes son listas acotadas que no requieren paginación.
->
-> Leyenda: R=rebrand (global ✅ para todos) · P=peticiones · Pag=paginación
->
-> **Fase 1 (alto tráfico)**
-> - gestion-inventario — R✅ · P✅(3→lean, cache 5→4) · Pag✅(histórico 3000→100) · **ITERACIÓN PRO COMPLETA**
-> - lote-levante (seguimiento) — R✅ · P✅(filter-first, 1 req) · Pag✅(ya tenía)
-> - lote-produccion — R✅ · P✅(1 req) · Pag✅(ya tenía)
-> - lote-engorde / aves-engorde — R✅ · Pag: lista acotada (no requiere)
-> - lote-reproductora / -ave-engorde — R✅ · Pag✅(ya tenía)
-> - seguimiento-diario-lote-reproductora — R✅ · Pag✅(ya tenía)
-> - movimientos-aves — R✅ · Pag✅(ya tenía)
-> - movimientos-pollo-engorde — R✅ · P✅(filter-first, 1 req) · Pag✅(ya tenía)
-> - traslados-aves / traslados-huevos — R✅ · Pag✅(ya tenían)
-> - inventario (dashboard/kardex) — R✅ · P✅(2 req) · Pag✅(kardex ya tenía)
->
-> **Fase 2 (resto)**
-> - config: farm-management✅ · role-management✅ · company-management✅ · clientes✅(pag) · item-inventario-ecuador✅(pag) · guia-genetica✅(pag) · catalogo-alimentos✅(pag)
-> - farm · galpon · nucleo(pag) — R✅
-> - reportes: reportes-tecnicos · reporte-tecnico-produccion · reporte-contable · indicador-ecuador(pag) · informe-semanal-engorde(pag) — R✅ (tablas de reporte acotadas por período)
-> - tickets(pag) · mapas · db-studio · lesiones · engorde-comun · profile · home — R✅
->
-> **Por país:** el rebrand + paginación son transversales (no dependen de país). Validado en vivo con Ecuador (company 3) y Colombia (company 1). Panamá: mismo código, sin diferencia de UI.
->
-> **Pendiente real (marginal, 2ª pasada):** skeletons de carga homogéneos · texto de celda neutro (requiere sweep de componentes con tabla propia para no partir consistencia) · virtual-scroll donde una lista acotada creciera.
+- Estado inicial: Angular 20.3.x, TS 5.8, RxJS 7.8, zone.js 0.15, Node 22.15.
