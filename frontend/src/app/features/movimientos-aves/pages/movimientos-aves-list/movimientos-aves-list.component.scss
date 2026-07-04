@@ -3,12 +3,12 @@
    ═══════════════════════════════════════════════════════ */
 :host {
   display: block;
-  --brand:          var(--ital-green, #2d7a3e);
-  --brand-dk:       var(--ital-green-dark, #1f5a2c);
-  --brand-50:       var(--ital-green-50, #f0fdf4);
-  --brand-100:      var(--ital-green-100, #dcfce7);
-  --accent:         var(--ital-orange, #e85c25);
-  --accent-dk:      var(--ital-orange-dark, #c44a1a);
+  --brand:          var(--ital-green, #F5821F);
+  --brand-dk:       var(--ital-green-dark, #C85A0E);
+  --brand-50:       var(--ital-green-50, #fef4ec);
+  --brand-100:      var(--ital-green-100, #fde4cc);
+  --accent:         var(--ital-orange, #F5821F);
+  --accent-dk:      var(--ital-orange-dark, #C85A0E);
   --accent-50:      var(--ital-orange-50, #fff7f4);
   --accent-100:     var(--ital-orange-100, #ffe4d6);
   --cream:          var(--ital-cream, #faf8f5);
@@ -133,7 +133,7 @@
     background: var(--brand);
     color: #fff;
     border-color: var(--brand-dk);
-    &:hover:not(:disabled) { background: var(--brand-dk); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(45,122,62,.25); }
+    &:hover:not(:disabled) { background: var(--brand-dk); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 130, 31,.25); }
     &:disabled { opacity: .5; cursor: not-allowed; transform: none; }
   }
 

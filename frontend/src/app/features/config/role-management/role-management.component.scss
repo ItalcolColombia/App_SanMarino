@@ -4,13 +4,13 @@
 
 /* ── Tokens del componente ── */
 :host {
-  --rm-green:       var(--ital-green,      #2d7a3e);
-  --rm-green-dk:    var(--ital-green-dark,  #1f5a2c);
-  --rm-green-lt:    var(--ital-green-100,   #d1fae5);
-  --rm-green-50:    var(--ital-green-50,    #f0fdf4);
+  --rm-green:       var(--ital-green,      #F5821F);
+  --rm-green-dk:    var(--ital-green-dark,  #C85A0E);
+  --rm-green-lt:    var(--ital-green-100,   #fde4cc);
+  --rm-green-50:    var(--ital-green-50,    #fef4ec);
 
-  --rm-orange:      var(--ital-orange,      #e85c25);
-  --rm-orange-dk:   var(--ital-orange-dark, #c14a1a);
+  --rm-orange:      var(--ital-orange,      #F5821F);
+  --rm-orange-dk:   var(--ital-orange-dark, #C85A0E);
   --rm-orange-lt:   var(--ital-orange-100,  #ffedd5);
   --rm-orange-50:   var(--ital-orange-50,   #fff7ed);
 
@@ -184,7 +184,7 @@
   background: var(--rm-orange-lt) !important;
   color: var(--rm-orange-dk) !important;
   font-weight: 600;
-  box-shadow: inset 0 0 0 1.5px rgba(232, 92, 37, 0.35);
+  box-shadow: inset 0 0 0 1.5px rgba(245, 130, 31, 0.35);
 }
 
 .rm-tab:focus-visible {
@@ -237,7 +237,7 @@
 .rm-new-btn:hover {
   background: var(--rm-green-dk);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(45, 122, 62, .3);
+  box-shadow: 0 4px 14px rgba(245, 130, 31, .3);
 }
 
 .rm-new-btn:active { transform: translateY(0); }
@@ -287,7 +287,7 @@
   &:focus {
     outline: none;
     border-color: var(--rm-orange);
-    box-shadow: 0 0 0 3px rgba(232, 92, 37, 0.12);
+    box-shadow: 0 0 0 3px rgba(245, 130, 31, 0.12);
   }
 }
 
@@ -407,7 +407,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid rgba(232, 92, 37, 0.18);
+  border: 1px solid rgba(245, 130, 31, 0.18);
   white-space: nowrap;
 }
 
@@ -761,7 +761,7 @@
   &:hover {
     background: var(--rm-green-dk);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(45, 122, 62, .3);
+    box-shadow: 0 4px 12px rgba(245, 130, 31, .3);
   }
 }
 
@@ -977,7 +977,7 @@ select:focus-visible {
     &:hover:not(:disabled) {
       background: var(--rm-green-dk);
       transform: translateY(-1px);
-      box-shadow: 0 4px 14px rgba(45, 122, 62, .3);
+      box-shadow: 0 4px 14px rgba(245, 130, 31, .3);
     }
   }
 
@@ -1040,7 +1040,7 @@ select:focus-visible {
   &:focus {
     outline: none;
     border-color: var(--rm-orange);
-    box-shadow: 0 0 0 3px rgba(232, 92, 37, 0.12);
+    box-shadow: 0 0 0 3px rgba(245, 130, 31, 0.12);
   }
 }
 
@@ -1163,7 +1163,7 @@ select:focus-visible {
   padding: 0.75rem 1rem;
   border-radius: 9px;
   background: var(--rm-orange-lt);
-  border: 1px solid rgba(232, 92, 37, 0.2);
+  border: 1px solid rgba(245, 130, 31, 0.2);
   font-size: 0.8125rem;
   color: var(--rm-orange-dk);
   display: flex;

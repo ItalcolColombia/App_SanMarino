@@ -36,6 +36,9 @@ export interface FarmDto {
   latitud?: number | null;
   longitud?: number | null;
 
+  // Override de manejo de alimento: null = hereda empresa; true = galpón; false = granja
+  manejaAlimentoPorGalpon?: boolean | null;
+
   createdAt?: string;
   updatedAt?: string;
   company?: { id: number; name: string };
@@ -58,6 +61,9 @@ export interface CreateFarmDto {
   certificadoGab?: boolean;
   latitud?: number | null;
   longitud?: number | null;
+
+  // Override de manejo de alimento: null = hereda empresa; true = galpón; false = granja
+  manejaAlimentoPorGalpon?: boolean | null;
 }
 
 export interface UpdateFarmDto extends CreateFarmDto {

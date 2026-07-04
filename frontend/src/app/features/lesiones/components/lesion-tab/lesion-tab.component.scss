@@ -91,15 +91,15 @@
   border-radius: 999px;
   background: #fff;
   border: 1px solid #c8e6ca;
-  color: #2d7a3e;
+  color: #F5821F;
   font-size: .72rem;
   font-weight: 600;
   white-space: nowrap;
 
   &--farm {
-    background: #2d7a3e;
+    background: #F5821F;
     color: #fff;
-    border-color: #2d7a3e;
+    border-color: #F5821F;
   }
   &--galpon {
     background: #e8f5ea;
@@ -111,9 +111,9 @@
     color: #856404;
   }
   &--repro {
-    background: #e85c25;
+    background: #F5821F;
     color: #fff;
-    border-color: #e85c25;
+    border-color: #F5821F;
     font-size: .74rem;
   }
 }
@@ -134,7 +134,7 @@
     height: 8px;
   }
   &::-webkit-scrollbar-thumb {
-    background-color: rgba(45, 122, 62, 0.25);
+    background-color: rgba(245, 130, 31, 0.25);
     border-radius: 4px;
   }
   &::-webkit-scrollbar-track {

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { BehaviorSubject, Observable, map, of, switchMap, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, switchMap, tap } from 'rxjs';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faTachometerAlt, faClipboardList, faCalendarDay, faChartBar, faHeartbeat,
@@ -160,7 +160,11 @@ preloadMyMenu(companyId?: number) {
       return apiArr.map(mapApiToUi);
     }),
     // 3) actualiza el subject que consumen los componentes
-    tap((ui) => this.subject.next(ui))
+    tap((ui) => this.subject.next(ui)),
+    // Resiliente: un error del preload (p.ej. 401 transitorio en el login, antes de que
+    // el token esté en storage) NO debe propagarse como error a consola; el menú ya llega
+    // del bootstrap del login. Cae silencioso al menú actual de la sesión.
+    catchError(() => of(this.subject.value ?? []))
   );
 }
 
@@ -175,7 +179,12 @@ preloadMyMenu(companyId?: number) {
       this.subject.next(ui);
       return of(ui);
     }
-    // cae a la API
+    // cae a la API SOLO si hay sesión (token). Sin token la llamada a /Roles/menus/me
+    // ([Authorize]) devolvería 401 innecesario en el arranque; el menú llega igual del
+    // bootstrap del login. Devuelve vacío hasta que haya autenticación.
+    if (!this.storage.getToken()) {
+      return of([] as UiMenuItem[]);
+    }
     return this.preloadMyMenu(companyId);
   }
 

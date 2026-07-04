@@ -26,7 +26,6 @@ import { TabsPrincipalComponent } from '../tabs-principal/tabs-principal.compone
 import { ModalRegistroInicialComponent } from '../modal-registro-inicial/modal-registro-inicial.component';
 import { ModalSeguimientoDiarioComponent } from '../modal-seguimiento-diario/modal-seguimiento-diario.component';
 import { ModalAnalisisComponent } from '../modal-analisis/modal-analisis.component';
-import { ModalLiquidacionComponent } from '../../components/modal-liquidacion/modal-liquidacion.component';
 import { ModalDetalleSeguimientoComponent } from '../modal-detalle-seguimiento/modal-detalle-seguimiento.component';
 import { ConfirmationModalComponent, ConfirmationModalData } from '../../../../shared/components/confirmation-modal/confirmation-modal.component';
 import {
@@ -48,7 +47,6 @@ import { LotePosturaProduccionService } from '../../../lote/services/lote-postur
     ModalRegistroInicialComponent,
     ModalSeguimientoDiarioComponent,
     ModalAnalisisComponent,
-    ModalLiquidacionComponent,
     ModalDetalleSeguimientoComponent,
     ConfirmationModalComponent,
     ModalTrasladoAvesSeguimientoComponent
@@ -108,7 +106,6 @@ export class LoteProduccionListComponent implements OnInit {
   modalSeguimientoDiarioOpen = false;
   @ViewChild(ModalSeguimientoDiarioComponent) modalSeguimientoDiario?: ModalSeguimientoDiarioComponent;
   analisisOpen = false;
-  liquidacionOpen = false;
   modalDetalleSeguimientoOpen = false;
   seguimientoIdParaDetalle: number | null = null;
   editingSeguimiento: SeguimientoItemDto | null = null;
@@ -651,16 +648,6 @@ onSaveSeguimientoDiario(request: CrearSeguimientoRequest): void {
 
   closeAnalisis(): void {
     this.analisisOpen = false;
-  }
-
-  // ================== LIQUIDACIÓN TÉCNICA ==================
-  openLiquidacion(): void {
-    if (!this.selectedLoteId) return;
-    this.liquidacionOpen = true;
-  }
-
-  closeLiquidacion(): void {
-    this.liquidacionOpen = false;
   }
 
   // ================== helpers ==================

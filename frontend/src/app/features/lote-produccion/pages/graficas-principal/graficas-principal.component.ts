@@ -251,8 +251,8 @@ export class GraficasPrincipalComponent implements OnInit, OnChanges {
     this.comparativoGuiaChartData = {
       labels,
       datasets: [
-        { data: real, label: `${etiqueta} — Real`, borderColor: '#2d7a3e', backgroundColor: 'rgba(45,122,62,0.15)', tension: 0.3, spanGaps: true, pointRadius: 2 },
-        { data: guia, label: `${etiqueta} — Guía`, borderColor: '#e85c25', backgroundColor: 'rgba(232,92,37,0.10)', borderDash: [6, 4], tension: 0.3, spanGaps: true, pointRadius: 2 }
+        { data: real, label: `${etiqueta} — Real`, borderColor: '#F5821F', backgroundColor: 'rgba(245,130,31,0.15)', tension: 0.3, spanGaps: true, pointRadius: 2 },
+        { data: guia, label: `${etiqueta} — Guía`, borderColor: '#FBB040', backgroundColor: 'rgba(251,176,64,0.10)', borderDash: [6, 4], tension: 0.3, spanGaps: true, pointRadius: 2 }
       ]
     };
     this.comparativoGuiaChartOptions = {

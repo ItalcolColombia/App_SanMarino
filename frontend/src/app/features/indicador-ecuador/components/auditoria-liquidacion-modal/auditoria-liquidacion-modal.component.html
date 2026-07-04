@@ -3,7 +3,7 @@
   <div class="my-6 w-full max-w-5xl rounded-lg bg-white shadow-xl">
 
     <!-- Header -->
-    <div class="flex items-center justify-between rounded-t-lg bg-[#2d7a3e] px-5 py-3 text-white">
+    <div class="flex items-center justify-between rounded-t-lg bg-[#F5821F] px-5 py-3 text-white">
       <div>
         <h2 class="text-lg font-semibold">Verificar liquidación</h2>
         <p class="text-xs opacity-90" *ngIf="scope">
@@ -29,14 +29,14 @@
             ¿No estás seguro del formato? Descarga la plantilla, llénala con tus valores (solo números, sin fórmulas) y súbela.
           </p>
           <button type="button" (click)="descargarPlantilla()"
-                  class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-[#2d7a3e] underline hover:text-[#1f5a2c]">
+                  class="mt-1 inline-flex items-center gap-1 text-sm font-medium text-[#F5821F] underline hover:text-[#C85A0E]">
             ⬇ Descargar plantilla (.xlsx)
           </button>
         </div>
 
         <input type="file" accept=".xlsx,.xls"
                (change)="onArchivo($event)"
-               class="block w-full text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-[#e85c25] file:px-4 file:py-2 file:text-white hover:file:bg-[#cf4f1f]" />
+               class="block w-full text-sm text-gray-700 file:mr-3 file:rounded file:border-0 file:bg-[#F5821F] file:px-4 file:py-2 file:text-white hover:file:bg-[#C85A0E]" />
         <p *ngIf="archivo" class="text-xs text-gray-500">Archivo: {{ archivo.name }}</p>
 
         <div *ngIf="error" class="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</div>
@@ -44,7 +44,7 @@
         <div class="flex justify-end gap-2">
           <button (click)="close()" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
           <button (click)="analizar()" [disabled]="cargando || !archivo"
-                  class="rounded bg-[#2d7a3e] px-4 py-2 text-sm font-medium text-white hover:bg-[#256a35] disabled:opacity-50">
+                  class="rounded bg-[#F5821F] px-4 py-2 text-sm font-medium text-white hover:bg-[#C85A0E] disabled:opacity-50">
             {{ cargando ? 'Analizando…' : 'Analizar' }}
           </button>
         </div>
@@ -182,8 +182,8 @@
         <!-- 4. Aplicar corrección (solo usuarios con el permiso liquidacion.aplicar_correccion) -->
         <section *ngIf="puedeAplicar">
           <ng-container *appHasPermission="'liquidacion.aplicar_correccion'">
-            <div class="rounded border border-[#e85c25]/40 bg-[#e85c25]/5 p-3">
-              <h3 class="text-sm font-semibold text-[#e85c25]">4 · Aplicar corrección</h3>
+            <div class="rounded border border-[#F5821F]/40 bg-[#F5821F]/5 p-3">
+              <h3 class="text-sm font-semibold text-[#F5821F]">4 · Aplicar corrección</h3>
               <p class="mt-1 text-xs text-gray-600">
                 Carga el peso faltante en los despachos sin peso (se distribuye por aves). <strong>Modifica los
                 movimientos</strong> (queda auditado). Confirma el total con el tiquete físico de báscula antes de aplicar.
@@ -193,7 +193,7 @@
                 <input type="number" min="0" step="0.01" [(ngModel)]="kgAplicar"
                        class="w-36 rounded border border-gray-300 px-2 py-1 text-sm tabular-nums" />
                 <button (click)="aplicarCorreccion()" [disabled]="aplicando || !kgAplicar"
-                        class="rounded bg-[#e85c25] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#cf4f1f] disabled:opacity-50">
+                        class="rounded bg-[#F5821F] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#C85A0E] disabled:opacity-50">
                   {{ aplicando ? 'Aplicando…' : 'Aplicar corrección' }}
                 </button>
                 <span class="text-xs text-gray-400">Sugerido: {{ num(resultado.simulacion.gapKg) }} kg (para cuadrar con el Excel)</span>
@@ -206,7 +206,7 @@
 
         <div class="flex justify-end gap-2 border-t border-gray-100 pt-3">
           <button (click)="reiniciar()" class="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Verificar otro</button>
-          <button (click)="close()" class="rounded bg-[#2d7a3e] px-4 py-2 text-sm font-medium text-white hover:bg-[#256a35]">Cerrar</button>
+          <button (click)="close()" class="rounded bg-[#F5821F] px-4 py-2 text-sm font-medium text-white hover:bg-[#C85A0E]">Cerrar</button>
         </div>
       </div>
     </div>

@@ -80,6 +80,23 @@
         </div>
       </div>
 
+      <!-- ============ Manejo de alimento (todos los países) ============ -->
+      <div class="ux-section-divider">
+        <h3 class="ux-section-title">Manejo de alimento</h3>
+        <p class="ux-subtitle">Define si el alimento se controla a nivel galpón o granja. Por defecto hereda la empresa.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="ux-label">Nivel de manejo de alimento</label>
+          <select formControlName="manejaAlimentoPorGalpon" class="ux-input">
+            <option [ngValue]="null">Heredar de la empresa</option>
+            <option [ngValue]="true">Sobre galpón (exige núcleo/galpón)</option>
+            <option [ngValue]="false">Sobre granja</option>
+          </select>
+          <p class="ux-help">“Heredar” usa el valor configurado en la empresa. Los otros dos overridean solo esta granja.</p>
+        </div>
+      </div>
+
       <!-- ============ Sección Panamá ============ -->
       <ng-container *appShowIfCountry="'PANAMA'">
         <div class="ux-section-divider">

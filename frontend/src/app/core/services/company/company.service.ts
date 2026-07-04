@@ -25,6 +25,8 @@ export interface Company {
   roleIds?: number[];
   visualPermissions?: string[];
   mobileAccess?: boolean;
+  // Default GLOBAL de la empresa: ¿el alimento se maneja a nivel GALPÓN? (cada granja puede overridear)
+  manejaAlimentoPorGalpon?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })

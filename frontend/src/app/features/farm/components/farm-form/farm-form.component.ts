@@ -66,7 +66,9 @@ export class FarmFormComponent implements OnInit {
       zona:           [{ value: '', disabled: true }],
       certificadoGab: [false],
       latitud:        [null],
-      longitud:       [null]
+      longitud:       [null],
+      // Override manejo alimento: null = hereda empresa; true = galpón; false = granja
+      manejaAlimentoPorGalpon: [null]
     });
 
     // Cargar lista de clientes para el select Panamá
@@ -134,7 +136,9 @@ export class FarmFormComponent implements OnInit {
       zona:           v.zona ?? null,
       certificadoGab: v.certificadoGab ?? false,
       latitud:        v.latitud === '' || v.latitud === undefined ? null : v.latitud,
-      longitud:       v.longitud === '' || v.longitud === undefined ? null : v.longitud
+      longitud:       v.longitud === '' || v.longitud === undefined ? null : v.longitud,
+      // null = hereda empresa; true = galpón; false = granja (no forzar con ?? para preservar false)
+      manejaAlimentoPorGalpon: v.manejaAlimentoPorGalpon === undefined ? null : v.manejaAlimentoPorGalpon
     };
 
     const call$ = this.isEdit

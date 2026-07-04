@@ -40,15 +40,6 @@
         <button
           type="button"
           class="btn btn--outline"
-          [disabled]="!selectedLoteId"
-          [title]="!selectedLoteId ? 'Primero selecciona lote' : 'Ver liquidación técnica'"
-          (click)="openLiquidacion()">
-          Liquidación técnica
-        </button>
-
-        <button
-          type="button"
-          class="btn btn--outline"
           *ngIf="selectedLoteId && selectedLoteLPP"
           (click)="openTrasladoAvesModal()"
           title="Registrar traslado de aves desde este seguimiento diario">
@@ -177,15 +168,6 @@
   (close)="closeAnalisis()"
   (export)="exportarAnalisis()">
 </app-modal-analisis>
-
-<!-- Modal de liquidación técnica -->
-<app-modal-liquidacion
-  [isOpen]="liquidacionOpen"
-  [loteId]="selectedLoteLPP ? null : selectedLoteId"
-  [lotePosturaProduccionId]="selectedLoteLPP ? selectedLoteId : null"
-  [loteNombre]="selectedLoteNombre"
-  (close)="closeLiquidacion()">
-</app-modal-liquidacion>
 
 <!-- Modal de detalle de seguimiento -->
 <app-modal-detalle-seguimiento

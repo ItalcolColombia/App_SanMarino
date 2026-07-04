@@ -165,7 +165,9 @@ export class CompanyManagementComponent implements OnInit {
       visualPermissions: this.fb.group(
         this.allModules.reduce((acc, mod) => { acc[mod.key] = [false]; return acc; }, {} as Record<string, unknown>)
       ),
-      mobileAccess: [false]
+      mobileAccess: [false],
+      // Default GLOBAL: ¿el alimento se maneja a nivel GALPÓN? (cada granja puede overridear)
+      manejaAlimentoPorGalpon: [false]
     });
 
     this.mlSvc.getByKey('type_identit').subscribe({
@@ -344,7 +346,7 @@ export class CompanyManagementComponent implements OnInit {
     if (c) {
       this.applyCompanyToModal(c);
     } else {
-      this.form.reset({ id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '', country: '', state: '', city: '', mobileAccess: false });
+      this.form.reset({ id: null, name: '', identifier: '', documentType: '', address: '', phone: '', email: '', country: '', state: '', city: '', mobileAccess: false, manejaAlimentoPorGalpon: false });
       this.geoSelects = { ...this.geoSelects, states: [], cities: [] };
     }
     this.modalOpen = true;
@@ -364,7 +366,8 @@ export class CompanyManagementComponent implements OnInit {
       documentType: c.documentType ?? '', address: c.address ?? '',
       phone: c.phone ?? '', email: c.email ?? '',
       country: codeCountry, state: codeDept, city: cityName,
-      mobileAccess: c.mobileAccess ?? false
+      mobileAccess: c.mobileAccess ?? false,
+      manejaAlimentoPorGalpon: c.manejaAlimentoPorGalpon ?? false
     });
 
     const vp = this.form.get('visualPermissions') as FormGroup;
@@ -418,6 +421,7 @@ export class CompanyManagementComponent implements OnInit {
       phone: v.phone, email: v.email,
       country: v.country, state: v.state, city: v.city,
       visualPermissions: vp, mobileAccess: v.mobileAccess,
+      manejaAlimentoPorGalpon: v.manejaAlimentoPorGalpon,
       roleIds: this.roleIds,
       countryId:      toNumOrNull(v.country),
       departamentoId: stateNum,

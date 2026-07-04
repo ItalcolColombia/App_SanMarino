@@ -90,8 +90,11 @@
           <!-- Separador -->
           <div class="sb-divider" aria-hidden="true"></div>
 
+          <!-- Etiqueta de sección -->
+          <p class="sb-section-label" id="sb-nav-label">Navegación</p>
+
           <!-- Árbol de menú dinámico -->
-          <ul class="sb-nav-list" *ngIf="(menu$ | async) as menu">
+          <ul class="sb-nav-list" aria-labelledby="sb-nav-label" *ngIf="(menu$ | async) as menu">
             <li *ngFor="let item of menu">
               <ng-container *ngTemplateOutlet="renderNode; context: {$implicit: item, level: 0}"></ng-container>
             </li>

@@ -4,11 +4,11 @@
       <div class="page-header__title-row">
         <h1 class="title text-ital-orange-dark">Gestión de Inventario</h1>
         <span class="module-type-badge" title="Este módulo es distinto al inventario clásico por lote / otro flujo">
-          Inventario por granja y ubicación (EC / PA)
+          Inventario por granja y ubicación
         </span>
       </div>
       <p class="subtitle">
-        <strong>Panamá / Ecuador</strong> — Stock por granja (y galpón si el concepto es alimento), ingresos, traslados y <strong>tránsito entre granjas</strong>.
+        Stock por granja (y galpón si el concepto es alimento), ingresos, traslados y <strong>tránsito entre granjas</strong>.
         No reemplaza otros inventarios del sistema; solo centraliza este flujo regional.
       </p>
       <p class="subtitle hint module-hint">
@@ -176,17 +176,14 @@
           </div>
           <small class="hint" style="display: block; margin-top: 0.35rem">Se usa como fecha del registro en el histórico de movimientos.</small>
         </div>
-        <p *ngIf="showNucleoGalpon" class="hint field-full" style="margin: 0">
-          <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Los ingresos de alimento quedan a nivel galpón.
+        <p *ngIf="ingresoEsPorGalpon" class="hint field-full" style="margin: 0">
+          <strong>Alimento:</strong> indique de dónde proviene el material y luego el destino (granja → núcleo → galpón). Este ingreso se aplica sobre el <strong>galpón</strong>.
         </p>
-        <p *ngIf="!showNucleoGalpon && isColombiaInventario" class="hint field-full" style="margin: 0">
-          <strong>Colombia:</strong> el inventario se maneja a nivel <strong>granja</strong> (sin núcleo/galpón).
-        </p>
-        <p *ngIf="!showNucleoGalpon && !isColombiaInventario" class="hint field-full" style="margin: 0">
-          <strong>No alimento:</strong> el stock es solo a nivel <strong>granja</strong> (sin núcleo/galpón).
+        <p *ngIf="!ingresoEsPorGalpon" class="hint field-full" style="margin: 0">
+          Este ingreso se aplica sobre la <strong>granja</strong> (sin núcleo/galpón).
         </p>
         <!-- Origen: solo para concepto Alimento -->
-        <ng-container *ngIf="showNucleoGalpon">
+        <ng-container *ngIf="ingresoEsPorGalpon">
           <div class="field field-full">
             <label class="form-label">¿De dónde viene el material? *</label>
             <select
@@ -237,7 +234,7 @@
             <option *ngFor="let f of farmsDestino" [ngValue]="f.id">{{ f.name }}</option>
           </select>
         </div>
-        <ng-container *ngIf="showNucleoGalpon">
+        <ng-container *ngIf="ingresoEsPorGalpon">
           <div class="field">
             <label class="form-label">Núcleo *</label>
             <select class="form-input" [(ngModel)]="ingresoNucleoId" (ngModelChange)="onIngresoDestinoNucleoChange()">
@@ -272,19 +269,19 @@
           <label class="form-label">Código Guía</label>
           <input class="form-input" type="text" [(ngModel)]="ingresoReference" placeholder="Referencia" />
         </div>
-        <div class="field" *ngIf="showNucleoGalpon && ingresoOrigenTipo === 'planta'">
+        <div class="field" *ngIf="ingresoEsPorGalpon && ingresoOrigenTipo === 'planta'">
           <label class="form-label">Motivo</label>
           <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
         </div>
-        <div class="field" *ngIf="showNucleoGalpon && ingresoOrigenTipo === 'granja'">
+        <div class="field" *ngIf="ingresoEsPorGalpon && ingresoOrigenTipo === 'granja'">
           <label class="form-label">Motivo</label>
           <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Ej. Ingreso desde otra granja" />
         </div>
-        <div class="field" *ngIf="showNucleoGalpon && ingresoOrigenTipo === 'bodega'">
+        <div class="field" *ngIf="ingresoEsPorGalpon && ingresoOrigenTipo === 'bodega'">
           <label class="form-label">Observación / motivo adicional</label>
           <input class="form-input" type="text" [(ngModel)]="ingresoReason" placeholder="Opcional" />
         </div>
-        <div class="field" *ngIf="!showNucleoGalpon">
+        <div class="field" *ngIf="!ingresoEsPorGalpon">
           <label class="form-label">Motivo</label>
           <div class="form-input form-input--readonly">{{ ingresoReasonPlanta }}</div>
         </div>
@@ -771,7 +768,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let m of movimientosList; trackBy: trackByHistoricoMov">
+              <tr *ngFor="let m of movimientosPagina; trackBy: trackByHistoricoMov">
                 <td class="cell-nowrap">{{ formatFechaMovimiento(m.createdAt) }}</td>
                 <td>{{ m.tipoOperacion ?? m.movementType }}</td>
                 <td>{{ m.estado ?? '—' }}</td>
@@ -814,6 +811,11 @@
               </tr>
             </tbody>
           </table>
+        </div>
+        <div *ngIf="!loading && historicoTotalPaginas > 1" class="historico-paginacion" style="display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:12px;font-size:0.85rem;color:var(--ital-muted);">
+          <span>{{ movimientosList.length }} movimientos · página {{ historicoPage + 1 }} de {{ historicoTotalPaginas }}</span>
+          <button type="button" class="btn-italfoods-secondary" style="padding:0.3rem 0.7rem" (click)="historicoPrevPagina()" [disabled]="historicoPage === 0">Anterior</button>
+          <button type="button" class="btn-italfoods-secondary" style="padding:0.3rem 0.7rem" (click)="historicoNextPagina()" [disabled]="historicoPage >= historicoTotalPaginas - 1">Siguiente</button>
         </div>
         <p *ngIf="!loading && !movimientosList.length" class="empty-state">No hay movimientos con los filtros seleccionados.</p>
       </div>

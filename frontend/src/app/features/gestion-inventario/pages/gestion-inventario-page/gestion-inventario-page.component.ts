@@ -63,6 +63,11 @@ export class GestionInventarioPageComponent implements OnInit {
   filterData: InventarioGestionFilterDataDto | null = null;
   stockList: InventarioGestionStockDto[] = [];
   movimientosList: InventarioGestionMovimientoDto[] = [];
+  // Paginación client-side del histórico (perf: no renderizar miles de filas de una).
+  // El export CSV sigue usando movimientosList completo.
+  readonly historicoPageSize = 100;
+  historicoPage = 0;
+  movimientosPagina: InventarioGestionMovimientoDto[] = [];
   itemsList: ItemInventarioEcuadorDto[] = [];
   loading = false;
 
@@ -251,8 +256,11 @@ export class GestionInventarioPageComponent implements OnInit {
     'Eliminación registro'
   ];
 
-  /** Lotes en granjas asignadas + valores distintos de concepto/tipo/estado en movimientos. */
+  /** Lotes en granjas asignadas + valores distintos de concepto/tipo/estado en movimientos.
+   *  Meta ESTÁTICA de la sesión (opciones de filtro): se cachea → no se re-pide al revisitar
+   *  el tab Histórico. Los movimientos (datos que cambian) sí refrescan en cada visita. */
   private loadHistoricoMeta(): void {
+    if (this.historicoMeta) return; // ya cargada esta sesión → evita petición redundante
     this.svc.getHistoricoFiltros().subscribe({
       next: (data) => {
         this.historicoMeta = data;
@@ -415,6 +423,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.svc.getMovimientos(params).subscribe({
       next: (list) => {
         this.movimientosList = list ?? [];
+        this.historicoPage = 0;
+        this.recomputeHistoricoPagina();
         this.loading = false;
       },
       error: () => {
@@ -422,6 +432,22 @@ export class GestionInventarioPageComponent implements OnInit {
         this.openAlertModal('error', 'Error', 'Error al cargar histórico.');
       }
     });
+  }
+
+  // ===== Paginación client-side del histórico (perf) =====
+  /** Recalcula el slice visible; se llama al cargar o al cambiar de página (no en getter → sin alocar por ciclo). */
+  private recomputeHistoricoPagina(): void {
+    const start = this.historicoPage * this.historicoPageSize;
+    this.movimientosPagina = this.movimientosList.slice(start, start + this.historicoPageSize);
+  }
+  get historicoTotalPaginas(): number {
+    return Math.max(1, Math.ceil(this.movimientosList.length / this.historicoPageSize));
+  }
+  historicoPrevPagina(): void {
+    if (this.historicoPage > 0) { this.historicoPage--; this.recomputeHistoricoPagina(); }
+  }
+  historicoNextPagina(): void {
+    if (this.historicoPage < this.historicoTotalPaginas - 1) { this.historicoPage++; this.recomputeHistoricoPagina(); }
   }
 
   get historicoNucleosFiltered(): { nucleoId: string; nucleoNombre: string }[] {
@@ -786,6 +812,26 @@ export class GestionInventarioPageComponent implements OnInit {
     return this.isAlimentoConcept(this.selectedConcept);
   }
 
+  /**
+   * INGRESO: ¿este ingreso se maneja a nivel GALPÓN? Se resuelve por la granja de destino
+   * del ingreso (override) y, si hereda (null), por el default de la empresa; sin dato cae al país.
+   * Reemplaza la decisión por país SOLO en el formulario de ingreso (traslado/stock siguen por país).
+   */
+  get ingresoEsPorGalpon(): boolean {
+    if (!this.isAlimentoConcept(this.selectedConcept)) return false;
+    const farms = this.filterData?.farmsDestino ?? [];
+    const farm = this.ingresoFarmId != null ? farms.find(f => f.id === this.ingresoFarmId) : undefined;
+    const override = farm?.manejaAlimentoPorGalpon;
+    if (override === true) return true;
+    if (override === false) return false;
+    // override null/undefined (hereda empresa o sin granja seleccionada) → default empresa
+    const companyDefault = this.filterData?.companyManejaAlimentoPorGalpon;
+    if (companyDefault === true) return true;
+    if (companyDefault === false) return false;
+    // sin dato del backend → comportamiento por país (compatibilidad)
+    return !this.isColombiaInventario;
+  }
+
   /** Stock: mostrar filtros/columnas núcleo+galpón si el filtro es «todos» o alimento. */
   get stockShowNucleoGalpon(): boolean {
     // Colombia: stock a nivel granja → sin columnas núcleo/galpón.
@@ -901,7 +947,7 @@ export class GestionInventarioPageComponent implements OnInit {
         return;
       }
     }
-    if (this.showNucleoGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
+    if (this.ingresoEsPorGalpon && (!this.ingresoNucleoId || !this.ingresoGalponId)) {
       this.openAlertModal('error', 'Validación', 'Para alimento debe seleccionar Núcleo y Galpón.');
       return;
     }
@@ -1328,8 +1374,8 @@ export class GestionInventarioPageComponent implements OnInit {
     this.submittingIngreso = true;
     this.svc.registrarIngreso({
       farmId: this.ingresoFarmId!,
-      nucleoId: this.showNucleoGalpon ? this.ingresoNucleoId : null,
-      galponId: this.showNucleoGalpon ? this.ingresoGalponId : null,
+      nucleoId: this.ingresoEsPorGalpon ? this.ingresoNucleoId : null,
+      galponId: this.ingresoEsPorGalpon ? this.ingresoGalponId : null,
       itemInventarioEcuadorId: this.ingresoItemInventarioEcuadorId!,
       quantity: this.ingresoQuantity,
       unit: this.ingresoSelectedUnit === '—' ? 'kg' : this.ingresoSelectedUnit,

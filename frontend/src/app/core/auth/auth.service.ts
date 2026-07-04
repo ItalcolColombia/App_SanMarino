@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpErrorResponse } from '@angular/common/http';
 import { map, tap, switchMap, catchError } from 'rxjs/operators';
-import { from, throwError, Observable } from 'rxjs';
+import { from, throwError, Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { LoginPayload, LoginResult, AuthSession, MenuItem, RoleMenusLite, EmailQueueStatus } from './auth.models';
 import { TokenStorageService } from './token-storage.service';
@@ -337,7 +337,10 @@ export class AuthService {
     if (companyId != null) params = params.set('companyId', String(companyId));
 
     return this.http.get<MenuItem[]>(url, { params }).pipe(
-      tap(menu => this.storage.updateMenu(menu))
+      tap(menu => this.storage.updateMenu(menu)),
+      // Resiliente: un 401 transitorio (token aún no en storage durante el login) no debe
+      // propagarse como error a consola; el menú ya llega del bootstrap del login.
+      catchError(() => of([] as MenuItem[]))
     );
   }
 

@@ -70,7 +70,7 @@
     color: #94a3b8;
     font-size: 0.82rem;
 
-    &.active { color: #2d7a3e; font-weight: 600; }
+    &.active { color: #F5821F; font-weight: 600; }
     &.done   { color: #16a34a; }
   }
 
@@ -85,7 +85,7 @@
     font-size: 0.75rem;
     font-weight: 700;
 
-    .active & { background: #2d7a3e; color: #fff; }
+    .active & { background: #F5821F; color: #fff; }
     .done &   { background: #16a34a; color: #fff; }
   }
 
@@ -137,7 +137,7 @@
   text-align: center;
   background: #f8fafc;
   transition: border-color 0.2s;
-  &:hover { border-color: #2d7a3e; }
+  &:hover { border-color: #F5821F; }
 }
 
 .cs-upload-label {
@@ -269,7 +269,7 @@
   width: 36px;
   height: 36px;
   border: 4px solid #e2e8f0;
-  border-top-color: #2d7a3e;
+  border-top-color: #F5821F;
   border-radius: 50%;
   animation: cs-spin 0.7s linear infinite;
 }
@@ -359,7 +359,7 @@
 
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  &--primary { background: #2d7a3e; color: #fff; &:hover:not(:disabled) { background: #245e30; } }
+  &--primary { background: #F5821F; color: #fff; &:hover:not(:disabled) { background: #245e30; } }
   &--warning { background: #d97706; color: #fff; &:hover:not(:disabled) { background: #b45309; } }
   &--ghost   { background: transparent; color: #475569; border: 1px solid #cbd5e1; &:hover:not(:disabled) { background: #f1f5f9; } }
   &--xs      { padding: 0.25rem 0.65rem; font-size: 0.75rem; }

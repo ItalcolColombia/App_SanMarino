@@ -1,17 +1,17 @@
 /* =========================================================
    INDICADOR ECUADOR — Design System
-   Brand: ital-green #2d7a3e · ital-orange #e85c25 · cream #faf8f5
+   Brand: ital-orange #F5821F · dark #C85A0E · accent #FBB040 · cream #faf8f5
    ========================================================= */
 
 :host {
-  --green:       #2d7a3e;
-  --green-dark:  #1e5429;
-  --green-mid:   #3a9950;
-  --green-50:    #f0fdf4;
-  --green-100:   #dcfce7;
-  --green-200:   #bbf7d0;
-  --orange:      #e85c25;
-  --orange-dark: #c04a1a;
+  --green:       #F5821F;
+  --green-dark:  #C85A0E;
+  --green-mid:   #FBB040;
+  --green-50:    #fef4ec;
+  --green-100:   #fde4cc;
+  --green-200:   #fbcfa3;
+  --orange:      #F5821F;
+  --orange-dark: #C85A0E;
   --orange-50:   #fff7ed;
   --orange-100:  #ffedd5;
   --cream:       #faf8f5;
@@ -72,7 +72,7 @@
   justify-content: center;
   font-size: 1.5rem;
   flex-shrink: 0;
-  box-shadow: 0 4px 10px rgba(45,122,62,.3);
+  box-shadow: 0 4px 10px rgba(245, 130, 31,.3);
 }
 
 .ie-header__text { display: flex; flex-direction: column; gap: 2px; }
@@ -218,7 +218,7 @@
     background: var(--green);
     border-color: var(--green);
     color: var(--white);
-    box-shadow: 0 2px 6px rgba(45,122,62,.3);
+    box-shadow: 0 2px 6px rgba(245, 130, 31,.3);
   }
 
   &--disabled {
@@ -295,7 +295,7 @@
   &:focus {
     outline: none;
     border-color: var(--green);
-    box-shadow: 0 0 0 3px rgba(45,122,62,.12);
+    box-shadow: 0 0 0 3px rgba(245, 130, 31,.12);
   }
 
   &:disabled {
@@ -322,7 +322,7 @@
   &:focus {
     outline: none;
     border-color: var(--orange-dark);
-    box-shadow: 0 0 0 3px rgba(232,92,37,.12);
+    box-shadow: 0 0 0 3px rgba(245,130,31,.12);
   }
 
   &:disabled {
@@ -518,14 +518,14 @@
 .ie-btn--primary {
   background: var(--green);
   color: var(--white);
-  box-shadow: 0 2px 6px rgba(45,122,62,.3);
-  &:hover:not(:disabled) { background: var(--green-dark); box-shadow: 0 4px 10px rgba(45,122,62,.35); }
+  box-shadow: 0 2px 6px rgba(245, 130, 31,.3);
+  &:hover:not(:disabled) { background: var(--green-dark); box-shadow: 0 4px 10px rgba(245, 130, 31,.35); }
 }
 
 .ie-btn--orange {
   background: var(--orange);
   color: var(--white);
-  box-shadow: 0 2px 6px rgba(232,92,37,.25);
+  box-shadow: 0 2px 6px rgba(245,130,31,.25);
   &:hover:not(:disabled) { background: var(--orange-dark); }
 }
 
@@ -734,7 +734,7 @@
     color: var(--white);
     border-color: var(--green);
     font-weight: 700;
-    box-shadow: 0 -2px 8px rgba(45,122,62,.2);
+    box-shadow: 0 -2px 8px rgba(245, 130, 31,.2);
   }
 
   &--consolidado { font-size: .8rem; }
@@ -952,7 +952,7 @@
 .ie-table tbody tr:hover td { background: var(--green-50); }
 .ie-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .ie-table .bold { font-weight: 700; color: var(--gray-900); }
-.ie-table .success { color: var(--green-dark); font-weight: 600; }
+.ie-table .success { color: #16A34A; font-weight: 600; }
 
 /* =========================================================
    CONSOLIDADO — summary cards
@@ -1022,8 +1022,8 @@
   margin: 0 1.375rem;
 }
 
-.text-success { color: var(--green-dark) !important; font-weight: 600; }
-.text-danger  { color: var(--orange-dark) !important; font-weight: 600; }
+.text-success { color: #16A34A !important; font-weight: 600; }
+.text-danger  { color: #DC2626 !important; font-weight: 600; }
 .font-bold    { font-weight: 700; }
 
 /* =========================================================
@@ -1151,7 +1151,7 @@
   font-family: Georgia, serif;
   color: var(--white);
   flex-shrink: 0;
-  box-shadow: 0 3px 8px rgba(45,122,62,.3);
+  box-shadow: 0 3px 8px rgba(245, 130, 31,.3);
 }
 
 .ie-fm-header__title {
