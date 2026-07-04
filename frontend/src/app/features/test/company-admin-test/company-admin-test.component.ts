@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
 import { Subject, takeUntil } from 'rxjs';
 import { CompanyService, Company } from '../../../core/services/company/company.service';
@@ -116,6 +116,7 @@ import { CompanySelectorComponent } from '../../../shared/components/company-sel
       }
     </div>
     `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .btn-primary, .btn-secondary {
       @apply px-4 py-2 rounded-md font-medium transition-colors;

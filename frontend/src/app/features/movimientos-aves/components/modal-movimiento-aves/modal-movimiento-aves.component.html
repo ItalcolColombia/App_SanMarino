@@ -106,7 +106,7 @@
               <div class="form-section-card">
                 <h3 class="section-title">
                   <span class="section-icon">🐔</span>
-                  Cantidades a {{ esTipoVenta(formMovimiento.get('tipoMovimiento')?.value) ? 'vender' : 'trasladar' }}
+                  Cantidades a {{ esTipoVenta($safeNavigationMigration(formMovimiento.get('tipoMovimiento')?.value)) ? 'vender' : 'trasladar' }}
                 </h3>
                 @if (informacionLote()?.tipoLote === 'Produccion') {
                   <p class="info-note info-note--warning">
@@ -195,7 +195,7 @@
                     </div>
                   }
                   <!-- ── Paso 3A: Datos de VENTA ── -->
-                  @if (esTipoVenta(formMovimiento.get('tipoMovimiento')?.value)) {
+                  @if (esTipoVenta($safeNavigationMigration(formMovimiento.get('tipoMovimiento')?.value))) {
                     <div class="form-section-card"
                       >
                       <h3 class="section-title"><span class="section-icon">💰</span> Datos de la Venta</h3>
@@ -229,7 +229,7 @@
                     </div>
                   }
                   <!-- ── Paso 3B: Destino del TRASLADO ── -->
-                  @if (esTipoTraslado(formMovimiento.get('tipoMovimiento')?.value)) {
+                  @if (esTipoTraslado($safeNavigationMigration(formMovimiento.get('tipoMovimiento')?.value))) {
                     <div class="form-section-card"
                       >
                       <h3 class="section-title"><span class="section-icon">📍</span> Destino del Traslado</h3>

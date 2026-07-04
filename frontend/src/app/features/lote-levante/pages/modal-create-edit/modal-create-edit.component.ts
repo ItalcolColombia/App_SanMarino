@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
@@ -18,6 +18,7 @@ import { CountryFilterService } from '../../../../core/services/country/country-
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-create-edit.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-create-edit.component.scss']
 })
 export class ModalCreateEditComponent implements OnInit, OnChanges, OnDestroy {

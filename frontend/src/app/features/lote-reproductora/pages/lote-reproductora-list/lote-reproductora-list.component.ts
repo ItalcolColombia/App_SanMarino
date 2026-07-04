@@ -1,5 +1,5 @@
 // app/features/lote-reproductora/pages/lote-reproductora-list/lote-reproductora-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   FormBuilder, FormGroup, ReactiveFormsModule, FormArray
@@ -37,6 +37,7 @@ interface LoteDtoExtendido {
   standalone: true,
   templateUrl: './lote-reproductora-list.component.html',
   styleUrls: ['./lote-reproductora-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, HttpClientModule, FontAwesomeModule, ConfirmationModalComponent]
 })
 export class LoteReproductoraListComponent implements OnInit {

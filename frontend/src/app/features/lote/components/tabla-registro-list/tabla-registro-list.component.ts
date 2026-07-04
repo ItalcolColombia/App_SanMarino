@@ -1,5 +1,5 @@
 // src/app/features/lote/components/tabla-registro-list/tabla-registro-list.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faPlus, faPen, faTrash, faEye } from '@fortawesome/free-solid-svg-icons';
@@ -21,6 +21,7 @@ export interface TablaLotesEvent {
   standalone: true,
   imports: [CommonModule, FontAwesomeModule],
   templateUrl: './tabla-registro-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-registro-list.component.scss']
 })
 export class TablaRegistroListComponent implements OnInit, OnDestroy {

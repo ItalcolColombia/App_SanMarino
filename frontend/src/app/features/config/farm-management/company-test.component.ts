@@ -1,5 +1,5 @@
 // src/app/features/config/farm-management/company-test.component.ts
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { Subject, takeUntil } from 'rxjs';
 import { CompanyService } from '../../../core/services/company/company.service';
@@ -62,6 +62,7 @@ import { ActiveCompanyService } from '../../../core/auth/active-company.service'
       </div>
     </div>
     `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .space-y-4 > * + * { margin-top: 1rem; }
     .space-y-1 > * + * { margin-top: 0.25rem; }

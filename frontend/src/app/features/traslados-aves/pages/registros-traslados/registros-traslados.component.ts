@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -15,6 +15,7 @@ import { FarmService, FarmDto } from '../../../farm/services/farm.service';
   standalone: true,
   imports: [FormsModule],
   templateUrl: './registros-traslados.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./registros-traslados.component.scss']
 })
 export class RegistrosTrasladosComponent implements OnInit {

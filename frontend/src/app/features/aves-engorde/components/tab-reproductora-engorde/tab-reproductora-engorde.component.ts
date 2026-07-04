@@ -2,7 +2,7 @@
 // Orquestador delgado: carga lotes reproductora + seguimientos y delega TODO el
 // cálculo a las funciones puras de ../../funciones. Solo lectura.
 // Compartido por los paises que usan el modulo aves-engorde (Ecuador y Panama).
-import { Component, Input, OnChanges } from '@angular/core';
+import { Component, Input, OnChanges, ChangeDetectionStrategy } from '@angular/core';
 
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -25,6 +25,7 @@ import { calcularResumenVpi } from '../../funciones/calcular-resumen-vpi.funcion
   standalone: true,
   imports: [],
   templateUrl: './tab-reproductora-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tab-reproductora-engorde.component.scss']
 })
 export class TabReproductoraEngordeComponent implements OnChanges {

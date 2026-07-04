@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, HostListener, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as XLSX from 'xlsx';
@@ -25,6 +25,7 @@ export const TEXTO_AYUDA_SEGUIMIENTO_DIARIO_ENGORDE = `Orden cronológico por fe
   imports: [CommonModule, FormsModule, TablaIndicadoresDiariosEngordeComponent, GraficasIndicadoresDiariosEngordeComponent, GraficasProductividadEngordeComponent, HasPermissionDirective, ModalCuadrarSaldosEngordeComponent, TabReproductoraEngordeComponent],
   templateUrl: './tabs-principal-engorde.component.html',
   styleUrls: ['./tabs-principal-engorde.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   providers: [{ provide: CuadrarSaldosEngordeApi, useExisting: SeguimientoAvesEngordeService }]
 })
 export class TabsPrincipalEngordeComponent implements OnInit, OnChanges {

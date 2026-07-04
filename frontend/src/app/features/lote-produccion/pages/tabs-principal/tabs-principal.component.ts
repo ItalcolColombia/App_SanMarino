@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto, ProduccionLoteDetalleDto, InformacionLoteDto } from '../../services/produccion.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
   standalone: true,
   imports: [CommonModule, TablaListaIndicadoresComponent, GraficasPrincipalComponent],
   templateUrl: './tabs-principal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabs-principal.component.scss']
 })
 export class TabsPrincipalComponent implements OnInit, OnChanges {

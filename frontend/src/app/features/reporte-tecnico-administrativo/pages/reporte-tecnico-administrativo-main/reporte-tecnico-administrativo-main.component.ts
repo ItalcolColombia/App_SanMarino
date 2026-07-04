@@ -1,5 +1,5 @@
 // src/app/features/reporte-tecnico-administrativo/pages/reporte-tecnico-administrativo-main/reporte-tecnico-administrativo-main.component.ts
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -32,6 +32,7 @@ import { GalponService } from '../../../galpon/services/galpon.service';
     TablaLevanteCompletaComponent
 ],
   templateUrl: './reporte-tecnico-administrativo-main.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./reporte-tecnico-administrativo-main.component.scss']
 })
 export class ReporteTecnicoAdministrativoMainComponent implements OnInit, OnDestroy {

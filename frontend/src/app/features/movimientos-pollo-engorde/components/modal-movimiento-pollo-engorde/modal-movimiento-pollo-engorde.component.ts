@@ -6,7 +6,8 @@ import {
   OnChanges,
   SimpleChanges,
   OnDestroy,
-  ChangeDetectorRef
+  ChangeDetectorRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { Subscription, firstValueFrom } from 'rxjs';
 
@@ -50,6 +51,7 @@ export type { LoteDestinoOption, AvailableBirds, VentaLineaGranja, MovimientoPol
   standalone: true,
   imports: [ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './modal-movimiento-pollo-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-movimiento-pollo-engorde.component.scss']
 })
 export class ModalMovimientoPolloEngordeComponent implements OnChanges, OnDestroy {

@@ -41,7 +41,7 @@
       }
       @if (selectedLote()?.fechaEncaset) {
         <span class="chip chip--muted">
-          {{ calcularEdadDias(selectedLote()?.fechaEncaset) }} días
+          {{ calcularEdadDias($safeNavigationMigration(selectedLote()?.fechaEncaset)) }} días
         </span>
       }
       @if (showSeguimientosCount) {
@@ -188,7 +188,7 @@
             </div>
             <div class="detail-item">
               <span class="detail-label">Granja:</span>
-              <span class="detail-value">{{ getFarmName(selectedLote()?.granjaId!) }}</span>
+              <span class="detail-value">{{ getFarmName($safeNavigationMigration(selectedLote()?.granjaId)!) }}</span>
             </div>
             @if (selectedLote()?.granjaId) {
               <div class="detail-item">
@@ -199,19 +199,19 @@
             @if (selectedLote()?.nucleoId) {
               <div class="detail-item">
                 <span class="detail-label">Núcleo:</span>
-                <span class="detail-value">{{ getNucleoName(selectedLote()?.nucleoId!) }}</span>
+                <span class="detail-value">{{ getNucleoName($safeNavigationMigration(selectedLote()?.nucleoId)!) }}</span>
               </div>
             }
             @if (selectedLote()?.galponId) {
               <div class="detail-item">
                 <span class="detail-label">Galpón:</span>
-                <span class="detail-value">{{ getGalponName(selectedLote()?.galponId!) }}</span>
+                <span class="detail-value">{{ getGalponName($safeNavigationMigration(selectedLote()?.galponId)!) }}</span>
               </div>
             }
             @if (selectedLote()?.fechaEncaset) {
               <div class="detail-item">
                 <span class="detail-label">Edad:</span>
-                <span class="detail-value">{{ calcularEdadDias(selectedLote()?.fechaEncaset) }} días</span>
+                <span class="detail-value">{{ calcularEdadDias($safeNavigationMigration(selectedLote()?.fechaEncaset)) }} días</span>
               </div>
             }
             @if (selectedLote()?.hembrasL || selectedLote()?.machosL) {

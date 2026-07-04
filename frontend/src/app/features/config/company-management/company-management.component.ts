@@ -1,5 +1,5 @@
 // src/app/features/config/company-management/company-management.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import {
@@ -44,6 +44,7 @@ import { diffPaises, addPaisesOps } from './funciones/paises.funcion';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, FontAwesomeModule],
   templateUrl: './company-management.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./company-management.component.scss']
 })
 export class CompanyManagementComponent implements OnInit {

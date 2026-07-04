@@ -1,5 +1,5 @@
 // src/app/features/lote/components/modal-create-edit-lote/modal-create-edit-lote.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, SimpleChanges, ChangeDetectorRef, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -40,6 +40,7 @@ const match = (field: string): ValidatorFn => (ctrl: AbstractControl) => {
   standalone: true,
   imports: [FormsModule, ReactiveFormsModule, FontAwesomeModule, FiltroSelectComponent],
   templateUrl: './modal-create-edit-lote.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-create-edit-lote.component.scss']
 })
 export class ModalCreateEditLoteComponent implements OnInit, OnDestroy, OnChanges {

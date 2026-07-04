@@ -1,5 +1,5 @@
 // src/app/features/lote-levante/components/liquidacion-comparacion/liquidacion-comparacion.component.ts
-import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LiquidacionComparacionService, LiquidacionTecnicaComparacionDto, LiquidacionTecnicaComparacionCompletaDto } from '../../services/liquidacion-comparacion.service';
 
@@ -8,6 +8,7 @@ import { LiquidacionComparacionService, LiquidacionTecnicaComparacionDto, Liquid
   standalone: true,
   imports: [CommonModule],
   templateUrl: './liquidacion-comparacion.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./liquidacion-comparacion.component.scss']
 })
 export class LiquidacionComparacionComponent implements OnInit, OnChanges {

@@ -1,5 +1,5 @@
 // src/app/features/farm/pages/farm-management/farm-management.component.ts
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faWarehouse, faPuzzlePiece, faHome } from '@fortawesome/free-solid-svg-icons';
@@ -25,6 +25,7 @@ type TabKey = 'granjas' | 'nucleos' | 'galpones';
     GalponListComponent
 ],
   templateUrl: './farm-management.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./farm-management.component.scss'],
 })
 export class FarmManagementComponent {

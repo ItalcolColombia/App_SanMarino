@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/movimientos-unificado-form/movimientos-unificado-form.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -27,6 +27,7 @@ type CatalogItemType = 'alimento' | 'medicamento' | 'accesorio' | 'biologico' | 
   standalone: true,
   imports: [ReactiveFormsModule, FormsModule, FontAwesomeModule],
   templateUrl: './movimientos-unificado-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./movimientos-unificado-form.component.scss']
 })
 export class MovimientosUnificadoFormComponent implements OnInit {

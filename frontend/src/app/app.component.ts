@@ -1,5 +1,5 @@
 // src/app/app.component.ts
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
 import { RouterOutlet, Router } from '@angular/router';
 import { VersionCheckService } from './core/services/version-check.service';
@@ -12,6 +12,7 @@ import { faBars } from '@fortawesome/free-solid-svg-icons';
   standalone: true,
   imports: [RouterOutlet, SidebarComponent, FontAwesomeModule],
   templateUrl: './app.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent implements OnInit, OnDestroy {

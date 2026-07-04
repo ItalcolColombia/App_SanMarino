@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoItemDto } from '../../services/produccion.service';
 
@@ -42,6 +42,7 @@ export interface AnalisisData {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './modal-analisis.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-analisis.component.scss']
 })
 export class ModalAnalisisComponent implements OnInit {

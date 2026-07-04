@@ -106,7 +106,7 @@
               }
               @if (selectedLoteInfo?.fechaEncaset) {
                 <p class="traslados-resumen__line">
-                  Encaset: {{ selectedLoteInfo?.fechaEncaset | date:'dd/MM/yyyy' }} · {{ calcularEdadDiasDesdeEncasetamiento() }} días
+                  Encaset: {{ $safeNavigationMigration(selectedLoteInfo?.fechaEncaset) | date:'dd/MM/yyyy' }} · {{ calcularEdadDiasDesdeEncasetamiento() }} días
                 </p>
               }
             </div>

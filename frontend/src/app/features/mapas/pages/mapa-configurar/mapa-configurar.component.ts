@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -19,6 +19,7 @@ const TIPOS = [
   standalone: true,
   imports: [FormsModule, RouterLink],
   templateUrl: './mapa-configurar.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./mapa-configurar.component.scss']
 })
 export class MapaConfigurarComponent implements OnInit {

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectorRef, HostListener, ChangeDetectionStrategy } from '@angular/core';
 
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
@@ -15,6 +15,7 @@ import { ShowIfEcuadorPanamaDirective } from '../../../../core/directives';
   standalone: true,
   imports: [FontAwesomeModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-detalle-seguimiento.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-detalle-seguimiento.component.scss']
 })
 export class ModalDetalleSeguimientoLevanteComponent implements OnInit, OnChanges {

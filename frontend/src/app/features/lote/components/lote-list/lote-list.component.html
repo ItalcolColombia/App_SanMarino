@@ -728,7 +728,7 @@
                               [selectedGranjaId]="selectedGranjaPadreId"
                               [selectedNucleoId]="selectedNucleoPadreId"
                               [selectedGalponId]="selectedGalponPadreId"
-                              [selectedLoteId]="form.get('lotePadreId')?.value"
+                              [selectedLoteId]="$safeNavigationMigration(form.get('lotePadreId')?.value)"
                               [soloLotesPadres]="true"
                               [excluirLoteId]="editing?.loteId || null"
                               (granjaChange)="onGranjaPadreChange($event)"

@@ -7,7 +7,7 @@
       <div class="flex items-center gap-2">
         <fa-icon [icon]="faList" class="title-icon" aria-hidden="true"></fa-icon>
         <h2 class="title">Listas maestras</h2>
-        @if (lists?.length !== undefined) {
+        @if ($safeNavigationMigration(lists?.length) !== undefined) {
           <span class="counter-pill">
             {{ lists.length }} lista(s)
           </span>

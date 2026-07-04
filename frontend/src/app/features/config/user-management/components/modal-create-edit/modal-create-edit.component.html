@@ -419,7 +419,7 @@
                                                 type="checkbox"
                                                 [value]="company.id"
                                                 (change)="toggleCompany(company.id!)"
-                                                [checked]="userForm.get('companyIds')?.value?.includes(company.id)"
+                                                [checked]="$safeNavigationMigration(userForm.get('companyIds')?.value?.includes(company.id))"
                                                 />
                                                 <span class="checkbox-label">{{ company.name }}</span>
                                               </label>
@@ -447,7 +447,7 @@
                                                   type="checkbox"
                                                   [value]="role.id"
                                                   (change)="toggleRole(role.id)"
-                                                  [checked]="userForm.get('roleIds')?.value?.includes(role.id)"
+                                                  [checked]="$safeNavigationMigration(userForm.get('roleIds')?.value?.includes(role.id))"
                                                   />
                                                   <span class="checkbox-label">{{ role.name }}</span>
                                                 </label>

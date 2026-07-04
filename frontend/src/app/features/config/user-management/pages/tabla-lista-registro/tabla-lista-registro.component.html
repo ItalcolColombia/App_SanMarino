@@ -73,7 +73,7 @@
                         @if (getEmailStatusIcon(user)) {
                           <div
                             class="email-status-indicator"
-                            [title]="getEmailStatusIcon(user)?.tooltip">
+                            [title]="$safeNavigationMigration(getEmailStatusIcon(user)?.tooltip)">
                             <fa-icon
                               [icon]="getEmailStatusIcon(user)!.icon"
                               [style.color]="getEmailStatusIcon(user)!.color"

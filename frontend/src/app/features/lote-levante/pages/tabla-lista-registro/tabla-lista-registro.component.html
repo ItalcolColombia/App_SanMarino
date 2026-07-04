@@ -86,7 +86,7 @@
                   <span> / M: {{ mapAlimentoNombre(am) }}</span>
                 }
               } @else {
-                {{ mapAlimentoNombre(s?.tipoAlimento) || '—' }}
+                {{ mapAlimentoNombre($safeNavigationMigration(s?.tipoAlimento)) || '—' }}
               }
             </td>
             <td>{{ s.consumoKgHembras | number:'1.0-2' }}</td>

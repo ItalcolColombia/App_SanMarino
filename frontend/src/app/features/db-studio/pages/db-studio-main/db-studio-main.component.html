@@ -194,7 +194,7 @@
                   </tbody>
                 </table>
               </div>
-              @if (page()?.executionTime !== undefined) {
+              @if ($safeNavigationMigration(page()?.executionTime) !== undefined) {
                 <p class="text-[11px] text-slate-400 mt-2">~{{ page()?.count }} filas estimadas · {{ page()?.executionTime }} ms</p>
               }
             }

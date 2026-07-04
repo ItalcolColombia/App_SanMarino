@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProduccionService, SeguimientoItemDto } from '../../services/produccion.service';
 import { CountryFilterService } from '../../../../core/services/country/country-filter.service';
@@ -8,6 +8,7 @@ import { CountryFilterService } from '../../../../core/services/country/country-
   standalone: true,
   imports: [CommonModule],
   templateUrl: './modal-detalle-seguimiento.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-detalle-seguimiento.component.scss']
 })
 export class ModalDetalleSeguimientoComponent implements OnInit, OnChanges {

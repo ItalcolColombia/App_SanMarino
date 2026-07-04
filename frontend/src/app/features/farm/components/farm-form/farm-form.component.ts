@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import {
   ReactiveFormsModule,
@@ -32,6 +32,7 @@ import { ShowIfCountryDirective } from '../../../../core/directives/show-if-coun
     ShowIfCountryDirective
 ],
   templateUrl: './farm-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./farm-form.component.scss']
 })
 export class FarmFormComponent implements OnInit {

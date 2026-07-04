@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import * as XLSX from 'xlsx';
@@ -60,6 +60,7 @@ interface IndicadorSemanal {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-lista-indicadores.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-lista-indicadores.component.scss']
 })
 export class TablaListaIndicadoresComponent implements OnInit, OnChanges {

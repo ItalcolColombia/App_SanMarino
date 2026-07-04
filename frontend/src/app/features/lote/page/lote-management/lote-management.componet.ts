@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faHome } from '@fortawesome/free-solid-svg-icons';
@@ -14,6 +14,7 @@ import { LoteListComponent } from '../../../lote/components/lote-list/lote-list.
     LoteListComponent
 ],
   templateUrl: './lote-management.componet.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lote-management.componet.scss'],
 })
 export class LoteManagementComponent {

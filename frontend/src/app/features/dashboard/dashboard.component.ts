@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject, HostListener, ElementRef, AfterViewInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
@@ -29,6 +29,7 @@ export interface CompanyOption {
   selector: 'app-dashboard',
   imports: [FormsModule, NgChartsModule],
   templateUrl: './dashboard.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {

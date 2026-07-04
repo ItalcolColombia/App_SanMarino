@@ -1,5 +1,5 @@
 // frontend/src/app/features/traslados-huevos/pages/traslados-huevos-list/traslados-huevos-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
@@ -22,6 +22,7 @@ import { environment } from '../../../../../environments/environment';
   standalone: true,
   imports: [CommonModule, FormsModule, FiltroSelectComponent, ModalTrasladoHuevosComponent],
   templateUrl: './traslados-huevos-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslados-huevos-list.component.scss']
 })
 export class TrasladosHuevosListComponent implements OnInit {

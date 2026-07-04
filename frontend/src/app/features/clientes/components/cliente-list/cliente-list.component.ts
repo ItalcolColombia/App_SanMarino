@@ -1,5 +1,6 @@
 import {
-  Component, OnInit, signal, computed, inject, DestroyRef
+  Component, OnInit, signal, computed, inject, DestroyRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import {
@@ -33,6 +34,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
   standalone: true,
   imports: [ReactiveFormsModule, FormsModule, ConfirmationModalComponent],
   templateUrl: './cliente-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./cliente-list.component.scss']
 })
 export class ClienteListComponent implements OnInit {

@@ -1,5 +1,5 @@
 // src/app/features/reportes-tecnicos/components/tabla-levante-semanal-hembras/tabla-levante-semanal-hembras.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReporteTecnicoLevanteSemanalDto, ReporteTecnicoLoteInfoDto } from '../../services/reporte-tecnico.service';
 
@@ -8,6 +8,7 @@ import { ReporteTecnicoLevanteSemanalDto, ReporteTecnicoLoteInfoDto } from '../.
   standalone: true,
   imports: [],
   templateUrl: './tabla-levante-semanal-hembras.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-levante-semanal-hembras.component.scss']
 })
 export class TablaLevanteSemanalHembrasComponent {

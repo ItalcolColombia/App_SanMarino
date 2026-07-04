@@ -1,5 +1,5 @@
 // frontend/src/app/features/traslados-huevos/pages/traslado-huevos-form/traslado-huevos-form.component.ts
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -13,6 +13,7 @@ import { environment } from '../../../../../environments/environment';
   standalone: true,
   imports: [ReactiveFormsModule, FiltroSelectComponent],
   templateUrl: './traslado-huevos-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslado-huevos-form.component.scss']
 })
 export class TrasladoHuevosFormComponent implements OnInit {

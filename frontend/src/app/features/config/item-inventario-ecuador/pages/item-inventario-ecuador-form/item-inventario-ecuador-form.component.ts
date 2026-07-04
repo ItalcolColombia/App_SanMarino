@@ -1,5 +1,5 @@
 // src/app/features/config/item-inventario-ecuador/pages/item-inventario-ecuador-form/item-inventario-ecuador-form.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
@@ -10,6 +10,7 @@ import { ItemInventarioEcuadorService, ItemInventarioEcuadorCreateRequest, ItemI
   standalone: true,
   imports: [FormsModule, RouterModule],
   templateUrl: './item-inventario-ecuador-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./item-inventario-ecuador-form.component.scss']
 })
 export class ItemInventarioEcuadorFormComponent implements OnInit {

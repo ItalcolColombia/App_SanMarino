@@ -347,10 +347,10 @@
                 @if (editing?.createdAt || editing?.updatedAt) {
                   <div class="col-span-2 ux-meta">
                     @if (editing?.createdAt) {
-                      <div class="ux-meta__item"><strong>Creado:</strong> {{ editing?.createdAt | date:'short' }}</div>
+                      <div class="ux-meta__item"><strong>Creado:</strong> {{ $safeNavigationMigration(editing?.createdAt) | date:'short' }}</div>
                     }
                     @if (editing?.updatedAt) {
-                      <div class="ux-meta__item"><strong>Actualizado:</strong> {{ editing?.updatedAt | date:'short' }}</div>
+                      <div class="ux-meta__item"><strong>Actualizado:</strong> {{ $safeNavigationMigration(editing?.updatedAt) | date:'short' }}</div>
                     }
                   </div>
                 }

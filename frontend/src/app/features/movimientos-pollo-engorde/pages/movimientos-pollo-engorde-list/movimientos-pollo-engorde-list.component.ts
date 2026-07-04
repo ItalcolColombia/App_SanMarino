@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
@@ -50,6 +50,7 @@ export type { LoteOption, FilaDespachoGrupo, FilaMovimientoSimple, FilaTablaMovi
     HasPermissionDirective
 ],
   templateUrl: './movimientos-pollo-engorde-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./movimientos-pollo-engorde-list.component.scss']
 })
 export class MovimientosPolloEngordeListComponent implements OnInit {

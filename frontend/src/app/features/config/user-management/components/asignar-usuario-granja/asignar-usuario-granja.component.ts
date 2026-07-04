@@ -1,5 +1,5 @@
 // src/app/features/config/user-management/components/asignar-usuario-granja/asignar-usuario-granja.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
@@ -17,6 +17,7 @@ import { FarmService, FarmDto } from '../../../../../core/services/farm/farm.ser
   standalone: true,
   imports: [FormsModule, FontAwesomeModule],
   templateUrl: './asignar-usuario-granja.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./asignar-usuario-granja.component.scss']
 })
 export class AsignarUsuarioGranjaComponent implements OnInit, OnDestroy {

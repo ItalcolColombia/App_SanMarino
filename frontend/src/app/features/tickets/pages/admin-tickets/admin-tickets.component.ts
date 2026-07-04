@@ -1,5 +1,5 @@
 // src/app/features/tickets/pages/admin-tickets/admin-tickets.component.ts
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -21,6 +21,7 @@ interface PaisOpcion { paisId: number; paisNombre: string; }
   selector: 'app-admin-tickets',
   standalone: true,
   imports: [FormsModule, TicketListComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './admin-tickets.component.html',
 })
 export class AdminTicketsComponent implements OnInit {

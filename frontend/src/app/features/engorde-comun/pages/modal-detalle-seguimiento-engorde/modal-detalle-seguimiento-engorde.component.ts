@@ -1,6 +1,7 @@
 import {
   Component, Input, Output, EventEmitter,
-  OnChanges, SimpleChanges, ChangeDetectorRef, HostListener
+  OnChanges, SimpleChanges, ChangeDetectorRef, HostListener,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import { forkJoin, of } from 'rxjs';
@@ -28,6 +29,7 @@ export interface ItemDetalleEngorde {
   standalone: true,
   imports: [FontAwesomeModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-detalle-seguimiento-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-detalle-seguimiento-engorde.component.scss']
 })
 export class ModalDetalleSeguimientoEngordeComponent implements OnChanges {

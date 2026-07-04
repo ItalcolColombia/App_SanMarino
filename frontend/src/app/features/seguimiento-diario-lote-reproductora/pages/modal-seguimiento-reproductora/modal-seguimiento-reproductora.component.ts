@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
@@ -41,6 +41,7 @@ interface ItemSeguimientoDto {
     ShowIfEcuadorPanamaDirective
   ],
   templateUrl: './modal-seguimiento-reproductora.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-seguimiento-reproductora.component.scss']
 })
 export class ModalSeguimientoReproductoraComponent implements OnInit, OnChanges, OnDestroy {

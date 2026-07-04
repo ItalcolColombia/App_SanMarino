@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/inventario-tabs/inventario-tabs.component.ts
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faBoxesStacked, faRightLeft, faWarehouse, faScrewdriverWrench, faList, faClipboardCheck, faArrowsUpDown, faBook, faWheatAwn } from '@fortawesome/free-solid-svg-icons';
@@ -23,6 +23,7 @@ type TabKey = 'movimientos' | 'movimiento-alimento' | 'ajuste' | 'kardex' | 'con
     CatalogoAlimentosTabComponent
 ],
   templateUrl: './inventario-tabs.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./inventario-tabs.component.scss']
 })
 

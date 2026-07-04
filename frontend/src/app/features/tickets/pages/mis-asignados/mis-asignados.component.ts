@@ -1,5 +1,5 @@
 // src/app/features/tickets/pages/mis-asignados/mis-asignados.component.ts
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -17,6 +17,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
   selector: 'app-mis-asignados',
   standalone: true,
   imports: [FormsModule, TicketListComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="min-h-full bg-gradient-to-b from-ital-cream/60 to-transparent">
       <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">

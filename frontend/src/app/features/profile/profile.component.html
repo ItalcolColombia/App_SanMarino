@@ -150,24 +150,24 @@
                         <div class="password-requirements">
                           <h4>Requisitos de contraseña:</h4>
                           <ul>
-                            <li [class.valid]="hasMinLength(passwordForm.get('newPassword')?.value)">
-                              <fa-icon [icon]="hasMinLength(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']"
-                              [style.color]="hasMinLength(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                            <li [class.valid]="hasMinLength($safeNavigationMigration(passwordForm.get('newPassword')?.value))">
+                              <fa-icon [icon]="hasMinLength($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? ['fas', 'check-circle'] : ['fas', 'circle']"
+                              [style.color]="hasMinLength($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? '#22c55e' : '#9ca3af'"></fa-icon>
                               Mínimo 6 caracteres
                             </li>
-                            <li [class.valid]="hasNumber(passwordForm.get('newPassword')?.value)">
-                              <fa-icon [icon]="hasNumber(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']"
-                              [style.color]="hasNumber(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                            <li [class.valid]="hasNumber($safeNavigationMigration(passwordForm.get('newPassword')?.value))">
+                              <fa-icon [icon]="hasNumber($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? ['fas', 'check-circle'] : ['fas', 'circle']"
+                              [style.color]="hasNumber($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? '#22c55e' : '#9ca3af'"></fa-icon>
                               Al menos 1 número
                             </li>
-                            <li [class.valid]="hasLetter(passwordForm.get('newPassword')?.value)">
-                              <fa-icon [icon]="hasLetter(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']"
-                              [style.color]="hasLetter(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                            <li [class.valid]="hasLetter($safeNavigationMigration(passwordForm.get('newPassword')?.value))">
+                              <fa-icon [icon]="hasLetter($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? ['fas', 'check-circle'] : ['fas', 'circle']"
+                              [style.color]="hasLetter($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? '#22c55e' : '#9ca3af'"></fa-icon>
                               Al menos 1 letra
                             </li>
-                            <li [class.valid]="hasSpecialChar(passwordForm.get('newPassword')?.value)">
-                              <fa-icon [icon]="hasSpecialChar(passwordForm.get('newPassword')?.value) ? ['fas', 'check-circle'] : ['fas', 'circle']"
-                              [style.color]="hasSpecialChar(passwordForm.get('newPassword')?.value) ? '#22c55e' : '#9ca3af'"></fa-icon>
+                            <li [class.valid]="hasSpecialChar($safeNavigationMigration(passwordForm.get('newPassword')?.value))">
+                              <fa-icon [icon]="hasSpecialChar($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? ['fas', 'check-circle'] : ['fas', 'circle']"
+                              [style.color]="hasSpecialChar($safeNavigationMigration(passwordForm.get('newPassword')?.value)) ? '#22c55e' : '#9ca3af'"></fa-icon>
                               Al menos 1 carácter especial (recomendado)
                             </li>
                           </ul>

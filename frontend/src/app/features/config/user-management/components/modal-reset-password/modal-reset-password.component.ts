@@ -1,7 +1,8 @@
 // src/app/features/config/user-management/components/modal-reset-password/modal-reset-password.component.ts
 import {
   Component, Input, Output, EventEmitter, OnChanges, SimpleChanges,
-  ChangeDetectorRef, inject
+  ChangeDetectorRef, inject,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
@@ -27,6 +28,7 @@ function passwordMatchValidator(control: AbstractControl): ValidationErrors | nu
   standalone: true,
   imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './modal-reset-password.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-reset-password.component.scss']
 })
 export class ModalResetPasswordComponent implements OnChanges {

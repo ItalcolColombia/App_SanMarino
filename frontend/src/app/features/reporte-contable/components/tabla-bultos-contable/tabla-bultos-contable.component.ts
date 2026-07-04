@@ -1,5 +1,5 @@
 // src/app/features/reporte-contable/components/tabla-bultos-contable/tabla-bultos-contable.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReporteContableSemanalDto, DatoDiarioContableDto } from '../../services/reporte-contable.service';
 
@@ -8,6 +8,7 @@ import { ReporteContableSemanalDto, DatoDiarioContableDto } from '../../services
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-bultos-contable.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-bultos-contable.component.scss']
 })
 export class TablaBultosContableComponent {

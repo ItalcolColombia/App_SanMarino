@@ -1,4 +1,4 @@
-﻿import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+﻿import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoLoteLevanteDto } from '../../../lote-levante/services/seguimiento-lote-levante.service';
 import { LoteDto } from '../../../lote/services/lote.service';
@@ -14,6 +14,7 @@ import { formatDecimalTrim } from '../../../../shared/utils/format-decimal';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-indicadores-diarios-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-indicadores-diarios-engorde.component.scss']
 })
 export class TablaIndicadoresDiariosEngordeComponent implements OnChanges {

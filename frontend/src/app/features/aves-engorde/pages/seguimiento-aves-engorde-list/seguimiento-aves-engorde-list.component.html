@@ -40,7 +40,7 @@
 
           @if (selectedLoteId) {
             <span class="chip chip--muted">
-              {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días
+              {{ calcularEdadDias($safeNavigationMigration(selectedLote?.fechaEncaset)) }} días
             </span>
           }
 

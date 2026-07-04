@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { of } from 'rxjs';
@@ -53,6 +53,7 @@ import { HasPermissionDirective } from '../../../../core/auth/has-permission.dir
     HasPermissionDirective
   ],
   templateUrl: './seguimiento-aves-engorde-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./seguimiento-aves-engorde-list.component.scss']
 })
 export class SeguimientoAvesEngordeListComponent implements OnInit {

@@ -327,7 +327,7 @@
                 @if (detalleData?.fechaEncasetamiento) {
                   <div class="detail-item">
                     <span class="detail-label">Fecha Encasetamiento</span>
-                    <span class="detail-value">{{ detalleData?.fechaEncasetamiento | date:'dd/MM/yyyy' }}</span>
+                    <span class="detail-value">{{ $safeNavigationMigration(detalleData?.fechaEncasetamiento) | date:'dd/MM/yyyy' }}</span>
                   </div>
                 }
               </div>
@@ -371,7 +371,7 @@
                 @if (detalleData?.pesoMixto) {
                   <div class="detail-item">
                     <span class="detail-label">Peso Mixto (kg)</span>
-                    <span class="detail-value">{{ detalleData?.pesoMixto | number:'1.0-3' }}</span>
+                    <span class="detail-value">{{ $safeNavigationMigration(detalleData?.pesoMixto) | number:'1.0-3' }}</span>
                   </div>
                 }
               </div>

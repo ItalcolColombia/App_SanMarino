@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { FormsModule } from '@angular/forms';
@@ -23,6 +23,7 @@ import type { LoteAveEngordeDto } from '../../../lote-engorde/services/lote-engo
   standalone: true,
   templateUrl: './lote-reproductora-ave-engorde-list.component.html',
   styleUrls: ['./lote-reproductora-ave-engorde-list.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
     FormsModule,
     ReactiveFormsModule,

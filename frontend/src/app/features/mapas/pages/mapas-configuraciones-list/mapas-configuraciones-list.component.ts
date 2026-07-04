@@ -1,4 +1,4 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -10,6 +10,7 @@ import { MapaEjecutarModalComponent } from '../../components/mapa-ejecutar-modal
   standalone: true,
   imports: [FormsModule, RouterLink, MapaEjecutarModalComponent],
   templateUrl: './mapas-configuraciones-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./mapas-configuraciones-list.component.scss']
 })
 export class MapasConfiguracionesListComponent implements OnInit {

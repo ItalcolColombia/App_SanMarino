@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -15,6 +15,7 @@ import {
   standalone: true,
   imports: [FormsModule, ReactiveFormsModule],
   templateUrl: './historial-trazabilidad.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./historial-trazabilidad.component.scss']
 })
 export class HistorialTrazabilidadComponent implements OnInit {

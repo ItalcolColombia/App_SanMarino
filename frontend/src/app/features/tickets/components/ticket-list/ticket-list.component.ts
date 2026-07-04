@@ -1,5 +1,5 @@
 // src/app/features/tickets/components/ticket-list/ticket-list.component.ts
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TicketListItem, TIPO_LABEL, ESTADO_BORDER } from '../../models/ticket.models';
@@ -13,6 +13,7 @@ import { TicketEstadoBadgeComponent } from '../ticket-estado-badge/ticket-estado
   selector: 'app-ticket-list',
   standalone: true,
   imports: [CommonModule, RouterLink, TicketEstadoBadgeComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading) {
       <!-- Skeleton -->

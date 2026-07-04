@@ -499,7 +499,7 @@
                 <div>
                   <h2>📋 Detalles del Lote #{{ loteSeleccionado()?.loteId }}</h2>
                   <p class="text-sm text-muted mt-1">
-                    {{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}
+                    {{ obtenerNombreGranja($safeNavigationMigration(loteSeleccionado()?.granjaId)) }}
                     @if (nucleoMap[loteSeleccionado()?.nucleoId || '']) {
                       <span>
                         • {{ nucleoMap[loteSeleccionado()?.nucleoId || ''] }}
@@ -576,7 +576,7 @@
                     <div class="info-card__content">
                       <div class="info-row">
                         <span class="info-label">Granja:</span>
-                        <span class="info-value">{{ obtenerNombreGranja(loteSeleccionado()?.granjaId) }}</span>
+                        <span class="info-value">{{ obtenerNombreGranja($safeNavigationMigration(loteSeleccionado()?.granjaId)) }}</span>
                       </div>
                       @if (nucleoMap[loteSeleccionado()?.nucleoId || '']) {
                         <div class="info-row">
@@ -1202,7 +1202,7 @@
                               </div>
                               @if (trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']) {
                                 <small class="text-danger">
-                                  Máximo: {{ trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
+                                  Máximo: {{ $safeNavigationMigration(trasladoForm.get('cantidadHembras')?.errors?.['exceedsAvailable']?.max) | number : '1.0-0' }}
                                 </small>
                               }
                             </div>
@@ -1217,7 +1217,7 @@
                                 </div>
                                 @if (trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']) {
                                   <small class="text-danger">
-                                    Máximo: {{ trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']?.max | number : '1.0-0' }}
+                                    Máximo: {{ $safeNavigationMigration(trasladoForm.get('cantidadMachos')?.errors?.['exceedsAvailable']?.max) | number : '1.0-0' }}
                                   </small>
                                 }
                               </div>
@@ -1326,7 +1326,7 @@
                                 <span class="info-icon">🏠</span>
                                 <div class="info-content">
                                   <span class="info-label">Granja</span>
-                                  <span class="info-value">{{ obtenerNombreGranja(loteCompleto()?.granjaId) }}</span>
+                                  <span class="info-value">{{ obtenerNombreGranja($safeNavigationMigration(loteCompleto()?.granjaId)) }}</span>
                                 </div>
                               </div>
                               <div class="info-item info-item--enhanced">

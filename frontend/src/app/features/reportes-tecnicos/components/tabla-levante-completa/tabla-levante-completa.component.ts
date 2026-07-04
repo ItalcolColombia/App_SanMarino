@@ -1,5 +1,5 @@
 // src/app/features/reportes-tecnicos/components/tabla-levante-completa/tabla-levante-completa.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReporteTecnicoLevanteSemanalDto } from '../../services/reporte-tecnico.service';
 
@@ -8,6 +8,7 @@ import { ReporteTecnicoLevanteSemanalDto } from '../../services/reporte-tecnico.
   standalone: true,
   imports: [],
   templateUrl: './tabla-levante-completa.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-levante-completa.component.scss']
 })
 export class TablaLevanteCompletaComponent {

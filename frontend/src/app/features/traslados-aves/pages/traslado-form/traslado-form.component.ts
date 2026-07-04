@@ -1,5 +1,5 @@
 //app/features/traslados-aves/pages/traslado-form/traslado-form.component.ts
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -17,6 +17,7 @@ import {
   standalone: true,
   imports: [ReactiveFormsModule, HierarchicalFilterComponent],
   templateUrl: './traslado-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslado-form.component.scss']
 })
 export class TrasladoFormComponent implements OnInit {

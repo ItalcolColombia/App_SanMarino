@@ -1,5 +1,5 @@
 // src/app/features/traslados-aves/components/traslado-navigation-list/traslado-navigation-list.component.ts
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { TrasladoNavigationService, MovimientoAvesCompleto, MovimientoAvesCompletoSearchRequest } from '../../../../core/services/traslado-navigation/traslado-navigation.service';
@@ -10,6 +10,7 @@ import { TrasladoNavigationCardComponent } from '../traslado-navigation-card/tra
   standalone: true,
   imports: [FormsModule, TrasladoNavigationCardComponent],
   templateUrl: './traslado-navigation-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./traslado-navigation-list.component.scss']
 })
 export class TrasladoNavigationListComponent implements OnInit {

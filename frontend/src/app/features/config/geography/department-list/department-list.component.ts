@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import {
   ReactiveFormsModule,
@@ -27,6 +27,7 @@ import { Observable } from 'rxjs/internal/Observable';
     FontAwesomeModule
 ],
   templateUrl: './department-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./department-list.component.scss']
 })
 export class DepartmentListComponent implements OnInit {

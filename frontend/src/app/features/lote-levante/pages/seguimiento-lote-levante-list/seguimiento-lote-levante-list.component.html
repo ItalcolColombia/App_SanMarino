@@ -41,7 +41,7 @@
 
           @if (selectedLoteId) {
             <span class="chip chip--muted">
-              {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días
+              {{ calcularEdadDias($safeNavigationMigration(selectedLote?.fechaEncaset)) }} días
             </span>
           }
 
@@ -194,8 +194,8 @@
           </div>
           @if (selectedLote?.fechaEncaset) {
             <div class="grid grid-2">
-              <p><strong>Edad al cierre:</strong> {{ calcularEdadDias(selectedLote?.fechaEncaset) }} días</p>
-              <p><strong>Fecha encasetamiento:</strong> {{ selectedLote?.fechaEncaset | date:'dd/MM/yyyy' }}</p>
+              <p><strong>Edad al cierre:</strong> {{ calcularEdadDias($safeNavigationMigration(selectedLote?.fechaEncaset)) }} días</p>
+              <p><strong>Fecha encasetamiento:</strong> {{ $safeNavigationMigration(selectedLote?.fechaEncaset) | date:'dd/MM/yyyy' }}</p>
             </div>
           }
           @if (resumenSelected; as rs) {

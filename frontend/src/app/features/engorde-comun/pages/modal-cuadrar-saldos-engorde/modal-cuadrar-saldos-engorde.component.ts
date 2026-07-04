@@ -1,5 +1,6 @@
 import {
-  Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, HostListener
+  Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, HostListener,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -21,6 +22,7 @@ type ModalStep = 'upload' | 'validating' | 'validated' | 'applying' | 'applied';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './modal-cuadrar-saldos-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-cuadrar-saldos-engorde.component.scss']
 })
 export class ModalCuadrarSaldosEngordeComponent implements OnChanges {

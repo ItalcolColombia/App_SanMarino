@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   FormsModule,
@@ -30,6 +30,7 @@ type Genero = 'Hembra'|'Macho'|'Mixto';
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './catalogo-alimentos-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./catalogo-alimentos-list.component.scss']
 })
 export class CatalogoAlimentosListComponent implements OnInit {

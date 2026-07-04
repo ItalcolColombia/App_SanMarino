@@ -1,5 +1,5 @@
 // src/app/features/tickets/pages/gestion-tickets/gestion-tickets.component.ts
-import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -17,6 +17,7 @@ import { ToastService } from '../../../../shared/services/toast.service';
   selector: 'app-gestion-tickets',
   standalone: true,
   imports: [FormsModule, TicketListComponent],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './gestion-tickets.component.html',
 })
 export class GestionTicketsComponent implements OnInit {

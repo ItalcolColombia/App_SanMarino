@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/kardex-list/kardex-list.component.ts
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { InventarioService, FarmDto, CatalogItemDto, KardexItemDto } from '../../services/inventario.service';
@@ -9,6 +9,7 @@ import { InventarioService, FarmDto, CatalogItemDto, KardexItemDto } from '../..
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './kardex-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./kardex-list.component.scss']
 })
 export class KardexListComponent {

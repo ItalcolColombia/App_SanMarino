@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -13,6 +13,7 @@ import { ConfirmationModalComponent, ConfirmationModalData } from '../../shared/
   standalone: true,
   imports: [ReactiveFormsModule, RouterModule, FontAwesomeModule, ConfirmationModalComponent],
   templateUrl: './profile.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./profile.component.scss']
 })
 export class ProfileComponent implements OnInit {

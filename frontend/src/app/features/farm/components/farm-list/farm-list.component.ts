@@ -1,5 +1,5 @@
 // src/app/features/farm/components/farm-list/farm-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   FormsModule,
@@ -40,6 +40,7 @@ import { ClienteDto } from '../../../clientes/models/cliente.models';
     ConfirmationModalComponent,
   ],
   templateUrl: './farm-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./farm-list.component.scss'],
 })
 export class FarmListComponent implements OnInit {

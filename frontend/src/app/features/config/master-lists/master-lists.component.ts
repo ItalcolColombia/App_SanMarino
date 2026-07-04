@@ -1,5 +1,5 @@
 // src/app/features/config/master-lists/master-lists.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { RouterModule, Router } from '@angular/router';
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
@@ -27,6 +27,7 @@ import { finalize } from 'rxjs';
     ModalEditMasterListComponent
 ],
   templateUrl: './master-lists.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./master-lists.component.scss']
 })
 export class MasterListsComponent implements OnInit {

@@ -1,4 +1,4 @@
-import { Component, OnInit, Input, Output, EventEmitter, signal, computed } from '@angular/core';
+import { Component, OnInit, Input, Output, EventEmitter, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { LoteService, LoteDto } from '../../../features/lote/services/lote.service';
@@ -28,6 +28,7 @@ export interface HierarchicalFilterState {
   standalone: true,
   imports: [FormsModule],
   templateUrl: './hierarchical-filter.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./hierarchical-filter.component.scss']
 })
 export class HierarchicalFilterComponent implements OnInit {

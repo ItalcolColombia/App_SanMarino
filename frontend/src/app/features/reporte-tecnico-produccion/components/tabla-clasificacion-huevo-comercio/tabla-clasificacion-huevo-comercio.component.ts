@@ -1,5 +1,5 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-clasificacion-huevo-comercio/tabla-clasificacion-huevo-comercio.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 import { 
   ReporteClasificacionHuevoComercioDto, 
@@ -11,6 +11,7 @@ import {
   standalone: true,
   imports: [],
   templateUrl: './tabla-clasificacion-huevo-comercio.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-clasificacion-huevo-comercio.component.scss']
 })
 export class TablaClasificacionHuevoComercioComponent {

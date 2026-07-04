@@ -1,5 +1,5 @@
 // apps/features/catalogo-alimentos/pages/catalogo-alimentos-form/catalogo-alimentos-form.component.ts
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import {
   FormArray,
@@ -26,6 +26,7 @@ type Genero = 'Hembra' | 'Macho' | 'Mixto';
   standalone: true,
   imports: [ReactiveFormsModule],
   templateUrl: './catalogo-alimentos-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./catalogo-alimentos-form.component.scss']
 })
 export class CatalogoAlimentosFormComponent implements OnInit {

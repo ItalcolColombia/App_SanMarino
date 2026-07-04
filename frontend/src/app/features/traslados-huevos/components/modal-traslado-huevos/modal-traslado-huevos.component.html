@@ -79,7 +79,7 @@
         <form [formGroup]="formHuevos" (ngSubmit)="onSubmitHuevos()" class="traslado-form traslado-form--fullwidth">
           <div class="form-section form-section--compact">
             <h3 class="form-section__title">Datos del movimiento</h3>
-            <div class="form-row" [ngClass]="esTipoVenta(formHuevos.get('tipoOperacion')?.value) ? 'form-row--3' : 'form-row--2'">
+            <div class="form-row" [ngClass]="esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value)) ? 'form-row--3' : 'form-row--2'">
               <div class="form-group">
                 <label for="fechaTrasladoHuevos">Fecha <span class="required">*</span></label>
                 <input
@@ -101,7 +101,7 @@
                     }
                   </select>
                 </div>
-                @if (esTipoVenta(formHuevos.get('tipoOperacion')?.value)) {
+                @if (esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value))) {
                   <div class="form-group">
                     <label for="tipoDestinoHuevos">Tipo de destino <span class="required">*</span></label>
                     <select
@@ -121,7 +121,7 @@
                     }
                   </div>
                 }
-                @if (esTipoTraslado(formHuevos.get('tipoOperacion')?.value)) {
+                @if (esTipoTraslado($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value))) {
                   <div class="form-group">
                     <label>Tipo de destino <span class="required">*</span></label>
                     <div class="traslado-destino-fijo">Planta (por defecto)</div>
@@ -196,7 +196,7 @@
                     </div>
                   }
                 </div>
-                @if (esTipoVenta(formHuevos.get('tipoOperacion')?.value)) {
+                @if (esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value))) {
                   <div class="form-section form-section--compact">
                     <h3 class="form-section__title">Venta</h3>
                     <div class="form-group">
@@ -224,7 +224,7 @@
                       formControlName="observaciones"
                       class="form-control"
                       rows="2"
-                      [placeholder]="esTipoVenta(formHuevos.get('tipoOperacion')?.value) ? 'Opcional: notas adicionales' : 'Opcional: notas del traslado'"
+                      [placeholder]="esTipoVenta($safeNavigationMigration(formHuevos.get('tipoOperacion')?.value)) ? 'Opcional: notas adicionales' : 'Opcional: notas del traslado'"
                       [readonly]="isReadOnly()">
                     </textarea>
                   </div>

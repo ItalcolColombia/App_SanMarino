@@ -1,5 +1,5 @@
 // src/app/features/gestion-inventario/pages/gestion-inventario-page/gestion-inventario-page.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
 import { FormsModule } from '@angular/forms';
@@ -41,6 +41,7 @@ type TrasladoModo = 'mismaGranja' | 'interGranja';
   standalone: true,
   imports: [FormsModule, FontAwesomeModule, HasPermissionDirective],
   templateUrl: './gestion-inventario-page.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./gestion-inventario-page.component.scss']
 })
 export class GestionInventarioPageComponent implements OnInit {

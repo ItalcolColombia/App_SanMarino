@@ -1,5 +1,5 @@
 // src/app/shared/components/toast-notification/toast-notification.component.ts
-import { Component, Input, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -21,6 +21,7 @@ export interface ToastConfig {
   standalone: true,
   imports: [FontAwesomeModule],
   templateUrl: './toast-notification.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./toast-notification.component.scss']
 })
 export class ToastNotificationComponent implements OnInit, OnDestroy {

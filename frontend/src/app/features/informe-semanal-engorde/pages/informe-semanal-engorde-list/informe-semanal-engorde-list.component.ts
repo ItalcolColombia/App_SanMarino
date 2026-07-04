@@ -1,5 +1,5 @@
 // frontend/src/app/features/informe-semanal-engorde/pages/informe-semanal-engorde-list/informe-semanal-engorde-list.component.ts
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -33,6 +33,7 @@ interface FilterDataPolloEngordeResponse {
   standalone: true,
   imports: [FormsModule],
   templateUrl: './informe-semanal-engorde-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./informe-semanal-engorde-list.component.scss']
 })
 export class InformeSemanalEngordeListComponent implements OnInit {

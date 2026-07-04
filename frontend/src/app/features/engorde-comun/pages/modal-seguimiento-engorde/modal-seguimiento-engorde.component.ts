@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, OnDestroy, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { TokenStorageService } from '../../../../core/auth/token-storage.service';
 import { CommonModule } from '@angular/common';
@@ -19,6 +19,7 @@ import { AvesDisponiblesDto } from '../../../lote-reproductora-ave-engorde/servi
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, ShowIfEcuadorPanamaDirective],
   templateUrl: './modal-seguimiento-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-seguimiento-engorde.component.scss']
 })
 export class ModalSeguimientoEngordeComponent implements OnInit, OnChanges, OnDestroy {

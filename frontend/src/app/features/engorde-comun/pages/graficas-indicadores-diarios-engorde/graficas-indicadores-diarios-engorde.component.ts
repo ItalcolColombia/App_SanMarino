@@ -1,4 +1,4 @@
-﻿import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+﻿import { Component, Input, OnChanges, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 
 import { NgChartsModule } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
@@ -14,6 +14,7 @@ import { IndicadorDiarioFilaEngorde } from '../../models/indicadores-diarios-eng
   standalone: true,
   imports: [NgChartsModule],
   templateUrl: './graficas-indicadores-diarios-engorde.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./graficas-indicadores-diarios-engorde.component.scss']
 })
 export class GraficasIndicadoresDiariosEngordeComponent implements OnChanges {

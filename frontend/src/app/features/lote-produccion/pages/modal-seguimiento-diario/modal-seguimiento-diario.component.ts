@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
 import { CrearSeguimientoRequest, SeguimientoItemDto } from '../../services/produccion.service';
@@ -37,6 +37,7 @@ export interface MetadataSeguimientoNormalizada {
   standalone: true,
   imports: [CommonModule, FormsModule, ReactiveFormsModule, ConfirmationModalComponent],
   templateUrl: './modal-seguimiento-diario.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-seguimiento-diario.component.scss']
 })
 export class ModalSeguimientoDiarioComponent implements OnInit, OnChanges {

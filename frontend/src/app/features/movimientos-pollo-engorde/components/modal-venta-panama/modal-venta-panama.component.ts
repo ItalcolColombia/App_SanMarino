@@ -5,7 +5,8 @@ import {
   EventEmitter,
   OnChanges,
   SimpleChanges,
-  ChangeDetectorRef
+  ChangeDetectorRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
@@ -30,6 +31,7 @@ const SIN_GALPON = '__SIN_GALPON__';
   standalone: true,
   imports: [ReactiveFormsModule, FormsModule],
   templateUrl: './modal-venta-panama.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-venta-panama.component.scss']
 })
 export class ModalVentaPanamaComponent implements OnChanges {

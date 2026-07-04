@@ -1,5 +1,5 @@
 // src/app/features/config/master-lists/list-detail/list-detail.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import {
   FormBuilder,
@@ -34,6 +34,7 @@ import { finalize } from 'rxjs';
     FontAwesomeModule
 ],
   templateUrl: './list-detail.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./list-detail.component.scss']
 })
 export class ListDetailComponent implements OnInit {

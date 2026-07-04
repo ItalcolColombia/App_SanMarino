@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -21,6 +21,7 @@ import { LoteService, LoteDto } from '../../../lote/services/lote.service';
   standalone: true,
   imports: [FormsModule, ReactiveFormsModule],
   templateUrl: './seguimiento-aves-engorde-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./seguimiento-aves-engorde-form.component.scss']
 })
 export class SeguimientoEngordeFormComponent implements OnInit {

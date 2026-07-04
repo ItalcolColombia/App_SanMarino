@@ -8,7 +8,8 @@ import {
   computed,
   inject,
   signal,
-  DestroyRef
+  DestroyRef,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import {
@@ -48,6 +49,7 @@ type TabKey = 'listado' | 'resumen';
   standalone: true,
   imports: [ReactiveFormsModule],
   templateUrl: './lesion-tab.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lesion-tab.component.scss']
 })
 export class LesionTabComponent implements OnInit, OnChanges {

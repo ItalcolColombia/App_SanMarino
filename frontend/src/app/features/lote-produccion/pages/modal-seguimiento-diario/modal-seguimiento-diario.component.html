@@ -163,13 +163,13 @@
                         <label [for]="'f-item-h-' + i">Ítem *</label>
                         <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                            Disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.unit }}
                           </small>
                         }
                       </div>
@@ -259,13 +259,13 @@
                         <label [for]="'f-item-m-' + i">Ítem *</label>
                         <select [id]="'f-item-m-' + i" formControlName="catalogItemId">
                           <option [ngValue]="null">— Seleccione —</option>
-                          @for (a of getAlimentosFiltradosPorTipo(itemGroup.get('tipoItem')?.value); track a) {
+                          @for (a of getAlimentosFiltradosPorTipo($safeNavigationMigration(itemGroup.get('tipoItem')?.value)); track a) {
                             <option [ngValue]="a.id">{{ getItemDisplayText(a) }}</option>
                           }
                         </select>
-                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponible(itemGroup.get('catalogItemId')?.value)) {
+                        @if (itemGroup.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))) {
                           <small class="ux-hint text-success">
-                            Disponible: {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemGroup.get('catalogItemId')?.value)?.unit }}
+                            Disponible: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemGroup.get('catalogItemId')?.value))?.unit }}
                           </small>
                         }
                       </div>
@@ -337,7 +337,7 @@
                   <option value="Final">Final</option>
                   <!-- Al editar, si el registro trae un tipoAlimento desde el backend que no está en la lista fija, se muestra aquí -->
                   @if (editingSeguimiento?.tipoAlimento && !['Standard','Premium','Inicio','Postura','Final'].includes(editingSeguimiento?.tipoAlimento ?? '')) {
-                    <option [value]="editingSeguimiento?.tipoAlimento">{{ editingSeguimiento?.tipoAlimento }}</option>
+                    <option [value]="$safeNavigationMigration(editingSeguimiento?.tipoAlimento)">{{ editingSeguimiento?.tipoAlimento }}</option>
                   }
                 </select>
                 <small class="ux-hint">Tipo de alimento utilizado</small>

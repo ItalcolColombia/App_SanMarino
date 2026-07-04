@@ -1,5 +1,5 @@
 // src/app/features/reporte-contable/components/tabla-movimientos-huevos/tabla-movimientos-huevos.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReporteMovimientosHuevosDto, MovimientoHuevoDiarioDto } from '../../services/reporte-contable.service';
 
@@ -8,6 +8,7 @@ import { ReporteMovimientosHuevosDto, MovimientoHuevoDiarioDto } from '../../ser
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-movimientos-huevos.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-movimientos-huevos.component.scss']
 })
 export class TablaMovimientosHuevosComponent {

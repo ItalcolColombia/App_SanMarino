@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 
 import { AuditoriaVentasEngordeResponse, AuditoriaVentasLoteDetalle } from '../../services/movimiento-pollo-engorde.service';
 
@@ -7,6 +7,7 @@ import { AuditoriaVentasEngordeResponse, AuditoriaVentasLoteDetalle } from '../.
   standalone: true,
   imports: [],
   templateUrl: './auditoria-ventas-modal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./auditoria-ventas-modal.component.scss']
 })
 export class AuditoriaVentasModalComponent {

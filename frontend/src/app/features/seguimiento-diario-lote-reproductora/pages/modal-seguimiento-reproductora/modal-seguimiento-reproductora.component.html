@@ -133,7 +133,7 @@
                   Alimento
                   @if (alimentoSeleccionado && getCantidadDisponible(alimentoSeleccionado.id)) {
                     <span class="sr-stock sr-stock--ok">
-                      — Stock disponible: {{ getCantidadDisponible(alimentoSeleccionado.id)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(alimentoSeleccionado.id)?.unit }}
+                      — Stock disponible: {{ $safeNavigationMigration(getCantidadDisponible(alimentoSeleccionado.id)?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible(alimentoSeleccionado.id)?.unit }}
                     </span>
                   }
                 </label>

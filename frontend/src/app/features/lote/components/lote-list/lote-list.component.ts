@@ -1,5 +1,5 @@
 // src/app/features/lote/pages/lote-list/lote-list.component.ts
-import { Component, OnInit, Directive, ElementRef, HostListener, Input } from '@angular/core';
+import { Component, OnInit, Directive, ElementRef, HostListener, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule, NgControl
@@ -141,6 +141,7 @@ export class ThousandSeparatorDirective {
     ConfirmationModalComponent
   ],
   templateUrl: './lote-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lote-list.component.scss']
 })
 export class LoteListComponent implements OnInit {

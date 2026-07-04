@@ -1,5 +1,5 @@
 // src/app/features/config/user-management/user-management.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FontAwesomeModule, FaIconLibrary } from '@fortawesome/angular-fontawesome';
 import {
@@ -18,6 +18,7 @@ import { UserListItem } from '../../../core/services/user/user.service';
   standalone: true,
   imports: [FontAwesomeModule, TablaListaRegistroComponent, ModalCreateEditComponent, AsignarUsuarioGranjaComponent, ModalResetPasswordComponent],
   templateUrl: './user-management.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./user-management.component.scss']
 })
 export class UserManagementComponent implements OnInit {

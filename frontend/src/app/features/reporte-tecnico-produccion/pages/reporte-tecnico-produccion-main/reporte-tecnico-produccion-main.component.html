@@ -41,7 +41,7 @@
 
           @if (selectedLoteId && reporte()?.loteInfo?.fechaInicioProduccion) {
             <span class="chip chip--muted">
-              {{ calcularEdadDias(reporte()?.loteInfo?.fechaInicioProduccion) }} días
+              {{ calcularEdadDias($safeNavigationMigration(reporte()?.loteInfo?.fechaInicioProduccion)) }} días
             </span>
           }
         </div>

@@ -78,18 +78,18 @@
                           <div class="ux-select">
                             <select [id]="'f-item-h-' + i" formControlName="catalogItemId">
                               <option [ngValue]="null">— Seleccione —</option>
-                              @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)), itemH.get('catalogItemId')?.value); track a) {
+                              @for (a of getAlimentosFiltradosPorTipo(tipoItemFiltroHembra($any(itemH)), $safeNavigationMigration(itemH.get('catalogItemId')?.value)); track a) {
                                 <option [ngValue]="a.id">
                                   {{ getItemDisplayText(a) }}
                                 </option>
                               }
                             </select>
                           </div>
-                          @if (itemH.get('catalogItemId')?.value && getCantidadDisponible(itemH.get('catalogItemId')?.value)) {
+                          @if (itemH.get('catalogItemId')?.value && getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))) {
                             <small class="ux-hint text-success">
-                              Disponible actual: {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.quantity | number:'1.0-2' }} {{ getCantidadDisponible(itemH.get('catalogItemId')?.value)?.unit }}
+                              Disponible actual: {{ $safeNavigationMigration(getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.quantity) | number:'1.0-2' }} {{ getCantidadDisponible($safeNavigationMigration(itemH.get('catalogItemId')?.value))?.unit }}
                               @if (editing) {
-                                • Máximo para editar: {{ getMaxPermitidoKg(itemH.get('catalogItemId')?.value) | number:'1.0-2' }} kg
+                                • Máximo para editar: {{ getMaxPermitidoKg($safeNavigationMigration(itemH.get('catalogItemId')?.value)) | number:'1.0-2' }} kg
                               }
                             </small>
                           }

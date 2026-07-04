@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -17,6 +17,7 @@ import {
   standalone: true,
   imports: [FormsModule, RouterLink],
   templateUrl: './mapa-ejecutar-placeholder.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./mapa-ejecutar-placeholder.component.scss']
 })
 export class MapaEjecutarPlaceholderComponent implements OnInit, OnDestroy {

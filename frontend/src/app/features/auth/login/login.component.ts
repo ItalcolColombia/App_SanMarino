@@ -1,5 +1,5 @@
 // src/app/features/auth/login/login.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule }      from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -15,6 +15,7 @@ import { InputSanitizerService } from '../../../core/services/security/input-san
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterModule, FormsModule, RecaptchaModule, RecaptchaFormsModule],
   templateUrl: './login.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent implements OnInit {

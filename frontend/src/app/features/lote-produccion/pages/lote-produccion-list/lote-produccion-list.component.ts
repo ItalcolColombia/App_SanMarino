@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, OnInit, ViewChild, inject, ChangeDetectionStrategy } from '@angular/core';
 
 import { HttpClient } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -51,6 +51,7 @@ import { LotePosturaProduccionService } from '../../../lote/services/lote-postur
     ModalTrasladoAvesSeguimientoComponent
 ],
   templateUrl: './lote-produccion-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./lote-produccion-list.component.scss']
 })
 export class LoteProduccionListComponent implements OnInit {

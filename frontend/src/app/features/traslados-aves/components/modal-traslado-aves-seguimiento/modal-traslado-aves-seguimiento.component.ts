@@ -1,6 +1,7 @@
 import {
   Component, Input, Output, EventEmitter,
-  OnChanges, SimpleChanges, inject
+  OnChanges, SimpleChanges, inject,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -34,6 +35,7 @@ export interface OrigenTrasladoInfo {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './modal-traslado-aves-seguimiento.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-traslado-aves-seguimiento.component.scss']
 })
 export class ModalTrasladoAvesSeguimientoComponent implements OnChanges {

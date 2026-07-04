@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -41,6 +41,7 @@ export interface FilterDataResponse {
   standalone: true,
   imports: [FormsModule],
   templateUrl: './filtro-select.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./filtro-select.component.scss']
 })
 export class FiltroSelectComponent implements OnInit {

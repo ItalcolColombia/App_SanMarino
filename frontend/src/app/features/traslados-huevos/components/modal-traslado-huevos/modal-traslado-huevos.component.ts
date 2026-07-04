@@ -1,5 +1,5 @@
 // frontend/src/app/features/traslados-huevos/components/modal-traslado-huevos/modal-traslado-huevos.component.ts
-import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, signal, computed } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChanges, signal, computed, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl, ValidationErrors } from '@angular/forms';
 import { TrasladosHuevosService, DisponibilidadLoteDto, CrearTrasladoHuevosDto, ActualizarTrasladoHuevosDto, HuevosDisponiblesDto, TrasladoHuevosDto } from '../../services/traslados-huevos.service';
@@ -11,6 +11,7 @@ import { MasterListService } from '../../../../core/services/master-list/master-
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './modal-traslado-huevos.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-traslado-huevos.component.scss']
 })
 export class ModalTrasladoHuevosComponent implements OnInit, OnChanges {

@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { LiquidacionTecnicaComponent } from '../../components/liquidacion-tecnica/liquidacion-tecnica.component';
 import { LiquidacionComparacionComponent } from '../../components/liquidacion-comparacion/liquidacion-comparacion.component';
@@ -8,6 +8,7 @@ import { LiquidacionComparacionComponent } from '../../components/liquidacion-co
   standalone: true,
   imports: [LiquidacionTecnicaComponent, LiquidacionComparacionComponent],
   templateUrl: './modal-liquidacion.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-liquidacion.component.scss']
 })
 export class ModalLiquidacionComponent implements OnInit {

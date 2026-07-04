@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/ajuste-form/ajuste-form.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -12,6 +12,7 @@ import { InventarioService, CatalogItemDto, FarmDto } from '../../services/inven
   standalone: true,
   imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './ajuste-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./ajuste-form.component.scss']
 })
 export class AjusteFormComponent implements OnInit {

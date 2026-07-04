@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -15,6 +15,7 @@ import { ExcelImportResultDto, GuiaGeneticaAdminService, ProduccionAvicolaRawDto
   standalone: true,
   imports: [RouterModule, FormsModule, FontAwesomeModule],
   templateUrl: './guia-genetica-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./guia-genetica-list.component.scss']
 })
 export class GuiaGeneticaListComponent implements OnInit, OnDestroy {

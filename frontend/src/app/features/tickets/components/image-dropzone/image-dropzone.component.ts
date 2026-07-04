@@ -1,5 +1,5 @@
 // src/app/features/tickets/components/image-dropzone/image-dropzone.component.ts
-import { Component, EventEmitter, Input, OnDestroy, Output, inject, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, Output, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 
 import { ToastService } from '../../../../shared/services/toast.service';
 import { compressImage, blobToBase64 } from '../../services/image-compression.util';
@@ -23,6 +23,7 @@ interface PreviewImage {
   selector: 'app-image-dropzone',
   standalone: true,
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <div class="space-y-3">
       <!-- Zona drag & drop -->

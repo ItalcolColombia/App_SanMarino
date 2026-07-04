@@ -10,7 +10,7 @@
               Lote: {{ loteLabel(lid) }}
             </span>
             <span class="chip chip--muted">
-              {{ calcularEdadDias(lotesById[lid]?.fechaEncaset) }} días
+              {{ calcularEdadDias($safeNavigationMigration(lotesById[lid]?.fechaEncaset)) }} días
             </span>
             @if (loteErp(lid)) {
               <span class="chip chip--muted">
@@ -52,7 +52,7 @@
             </div>
             @if (f['loteId'].valid && form.value.loteId) {
               <small class="field-hint">
-                Edad: {{ calcularEdadDias(lotesById[form.value.loteId]?.fechaEncaset) || '—' }} días
+                Edad: {{ calcularEdadDias($safeNavigationMigration(lotesById[form.value.loteId]?.fechaEncaset)) || '—' }} días
               </small>
             }
             @if (f['loteId'].invalid && f['loteId'].touched) {

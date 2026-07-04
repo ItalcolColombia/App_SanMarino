@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NgChartsModule } from 'ng2-charts';
@@ -34,6 +34,7 @@ interface IndicadorSemanal {
   standalone: true,
   imports: [CommonModule, FormsModule, NgChartsModule],
   templateUrl: './graficas-principal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./graficas-principal.component.scss']
 })
 export class GraficasPrincipalComponent implements OnInit, OnChanges {

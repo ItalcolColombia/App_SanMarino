@@ -2,7 +2,7 @@
 <div class="liquidacion-comparacion-container">
   <div class="header">
     <h3>Comparación con Guía Genética</h3>
-    <div class="estado-general" [ngClass]="getEstadoClass(comparacion?.estadoGeneral)">
+    <div class="estado-general" [ngClass]="getEstadoClass($safeNavigationMigration(comparacion?.estadoGeneral))">
       <span class="estado-badge">{{ comparacion?.estadoGeneral || 'Sin datos' }}</span>
       <span class="porcentaje">{{ comparacion?.porcentajeCumplimiento?.toFixed(1) || 0 }}%</span>
     </div>

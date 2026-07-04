@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
@@ -21,6 +21,7 @@ type ModalMode = 'create' | 'detail' | null;
   standalone: true,
   imports: [CommonModule, FormsModule, FiltroSelectComponent],
   templateUrl: './gastos-inventario-page.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./gastos-inventario-page.component.scss']
 })
 export class GastosInventarioPageComponent implements OnInit {

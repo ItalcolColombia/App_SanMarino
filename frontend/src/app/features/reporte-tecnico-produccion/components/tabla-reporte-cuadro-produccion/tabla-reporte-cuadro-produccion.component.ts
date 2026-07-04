@@ -1,5 +1,5 @@
 // src/app/features/reporte-tecnico-produccion/components/tabla-reporte-cuadro-produccion/tabla-reporte-cuadro-produccion.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 import { 
   ReporteTecnicoProduccionCuadroDto, 
@@ -11,6 +11,7 @@ import {
   standalone: true,
   imports: [],
   templateUrl: './tabla-reporte-cuadro-produccion.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-reporte-cuadro-produccion.component.scss']
 })
 export class TablaReporteCuadroProduccionComponent {

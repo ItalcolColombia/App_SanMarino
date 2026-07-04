@@ -1,6 +1,7 @@
 // src/app/features/tickets/components/image-lightbox/image-lightbox.component.ts
 import {
   Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, inject, signal,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import { finalize } from 'rxjs';
@@ -15,6 +16,7 @@ import { TicketImagenMeta } from '../../models/ticket.models';
   selector: 'app-image-lightbox',
   standalone: true,
   imports: [],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (cur() !== null && imagenes[cur()!]) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" (click)="close()">

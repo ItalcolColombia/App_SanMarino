@@ -1,5 +1,5 @@
 // src/app/features/inventario/components/movimiento-alimento-form/movimiento-alimento-form.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -32,6 +32,7 @@ type TipoEntrada = 'Entrada Nueva' | 'Traslado entre galpon' | 'Traslados entre 
   standalone: true,
   imports: [ReactiveFormsModule, FormsModule, FontAwesomeModule],
   templateUrl: './movimiento-alimento-form.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./movimiento-alimento-form.component.scss']
 })
 export class MovimientoAlimentoFormComponent implements OnInit {

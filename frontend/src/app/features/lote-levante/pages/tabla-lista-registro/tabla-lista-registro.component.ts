@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SeguimientoLoteLevanteDto } from '../../services/seguimiento-lote-levante.service';
 import { CatalogoAlimentosService, CatalogItemDto } from '../../../catalogo-alimentos/services/catalogo-alimentos.service';
@@ -12,6 +12,7 @@ import { TokenStorageService } from '../../../../core/auth/token-storage.service
   standalone: true,
   imports: [CommonModule],
   templateUrl: './tabla-lista-registro.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./tabla-lista-registro.component.scss']
 })
 export class TablaListaRegistroComponent implements OnInit {

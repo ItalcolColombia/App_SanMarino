@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { 
@@ -24,6 +24,7 @@ export interface ConfirmationModalData {
   standalone: true,
   imports: [CommonModule, FontAwesomeModule],
   templateUrl: './confirmation-modal.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./confirmation-modal.component.scss']
 })
 export class ConfirmationModalComponent {

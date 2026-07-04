@@ -5,7 +5,8 @@ import {
   Output,
   EventEmitter,
   OnChanges,
-  SimpleChanges
+  SimpleChanges,
+  ChangeDetectionStrategy
 } from '@angular/core';
 
 import {
@@ -36,6 +37,7 @@ import { finalize } from 'rxjs';
   standalone: true,
   imports: [ReactiveFormsModule, FontAwesomeModule],
   templateUrl: './modal-edit-master-list.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrls: ['./modal-edit-master-list.component.scss']
 })
 export class ModalEditMasterListComponent implements OnChanges {
