@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 using Swashbuckle.AspNetCore.Swagger;          // ISwaggerProvider (para /swagger/download)
 using Swashbuckle.AspNetCore.SwaggerUI;       // Opciones UI
@@ -444,11 +444,14 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.Http,
         Scheme = JwtBearerDefaults.AuthenticationScheme, // "bearer"
         BearerFormat = "JWT",
-        Description = "Pega SOLO el token (Swagger añadirá 'Bearer ').",
-        Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = JwtBearerDefaults.AuthenticationScheme }
+        Description = "Pega SOLO el token (Swagger añadirá 'Bearer ')."
     };
     c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, scheme);
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement { { scheme, Array.Empty<string>() } });
+    // Microsoft.OpenApi v2: la referencia al esquema se hace por ID vía OpenApiSecuritySchemeReference
+    c.AddSecurityRequirement(doc => new OpenApiSecurityRequirement
+    {
+        { new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, doc), new List<string>() }
+    });
 
     // ✅ Evitar colisiones de schemaId (tipos anidados o repetidos)
     c.CustomSchemaIds(type =>
@@ -463,7 +466,7 @@ builder.Services.AddSwaggerGen(c =>
     // ✅ Configuración para manejar archivos IFormFile
     c.MapType<IFormFile>(() => new OpenApiSchema
     {
-        Type = "string",
+        Type = JsonSchemaType.String,
         Format = "binary"
     });
 
@@ -646,7 +649,7 @@ body.swagger-ui, .swagger-ui .topbar { background: #0f172a !important; color: #e
     {
         var doc = provider.GetSwagger("v1");
         using var sw = new StringWriter();
-        var w = new Microsoft.OpenApi.Writers.OpenApiJsonWriter(sw);
+        var w = new OpenApiJsonWriter(sw);
         doc.SerializeAsV3(w);
         var bytes = Encoding.UTF8.GetBytes(sw.ToString());
         return Results.File(bytes, "application/json", "swagger-v1.json");
