@@ -1,5 +1,5 @@
 # ---------- deps (optimizado) ----------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 
 # Cert corporativo opcional — solo activo en Windows con SSL inspection (ej. Kaspersky)
@@ -26,7 +26,7 @@ RUN yarn install \
     && yarn cache clean
 
 # ---------- build (optimizado) ----------
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 
 # Cert corporativo opcional — Angular descarga Google Fonts durante el build

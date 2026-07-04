@@ -1,7 +1,7 @@
 # =========================
 # Etapa 1: Runtime base (optimizado)
 # =========================
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 
 # Variables de entorno optimizadas
@@ -16,12 +16,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        libicu72 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Crear usuario no-root para seguridad
-RUN groupadd -r appuser && useradd -r -g appuser -u 1000 appuser && \
+RUN groupadd -r appuser && useradd -r -g appuser -u 1001 appuser && \
     chown -R appuser:appuser /app
 
 EXPOSE 5002
@@ -33,7 +32,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # =========================
 # Etapa 2: Restore (separado para mejor cache)
 # =========================
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS restore
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
 WORKDIR /src
 
 # Cert corporativo opcional — solo activo en Windows con SSL inspection (ej. Kaspersky)
